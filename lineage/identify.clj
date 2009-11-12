@@ -392,3 +392,82 @@
      (doseq [x (take 5 v)] (print x \tab))
      (doseq [x (nthnext v 5)] (print (float x) \tab))
      (print \newline)))
+
+
+(defn find-rev-match
+  "Take a set of non-homonymous VectorString3D.
+  Do pairwise comparisons, in this fashion:
+  1. reverse vs2
+  2. substring length SL =  0.5 * max(len(vs1), len(vs2))
+  3. for all substrings of len SL of vs1, match against all of vs2.
+  4. Record best result in a set sorted by mean euclidean distance of the best match.
+  Assumes chains are registered and resampled.
+  Will ignore cases where the shorter chain is shorter than half the longer chain."
+  [chains delta]
+  (reduce
+    (fn [s chain1]
+      (let [rvs1 (let [v (.clone (.vs chain1))]
+                   (.reverse v)
+                   (.resample v delta)
+                   v)
+            len1 (.length rvs1)]
+        (conj s (reduce
+                    ; Find best reverse submatch for chain1 in chains
+                    (fn [best chain2]
+                      (println "Processing " (.getShortCellTitle chain1) " versus " (.getShortCellTitle chain2))
+                      (let [vs2 (.vs chain2)
+                            len2 (.length vs2)
+                            SL (int (/ (max len1 len2) 2))]
+                        (if (or (= chain1 chain2) (< len1 SL) (< len2 SL))
+                          best ; A chain has to be longer than half the length of the other to be worth looking at
+                          (let [b (reduce
+                                    ; Find best reverse submatch between chain1 and chain2
+                                    (fn [best-rsub start]
+                                      (let [bm (Compare/findBestMatch (.substring rvs1 start (+ start SL))
+                                                                      vs2
+                                                                      delta
+                                                                      false 0 0
+                                                                      Compare/AVG_PHYS_DIST   ; Also known as mean euclidean distance
+                                                                      true true
+                                                                      1.1 1.1 1.0)]
+                                        (if (and
+                                              best-rsub
+                                              (< (best-rsub :med) (get bm 1)))
+                                          best-rsub
+                                          {:chain1 chain1 :chain2 chain2 :med (get bm 1)})))
+                                    {:med Double/MAX_VALUE}
+                                    (range (- len1 SL)))]
+                            (if (and
+                                  best
+                                  (< (best :med) (b :med)))
+                              best
+                              b)))))
+                    {:med Double/MAX_VALUE} ; bogus initial element
+                    chains))))
+    (sorted-set-by
+      #(int (- (%1 :med) (%2 :med)))
+      {:med Double/MAX_VALUE}) ; adding a bogus initial element
+    chains))
+
+
+(defn find-reverse-match
+  "Takes all the chains of a project and compares them all-to-all pairwise with one of the two reversed.
+  Will calibrate the chains and resample them to delta."
+  [project delta regex-exclude]
+  (let [cal (.. project getRootLayerSet getCalibrationCopy)]
+    (find-rev-similar (map
+                        (fn [chain]
+                          (.calibrate (.vs chain) cal)
+                          (.resample (.vs chain) delta)
+                          chain)
+                        (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude))
+                      delta)))
+
+(defn print-reversed-similar
+  "Prints the sorted set returned by find-reversed-similar"
+  [s]
+  (doseq [m s]
+    (let [c1 (m :chain1)
+          c2 (m :chain2)]
+      (if c1
+        (println (.getShortCellTitle c1) (.getShortCellTitle c2) (m :med))))))
