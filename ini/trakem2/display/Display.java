@@ -2210,8 +2210,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (n < 2) item.setEnabled(false);
 				popup.addSeparator();
 			} else if (Pipe.class == aclass) {
-				item = new JMenuItem("Identify..."); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Identify with axes..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
@@ -2451,6 +2449,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Setup nBLAST parameters..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -3721,20 +3720,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			((Pipe)active).reverse();
 			Display.repaint(Display.this.layer);
 			getLayerSet().addDataEditStep(active);
-		} else if (command.equals("Identify...")) {
-			// for pipes only for now
-			if (!(active instanceof Line3D)) return;
-			ini.trakem2.vector.Compare.findSimilar((Line3D)active);
-		} else if (command.equals("Identify with axes...")) {
-			if (!(active instanceof Pipe)) return;
-			if (Project.getProjects().size() < 2) {
-				Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
-				return;
-			}
-			ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)active);
 		} else if (command.equals("Identify with fiducials...")) {
 			if (!(active instanceof Line3D)) return;
-			ini.trakem2.vector.Compare.findSimilarWithFiducials((Line3D)active);
+			lineage.Identify.identify((Line3D)active);
+		} else if (command.equals("Setup nBLAST parameters...")) {
+			lineage.Identify.setup();
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showOrthoslices(((Patch)active));
