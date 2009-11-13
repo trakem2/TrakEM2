@@ -132,11 +132,7 @@
   [query-vs delta direct substring]
   (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
-                  (proxy [java.util.Comparator] []
-                    (equals [o]
-                      (= o this))
-                    (compare [o1 o2]
-                      (int (- (o1 :med) (o2 :med)))))
+                  #(int (- (%1 :med) (%2 :med)))
                   (map
                     (fn [e]
                       (let [vs2 (let [copy (.clone (val e))]
