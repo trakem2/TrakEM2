@@ -2440,6 +2440,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 		item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
+		item.setEnabled(null != active && AreaList.class == active.getClass());
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -4040,6 +4042,24 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
 			final LayerSet subls = sub.getRootLayerSet();
 			Display.createDisplay(sub, subls.getLayer(0));
+		} else if (command.startsWith("Image stack under selected Arealist")) {
+			if (null == active || active.getClass() != AreaList.class) return;
+			GenericDialog gd = new GenericDialog("Stack options");
+			String[] types = {"8-bit", "16-bit", "32-bit", "RGB"};
+			gd.addChoice("type:", types, types[0]);
+			gd.addSlider("Scale: ", 1, 100, 100);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final int type;
+			switch (gd.getNextChoiceIndex()) {
+				case 0: type = ImagePlus.GRAY8; break;
+				case 1: type = ImagePlus.GRAY16; break;
+				case 2: type = ImagePlus.GRAY32; break;
+				case 3: type = ImagePlus.COLOR_RGB; break;
+				default: type = ImagePlus.GRAY8; break;
+			}
+			ImagePlus imp = ((AreaList)active).getStack(type, gd.getNextNumber()/100);
+			if (null != imp) imp.show();
 		} else if (command.startsWith("Arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);

@@ -2354,4 +2354,49 @@ public class AreaList extends ZDisplayable {
 		calculateBoundingBox();
 		return true;
 	}
+
+	/** Returns a stack of images representing the pixel data of this LayerSet inside this AreaList. */
+	public ImagePlus getStack(final int type, final double scale) {
+		ImageProcessor ref_ip = Utils.createProcessor(type, 2, 2);
+		if (null == ref_ip) {
+			Utils.log("AreaList.getStack: Unknown type " + type);
+			return null;
+		}
+		Rectangle b = getBoundingBox();
+		int w = (int)(0.5 + b.width * scale);
+		int h = (int)(0.5 + b.height * scale);
+		ImageStack stack = new ImageStack(w, h);
+		for (Layer la : getLayerRange()) {
+			Area area = getArea(la);
+			double z = layer.getZ();
+			project.getLoader().releaseToFit(w * h * 10);
+			ImageProcessor ip = ref_ip.createProcessor(w, h);
+			if (null == area) {
+				stack.addSlice(Double.toString(z), ip);
+				continue;
+			}
+			// Create a ROI from the area at Layer la:
+			AffineTransform aff = getAffineTransformCopy();
+			aff.translate(-b.x, -b.y);
+			aff.scale(scale, scale);
+			ShapeRoi roi = new ShapeRoi(area.createTransformedArea(aff));
+			// Create a cropped snapshot of the images at Layer la under the area:
+			ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, (List<Patch>) (List) la.getDisplayables(Patch.class), Color.black);
+			flat.setRoi(roi);
+			Rectangle rb = roi.getBounds();
+			ip.insert(flat.crop(), rb.x, rb.y);
+			// Clear the outside
+			ImagePlus bimp = new ImagePlus("", ip);
+			bimp.setRoi(roi);
+			ip.setValue(0);
+			ip.setBackgroundValue(0);
+			IJ.run(bimp, "Clear Outside", "");
+
+			stack.addSlice(Double.toString(z), ip);
+		}
+
+		ImagePlus imp = new ImagePlus("AreaList stack for " + this, stack);
+		imp.setCalibration(layer_set.getCalibrationCopy());
+		return imp;
+	}
 }
