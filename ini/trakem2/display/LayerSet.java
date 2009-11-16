@@ -59,6 +59,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
+import java.util.Collections;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -109,9 +110,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
-
-	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
-	private Align align = null;
 
 	/** The scaling applied to the Layers when painting them for presentation as a LayerStack. If -1, automatic mode (default) */
 	private double virtual_scale = -1;
@@ -864,6 +862,23 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
 	}
 
+	/** Returns a sublist of layers from first to last, both inclusive. */
+	public List<Layer> getLayers(int first, int last) {
+		return al_layers.subList(first, last+1);
+	}
+
+	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
+	public List<Layer> getLayers(Layer first, Layer last) {
+		int fi = al_layers.indexOf(first);
+		int la = al_layers.indexOf(last);
+		if (fi > la) {
+			List<Layer> l = al_layers.subList(la, fi+1);
+			Collections.reverse(l);
+			return l;
+		}
+		return al_layers.subList(fi, la+1);
+	}
+
 	public boolean isDeletable() {
 		return false;
 	}
@@ -1133,37 +1148,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		if (null != align) {
-			align.destroy();
-			align = null;
-		}
-	}
-
-	public boolean isAligning() {
-		return null != align;
-	}
-
-	public void cancelAlign() {
-		if (null != align) {
-			align.cancel(); // will repaint
-			align = null;
-		}
-	}
-
-	public void applyAlign(final boolean post_register) {
-		if (null != align) align.apply(post_register);
-	}
-
-	public void applyAlign(final Layer la_start, final Layer la_end, final Selection selection) {
-		if (null != align) align.apply(la_start, la_end, selection);
-	}
-
-	public void startAlign(Display display) {
-		align = new Align(display);
-	}
-
-	public Align getAlign() {
-		return align;
 	}
 
 	/** Used by the Layer.setZ method. */

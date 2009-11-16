@@ -3,6 +3,9 @@
  */
 package mpicbg.trakem2.align;
 
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.Choice;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
@@ -11,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Future;
+import java.util.Vector;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -290,7 +294,34 @@ final public class AlignTask
 		gd.addMessage( "Layer Range:" );
 		final int sel = layers.indexOf(l);
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ]);
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
+		final Vector v = gd.getChoices();
+		final Choice cstart = (Choice) v.get(v.size() -3);
+		final Choice cref = (Choice) v.get(v.size() -2);
+		final Choice cend = (Choice) v.get(v.size() -1);
+		cstart.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = cstart.getSelectedIndex();
+				if (index > cref.getSelectedIndex()) cref.select(index);
+				if (index > cend.getSelectedIndex()) cend.select(index);
+			}
+		});
+		cref.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = cref.getSelectedIndex();
+				if (index < cstart.getSelectedIndex()) cstart.select(index);
+				if (index > cend.getSelectedIndex()) cend.select(index);
+			}
+		});
+		cend.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = cend.getSelectedIndex();
+				if (index < cstart.getSelectedIndex()) cstart.select(index);
+				if (index < cref.getSelectedIndex()) cref.select(index);
+			}
+		});
+
 		Align.param.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
@@ -299,15 +330,23 @@ final public class AlignTask
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
 		
-		final int first = gd.getNextChoiceIndex();
-		final int last = gd.getNextChoiceIndex();
-		
+		int first = gd.getNextChoiceIndex();
+		int ref = gd.getNextChoiceIndex();
+		int last = gd.getNextChoiceIndex();
+
 		Align.param.readFields( gd );
 		propagateTransform = gd.getNextBoolean();
-		
-		alignLayersLinearlyJob( l, first, last, propagateTransform );		
+
+		if (ref - first > 0) {
+			Utils.logAll("Registering from layer " + ref + " to layer " + first);
+			alignLayersLinearlyJob(l, ref, first, propagateTransform);
+		}
+		if (last - ref > 0) {
+			Utils.logAll("Registering from layer " + ref + " to layer " + last);
+			alignLayersLinearlyJob(l, ref, last, propagateTransform);
+		}
 	}
-	
+
 	
 	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
 	{
