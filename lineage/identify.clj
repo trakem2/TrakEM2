@@ -177,7 +177,7 @@
 (defn- identify-SAT
   "Takes a calibrated VectorString3D and a list of fiducial points, and checks against the library for identity.
   For consistency in the usage of the Random Forest classifier, the registration is done into the FRT42D-BP106 brain."
-  [SAT-lib query-vs fids delta direct substring]
+  [title SAT-lib query-vs fids delta direct substring]
   (let [SATs (SAT-lib :SATs)
         vs1 (register-vs query-vs fids (SAT-lib :fids))
         [matches names] (match-all SATs vs1 delta direct substring)
@@ -215,7 +215,7 @@
                 (isCellEditable [row col]
                   false)
                 (setValueAt [ob row col] nil)))
-        frame (JFrame. "Matches")
+        frame (JFrame. (str "Matches for " title))
         dummy-ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
     (.setCellRenderer (.getColumn table "Match")
                       (proxy [DefaultTableCellRenderer] []
@@ -328,6 +328,7 @@
     (if p
       (if-let [SAT-lib (fetch-lib lib-name)]
         (identify-SAT
+          (str p)
           SAT-lib
           (let [vs (.asVectorString3D p)]
                 (.calibrate vs (.. p getLayerSet getCalibrationCopy))
