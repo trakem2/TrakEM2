@@ -1,17 +1,23 @@
 package ini.trakem2.utils;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
 import javax.swing.JCheckBox;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.text.JTextComponent;
 import javax.swing.JTextField;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
 import java.lang.reflect.Field;
 
 public class OptionPanel extends JPanel {
@@ -22,8 +28,24 @@ public class OptionPanel extends JPanel {
 	private ActionListener tl = new ActionListener() {
 		public void actionPerformed(ActionEvent ae) {
 			Component source = (Component) ae.getSource();
-			Setter s = setters.get(source);
-			if (null != s) s.setFrom(source);
+			try {
+				Setter s = setters.get(source);
+				if (null != s) s.setFrom(source);
+			} catch (Exception e) {
+				Utils.log2("Invalid value!");
+			}
+		}
+	};
+
+	private KeyListener kl = new KeyAdapter() {
+		public void keyPressed(KeyEvent ke) {
+			Component source = (Component) ke.getSource();
+			try {
+				Setter s = setters.get(source);
+				if (null != s) s.setFrom(source);
+			} catch (Throwable t) {
+				Utils.logAll("Invalid value " + ((JTextField)source).getText());
+			}
 		}
 	};
 
@@ -35,6 +57,7 @@ public class OptionPanel extends JPanel {
 
 	private List<JTextField> numeric_fields = new ArrayList<JTextField>();
 	private List<JCheckBox> checkboxes = new ArrayList<JCheckBox>();
+	private List<JComboBox> choices = new ArrayList<JComboBox>();
 	private List<Component> all = new ArrayList<Component>();
 	private HashMap<Component,Setter> setters = new HashMap<Component,Setter>();
 
@@ -101,7 +124,7 @@ public class OptionPanel extends JPanel {
 		JTextField tval = new JTextField(value, 7);
 		numeric_fields.add(tval);
 		addField(tval, setter);
-		tval.addActionListener(tl);
+		tval.addKeyListener(kl);
 		return tval;
 	}
 
@@ -120,20 +143,30 @@ public class OptionPanel extends JPanel {
 		return cb;
 	}
 
+	public JComboBox addChoice(String label, String[] items, int selected) {
+		return addChoice(label, items, selected, null);
+	}
+
+	public JComboBox addChoice(String label, String[] items, int selected, Setter setter) {
+		addLabel(label);
+		JComboBox choice = new JComboBox(items);
+		choice.setBackground(Color.white);
+		choice.setSelectedIndex(selected);
+		choice.addActionListener(tl);
+		all.add(choice);
+		addField(choice, setter);
+		return choice;
+	}
+
+
+
 	public List<JTextField> getNumericFields() {
 		return new ArrayList<JTextField>(numeric_fields);
 	}
 
-	private int next_number = 0;
-
-	public double getNextNumber() throws Exception {
-		int i = next_number++;
-		return getNumber(i);
-	}
-
 	/** May throw IllegalArgumentException or NumberFormatException */
 	public double getNumber(int index) throws Exception {
-		if (index < 0 || index > numeric_fields.size() -1) throw new IllegalArgumentException("Index out bounds: " + index);
+		check(numeric_fields, index);
 		return Double.parseDouble(numeric_fields.get(index).getText());
 	}
 
@@ -141,17 +174,33 @@ public class OptionPanel extends JPanel {
 		return new ArrayList<JCheckBox>(checkboxes);
 	}
 
-	private int next_checkbox = 0;
-
-	public boolean getNextCheckbox() throws Exception {
-		int i = next_checkbox++;
-		return getCheckbox(i);
-	}
-
 	/** May throw IllegalArgumentException */
 	public boolean getCheckbox(int index) throws Exception {
-		if (index < 0 || index > checkboxes.size() -1) throw new IllegalArgumentException("Index out of bounds: " + index);
+		check(checkboxes, index);
 		return checkboxes.get(index).isSelected();
+	}
+
+	public List<JComboBox> getChoices() {
+		return new ArrayList<JComboBox>(choices);
+	}
+
+	public int getChoiceIndex(int index) throws Exception {
+		check(choices, index);
+		return choices.get(index).getSelectedIndex();
+	}
+
+	public String getChoiceString(int index) throws Exception {
+		return getChoiceObject(index).toString();
+	}
+
+	public Object getChoiceObject(int index) throws Exception {
+		check(choices, index);
+		return choices.get(index).getSelectedItem();
+	}
+
+
+	private void check(List list, int index) throws Exception {
+		if (index < 0 || index > list.size() -1) throw new IllegalArgumentException("Index out of bounds: " + index);
 	}
 
 	static abstract public class Setter {
@@ -162,17 +211,12 @@ public class OptionPanel extends JPanel {
 			this.field = field;
 		}
 		/** Will set the field if no exception is thrown when reading it. */
-		public void setFrom(Component source) {
-			try {
-				Field f = ob.getClass().getDeclaredField(field);
-				f.setAccessible(true);
-				f.set(ob, getValue(source));
+		public void setFrom(Component source) throws Exception {
+			Field f = ob.getClass().getDeclaredField(field);
+			f.setAccessible(true);
+			f.set(ob, getValue(source));
 
-				Utils.log2("set value of " + field + " to " + f.get(ob));
-
-			} catch (Throwable t) {
-				IJError.print(t);
-			}
+			Utils.log2("set value of " + field + " to " + f.get(ob));
 		}
 		abstract public Object getValue(Component source);
 	}
@@ -201,6 +245,42 @@ public class OptionPanel extends JPanel {
 		}
 		public Object getValue(Component source) {
 			return ((JCheckBox)source).isSelected();
+		}
+	}
+
+	static public class StringSetter extends Setter {
+		public StringSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public Object getValue(Component source) {
+			return ((JTextComponent)source).getText();
+		}
+	}
+
+	static public class ChoiceIntSetter extends Setter {
+		public ChoiceIntSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public Object getValue(Component source) {
+			return ((JComboBox)source).getSelectedIndex();
+		}
+	}
+
+	static public class ChoiceStringSetter extends Setter {
+		public ChoiceStringSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public Object getValue(Component source) {
+			return ((JComboBox)source).getSelectedItem().toString();
+		}
+	}
+
+	static public class ChoiceObjectSetter extends Setter {
+		public ChoiceObjectSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public Object getValue(Component source) {
+			return ((JComboBox)source).getSelectedItem();
 		}
 	}
 }

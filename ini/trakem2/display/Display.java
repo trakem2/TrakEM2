@@ -112,8 +112,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	
 	private ToolbarPanel toolbar_panel = null;
 
-	private AreaList.PaintParametersGUI tool_options_panel = null;
-
 	/** Contains the packed alphas of every channel. */
 	private int c_alphas = 0xffffffff; // all 100 % visible
 	private Channel[] channels;
@@ -271,34 +269,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						if (0 == count || (1 == count && tab.getComponent(0).getClass().equals(JLabel.class))) {
 						*/ // ALWAYS, because it could be the case that the user changes layer while on one specific tab, and then clicks on the other tab which may not be empty and shows totally the wrong contents (i.e. for another layer)
 
-							String label = null;
 							ArrayList al = null;
 							JPanel p = null;
 							if (tab == d.scroll_zdispl) {
-								label = "Z-space objects";
 								al = d.layer.getParent().getZDisplayables();
 								p = d.panel_zdispl;
 							} else if (tab == d.scroll_patches) {
-								label = "Patches";
 								al = d.layer.getDisplayables(Patch.class);
 								p = d.panel_patches;
 							} else if (tab == d.scroll_labels) {
-								label = "Labels";
 								al = d.layer.getDisplayables(DLabel.class);
 								p = d.panel_labels;
 							} else if (tab == d.scroll_profiles) {
-								label = "Profiles";
 								al = d.layer.getDisplayables(Profile.class);
 								p = d.panel_profiles;
 							} else if (tab == d.scroll_layers) {
 								// nothing to do
 								return;
 							} else if (tab == d.scroll_options) {
-								// TODO
+								// Choose accordint to tool
+								d.updateToolTab();
 								return;
 							}
 
-							d.updateTab(p, label, al);
+							d.updateTab(p, al);
 							//Utils.updateComponent(d.tabs.getSelectedComponent());
 							//Utils.log2("updated tab: " + p + "  with " + al.size() + "  objects.");
 						//}
@@ -614,7 +608,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.tabs.add("Layers", scroll_layers);
 
 		// Tab 7: tool options
-		this.tool_options = Segmentation.fmp.asOptionPanel();
+		this.tool_options = new OptionPanel(); // empty
 		this.scroll_options = makeScrollPane(this.tool_options);
 		this.tabs.add("Tool options", this.scroll_options);
 
@@ -649,10 +643,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
 		toolbar_panel = new ToolbarPanel();
-		tool_options_panel = new AreaList.PaintParametersGUI();
-		tool_options_panel.setBackground(Color.white);
 		left.add(toolbar_panel);
-		left.add(tool_options_panel); // empty
 		left.add(transp_slider);
 		left.add(tabs);
 		left.add(navigator);
@@ -784,7 +775,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 
-		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+		updateTab(panel_patches, layer.getDisplayables(Patch.class));
 		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
 
@@ -1031,22 +1022,22 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		switch (tabs.getSelectedIndex()) {
 			case 0:
 				ht_panels.clear();
-				updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+				updateTab(panel_patches, layer.getDisplayables(Patch.class));
 				break;
 			case 1:
 				ht_panels.clear();
-				updateTab(panel_profiles, "Profiles", layer.getDisplayables(Profile.class));
+				updateTab(panel_profiles, layer.getDisplayables(Profile.class));
 				break;
 			case 2:
 				if (set_zdispl) {
 					ht_panels.clear();
-					updateTab(panel_zdispl, "Z-space objects", layer.getParent().getZDisplayables());
+					updateTab(panel_zdispl, layer.getParent().getZDisplayables());
 				}
 				break;
 			// case 3: channel opacities
 			case 4:
 				ht_panels.clear();
-				updateTab(panel_labels, "Labels", layer.getDisplayables(DLabel.class));
+				updateTab(panel_labels, layer.getDisplayables(DLabel.class));
 				break;
 			// case 5: layer panels
 		}
@@ -1068,7 +1059,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		for (final Displayable d : layer.getParent().getZDisplayables()) {
 			d.setLayer(layer);
 		}
-		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+		updateTab(panel_patches, layer.getDisplayables(Patch.class));
 		navigator.repaint(true); // was not done when adding
 		Utils.updateComponent(tabs.getSelectedComponent());
 		//
@@ -2000,7 +1991,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void selectTab(Stack d) { selectTab((ZDisplayable)d); }
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
-	private void updateTab(final JPanel tab, final String label, final ArrayList al) {
+	private void updateTab(final JPanel tab, final ArrayList al) {
 		dispatcher.exec(new Runnable() { public void run() {
 			try {
 			if (0 == al.size()) {
@@ -3112,7 +3103,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private void updatePanelIndex(final Displayable d) {
-		updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(), "",
+		updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(),
 			  ZDisplayable.class.isAssignableFrom(d.getClass()) ?
 			     layer.getParent().getZDisplayables()
 			   : layer.getDisplayables(d.getClass()));
@@ -4523,18 +4514,33 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		writer.write(sb_body.toString());
 	}
 
+	private void updateToolTab() {
+		OptionPanel op = null;
+		switch (ProjectToolbar.getToolId()) {
+			case ProjectToolbar.PENCIL:
+				op = Segmentation.fmp.asOptionPanel();
+				break;
+			case ProjectToolbar.PEN:
+				op = AreaList.PP.asOptionPanel();
+				break;
+			default:
+				break;
+		}
+		scroll_options.getViewport().removeAll();
+		if (null != op) {
+			scroll_options.setViewportView(op);
+		}
+		scroll_options.invalidate();
+		scroll_options.validate();
+		scroll_options.repaint();
+	}
+
 	// Never called; ProjectToolbar.toolChanged is also never called, which should forward here.
 	static public void toolChanged(final String tool_name) {
 		Utils.log2("tool name: " + tool_name);
 		for (final Display d : al_displays) {
+			d.updateToolTab();
 			Utils.updateComponent(d.toolbar_panel);
-			if (tool_name.equals("PEN")) {
-				AreaList.PP.updateGUI(d.tool_options_panel);
-			} else {
-				d.tool_options_panel.removeAll();
-				d.pack();
-			}
-			Utils.updateComponent(d.tool_options_panel);
 			Utils.log2("updating toolbar_panel");
 		}
 	}
@@ -4547,22 +4553,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (null != d.active) d.repaint(d.layer, d.selection.getBox(), 2);
 			}
 		}
+		for (final Display d: al_displays) {
+			d.updateToolTab();
+		}
 		if (null != front) {
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
-		}
-		for (final Display d : al_displays) {
-			// @#$%^&!
-			d.toolbar_panel.invalidate();
-			d.toolbar_panel.validate();
-			d.toolbar_panel.repaint();
-			//
-			if (ProjectToolbar.PEN == tool) {
-				AreaList.PP.updateGUI(d.tool_options_panel);
-			} else {
-				d.tool_options_panel.removeAll();
-			}
-			Utils.updateComponent(d.tool_options_panel);
-			Utils.log2("updating toolbar_panel");
 		}
 	}
 
