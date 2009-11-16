@@ -43,6 +43,7 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
 
@@ -95,6 +96,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JPanel panel_layers;
 	private JScrollPane scroll_layers;
 	private Hashtable<Layer,LayerPanel> layer_panels = new Hashtable<Layer,LayerPanel>();
+
+	private OptionPanel tool_options;
+	private JScrollPane scroll_options;
 
 	private JSlider transp_slider;
 	private DisplayNavigator navigator;
@@ -288,6 +292,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 								p = d.panel_profiles;
 							} else if (tab == d.scroll_layers) {
 								// nothing to do
+								return;
+							} else if (tab == d.scroll_options) {
+								// TODO
 								return;
 							}
 
@@ -605,6 +612,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		recreateLayerPanels(layer);
 		this.scroll_layers.addMouseWheelListener(canvas);
 		this.tabs.add("Layers", scroll_layers);
+
+		// Tab 7: tool options
+		this.tool_options = Segmentation.fmp.asOptionPanel();
+		this.scroll_options = makeScrollPane(this.tool_options);
+		this.tabs.add("Tool options", this.scroll_options);
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
