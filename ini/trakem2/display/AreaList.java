@@ -210,6 +210,11 @@ public class AreaList extends ZDisplayable {
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
+	/** Get the range of layers betweeh the first and last layers in which this AreaList paints to. */
+	public List<Layer> getLayerRange() {
+		return layer_set.getLayers(getFirstLayer(), getLastLayer());
+	}
+
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		// cheap way: intersection of the patches' bounding box with the area
