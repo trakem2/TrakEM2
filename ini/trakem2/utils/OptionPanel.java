@@ -38,7 +38,7 @@ public class OptionPanel extends JPanel {
 	};
 
 	private KeyListener kl = new KeyAdapter() {
-		public void keyPressed(KeyEvent ke) {
+		public void keyReleased(KeyEvent ke) {
 			Component source = (Component) ke.getSource();
 			try {
 				Setter s = setters.get(source);
