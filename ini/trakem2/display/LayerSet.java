@@ -59,6 +59,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
+import java.util.Collections;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -859,6 +860,23 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Returns a copy of the layer list. */
 	public ArrayList<Layer> getLayers() {
 		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
+	}
+
+	/** Returns a sublist of layers from first to last, both inclusive. */
+	public List<Layer> getLayers(int first, int last) {
+		return al_layers.subList(first, last+1);
+	}
+
+	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
+	public List<Layer> getLayers(Layer first, Layer last) {
+		int fi = al_layers.indexOf(first);
+		int la = al_layers.indexOf(last);
+		if (fi > la) {
+			List<Layer> l = al_layers.subList(la, fi+1);
+			Collections.reverse(l);
+			return l;
+		}
+		return al_layers.subList(fi, la+1);
 	}
 
 	public boolean isDeletable() {
