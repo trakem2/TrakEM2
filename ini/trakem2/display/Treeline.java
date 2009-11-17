@@ -106,11 +106,7 @@ public class Treeline extends ZDisplayable {
 			sub.n_points = end - start + 1;
 			sub.p[0] = Utils.copy(this.p[0], start, sub.n_points);
 			sub.p[1] = Utils.copy(this.p[1], start, sub.n_points);
-			sub.p_layer = new long[sub.n_points];
-			System.arraycopy(this.p_layer, start, sub.p_layer, 0, sub.n_points);
-
-			Utils.log2(sub.p_layer);
-
+			sub.p_layer = Utils.copy(this.p_layer, start, sub.n_points);
 			return sub;
 		}
 	}
@@ -126,61 +122,85 @@ public class Treeline extends ZDisplayable {
 
 		/** The branch to avoid will be the new parent of this branch.
 		 *  If avoid is null, then the returned new Branch is the new root. */
-		Branch reRoot(final int index, final Branch avoid) {
+		Branch reRoot(final int index, final Branch avoid, final Branch new_parent) {
 			// Split pline in two segments:
 			Slab s0 = null,
 			     s1 = null;
-			if (index > 0) {
-				s0 = pline.sub(0, index-1);
+			int len0 = 0,
+			    len1 = 0;
+
+			// Is index on the end?
+			if (index == pline.n_points -1) {
+				s0 = pline.sub(0, index);
 				s0.reverse();
-				Utils.log2("Created s0 of length " + s0.n_points);
-			}
-			if (index <= pline.n_points -1) {
-				s1 = pline.sub(index, pline.n_points -1);
-				Utils.log2("Created s1 of length " + s1.n_points);
+				len0 = s0.n_points;
+			} else if (0 == index) {
+				s1 = pline.sub(0, pline.n_points -1); // a full clone
+				len1 = s1.n_points;
+			} else {
+				if (index > 0) {
+					s0 = pline.sub(0, index-1);
+					s0.reverse();
+					len0 = s0.n_points;
+				}
+				if (index <= pline.n_points -1) {
+					s1 = pline.sub(index, pline.n_points -1);
+					len1 = s1.n_points;
+				}
 			}
 			// Determine longest segment: from 0 to index, or from index to end
 			// The longest segment becomes the root branch
 			Branch root,
 			       left = null,
 			       right = null;
-			if (index > pline.n_points - index +1) {
-				root = left = new Branch(avoid, s0);
+			if (len0 > len1) {
+				root = left = new Branch(new_parent, s0);
 				if (null != s1) {
 					right = new Branch(root, s1);
 					root.add(right, 0);
 				}
 			} else {
-				root = right = new Branch(avoid, s1);
+				root = right = new Branch(new_parent, s1);
 				if (null != s0) {
 					left = new Branch(root, s0);
 					root.add(left, 0);
 				}
 			}
-			// Add child branches as clones, except the branch to avoid
+			// Add child branches as clones, except the branch to avoid, which has become the new parent
 			if (null != branches) {
 				for (Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 					int i = e.getKey();
 					ArrayList<Branch> bs = e.getValue();
-					if (i < index) {
-						if (null != left) {
-							for (Branch b : bs) {
-								if (avoid == b) continue;
-								left.add(b.clone(project, left), index - i -1);
-							}
+
+					if (0 == index) {
+						// Add all, direct
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							right.add(b.clone(project, right), i);
+						}
+					} else if (pline.n_points -1 == index) {
+						// Add all, reversed
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							left.add(b.clone(project, left), left.pline.n_points -i -1);
+						}
+					} else if (i < index) {
+						// To the left of index-1
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							left.add(b.clone(project, left), index -i -1);
 						}
 					} else {
-						if (null != right) {
-							for (Branch b : bs) {
-								if (avoid == b) continue;
-								right.add(b.clone(project, right), i);
-							}
+						// To the right of index
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							right.add(b.clone(project, right), i - index);
 						}
 					}
 				}
 			}
 			// Add parent as branches at last point of left
-			if (null != parent) {
+			if (null != parent) { // the old parent
 				// Search at what index was this branch set as a child
 				int i = -1;
 				out: for (Map.Entry<Integer,ArrayList<Branch>> e : parent.branches.entrySet()) {
@@ -191,8 +211,13 @@ public class Treeline extends ZDisplayable {
 						}
 					}
 				}
-				// Reroot parent at index i, and add it to the left at what was the 0 point:
-				left.add(parent.reRoot(i, this), left.pline.n_points -1);
+				if (-1 == i) {
+					Utils.log("ERROR could not find the index for branch of n_points " + this.pline.n_points + " in parent of n_points " + parent.pline.n_points);
+				} else {
+					// Reroot parent at index i, and add it to the left at what was the 0 point:
+					if (0 == index && pline.n_points > 1) right.add(parent.reRoot(i, this, root), 0);
+					else left.add(parent.reRoot(i, this, root), left.pline.n_points -1);
+				}
 			}
 
 			// Provide a layer_set pointer to all new branches
@@ -284,6 +309,11 @@ public class Treeline extends ZDisplayable {
 		}
 
 		final Branch add(Branch child, int i) {
+			if (i < 0) {
+				Utils.log2("Rejecting adding branch of n_points " + child.pline.n_points + " at position " + i
+					   + "\n   Parent had n_points = " + this.pline.n_points + " with first point at " + this.pline.p[0][0] + "," + this.pline.p[1][0]);
+				return null;
+			}
 			if (null == branches) branches = new HashMap<Integer,ArrayList<Branch>>();
 			ArrayList<Branch> list = branches.get(i);
 			if (null == list) {
@@ -906,7 +936,7 @@ public class Treeline extends ZDisplayable {
 		Utils.log2("point was: " + x + ", " + y + ", " + layer_id);
 		Utils.log2("Rerooting at index " + i + " for branch of length " + branch.pline.n_points);
 
-		root = branch.reRoot(i, null);
+		root = branch.reRoot(i, null, null);
 	}
 
 	/** Split the Treeline into new Treelines at the point closest to the x,y,layer_id world coordinate. */
@@ -921,7 +951,7 @@ public class Treeline extends ZDisplayable {
 		int i = ((Integer)pi.get(1)).intValue();
 
 		// Reroot at split point
-		Branch rerooted = branch.reRoot(i, null);
+		Branch rerooted = branch.reRoot(i, null, null);
 
 		ArrayList<Branch> roots = new ArrayList<Branch>();
 		// Remove branches from index zero, if any, and add them to the roots

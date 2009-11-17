@@ -924,8 +924,22 @@ public class Utils implements ij.plugin.PlugIn {
 		return b;
 	}
 
+	static public final long[] copy(final long[] a, final int new_length) {
+		final long[] b = new long[new_length];
+		final int len = a.length > new_length ? new_length : a.length; 
+		System.arraycopy(a, 0, b, 0, len);
+		return b;
+	}
+
 	static public final double[] copy(final double[] a, final int first, final int new_length) {
 		final double[] b = new double[new_length];
+		final int len = new_length < a.length - first ? new_length : a.length - first;
+		System.arraycopy(a, first, b, 0, len);
+		return b;
+	}
+
+	static public final long[] copy(final long[] a, final int first, final int new_length) {
+		final long[] b = new long[new_length];
 		final int len = new_length < a.length - first ? new_length : a.length - first;
 		System.arraycopy(a, first, b, 0, len);
 		return b;
