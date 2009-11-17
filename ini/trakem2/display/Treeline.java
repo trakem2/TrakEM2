@@ -135,7 +135,7 @@ public class Treeline extends ZDisplayable {
 				s0.reverse();
 				Utils.log2("Created s0 of length " + s0.n_points);
 			}
-			if (index < pline.n_points -1) {
+			if (index <= pline.n_points -1) {
 				s1 = pline.sub(index, pline.n_points -1);
 				Utils.log2("Created s1 of length " + s1.n_points);
 			}
@@ -907,5 +907,39 @@ public class Treeline extends ZDisplayable {
 		Utils.log2("Rerooting at index " + i + " for branch of length " + branch.pline.n_points);
 
 		root = branch.reRoot(i, null);
+	}
+
+	/** Split the Treeline into new Treelines at the point closest to the x,y,layer_id world coordinate. */
+	synchronized public ArrayList<Treeline> split(double x, double y, long layer_id) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = po.x;
+			y = po.y;
+		}
+		List pi = root.findNearestPoint((int)x, (int)y, layer_id);
+		Branch branch = (Branch)pi.get(0);
+		int i = ((Integer)pi.get(1)).intValue();
+
+		// Reroot at split point
+		Branch rerooted = branch.reRoot(i, null);
+
+		ArrayList<Branch> roots = new ArrayList<Branch>();
+		// Remove branches from index zero, if any, and add them to the roots
+		if (null != rerooted.branches) {
+			ArrayList<Branch> b0s = rerooted.branches.remove(0);
+			if (null != b0s) roots.addAll(b0s);
+		}
+		// Add the parent as well
+		roots.add(rerooted);
+
+		// Create a Treeline for every root
+		ArrayList<Treeline> tlines = new ArrayList<Treeline>();
+		for (Branch b : roots) {
+			Treeline tline = new Treeline(project, project.getLoader().getNextId(), title, 0, 0, alpha, visible, color, locked, at, b);
+			tline.calculateBoundingBox(true);
+			tlines.add(tline);
+		}
+
+		return tlines;
 	}
 }

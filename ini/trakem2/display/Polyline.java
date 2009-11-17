@@ -463,6 +463,16 @@ public class Polyline extends ZDisplayable implements Line3D {
 		if (active && layer_id == p_layer[0]) {
 			g.setColor(this.color);
 			DisplayCanvas.drawHandle(g, p[0][0], p[1][0], srcRect, magnification);
+			// Label the first point distinctively
+			Composite comp = g.getComposite();
+			AffineTransform aff = g.getTransform();
+			g.setTransform(new AffineTransform());
+			g.setColor(Color.white);
+			g.setXORMode(Color.green);
+			g.drawString("1", (int)( (p[0][0] - srcRect.x)*magnification + (4.0 / magnification)),
+					  (int)( (p[1][0] - srcRect.y)*magnification)); // displaced 4 screen pixels to the right
+			g.setComposite(comp);
+			g.setTransform(aff);
 		}
 
 		for (int i=1; i<n_points; i++) {

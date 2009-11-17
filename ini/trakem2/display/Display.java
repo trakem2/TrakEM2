@@ -2220,6 +2220,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				popup.addSeparator();
 			} else if (Treeline.class == aclass) {
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			}
 
@@ -3729,6 +3730,21 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addDataEditStep(active);
 				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
 				getLayerSet().addDataEditStep(active);
+				Display.repaint(getLayerSet());
+			}
+		} else if (command.equals("Split")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				getLayerSet().addChangeTreesStep();
+				List<Treeline> ts = ((Treeline)active).split(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				for (Treeline t : ts) {
+					project.getProjectTree().addSibling(active, t);
+				}
+				active.remove2(false);
+				selection.clear();
+				selection.selectAll(ts);
+				getLayerSet().addChangeTreesStep();
+				Display.repaint(getLayerSet());
 			}
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
