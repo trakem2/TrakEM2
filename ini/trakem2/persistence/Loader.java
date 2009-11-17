@@ -3479,7 +3479,9 @@ abstract public class Loader {
 			expand_layer_set = true;
 		}
 
-		if (null == filepath) {
+		if (imp_stack.getStack().isVirtual()) {
+			// do nothing
+		} else if (null == filepath) {
 			// try to get it from the original FileInfo
 			final FileInfo fi = imp_stack.getOriginalFileInfo();
 			if (null != fi && null != fi.directory && null != fi.fileName) {
