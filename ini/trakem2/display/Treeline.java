@@ -707,7 +707,7 @@ public class Treeline extends ZDisplayable {
 		}
 		updateInDatabase("dimensions");
 
-		layer_set.updateBucket(this);
+		if (null != layer_set) layer_set.updateBucket(this);
 	}
 
 	public void repaint() {
