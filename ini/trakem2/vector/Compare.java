@@ -1358,11 +1358,16 @@ public class Compare {
 			//   bbbbb
 			//    bbbbb
 			//
-			final int max_offset = longer.length() - shorter.length() + 1;
+			final int shorter_len = shorter.length();
+			final int max_offset = longer.length() - shorter_len + 1; // when of equal length, the loop runs once.
 			Object[] best = null;
 			for (int k=0; k<max_offset; k++) {
-				final VectorString3D longer_sub = longer.substring(k, k+shorter.length());
-				//Utils.log2("substring_matching lengths: shorter, longer : " + shorter.length() + ", " + longer_sub.length());
+				final VectorString3D longer_sub = longer.substring(k, k + shorter_len);
+				//Utils.log2("#######");
+				//Utils.log2(k + " delta of shorter: " + shorter.getDelta());
+				//Utils.log2(k + " substring_matching lengths: shorter, longer_sub : " + shorter.length() + ", " + longer_sub.length());
+				//Utils.log2(k + " shorter is" + shorter + " of length " + shorter.length());
+				//Utils.log2(k + " longer_sub is " + longer_sub + " made from " + longer + " with first,last: " + k + ", " + (k + shorter_len));
 				final Object[] ob = direct ?
 					              matchDirect(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm)
 						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm);
@@ -1441,6 +1446,7 @@ public class Compare {
 
 	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type, final double wi, final double wd, final double wm) {
 		// Levenshtein is unfortunately not commutative: must try both
+		// (Levenshtein is commutative, but the resampling I'm using makes it not be so)
 		final Editions ed1 = new Editions(vs1, vs2, delta, false, wi, wd, wm);
 		double score1 = getScore(ed1, skip_ends, max_mut, min_chunk, distance_type);
 		final Editions ed2 = new Editions(vs2, vs1, delta, false, wi, wd, wm);

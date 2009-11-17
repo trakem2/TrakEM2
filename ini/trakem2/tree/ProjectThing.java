@@ -461,8 +461,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 
 		if (null != object && object instanceof Line3D) {
-			addPopupItem("Identify...", listener, al_items);
-			addPopupItem("Identify with axes...", listener, al_items);
 			addPopupItem("Identify with fiducials...", listener, al_items);
 		}
 

@@ -1697,11 +1697,25 @@ public class VectorString3D implements VectorString {
 	public VectorString3D substring(final int first, final int last) {
 		if (first < 0 || last > length) return null;
 		final int len = last - first; // no +1 because last is non-inclusive
-		final double[] x2 = Utils.copy(x, first, len);
-		final double[] y2 = Utils.copy(y, first, len);
-		final double[] z2 = Utils.copy(z, first, len);
 		try {
-			return new VectorString3D(x2, y2, z2, false);
+			VectorString3D vs = new VectorString3D(Utils.copy(x, first, len), Utils.copy(y, first, len), Utils.copy(z, first, len), false);
+			vs.delta = delta;
+			if (null != vx) vs.vx = Utils.copy(vx, first, len);
+			if (null != vy) vs.vy = Utils.copy(vy, first, len);
+			if (null != vz) vs.vz = Utils.copy(vz, first, len);
+			if (null != rvx) vs.rvx = Utils.copy(rvx, first, len);
+			if (null != rvy) vs.rvy = Utils.copy(rvy, first, len);
+			if (null != rvz) vs.rvz = Utils.copy(rvz, first, len);
+			if (null != source) {
+				// shallow clone the source points
+				vs.source = new ArrayList<ArrayList<Point3d>>();
+				for (ArrayList<Point3d> ap : this.source) {
+					vs.source.add((ArrayList<Point3d>)ap.clone());
+				}
+			}
+			vs.tags = this.tags;
+			vs.cal = null == this.cal ? null : this.cal.copy();
+			return vs;
 		} catch (Exception e) {
 			IJError.print(e);
 			return null;

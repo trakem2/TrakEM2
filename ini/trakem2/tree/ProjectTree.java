@@ -233,20 +233,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			} else if (command.equals("Select in display")) {
 				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
 				selectInDisplay(thing, shift_down);
-			} else if (command.equals("Identify...")) {
-				// for pipes only for now
-				if (!(obd instanceof Line3D)) return;
-				ini.trakem2.vector.Compare.findSimilar((Line3D)obd);
-			} else if (command.equals("Identify with axes...")) {
-				if (!(obd instanceof Line3D)) return;
-				if (Project.getProjects().size() < 2) {
-					Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
-					return;
-				}
-				ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)obd);
 			} else if (command.equals("Identify with fiducials...")) {
 				if (!(obd instanceof Line3D)) return;
-				ini.trakem2.vector.Compare.findSimilarWithFiducials((Line3D)obd);
+				lineage.Identify.identify((Line3D)obd);
 			} else if (command.equals("Show centered in Display")) {
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;

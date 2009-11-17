@@ -18,7 +18,8 @@
 ;     '(java.io InputStreamReader)
 ;     '(ini.trakem2.vector Compare VectorString3D))
 
-(defn as-VectorString3D
+
+(defn- as-VectorString3D
   "Convert a map of {\"name\" {:x (...) :y (...) :z (...)}} into a map of {\"name\" (VectorString3D. ...)}"
   [SATs]
   (map
@@ -31,9 +32,9 @@
                           false))})
     SATs))
 
-(defn load-SATs-lib
+(defn- load-SAT-lib-as-vs
   "Returns the SATs library with VectorString3D instances"
-  []
+  [filepath]
   (reduce
     (fn [m e]
       (let [label (key e)
@@ -44,11 +45,10 @@
     {}
     (read
       (PushbackReader.
-      ; (InputStreamReader. (LineageClassifier/getResourceAsStream "/lineages/SAT-lib.clj"))  ; TESTING
-        (InputStreamReader. (FileInputStream. "/home/albert/lab/confocal/L3_lineages/SAT-lib-with-mb.clj"))
+        (InputStreamReader. (FileInputStream. filepath))
         4096))))
 
-(defn fids-as-Point3d
+(defn- fids-as-Point3d
   "Convert a map like {\"blva_joint\" [70.62114008906023 140.07819545137772 -78.72010436407604] ...}
   into a sorted map of {\"blva_joint\" (Point3d ...)}"
   [fids]
@@ -61,7 +61,7 @@
     {}
     fids))
 
-(defn register-SATs
+(defn- register-SATs
   "Returns a map of SAT name vs VectorString3D,
    where the VectorString3D is registered to the target fids."
   [brain-label brain-data target-fids]
@@ -76,26 +76,9 @@
       (map #(str (.replaceAll % "\\[.*\\] " " [") \space brain-label \]) (keys SATs))
       vs)))
 
-(defn prepare-SAT-lib
-  "Returns the SATs library as a map of name keys and VectorString3D values
-  Will define the FRT42-fids to be used as reference fibs for all."
-  []
-  (let [SATs-lib (load-SATs-lib)
-        target-fids (do
-                      (def FRT42-fids (fids-as-Point3d ((SATs-lib "FRT42 new") :fiducials)))
-                      FRT42-fids)]
-    (reduce
-      (fn [m e]
-        (conj m (register-SATs (key e) (val e) target-fids)))
-      {}
-      SATs-lib)))
-
-(def SAT-lib (prepare-SAT-lib))
-
-(def
-  #^{:doc "The mushroom body lobes for FRT42 brain."}
-  mb-FRT42
-  (let [r #"peduncle . (dorsal|medial) lobe.*FRT42 new.*"]
+(defn- load-mb
+  [SAT-lib reference-brain]
+  (let [r (re-pattern (str "peduncle . (dorsal|medial) lobe.*" reference-brain ".*"))]
     (loop [sl SAT-lib
            mb {}]
       (if (= 2 (count mb))
@@ -106,7 +89,31 @@
                    (into mb {k v})
                    mb)))))))
 
-(defn register-vs
+(def *libs* (ref {}))
+
+(defn- load-SAT-lib
+  "Load the named SAT-lib from filepath into *libs* and returns it.
+  Will setup the reference set of fiducial points and the mushroom body lobes from the entry named by reference-brain,
+  as we as register all SATs to the reference brain."
+  [lib-name filepath reference-brain]
+  (let [SAT-lib (load-SAT-lib-as-vs filepath)
+        target-fids (fids-as-Point3d ((SAT-lib reference-brain) :fiducials))
+        SATs (reduce
+               (fn [m e]
+                 (conj m (register-SATs (key e) (val e) target-fids)))
+               {}
+               SAT-lib)]
+    (dosync
+      (commute *libs* (fn [libs]
+                        (assoc libs lib-name {:filepath filepath
+                                              :SATs SATs
+                                              :fids target-fids
+                                              :mb (load-mb SATs reference-brain)})))))
+  (@*libs* lib-name))
+
+
+
+(defn- register-vs
   "Register a singe VectorString3D from source-fids to target-fids."
   [vs source-fids target-fids]
   (let [common-fid-keys (clojure.set/intersection (into #{} (keys source-fids)) (into #{} (keys target-fids)))]
@@ -124,19 +131,16 @@
     (.resample copy delta)
     copy))
 
-(defn match-all
+(defn- match-all
   "Returns a vector of two elements; the first element is the list of matches
   of the query-vs against all SAT vs in the library sorted by mean euclidean distance,
   and labeled as correct of incorrect matches according to the Random Forest classifier.
-  The second element is a list of corresponding SAT names for each match."
-  [query-vs delta direct substring]
+  The second element is a list of corresponding SAT names for each match.
+  Assumes the query-vs is already registered to the corresponding SAT-lib reference fiducials."
+  [SATs query-vs delta direct substring]
   (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
-                  (proxy [java.util.Comparator] []
-                    (equals [o]
-                      (= o this))
-                    (compare [o1 o2]
-                      (int (- (o1 :med) (o2 :med)))))
+                  #(int (- (%1 :med) (%2 :med)))
                   (map
                     (fn [e]
                       (let [vs2 (let [copy (.clone (val e))]
@@ -151,7 +155,7 @@
                          :stats stats
                          :med (get stats 0)
                          :correct (LineageClassifier/classify stats)}))
-                    SAT-lib))]
+                    SATs))]
 
     [matches
      (map (fn [match]
@@ -170,17 +174,17 @@
             0
             text)))
 
-(def worker (agent nil))
-
-(defn identify-SAT
+(defn- identify-SAT
   "Takes a calibrated VectorString3D and a list of fiducial points, and checks against the library for identity.
   For consistency in the usage of the Random Forest classifier, the registration is done into the FRT42D-BP106 brain."
-  [query-vs fids delta direct substring]
-  (let [vs1 (register-vs query-vs fids FRT42-fids)
-        [matches names] (match-all vs1 delta direct substring)
+  [title SAT-lib query-vs fids delta direct substring]
+  (let [SATs (SAT-lib :SATs)
+        vs1 (register-vs query-vs fids (SAT-lib :fids))
+        [matches names] (match-all SATs vs1 delta direct substring)
         SAT-names (vec names)
         indexed (vec matches)
         column-names ["SAT" "Match" "Seq sim %" "Lev Dist" "Med Dist" "Avg Dist" "Cum Dist" "Std Dev" "Prop Mut" "Prop Lengths" "Proximity" "Prox Mut" "Tortuosity"]
+        worker (agent nil) ; for event dispatch
         table (JTable. (proxy [AbstractTableModel] []
                 (getColumnName [col]
                   (get column-names col))
@@ -211,7 +215,7 @@
                 (isCellEditable [row col]
                   false)
                 (setValueAt [ob row col] nil)))
-        frame (JFrame. "Matches")
+        frame (JFrame. (str "Matches for " title))
         dummy-ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
     (.setCellRenderer (.getColumn table "Match")
                       (proxy [DefaultTableCellRenderer] []
@@ -230,6 +234,7 @@
     (.addMouseListener table
                        (proxy [MouseAdapter] []
                          (mousePressed [ev]
+                           (clear-agent-errors worker) ; I don't care what it was
                            (send-off worker
                              (fn [_]
                                (let [match (indexed (.rowAtPoint table (.getPoint ev)))
@@ -239,7 +244,7 @@
                                                                      "Query"
                                                                      Color/yellow)
                                                   (Display3D/addMesh dummy-ls
-                                                                     (resample (SAT-lib (match :SAT-name)) delta)
+                                                                     (resample (SATs (match :SAT-name)) delta)
                                                                      (match :SAT-name)
                                                                      (if (match :correct)
                                                                        Color/red
@@ -261,12 +266,12 @@
                                          (.add (new-command "Show match in 3D"
                                                             show-match))
                                          (.add (new-command "Show Mushroom body"
-                                                            #(doseq [[k v] mb-FRT42]
+                                                            #(doseq [[k v] (SAT-lib :mb)]
                                                               (Display3D/addMesh dummy-ls v k Color/gray))))
                                          (.add (new-command "Show interpolated"
                                                             #(Display3D/addMesh dummy-ls
                                                                                 (VectorString3D/createInterpolatedPoints
-                                                                                  (Editions. (SAT-lib (match :SAT-name)) (.clone vs1) delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
+                                                                                  (Editions. (SATs (match :SAT-name)) (.clone vs1) delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
                                                                                 (str "Interpolated with " (match :SAT-name)) Color/magenta)))
                                          (.add (new-command "Show stdDev plot"
                                                             #(let [cp (ini.trakem2.vector.Compare$CATAParameters.)]
@@ -277,7 +282,7 @@
                                                                                     (let [cal (Calibration.) ; Dummy calibration with microns as units. VectorString3D instances are already calibrated.
                                                                                           condensed (VectorString3D/createInterpolatedPoints
                                                                                               (let [v1 (.clone vs1)
-                                                                                                    v2 (SAT-lib (match :SAT-name))]
+                                                                                                    v2 (SATs (match :SAT-name))]
                                                                                                     (.resample v1 delta true)
                                                                                                     (.resample v2 delta true)
                                                                                                     (Editions. v1 v2 delta false (double 1.1) (double 1.1) (double 1)))
@@ -293,21 +298,48 @@
       ;(.pack)
       (.setVisible true))))
 
+
+(def known-libs (ref {"Drosophila-3rd-instar" {:filepath "plugins/SAT-lib-Drosophila-3rd-instar.clj"
+                                               :reference-brain "FRT42 new"}}))
+
+(defn fetch-lib
+  "Returns the SAT lib for the given name, loading it if not there yet. Nil otherwise."
+  [lib-name]
+  (if-let [cached (@*libs* lib-name)]
+    cached
+    (try
+      (if-let [m (@known-libs lib-name)]
+        (load-SAT-lib lib-name
+                      (m :filepath)
+                      (m :reference-brain))
+        (do
+          (ij.IJ/log (str "Unknown lib " lib-name))
+          nil))
+      (catch Exception e
+        (do
+          (ij.IJ/log (str "An error ocurred while loading the SAT library: " e "\nCheck the terminal output."))
+          (.printStackTrace e))))))
+
 (defn identify
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT."
-  ([p]
-    (identify 1.0 true false))
-  ([p delta direct substring]
-    (identify-SAT
-      (let [vs (.asVectorString3D p)]
-            (.calibrate vs (.. p getLayerSet getCalibrationCopy))
-            vs)
-      (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
-      delta
-      direct
-      substring)))
+  ([p lib-name]
+    (identify p lib-name 1.0 true false))
+  ([p lib-name delta direct substring]
+    (if p
+      (if-let [SAT-lib (fetch-lib lib-name)]
+        (identify-SAT
+          (str p)
+          SAT-lib
+          (let [vs (.asVectorString3D p)]
+                (.calibrate vs (.. p getLayerSet getCalibrationCopy))
+                vs)
+          (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+          delta
+          direct
+          substring))
+      (ij.IJ/log "Cannot identify a null pipe or polyline!"))))
 
-(defn ready-vs
+(defn- ready-vs
   "Return a calibrate and registered VectorString3D from a chain."
   [chain source-fids target-fids]
   (let [vs (.clone (.vs chain))]
@@ -326,65 +358,67 @@
   - the FNR: false negative rate: false negatives / ( false negatives + true positives )
   - the TPR: true positive rate: 1 - FNR
   - the length of the sequence queried"
-  [project regex-exclude delta direct substring]
+  [project lib-name regex-exclude delta direct substring]
   (let [fids (Compare/extractPoints (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
-        tops (int 5)]
-    (reduce
-      (fn [m chain]
-        (let [vs (resample (ready-vs chain fids FRT42-fids) delta)
-              [matches names] (match-all vs delta direct substring)
-              names (vec (take tops names))
-              #^String SAT-name (let [t (.getCellTitle chain)]
-                                  (.substring t (int 0) (.indexOf t (int \space))))
-              ;has-top-match (fn [n] (some #(.startsWith % SAT-name) (take names n)))
-              dummy (println "###\nSAT-name: " SAT-name   "\ntop 5 names: " names "\ntop 5 meds: " (map #(% :med) (take 5 matches)))
-              top-matches (loop [i (int 0)
-                                 r []]
-                            (if (>= i tops)
-                              r
-                              (if (.startsWith (names i) SAT-name)
-                                (into r (repeat (- tops i) true))  ; the rest are all true
-                                (recur (inc i) (into [false] r)))))
-              true-positives (filter #(and
-                                        (% :correct)
-                                        (.startsWith (% :SAT-name) SAT-name))
-                                     matches)
-              true-negatives (filter #(and
-                                        (not (% :correct))
-                                        (not (.startsWith (% :SAT-name) SAT-name)))
-                                     matches)
-              false-positives (filter #(and
-                                         (% :correct)
-                                         (not (.startsWith (% :SAT-name) SAT-name)))
-                                      matches)
-              false-negatives (filter #(and
-                                         (not (% :correct))
-                                         (.startsWith (% :SAT-name) SAT-name))
-                                      matches)]
-          (println "top matches for " SAT-name " : " (count top-matches) top-matches)
-          (assoc m
-            SAT-name
-            [(top-matches 0)
-             (top-matches 1)
-             (top-matches 2)
-             (top-matches 3)
-             (top-matches 4)
-             (count true-positives)
-             (count false-positives)
-             (count true-negatives)
-             (count false-negatives)
-             (/ (count false-positives) (+ (count false-positives) (count true-negatives))) ; False positive rate
-             (let [divisor (+ (count false-negatives) (count true-positives))]
-               (if (= 0 divisor)
-                 Double/MAX_VALUE
-                 (/ (count false-negatives) divisor))) ; False negative rate
-             (let [divisor (+ (count false-negatives) (count true-positives))]
-               (if (= 0 divisor)
-                 Double/MAX_VALUE
-                 (- 1 (/ (count false-negatives) divisor)))) ; True positive rate
-             (.length vs)])))
-      (sorted-map)
-      (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude))))
+        tops (int 5)
+        SAT-lib (fetch-lib lib-name)]
+    (if SAT-lib
+      (reduce
+        (fn [m chain]
+          (let [vs (resample (ready-vs chain fids (SAT-lib :fids)) delta)
+                [matches names] (match-all (SAT-lib :SATs) vs delta direct substring)
+                names (vec (take tops names))
+                #^String SAT-name (let [t (.getCellTitle chain)]
+                                    (.substring t (int 0) (.indexOf t (int \space))))
+                ;has-top-match (fn [n] (some #(.startsWith % SAT-name) (take names n)))
+                dummy (println "###\nSAT-name: " SAT-name   "\ntop 5 names: " names "\ntop 5 meds: " (map #(% :med) (take 5 matches)))
+                top-matches (loop [i (int 0)
+                                   r []]
+                              (if (>= i tops)
+                                r
+                                (if (.startsWith (names i) SAT-name)
+                                  (into r (repeat (- tops i) true))  ; the rest are all true
+                                  (recur (inc i) (into [false] r)))))
+                true-positives (filter #(and
+                                          (% :correct)
+                                          (.startsWith (% :SAT-name) SAT-name))
+                                       matches)
+                true-negatives (filter #(and
+                                          (not (% :correct))
+                                          (not (.startsWith (% :SAT-name) SAT-name)))
+                                       matches)
+                false-positives (filter #(and
+                                           (% :correct)
+                                           (not (.startsWith (% :SAT-name) SAT-name)))
+                                        matches)
+                false-negatives (filter #(and
+                                           (not (% :correct))
+                                           (.startsWith (% :SAT-name) SAT-name))
+                                        matches)]
+            (println "top matches for " SAT-name " : " (count top-matches) top-matches)
+            (assoc m
+              SAT-name
+              [(top-matches 0)
+               (top-matches 1)
+               (top-matches 2)
+               (top-matches 3)
+               (top-matches 4)
+               (count true-positives)
+               (count false-positives)
+               (count true-negatives)
+               (count false-negatives)
+               (/ (count false-positives) (+ (count false-positives) (count true-negatives))) ; False positive rate
+               (let [divisor (+ (count false-negatives) (count true-positives))]
+                 (if (= 0 divisor)
+                   Double/MAX_VALUE
+                   (/ (count false-negatives) divisor))) ; False negative rate
+               (let [divisor (+ (count false-negatives) (count true-positives))]
+                 (if (= 0 divisor)
+                   Double/MAX_VALUE
+                   (- 1 (/ (count false-negatives) divisor)))) ; True positive rate
+               (.length vs)])))
+        (sorted-map)
+        (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude)))))
 
 (defn print-quantify-all [t]
   (doseq [[k v] t]
@@ -392,3 +426,82 @@
      (doseq [x (take 5 v)] (print x \tab))
      (doseq [x (nthnext v 5)] (print (float x) \tab))
      (print \newline)))
+
+
+(defn find-rev-match
+  "Take a set of non-homonymous VectorString3D.
+  Do pairwise comparisons, in this fashion:
+  1. reverse vs2
+  2. substring length SL =  0.5 * max(len(vs1), len(vs2))
+  3. for all substrings of len SL of vs1, match against all of vs2.
+  4. Record best result in a set sorted by mean euclidean distance of the best match.
+  Assumes chains are registered and resampled.
+  Will ignore cases where the shorter chain is shorter than half the longer chain."
+  [chains delta]
+  (reduce
+    (fn [s chain1]
+      (let [rvs1 (let [v (.clone (.vs chain1))]
+                   (.reverse v)
+                   (.resample v delta)
+                   v)
+            len1 (.length rvs1)]
+        (conj s (reduce
+                    ; Find best reverse submatch for chain1 in chains
+                    (fn [best chain2]
+                      (println "Processing " (.getShortCellTitle chain1) " versus " (.getShortCellTitle chain2))
+                      (let [vs2 (.vs chain2)
+                            len2 (.length vs2)
+                            SL (int (/ (max len1 len2) 2))]
+                        (if (or (= chain1 chain2) (< len1 SL) (< len2 SL))
+                          best ; A chain has to be longer than half the length of the other to be worth looking at
+                          (let [b (reduce
+                                    ; Find best reverse submatch between chain1 and chain2
+                                    (fn [best-rsub start]
+                                      (let [bm (Compare/findBestMatch (.substring rvs1 start (+ start SL))
+                                                                      vs2
+                                                                      delta
+                                                                      false 0 0
+                                                                      Compare/AVG_PHYS_DIST   ; Also known as mean euclidean distance
+                                                                      true true
+                                                                      1.1 1.1 1.0)]
+                                        (if (and
+                                              best-rsub
+                                              (< (best-rsub :med) (get bm 1)))
+                                          best-rsub
+                                          {:chain1 chain1 :chain2 chain2 :med (get bm 1)})))
+                                    {:med Double/MAX_VALUE}
+                                    (range (- len1 SL)))]
+                            (if (and
+                                  best
+                                  (< (best :med) (b :med)))
+                              best
+                              b)))))
+                    {:med Double/MAX_VALUE} ; bogus initial element
+                    chains))))
+    (sorted-set-by
+      #(int (- (%1 :med) (%2 :med)))
+      {:med Double/MAX_VALUE}) ; adding a bogus initial element
+    chains))
+
+
+(defn find-reverse-match
+  "Takes all the chains of a project and compares them all-to-all pairwise with one of the two reversed.
+  Will calibrate the chains and resample them to delta."
+  [project delta regex-exclude]
+  (let [cal (.. project getRootLayerSet getCalibrationCopy)]
+    (find-rev-match (map
+                        (fn [chain]
+                          (.calibrate (.vs chain) cal)
+                          (.resample (.vs chain) delta)
+                          chain)
+                        (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude))
+                      delta)))
+
+(defn print-reversed-match
+  "Prints the sorted set returned by find-reversed-similar"
+  [s]
+  (doseq [m s]
+    (let [c1 (m :chain1)
+          c2 (m :chain2)]
+      (if c1
+        (println (.getShortCellTitle c1) (.getShortCellTitle c2) (m :med))))))
