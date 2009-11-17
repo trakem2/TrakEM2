@@ -4554,6 +4554,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		scroll_options.getViewport().removeAll();
 		if (null != op) {
+			op.bottomPadding();
 			scroll_options.setViewportView(op);
 		}
 		scroll_options.invalidate();

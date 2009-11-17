@@ -69,10 +69,23 @@ public class OptionPanel extends JPanel {
 		c.gridx = 0;
 		c.anchor = GridBagConstraints.NORTHWEST;
 		c.weightx = 1;
+		c.weighty = 0;
 		c.gridwidth = 2;
 		c.fill = GridBagConstraints.NONE;
 		bl.setConstraints(label, c);
 		add(label);
+	}
+
+	public void bottomPadding() {
+		c.gridy = rows++;
+		c.gridx = 0;
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.fill = GridBagConstraints.BOTH;
+		c.weightx = 1;
+		c.weighty = 1;
+		JPanel space = new JPanel();
+		bl.setConstraints(space, c);
+		add(space);
 	}
 
 	/** The left-side label of a field. */
