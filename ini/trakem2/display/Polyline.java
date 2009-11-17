@@ -1396,4 +1396,21 @@ public class Polyline extends ZDisplayable implements Line3D {
 		calculateBoundingBox(true);
 		return true;
 	}
+
+	/** Create a shorter Polyline, from start to end (inclusive); not added to the LayerSet. */
+	synchronized public Polyline sub(int start, int end) {
+		Polyline sub = new Polyline(project, title);
+		sub.n_points = end - start + 1;
+		sub.p[0] = Utils.copy(this.p[0], start, sub.n_points);
+		sub.p[1] = Utils.copy(this.p[1], start, sub.n_points);
+		sub.p_layer = new long[sub.n_points];
+		System.arraycopy(this.p_layer, start, sub.p_layer, 0, sub.n_points);
+		return sub;
+	}
+
+	synchronized public void reverse() {
+		Utils.reverse(p[0]);
+		Utils.reverse(p[1]);
+		Utils.reverse(p_layer);
+	}
 }

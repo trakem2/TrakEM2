@@ -2218,6 +2218,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
+			} else if (Treeline.class == aclass) {
+				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
 			}
 
 			JMenuItem st = new JMenu("Transform");
@@ -3720,6 +3723,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addChangeTreesStep(dataedits);
 			}});
 			burro.goHaveBreakfast();
+		} else if (command.equals("Reroot")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				getLayerSet().addDataEditStep(active);
+				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				getLayerSet().addDataEditStep(active);
+			}
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
 			getLayerSet().addDataEditStep(active);

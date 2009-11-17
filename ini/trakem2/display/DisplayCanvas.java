@@ -513,6 +513,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private int tmp_tool = -1;
 
+	/** In world coordinates. */
+	protected Point last_popup = null;
+
 	public void mousePressed(MouseEvent me) {
 
 		this.flags = me.getModifiers();
@@ -532,6 +535,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		popup = false; // not reset properly in macosx
 		if (Utils.isPopupTrigger(me)) {
 			popup = true;
+			last_popup = new Point(x_p, y_p);
 			display.getPopupMenu().show(this, me.getX(), me.getY());
 			return;
 		}
