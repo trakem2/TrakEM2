@@ -24,19 +24,26 @@ package ini.trakem2.io;
 
 import ij.ImagePlus;
 import ij.ImageJ;
-import ij.process.*;
-import ij.io.*;
+import ij.process.ImageProcessor;
 import ij.measure.Calibration;
+import ij.io.FileInfo;
+import ij.io.TiffEncoder;
 
-import com.sun.image.codec.jpeg.*;
-import java.awt.image.*;
+import java.awt.image.BufferedImage;
 import java.awt.Graphics;
 import java.awt.Image;
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import java.net.URL;
-import java.util.zip.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
@@ -148,8 +155,7 @@ public class ImageSaver {
 			FileOutputStream f = null;
 			try {
 				f = new FileOutputStream(path);
-				Iterator<ImageWriter> iter = ImageIO.getImageWritersByFormatName("jpeg");
-				ImageWriter writer = iter.next();
+				ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
 				writer.setOutput(ImageIO.createImageOutputStream(f));
 				ImageWriteParam param = writer.getDefaultWriteParam();
 				param.setCompressionMode(param.MODE_EXPLICIT);
@@ -157,14 +163,17 @@ public class ImageSaver {
 				BufferedImage grey = bi;
 				if (as_grey && bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
 					grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-
 					// convert the original colored image to grayscale
-					ColorConvertOp op = new ColorConvertOp(bi.getColorModel().getColorSpace(), grey.getColorModel().getColorSpace(), null);
-					op.filter(bi, grey);
+					// Very slow:
+					//ColorConvertOp op = new ColorConvertOp(bi.getColorModel().getColorSpace(), grey.getColorModel().getColorSpace(), null);
+					//op.filter(bi, grey);
+					// 9 times faster:
+					grey.createGraphics().drawImage(bi, 0, 0, null);
 				}
 				IIOImage iioImage = new IIOImage(grey, null, null);
 				writer.write(null, iioImage, param);
 				f.close();
+				if (bi != grey) grey.flush(); // release native resources
 			} catch (Exception e) {
 				if (null != f) {
 					try { f.close(); } catch (Exception ee) {}
@@ -178,19 +187,22 @@ public class ImageSaver {
 		return true;
 	}
 
+	static public final BufferedImage openGreyJpeg(final String path) {
+		return openJpeg(path, true);
+	}
+
 	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
-	static public final BufferedImage openJpeg(final String path) {
+	static public final BufferedImage openJpeg(final String path, final boolean as_grey) {
 		InputStream stream = null;
 		BufferedImage bi = null;
 		synchronized (getPathLock(path)) {
 			try {
-
 				// 1 - create a stream if possible
 				stream = openStream(path);
 				if (null == stream) return null;
-
+				
 				// 2 - open it as a BufferedImage
-				bi = openJpegFromStream(stream);
+				bi = openJpegFromStream(stream, as_grey);
 
 			} catch (Exception e) {
 				// the file might have been generated while trying to read it. So try once more
@@ -201,7 +213,7 @@ public class ImageSaver {
 					if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
 					stream = openStream(path);
 					// decode
-					if (null != stream) bi = openJpegFromStream(stream);
+					if (null != stream) bi = openJpegFromStream(stream, as_grey);
 				} catch (Exception e2) {
 					IJError.print(e2, true);
 				}
@@ -238,13 +250,23 @@ public class ImageSaver {
 		return null;
 	}
 
-	static public final BufferedImage openJpegFromStream(InputStream stream) {
+	static public final BufferedImage openJpegFromStream(final InputStream stream, final boolean as_grey) {
 		try {
-			return ImageIO.read(stream);
+			if (as_grey) {
+				final BufferedImage bi = ImageIO.read(stream);
+				if (bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
+					final BufferedImage grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+					grey.createGraphics().drawImage(bi, 0, 0, null);
+					bi.flush();
+					return grey;
+				}
+				return bi;
+			} else {
+				return ImageIO.read(stream);
+			}
 		} catch (IllegalArgumentException iae) {
 			// According to the documentation, only occurs
-			// when stream is null, so this should never
-			// happen.
+			// when stream is null, so this should never happen.
 			return null;
 		} catch (IOException ioe) {
 			return null;
