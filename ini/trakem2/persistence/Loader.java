@@ -2755,11 +2755,11 @@ abstract public class Loader {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality, Color.black);
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false, Color.black);
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
 	}
 	
@@ -2773,7 +2773,7 @@ abstract public class Loader {
 	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality, final Color background) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background) {
 		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
 		imp.setCalibration(layer.getParent().getCalibrationCopy());
@@ -2781,7 +2781,7 @@ abstract public class Loader {
 		return imp;
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, ArrayList al_displ, boolean quality, final Color background) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background) {
 
 		try {
 			// if quality is specified, then a larger image is generated:
@@ -2857,7 +2857,7 @@ abstract public class Loader {
 				al_zdispl = layer.getParent().getZDisplayables(clazz);
 			} else {
 				// separate ZDisplayables into their own array
-				al_displ = (ArrayList)al_displ.clone();
+				al_displ = new ArrayList(al_displ);
 				//Utils.log2("al_displ size: " + al_displ.size());
 				al_zdispl = new ArrayList();
 				for (Iterator it = al_displ.iterator(); it.hasNext(); ) {
@@ -3479,7 +3479,9 @@ abstract public class Loader {
 			expand_layer_set = true;
 		}
 
-		if (null == filepath) {
+		if (imp_stack.getStack().isVirtual()) {
+			// do nothing
+		} else if (null == filepath) {
 			// try to get it from the original FileInfo
 			final FileInfo fi = imp_stack.getOriginalFileInfo();
 			if (null != fi && null != fi.directory && null != fi.fileName) {
