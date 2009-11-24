@@ -164,7 +164,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/** Returns the index of the first point in the segment made of any two consecutive points. */
 	synchronized protected int findClosestSegment(final int x_p, final int y_p, final long layer_id, final double mag) {
-		if (1 == n_points) return 0;
+		if (1 == n_points) return -1;
 		if (0 == n_points) return -1;
 		int index = -1;
 		double d = (10.0D / mag);
@@ -329,7 +329,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 	synchronized protected int addPoint(int x_p, int y_p, long layer_id, double magnification) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		//lookup closest point and then get the closest clicked point to it
-		int index = findClosestSegment(x_p, y_p, layer_id, magnification);
+		int index = 0;
+		if (n_points > 1) index = findClosestSegment(x_p, y_p, layer_id, magnification);
 		//check array size
 		if (p[0].length == n_points) {
 			enlargeArrays();
