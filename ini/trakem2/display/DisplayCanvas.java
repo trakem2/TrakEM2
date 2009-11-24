@@ -1946,6 +1946,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 
 		if ( !(keyCode == KeyEvent.VK_UNDEFINED || keyChar == KeyEvent.CHAR_UNDEFINED) && !ke.isConsumed() && null != active && active instanceof Patch) {
+			// TODO should allow forwarding for all, not just Patch
 			// forward to ImageJ for a final try
 			IJ.getInstance().keyPressed(ke);
 			repaint(active, 5);
