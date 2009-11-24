@@ -44,6 +44,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.utils.M;
 import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.vector.VectorString2D;
@@ -209,6 +210,11 @@ public class AreaList extends ZDisplayable {
 		}
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
+
+	/** Get the range of layers betweeh the first and last layers in which this AreaList paints to. */
+	public List<Layer> getLayerRange() {
+		return layer_set.getLayers(getFirstLayer(), getLastLayer());
+	}
 
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
@@ -1676,9 +1682,15 @@ public class AreaList extends ZDisplayable {
 		Roi roi = dc.getFakeImagePlus().getRoi();
 		if (null == roi) return;
 		// Check ROI
-		if (!M.isAreaROI(roi)) {
-			Utils.log("AreaList only accepts region ROIs, not lines.");
-			return;
+		switch (keyCode) {
+			case KeyEvent.VK_A:
+			case KeyEvent.VK_D:
+			case KeyEvent.VK_K:
+				if (!M.isAreaROI(roi)) {
+					Utils.log("AreaList only accepts region ROIs, not lines.");
+					return;
+				}
+				break;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
 		long layer_id = la.getId();
@@ -1692,15 +1704,18 @@ public class AreaList extends ZDisplayable {
 					subtract(layer_id, sroi);
 					ke.consume();
 					break;
-				case KeyEvent.VK_K: // knive
+				case KeyEvent.VK_K: // knife
 					AreaList p = part(layer_id, sroi);
 					if (null != p) {
 						project.getProjectTree().addSibling(this, p);
 					}
 					ke.consume();
+					break;
 			}
-			Display.repaint(la, getBoundingBox(), 5);
-			linkPatches();
+			if (ke.isConsumed()) {
+				Display.repaint(la, getBoundingBox(), 5);
+				linkPatches();
+			}
 		} catch (NoninvertibleTransformException e) {
 			Utils.log("Could not add ROI to area at layer " + dc.getDisplay().getLayer() + " : " + e);
 		}
@@ -2280,61 +2295,15 @@ public class AreaList extends ZDisplayable {
 			else if (this.default_alpha < 0) this.default_alpha = 0.4f; // back to default's default value
 			this.paint_mode = gd.getNextChoiceIndex();
 			// trigger update of GUI radio buttons on all displays:
-			Display.toolChanged("PEN");
+			Display.toolChanged(ProjectToolbar.PEN);
 			return true;
 		}
 
-		public boolean updateGUI(final PaintParametersGUI ppg) {
-			if (0 == ppg.getComponentCount()) ppg.init();
-			ppg.update(paint_mode);
-			return true;
-		}
-	}
-
-	static class PaintParametersGUI extends JPanel implements ActionListener {
-		final String start = "Paint mode: ";
-		final JLabel label = new JLabel();
-		final JRadioButton overlap = new JRadioButton();
-		final JRadioButton exclude = new JRadioButton();
-		final JRadioButton erode = new JRadioButton();
-		final ButtonGroup bg = new ButtonGroup();
-
-		// empty panel
-		PaintParametersGUI() {
-			setMaximumSize(new Dimension(250, 35));
-		}
-		PaintParametersGUI(int paint_mode) {
-			this();
-			init();
-			update(paint_mode);
-		}
-
-		void init() {
-			bg.add(overlap);
-			bg.add(exclude);
-			bg.add(erode);
-			overlap.addActionListener(this);
-			exclude.addActionListener(this);
-			erode.addActionListener(this);
-			add(label);
-			add(overlap);
-			add(exclude);
-			add(erode);
-		}
-		void update(int paint_mode) {
-			if (0 == getComponentCount()) init();
-			switch (paint_mode) {
-				case PAINT_OVERLAP: overlap.setSelected(true); label.setText(start + "overlap"); break;
-				case PAINT_EXCLUDE: exclude.setSelected(true); label.setText(start + "exclude"); break;
-				case PAINT_ERODE: erode.setSelected(true); label.setText(start + "erode"); break;
-			}
-		}
-		public void actionPerformed(ActionEvent ae) {
-			final Object source = ae.getSource();
-			if (source == overlap) PP.paint_mode = PAINT_OVERLAP;
-			else if (source == exclude) PP.paint_mode = PAINT_EXCLUDE;
-			else if (source == erode) PP.paint_mode = PAINT_ERODE;
-			update(PP.paint_mode);
+		public OptionPanel asOptionPanel() {
+			OptionPanel op = new OptionPanel();
+			final String[] modes = {"Allow overlap", "Exclude others", "Erode others"};
+			op.addChoice("AreaList paint mode:", modes, paint_mode, new OptionPanel.ChoiceIntSetter(this, "paint_mode"));
+			return op;
 		}
 	}
 
@@ -2350,5 +2319,50 @@ public class AreaList extends ZDisplayable {
 		}
 		calculateBoundingBox();
 		return true;
+	}
+
+	/** Returns a stack of images representing the pixel data of this LayerSet inside this AreaList. */
+	public ImagePlus getStack(final int type, final double scale) {
+		ImageProcessor ref_ip = Utils.createProcessor(type, 2, 2);
+		if (null == ref_ip) {
+			Utils.log("AreaList.getStack: Unknown type " + type);
+			return null;
+		}
+		Rectangle b = getBoundingBox();
+		int w = (int)(0.5 + b.width * scale);
+		int h = (int)(0.5 + b.height * scale);
+		ImageStack stack = new ImageStack(w, h);
+		for (Layer la : getLayerRange()) {
+			Area area = getArea(la);
+			double z = layer.getZ();
+			project.getLoader().releaseToFit(w * h * 10);
+			ImageProcessor ip = ref_ip.createProcessor(w, h);
+			if (null == area) {
+				stack.addSlice(Double.toString(z), ip);
+				continue;
+			}
+			// Create a ROI from the area at Layer la:
+			AffineTransform aff = getAffineTransformCopy();
+			aff.translate(-b.x, -b.y);
+			aff.scale(scale, scale);
+			ShapeRoi roi = new ShapeRoi(area.createTransformedArea(aff));
+			// Create a cropped snapshot of the images at Layer la under the area:
+			ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, (List<Patch>) (List) la.getDisplayables(Patch.class), Color.black);
+			flat.setRoi(roi);
+			Rectangle rb = roi.getBounds();
+			ip.insert(flat.crop(), rb.x, rb.y);
+			// Clear the outside
+			ImagePlus bimp = new ImagePlus("", ip);
+			bimp.setRoi(roi);
+			ip.setValue(0);
+			ip.setBackgroundValue(0);
+			IJ.run(bimp, "Clear Outside", "");
+
+			stack.addSlice(Double.toString(z), ip);
+		}
+
+		ImagePlus imp = new ImagePlus("AreaList stack for " + this, stack);
+		imp.setCalibration(layer_set.getCalibrationCopy());
+		return imp;
 	}
 }

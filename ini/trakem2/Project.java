@@ -862,7 +862,10 @@ public class Project extends DBObject {
 	static public String getType(final Class c) {
 		if (AreaList.class == c) return "area_list";
 		if (DLabel.class == c) return "label";
-		return c.getName().toLowerCase();
+		String name = c.getName().toLowerCase();
+		int i = name.lastIndexOf('.');
+		if (-1 != i) name = name.substring(i+1);
+		return name;
 	}
 
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */

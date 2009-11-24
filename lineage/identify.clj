@@ -13,12 +13,6 @@
      (ini.trakem2.display Display Display3D LayerSet)
      (ini.trakem2.vector Compare VectorString3D Editions)))
 
-;(import
-;     '(lineage LineageClassifier)
-;     '(java.io InputStreamReader)
-;     '(ini.trakem2.vector Compare VectorString3D))
-
-
 (defn- as-VectorString3D
   "Convert a map of {\"name\" {:x (...) :y (...) :z (...)}} into a map of {\"name\" (VectorString3D. ...)}"
   [SATs]
@@ -141,7 +135,7 @@
   (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
                   #(int (- (%1 :med) (%2 :med)))
-                  (map
+                  (pmap
                     (fn [e]
                       (let [vs2 (let [copy (.clone (val e))]
                                   (.resample copy delta)
@@ -339,6 +333,39 @@
           substring))
       (ij.IJ/log "Cannot identify a null pipe or polyline!"))))
 
+
+(defn identify-without-gui
+  "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT.
+  No GUI is shown. Returns the vector containing the list of matches and the list of names."
+  ([p lib-name]
+    (identify-without-gui p lib-name 1.0 true false))
+  ([p lib-name delta direct substring]
+    (if p
+      (if-let [SAT-lib (fetch-lib lib-name)]
+        (let [SATs (SAT-lib :SATs)
+              query-vs (let [vs (.asVectorString3D p)]
+                         (.calibrate vs (.. p getLayerSet getCalibrationCopy))
+                         vs)
+              fids (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+              vs1 (register-vs query-vs fids (SAT-lib :fids))]
+          (match-all SATs vs1 delta direct substring)))
+      (ij.IJ/log "Cannot identify a null pipe or polyline!"))))
+
+
+;(defn lib-stats
+;  "Returns a map with the number of SATs in the library, a list of names vs. sorted sequence lengths, the median length, the average length."
+;  [lib-name delta]
+;  (if-let [lib (fetch-lib lib-name)]
+;    (let [SATs (SAT-lib :SATs)
+;          lengths (reduce
+;                    (sorted-map-by
+;                      #(< 
+;
+;
+;      {:n (count SATs)
+;       :
+;    (ij.IJ/log (str "Unknown library " lib-name))))
+
 (defn- ready-vs
   "Return a calibrate and registered VectorString3D from a chain."
   [chain source-fids target-fids]
@@ -505,3 +532,27 @@
           c2 (m :chain2)]
       (if c1
         (println (.getShortCellTitle c1) (.getShortCellTitle c2) (m :med))))))
+
+
+(defn print-stats
+  "Prints the number of unique SATs and the number of unique lineages in a library of SATs.
+  Returns the two sets in a map."
+  [lib-name]
+  (let [lib (fetch-lib lib-name)
+        unique-sats (reduce
+                      (fn [unique clone]
+                        (if (> (.indexOf clone (int \space)) -1)
+                          (conj unique (.substring clone 0 (.indexOf clone (int \space))))
+                          unique))
+                      (sorted-set)
+                      (keys (lib :SATs)))
+        unique-lineages (reduce
+                          (fn [unique clone]
+                            (if (> (.indexOf clone (int \:)) -1)
+                              (conj unique (.substring clone 0 (.indexOf clone (int \:))))
+                              unique))
+                          (sorted-set)
+                          unique-sats)]
+    (println "Unique SATs: " (count unique-sats) \newline "Unique lineages: " (count unique-lineages))
+    {:unique-sats unique-sats
+     :unique-lineages unique-lineages}))

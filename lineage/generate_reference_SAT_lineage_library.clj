@@ -95,12 +95,6 @@
 
     {}
     (into (gather-chains project) (gather-mb project))))
-;    (into (let [ch (gather-chains project)]
-;            (ij.IJ/log (str (into [] ch)))
-;            ch)
-;          (let [mb (gather-mb project)]
-;           (ij.IJ/log (str (into [] mb)))
-;           mb))))
 
 (defn generate-SAT-lib
   "Create the SAT library from a root directory.
@@ -136,7 +130,7 @@
   ([dir regex-exclude]
     (ControlWindow/setGUIEnabled false)
     (try
-      (TextWindow. "SAT lib"
+      (TextWindow. "SAT-lib.clj"
                    (let [sw (StringWriter.)]
                      (binding [*out* sw]
                        (prn (generate-SAT-lib (gather-xmls dir regex-exclude))))

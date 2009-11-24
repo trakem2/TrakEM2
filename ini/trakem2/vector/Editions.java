@@ -525,11 +525,11 @@ public class Editions {
 		final double[][] matrix1 = new double[n+1][m+1];
 		// make the first element be i*delta
 		for (i=0; i < n +1; i++) {
-			matrix1[i][0] = i * delta;
+			matrix1[i][0] = i * delta * WD;
 		}
 		// fill first column
 		for (j=0; j < m + 1; j++) {
-			matrix1[0][j] = j * delta;
+			matrix1[0][j] = j * delta * WI;
 		}
 		// return the matrix made matching point 0 of both curves, if the curve is open.
 		if (!closed) {

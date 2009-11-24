@@ -43,6 +43,7 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
 
@@ -96,6 +97,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JScrollPane scroll_layers;
 	private Hashtable<Layer,LayerPanel> layer_panels = new Hashtable<Layer,LayerPanel>();
 
+	private OptionPanel tool_options;
+	private JScrollPane scroll_options;
+
 	private JSlider transp_slider;
 	private DisplayNavigator navigator;
 	private JScrollBar scroller;
@@ -107,8 +111,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private JPopupMenu popup = null;
 	
 	private ToolbarPanel toolbar_panel = null;
-
-	private AreaList.PaintParametersGUI tool_options_panel = null;
 
 	/** Contains the packed alphas of every channel. */
 	private int c_alphas = 0xffffffff; // all 100 % visible
@@ -267,31 +269,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						if (0 == count || (1 == count && tab.getComponent(0).getClass().equals(JLabel.class))) {
 						*/ // ALWAYS, because it could be the case that the user changes layer while on one specific tab, and then clicks on the other tab which may not be empty and shows totally the wrong contents (i.e. for another layer)
 
-							String label = null;
 							ArrayList al = null;
 							JPanel p = null;
 							if (tab == d.scroll_zdispl) {
-								label = "Z-space objects";
 								al = d.layer.getParent().getZDisplayables();
 								p = d.panel_zdispl;
 							} else if (tab == d.scroll_patches) {
-								label = "Patches";
 								al = d.layer.getDisplayables(Patch.class);
 								p = d.panel_patches;
 							} else if (tab == d.scroll_labels) {
-								label = "Labels";
 								al = d.layer.getDisplayables(DLabel.class);
 								p = d.panel_labels;
 							} else if (tab == d.scroll_profiles) {
-								label = "Profiles";
 								al = d.layer.getDisplayables(Profile.class);
 								p = d.panel_profiles;
 							} else if (tab == d.scroll_layers) {
 								// nothing to do
 								return;
+							} else if (tab == d.scroll_options) {
+								// Choose accordint to tool
+								d.updateToolTab();
+								return;
 							}
 
-							d.updateTab(p, label, al);
+							d.updateTab(p, al);
 							//Utils.updateComponent(d.tabs.getSelectedComponent());
 							//Utils.log2("updated tab: " + p + "  with " + al.size() + "  objects.");
 						//}
@@ -606,6 +607,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.scroll_layers.addMouseWheelListener(canvas);
 		this.tabs.add("Layers", scroll_layers);
 
+		// Tab 7: tool options
+		this.tool_options = new OptionPanel(); // empty
+		this.scroll_options = makeScrollPane(this.tool_options);
+		this.tabs.add("Tool options", this.scroll_options);
+
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
 		this.ht_tabs.put(Profile.class, scroll_profiles);
@@ -637,10 +643,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
 		left.setLayout(left_layout);
 		toolbar_panel = new ToolbarPanel();
-		tool_options_panel = new AreaList.PaintParametersGUI();
-		tool_options_panel.setBackground(Color.white);
 		left.add(toolbar_panel);
-		left.add(tool_options_panel); // empty
 		left.add(transp_slider);
 		left.add(tabs);
 		left.add(navigator);
@@ -772,7 +775,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		}
 
-		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+		updateTab(panel_patches, layer.getDisplayables(Patch.class));
 		Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 
 
@@ -1019,22 +1022,22 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		switch (tabs.getSelectedIndex()) {
 			case 0:
 				ht_panels.clear();
-				updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+				updateTab(panel_patches, layer.getDisplayables(Patch.class));
 				break;
 			case 1:
 				ht_panels.clear();
-				updateTab(panel_profiles, "Profiles", layer.getDisplayables(Profile.class));
+				updateTab(panel_profiles, layer.getDisplayables(Profile.class));
 				break;
 			case 2:
 				if (set_zdispl) {
 					ht_panels.clear();
-					updateTab(panel_zdispl, "Z-space objects", layer.getParent().getZDisplayables());
+					updateTab(panel_zdispl, layer.getParent().getZDisplayables());
 				}
 				break;
 			// case 3: channel opacities
 			case 4:
 				ht_panels.clear();
-				updateTab(panel_labels, "Labels", layer.getDisplayables(DLabel.class));
+				updateTab(panel_labels, layer.getDisplayables(DLabel.class));
 				break;
 			// case 5: layer panels
 		}
@@ -1056,7 +1059,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		for (final Displayable d : layer.getParent().getZDisplayables()) {
 			d.setLayer(layer);
 		}
-		updateTab(panel_patches, "Patches", layer.getDisplayables(Patch.class));
+		updateTab(panel_patches, layer.getDisplayables(Patch.class));
 		navigator.repaint(true); // was not done when adding
 		Utils.updateComponent(tabs.getSelectedComponent());
 		//
@@ -1988,7 +1991,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void selectTab(Stack d) { selectTab((ZDisplayable)d); }
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
-	private void updateTab(final JPanel tab, final String label, final ArrayList al) {
+	private void updateTab(final JPanel tab, final ArrayList al) {
 		dispatcher.exec(new Runnable() { public void run() {
 			try {
 			if (0 == al.size()) {
@@ -2212,6 +2215,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
+			} else if (Treeline.class == aclass) {
+				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			}
 
@@ -2438,6 +2445,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 		item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
+		item.setEnabled(null != active && AreaList.class == active.getClass());
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -3097,7 +3106,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	}
 
 	private void updatePanelIndex(final Displayable d) {
-		updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(), "",
+		updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(),
 			  ZDisplayable.class.isAssignableFrom(d.getClass()) ?
 			     layer.getParent().getZDisplayables()
 			   : layer.getDisplayables(d.getClass()));
@@ -3714,6 +3723,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addChangeTreesStep(dataedits);
 			}});
 			burro.goHaveBreakfast();
+		} else if (command.equals("Reroot")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				getLayerSet().addDataEditStep(active);
+				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				getLayerSet().addDataEditStep(active);
+				Display.repaint(getLayerSet());
+			}
+		} else if (command.equals("Split")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				getLayerSet().addChangeTreesStep();
+				List<Treeline> ts = ((Treeline)active).split(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				Displayable elder = Display.this.active;
+				for (Treeline t : ts) {
+					getLayerSet().add(t); // will change Display.this.active !
+					project.getProjectTree().addSibling(elder, t);
+				}
+				elder.remove2(false);
+				selection.clear();
+				selection.selectAll(ts);
+				getLayerSet().addChangeTreesStep();
+				Display.repaint(getLayerSet());
+			}
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
 			getLayerSet().addDataEditStep(active);
@@ -4030,6 +4063,24 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
 			final LayerSet subls = sub.getRootLayerSet();
 			Display.createDisplay(sub, subls.getLayer(0));
+		} else if (command.startsWith("Image stack under selected Arealist")) {
+			if (null == active || active.getClass() != AreaList.class) return;
+			GenericDialog gd = new GenericDialog("Stack options");
+			String[] types = {"8-bit", "16-bit", "32-bit", "RGB"};
+			gd.addChoice("type:", types, types[0]);
+			gd.addSlider("Scale: ", 1, 100, 100);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final int type;
+			switch (gd.getNextChoiceIndex()) {
+				case 0: type = ImagePlus.GRAY8; break;
+				case 1: type = ImagePlus.GRAY16; break;
+				case 2: type = ImagePlus.GRAY32; break;
+				case 3: type = ImagePlus.COLOR_RGB; break;
+				default: type = ImagePlus.GRAY8; break;
+			}
+			ImagePlus imp = ((AreaList)active).getStack(type, gd.getNextNumber()/100);
+			if (null != imp) imp.show();
 		} else if (command.startsWith("Arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);
@@ -4481,18 +4532,34 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		writer.write(sb_body.toString());
 	}
 
+	private void updateToolTab() {
+		OptionPanel op = null;
+		switch (ProjectToolbar.getToolId()) {
+			case ProjectToolbar.PENCIL:
+				op = Segmentation.fmp.asOptionPanel();
+				break;
+			case ProjectToolbar.PEN:
+				op = AreaList.PP.asOptionPanel();
+				break;
+			default:
+				break;
+		}
+		scroll_options.getViewport().removeAll();
+		if (null != op) {
+			op.bottomPadding();
+			scroll_options.setViewportView(op);
+		}
+		scroll_options.invalidate();
+		scroll_options.validate();
+		scroll_options.repaint();
+	}
+
 	// Never called; ProjectToolbar.toolChanged is also never called, which should forward here.
 	static public void toolChanged(final String tool_name) {
 		Utils.log2("tool name: " + tool_name);
 		for (final Display d : al_displays) {
+			d.updateToolTab();
 			Utils.updateComponent(d.toolbar_panel);
-			if (tool_name.equals("PEN")) {
-				AreaList.PP.updateGUI(d.tool_options_panel);
-			} else {
-				d.tool_options_panel.removeAll();
-				d.pack();
-			}
-			Utils.updateComponent(d.tool_options_panel);
 			Utils.log2("updating toolbar_panel");
 		}
 	}
@@ -4505,22 +4572,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (null != d.active) d.repaint(d.layer, d.selection.getBox(), 2);
 			}
 		}
+		for (final Display d: al_displays) {
+			d.updateToolTab();
+		}
 		if (null != front) {
 			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
-		}
-		for (final Display d : al_displays) {
-			// @#$%^&!
-			d.toolbar_panel.invalidate();
-			d.toolbar_panel.validate();
-			d.toolbar_panel.repaint();
-			//
-			if (ProjectToolbar.PEN == tool) {
-				AreaList.PP.updateGUI(d.tool_options_panel);
-			} else {
-				d.tool_options_panel.removeAll();
-			}
-			Utils.updateComponent(d.tool_options_panel);
-			Utils.log2("updating toolbar_panel");
 		}
 	}
 
