@@ -1361,7 +1361,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				Utils.showStatus(sb.toString(), false);
 			} else {
 				// set xMouse, yMouse, and print pixel value
-				DisplayCanvas.super.mouseMoved(me);
+				if (ProjectToolbar.getToolId() <= ProjectToolbar.SELECT) {
+					DisplayCanvas.super.mouseMoved(me);
+				}
 			}
 		}
 	}
