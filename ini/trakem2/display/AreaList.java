@@ -1682,9 +1682,15 @@ public class AreaList extends ZDisplayable {
 		Roi roi = dc.getFakeImagePlus().getRoi();
 		if (null == roi) return;
 		// Check ROI
-		if (!M.isAreaROI(roi)) {
-			Utils.log("AreaList only accepts region ROIs, not lines.");
-			return;
+		switch (keyCode) {
+			case KeyEvent.VK_A:
+			case KeyEvent.VK_D:
+			case KeyEvent.VK_K:
+				if (!M.isAreaROI(roi)) {
+					Utils.log("AreaList only accepts region ROIs, not lines.");
+					return;
+				}
+				break;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
 		long layer_id = la.getId();
@@ -1698,15 +1704,18 @@ public class AreaList extends ZDisplayable {
 					subtract(layer_id, sroi);
 					ke.consume();
 					break;
-				case KeyEvent.VK_K: // knive
+				case KeyEvent.VK_K: // knife
 					AreaList p = part(layer_id, sroi);
 					if (null != p) {
 						project.getProjectTree().addSibling(this, p);
 					}
 					ke.consume();
+					break;
 			}
-			Display.repaint(la, getBoundingBox(), 5);
-			linkPatches();
+			if (ke.isConsumed()) {
+				Display.repaint(la, getBoundingBox(), 5);
+				linkPatches();
+			}
 		} catch (NoninvertibleTransformException e) {
 			Utils.log("Could not add ROI to area at layer " + dc.getDisplay().getLayer() + " : " + e);
 		}
