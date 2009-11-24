@@ -623,8 +623,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public ArrayList<ProjectThing> findChildren(final String regex, final String regex_exclude, final boolean shallow) {
 		final ArrayList<ProjectThing> found = new ArrayList<ProjectThing>();
 		findChildren(found,
-			     Pattern.compile("^.*" + regex + ".*$", Pattern.DOTALL),
-			     Pattern.compile("^.*" + regex_exclude + ".*$", Pattern.DOTALL),
+			     null == regex ? null : Pattern.compile("^.*" + regex + ".*$", Pattern.DOTALL),
+			     null == regex_exclude ? null : Pattern.compile("^.*" + regex_exclude + ".*$", Pattern.DOTALL),
 			     shallow);
 		return found;
 	}
@@ -632,8 +632,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public void findChildren(final ArrayList<ProjectThing> found, final Pattern pattern, final Pattern pattern_exclude, final boolean shallow) {
 		if (null == object) return;
 		final String name = object.toString();
-		if (pattern_exclude.matcher(name).matches()) return;
-		if (pattern.matcher(name).matches()) {
+		if (null != pattern_exclude && pattern_exclude.matcher(name).matches()) return;
+		if (null == pattern) {
+			found.add(this);
+		} else if (pattern.matcher(name).matches()) {
 			found.add(this);
 			if (shallow) return; // don't look into children
 		}
