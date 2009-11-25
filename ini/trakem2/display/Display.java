@@ -2460,6 +2460,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -3569,6 +3570,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Properties...")) {
 			active.adjustProperties();
 			updateSelection();
+		} else if (command.equals("Show current 2D position in 3D")) {
+			Display3D.addFatPoint("Current 2D Position", getLayerSet(), canvas.last_popup.x, canvas.last_popup.y, layer.getZ(), 10, Color.magenta);
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();
