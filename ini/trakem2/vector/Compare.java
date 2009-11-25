@@ -593,6 +593,10 @@ public class Compare {
 		for (Iterator it = children.iterator(); it.hasNext(); ) {
 			ProjectThing child = (ProjectThing)it.next();
 			if (hs_c_done.contains(child)) continue;
+			if (null != exclude && exclude.matcher(child.getTitle()).matches()) {
+				Utils.log2("Excluding child " + child + " with title " + child.getTitle());
+				continue;
+			}
 			hs_c_done.add(child);
 
 			if (child.getObject() instanceof Line3D) {
@@ -2111,7 +2115,7 @@ public class Compare {
 			} else {
 				// Search (shallow) for cp.regex matches
 				for (ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, regex_exclude, true)) {
-					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet(), null);
+					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet(), regex_exclude);
 					if (null == p_chains[i]) p_chains[i] = ac;
 					else p_chains[i].addAll(ac);
 				}
@@ -3569,7 +3573,7 @@ public class Compare {
 		//    - score against all other brains in which that pipe name exists,
 		//    - record the score position within that brain.
 		//
-		final ExecutorService exec = Executors.newFixedThreadPool(1); //Runtime.getRuntime().availableProcessors());
+		final ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 
 		// for each individual lineage:
 		final TreeMap<String,ArrayList<Integer>> indices = new TreeMap<String,ArrayList<Integer>>();
