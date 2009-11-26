@@ -1026,7 +1026,7 @@ public final class Display3D {
 		}
 	}
 
-	/** Creates a sphere to represent a point at LayerSet coordinates wx, wy, wz, with radius wr.*/
+	/** Creates a calibrated sphere to represent a point at LayerSet pixel coordinates wx, wy, wz, with radius wr.*/
 	public List<Point3f> createFatPoint(final double wx, final double wy, final double wz, final double wr, final Calibration cal) {
 		final double[][][] globe = Ball.generateGlobe(12, 12);
 		final int sign = cal.pixelDepth < 0 ? -1 : 1;
@@ -1058,7 +1058,9 @@ public final class Display3D {
 	static public final Future<Content> addFatPoint(final String title, final LayerSet ls, final double wx, final double wy, final double wz, final double wr, final Color color) {
 		Display3D d3d = Display3D.get(ls);
 		d3d.universe.removeContent(title);
-		return d3d.addContent(d3d.universe.createContent(new CustomTriangleMesh(d3d.createFatPoint(wx, wy, wz, wr, ls.getCalibrationCopy()), new Color3f(color), 0), title));
+		Content ct = d3d.universe.createContent(new CustomTriangleMesh(d3d.createFatPoint(wx, wy, wz, wr, ls.getCalibrationCopy()), new Color3f(color), 0), title);
+		ct.setLocked(true);
+		return d3d.addContent(ct);
 	}
 
 }
