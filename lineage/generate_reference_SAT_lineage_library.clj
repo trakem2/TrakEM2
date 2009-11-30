@@ -17,7 +17,7 @@
   regex-exclude "(.*unknown.*)|(.*poorly.*)|(.*MB.*)|(.*TR.*)")
 
 (defn gather-chains
-  "Collect all possible calibrated VectorString chains from all lineages in project"
+  "Collect and calibrate all possible calibrated VectorString chains from all lineages in project"
   [project]
   (let [ls (.getRootLayerSet project)
         cal (.getCalibrationCopy ls)]
@@ -28,7 +28,7 @@
       (Compare/createPipeChains (.getRootProjectThing project) ls regex-exclude))))
 
 (defn gather-mb
-  "Take the mushroom body of the active project and store it as two chains,
+  "Take the mushroom body of the project and store it as two chains,
   one titled 'peduncle + dorsal lobe' and another 'peduncle + medial lobe'."
   [project]
   (let [ls (.getRootLayerSet project)
@@ -80,6 +80,20 @@
              (and (not (.isHidden (File. fdir filename)))
                   (nil? (re-matches (re-pattern regex-exclude) (str (.getAbsolutePath fdir) \/ filename)))))))))
 
+(defn fix-title
+  "Takes a title like 'DALv2 [lineage] #123 FRT42D-BP106'
+  and returns the title without the word in the last set of brackets, like:
+  'DALv2 #123 FRT42D-BP106'"
+  [title]
+  (let [i-last (.lastIndexOf title (int \]))]
+    (if (= -1 i-last)
+      title
+      (let [i-first (.lastIndexOf title (int \[) (dec i-last))]
+        (if (= -1 i-first)
+          title
+          (str (.substring title 0 i-first) (.substring title (inc i-last))))))))
+
+
 (defn gather-SATs
   "Take a list of chains, each one representing a SAT,
   and return a table of tables, like:
@@ -88,7 +102,7 @@
   (reduce
     (fn [m chain]
       (assoc m
-             (.getCellTitle chain)
+             (fix-title (.getCellTitle chain))
              {:x (seq (.getPoints (.vs chain) 0))
               :y (seq (.getPoints (.vs chain) 1))
               :z (seq (.getPoints (.vs chain) 2))}))
