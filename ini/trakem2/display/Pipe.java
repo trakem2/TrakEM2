@@ -1607,6 +1607,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" p_width").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_ids").append(TAG_ATTR2)
 		;
 	}
 
