@@ -653,6 +653,9 @@ public class Project extends DBObject {
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Ball(this, "ball", 0, 0);
+		} else if (type.equals("connector")) {
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			return new Connector(this, "connector");
 		} else if (type.equals("dissector")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Dissector(this, "dissector", 0, 0);
@@ -686,6 +689,7 @@ public class Project extends DBObject {
 		    || type.equals("dissector")
 		    || type.equals("stack")
 		    || type.equals("treeline")
+		    || type.equals("connector")
 		;
 	}
 
@@ -882,6 +886,7 @@ public class Project extends DBObject {
 		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
 		if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
 		if (!ht_unique_tt.containsKey("treeline")) ht_unique_tt.put("treeline", new TemplateThing("treeline"));
+		if (!ht_unique_tt.containsKey("connector")) ht_unique_tt.put("connector", new TemplateThing("connector"));
 		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
 		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
 		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
@@ -1002,6 +1007,7 @@ public class Project extends DBObject {
 		Dissector.exportDTD(sb_header, hs, indent);
 		Stack.exportDTD( sb_header, hs, indent );
 		Treeline.exportDTD(sb_header, hs, indent);
+		Connector.exportDTD(sb_header, hs, indent);
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);

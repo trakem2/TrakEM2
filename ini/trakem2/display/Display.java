@@ -620,6 +620,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Polyline.class, scroll_zdispl);
 		this.ht_tabs.put(Treeline.class, scroll_zdispl);
+		this.ht_tabs.put(Connector.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
@@ -1985,6 +1986,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Connector d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
@@ -2372,6 +2374,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
 			item = new JMenuItem("Unhide all balls"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Connector.class);
+			item = new JMenuItem("Hide all connectors"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all connectors"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
 			none = ! layer.getParent().containsDisplayable(Patch.class);
 			item = new JMenuItem("Hide all images"); item.addActionListener(this); menu.add(item);
