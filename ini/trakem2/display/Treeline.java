@@ -324,6 +324,20 @@ public class Treeline extends ZDisplayable {
 			return child;
 		}
 
+		final boolean remove(Branch child) {
+			for (Iterator<Map.Entry<Integer,ArrayList<Branch>>> it = branches.entrySet().iterator(); it.hasNext(); ) {
+				ArrayList<Branch> bs = it.next().getValue();
+				for (Iterator<Branch> itbs = bs.iterator(); itbs.hasNext(); ) {
+					if (itbs.next() == child) {
+						itbs.remove();
+						if (0 == bs.size()) it.remove();
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		/** Paint recursively into branches. */
 		final void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final Stroke branch_stroke, final boolean no_color_cues, final double current_z) {
 			this.pline.paint(g, magnification, active, channels, active_layer);
@@ -786,6 +800,9 @@ public class Treeline extends ZDisplayable {
 						branch.branches.remove(i);
 					}
 					branch.removePoint(i);
+					if (0 == branch.pline.n_points && null != branch.parent) {
+						branch.parent.remove(branch);
+					}
 					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
 					active = null;
 					index = -1;

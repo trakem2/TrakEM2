@@ -170,7 +170,7 @@ public class Ball extends ZDisplayable {
 	}
 
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
-	protected int addPoint(int x_p, int y_p, double magnification, long layer_id) {
+	protected int addPoint(double x_p, double y_p, long layer_id, double radius) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		//check array size
 		if (p[0].length == n_points) {
@@ -180,7 +180,7 @@ public class Ball extends ZDisplayable {
 		p[0][n_points] = x_p;
 		p[1][n_points] = y_p;
 		p_layer[n_points] = layer_id;
-		p_width[n_points] = (0 == n_points ? Ball.getFirstWidth() : p_width[n_points -1]); // either 10 screen pixels or the same as the last point
+		p_width[n_points] = radius;
 		index = n_points;
 		//add one up
 		this.n_points++;
@@ -279,7 +279,7 @@ public class Ball extends ZDisplayable {
 				}
 			}
 			if (-1 == index) {
-				index = addPoint(x_p, y_p, mag, layer_id);
+				index = addPoint(x_p, y_p, layer_id, (0 == n_points ? Ball.getFirstWidth() : p_width[n_points -1])); // either 10 screen pixels or the same as the last point
 				repaint(false);
 			}
 		}
