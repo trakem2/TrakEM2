@@ -447,6 +447,49 @@
         (sorted-map)
         (Compare/createPipeChains (.getRootProjectThing project) (.getRootLayerSet project) regex-exclude)))))
 
+(defn summarize-as-confusion-matrix
+  "Takes the results of quantify-all and returns the confusion matrix as a map."
+  [qa]
+  (reduce
+    (fn [m results]
+      (merge-with + m {:true-positives (results 5)
+                       :false-positives (results 6)
+                       :true-negatives (results 7)
+                       :false-negatives (results 8)}))
+    {:true-positives 0
+     :false-positives 0
+     :true-negatives 0
+     :false-negatives 0}
+    (vals qa)))
+
+(defn summarize-as-distributions
+  "Takes the results of quantify-all and returns four vectors representing four histograms,
+  one for each distribution of true-positives, false-positives, true-negatives and false-negatives."
+  [qa]
+  (reduce
+    (fn [m results]
+      (merge-with (fn [m1 m2]
+                    (merge-with + m1 m2))
+                  m
+                  {:true-positives {(results 5) 1}
+                   :false-positives {(results 6) 1}
+                   :true-negatives {(results 7) 1}
+                   :false-negatives {(results 8) 1}}))
+    {:true-positives (sorted-map)
+     :false-positives (sorted-map)
+     :true-negatives (sorted-map)
+     :false-negatives (sorted-map)}
+    (vals qa)))
+
+(defn summarize-quantify-all
+  "Takes the results of quantify-all and returns a map of two maps,
+  one with the confusion matrix and one with the distribution of true/false-positive/negative matches."
+  [project lib-name regex-exclude delta direct substring]
+  (let [qa (quantify-all project lib-name regex-exclude delta direct substring)]
+    {:confusion-matrix (summarize-as-confusion-matrix qa)
+     :distributions (summarize-as-distributions)}))
+
+
 (defn print-quantify-all [t]
   (doseq [[k v] t]
      (print k \tab)
