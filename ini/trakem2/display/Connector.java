@@ -21,7 +21,8 @@ import java.awt.event.MouseEvent;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 
-/** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. Byt shift+drag on the source, the connector can be given another target. Connectors are meant to represent synapses, in particular to be able to represent polyadic synapses. */
+/** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
+ * Connectors are meant to represent synapses, in particular polyadic synapses. */
 public class Connector extends ZDisplayable {
 
 	/** Represents points as X1,Y1,X2,Y2,... */
