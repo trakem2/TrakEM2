@@ -41,6 +41,33 @@ public class Connector extends ZDisplayable {
 
 	public Connector(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
 		super(project, id, ht_attr, ht_links);
+		String origin = (String) ht_attr.get("origin");
+		String targets = (String) ht_attr.get("targets");
+		if (null != origin) {
+			String[] o = origin.split(",");
+			String[] t = null;
+			int len = 1;
+			if (null != targets) {
+				t = targets.split(",");
+				len += t.length / 3;
+			}
+			this.p = new float[len + len];
+			this.lids = new long[len];
+			// Origin:
+			/* X  */ p[0] = Float.parseFloat(o[0]);
+			/* Y  */ p[1] = Float.parseFloat(o[1]);
+			/* LZ */ lids[0] = Long.parseLong(o[2]);
+			// Targets:
+			if (null != targets) {
+				for (int i=0, k=1; i<t.length; i+=3, k++) {
+					/* X  */ p[k+k] = Float.parseFloat(t[i]);
+					/* Y  */ p[k+k+1] = Float.parseFloat(t[i+1]);
+					/* LZ */ lids[k] = Long.parseLong(t[i+2]);
+				}
+			}
+		}
+		// TODO: to parse origin and targets with good performance, I'd have to create a custom NumberReader on a StringReader
+		// that would read batches of 3 numbers as two floats and a long.
 	}
 
 	final private void resizeArray(int inc) {
