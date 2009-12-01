@@ -18,6 +18,8 @@ import java.util.HashSet;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.awt.event.MouseEvent;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. Byt shift+drag on the source, the connector can be given another target. Connectors are meant to represent synapses, in particular to be able to represent polyadic synapses. */
 public class Connector extends ZDisplayable {
@@ -459,5 +461,27 @@ public class Connector extends ZDisplayable {
 			con.lids = this.lids.clone();
 			return true;
 		}
+	}
+
+	public ResultsTable measure(ResultsTable rt) {
+		if (null == p) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z"});
+		float[] p = transformPoints(this.p);
+		final Calibration cal = layer_set.getCalibration();
+		for (int i=0; i<lids.length; i++) {
+			rt.incrementCounter();
+			rt.addLabel("units", cal.getUnit());
+			rt.addValue(0, this.id);
+			rt.addValue(1, i); // start at 0, the origin
+			rt.addValue(2, p[i+i] * cal.pixelWidth);
+			rt.addValue(3, p[i+i+1] * cal.pixelHeight);
+			rt.addValue(4, layer_set.getLayer(lids[i]).getZ() * cal.pixelWidth);
+		}
+		return rt;
+	}
+
+	public String getInfo() {
+		if (null == p) return "Empty";
+		return new StringBuilder("Targets: ").append(lids.length-1).append('\n').toString();
 	}
 }
