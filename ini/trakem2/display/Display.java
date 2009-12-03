@@ -3470,11 +3470,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					Display.this.getLayerSet().addLayerContentStep(layer);
 				}});
 		} else if (command.equals("Import sequence as grid...")) {
-			Display.this.getLayerSet().addLayerContentStep(layer);
+			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importSequenceAsGrid(layer);
 			if (null != burro)
 				burro.addPostTask(new Runnable() { public void run() {
-					Display.this.getLayerSet().addLayerContentStep(layer);
+					Display.this.getLayerSet().addChangeTreesStep();
 				}});
 		} else if (command.equals("Import from text file...")) {
 			Display.this.getLayerSet().addLayerContentStep(layer);
