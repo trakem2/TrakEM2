@@ -597,4 +597,57 @@ public class StitchingTEM {
 		}
 	}
 	*/
+
+	/** For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
+	 *  then consider all succesful correlations as links and run the optimizer on it all.
+	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
+	static public Bureaucrat alignWithPhaseCorrelation(final Collection<Patch> col, final float cc_scale_, final boolean hide_disconnected, final boolean remove_disconnected) {
+		if (null == col || col.size() < 1) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Stitching with phase-correlation") {
+			public void exec() {
+				final ArrayList<Patch> al = new ArrayList<Patch>(col);
+				final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
+				ArrayList<AbstractAffineTile2D<?>> fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+				for (final Patch p : al) {
+					// Pre-check: a warning
+					final int aff_type = p.getAffineTransform().getType();
+					if (AffineTransform.TYPE_IDENTITY != aff_type
+					  && 0 == (AffineTransform.TYPE_TRANSLATION ^ aff_type)) {
+						Utils.log("WARNING: patch with a non-translation identity: " + p);
+					}
+					// create tiles
+					TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
+					tiles.add(tile);
+					if (p.isLocked2()) fixed_tiles.add(tile);
+				}
+				// Get acceptable values
+				float cc_scale = cc_scale_;
+				if (cc_scale_ < 0 || cc_scale_ > 1) cc_scale = 1;
+
+				final float min_R = al.get(0).getProject().getProperty("min_R", DEFAULT_MIN_R);
+
+				for (int i=0; i<al.size(); i++) {
+					final Patch p1 = al.get(i);
+					// find overlapping, add as connections
+					for (int j=i+1; j<al.size(); j++) {
+						final Patch p2 = al.get(j);
+						if (p1.intersects(p2)) {
+							final double[] R = correlate(p1, p2, 1.0f, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+							if (SUCCESS == R[2]) {
+								addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+							}
+						}
+					}
+				}
+
+				// Run optimization
+				if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
+				Align.ParamOptimize param = new Align.ParamOptimize(); // with default parameters
+				Align.optimizeTileConfiguration(param, tiles, fixed_tiles);
+
+				for ( AbstractAffineTile2D< ? > t : tiles )
+					t.getPatch().setAffineTransform( t.getModel().createAffine() );
+			}
+		}, col.iterator().next().getProject());
+	}
 }
