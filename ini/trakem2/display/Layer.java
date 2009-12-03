@@ -288,7 +288,7 @@ public final class Layer extends DBObject implements Bucketable {
 		}
 	}
 
-	public boolean remove(final Displayable displ) {
+	public synchronized boolean remove(final Displayable displ) {
 		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) {
 			Utils.log2("Layer can't remove Displayable " + displ.getId());
 			return false;
@@ -401,7 +401,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Returns a copy of the list of Displayable objects.*/
-	public ArrayList<Displayable> getDisplayables() {
+	synchronized public ArrayList<Displayable> getDisplayables() {
 		return (ArrayList<Displayable>)al_displayables.clone();
 	}
 
@@ -410,12 +410,12 @@ public final class Layer extends DBObject implements Bucketable {
 		return al_displayables;
 	}
 
-	public int getNDisplayables() {
+	synchronized public int getNDisplayables() {
 		return al_displayables.size();
 	}
 
 	/** Returns a list of Displayable of class c only.*/
-	public ArrayList<Displayable> getDisplayables(final Class c) {
+	synchronized public ArrayList<Displayable> getDisplayables(final Class c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c) return al;
 		if (Displayable.class == c) {
@@ -434,7 +434,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Returns a list of all Displayable of class c that intersect the given area. */
-	public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
+	synchronized public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
 		final ArrayList<Displayable> al = getDisplayables(c);
 		for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 			Displayable d = it.next();
@@ -447,7 +447,7 @@ public final class Layer extends DBObject implements Bucketable {
 		return al;
 	}
 
-	public ArrayList<Displayable> getDisplayables(final Class c, final boolean visible_only) {
+	synchronized public ArrayList<Displayable> getDisplayables(final Class c, final boolean visible_only) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final Displayable d : al_displayables) {
 			if (d.getClass() == c) {
@@ -477,7 +477,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Find the Displayable objects that contain the point. */
-	public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
 		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -495,7 +495,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Find the Displayable objects of Class c that contain the point. */
-	public Collection<Displayable> find(final Class c, final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class c, final int x, final int y, final boolean visible_only) {
 		if (Displayable.class == c) return find(x, y); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -513,7 +513,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
-	public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
 		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final Displayable d : al_displayables) {
@@ -526,7 +526,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
-	public Collection<Displayable> find(final Class c, final Rectangle r, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class c, final Rectangle r, final boolean visible_only) {
 		if (Displayable.class == c) return find(r, visible_only);
 		if (null != root && root.isBetter(r, this)) return root.find(c, r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -541,7 +541,7 @@ public final class Layer extends DBObject implements Bucketable {
 	}
 
 	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself included if present in this very Layer). */
-	public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
+	synchronized public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());
 			if (root.isBetter(area.getBounds(), this)) return root.find(area, this, false);
