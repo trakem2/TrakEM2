@@ -2314,6 +2314,8 @@ abstract public class Loader {
 					// 2 - set a base dir path if necessary
 					final String[] base_dir = new String[]{null, null}; // second item will work as flag if the dialog to ask for a directory is canceled in any of the threads.
 
+					final Vector<Future> fus = new Vector<Future>(); // to wait on mipmap regeneration
+
 					///////// Multithreading ///////
 					final AtomicInteger ai = new AtomicInteger(0);
 					final Thread[] threads = MultiThreading.newThreads();
@@ -2425,8 +2427,8 @@ abstract public class Loader {
 							}
 						}
 						if (null != patch) {
-							if (!generateMipMaps(patch)) {
-								Utils.log("Failed to generate mipmaps for " + patch);
+							if (!homogenize_contrast) {
+								fus.add(regenerateMipMaps(patch));
 							}
 							synchronized (lock) {
 								try {
@@ -2438,7 +2440,6 @@ abstract public class Loader {
 									lock.unlock();
 								}
 							}
-							decacheImagePlus(patch.getId()); // no point in keeping it around
 						}
 
 						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
@@ -2468,6 +2469,8 @@ abstract public class Loader {
 						cew.applyLayerWise(touched_layers);
 						cew.shutdown();
 					}
+
+					Utils.wait(fus);
 
 				} catch (Exception e) {
 					IJError.print(e);
