@@ -581,8 +581,7 @@ public class StitchingTEM {
 	}
 
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
-	/*
-	private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
+	static private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
 		Rectangle x_rect = dragging_ob.getBoundingBox();
 		Rectangle y_rect = overlapping_ob.getBoundingBox();
 		Rectangle overlap = x_rect.intersection(y_rect);
@@ -596,58 +595,137 @@ public class StitchingTEM {
 			else return 0;
 		}
 	}
-	*/
 
 	/** For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
 	 *  then consider all succesful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
-	static public Bureaucrat alignWithPhaseCorrelation(final Collection<Patch> col, final float cc_scale_, final boolean hide_disconnected, final boolean remove_disconnected) {
+	static public Bureaucrat alignWithPhaseCorrelation(final Collection<Patch> col) {
 		if (null == col || col.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Stitching with phase-correlation") {
 			public void exec() {
-				final ArrayList<Patch> al = new ArrayList<Patch>(col);
-				final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
-				ArrayList<AbstractAffineTile2D<?>> fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
-				for (final Patch p : al) {
-					// Pre-check: a warning
-					final int aff_type = p.getAffineTransform().getType();
-					if (AffineTransform.TYPE_IDENTITY != aff_type
-					  && 0 == (AffineTransform.TYPE_TRANSLATION ^ aff_type)) {
-						Utils.log("WARNING: patch with a non-translation identity: " + p);
+				GenericDialog gd = new GenericDialog("Montage with phase correlation");
+				gd.addSlider("tile_overlap (%): ", 1, 100, 10);
+				Patch p0 = col.iterator().next();
+				int w = p0.getOWidth();
+				int h = p0.getOHeight();
+				int sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
+				if (sc > 100) sc = 100;
+				gd.addSlider("scale (%):", 1, 100, sc);
+				gd.addCheckbox("hide disconnected", false);
+				gd.addCheckbox("remove disconnected", false);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				alignWithPhaseCorrelation(col, (float)gd.getNextNumber() / 100f, (float)gd.getNextNumber() / 100f, gd.getNextBoolean(), gd.getNextBoolean());
+			}
+		}, col.iterator().next().getProject());
+	}
+
+	static public void alignWithPhaseCorrelation(final Collection<Patch> col, final float overlap_, final float cc_scale_, final boolean hide_disconnected, final boolean remove_disconnected) {
+		if (null == col || col.size() < 1) return;
+		final ArrayList<Patch> al = new ArrayList<Patch>(col);
+		final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
+		final ArrayList<AbstractAffineTile2D<?>> fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+		for (final Patch p : al) {
+			// Pre-check: just a warning
+			final int aff_type = p.getAffineTransform().getType();
+			if (AffineTransform.TYPE_IDENTITY != aff_type
+			  || 0 != (AffineTransform.TYPE_TRANSLATION ^ aff_type)) {
+				Utils.log2("WARNING: patch with a non-translation transform: " + p);
+			}
+			// create tiles
+			TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
+			tiles.add(tile);
+			if (p.isLocked2()) {
+				Utils.log("Added fixed (locked) tile " + p);
+				fixed_tiles.add(tile);
+			}
+		}
+		// Get acceptable values
+		float cc_scale = cc_scale_;
+		if (cc_scale_ < 0 || cc_scale_ > 1) cc_scale = 1;
+		float overlap = overlap_;
+		if (overlap_ < 0 || overlap_ > 1) overlap = 1;
+
+		final float min_R = al.get(0).getProject().getProperty("min_R", DEFAULT_MIN_R);
+
+		for (int i=0; i<al.size(); i++) {
+			final Patch p1 = al.get(i);
+			final Rectangle r1 = p1.getBoundingBox();
+			// find overlapping, add as connections
+			for (int j=i+1; j<al.size(); j++) {
+				if (Thread.currentThread().isInterrupted()) return;
+				final Patch p2 = al.get(j);
+				final Rectangle r2 = p2.getBoundingBox();
+				if (r1.intersects(r2)) {
+					// Skip if it's a diagonal overlap
+					final int dx = Math.abs(r1.x - r2.x);
+					final int dy = Math.abs(r1.y - r2.y);
+					if (dx > r1.width/2 && dy > r1.height/2) {
+						// skip diagonal match
+						Utils.log2("Skipping diagonal overlap between " + p1 + " and " + p2);
+						continue;
 					}
-					// create tiles
-					TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
-					tiles.add(tile);
-					if (p.isLocked2()) fixed_tiles.add(tile);
-				}
-				// Get acceptable values
-				float cc_scale = cc_scale_;
-				if (cc_scale_ < 0 || cc_scale_ > 1) cc_scale = 1;
 
-				final float min_R = al.get(0).getProject().getProperty("min_R", DEFAULT_MIN_R);
-
-				for (int i=0; i<al.size(); i++) {
-					final Patch p1 = al.get(i);
-					// find overlapping, add as connections
-					for (int j=i+1; j<al.size(); j++) {
-						final Patch p2 = al.get(j);
-						if (p1.intersects(p2)) {
-							final double[] R = correlate(p1, p2, 1.0f, cc_scale, TOP_BOTTOM, 0, 0, min_R);
-							if (SUCCESS == R[2]) {
-								addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
-							}
+					final double[] R;
+					if (1 == overlap) {
+						R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+						if (SUCCESS == R[2]) {
+							addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+						}
+					} else {
+						switch (getClosestOverlapLocation(p1, p2)) {
+							case 0: // p1 overlaps p2 from the left
+								R = correlate(p1, p2, overlap, cc_scale, LEFT_RIGHT, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+								}
+								break;
+							case 1: // p1 overlaps p2 from the top
+								R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+								}
+								break;
+							case 2: // p1 overlaps p2 from the right
+								R = correlate(p2, p1, overlap, cc_scale, LEFT_RIGHT, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(j), tiles.get(i), R[0], R[1]);
+								}
+								break;
+							case 3: // p1 overlaps p2 from the bottom
+								R = correlate(p2, p1, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(j), tiles.get(i), R[0], R[1]);
+								}
+								break;
+							default:
+								Utils.log("Unknown overlap direction!");
+								continue;
 						}
 					}
 				}
-
-				// Run optimization
-				if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
-				Align.ParamOptimize param = new Align.ParamOptimize(); // with default parameters
-				Align.optimizeTileConfiguration(param, tiles, fixed_tiles);
-
-				for ( AbstractAffineTile2D< ? > t : tiles )
-					t.getPatch().setAffineTransform( t.getModel().createAffine() );
 			}
-		}, col.iterator().next().getProject());
+		}
+
+		if (remove_disconnected || hide_disconnected) {
+			for (Iterator<AbstractAffineTile2D<?>> it = tiles.iterator(); it.hasNext(); ) {
+				AbstractAffineTile2D<?> t = it.next();
+				if (null != t.getMatches() && t.getMatches().isEmpty()) {
+					if (hide_disconnected) t.getPatch().setVisible(false);
+					else if (remove_disconnected) t.getPatch().remove(false);
+					it.remove();
+				}
+			}
+		}
+
+		// Run optimization
+		if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
+		Align.ParamOptimize param = new Align.ParamOptimize(); // with default parameters
+		Align.optimizeTileConfiguration(param, tiles, fixed_tiles);
+
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+
+		try { Display.repaint(al.get(0).getLayer()); } catch (Exception e) {}
 	}
 }

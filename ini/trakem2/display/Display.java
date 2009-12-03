@@ -46,6 +46,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
+import ini.trakem2.imaging.StitchingTEM;
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -2402,7 +2403,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
 		if (layer.getDisplayables(Patch.class).size() < 2) item.setEnabled(false);
-		item = new JMenuItem("Montage selected images"); item.addActionListener(this); align_menu.add(item);
+		item = new JMenuItem("Montage selected images (SIFT)"); item.addActionListener(this); align_menu.add(item);
+		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage selected images (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
 		popup.add(align_menu);
 
@@ -3631,17 +3634,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep();
 			}});
-		} else if (command.equals("Montage selected images")) {
-			final Layer la = layer;
-			if (selection.getSelected(Patch.class).size() < 2) {
-				Utils.showMessage("Montage needs 2 or more images selected");
-				return;
-			}
-			la.getParent().addTransformStep(la);
-			Bureaucrat burro = AlignTask.alignSelectionTask(selection);
-			burro.addPostTask(new Runnable() { public void run() {
-				la.getParent().addTransformStep();
-			}});
+		} else if (command.equals("Montage selected images (SIFT)")) {
+			montage(0);
+		} else if (command.equals("Montage selected images (phase correlation)")) {
+			montage(1);
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
@@ -5005,5 +5001,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			stacks.add(ps.getPatch(0));
 		}
 		return new ArrayList<Patch>(stacks);
+	}
+
+	private void montage(int type) {
+		final Layer la = layer;
+		if (selection.getSelected(Patch.class).size() < 2) {
+			Utils.showMessage("Montage needs 2 or more images selected");
+			return;
+		}
+		la.getParent().addTransformStep(la);
+		Bureaucrat burro;
+		switch (type) {
+			case 0:
+				burro = AlignTask.alignSelectionTask(selection);
+				break;
+			case 1:
+				burro = StitchingTEM.alignWithPhaseCorrelation( (Collection<Patch>) (Collection) selection.getSelected(Patch.class));
+				break;
+			default:
+				Utils.log("Unknown montage type " + type);
+				return;
+		}
+		if (null == burro) return;
+		burro.addPostTask(new Runnable() { public void run() {
+			la.getParent().addTransformStep(la);
+		}});
 	}
 }
