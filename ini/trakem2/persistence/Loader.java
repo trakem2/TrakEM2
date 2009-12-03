@@ -900,8 +900,15 @@ abstract public class Loader {
 		}
 	}
 
-	public void cacheOffscreen(final Layer layer, final Image awt) {
-		cacheAWT(layer.getId(), awt);
+	public Image getCachedAWT(final long id, final int level) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				return mawts.get(id, level);
+			} finally {
+				unlock();
+			}
+		}
 	}
 	
 	public void cacheAWT( final long id, final Image awt) {

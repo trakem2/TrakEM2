@@ -65,6 +65,7 @@ import java.lang.reflect.Method;
 import java.io.Writer;
 import java.io.File;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 import lenscorrection.DistortionCorrectionTask;
 import mpicbg.models.PointMatch;
@@ -350,6 +351,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
+				createColumnScreenshots(5);
 			}
 		}
 
@@ -375,6 +377,48 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void quit() {
 			go = false;
 		}
+	}
+
+	private void createColumnScreenshots(final int n) {
+		project.getLoader().doLater(new Callable() {
+			public Object call() {
+				final Layer current = Display.this.layer;
+				// 1 - Create DisplayCanvas.Screenshot instances for the next 5 and previous 5 layers
+				final ArrayList<DisplayCanvas.Screenshot> s = new ArrayList<DisplayCanvas.Screenshot>();
+				Layer now = current;
+				Layer prev = now.getParent().previous(now);
+				int i = 0;
+				Layer next = now.getParent().next(now);
+				while (now != next && i < n) {
+					s.add(canvas.createScreenshot(next));
+					now = next;
+					next = now.getParent().next(now);
+					i++;
+				}
+				now = current;
+				i = 0;
+				while (now != prev && i < n) {
+					s.add(0, canvas.createScreenshot(prev));
+					now = prev;
+					prev = now.getParent().previous(now);
+					i++;
+				}
+				for (final DisplayCanvas.Screenshot sc : s) {
+					if (!current.getParent().containsScreenshot(sc)) {
+						sc.init();
+						current.getParent().storeScreenshot(sc);
+						project.getLoader().doLater(new Callable() {
+							public Object call() {
+								sc.createImage();
+								return null;
+							}
+						});
+					}
+				}
+				current.getParent().trimScreenshots();
+				return null;
+			}
+		});
 	}
 
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
