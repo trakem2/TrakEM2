@@ -351,7 +351,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
-				createColumnScreenshots(5);
+				int ahead = project.getProperty("look_ahead_cache", 5);
+				if (ahead < 0) ahead = 0;
+				if (0 != ahead) createColumnScreenshots(ahead);
 			}
 		}
 
@@ -403,6 +405,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					prev = now.getParent().previous(now);
 					i++;
 				}
+				// Store them all into the LayerSet offscreens hashmap, but trigger image creation in parallel threads.
 				for (final DisplayCanvas.Screenshot sc : s) {
 					if (!current.getParent().containsScreenshot(sc)) {
 						sc.init();

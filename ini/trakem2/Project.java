@@ -1234,6 +1234,8 @@ public class Project extends DBObject {
 		gd.addSlider("Undo steps", 32, 200, n_undo_steps);
 		boolean flood_fill_to_image_edge = "true".equals(ht_props.get("flood_fill_to_image_edge"));
 		gd.addCheckbox("AreaList_flood_fill_to_image_edges", flood_fill_to_image_edge);
+		int look_ahead_cache = (int)getProperty("look_ahead_cache", 0);
+		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0);
 		//
 		gd.showDialog();
 		//
@@ -1277,6 +1279,12 @@ public class Project extends DBObject {
 		if (n_undo_steps < 0) n_undo_steps = 0;
 		setProperty("n_undo_steps", Integer.toString(n_undo_steps));
 		adjustProp("flood_fill_to_image_edge", flood_fill_to_image_edge, gd.getNextBoolean());
+		double d_look_ahead_cache = gd.getNextNumber();
+		if (!Double.isNaN(d_look_ahead_cache) && d_look_ahead_cache >= 0) {
+			setProperty("look_ahead_cache", Integer.toString((int)d_look_ahead_cache));
+		} else {
+			Utils.log2("Ignoring invalid 'look ahead cache' value " + d_look_ahead_cache);
+		}
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */
