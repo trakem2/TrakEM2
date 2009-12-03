@@ -1805,7 +1805,6 @@ abstract public class Loader {
 	 * @param bt_overlap bottom-top overlap of the images
 	 * @param lr_overlap left-right overlap of the images
 	 * @param link_images Link images to their neighbors.
-	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
 	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
 
@@ -1868,6 +1867,9 @@ abstract public class Loader {
 			auto_fix_all = true;
 			resize = true;
 		}
+
+		// Accumulate mipmap generation tasks
+		final ArrayList<Future> fus = new ArrayList<Future>();
 
 		startLargeUpdate();
 		for (int i=0; i<cols.size(); i++) {
@@ -1958,7 +1960,7 @@ abstract public class Loader {
 				//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 				addedPatchFrom(path, patch);
 				if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
-				else regenerateMipMaps(patch).get(); // wait
+				else fus.add(regenerateMipMaps(patch));
 				//
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
@@ -2127,23 +2129,11 @@ abstract public class Loader {
 					// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
 				}
 
-				if (isMipMapsEnabled()) {
-					setTaskName("Regenerating snapshots.");
-					// recreate files
-					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
-					Thread t = regenerateMipMaps(al);
-					if (null != t) try { t.join(); } catch (InterruptedException ie) {}
-				}
-				// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
-				synchronized (db_lock) {
-					lock();
-					for (i=0; i<pa.length; i++) {
-						mawts.removeAndFlush(pa[i].getId());
-						Utils.log2(i + "removing mawt for " + pa[i].getId());
-					}
-					unlock();
-				}
 				setMipMapsRegeneration(true);
+				if (isMipMapsEnabled()) {
+					// recreate files
+					for (Patch p : al) fus.add(regenerateMipMaps(p));
+				}
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 
 				// make picture
@@ -2152,6 +2142,9 @@ abstract public class Loader {
 		}
 
 		if (stitch_tiles) {
+			// Wait until all mipmaps for the new images have been generated before attempting to register
+			Utils.wait(fus);
+
 			setTaskName("stitching tiles");
 			// create undo
 			layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
