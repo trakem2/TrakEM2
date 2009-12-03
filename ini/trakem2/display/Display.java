@@ -2407,6 +2407,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
 		item = new JMenuItem("Montage selected images (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage multiple layers (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
@@ -3638,6 +3639,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			montage(0);
 		} else if (command.equals("Montage selected images (phase correlation)")) {
 			montage(1);
+		} else if (command.equals("Montage multiple layers (phase correlation)")) {
+			final GenericDialog gd = new GenericDialog("Choose range");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
+			getLayerSet().addLayerEditedStep(layers);
+			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
+			if (null == burro) return;
+			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().addLayerEditedStep(layers);
+			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
@@ -5016,7 +5029,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				burro = AlignTask.alignSelectionTask(selection);
 				break;
 			case 1:
-				burro = StitchingTEM.alignWithPhaseCorrelation( (Collection<Patch>) (Collection) selection.getSelected(Patch.class));
+				burro = StitchingTEM.montageWithPhaseCorrelation( (Collection<Patch>) (Collection) selection.getSelected(Patch.class));
 				break;
 			default:
 				Utils.log("Unknown montage type " + type);

@@ -60,6 +60,7 @@ import java.awt.geom.Point2D;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Vector;
@@ -599,28 +600,76 @@ public class StitchingTEM {
 	/** For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
 	 *  then consider all succesful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
-	static public Bureaucrat alignWithPhaseCorrelation(final Collection<Patch> col) {
+	static public Bureaucrat montageWithPhaseCorrelation(final Collection<Patch> col) {
 		if (null == col || col.size() < 1) return null;
-		return Bureaucrat.createAndStart(new Worker.Task("Stitching with phase-correlation") {
+		return Bureaucrat.createAndStart(new Worker.Task("Montage with phase-correlation") {
 			public void exec() {
-				GenericDialog gd = new GenericDialog("Montage with phase correlation");
-				gd.addSlider("tile_overlap (%): ", 1, 100, 10);
-				Patch p0 = col.iterator().next();
-				int w = p0.getOWidth();
-				int h = p0.getOHeight();
-				int sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
-				if (sc > 100) sc = 100;
-				gd.addSlider("scale (%):", 1, 100, sc);
-				gd.addCheckbox("hide disconnected", false);
-				gd.addCheckbox("remove disconnected", false);
-				gd.showDialog();
-				if (gd.wasCanceled()) return;
-				alignWithPhaseCorrelation(col, (float)gd.getNextNumber() / 100f, (float)gd.getNextNumber() / 100f, gd.getNextBoolean(), gd.getNextBoolean());
+				PhaseCorrelationParam param = new PhaseCorrelationParam();
+				if (!param.setup(col.iterator().next())) {
+					return;
+				}
+				montageWithPhaseCorrelation(col, param);
 			}
 		}, col.iterator().next().getProject());
 	}
 
-	static public void alignWithPhaseCorrelation(final Collection<Patch> col, final float overlap_, final float cc_scale_, final boolean hide_disconnected, final boolean remove_disconnected) {
+	static public Bureaucrat montageWithPhaseCorrelation(final List<Layer> layers) {
+		if (null == layers || layers.size() < 1) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Montage layer 1/" + layers.size()) {
+			public void exec() {
+				PhaseCorrelationParam param = new PhaseCorrelationParam();
+				Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
+				if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
+					return;
+				}
+				int i = 1;
+				for (Layer la : layers) {
+					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
+					setTaskName("Montage layer " + i + "/" + layers.size());
+					montageWithPhaseCorrelation((Collection<Patch>) (Collection) la.getDisplayables(Patch.class), param);
+				}
+			}
+		}, layers.get(0).getProject());
+	}
+
+	static public class PhaseCorrelationParam {
+		public float cc_scale = 0.25f;
+		public float overlap = 0.1f;
+		public boolean hide_disconnected = false;
+		public boolean remove_disconnected = false;
+
+		/** Returns false when canceled.
+		 *  @param ref is an optional Patch from which to estimate an appropriate image scale at which to perform the phase correlation, for performance reasons. */
+		public boolean setup(Patch ref) {
+			GenericDialog gd = new GenericDialog("Montage with phase correlation");
+			if (overlap < 0) overlap = 0.1f;
+			else if (overlap > 1) overlap = 1;
+			gd.addSlider("tile_overlap (%): ", 1, 100, overlap * 100);
+			int sc = (int)cc_scale * 100;
+			if (null != ref) {
+				// Estimate scale from ref Patch dimensions
+				int w = ref.getOWidth();
+				int h = ref.getOHeight();
+				sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
+			}
+			if (sc < 0) sc = 25;
+			else if (sc > 100) sc = 100;
+			gd.addSlider("scale (%):", 1, 100, sc);
+			gd.addCheckbox("hide disconnected", false);
+			gd.addCheckbox("remove disconnected", false);
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			
+			overlap = (float)gd.getNextNumber() / 100f;
+			cc_scale = (float)gd.getNextNumber() / 100f;
+			hide_disconnected = gd.getNextBoolean();
+			remove_disconnected = gd.getNextBoolean();
+
+			return true;
+		}
+	}
+
+	static public void montageWithPhaseCorrelation(final Collection<Patch> col, final PhaseCorrelationParam param) {
 		if (null == col || col.size() < 1) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>(col);
 		final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
@@ -641,10 +690,16 @@ public class StitchingTEM {
 			}
 		}
 		// Get acceptable values
-		float cc_scale = cc_scale_;
-		if (cc_scale_ < 0 || cc_scale_ > 1) cc_scale = 1;
-		float overlap = overlap_;
-		if (overlap_ < 0 || overlap_ > 1) overlap = 1;
+		float cc_scale = param.cc_scale;
+		if (cc_scale < 0 || cc_scale > 1) {
+			Utils.log("Unacceptable cc_scale of " + param.cc_scale + ". Using 1 instead.");
+			cc_scale = 1;
+		}
+		float overlap = param.overlap;
+		if (overlap < 0 || overlap > 1) {
+			Utils.log("Unacceptable overlap of " + param.overlap + ". Using 1 instead.");
+			overlap = 1;
+		}
 
 		final float min_R = al.get(0).getProject().getProperty("min_R", DEFAULT_MIN_R);
 
@@ -665,6 +720,8 @@ public class StitchingTEM {
 						Utils.log2("Skipping diagonal overlap between " + p1 + " and " + p2);
 						continue;
 					}
+
+					p1.getProject().getLoader().releaseToFit((long)(p1.getWidth() * p1.getHeight() * 25));
 
 					final double[] R;
 					if (1 == overlap) {
@@ -707,12 +764,12 @@ public class StitchingTEM {
 			}
 		}
 
-		if (remove_disconnected || hide_disconnected) {
+		if (param.remove_disconnected || param.hide_disconnected) {
 			for (Iterator<AbstractAffineTile2D<?>> it = tiles.iterator(); it.hasNext(); ) {
 				AbstractAffineTile2D<?> t = it.next();
 				if (null != t.getMatches() && t.getMatches().isEmpty()) {
-					if (hide_disconnected) t.getPatch().setVisible(false);
-					else if (remove_disconnected) t.getPatch().remove(false);
+					if (param.hide_disconnected) t.getPatch().setVisible(false);
+					else if (param.remove_disconnected) t.getPatch().remove(false);
 					it.remove();
 				}
 			}
@@ -720,8 +777,8 @@ public class StitchingTEM {
 
 		// Run optimization
 		if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
-		Align.ParamOptimize param = new Align.ParamOptimize(); // with default parameters
-		Align.optimizeTileConfiguration(param, tiles, fixed_tiles);
+		// with default parameters
+		Align.optimizeTileConfiguration(new Align.ParamOptimize(), tiles, fixed_tiles);
 
 		for ( AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
