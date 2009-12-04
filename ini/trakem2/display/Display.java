@@ -352,9 +352,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
-				int ahead = project.getProperty("look_ahead_cache", 0);
-				if (ahead < 0) ahead = 0;
-				if (0 != ahead) createColumnScreenshots(ahead);
+				createColumnScreenshots();
 			}
 		}
 
@@ -382,7 +380,20 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 
-	private void createColumnScreenshots(final int n) {
+	/** Only for DefaultMode. */
+	final private void createColumnScreenshots() {
+		final int n;
+		try {
+			if (mode.getClass() == DefaultMode.class) {
+				int ahead = project.getProperty("look_ahead_cache", 0);
+				if (ahead < 0) ahead = 0;
+				if (0 == ahead) return;
+				n = ahead;
+			} else return;
+		} catch (Exception e) {
+			IJError.print(e);
+			return;
+		}
 		project.getLoader().doLater(new Callable() {
 			public Object call() {
 				final Layer current = Display.this.layer;

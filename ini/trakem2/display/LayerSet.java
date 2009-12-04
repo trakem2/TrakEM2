@@ -810,6 +810,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != root) Bucket.remove(zdispl, db_map);
 		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
+		removeFromOffscreens(zdispl);
 		Display.remove(zdispl);
 		return true;
 	}
@@ -2071,6 +2072,20 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			if (null != hs) {
 				for (final DisplayCanvas.Screenshot sc : hs) {
 					offscreens.remove(sc);
+				}
+			}
+		}
+	}
+	final void removeFromOffscreens(final ZDisplayable zd) {
+		synchronized (offscreens) {
+			// Throw away any cached that intersect the zd
+			final Rectangle box = zd.getBoundingBox();
+			for (final Iterator<DisplayCanvas.Screenshot> it = offscreens.keySet().iterator(); it.hasNext(); ) {
+				final DisplayCanvas.Screenshot sc = it.next();
+				if (box.intersects(sc.srcRect)) {
+					it.remove();
+					final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
+					if (null != hs) hs.remove(sc);
 				}
 			}
 		}

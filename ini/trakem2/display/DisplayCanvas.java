@@ -2112,18 +2112,29 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			BufferedImage target = null;
 
 			// Check if the image is cached
+			Screenshot sc = null;
 			try {
-				final Screenshot sc = new Screenshot(layer); // just a bag of properties
-				Long sid = layer.getParent().getScreenshotId(sc);
-				if (null != sid) {
-					target = (BufferedImage) layer.getProject().getLoader().getCachedAWT(sid.longValue(), 0);
-					if (null == target) layer.getParent().removeFromOffscreens(sc);
+				if (display.getMode().getClass() == DefaultMode.class) {
+					sc = new Screenshot(layer, srcRect, magnification, g_width, g_height, c_alphas, graphics_source); // just a bag of properties
+					Long sid = layer.getParent().getScreenshotId(sc);
+					if (null != sid) {
+						//Utils.log2("Using cached screenshot " + sc + " with srcRect " + sc.srcRect);
+						target = (BufferedImage) layer.getProject().getLoader().getCachedAWT(sid.longValue(), 0);
+						if (null == target) layer.getParent().removeFromOffscreens(sc); // the image was thrown out of the cache
+					}
 				}
 			} catch (Throwable t) {
 				IJError.print(t);
 			}
 
-			if (null == target) target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true);
+			if (null == target) {
+				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true);
+				// Store it:
+				if (null != sc && display.getProject().getProperty("look_ahead_cache", 0) > 0) {
+					sc.assoc(target);
+					layer.getParent().storeScreenshot(sc);
+				}
+			}
 
 			synchronized (offscreen_lock) {
 				offscreen_lock.lock();
@@ -2426,7 +2437,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		ke.consume();
 	}
 
-	public DisplayCanvas.Screenshot createScreenshot(Layer layer) {
+	DisplayCanvas.Screenshot createScreenshot(Layer layer) {
 		return new Screenshot(layer);
 	}
 
@@ -2448,7 +2459,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this(layer, DisplayCanvas.this.srcRect, DisplayCanvas.this.magnification, DisplayCanvas.this.getWidth(), DisplayCanvas.this.getHeight(), DisplayCanvas.this.display.getDisplayChannelAlphas(), DisplayCanvas.this.display.getMode().getGraphicsSource());
 		}
 		Screenshot(Layer layer, Rectangle srcRect, double magnification, int g_width, int g_height, int c_alphas, GraphicsSource graphics_source) {
-			this.srcRect = srcRect;
+			this.srcRect = new Rectangle(srcRect);
 			this.magnification = magnification;
 			this.layer = layer;
 			this.blending_list = new ArrayList<LayerPanel>();
@@ -2491,6 +2502,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.sid = layer.getProject().getLoader().getNextTempId();
 			return this.sid;
 		}
+		/** Associate @param img to this, with a new sid. */
+		public long assoc(BufferedImage img) {
+			init();
+			if (null != img) layer.getProject().getLoader().cacheAWT(this.sid, img);
+			return this.sid;
+		}
 		public void createImage() {
 			BufferedImage img = paintOffscreen(layer, g_width, g_height, srcRect, magnification,
 						  null, display.getDisplayChannelAlphas(), null, layer.getProject().getLoader(),
@@ -2499,10 +2516,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		public boolean equals(Object o) {
 			Screenshot s = (Screenshot)o;
-			return s.magnification == this.magnification
+			return s.layer == this.layer
+			  && s.magnification == this.magnification
 			  && s.srcRect.x == this.srcRect.x && s.srcRect.y == this.srcRect.y
 			  && s.srcRect.width == this.srcRect.width && s.srcRect.height == this.srcRect.height
-			  && s.layer == this.layer
 			  && s.mode == this.mode
 			  && equalContent(s.blending_list, this.blending_list)
 			  && equalContent(s.hm, this.hm);
@@ -2526,6 +2543,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 			return true;
 		}
-		public int hashCode() { return 0; }
+		public int hashCode() { return 0; } //$%^&$#@!
 	}
 }
