@@ -471,6 +471,7 @@ final public class AlignLayersTask
 
 		exec.shutdown();
 
+		if (propagateTransform)	Utils.log("Propagation not implemented yet for non-linear layer alignment.");
 		/* TODO do this
 		if ( propagateTransform )
 		{
