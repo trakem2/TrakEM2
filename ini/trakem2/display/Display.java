@@ -352,7 +352,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
-				int ahead = project.getProperty("look_ahead_cache", 1);
+				int ahead = project.getProperty("look_ahead_cache", 0);
 				if (ahead < 0) ahead = 0;
 				if (0 != ahead) createColumnScreenshots(ahead);
 			}
