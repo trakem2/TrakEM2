@@ -346,7 +346,9 @@ public class FilePathRepair {
 				}
 				// Check dimensions
 				if (dim.width != ps.getOWidth() || dim.height != ps.getOHeight()) {
-					Utils.log("ERROR different o_width,o_height for patch " + ps + "\n  at new path " + new_path);
+					Utils.log("ERROR different o_width,o_height for patch " + ps + "\n  at new path " + new_path +
+						"\nold o_width,o_height: " + ps.getOWidth() + "," + ps.getOHeight() +
+						"\nnew o_width,o_height: " + dim.width + "," + dim.height);
 					return n_fixed;
 				}
 			}
@@ -376,7 +378,9 @@ public class FilePathRepair {
 			}
 			// Check and set dimensions
 			if (dim.width != patch.getOWidth() || dim.height != patch.getOHeight()) {
-				Utils.log("ERROR different o_width,o_height for patch " + patch + "\n  at new path " + new_path);
+				Utils.log("ERROR different o_width,o_height for patch " + patch + "\n  at new path " + new_path +
+					"\nold o_width,o_height: " + patch.getOWidth() + "," + patch.getOHeight() +
+					"\nnew o_width,o_height: " + dim.width + "," + dim.height);
 				return false;
 			}
 			// flag as good
