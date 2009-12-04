@@ -36,6 +36,9 @@ import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 import bunwarpj.Transformation;
 import bunwarpj.bUnwarpJ_;
@@ -164,7 +167,7 @@ final public class AlignLayersTask
 		{
 			if ( Thread.currentThread().isInterrupted() ) break;
 			
- 			long t = System.currentTimeMillis();
+ 			final long t0 = System.currentTimeMillis();
 			
 			features1.clear();
 			features1.addAll( features2 );
@@ -182,11 +185,11 @@ final public class AlignLayersTask
 			ijSIFT.extractFeatures(
 					flatImage,
 					features2 );
-			IJ.log( features2.size() + " features extracted in layer \"" + layer.getTitle() + "\" (took " + ( System.currentTimeMillis() - t ) + " ms)." );
+			IJ.log( features2.size() + " features extracted in layer \"" + layer.getTitle() + "\" (took " + ( System.currentTimeMillis() - t0 ) + " ms)." );
 			
 			if ( features1.size() > 0 )
 			{
-				t = System.currentTimeMillis();
+				final long t1 = System.currentTimeMillis();
 				
 				candidates.clear();
 				
@@ -234,7 +237,7 @@ final public class AlignLayersTask
 				
 				if ( modelFound )
 				{
-					IJ.log( "Model found for layer \"" + layer.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t ) + " ms" );
+					IJ.log( "Model found for layer \"" + layer.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t1 ) + " ms" );
 					final AffineTransform b = new AffineTransform();
 					b.translate( box1.x, box1.y );
 					b.scale( 1.0f / scale, 1.0f / scale );
@@ -277,14 +280,18 @@ final public class AlignLayersTask
 		if ( layerRange.size() < 2 ) return;
 		
 		final Loader loader = layerRange.iterator().next().getProject().getLoader();
-		
-		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
-		final SIFT ijSIFT = new SIFT( sift );
+
+		// Not concurrent safe! So two copies, one per layer and Thread:
+		final SIFT ijSIFT1 = new SIFT( new FloatArray2DSIFT( p.sift ) );
+		final SIFT ijSIFT2 = new SIFT( new FloatArray2DSIFT( p.sift ) ); 
 		
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
 		final List< PointMatch > candidates = new ArrayList< PointMatch >();
 		final List< PointMatch > inliers = new ArrayList< PointMatch >();
+
+		final int n_proc = Runtime.getRuntime().availableProcessors() > 1 ? 2 : 1;
+		final ExecutorService exec = Utils.newFixedThreadPool(n_proc);
 		
 		int s = 0;
 		for ( int i = 1; i < layerRange.size(); ++i )
@@ -294,7 +301,7 @@ final public class AlignLayersTask
  			final Layer layer1 = layerRange.get( i - 1 );
 			final Layer layer2 = layerRange.get( i );
 			
-			long t = System.currentTimeMillis();
+			final long t0 = System.currentTimeMillis();
 			
 			features1.clear();
 			features2.clear();
@@ -305,22 +312,38 @@ final public class AlignLayersTask
 			/* calculate the common scale factor for both flat images */
 			final float scale = Math.min(  1.0f, ( float )p.sift.maxOctaveSize / ( float )Math.max( box1.width, Math.max( box1.height, Math.max( box2.width, box2.height ) ) ) );
 			
-			final ImageProcessor ip1 = loader.getFlatImage( layer1, box1, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
-			final ImageProcessor ip2 = loader.getFlatImage( layer2, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
 			
-			/* TODO do this in parallel */
-			ijSIFT.extractFeatures(
-					ip1,
-					features1 );
-			Utils.log( features1.size() + " features extracted in layer \"" + layer1.getTitle() + "\" (took " + ( System.currentTimeMillis() - t ) + " ms)." );
-			ijSIFT.extractFeatures(
-					ip2,
-					features2 );
-			Utils.log( features2.size() + " features extracted in layer \"" + layer2.getTitle() + "\" (took " + ( System.currentTimeMillis() - t ) + " ms)." );
+			final Future<ImageProcessor> fu1 = exec.submit(new Callable<ImageProcessor>() {
+				public ImageProcessor call() {
+					final ImageProcessor ip1 = loader.getFlatImage( layer1, box1, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
+					ijSIFT1.extractFeatures(
+							ip1,
+							features1 );
+					Utils.log( features1.size() + " features extracted in layer \"" + layer1.getTitle() + "\" (took " + ( System.currentTimeMillis() - t0 ) + " ms)." );
+					return ip1;
+				}});
+			final Future<ImageProcessor> fu2 = exec.submit(new Callable<ImageProcessor>() {
+				public ImageProcessor call() {
+					final ImageProcessor ip2 = loader.getFlatImage( layer2, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
+					ijSIFT2.extractFeatures(
+							ip2,
+							features2 );
+					Utils.log( features2.size() + " features extracted in layer \"" + layer2.getTitle() + "\" (took " + ( System.currentTimeMillis() - t0 ) + " ms)." );
+					return ip2;
+				}});
+
+			final ImageProcessor ip1, ip2;
+			try {
+				ip1 = fu1.get();
+				ip2 = fu2.get();
+			} catch (Exception e) {
+				IJError.print(e);
+				return;
+			}
 			
 			if ( features1.size() > 0 && features2.size() > 0 )
 			{
-				t = System.currentTimeMillis();
+				final long t1 = System.currentTimeMillis();
 				
 				candidates.clear();
 				
@@ -368,7 +391,7 @@ final public class AlignLayersTask
 				
 				if ( modelFound )
 				{
-					IJ.log( "Model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t ) + " ms" );
+					IJ.log( "Model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t1 ) + " ms" );
 					
 					final ImagePlus imp1 = new ImagePlus("target", ip1);
 					final ImagePlus imp2 = new ImagePlus("source", ip2);					
@@ -445,6 +468,9 @@ final public class AlignLayersTask
 			}
 			IJ.showProgress( ++s, layerRange.size() );	
 		}
+
+		exec.shutdown();
+
 		/* TODO do this
 		if ( propagateTransform )
 		{
