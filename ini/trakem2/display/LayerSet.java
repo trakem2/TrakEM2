@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Hashtable;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -640,6 +641,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		al_layers.remove(layer);
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
+		removeFromOffscreens(layer);
 	}
 
 	public Layer next(Layer layer) {
@@ -1159,6 +1161,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
+		this.offscreens.clear();
 	}
 
 	/** Used by the Layer.setZ method. */
@@ -2019,5 +2022,52 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		Overlay old = this.overlay;
 		this.overlay = o;
 		return old;
+	}
+
+	private final HashMap<DisplayCanvas.Screenshot,Long> offscreens = new HashMap<DisplayCanvas.Screenshot,Long>();
+
+	final Long getScreenshotId(final DisplayCanvas.Screenshot s) {
+		synchronized (offscreens) {
+			return offscreens.get(s); // must return an OBJECT, otherwise if not there, a null Long throws a NullPointerException instead of becomming a zero or something.
+		}
+	}
+
+	final void storeScreenshot(DisplayCanvas.Screenshot s) {
+		synchronized(offscreens) {
+			offscreens.put(s, s.sid);
+		}
+	}
+	final void trimScreenshots() {
+		synchronized(offscreens) {
+			if (offscreens.size() > 1000) {
+				TreeMap<Long,DisplayCanvas.Screenshot> m = new TreeMap<Long,DisplayCanvas.Screenshot>();
+				for (final DisplayCanvas.Screenshot s : offscreens.keySet()) {
+					m.put(s.born, s);
+				}
+				offscreens.clear();
+				ArrayList<Long> t = new ArrayList<Long>(m.keySet());
+				for (final DisplayCanvas.Screenshot sc : m.subMap(m.firstKey(), t.get(t.size()/2)).values()) {
+					offscreens.put(sc, sc.sid);
+				}
+			}
+		}
+	}
+	final void removeFromOffscreens(final DisplayCanvas.Screenshot sc) {
+		synchronized (offscreens) {
+			offscreens.remove(sc);
+		}
+	}
+	final void removeFromOffscreens(final Layer la) {
+		synchronized (offscreens) {
+			for (Iterator<DisplayCanvas.Screenshot> it = offscreens.keySet().iterator(); it.hasNext(); ) {
+				if (it.next().layer == la) it.remove();
+			}
+		}
+	}
+
+	final boolean containsScreenshot(final DisplayCanvas.Screenshot sc) {
+		synchronized (offscreens) {
+			return offscreens.containsKey(sc);
+		}
 	}
 }

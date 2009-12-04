@@ -900,8 +900,15 @@ abstract public class Loader {
 		}
 	}
 
-	public void cacheOffscreen(final Layer layer, final Image awt) {
-		cacheAWT(layer.getId(), awt);
+	public Image getCachedAWT(final long id, final int level) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				return mawts.get(id, level);
+			} finally {
+				unlock();
+			}
+		}
 	}
 	
 	public void cacheAWT( final long id, final Image awt) {
@@ -1487,9 +1494,7 @@ abstract public class Loader {
 	}
 
 	/** Import a sequence of images as a grid, and put them in the layer. If the directory (@param dir) is null, it'll be asked for. The image_file_names can be null, and in any case it's only the names, not the paths. */
-	public Bureaucrat importSequenceAsGrid(final Layer layer, String dir, final String[] image_file_names) {
-		try {
-
+	public Bureaucrat importSequenceAsGrid(final Layer first_layer, String dir, final String[] image_file_names) {
 		String[] all_images = null;
 		String file = null; // first file
 		File images_dir = null;
@@ -1518,38 +1523,29 @@ abstract public class Loader {
 
 		int n_max = all_images.length;
 
-		int n_rows = 0;
-		int n_cols = 0;
-		double bx = 0;
-		double by = 0;
-		double bt_overlap = 0;
-		double lr_overlap = 0;
-		boolean link_images = false;
-		boolean stitch_tiles = true;
-		boolean homogenize_contrast = true;
-
 		// reasonable estimate
-		n_rows = n_cols = (int)Math.floor(Math.sqrt(n_max));
+		int side = (int)Math.floor(Math.sqrt(n_max));
 
 		GenericDialog gd = new GenericDialog("Conventions");
 		gd.addStringField("file_name_matches: ", "");
 		gd.addNumericField("first_image: ", 1, 0);
 		gd.addNumericField("last_image: ", n_max, 0);
 		gd.addCheckbox("Reverse list order", false);
-		gd.addNumericField("number_of_rows: ", n_rows, 0);
-		gd.addNumericField("number_of_columns: ", n_cols, 0);
+		gd.addNumericField("number_of_rows: ", side, 0);
+		gd.addNumericField("number_of_columns: ", side, 0);
+		gd.addNumericField("number_of_slices: ", 1, 0);
 		gd.addMessage("The top left coordinate for the imported grid:");
 		gd.addNumericField("base_x: ", 0, 3);
 		gd.addNumericField("base_y: ", 0, 3);
 		gd.addMessage("Amount of image overlap, in pixels");
-		gd.addNumericField("bottom-top overlap: ", bt_overlap, 2); //as asked by Joachim Walter
-		gd.addNumericField("left-right overlap: ", lr_overlap, 2);
-		gd.addCheckbox("link images", link_images);
-		gd.addCheckbox("registration", stitch_tiles);
+		gd.addNumericField("bottom-top overlap: ", 0, 2); //as asked by Joachim Walter
+		gd.addNumericField("left-right overlap: ", 0, 2);
+		gd.addCheckbox("link images", false);
+		gd.addCheckbox("registration", true);
 		StitchingTEM.addStitchingRuleChoice(gd);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
-		gd.addCheckbox("homogenize_contrast", homogenize_contrast);
+		gd.addCheckbox("homogenize_contrast", false);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
@@ -1578,18 +1574,19 @@ abstract public class Loader {
 
 		final boolean reverse_order = gd.getNextBoolean();
 
-		n_rows = (int)gd.getNextNumber();
-		n_cols = (int)gd.getNextNumber();
-		bx = gd.getNextNumber();
-		by = gd.getNextNumber();
-		bt_overlap = gd.getNextNumber();
-		lr_overlap = gd.getNextNumber();
-		link_images = gd.getNextBoolean();
-		stitch_tiles = gd.getNextBoolean();
-		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
-		float cc_scale = (float)gd.getNextNumber() / 100f;
-		homogenize_contrast = gd.getNextBoolean();
-		int stitching_rule = gd.getNextChoiceIndex();
+		final int n_rows = (int)gd.getNextNumber();
+		final int n_cols = (int)gd.getNextNumber();
+		final int n_slices = (int)gd.getNextNumber();
+		final double bx = gd.getNextNumber();
+		final double by = gd.getNextNumber();
+		double bt_overlap = gd.getNextNumber();
+		double lr_overlap = gd.getNextNumber();
+		final boolean link_images = gd.getNextBoolean();
+		final boolean stitch_tiles = gd.getNextBoolean();
+		final float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
+		final float cc_scale = (float)gd.getNextNumber() / 100f;
+		final boolean homogenize_contrast = gd.getNextBoolean();
+		final int stitching_rule = gd.getNextChoiceIndex();
 		//boolean apply_non_linear_def = gd.getNextBoolean();
 
 		// Ensure tiles overlap if using SIFT
@@ -1640,28 +1637,48 @@ abstract public class Loader {
 			System.arraycopy(file_names, first -1, file_names2, 0, file_names2.length);
 			file_names = file_names2;
 		}
-		// should be multiple of rows and cols
-		if (file_names.length != n_rows * n_cols) {
-			Utils.log2("n_images:" + file_names.length + "  rows,cols : " + n_rows + "," + n_cols + " total=" + n_rows*n_cols);
-			Utils.showMessage("rows * cols does not match with the number of selected images.");
+		// should be multiple of rows and cols and slices
+		if (file_names.length != n_rows * n_cols * n_slices) {
+			Utils.log("ERROR: rows * cols * slices does not match with the number of selected images.");
+			Utils.log("n_images:" + file_names.length + "  rows,cols,slices : " + n_rows + "," + n_cols + "," + n_slices + "  total=" + n_rows*n_cols*n_slices);
 			return null;
 		}
-		// put in columns
-		ArrayList cols = new ArrayList();
-		for (int i=0; i<n_cols; i++) {
-			String[] col = new String[n_rows];
-			for (int j=0; j<n_rows; j++) {
-				col[j] = file_names[j*n_cols + i];
+
+		// I luv java
+		final String[] file_names_ = file_names;
+		final String dir_ = dir;
+		final String file_ = file; // the first file
+		final double bt_overlap_ = bt_overlap;
+		final double lr_overlap_ = lr_overlap;
+
+		return Bureaucrat.createAndStart(new Worker.Task("Importing 1/" + n_slices) {
+			public void exec() {
+				// Slice up list:
+				for (int sl=0; sl<n_slices; sl++) {
+					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
+					setTaskName("Importing " + (sl+1) + "/" + n_slices);
+					int start = sl * n_rows * n_cols;
+					ArrayList cols = new ArrayList();
+					for (int i=0; i<n_cols; i++) {
+						String[] col = new String[n_rows];
+						for (int j=0; j<n_rows; j++) {
+							col[j] = file_names_[start + j*n_cols + i];
+						}
+						cols.add(col);
+					}
+
+					Layer layer = 0 == sl ? first_layer
+			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
+
+					Bureaucrat b = insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+					try {
+						b.join();
+					} catch (InterruptedException ie) {
+						b.quit();
+					}
+				}
 			}
-			cols.add(col);
-		}
-
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
-
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		return null;
+		}, first_layer.getProject());
 	}
 
 	public Bureaucrat importGrid(Layer layer) {
@@ -1795,7 +1812,6 @@ abstract public class Loader {
 	 * @param bt_overlap bottom-top overlap of the images
 	 * @param lr_overlap left-right overlap of the images
 	 * @param link_images Link images to their neighbors.
-	 * @param preproprecessor The name of a PluginFilter in ImageJ's plugin directory, to be called on every image prior to insertion.
 	 */
 	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
 
@@ -1858,6 +1874,9 @@ abstract public class Loader {
 			auto_fix_all = true;
 			resize = true;
 		}
+
+		// Accumulate mipmap generation tasks
+		final ArrayList<Future> fus = new ArrayList<Future>();
 
 		startLargeUpdate();
 		for (int i=0; i<cols.size(); i++) {
@@ -1948,7 +1967,7 @@ abstract public class Loader {
 				//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 				addedPatchFrom(path, patch);
 				if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
-				else regenerateMipMaps(patch).get(); // wait
+				else fus.add(regenerateMipMaps(patch));
 				//
 				layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
 				patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
@@ -2117,23 +2136,11 @@ abstract public class Loader {
 					// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
 				}
 
-				if (isMipMapsEnabled()) {
-					setTaskName("Regenerating snapshots.");
-					// recreate files
-					Utils.log2("Generating mipmaps for " + al.size() + " patches.");
-					Thread t = regenerateMipMaps(al);
-					if (null != t) try { t.join(); } catch (InterruptedException ie) {}
-				}
-				// 7 - flush away any existing awt images, so that they'll be recreated with the new min and max
-				synchronized (db_lock) {
-					lock();
-					for (i=0; i<pa.length; i++) {
-						mawts.removeAndFlush(pa[i].getId());
-						Utils.log2(i + "removing mawt for " + pa[i].getId());
-					}
-					unlock();
-				}
 				setMipMapsRegeneration(true);
+				if (isMipMapsEnabled()) {
+					// recreate files
+					for (Patch p : al) fus.add(regenerateMipMaps(p));
+				}
 				Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 
 				// make picture
@@ -2142,6 +2149,9 @@ abstract public class Loader {
 		}
 
 		if (stitch_tiles) {
+			// Wait until all mipmaps for the new images have been generated before attempting to register
+			Utils.wait(fus);
+
 			setTaskName("stitching tiles");
 			// create undo
 			layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
@@ -2311,6 +2321,8 @@ abstract public class Loader {
 					// 2 - set a base dir path if necessary
 					final String[] base_dir = new String[]{null, null}; // second item will work as flag if the dialog to ask for a directory is canceled in any of the threads.
 
+					final Vector<Future> fus = new Vector<Future>(); // to wait on mipmap regeneration
+
 					///////// Multithreading ///////
 					final AtomicInteger ai = new AtomicInteger(0);
 					final Thread[] threads = MultiThreading.newThreads();
@@ -2422,8 +2434,8 @@ abstract public class Loader {
 							}
 						}
 						if (null != patch) {
-							if (!generateMipMaps(patch)) {
-								Utils.log("Failed to generate mipmaps for " + patch);
+							if (!homogenize_contrast) {
+								fus.add(regenerateMipMaps(patch));
 							}
 							synchronized (lock) {
 								try {
@@ -2435,7 +2447,6 @@ abstract public class Loader {
 									lock.unlock();
 								}
 							}
-							decacheImagePlus(patch.getId()); // no point in keeping it around
 						}
 
 						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
@@ -2465,6 +2476,8 @@ abstract public class Loader {
 						cew.applyLayerWise(touched_layers);
 						cew.shutdown();
 					}
+
+					Utils.wait(fus);
 
 				} catch (Exception e) {
 					IJError.print(e);

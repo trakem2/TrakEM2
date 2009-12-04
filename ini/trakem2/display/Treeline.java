@@ -449,6 +449,25 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 
+		final void setAlpha(float a) {
+			pline.alpha = a;
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.setAlpha(a);
+				}
+			}
+		}
+		final void setColor(Color c) {
+			pline.color = c;
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.setColor(c);
+				}
+			}
+		}
+
 		/** Returns the Slab for which x_l,y_l is closest to either its 0 or its N-1 point in 3D space.
 		 *  List[0] = Branch
 		 *  List[1] = double[2] with distance to 0 and to n_points-1 */
@@ -898,6 +917,8 @@ public class Treeline extends ZDisplayable {
 		sb_body.append(indent).append("<t2_treeline\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
+		String[] RGB = Utils.getHexRGBColor(color);
+		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append(">\n");
 		if (null != root) {
@@ -988,5 +1009,16 @@ public class Treeline extends ZDisplayable {
 		}
 
 		return tlines;
+	}
+
+	@Override
+	public void setColor(Color c) {
+		if (null != root) root.setColor(c);
+		super.setColor(c);
+	}
+	@Override
+	public void setAlpha(float a) {
+		if (null != root) root.setAlpha(a);
+		super.setAlpha(a);
 	}
 }

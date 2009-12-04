@@ -46,6 +46,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
+import ini.trakem2.imaging.StitchingTEM;
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -64,6 +65,7 @@ import java.lang.reflect.Method;
 import java.io.Writer;
 import java.io.File;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 import lenscorrection.DistortionCorrectionTask;
 import mpicbg.models.PointMatch;
@@ -349,6 +351,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
+				int ahead = project.getProperty("look_ahead_cache", 1);
+				if (ahead < 0) ahead = 0;
+				if (0 != ahead) createColumnScreenshots(ahead);
 			}
 		}
 
@@ -374,6 +379,49 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void quit() {
 			go = false;
 		}
+	}
+
+	private void createColumnScreenshots(final int n) {
+		project.getLoader().doLater(new Callable() {
+			public Object call() {
+				final Layer current = Display.this.layer;
+				// 1 - Create DisplayCanvas.Screenshot instances for the next 5 and previous 5 layers
+				final ArrayList<DisplayCanvas.Screenshot> s = new ArrayList<DisplayCanvas.Screenshot>();
+				Layer now = current;
+				Layer prev = now.getParent().previous(now);
+				int i = 0;
+				Layer next = now.getParent().next(now);
+				while (now != next && i < n) {
+					s.add(canvas.createScreenshot(next));
+					now = next;
+					next = now.getParent().next(now);
+					i++;
+				}
+				now = current;
+				i = 0;
+				while (now != prev && i < n) {
+					s.add(0, canvas.createScreenshot(prev));
+					now = prev;
+					prev = now.getParent().previous(now);
+					i++;
+				}
+				// Store them all into the LayerSet offscreens hashmap, but trigger image creation in parallel threads.
+				for (final DisplayCanvas.Screenshot sc : s) {
+					if (!current.getParent().containsScreenshot(sc)) {
+						sc.init();
+						current.getParent().storeScreenshot(sc);
+						project.getLoader().doLater(new Callable() {
+							public Object call() {
+								sc.createImage();
+								return null;
+							}
+						});
+					}
+				}
+				current.getParent().trimScreenshots();
+				return null;
+			}
+		});
 	}
 
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
@@ -2400,8 +2448,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
 		if (layer.getDisplayables(Patch.class).size() < 2) item.setEnabled(false);
-		item = new JMenuItem("Montage selected images"); item.addActionListener(this); align_menu.add(item);
+		item = new JMenuItem("Montage selected images (SIFT)"); item.addActionListener(this); align_menu.add(item);
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage selected images (phase correlation)"); item.addActionListener(this); align_menu.add(item);
+		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage multiple layers (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
@@ -3469,18 +3520,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					Display.this.getLayerSet().addLayerContentStep(layer);
 				}});
 		} else if (command.equals("Import sequence as grid...")) {
-			Display.this.getLayerSet().addLayerContentStep(layer);
+			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importSequenceAsGrid(layer);
 			if (null != burro)
 				burro.addPostTask(new Runnable() { public void run() {
-					Display.this.getLayerSet().addLayerContentStep(layer);
+					Display.this.getLayerSet().addChangeTreesStep();
 				}});
 		} else if (command.equals("Import from text file...")) {
-			Display.this.getLayerSet().addLayerContentStep(layer);
+			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importImages(layer);
 			if (null != burro)
 				burro.addPostTask(new Runnable() { public void run() {
-					Display.this.getLayerSet().addLayerContentStep(layer);
+					Display.this.getLayerSet().addChangeTreesStep();
 				}});
 		} else if (command.equals("Import labels as arealists...")) {
 			Display.this.getLayerSet().addChangeTreesStep();
@@ -3630,16 +3681,21 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep();
 			}});
-		} else if (command.equals("Montage selected images")) {
-			final Layer la = layer;
-			if (selection.getSelected(Patch.class).size() < 2) {
-				Utils.showMessage("Montage needs 2 or more images selected");
-				return;
-			}
-			la.getParent().addTransformStep(la);
-			Bureaucrat burro = AlignTask.alignSelectionTask(selection);
+		} else if (command.equals("Montage selected images (SIFT)")) {
+			montage(0);
+		} else if (command.equals("Montage selected images (phase correlation)")) {
+			montage(1);
+		} else if (command.equals("Montage multiple layers (phase correlation)")) {
+			final GenericDialog gd = new GenericDialog("Choose range");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
+			getLayerSet().addLayerEditedStep(layers);
+			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
+			if (null == burro) return;
 			burro.addPostTask(new Runnable() { public void run() {
-				la.getParent().addTransformStep();
+				getLayerSet().addLayerEditedStep(layers);
 			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
@@ -4995,5 +5051,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			stacks.add(ps.getPatch(0));
 		}
 		return new ArrayList<Patch>(stacks);
+	}
+
+	private void montage(int type) {
+		final Layer la = layer;
+		if (selection.getSelected(Patch.class).size() < 2) {
+			Utils.showMessage("Montage needs 2 or more images selected");
+			return;
+		}
+		la.getParent().addTransformStep(la);
+		Bureaucrat burro;
+		switch (type) {
+			case 0:
+				burro = AlignTask.alignSelectionTask(selection);
+				break;
+			case 1:
+				burro = StitchingTEM.montageWithPhaseCorrelation( (Collection<Patch>) (Collection) selection.getSelected(Patch.class));
+				break;
+			default:
+				Utils.log("Unknown montage type " + type);
+				return;
+		}
+		if (null == burro) return;
+		burro.addPostTask(new Runnable() { public void run() {
+			la.getParent().addTransformStep(la);
+		}});
 	}
 }

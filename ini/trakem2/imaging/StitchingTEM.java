@@ -60,6 +60,7 @@ import java.awt.geom.Point2D;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Vector;
@@ -581,8 +582,7 @@ public class StitchingTEM {
 	}
 
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
-	/*
-	private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
+	static private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
 		Rectangle x_rect = dragging_ob.getBoundingBox();
 		Rectangle y_rect = overlapping_ob.getBoundingBox();
 		Rectangle overlap = x_rect.intersection(y_rect);
@@ -596,5 +596,193 @@ public class StitchingTEM {
 			else return 0;
 		}
 	}
-	*/
+
+	/** For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
+	 *  then consider all succesful correlations as links and run the optimizer on it all.
+	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
+	static public Bureaucrat montageWithPhaseCorrelation(final Collection<Patch> col) {
+		if (null == col || col.size() < 1) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Montage with phase-correlation") {
+			public void exec() {
+				PhaseCorrelationParam param = new PhaseCorrelationParam();
+				if (!param.setup(col.iterator().next())) {
+					return;
+				}
+				montageWithPhaseCorrelation(col, param);
+			}
+		}, col.iterator().next().getProject());
+	}
+
+	static public Bureaucrat montageWithPhaseCorrelation(final List<Layer> layers) {
+		if (null == layers || layers.size() < 1) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Montage layer 1/" + layers.size()) {
+			public void exec() {
+				PhaseCorrelationParam param = new PhaseCorrelationParam();
+				Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
+				if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
+					return;
+				}
+				int i = 1;
+				for (Layer la : layers) {
+					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
+					setTaskName("Montage layer " + i + "/" + layers.size());
+					montageWithPhaseCorrelation((Collection<Patch>) (Collection) la.getDisplayables(Patch.class), param);
+				}
+			}
+		}, layers.get(0).getProject());
+	}
+
+	static public class PhaseCorrelationParam {
+		public float cc_scale = 0.25f;
+		public float overlap = 0.1f;
+		public boolean hide_disconnected = false;
+		public boolean remove_disconnected = false;
+
+		/** Returns false when canceled.
+		 *  @param ref is an optional Patch from which to estimate an appropriate image scale at which to perform the phase correlation, for performance reasons. */
+		public boolean setup(Patch ref) {
+			GenericDialog gd = new GenericDialog("Montage with phase correlation");
+			if (overlap < 0) overlap = 0.1f;
+			else if (overlap > 1) overlap = 1;
+			gd.addSlider("tile_overlap (%): ", 1, 100, overlap * 100);
+			int sc = (int)cc_scale * 100;
+			if (null != ref) {
+				// Estimate scale from ref Patch dimensions
+				int w = ref.getOWidth();
+				int h = ref.getOHeight();
+				sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
+			}
+			if (sc < 0) sc = 25;
+			else if (sc > 100) sc = 100;
+			gd.addSlider("scale (%):", 1, 100, sc);
+			gd.addCheckbox("hide disconnected", false);
+			gd.addCheckbox("remove disconnected", false);
+			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			
+			overlap = (float)gd.getNextNumber() / 100f;
+			cc_scale = (float)gd.getNextNumber() / 100f;
+			hide_disconnected = gd.getNextBoolean();
+			remove_disconnected = gd.getNextBoolean();
+
+			return true;
+		}
+	}
+
+	static public void montageWithPhaseCorrelation(final Collection<Patch> col, final PhaseCorrelationParam param) {
+		if (null == col || col.size() < 1) return;
+		final ArrayList<Patch> al = new ArrayList<Patch>(col);
+		final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
+		final ArrayList<AbstractAffineTile2D<?>> fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+		for (final Patch p : al) {
+			// Pre-check: just a warning
+			final int aff_type = p.getAffineTransform().getType();
+			if (AffineTransform.TYPE_IDENTITY != aff_type
+			  || 0 != (AffineTransform.TYPE_TRANSLATION ^ aff_type)) {
+				Utils.log2("WARNING: patch with a non-translation transform: " + p);
+			}
+			// create tiles
+			TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
+			tiles.add(tile);
+			if (p.isLocked2()) {
+				Utils.log("Added fixed (locked) tile " + p);
+				fixed_tiles.add(tile);
+			}
+		}
+		// Get acceptable values
+		float cc_scale = param.cc_scale;
+		if (cc_scale < 0 || cc_scale > 1) {
+			Utils.log("Unacceptable cc_scale of " + param.cc_scale + ". Using 1 instead.");
+			cc_scale = 1;
+		}
+		float overlap = param.overlap;
+		if (overlap < 0 || overlap > 1) {
+			Utils.log("Unacceptable overlap of " + param.overlap + ". Using 1 instead.");
+			overlap = 1;
+		}
+
+		final float min_R = al.get(0).getProject().getProperty("min_R", DEFAULT_MIN_R);
+
+		for (int i=0; i<al.size(); i++) {
+			final Patch p1 = al.get(i);
+			final Rectangle r1 = p1.getBoundingBox();
+			// find overlapping, add as connections
+			for (int j=i+1; j<al.size(); j++) {
+				if (Thread.currentThread().isInterrupted()) return;
+				final Patch p2 = al.get(j);
+				final Rectangle r2 = p2.getBoundingBox();
+				if (r1.intersects(r2)) {
+					// Skip if it's a diagonal overlap
+					final int dx = Math.abs(r1.x - r2.x);
+					final int dy = Math.abs(r1.y - r2.y);
+					if (dx > r1.width/2 && dy > r1.height/2) {
+						// skip diagonal match
+						Utils.log2("Skipping diagonal overlap between " + p1 + " and " + p2);
+						continue;
+					}
+
+					p1.getProject().getLoader().releaseToFit((long)(p1.getWidth() * p1.getHeight() * 25));
+
+					final double[] R;
+					if (1 == overlap) {
+						R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+						if (SUCCESS == R[2]) {
+							addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+						}
+					} else {
+						switch (getClosestOverlapLocation(p1, p2)) {
+							case 0: // p1 overlaps p2 from the left
+								R = correlate(p1, p2, overlap, cc_scale, LEFT_RIGHT, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+								}
+								break;
+							case 1: // p1 overlaps p2 from the top
+								R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
+								}
+								break;
+							case 2: // p1 overlaps p2 from the right
+								R = correlate(p2, p1, overlap, cc_scale, LEFT_RIGHT, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(j), tiles.get(i), R[0], R[1]);
+								}
+								break;
+							case 3: // p1 overlaps p2 from the bottom
+								R = correlate(p2, p1, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+								if (SUCCESS == R[2]) {
+									addMatches(tiles.get(j), tiles.get(i), R[0], R[1]);
+								}
+								break;
+							default:
+								Utils.log("Unknown overlap direction!");
+								continue;
+						}
+					}
+				}
+			}
+		}
+
+		if (param.remove_disconnected || param.hide_disconnected) {
+			for (Iterator<AbstractAffineTile2D<?>> it = tiles.iterator(); it.hasNext(); ) {
+				AbstractAffineTile2D<?> t = it.next();
+				if (null != t.getMatches() && t.getMatches().isEmpty()) {
+					if (param.hide_disconnected) t.getPatch().setVisible(false);
+					else if (param.remove_disconnected) t.getPatch().remove(false);
+					it.remove();
+				}
+			}
+		}
+
+		// Run optimization
+		if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
+		// with default parameters
+		Align.optimizeTileConfiguration(new Align.ParamOptimize(), tiles, fixed_tiles);
+
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+
+		try { Display.repaint(al.get(0).getLayer()); } catch (Exception e) {}
+	}
 }
