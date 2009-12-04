@@ -2014,6 +2014,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	private final HashMap<DisplayCanvas.Screenshot,Long> offscreens = new HashMap<DisplayCanvas.Screenshot,Long>();
+	private final HashMap<Layer,HashSet<DisplayCanvas.Screenshot>> offscreens2 = new HashMap<Layer,HashSet<DisplayCanvas.Screenshot>>();
 
 	final Long getScreenshotId(final DisplayCanvas.Screenshot s) {
 		synchronized (offscreens) {
@@ -2021,9 +2022,24 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
+	final private void putO2(final Layer la, final DisplayCanvas.Screenshot sc) {
+		HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(la);
+		if (null == hs) {
+			hs = new HashSet<DisplayCanvas.Screenshot>();
+			offscreens2.put(la, hs);
+		}
+		hs.add(sc);
+	}
+	final private void removeO2(final DisplayCanvas.Screenshot sc) {
+		HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
+		if (null == hs) return;
+		hs.remove(sc);
+	}
+
 	final void storeScreenshot(DisplayCanvas.Screenshot s) {
 		synchronized(offscreens) {
 			offscreens.put(s, s.sid);
+			putO2(s.layer, s);
 		}
 	}
 	final void trimScreenshots() {
@@ -2034,9 +2050,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					m.put(s.born, s);
 				}
 				offscreens.clear();
+				offscreens2.clear();
 				ArrayList<Long> t = new ArrayList<Long>(m.keySet());
 				for (final DisplayCanvas.Screenshot sc : m.subMap(m.firstKey(), t.get(t.size()/2)).values()) {
 					offscreens.put(sc, sc.sid);
+					putO2(sc.layer, sc);
 				}
 			}
 		}
@@ -2044,12 +2062,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	final void removeFromOffscreens(final DisplayCanvas.Screenshot sc) {
 		synchronized (offscreens) {
 			offscreens.remove(sc);
+			removeO2(sc);
 		}
 	}
-	final void removeFromOffscreens(final Layer la) {
+	public final void removeFromOffscreens(final Layer la) {
 		synchronized (offscreens) {
-			for (Iterator<DisplayCanvas.Screenshot> it = offscreens.keySet().iterator(); it.hasNext(); ) {
-				if (it.next().layer == la) it.remove();
+			final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.remove(la);
+			if (null != hs) {
+				for (final DisplayCanvas.Screenshot sc : hs) {
+					offscreens.remove(sc);
+				}
 			}
 		}
 	}

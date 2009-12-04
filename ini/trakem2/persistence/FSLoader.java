@@ -2000,6 +2000,9 @@ public final class FSLoader extends Loader {
 			// flush any cached tiles
 			flushMipMaps(patch.getId());
 
+			// flush any cached layer screenshots
+			try { patch.getLayer().getParent().removeFromOffscreens(patch.getLayer()); } catch (Exception e) { IJError.print(e); }
+
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
 				regenerating_mipmaps.remove(patch);
