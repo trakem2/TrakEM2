@@ -74,6 +74,10 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -924,8 +928,22 @@ public class Utils implements ij.plugin.PlugIn {
 		return b;
 	}
 
+	static public final long[] copy(final long[] a, final int new_length) {
+		final long[] b = new long[new_length];
+		final int len = a.length > new_length ? new_length : a.length; 
+		System.arraycopy(a, 0, b, 0, len);
+		return b;
+	}
+
 	static public final double[] copy(final double[] a, final int first, final int new_length) {
 		final double[] b = new double[new_length];
+		final int len = new_length < a.length - first ? new_length : a.length - first;
+		System.arraycopy(a, first, b, 0, len);
+		return b;
+	}
+
+	static public final long[] copy(final long[] a, final int first, final int new_length) {
+		final long[] b = new long[new_length];
 		final int len = new_length < a.length - first ? new_length : a.length - first;
 		System.arraycopy(a, first, b, 0, len);
 		return b;
@@ -935,6 +953,14 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final void reverse(final double[] a) {
 		for (int left=0, right=a.length-1; left<right; left++, right--) {
 			double tmp = a[left];
+			a[left] = a[right];
+			a[right] = tmp;
+		}
+	}
+	/** Reverse in place an array of longs. */
+	static public final void reverse(final long[] a) {
+		for (int left=0, right=a.length-1; left<right; left++, right--) {
+			long tmp = a[left];
 			a[left] = a[right];
 			a[right] = tmp;
 		}
@@ -1355,5 +1381,20 @@ public class Utils implements ij.plugin.PlugIn {
 		return '/' == path.charAt(path.length() -1) ?
 			  path
 			: new StringBuilder(path.length() +1).append(path).append('/').toString();
+	}
+
+	/** Creates a new fixed thread pool whose threads are in the same ThreadGroup as the Thread that calls this method.
+	 *  This allows for the threads to be interrupted when the caller thread's group is interrupted. */
+	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc) {
+		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
+		exec.setThreadFactory(new ThreadFactory() {
+			public Thread newThread(final Runnable r) {
+				final Thread t = new Thread(Thread.currentThread().getThreadGroup(), r, "AlignLayersTask executor");
+				t.setDaemon(true);
+				t.setPriority(Thread.NORM_PRIORITY);
+				return t;
+			}
+		});
+		return exec;
 	}
 }
