@@ -2516,7 +2516,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
-		item = new JMenuItem("Setup nBLAST parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Setup NIT parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
@@ -3822,7 +3822,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Identify with fiducials...")) {
 			if (!(active instanceof Line3D)) return;
 			lineage.Identify.identify((Line3D)active);
-		} else if (command.equals("Setup nBLAST parameters...")) {
+		} else if (command.equals("Setup NIT parameters...")) {
 			lineage.Identify.setup();
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;

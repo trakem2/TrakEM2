@@ -52,7 +52,7 @@ public class Identify {
 	static private boolean substring = false;
 
 	static public boolean setup() {
-		GenericDialog gd = new GenericDialog("Setup nBLAST");
+		GenericDialog gd = new GenericDialog("Setup NIT");
 		gd.addNumericField("delta:", delta, 2);
 		gd.addCheckbox("direct", direct);
 		gd.addCheckbox("substring", substring);
