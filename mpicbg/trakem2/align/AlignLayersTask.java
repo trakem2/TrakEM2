@@ -107,7 +107,7 @@ final public class AlignLayersTask
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		
 		Align.param.addFields( gd );
-		gd.addCheckbox( "use bUnwarpJ (non-linear cubic B-Slines)", useBUnwarpJ );
+		gd.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
 		
 		gd.addMessage( "Miscellaneous:" );
 		gd.addCheckbox( "propagate after last transform", propagateTransform );
