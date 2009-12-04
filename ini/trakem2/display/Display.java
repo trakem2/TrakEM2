@@ -46,6 +46,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.display.graphics.*;
+import ini.trakem2.imaging.StitchingTEM;
 
 import javax.swing.*;
 import javax.swing.event.*;
@@ -65,6 +66,7 @@ import java.lang.reflect.Method;
 import java.io.Writer;
 import java.io.File;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 
 import lenscorrection.DistortionCorrectionTask;
 import mpicbg.models.PointMatch;
@@ -350,6 +352,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
+				int ahead = project.getProperty("look_ahead_cache", 1);
+				if (ahead < 0) ahead = 0;
+				if (0 != ahead) createColumnScreenshots(ahead);
 			}
 		}
 
@@ -375,6 +380,49 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		public void quit() {
 			go = false;
 		}
+	}
+
+	private void createColumnScreenshots(final int n) {
+		project.getLoader().doLater(new Callable() {
+			public Object call() {
+				final Layer current = Display.this.layer;
+				// 1 - Create DisplayCanvas.Screenshot instances for the next 5 and previous 5 layers
+				final ArrayList<DisplayCanvas.Screenshot> s = new ArrayList<DisplayCanvas.Screenshot>();
+				Layer now = current;
+				Layer prev = now.getParent().previous(now);
+				int i = 0;
+				Layer next = now.getParent().next(now);
+				while (now != next && i < n) {
+					s.add(canvas.createScreenshot(next));
+					now = next;
+					next = now.getParent().next(now);
+					i++;
+				}
+				now = current;
+				i = 0;
+				while (now != prev && i < n) {
+					s.add(0, canvas.createScreenshot(prev));
+					now = prev;
+					prev = now.getParent().previous(now);
+					i++;
+				}
+				// Store them all into the LayerSet offscreens hashmap, but trigger image creation in parallel threads.
+				for (final DisplayCanvas.Screenshot sc : s) {
+					if (!current.getParent().containsScreenshot(sc)) {
+						sc.init();
+						current.getParent().storeScreenshot(sc);
+						project.getLoader().doLater(new Callable() {
+							public Object call() {
+								sc.createImage();
+								return null;
+							}
+						});
+					}
+				}
+				current.getParent().trimScreenshots();
+				return null;
+			}
+		});
 	}
 
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
@@ -621,6 +669,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Polyline.class, scroll_zdispl);
 		this.ht_tabs.put(Treeline.class, scroll_zdispl);
+		this.ht_tabs.put(Connector.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
 		this.ht_tabs.put(DLabel.class, scroll_labels);
@@ -1986,6 +2035,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Connector d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
@@ -2219,6 +2269,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
+			} else if (Treeline.class == aclass) {
+				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
+				popup.addSeparator();
 			}
 
 			JMenuItem st = new JMenu("Transform");
@@ -2370,6 +2424,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (none) item.setEnabled(false);
 			item = new JMenuItem("Unhide all balls"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(Connector.class);
+			item = new JMenuItem("Hide all connectors"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all connectors"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
 			none = ! layer.getParent().containsDisplayable(Patch.class);
 			item = new JMenuItem("Hide all images"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
@@ -2392,8 +2451,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
 		if (layer.getDisplayables(Patch.class).size() < 2) item.setEnabled(false);
-		item = new JMenuItem("Montage selected images"); item.addActionListener(this); align_menu.add(item);
+		item = new JMenuItem("Montage selected images (SIFT)"); item.addActionListener(this); align_menu.add(item);
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage selected images (phase correlation)"); item.addActionListener(this); align_menu.add(item);
+		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
+		item = new JMenuItem("Montage multiple layers (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
@@ -2457,6 +2519,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -3459,18 +3522,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					Display.this.getLayerSet().addLayerContentStep(layer);
 				}});
 		} else if (command.equals("Import sequence as grid...")) {
-			Display.this.getLayerSet().addLayerContentStep(layer);
+			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importSequenceAsGrid(layer);
 			if (null != burro)
 				burro.addPostTask(new Runnable() { public void run() {
-					Display.this.getLayerSet().addLayerContentStep(layer);
+					Display.this.getLayerSet().addChangeTreesStep();
 				}});
 		} else if (command.equals("Import from text file...")) {
-			Display.this.getLayerSet().addLayerContentStep(layer);
+			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importImages(layer);
 			if (null != burro)
 				burro.addPostTask(new Runnable() { public void run() {
-					Display.this.getLayerSet().addLayerContentStep(layer);
+					Display.this.getLayerSet().addChangeTreesStep();
 				}});
 		} else if (command.equals("Import labels as arealists...")) {
 			Display.this.getLayerSet().addChangeTreesStep();
@@ -3566,6 +3629,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Properties...")) {
 			active.adjustProperties();
 			updateSelection();
+		} else if (command.equals("Show current 2D position in 3D")) {
+			Display3D.addFatPoint("Current 2D Position", getLayerSet(), canvas.last_popup.x, canvas.last_popup.y, layer.getZ(), 10, Color.magenta);
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();
@@ -3618,16 +3683,21 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.addPostTask(new Runnable() { public void run() {
 				la.getParent().addTransformStep();
 			}});
-		} else if (command.equals("Montage selected images")) {
-			final Layer la = layer;
-			if (selection.getSelected(Patch.class).size() < 2) {
-				Utils.showMessage("Montage needs 2 or more images selected");
-				return;
-			}
-			la.getParent().addTransformStep(la);
-			Bureaucrat burro = AlignTask.alignSelectionTask(selection);
+		} else if (command.equals("Montage selected images (SIFT)")) {
+			montage(0);
+		} else if (command.equals("Montage selected images (phase correlation)")) {
+			montage(1);
+		} else if (command.equals("Montage multiple layers (phase correlation)")) {
+			final GenericDialog gd = new GenericDialog("Choose range");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
+			getLayerSet().addLayerEditedStep(layers);
+			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
+			if (null == burro) return;
 			burro.addPostTask(new Runnable() { public void run() {
-				la.getParent().addTransformStep();
+				getLayerSet().addLayerEditedStep(layers);
 			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
@@ -3721,6 +3791,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addChangeTreesStep(dataedits);
 			}});
 			burro.goHaveBreakfast();
+		} else if (command.equals("Reroot")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				getLayerSet().addDataEditStep(active);
+				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				getLayerSet().addDataEditStep(active);
+				Display.repaint(getLayerSet());
+			}
+		} else if (command.equals("Split")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				getLayerSet().addChangeTreesStep();
+				List<Treeline> ts = ((Treeline)active).split(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				Displayable elder = Display.this.active;
+				for (Treeline t : ts) {
+					getLayerSet().add(t); // will change Display.this.active !
+					project.getProjectTree().addSibling(elder, t);
+				}
+				elder.remove2(false);
+				selection.clear();
+				selection.selectAll(ts);
+				getLayerSet().addChangeTreesStep();
+				Display.repaint(getLayerSet());
+			}
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
 			getLayerSet().addDataEditStep(active);
@@ -4529,6 +4623,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		scroll_options.getViewport().removeAll();
 		if (null != op) {
+			op.bottomPadding();
 			scroll_options.setViewportView(op);
 		}
 		scroll_options.invalidate();
@@ -4967,5 +5062,30 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			stacks.add(ps.getPatch(0));
 		}
 		return new ArrayList<Patch>(stacks);
+	}
+
+	private void montage(int type) {
+		final Layer la = layer;
+		if (selection.getSelected(Patch.class).size() < 2) {
+			Utils.showMessage("Montage needs 2 or more images selected");
+			return;
+		}
+		la.getParent().addTransformStep(la);
+		Bureaucrat burro;
+		switch (type) {
+			case 0:
+				burro = AlignTask.alignSelectionTask(selection);
+				break;
+			case 1:
+				burro = StitchingTEM.montageWithPhaseCorrelation( (Collection<Patch>) (Collection) selection.getSelected(Patch.class));
+				break;
+			default:
+				Utils.log("Unknown montage type " + type);
+				return;
+		}
+		if (null == burro) return;
+		burro.addPostTask(new Runnable() { public void run() {
+			la.getParent().addTransformStep(la);
+		}});
 	}
 }

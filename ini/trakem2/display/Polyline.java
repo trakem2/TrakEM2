@@ -164,7 +164,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/** Returns the index of the first point in the segment made of any two consecutive points. */
 	synchronized protected int findClosestSegment(final int x_p, final int y_p, final long layer_id, final double mag) {
-		if (1 == n_points) return 0;
+		if (1 == n_points) return -1;
 		if (0 == n_points) return -1;
 		int index = -1;
 		double d = (10.0D / mag);
@@ -329,7 +329,8 @@ public class Polyline extends ZDisplayable implements Line3D {
 	synchronized protected int addPoint(int x_p, int y_p, long layer_id, double magnification) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		//lookup closest point and then get the closest clicked point to it
-		int index = findClosestSegment(x_p, y_p, layer_id, magnification);
+		int index = 0;
+		if (n_points > 1) index = findClosestSegment(x_p, y_p, layer_id, magnification);
 		//check array size
 		if (p[0].length == n_points) {
 			enlargeArrays();
@@ -463,6 +464,16 @@ public class Polyline extends ZDisplayable implements Line3D {
 		if (active && layer_id == p_layer[0]) {
 			g.setColor(this.color);
 			DisplayCanvas.drawHandle(g, p[0][0], p[1][0], srcRect, magnification);
+			// Label the first point distinctively
+			Composite comp = g.getComposite();
+			AffineTransform aff = g.getTransform();
+			g.setTransform(new AffineTransform());
+			g.setColor(Color.white);
+			g.setXORMode(Color.green);
+			g.drawString("1", (int)( (p[0][0] - srcRect.x)*magnification + (4.0 / magnification)),
+					  (int)( (p[1][0] - srcRect.y)*magnification)); // displaced 4 screen pixels to the right
+			g.setComposite(comp);
+			g.setTransform(aff);
 		}
 
 		for (int i=1; i<n_points; i++) {
@@ -1395,5 +1406,22 @@ public class Polyline extends ZDisplayable implements Line3D {
 		}
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	/** Create a shorter Polyline, from start to end (inclusive); not added to the LayerSet. */
+	synchronized public Polyline sub(int start, int end) {
+		Polyline sub = new Polyline(project, title);
+		sub.n_points = end - start + 1;
+		sub.p[0] = Utils.copy(this.p[0], start, sub.n_points);
+		sub.p[1] = Utils.copy(this.p[1], start, sub.n_points);
+		sub.p_layer = new long[sub.n_points];
+		System.arraycopy(this.p_layer, start, sub.p_layer, 0, sub.n_points);
+		return sub;
+	}
+
+	synchronized public void reverse() {
+		Utils.reverse(p[0]);
+		Utils.reverse(p[1]);
+		Utils.reverse(p_layer);
 	}
 }

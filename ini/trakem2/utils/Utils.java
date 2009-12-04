@@ -924,8 +924,22 @@ public class Utils implements ij.plugin.PlugIn {
 		return b;
 	}
 
+	static public final long[] copy(final long[] a, final int new_length) {
+		final long[] b = new long[new_length];
+		final int len = a.length > new_length ? new_length : a.length; 
+		System.arraycopy(a, 0, b, 0, len);
+		return b;
+	}
+
 	static public final double[] copy(final double[] a, final int first, final int new_length) {
 		final double[] b = new double[new_length];
+		final int len = new_length < a.length - first ? new_length : a.length - first;
+		System.arraycopy(a, first, b, 0, len);
+		return b;
+	}
+
+	static public final long[] copy(final long[] a, final int first, final int new_length) {
+		final long[] b = new long[new_length];
 		final int len = new_length < a.length - first ? new_length : a.length - first;
 		System.arraycopy(a, first, b, 0, len);
 		return b;
@@ -935,6 +949,14 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final void reverse(final double[] a) {
 		for (int left=0, right=a.length-1; left<right; left++, right--) {
 			double tmp = a[left];
+			a[left] = a[right];
+			a[right] = tmp;
+		}
+	}
+	/** Reverse in place an array of longs. */
+	static public final void reverse(final long[] a) {
+		for (int left=0, right=a.length-1; left<right; left++, right--) {
+			long tmp = a[left];
 			a[left] = a[right];
 			a[right] = tmp;
 		}

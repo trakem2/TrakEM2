@@ -1595,13 +1595,26 @@ public abstract class Displayable extends DBObject implements Paintable {
 			p2a[j+1] = p[1][i];
 		}
 		final double[] p2b = new double[length * 2];
-		this.at.transform(p2a, 0, p2b, 0, length); // what a silly format: consecutive x,y numbers! Clear case of premature optimization.
+		this.at.transform(p2a, 0, p2b, 0, length);
 		final double[][] p3 = new double[2][length];
 		for (int i=0, j=0; i<length; i++, j+=2) {
 			p3[0][i] = p2b[j];
 			p3[1][i] = p2b[j+1];
 		}
 		return p3;
+	}
+
+	/** Transforms the points represented as X1,Y1,X2,Y2...*/
+	protected double[] transformPoints(final double[] p) {
+		final double[] p2 = new double[p.length];
+		this.at.transform(p, 0, p2, 0, p.length/2);
+		return p2;
+	}
+	/** Transforms the points represented as X1,Y1,X2,Y2...*/
+	protected float[] transformPoints(final float[] p) {
+		final float[] p2 = new float[p.length];
+		this.at.transform(p, 0, p2, 0, p.length/2);
+		return p2;
 	}
 
 	/** Concatenate the given affine to this and all its linked objects. */

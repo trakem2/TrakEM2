@@ -1607,6 +1607,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" d").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" p_width").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_ids").append(TAG_ATTR2)
 		;
 	}
 
@@ -1744,7 +1745,9 @@ public class Pipe extends ZDisplayable implements Line3D {
 			// Resample to the largest of the two:
 			double avg_delta = vs.getAverageDelta();
 			double unit = null != cal ? 1 / cal.pixelWidth : 1;
-			vs.resample(Math.max(avg_delta, unit) * resample);
+			double delta = Math.max(avg_delta, unit) * resample;
+			if (delta > avg_delta * 10) delta = avg_delta * 10;
+			vs.resample(delta);
 			//vs.resample(vs.getAverageDelta() * resample);
 
 			px = vs.getPoints(0);

@@ -653,6 +653,9 @@ public class Project extends DBObject {
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Ball(this, "ball", 0, 0);
+		} else if (type.equals("connector")) {
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			return new Connector(this, "connector");
 		} else if (type.equals("dissector")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Dissector(this, "dissector", 0, 0);
@@ -686,6 +689,7 @@ public class Project extends DBObject {
 		    || type.equals("dissector")
 		    || type.equals("stack")
 		    || type.equals("treeline")
+		    || type.equals("connector")
 		;
 	}
 
@@ -859,7 +863,10 @@ public class Project extends DBObject {
 	static public String getType(final Class c) {
 		if (AreaList.class == c) return "area_list";
 		if (DLabel.class == c) return "label";
-		return c.getName().toLowerCase();
+		String name = c.getName().toLowerCase();
+		int i = name.lastIndexOf('.');
+		if (-1 != i) name = name.substring(i+1);
+		return name;
 	}
 
 	/** Returns the proper TemplateThing for the given type, complete with children and attributes if any. */
@@ -879,6 +886,7 @@ public class Project extends DBObject {
 		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
 		if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
 		if (!ht_unique_tt.containsKey("treeline")) ht_unique_tt.put("treeline", new TemplateThing("treeline"));
+		if (!ht_unique_tt.containsKey("connector")) ht_unique_tt.put("connector", new TemplateThing("connector"));
 		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
 		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
 		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
@@ -999,6 +1007,7 @@ public class Project extends DBObject {
 		Dissector.exportDTD(sb_header, hs, indent);
 		Stack.exportDTD( sb_header, hs, indent );
 		Treeline.exportDTD(sb_header, hs, indent);
+		Connector.exportDTD(sb_header, hs, indent);
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
 		Display.exportDTD(sb_header, hs, indent);
@@ -1225,6 +1234,8 @@ public class Project extends DBObject {
 		gd.addSlider("Undo steps", 32, 200, n_undo_steps);
 		boolean flood_fill_to_image_edge = "true".equals(ht_props.get("flood_fill_to_image_edge"));
 		gd.addCheckbox("AreaList_flood_fill_to_image_edges", flood_fill_to_image_edge);
+		int look_ahead_cache = (int)getProperty("look_ahead_cache", 0);
+		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0);
 		//
 		gd.showDialog();
 		//
@@ -1268,6 +1279,12 @@ public class Project extends DBObject {
 		if (n_undo_steps < 0) n_undo_steps = 0;
 		setProperty("n_undo_steps", Integer.toString(n_undo_steps));
 		adjustProp("flood_fill_to_image_edge", flood_fill_to_image_edge, gd.getNextBoolean());
+		double d_look_ahead_cache = gd.getNextNumber();
+		if (!Double.isNaN(d_look_ahead_cache) && d_look_ahead_cache >= 0) {
+			setProperty("look_ahead_cache", Integer.toString((int)d_look_ahead_cache));
+		} else {
+			Utils.log2("Ignoring invalid 'look ahead cache' value " + d_look_ahead_cache);
+		}
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

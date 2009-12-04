@@ -545,6 +545,14 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(new Long(oid), pline);
 				addToLastOpenLayerSet(pline);
 				return null;
+			} else if (type.equals("connector")) {
+				Connector con = new Connector(this.project, oid, ht_attributes, ht_links);
+				con.addToDatabase();
+				last_displayable = con;
+				ht_displayables.put(new Long(oid), con);
+				ht_zdispl.put(new Long(oid), con);
+				addToLastOpenLayerSet(con);
+				return null;
 			} else if (type.equals("path")) {
 				last_area_list.__addPath((String)ht_attributes.get("d"));
 				return null;

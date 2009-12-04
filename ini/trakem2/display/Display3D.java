@@ -868,11 +868,31 @@ public final class Display3D {
 				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 				try {
 					return universe.addContentLater(col);
-				} catch (Exception e) {
+				} catch (Throwable e) {
 					IJError.print(e);
 					return null;
 				}
 		}});
+
+		launchers.submit(new Runnable() { public void run() {
+			executors.submit(fu);
+		}});
+
+		return fu;
+	}
+
+	public Future<Content> addContent(final Content c) {
+		final FutureTask<Content> fu = new FutureTask<Content>(new Callable<Content>() {
+			public Content call() {
+				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
+				try {
+					return universe.addContentLater(c).get();
+				} catch (Throwable e) {
+					IJError.print(e);
+					return null;
+				}
+			}
+		});
 
 		launchers.submit(new Runnable() { public void run() {
 			executors.submit(fu);
@@ -1005,4 +1025,42 @@ public final class Display3D {
 			launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 		}
 	}
+
+	/** Creates a calibrated sphere to represent a point at LayerSet pixel coordinates wx, wy, wz, with radius wr.*/
+	public List<Point3f> createFatPoint(final double wx, final double wy, final double wz, final double wr, final Calibration cal) {
+		final double[][][] globe = Ball.generateGlobe(12, 12);
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
+		for (int z=0; z<globe.length; z++) {
+			for (int k=0; k<globe[0].length; k++) {
+				globe[z][k][0] = (globe[z][k][0] * wr + wx) * scale * cal.pixelWidth;
+				globe[z][k][1] = (globe[z][k][1] * wr + wy) * scale * cal.pixelHeight;
+				globe[z][k][2] = (globe[z][k][2] * wr + wz) * scale * cal.pixelWidth * sign; // not pixelDepth, see day notes 20080227. Because pixelDepth is in microns/px, not in px/microns, and the z coord here is taken from the z of the layer, which is in pixels.
+			}
+		}
+		final ArrayList<Point3f> list = new ArrayList<Point3f>();
+		// create triangular faces and add them to the list
+		for (int z=0; z<globe.length-1; z++) { // the parallels
+			for (int k=0; k<globe[0].length -1; k++) { // meridian points
+				// half quadrant (a triangle)
+				list.add(new Point3f((float)globe[z][k][0], (float)globe[z][k][1], (float)globe[z][k][2]));
+				list.add(new Point3f((float)globe[z+1][k+1][0], (float)globe[z+1][k+1][1], (float)globe[z+1][k+1][2]));
+				list.add(new Point3f((float)globe[z+1][k][0], (float)globe[z+1][k][1], (float)globe[z+1][k][2]));
+				// the other half quadrant
+				list.add(new Point3f((float)globe[z][k][0], (float)globe[z][k][1], (float)globe[z][k][2]));
+				list.add(new Point3f((float)globe[z][k+1][0], (float)globe[z][k+1][1], (float)globe[z][k+1][2]));
+				list.add(new Point3f((float)globe[z+1][k+1][0], (float)globe[z+1][k+1][1], (float)globe[z+1][k+1][2]));
+			}
+		}
+		return list;
+	}
+
+	/** Expects uncalibrated wx,wy,wz, (i.e. pixel values), to be calibrated by @param ls calibration. */
+	static public final Future<Content> addFatPoint(final String title, final LayerSet ls, final double wx, final double wy, final double wz, final double wr, final Color color) {
+		Display3D d3d = Display3D.get(ls);
+		d3d.universe.removeContent(title);
+		Content ct = d3d.universe.createContent(new CustomTriangleMesh(d3d.createFatPoint(wx, wy, wz, wr, ls.getCalibrationCopy()), new Color3f(color), 0), title);
+		ct.setLocked(true);
+		return d3d.addContent(ct);
+	}
+
 }
