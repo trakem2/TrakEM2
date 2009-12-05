@@ -2130,10 +2130,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null == target) {
 				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true);
 				// Store it:
+				/* CAN'T, may have prePaint in it
 				if (null != sc && display.getProject().getProperty("look_ahead_cache", 0) > 0) {
 					sc.assoc(target);
 					layer.getParent().storeScreenshot(sc);
 				}
+				*/
 			}
 
 			synchronized (offscreen_lock) {
