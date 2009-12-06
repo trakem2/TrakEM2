@@ -2170,9 +2170,75 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
+	/** Looks into the layer and its LayerSet and finds out what needs to be painted, putting it into the three lists. */
+	private final void gatherDisplayables(final Layer layer, final Rectangle srcRect, final Displayable active, final ArrayList<Displayable> al_paint, final ArrayList<Displayable> al_top, final boolean preload_patches) {
+		layer.getParent().checkBuckets();
+		layer.checkBuckets();
+		final Iterator<Displayable> ital = layer.find(srcRect, true).iterator();
+		final Iterator<Displayable> itzd = layer.getParent().findZDisplayables(layer, srcRect, true).iterator();
+
+		// Assumes the Layer has its objects in order:
+		// 1 - Patches
+		// 2 - Profiles, Balls
+		// 3 - Pipes and ZDisplayables (from the parent LayerSet)
+		// 4 - DLabels
+
+		Displayable tmp = null;
+		boolean top = false;
+		final ArrayList<Patch> al_patches = preload_patches ? new ArrayList<Patch>() : null;
+
+		while (ital.hasNext()) {
+			final Displayable d = ital.next();
+			final Class c = d.getClass();
+			if (DLabel.class == c || LayerSet.class == c) {
+				tmp = d; // since ital.next() has moved forward already
+				break;
+			}
+			if (Patch.class == c) {
+				al_paint.add(d);
+				if (preload_patches) al_patches.add((Patch)d);
+			} else {
+				if (!top && d == active) top = true; // no Patch on al_top ever
+				if (top) al_top.add(d); // so active is added to al_top, if it's not a Patch
+				else al_paint.add(d);
+			}
+		}
+
+		// preload concurrently as many as possible
+		if (preload_patches) Loader.preload(al_patches, magnification, false); // must be false; a 'true' would incur in an infinite loop.
+
+		// paint the ZDisplayables here, before the labels and LayerSets, if any
+		while (itzd.hasNext()) {
+			final Displayable zd = itzd.next();
+			if (zd == active) top = true;
+			if (top) al_top.add(zd);
+			else al_paint.add(zd);
+		}
+		// paint LayerSet and DLabel objects!
+		if (null != tmp) {
+			if (tmp == active) top = true;
+			if (top) al_top.add(tmp);
+			else al_paint.add(tmp);
+		}
+		while (ital.hasNext()) {
+			final Displayable d = ital.next();
+			if (d == active) top = true;
+			if (top) al_top.add(d);
+			else al_paint.add(d);
+		}
+	}
+
 	/** This method uses data only from the arguments, and changes none.
 	 *  Will fill @param al_top with proper Displayable objects, or none when none are selected. */
 	public BufferedImage paintOffscreen(final Layer layer, final int g_width, final int g_height, final Rectangle srcRect, final double magnification, final Displayable active, final int c_alphas, final Rectangle clipRect, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint, final ArrayList<Displayable> al_top) {
+
+		final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
+		gatherDisplayables(layer, srcRect, active, al_paint, al_top, true);
+
+		return paintOffscreen(layer, al_paint, active, g_width, g_height, c_alphas, loader, hm, blending_list, mode, graphics_source, prepaint);
+	}
+
+	public BufferedImage paintOffscreen(final Layer layer, final ArrayList<Displayable> al_paint, final Displayable active, final int g_width, final int g_height, final int c_alphas, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint) {
 		try {
 
 			// flag Loader to do massive flushing if needed
@@ -2189,70 +2255,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final Rectangle r1 = new Rectangle(srcRect.x + srcRect.width, srcRect.y, (int)(g_width / magnification) - srcRect.width, (int)(g_height / magnification));
 			final Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(g_height / magnification) - srcRect.height);
 
-			boolean top = false;
-
-			final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
-
-			final ArrayList<Patch> al_patches = new ArrayList<Patch>();
-
-			// start
-			//final ArrayList al = layer.getDisplayables();
-			layer.getParent().checkBuckets();
-			layer.checkBuckets();
-			final Iterator<Displayable> ital = layer.find(srcRect, true).iterator();
-			final Collection<Displayable> al_zdispl = layer.getParent().findZDisplayables(layer, srcRect, true);
-			final Iterator<Displayable> itzd = al_zdispl.iterator();
-
-			// Assumes the Layer has its objects in order:
-			// 1 - Patches
-			// 2 - Profiles, Balls
-			// 3 - Pipes and ZDisplayables (from the parent LayerSet)
-			// 4 - DLabels
-
-			Displayable tmp = null;
-
-			while (ital.hasNext()) {
-				final Displayable d = ital.next();
-				final Class c = d.getClass();
-				if (DLabel.class == c || LayerSet.class == c) {
-					tmp = d; // since ital.next() has moved forward already
-					break;
-				}
-				if (Patch.class == c) {
-					al_paint.add(d);
-					al_patches.add((Patch)d);
-				} else {
-					if (!top && d == active) top = true; // no Patch on al_top ever
-					if (top) al_top.add(d); // so active is added to al_top, if it's not a Patch
-					else al_paint.add(d);
-				}
-			}
-
-			// preload concurrently as many as possible
-			Loader.preload(al_patches, magnification, false); // must be false; a 'true' would incur in an infinite loop.
-
-			// paint the ZDisplayables here, before the labels and LayerSets, if any
-			while (itzd.hasNext()) {
-				final Displayable zd = itzd.next();
-				if (zd == active) top = true;
-				if (top) al_top.add(zd);
-				else al_paint.add(zd);
-			}
-			// paint LayerSet and DLabel objects!
-			if (null != tmp) {
-				if (tmp == active) top = true;
-				if (top) al_top.add(tmp);
-				else al_paint.add(tmp);
-			}
-			while (ital.hasNext()) {
-				final Displayable d = ital.next();
-				if (d == active) top = true;
-				if (top) al_top.add(d);
-				else al_paint.add(d);
-			}
-
 			// create new graphics
-			layer.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+			display.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
 			final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT); // creates a BufferedImage.TYPE_INT_ARGB image in my T60p ATI FireGL laptop
 			final Graphics2D g = target.createGraphics();
 
