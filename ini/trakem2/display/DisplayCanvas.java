@@ -2122,7 +2122,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						//Utils.log2("Using cached screenshot " + sc + " with srcRect " + sc.srcRect);
 						target = (BufferedImage) layer.getProject().getLoader().getCachedAWT(sc.sid, 0);
 						if (null == target) layer.getParent().removeFromOffscreens(sc); // the image was thrown out of the cache
-						else al_top.addAll(sc.al_top);
+						else if (sc.al_top.size() > 0 && sc.al_top.get(0) != display.getActive()) {
+							// Can't accept: different active object
+							Utils.log2("rejecting: different active object");
+							target = null;
+						} else al_top.addAll(sc.al_top);
 					}
 				}
 			} catch (Throwable t) {
@@ -2538,7 +2542,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		public void createImage() {
 			BufferedImage img = paintOffscreen(layer, props.g_width, props.g_height, props.srcRect, props.magnification,
-						  null, props.c_alphas, null, layer.getProject().getLoader(),
+						  display.getActive(), props.c_alphas, null, layer.getProject().getLoader(),
 						  props.hm, props.blending_list, props.mode, props.graphics_source, false, al_top);
 			layer.getProject().getLoader().cacheAWT(sid, img);
 		}
