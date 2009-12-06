@@ -2242,7 +2242,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		try {
 
 			// flag Loader to do massive flushing if needed
-			loader.setMassiveMode(true);
+			//loader.setMassiveMode(true);
 
 			// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
