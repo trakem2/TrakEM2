@@ -2014,12 +2014,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return old;
 	}
 
-	private final HashMap<DisplayCanvas.Screenshot,Long> offscreens = new HashMap<DisplayCanvas.Screenshot,Long>();
+	private final HashMap<DisplayCanvas.ScreenshotProperties,DisplayCanvas.Screenshot> offscreens = new HashMap<DisplayCanvas.ScreenshotProperties,DisplayCanvas.Screenshot>();
 	private final HashMap<Layer,HashSet<DisplayCanvas.Screenshot>> offscreens2 = new HashMap<Layer,HashSet<DisplayCanvas.Screenshot>>();
 
-	final Long getScreenshotId(final DisplayCanvas.Screenshot s) {
+	final DisplayCanvas.Screenshot getScreenshot(final DisplayCanvas.ScreenshotProperties props) {
 		synchronized (offscreens) {
-			return offscreens.get(s); // must return an OBJECT, otherwise if not there, a null Long throws a NullPointerException instead of becomming a zero or something.
+			return offscreens.get(props);
 		}
 	}
 
@@ -2039,7 +2039,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	final void storeScreenshot(DisplayCanvas.Screenshot s) {
 		synchronized(offscreens) {
-			offscreens.put(s, s.sid);
+			offscreens.put(s.props, s);
 			putO2(s.layer, s);
 		}
 	}
@@ -2047,14 +2047,14 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized(offscreens) {
 			if (offscreens.size() > 1000) {
 				TreeMap<Long,DisplayCanvas.Screenshot> m = new TreeMap<Long,DisplayCanvas.Screenshot>();
-				for (final DisplayCanvas.Screenshot s : offscreens.keySet()) {
+				for (final DisplayCanvas.Screenshot s : offscreens.values()) {
 					m.put(s.born, s);
 				}
 				offscreens.clear();
 				offscreens2.clear();
 				ArrayList<Long> t = new ArrayList<Long>(m.keySet());
 				for (final DisplayCanvas.Screenshot sc : m.subMap(m.firstKey(), t.get(t.size()/2)).values()) {
-					offscreens.put(sc, sc.sid);
+					offscreens.put(sc.props, sc);
 					putO2(sc.layer, sc);
 				}
 			}
@@ -2062,7 +2062,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	final void removeFromOffscreens(final DisplayCanvas.Screenshot sc) {
 		synchronized (offscreens) {
-			offscreens.remove(sc);
+			offscreens.remove(sc.props);
 			removeO2(sc);
 		}
 	}
@@ -2071,7 +2071,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.remove(la);
 			if (null != hs) {
 				for (final DisplayCanvas.Screenshot sc : hs) {
-					offscreens.remove(sc);
+					offscreens.remove(sc.props);
 				}
 			}
 		}
@@ -2080,12 +2080,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized (offscreens) {
 			// Throw away any cached that intersect the zd
 			final Rectangle box = zd.getBoundingBox();
-			for (final Iterator<DisplayCanvas.Screenshot> it = offscreens.keySet().iterator(); it.hasNext(); ) {
+			for (final Iterator<DisplayCanvas.Screenshot> it = offscreens.values().iterator(); it.hasNext(); ) {
 				final DisplayCanvas.Screenshot sc = it.next();
-				if (box.intersects(sc.srcRect)) {
+				if (box.intersects(sc.props.srcRect)) {
 					it.remove();
 					final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
-					if (null != hs) hs.remove(sc);
+					if (null != hs) hs.remove(sc.props);
 				}
 			}
 		}
@@ -2093,7 +2093,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	final boolean containsScreenshot(final DisplayCanvas.Screenshot sc) {
 		synchronized (offscreens) {
-			return offscreens.containsKey(sc);
+			return offscreens.containsKey(sc.props);
 		}
 	}
 }

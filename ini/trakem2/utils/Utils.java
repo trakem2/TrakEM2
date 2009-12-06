@@ -1397,4 +1397,28 @@ public class Utils implements ij.plugin.PlugIn {
 		});
 		return exec;
 	}
+	/** If both are null will throw an error. */
+	static public final boolean equalContent(final Collection a, final Collection b) {
+		if ((null == a && null != b)
+		 || (null != b && null == b)) return false;
+		if (a.size() != b.size()) return false;
+		for (Iterator ia = a.iterator(), ib = b.iterator(); ia.hasNext(); ) {
+			if (!ia.next().equals(ib.next())) return false;
+		}
+		return true;
+	}
+	/** If both are null will throw an error. */
+	static public final boolean equalContent(final Map a, final Map b) {
+		if ((null == a && null != b)
+		 || (null != b && null == b)) return false;
+		if (a.size() != b.size()) return false;
+		for (final Object oe : a.entrySet()) {
+			final Map.Entry e = (Map.Entry)oe;
+			final Object ob = b.get(e.getKey());
+			if (null != ob && !ob.equals(e.getValue())) return false;
+			if (null != e.getValue() && !e.getValue().equals(ob)) return false;
+			// if both are null that's ok
+		}
+		return true;
+	}
 }
