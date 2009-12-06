@@ -769,7 +769,7 @@ abstract public class Loader {
 					// finally, release snapshots
 					if (0 != mawts.size()) {
 						// release almost all snapshots (they're cheap to reload/recreate)
-						for (int i=(int)(mawts.size() * 0.25); i>-1; i--) {
+						for (int i=(int)(mawts.size() * 0.5); i>-1; i--) {
 							Image mawt = mawts.removeFirst();
 							released += measureSize(mawt);
 							if (null != mawt) mawt.flush();
