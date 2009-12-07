@@ -179,20 +179,26 @@ final public class AlignLayersTask
 		
 		final Align.Param p = Align.param.clone();
 		Rectangle box = null;
-		// find the first non-empty layer
+		// find the first non-empty layer, and remove all empty layers
 		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
 			Layer la = it.next();
 			if (!la.contains(Patch.class)) {
 				it.remove();
 				continue;
 			}
-			box = la.getMinimalBoundingBox(Patch.class);
-			break;
+			if (null == box) {
+				// The first layer:
+				box = la.getMinimalBoundingBox(Patch.class);
+			}
 		}
 		if (0 == layerRange.size()) {
 			Utils.log("All layers in range are empty!");
 			return;
 		}
+
+		/* do not work if there is only one layer selected */
+		if ( layerRange.size() < 2 ) return;
+
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
 		p.maxEpsilon *= scale;
 
@@ -313,23 +319,25 @@ final public class AlignLayersTask
 	
 	final static public void alignLayersNonLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
 	{
-		final List< Layer > layers = l.getParent().getLayers();
-		final int d = first < last ? 1 : -1;
-		
+		final List< Layer > layerRange = l.getParent().getLayers(first, last); // will reverse order if necessary
+
 		final Align.Param p = Align.param.clone();
-		
-		final List< Layer > layerRange = new ArrayList< Layer >();
-		for ( int i = first; i != last + d; i += d )
-		{
-			final Layer layer = layers.get( i );
-			if ( layer.getDisplayables( Patch.class ).size() > 0 )
-				layerRange.add( layer );
+
+		// find the first non-empty layer, and remove all empty layers
+		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
+			if (!it.next().contains(Patch.class)) {
+				it.remove();
+			}
+		}
+		if (0 == layerRange.size()) {
+			Utils.log("All layers in range are empty!");
+			return;
 		}
 		
 		/* do not work if there is only one layer selected */
 		if ( layerRange.size() < 2 ) return;
 		
-		final Loader loader = layerRange.iterator().next().getProject().getLoader();
+		final Loader loader = l.getProject().getLoader();
 
 		// Not concurrent safe! So two copies, one per layer and Thread:
 		final SIFT ijSIFT1 = new SIFT( new FloatArray2DSIFT( p.sift ) );
@@ -525,8 +533,9 @@ final public class AlignLayersTask
 		/* TODO do this
 		if ( propagateTransform )
 		{
-			for ( int i = last + d; i >= 0 && i < layers.size(); i += d )
-				layers.get( i ).apply( Displayable.class, a );
+			for (Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
+				la.apply( Displayable.class, a );
+			}
 		}
 		*/
 	}
