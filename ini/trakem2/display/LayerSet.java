@@ -865,21 +865,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
 	}
 
-	/** Returns a sublist of layers from first to last, both inclusive. */
+	/** Returns a sublist of layers from first to last, both inclusive. If last is larger than first, the order is reversed.  */
 	public List<Layer> getLayers(int first, int last) {
-		return al_layers.subList(first, last+1);
+		List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
+		if (first > last) Collections.reverse(las);
+		return new ArrayList<Layer>(las); // editable, thread-safe (a copy)
 	}
 
 	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
 	public List<Layer> getLayers(Layer first, Layer last) {
-		int fi = al_layers.indexOf(first);
-		int la = al_layers.indexOf(last);
-		if (fi > la) {
-			List<Layer> l = al_layers.subList(la, fi+1);
-			Collections.reverse(l);
-			return l;
-		}
-		return al_layers.subList(fi, la+1);
+		return getLayers(al_layers.indexOf(first), al_layers.indexOf(last));
 	}
 
 	public boolean isDeletable() {
@@ -1550,6 +1545,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null == root || null == db_map) recreateBuckets(false);
 	}
 
+	/** Returns the minimal 2D bounding box for Displayables of class @param c in all layers. */
 	public Rectangle getMinimalBoundingBox(final Class c) {
 		Rectangle r = null;
 		for (final Layer la : al_layers) {
