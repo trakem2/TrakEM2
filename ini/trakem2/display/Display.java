@@ -3669,11 +3669,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Align layers with manual landmarks")) {
 			setMode(new ManualAlignMode(Display.this));
 		} else if (command.equals("Align layers")) {
-			final Layer la = layer;; // caching, since scroll wheel may change it
-			la.getParent().addTransformStep(la);
+			final Layer la = layer; // caching, since scroll wheel may change it
+			la.getParent().addTransformStep(la.getParent().getLayers());
 			Bureaucrat burro = AlignLayersTask.alignLayersTask( la );
 			burro.addPostTask(new Runnable() { public void run() {
-				la.getParent().addTransformStep(la);
+				la.getParent().addTransformStep(la.getParent().getLayers());
 			}});
 		} else if (command.equals("Align multi-layer mosaic")) {
 			final Layer la = layer; // caching, since scroll wheel may change it

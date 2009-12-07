@@ -1622,6 +1622,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void addTransformStep(final Layer layer) {
 		addTransformStep(layer.getDisplayables());
 	}
+	public void addTransformStep(final List<Layer> layers) {
+		final ArrayList<Displayable> all = new ArrayList<Displayable>();
+		for (final Layer la : layers) all.addAll(la.getDisplayables());
+		addTransformStep(all);
+	}
 	/** Add an undo step for the transformations of all Displayable in hs. */
 	public void addTransformStep(final Collection<? extends Displayable> col) {
 		//Utils.log2("Added transform step for col");
