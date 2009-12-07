@@ -202,7 +202,7 @@ final public class AlignLayersTask
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
 		p.maxEpsilon *= scale;
 
-		Utils.log2("scale: " + scale + "  maxOctaveSize: " + p.sift.maxOctaveSize + "  box: " + box.width + "," + box.height);
+		//Utils.log2("scale: " + scale + "  maxOctaveSize: " + p.sift.maxOctaveSize + "  box: " + box.width + "," + box.height);
 		
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 		final SIFT ijSIFT = new SIFT( sift );
@@ -235,8 +235,7 @@ final public class AlignLayersTask
 			box2 = box3;
 			
 			final ImageProcessor flatImage = layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
-			new ImagePlus("flatImage", flatImage.duplicate()).show();
-			
+
 			ijSIFT.extractFeatures(
 					flatImage,
 					features2 );
@@ -473,51 +472,49 @@ final public class AlignLayersTask
 					final CubicBSplineTransform transf = new CubicBSplineTransform();
 					transf.set(warp.getIntervals(), warp.getDirectDeformationCoefficientsX(), warp.getDirectDeformationCoefficientsY(),
 	                		imp2.getWidth(), imp2.getHeight());
+
+					final ArrayList<Future> fus = new ArrayList<Future>();
 					
 					for ( final Displayable disp : layer2.getDisplayables( Patch.class ) )
 					{
-						if ( Patch.class.isInstance( disp ) )
-						{
-							try
-							{								
-								final Patch patch = ( Patch )disp;
-								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
-								final AffineTransform at = patch.getAffineTransform();
-								final AffineTransform pat = new AffineTransform();
-								pat.scale( scale, scale );
-								pat.translate( -box2.x, -box2.y );
-								pat.concatenate( at );
-								pat.translate( -pbox.x, -pbox.y );
-								
-								
-								final mpicbg.trakem2.transform.AffineModel2D toWorld = new mpicbg.trakem2.transform.AffineModel2D();
-								toWorld.set( pat );
-								
-								final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
-								// move the patch into the global space where bUnwarpJ calculated the transformation
-								ctl.add( toWorld );
-								// Apply non-linear transformation
-								ctl.add( transf );
-								// move it back
-								ctl.add( toWorld.createInverse() );
-								
-								patch.appendCoordinateTransform( ctl );
-								
-								patch.updateMipMaps();
-								
-								
-								// Compensate for offset between boxes
-								final AffineTransform offset = new AffineTransform();
-								offset.translate( box1.x - box2.x , box1.y - box2.y );
-								offset.concatenate( at );
-								patch.setAffineTransform( offset );
-							}
-							catch ( Exception e )
-							{
-								e.printStackTrace();
-							}
+						try {								
+							final Patch patch = ( Patch )disp;
+							final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
+							final AffineTransform at = patch.getAffineTransform();
+							final AffineTransform pat = new AffineTransform();
+							pat.scale( scale, scale );
+							pat.translate( -box2.x, -box2.y );
+							pat.concatenate( at );
+							pat.translate( -pbox.x, -pbox.y );
+							
+							
+							final mpicbg.trakem2.transform.AffineModel2D toWorld = new mpicbg.trakem2.transform.AffineModel2D();
+							toWorld.set( pat );
+							
+							final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
+							// move the patch into the global space where bUnwarpJ calculated the transformation
+							ctl.add( toWorld );
+							// Apply non-linear transformation
+							ctl.add( transf );
+							// move it back
+							ctl.add( toWorld.createInverse() );
+							
+							patch.appendCoordinateTransform( ctl );
+							
+							fus.add(patch.updateMipMaps());
+							
+							// Compensate for offset between boxes
+							final AffineTransform offset = new AffineTransform();
+							offset.translate( box1.x - box2.x , box1.y - box2.y );
+							offset.concatenate( at );
+							patch.setAffineTransform( offset );
+						} catch ( Exception e ) {
+							e.printStackTrace();
 						}
 					}
+
+					// await regeneration of all mipmaps
+					Utils.wait(fus);
 					
 					Display.repaint( layer2 );
 				}
