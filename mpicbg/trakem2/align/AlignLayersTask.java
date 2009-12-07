@@ -33,12 +33,17 @@ import ini.trakem2.utils.Worker;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.Choice;
+import java.awt.event.ItemListener;
+import java.awt.event.ItemEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.Vector;
 
 import bunwarpj.Transformation;
 import bunwarpj.bUnwarpJ_;
@@ -107,8 +112,34 @@ final public class AlignLayersTask
 		gd.addMessage( "Layer Range:" );
 		final int sel = layers.indexOf(l);
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
+		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
-		
+		final Vector v = gd.getChoices();
+		final Choice cstart = (Choice) v.get(v.size() -3);
+		final Choice cref = (Choice) v.get(v.size() -2);
+		final Choice cend = (Choice) v.get(v.size() -1);
+		cstart.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = cstart.getSelectedIndex();
+				if (index > cref.getSelectedIndex()) cref.select(index);
+				if (index > cend.getSelectedIndex()) cend.select(index);
+			}
+		});
+		cref.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = cref.getSelectedIndex();
+				if (index < cstart.getSelectedIndex()) cstart.select(index);
+				if (index > cend.getSelectedIndex()) cend.select(index);
+			}
+		});
+		cend.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				int index = cend.getSelectedIndex();
+				if (index < cstart.getSelectedIndex()) cstart.select(index);
+				if (index < cref.getSelectedIndex()) cref.select(index);
+			}
+		});		
+
 		Align.param.addFields( gd );
 		gd.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
 		
@@ -119,6 +150,7 @@ final public class AlignLayersTask
 		if ( gd.wasCanceled() ) return;
 		
 		final int first = gd.getNextChoiceIndex();
+		final int ref = gd.getNextChoiceIndex();
 		final int last = gd.getNextChoiceIndex();
 		
 		Align.param.readFields( gd );
@@ -126,29 +158,45 @@ final public class AlignLayersTask
 		useBUnwarpJ = gd.getNextBoolean();
 		propagateTransform = gd.getNextBoolean();
 		
-		if ( useBUnwarpJ )
-		{
-			if ( !elasticParam.showDialog() ) return;
-			alignLayersNonLinearlyJob( l, first, last, propagateTransform );
+		if (useBUnwarpJ && !elasticParam.showDialog()) return;
+
+		// From ref to first:
+		if (ref - first > 0) {
+			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, first, propagateTransform);
+			else alignLayersLinearlyJob(l, ref, first, propagateTransform);
 		}
-		else
-			alignLayersLinearlyJob( l, first, last, propagateTransform );		
+		// From ref to last:
+		if (last - ref > 0) {
+			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, last, propagateTransform);
+			else alignLayersLinearlyJob(l, ref, last, propagateTransform);
+		}
 	}
 	
 	
 	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
 	{
-		final List< Layer > layers = l.getParent().getLayers();
-		final int d = first < last ? 1 : -1;
+		final List< Layer > layerRange = l.getParent().getLayers(first, last); // will reverse order if necessary
 		
 		final Align.Param p = Align.param.clone();
-		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
+		Rectangle box = null;
+		// find the first non-empty layer
+		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
+			Layer la = it.next();
+			if (!la.contains(Patch.class)) {
+				it.remove();
+				continue;
+			}
+			box = la.getMinimalBoundingBox(Patch.class);
+			break;
+		}
+		if (0 == layerRange.size()) {
+			Utils.log("All layers in range are empty!");
+			return;
+		}
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
 		p.maxEpsilon *= scale;
-		
-		final List< Layer > layerRange = new ArrayList< Layer >();
-		for ( int i = first; i != last + d; i += d )
-			layerRange.add( layers.get( i ) );
+
+		Utils.log2("scale: " + scale + "  maxOctaveSize: " + p.sift.maxOctaveSize + "  box: " + box.width + "," + box.height);
 		
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 		final SIFT ijSIFT = new SIFT( sift );
@@ -175,12 +223,13 @@ final public class AlignLayersTask
 			
 			final Rectangle box3 = layer.getMinimalBoundingBox( Patch.class );
 			
-			if ( box3 == null || ( box.width == 0 && box.height == 0 ) ) continue;
+			if ( box3 == null || ( box3.width == 0 && box3.height == 0 ) ) continue; // skipping empty layer
 			
 			box1 = box2;
 			box2 = box3;
 			
 			final ImageProcessor flatImage = layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
+			new ImagePlus("flatImage", flatImage.duplicate()).show();
 			
 			ijSIFT.extractFeatures(
 					flatImage,
@@ -256,8 +305,9 @@ final public class AlignLayersTask
 		}
 		if ( propagateTransform )
 		{
-			for ( int i = last + d; i >= 0 && i < layers.size(); i += d )
-				layers.get( i ).apply( Displayable.class, a );
+			for (Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
+				la.apply( Displayable.class, a );
+			}
 		}
 	}
 	
