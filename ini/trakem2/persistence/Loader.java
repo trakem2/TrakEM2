@@ -515,9 +515,21 @@ abstract public class Loader {
 		// max_memory changes as some is reserved by image opening calls
 		return max_memory - getCurrentMemory(); }
 
-	/** Really available maximum memory, in bytes.  */
-	static protected long max_memory = RUNTIME.maxMemory() - 128000000; // 128 M always free
-	//static protected long max_memory = (long)(IJ.maxMemory() - 128000000); // 128 M always free
+	/** Maximum vailable memory, in bytes. */
+	static private final long MAX_MEMORY = RUNTIME.maxMemory() - 128000000; // 128 M always free
+	/** Really available maximum memory, in bytes.
+	 * This value can only be edited under synchronized MAXMEMLOCK.
+	 * I could use an AtomicLong, but why the overhead? It's private to Loader. */
+	static private long max_memory = MAX_MEMORY;
+	static private final Object MAXMEMLOCK = new Object();
+
+	/** Use this method to reserve a chunk of memory (With a negative value) or to return it to the pool (with a positive value.) */
+	static protected void alterMaxMem(final long n_bytes) {
+		synchronized (MAXMEMLOCK) {
+			if (max_memory + n_bytes > MAX_MEMORY) max_memory = MAX_MEMORY; // paranoid programming
+			else max_memory += n_bytes;
+		}
+	}
 
 	/** Measure whether there are at least 'n_bytes' free. */
 	static final protected boolean enoughFreeMemory(final long n_bytes) {
@@ -1081,7 +1093,7 @@ abstract public class Loader {
 				synchronized (db_lock) {
 					lock();
 					n_bytes = estimateImageFileSize(p, level);
-					max_memory -= n_bytes;
+					alterMaxMem(-n_bytes);
 					unlock();
 				}
 
@@ -1096,7 +1108,7 @@ abstract public class Loader {
 				synchronized (db_lock) {
 					try {
 						lock();
-						max_memory += n_bytes;
+						alterMaxMem(n_bytes);
 						if (null != mawt) {
 							//Utils.log2("returning exact mawt from file for level " + level);
 							if (REGENERATING != mawt) {
@@ -1259,7 +1271,7 @@ abstract public class Loader {
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level, final long n_bytes) {
 		final long size = estimateImageFileSize(p, level);
-		max_memory -= size;
+		alterMaxMem(-size);
 		unlock();
 		Image mawt = null;
 		try {
@@ -1268,7 +1280,7 @@ abstract public class Loader {
 			IJError.print(e);
 		}
 		lock();
-		max_memory += size;
+		alterMaxMem(size);
 		return mawt;
 	}
 

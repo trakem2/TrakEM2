@@ -547,22 +547,21 @@ public final class FSLoader extends Loader {
 
 
 			// reserve memory:
-			synchronized (db_lock) {
-				lock();
-				n_bytes = estimateImageFileSize(p, 0);
-				max_memory -= n_bytes;
-				unlock();
+			n_bytes = estimateImageFileSize(p, 0);
+			try {
+				alterMaxMem(-n_bytes);
+
+				releaseToFit(n_bytes);
+				imp = openImage(path);
+
+				preProcess(p, imp);
+			} finally {
+				alterMaxMem(n_bytes);
 			}
-
-			releaseToFit(n_bytes);
-			imp = openImage(path);
-
-			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
 					lock();
-					max_memory += n_bytes;
 
 					if (null == imp) {
 						if (!hs_unloadable.contains(p)) {
@@ -714,21 +713,13 @@ public final class FSLoader extends Loader {
 		// else, reserve memory and open it:
 		long n_bytes = estimateImageFileSize(patch, 0);
 		// reserve memory:
-		synchronized (db_lock) {
-			lock();
-			max_memory -= n_bytes;
-			unlock();
-		}
+		alterMaxMem(-n_bytes);
 		try {
 			return openImage(original_path);
 		} catch (Throwable t) {
 			IJError.print(t);
 		} finally {
-			synchronized (db_lock) {
-				lock();
-				max_memory += n_bytes;
-				unlock();
-			}
+			alterMaxMem(n_bytes);
 		}
 		return null;
 	}
@@ -2836,22 +2827,21 @@ public final class FSLoader extends Loader {
 
 
 			// reserve memory:
-			synchronized (db_lock) {
-				lock();
-				n_bytes = stack.estimateImageFileSize();
-				max_memory -= n_bytes;
-				unlock();
+			n_bytes = stack.estimateImageFileSize();
+			try {
+				alterMaxMem(-n_bytes);
+
+				releaseToFit(n_bytes);
+				imp = openImage(path);
+
+				//preProcess(p, imp);
+			} finally {
+				alterMaxMem(n_bytes);
 			}
-
-			releaseToFit(n_bytes);
-			imp = openImage(path);
-
-//			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
 					lock();
-					max_memory += n_bytes;
 
 					if (null == imp) {
 						if (!hs_unloadable.contains(stack)) {
