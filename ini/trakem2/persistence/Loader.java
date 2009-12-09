@@ -4202,308 +4202,67 @@ abstract public class Loader {
 
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 
-	static private ImageLoaderThread[] imageloader = null; 
-	static private Preloader preloader = null;
+	static private ExecutorService preloader = null;
+	static private final LinkedList<Runnable> preloads = new LinkedList<Runnable>();
+	static private final Object PL = new Object();
 
-	// TODO update all this to use an ExecutorService
 	static public final void setupPreloader(final ControlWindow master) {
-		if (null == imageloader) {
+		if (null == preloader) {
 			int n = Runtime.getRuntime().availableProcessors()-1;
 			if (0 == n) n = 1; // !@#$%^
-			imageloader = new ImageLoaderThread[n];
-			for (int i=0; i<imageloader.length; i++) {
-				imageloader[i] = new ImageLoaderThread();
+			preloader = Executors.newFixedThreadPool(n);
+			for (int i=0; i<n; i++) {
+				preloader.submit(new Runnable() {
+					public void run() {
+						Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
+						while (!Thread.currentThread().isInterrupted()) {
+							try {
+								synchronized (PL) {
+									if (preloads.isEmpty()) PL.wait();
+								}
+								Runnable r;
+								synchronized (preloads) {
+									r = preloads.removeLast();
+								}
+								if (null != r) r.run();
+							} catch (Throwable t) {
+								t.printStackTrace();
+							}
+						}
+					}
+				});
 			}
 		}
-		if (null == preloader) preloader = new Preloader();
 	}
 	static public final void destroyPreloader(final ControlWindow master) {
-		if (null != preloader) { preloader.quit(); preloader = null; }
-		if (null != imageloader) {
-			for (int i=0; i<imageloader.length; i++) {
-				if (null != imageloader[i]) { imageloader[i].quit(); }
-			}
-			imageloader = null;
-		}
+		preloads.clear();
+		if (null != preloader) { preloader.shutdownNow(); preloader = null; }
 	}
 
-
-	// Java is pathetically low level.
-	static private final class Tuple {
-		final Patch patch;
-		double mag;
-		boolean repaint;
-		private boolean valid = true;
-		Tuple(final Patch patch, final double mag, final boolean repaint) {
-			this.patch = patch;
-			this.mag = mag;
-			this.repaint = repaint;
-		}
-		public final boolean equals(final Object ob) {
-			// DISABLED: private class Tuple will never be used in lists that contain objects that are not Tuple as well.
-			//if (ob.getClass() != Tuple.class) return false;
-			final Tuple tu = (Tuple)ob;
-			return patch == tu.patch && mag == tu.mag && repaint == tu.repaint;
-		}
-		final void invalidate() {
-			//Utils.log2("@@@@ called invalidate for mag " + mag);
-			valid = false;
+	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
+		for (final Patch p : patches) {
+			preload(p, mag, repaint);
 		}
 	}
-
-	/** Manages available CPU cores for loading images in the background. */
-	static private final class Preloader extends Thread {
-		private final LinkedList<Tuple> queue = new LinkedList<Tuple>();
-		/** IdentityHashMap uses ==, not .equals() ! */
-		private final IdentityHashMap<Patch,HashMap<Integer,Tuple>> map = new IdentityHashMap<Patch,HashMap<Integer,Tuple>>();
-		private boolean go = true;
-		/** Controls access to the queue. */
-		private final Lock lock = new Lock();
-		private final Lock lock2 = new Lock();
-		Preloader() {
-			super("T2-Preloader");
-			setPriority(Thread.NORM_PRIORITY);
-			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
-			start();
-		}
-		private final int makeKey(final double mag) {
-			// get the nearest equal or higher power of 2
-			return (int)(0.5 + Math.abs(Math.log(mag) / Math.log(2)));
-		}
-		public final void quit() {
-			this.go = false;
-			synchronized (lock) { lock.lock(); queue.clear(); lock.unlock(); }
-			synchronized (lock2) { lock2.unlock(); }
-		}
-		private final void addEntry(final Patch patch, final double mag, final boolean repaint) {
-			synchronized (lock) {
-				lock.lock();
-				final Tuple tu = new Tuple(patch, mag, repaint);
-				HashMap<Integer,Tuple> m = map.get(patch);
-				final int key = makeKey(mag);
-				if (null == m) {
-					m = new HashMap<Integer,Tuple>();
-					m.put(key, tu);
-					map.put(patch, m);
-				} else {
-					// invalidate previous entry if any
-					Tuple old = m.get(key);
-					if (null != old) old.invalidate();
-					// in any case:
-					m.put(key, tu);
-				}
-				queue.add(tu);
-				lock.unlock();
-			}
-		}
-		private final void addPatch(final Patch patch, final double mag, final boolean repaint) {
-			if (patch.getProject().getLoader().isCached(patch, mag)) return;
-			if (repaint && !Display.willPaint(patch, mag)) return;
-			// else, queue:
-			addEntry(patch, mag, repaint);
-		}
-		public final void add(final Patch patch, final double mag, final boolean repaint) {
-			addPatch(patch, mag, repaint);
-			synchronized (lock2) { lock2.unlock(); }
-		}
-		public final void add(final ArrayList<Patch> patches, final double mag, final boolean repaint) {
-			//Utils.log2("@@@@ Adding " + patches.size() + " for mag " + mag);
-			for (Patch p : patches) {
-				addPatch(p, mag, repaint);
-			}
-			synchronized (lock2) { lock2.unlock(); }
-		}
-		public final void remove(final ArrayList<Patch> patches, final double mag) {
-			// WARNING: this method only makes sense of the canceling of the offscreen thread happens before the issuing of the new offscreen thread, which is currently the case.
-			int sum = 0;
-			synchronized (lock) {
-				lock.lock();
-				for (Patch p : patches) {
-					HashMap<Integer,Tuple> m = map.get(p);
-					if (null == m) {
-						continue;
-					}
-					final Tuple tu = m.remove(makeKey(mag)); // if present.
-					//Utils.log2("@@@@ mag is " + mag + " and tu is null == " + (null == tu));
-					if (null != tu) {
-						tu.invalidate(); // never removed from the queue, just invalidated. Will be removed by the preloader thread itself, when poping from the end.
-						if (m.isEmpty()) map.remove(p);
-						sum++;
-					}
-				}
-				lock.unlock();
-			}
-			//Utils.log2("@@@@ invalidated " + sum + " for mag " + mag);
-		}
-		private final void removeMapping(final Tuple tu) {
-			final HashMap<Integer,Tuple> m = map.get(tu.patch);
-			if (null == m) return;
-			m.remove(makeKey(tu.mag));
-			if (m.isEmpty()) map.remove(tu.patch);
-		}
-		public void run() {
-			final int size = imageloader.length; // as many as Preloader threads
-			final ArrayList<Tuple> list = new ArrayList<Tuple>(size);
-			while (go) {
-				try {
-					synchronized (lock2) { lock2.lock(); }
-					// read out a group of imageloader.length patches to load
-					while (true) {
-						// block 1: pop out 'size' valid tuples from the queue (and all invalid in between as well)
-						synchronized (lock) {
-							lock.lock();
-							int len = queue.size();
-							//Utils.log2("@@@@@ Queue size: " + len);
-							if (0 == len) {
-								lock.unlock();
-								break;
-							}
-							// When more than a hundred images, multiply by 10 the remove/read -out batch for preloading.
-							// (if the batch_size is too large, then the removing/invalidating tuples from the queue would not work properly, i.e. they would never get invalidated and thus they'd be preloaded unnecessarily.)
-							final int batch_size = size * (len < 100 ? 1 : 10);
-							//
-							for (int i=0; i<batch_size && i<len; len--) {
-								final Tuple tuple = queue.remove(len-1); // start removing from the end, since those are the latest additions, hence the ones the user wants to see immediately.
-								removeMapping(tuple);
-								if (!tuple.valid) {
-									//Utils.log2("@@@@@ skipping invalid tuple");
-									continue;
-								}
-								list.add(tuple);
-								i++;
-							}
-							//Utils.log2("@@@@@ Queue size after: " + queue.size());
-							lock.unlock();
-						}
-
-						// changes may occur now to the queue, so work on the list
-
-						//Utils.log2("@@@@@ list size: " + list.size());
-
-						// block 2: now iterate until each tuple in the list has been  assigned to a preloader thread
-						while (!list.isEmpty()) {
-							final Iterator<Tuple> it = list.iterator();
-							int i = 0;
-							while (it.hasNext()) {
-								final Tuple tu = it.next();
-								if (i == imageloader.length) {
-									try { Thread.sleep(10); } catch (Exception e) {}
-									i = 0; // circular array
-								}
-								if (!imageloader[i].isLoading()) {
-									it.remove();
-									imageloader[i].load(tu.patch, tu.mag, tu.repaint);
-								}
-								i++;
-							}
-							if (!list.isEmpty()) try {
-								//Utils.log2("@@@@@ list not empty, waiting 50 ms");
-								Thread.sleep(50);
-							} catch (InterruptedException ie) {}
-						}
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-					synchronized (lock) { lock.unlock(); } // just in case ...
-				}
-			}
-		}
-	}
-
-	static public final void preload(final Patch patch, final double magnification, final boolean repaint) {
-		preloader.add(patch, magnification, repaint);
-	}
-	static public final void preload(final ArrayList<Patch> patches, final double magnification, final boolean repaint) {
-		preloader.add(patches, magnification, repaint);
-	}
-	static public final void quitPreloading(final ArrayList<Patch> patches, final double magnification) {
-		preloader.remove(patches, magnification);
-	}
-
-	static private final class ImageLoaderThread extends Thread {
-		/** Controls access to Patch etc. */
-		private final Lock lock = new Lock();
-		/** Limits access to the load method while a previous image is being worked on. */
-		private final Lock lock2 = new Lock();
-		private Patch patch = null;
-		private double mag = 1.0;
-		private boolean repaint = false;
-		private boolean go = true;
-		private boolean loading = false;
-		public ImageLoaderThread() {
-			super("T2-Image-Loader");
-			setPriority(Thread.NORM_PRIORITY);
-			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
-			start();
-		}
-		public final void quit() {
-			this.go = false;
-			synchronized (lock) { try { this.patch = null; lock.unlock(); } catch (Exception e) {} }
-			synchronized (lock2) { lock2.unlock(); }
-		}
-		/** Sets the given Patch to be loaded, and returns. A second call to this method will wait until the first call has finished, indicating the Thread is busy loading the previous image. */
-		public final void load(final Patch p, final double mag, final boolean repaint) {
-			synchronized (lock) {
-				try {
-					lock.lock();
-					this.patch = p;
-					this.mag = mag;
-					this.repaint = repaint;
-					if (null != patch) {
-						synchronized (lock2) {
-							try { lock2.unlock(); } catch (Exception e) { e.printStackTrace(); }
-						}
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-		}
-		final boolean isLoading() {
-			return loading;
-		}
-		public void run() {
-			while (go) {
-				Patch p = null;
-				double mag = 1.0;
-				boolean repaint = false;
-				synchronized (lock2) {
+	static public void preload(final Patch p, final double mag, final boolean repaint) {
+		synchronized (preloads) {
+			preloads.add(new Runnable() {
+				public void run() {
 					try {
-						// wait until there's a Patch to preload.
-						lock2.lock();
-						// ready: catch locally (no need to synch on lock because it can't change, considering the load method.
-						p = this.patch;
-						mag = this.mag;
-						repaint = this.repaint;
-					} catch (Exception e) {}
-				}
-				if (null != p && !p.getProject().getLoader().hs_unloadable.contains(p)) {
-					try {
+						if (p.getProject().getLoader().hs_unloadable.contains(p)) return;
 						if (repaint) {
-							// wait a bit in case the user has browsed past
-							Thread.yield();
-							if (mag >= 0.25) try { sleep(50); } catch (InterruptedException ie) {}
 							if (Display.willPaint(p, mag)) {
-								loading = true;
 								Object ob = p.getProject().getLoader().fetchImage(p, mag);
 								if (null != ob) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							}
 						} else {
 							// just load it into the cache if possible
-							loading = true;
 							p.getProject().getLoader().fetchImage(p, mag);
 						}
-						p = null;
-					} catch (Exception e) { e.printStackTrace(); }
-				}
-				// signal done
-				try {
-					synchronized (lock) { loading = false; lock.unlock(); }
-				} catch (Exception e) {}
-			}
+					} catch (Throwable e) { e.printStackTrace(); }}});
 		}
+		synchronized (PL) { PL.notify(); }
 	}
-
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
 	public static final int getHighestMipMapLevel(final Patch p) {
