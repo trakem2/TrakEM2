@@ -106,6 +106,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Hashtable;
@@ -4234,7 +4235,12 @@ abstract public class Loader {
 								}
 								Runnable r;
 								synchronized (preloads) {
-									r = preloads.removeLast();
+									try {
+										r = preloads.removeLast();
+									} catch (NoSuchElementException nsee) {
+										// Empty list!
+										return null;
+									}
 								}
 								if (null != r) r.run();
 							} catch (Throwable t) {
