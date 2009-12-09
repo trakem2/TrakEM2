@@ -3912,7 +3912,6 @@ abstract public class Loader {
 			// debug:
 			Utils.log2("opening image " + path);
 			//Utils.printCaller(this, 25);
-			IJ.redirectErrorMessages();
 
 			return openImagePlus(path, 0);
 		} catch (Exception e) {
@@ -3927,17 +3926,20 @@ abstract public class Loader {
 		return openImagePlus(path, 0);
 	}
 
-	private final ImagePlus openImagePlus(final String path, final int retries) {
+	private final ImagePlus openImagePlus(final String path, int retries) {
 		while (retries < MAX_RETRIES) try {
+				IJ.redirectErrorMessages();
 				return opener.openImage(path);
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
 				recoverOOME(); // TODO may have to unlock?
 				Thread.yield();
 				// Retry:
-				return openImagePlus(path, retries + 1);
+				retries++;
 			} catch (Throwable t) {
+				// Don't retry
 				IJError.print(t);
+				break;
 			}
 		return null;
 	}
