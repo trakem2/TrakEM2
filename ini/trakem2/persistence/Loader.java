@@ -1097,9 +1097,11 @@ abstract public class Loader {
 						lock();
 						max_memory += n_bytes;
 						if (null != mawt) {
-							if (REGENERATING != mawt) mawts.put(id, mawt, level);
 							//Utils.log2("returning exact mawt from file for level " + level);
-							Display.repaintSnapshot(p);
+							if (REGENERATING != mawt) {
+								mawts.put(id, mawt, level);
+								Display.repaintSnapshot(p);
+							}
 							return mawt;
 						}
 						// 3 - else, load closest level to it but still giving a larger image
@@ -1192,20 +1194,23 @@ abstract public class Loader {
 				plock.unlock();
 				Patch.PatchImage pai = p.createTransformedImage();
 				plock.lock();
-				final ImageProcessor ip = pai.target;
-				ByteProcessor alpha_mask = pai.mask; // can be null;
-				final ByteProcessor outside_mask = pai.outside; // can be null
-				if (null == alpha_mask) {
-					alpha_mask = outside_mask;
-				}
-				pai = null;
-				if (null != alpha_mask) {
-					mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
-							       embedAlpha((int[])ip.convertToRGB().getPixels(),
-									  (byte[])alpha_mask.getPixels(),
-									  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
-				} else {
-					mawt = ip.createImage();
+				if (null != pai && null != pai.target) {
+					final ImageProcessor ip = pai.target;
+					ip.setMinAndMax(p.getMin(), p.getMax());
+					ByteProcessor alpha_mask = pai.mask; // can be null;
+					final ByteProcessor outside_mask = pai.outside; // can be null
+					if (null == alpha_mask) {
+						alpha_mask = outside_mask;
+					}
+					pai = null;
+					if (null != alpha_mask) {
+						mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
+								       embedAlpha((int[])ip.convertToRGB().getPixels(),
+										  (byte[])alpha_mask.getPixels(),
+										  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+					} else {
+						mawt = ip.createImage();
+					}
 				}
 			} catch (Exception e) {
 				Utils.log2("Could not create an image for Patch " + p);
@@ -3829,7 +3834,6 @@ abstract public class Loader {
 			// debug:
 			Utils.log2("opening image " + path);
 			//Utils.printCaller(this, 25);
-			IJ.redirectErrorMessages();
 
 			return openImagePlus(path, 0);
 		} catch (Exception e) {
@@ -3844,17 +3848,20 @@ abstract public class Loader {
 		return openImagePlus(path, 0);
 	}
 
-	private final ImagePlus openImagePlus(final String path, final int retries) {
+	private final ImagePlus openImagePlus(final String path, int retries) {
 		while (retries < MAX_RETRIES) try {
+				IJ.redirectErrorMessages();
 				return opener.openImage(path);
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
 				recoverOOME(); // TODO may have to unlock?
 				Thread.yield();
 				// Retry:
-				return openImagePlus(path, retries + 1);
+				retries++;
 			} catch (Throwable t) {
+				// Don't retry
 				IJError.print(t);
+				break;
 			}
 		return null;
 	}
