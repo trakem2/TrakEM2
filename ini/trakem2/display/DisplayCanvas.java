@@ -2152,7 +2152,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				try {
 					// only on success:
 					update_graphics = false;
-					loader.setMassiveMode(false);
 					if (null != offscreen) offscreen.flush();
 					offscreen = target;
 					invalidateVolatile();
@@ -2240,10 +2239,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public BufferedImage paintOffscreen(final Layer layer, final ArrayList<Displayable> al_paint, final Displayable active, final int g_width, final int g_height, final int c_alphas, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint) {
 		try {
-
-			// flag Loader to do massive flushing if needed
-			//loader.setMassiveMode(true);
-
 			// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
 			// prepare the canvas for the srcRect and magnification

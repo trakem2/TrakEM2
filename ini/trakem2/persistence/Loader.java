@@ -156,9 +156,6 @@ abstract public class Loader {
 
 	protected final int MAX_RETRIES = 3;
 
-	/** The cache is shared, and can be flagged to do massive flushing. */
-	private boolean massive_mode = false;
-
 	/** Keep track of whether there are any unsaved changes.*/
 	protected boolean changes = false;
 	
@@ -365,17 +362,6 @@ abstract public class Loader {
 
 	/* Reflection would be the best way to do all above; when it's about and 'id', one only would have to check whether the field in question is a BIGINT and the object given a DBObject, and call getId(). Such an approach demands, though, perfect matching of column names with class field names. */
 
-	// for cache flushing
-	public boolean getMassiveMode() {
-		return massive_mode;
-	}
-
-	// for cache flushing
-	public final void setMassiveMode(boolean m) {
-		massive_mode = m;
-		//Utils.log2("massive mode is " + m + " for loader " + this);
-	}
-
 	public void addCrossLink(long project_id, long id1, long id2) {}
 
 	/** Remove a link between two objects. Returns true always in this empty method. */
@@ -569,32 +555,26 @@ abstract public class Loader {
 			return false;
 		}
 		if (enoughFreeMemory(n_bytes)) return true;
-		final boolean previous = massive_mode;
-		if (n_bytes > max_memory / 4) setMassiveMode(true);
 		boolean result = true;
 		synchronized (db_lock) {
 			lock();
 			result = releaseToFit2(n_bytes);
 			unlock();
 		}
-		setMassiveMode(previous);
 		return result;
 	}
 
 	// Like releaseToFit but non-locking; calls releaseToFit2
 	protected final boolean releaseToFit3(long n_bytes) {
 		if (enoughFreeMemory(n_bytes)) return true;
-		final boolean previous = massive_mode;
-		if (n_bytes > max_memory / 4) setMassiveMode(true);
 		boolean result = releaseToFit2(n_bytes);
-		setMassiveMode(previous);
 		return result;
 	}
 
 	// non-locking version
 	protected final boolean releaseToFit2(long n_bytes) {
 		//if (enoughFreeMemory(n_bytes)) return true;
-		if (releaseMemory2(0.5D, true, n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
+		if (releaseMemory2(n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
 		// else, wait for GC
 		int iterations = 30;
 
@@ -618,6 +598,7 @@ abstract public class Loader {
 		final int max = 7;
 		long sleep = 50; // initial value
 		int iterations = 0;
+		Utils.showStatus("Clearing memory...");
 		do {
 			//Runtime.getRuntime().runFinalization(); // enforce it
 			System.gc();
@@ -625,14 +606,11 @@ abstract public class Loader {
 			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
 			sleep += sleep; // incremental
 			now = IJ.currentMemory();
-			Utils.log("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+			Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
 			Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
 			iterations++;
 		} while (now >= initial && iterations < max);
-		Utils.log2("finished runGC");
-		if (iterations >= 7) {
-			//Utils.printCaller(this, 10);
-		}
+		Utils.showStatus("Memory cleared.");
 		return iterations + 1;
 	}
 
@@ -653,11 +631,40 @@ abstract public class Loader {
 	}
 
 	/** The minimal number of memory bytes that should always be free. */
-	public static final long MIN_FREE_BYTES = max_memory > 1000000000 /*1 Gb*/ ? 150000000 /*150 Mb*/ : 50000000 /*50 Mb*/; // (long)(max_memory * 0.2f);
+	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
+
+	/** 100 Mb per processor, which is a bit more than 67 Mb, the size of a 32-bit 4096x4096 image. */
+	private static long computeDesirableMinFreeBytes() {
+		long f = 150000000 * Runtime.getRuntime().availableProcessors();
+		if (f > max_memory / 2) {
+			Utils.logAll("WARNING you are operating with low memory\n  considering the number of CPU cores.\n  Please restart with a higher -Xmx value.");
+			return max_memory / 2;
+		}
+		return f > max_memory / 2 ?
+			max_memory / 2
+		      : f;
+	}
+
+	/** If the number of minimally free memory bytes (100 Mb times the number of CPU cores) is too low for your (giant) images, set it to a larger value here. */
+	public static void setDesirableMinFreeBytes(final long n_bytes) {
+		long f = computeDesirableMinFreeBytes();
+		long max = IJ.maxMemory();
+		if (n_bytes < f) {
+			Utils.logAll("Refusing to use " + n_bytes + " as the desirable amount of free memory bytes,\n  considering the lower limit at " + f);
+		} else if (n_bytes > max) {
+			Utils.logAll("Refusing to use a number of minimally free memory bytes larger than max_memory " + max);
+		} else if (n_bytes > max / 2) {
+			Utils.logAll("WARNING you are setting a value of minimally free memory bytes larger than half the maximum memory.");
+		} else {
+			f = n_bytes;
+		}
+		MIN_FREE_BYTES = f;
+		Utils.logAll("Using min free bytes " + MIN_FREE_BYTES + " (max memory: " + max + ")");
+	}
 
 	private final long measureSize(final ImagePlus imp) {
 		if (null == imp) return 0;
-		final long size = imp.getWidth() * imp.getHeight();
+		final long size = imp.getWidth() * imp.getHeight() * imp.getNSlices();
 		switch (imp.getType()) {
 			case ImagePlus.GRAY16:
 				return size * 2 + 100;
@@ -678,33 +685,7 @@ abstract public class Loader {
 		return img.getWidth(null) * img.getHeight(null) + 100;
 	}
 
-	/** Locks on db_lock. */
-	public long releaseMemory(double percent, boolean from_all_projects) {
-		if (!from_all_projects) return releaseMemory(percent);
-		long mem = 0;
-		for (Loader loader : v_loaders) mem += loader.releaseMemory(percent);
-		return mem;
-	}
-
-	/** From 0 to 1, locks on db_lock. */
-	public long releaseMemory(double percent) {
-		if (percent <= 0) return 0;
-		if (percent > 1) percent = 1;
-		synchronized (db_lock) {
-			try {
-				lock();
-				return releaseMemory2(percent, false, MIN_FREE_BYTES);
-			} catch (Throwable e) {
-				IJError.print(e);
-			} finally {
-				// gets called by the 'return' above and by any other sort of try{}catch interruption
-				unlock();
-			}
-		}
-		return 0;
-	}
-
-	/** Locks on db_lock. */
+	/** Free up to MIN_FREE_BYTES. Locks on db_lock. */
 	public final long releaseMemory() {
 		synchronized (db_lock) {
 			try {
@@ -719,12 +700,12 @@ abstract public class Loader {
 		}
 	}
 
-	/** Locks on db_lock. */
-	public final long releaseMemory(final double a, final boolean release_others, final long min_free_bytes) {
+	/** Free up to @param min_free_bytes. Locks on db_lock. */
+	public final long releaseMemory(final long min_free_bytes) {
 		synchronized (db_lock) {
 			try {
 				lock();
-				return releaseMemory2(a, release_others, min_free_bytes);
+				return releaseMemory2(min_free_bytes);
 			} catch (Throwable e) {
 				IJError.print(e);
 				return 0;
@@ -734,9 +715,20 @@ abstract public class Loader {
 		}
 	}
 
-	/** Remove up to half the ImagePlus cache of others (but their mawts first if needed) and then one single ImagePlus of this Loader's cache. */
+	/** Free up to MIN_FREE_BYTES. */
 	protected final long releaseMemory2() {
-		return releaseMemory2(0.5D, true, MIN_FREE_BYTES);
+		return releaseMemory2(MIN_FREE_BYTES);
+	}
+
+	private final long releaseOthers(final long min_free_bytes) {
+		if (1 == v_loaders.size()) return 0;
+		long released = 0;
+		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+			if (lo == this) continue;
+			released += lo.releaseMemory(min_free_bytes); // locking on the other Loader's db_lock
+			if (released >= min_free_bytes) return released;
+		}
+		return released;
 	}
 
 	/** Release as much of the cache as necessary to make at least min_free_bytes free.<br />
@@ -744,68 +736,43 @@ abstract public class Loader {
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
 	*/
-	protected final long releaseMemory2(final double a, final boolean release_others, final long min_free_bytes) {
+	protected final long releaseMemory2(long min_free_bytes) {
+		if (min_free_bytes < MIN_FREE_BYTES) min_free_bytes = MIN_FREE_BYTES;
 		long released = 0;
+		int BATCH_SIZE = 5 * Runtime.getRuntime().availableProcessors();
+		if (BATCH_SIZE < 10) BATCH_SIZE = 10;
 		try {
-			//while (!enoughFreeMemory(min_free_bytes))
+			int iterations = 0;
 			while (released < min_free_bytes) {
 				if (enoughFreeMemory(min_free_bytes)) return released;
-				// release the cache of other loaders (up to 'a' of the ImagePlus cache of them if necessary)
-				if (massive_mode) {
-					// release others regardless of the 'release_others' boolean
-					released += releaseOthers(0.5D);
-					// reset
-					if (released >= min_free_bytes) return released;
-					// remove half of the imps
-					if (0 != imps.size()) {
-						for (int i=imps.size()/2; i>-1; i--) {
-							ImagePlus imp = imps.removeFirst();
-							released += measureSize(imp);
-							flush(imp);
-						}
-						Thread.yield();
-						if (released >= min_free_bytes) return released;
-					}
-					// finally, release snapshots
-					if (0 != mawts.size()) {
-						// release almost all snapshots (they're cheap to reload/recreate)
-						for (int i=(int)(mawts.size() * 0.5); i>-1; i--) {
-							Image mawt = mawts.removeFirst();
-							released += measureSize(mawt);
-							if (null != mawt) mawt.flush();
-						}
-						if (released >= min_free_bytes) return released;
-					}
-				} else {
-					if (release_others) {
-						released += releaseOthers(a);
-						if (released >= min_free_bytes) return released;
-					}
-					if (0 == imps.size()) {
-						// release half the cached awt images
-						if (0 != mawts.size()) {
-							for (int i=mawts.size()/3; i>-1; i--) {
-								Image im = mawts.removeFirst();
-								released += measureSize(im);
-								if (null != im) im.flush();
-							}
-							if (released >= min_free_bytes) return released;
-						}
-					}
-					// finally:
-					if (a > 0.0D && a <= 1.0D) {
-						// up to 'a' of the ImagePlus cache:
-						for (int i=(int)(imps.size() * a); i>-1; i--) {
-							ImagePlus imp = imps.removeFirst();
-							released += measureSize(imp);
-							flush(imp);
-						}
-					} else {
-						// just one:
-						ImagePlus imp = imps.removeFirst();
-						flush(imp);
-					}
+
+				iterations++;
+
+				// First from other loaders, if any
+				released += releaseOthers(min_free_bytes);
+				if (released >= min_free_bytes) return released;
+
+				// Second some ImagePlus
+				if (0 == imps.size()) continue;
+				for (int i=0; i<BATCH_SIZE; ) {
+					ImagePlus imp = imps.removeFirst();
+					if (null == imp) break; // BATCH_SIZE larger than cache
+					i += imp.getNSlices(); // a stack will contribute much more
+					released += measureSize(imp);
+					flush(imp);
 				}
+				Thread.yield();
+				if (released >= min_free_bytes) return released;
+
+				// Third some awts
+				if (0 == mawts.size()) continue;
+				for (int i=0; i<BATCH_SIZE; i++) {
+					Image mawt = mawts.removeFirst();
+					if (null == mawt) break; // BATCH_SIZE larger than cache
+					released += measureSize(mawt);
+					if (null != mawt) mawt.flush();
+				}
+				if (released >= min_free_bytes) return released;
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
@@ -815,31 +782,12 @@ abstract public class Loader {
 					// in any case, can't release more:
 					mawts.gc();
 					return released;
+				} else if (iterations > 50) {
+					runGC();
 				}
 			}
-		} catch (Exception e) {
+		} catch (Throwable e) {
 			IJError.print(e);
-		}
-		return released;
-	}
-
-	/** Release memory from other loaders. */
-	private long releaseOthers(double a) {
-		if (null == v_loaders || 1 == v_loaders.size()) return 0;
-		if (a <= 0.0D || a > 1.0D) return 0;
-		final Iterator it = v_loaders.iterator();
-		long released = 0;
-		while (it.hasNext()) {
-			Loader loader = (Loader)it.next();
-			if (loader == this) continue;
-			else {
-				loader.setMassiveMode(false); // otherwise would loop back!
-				synchronized (loader.db_lock) {
-					loader.lock();
-					released += loader.releaseMemory2(a, false, MIN_FREE_BYTES);
-					loader.unlock();
-				}
-			}
 		}
 		return released;
 	}
@@ -1824,7 +1772,6 @@ abstract public class Loader {
 		try {
 			String dir = dir_;
 		ArrayList<Patch> al = new ArrayList<Patch>();
-		setMassiveMode(true);//massive_mode = true;
 		Utils.showProgress(0.0D);
 		opener.setSilentMode(true); // less repaints on IJ status bar
 
@@ -2193,16 +2140,12 @@ abstract public class Loader {
 		// update Displays
 		Display.update(layer);
 
-		//reset Loader mode
-		setMassiveMode(false);//massive_mode = false;
-
 		layer.recreateBuckets();
 
 		//debug:
 		} catch (Throwable t) {
 			IJError.print(t);
 			rollback();
-			setMassiveMode(false); //massive_mode = false;
 			setMipMapsRegeneration(true);
 		}
 		finishedWorking();
@@ -2604,33 +2547,6 @@ abstract public class Loader {
 
 	/** Used for the revert command. */
 	abstract public ImagePlus fetchOriginal(Patch patch);
-
-	/** Set massive mode if not much is cached of the new layer given for loading. */
-	public void prepare(Layer layer) {
-		/* // this piece of ancient code is doing more harm than good
-
-		ArrayList al = layer.getDisplayables();
-		long[] ids = new long[al.size()];
-		int next = 0;
-		Iterator it = al.iterator();
-		while (it.hasNext()) {
-			Object ob = it.next();
-			if (ob instanceof Patch)
-				ids[next++] = ((DBObject)ob).getId();
-		}
-
-		int n_cached = 0;
-		double area = 0;
-		if (0 == next) return; // no need
-		else if (n_cached > 0) { // make no assumptions on image compression, assume 8-bit though
-			long estimate = (long)(((area / n_cached) * next * 8) / 1024.0D); // 'next' is total
-			if (!enoughFreeMemory(estimate)) {
-				setMassiveMode(true);//massive_mode = true;
-			}
-		} else setMassiveMode(false); //massive_mode = true; // nothing loaded, so no clue, set it to load fast by flushing fast.
-
-		*/
-	}
 
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
 		return makeFlatImage(layer, srcRect, scale, c_alphas, type, force_to_file, quality, Color.black);
@@ -3116,7 +3032,6 @@ abstract public class Loader {
 							Utils.showProgress(i_tile /  (double)(n_et * n_et));
 
 							if (0 == i_tile % 100) {
-								setMassiveMode(true);
 								releaseMemory();
 							}
 

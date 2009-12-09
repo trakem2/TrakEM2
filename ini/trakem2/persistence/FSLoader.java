@@ -269,7 +269,6 @@ public final class FSLoader extends Loader {
 						i_stream = new BufferedInputStream(new FileInputStream(this.project_file_path));
 					}
 					InputSource input_source = new InputSource(i_stream);
-					setMassiveMode(true);
 					parser.parse(input_source, handler);
 				} catch (java.io.FileNotFoundException fnfe) {
 					Utils.log("ERROR: File not found: " + path);
@@ -278,7 +277,6 @@ public final class FSLoader extends Loader {
 					IJError.print(e);
 					handler = null;
 				} finally {
-					setMassiveMode(false);
 					if (null != i_stream) {
 						try {
 							i_stream.close();
@@ -733,11 +731,6 @@ public final class FSLoader extends Loader {
 			}
 		}
 		return null;
-	}
-
-	public void prepare(Layer layer) {
-		//Utils.log2("FSLoader.prepare(Layer): not implemented.");
-		super.prepare(layer);
 	}
 
 	/* GENERIC, from DBObject calls. Records the id of the object in the HashMap ht_dbo.
@@ -1728,7 +1721,7 @@ public final class FSLoader extends Loader {
 
 			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
-				releaseToFit(w * h * 4 * 5);
+				releaseToFit(w * h * 4 * 10);
 				final ColorProcessor cp = (ColorProcessor)ip;
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
@@ -1829,7 +1822,7 @@ public final class FSLoader extends Loader {
 				}
 			} else {
 				// Greyscale:
-				releaseToFit(w * h * 4 * 5);
+				releaseToFit(w * h * 4 * 10);
 				final boolean as_grey = !ip.isColorLut();
 				if (as_grey && null == cm) {
 					cm = GRAY_LUT;

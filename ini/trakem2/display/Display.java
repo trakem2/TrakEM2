@@ -1020,8 +1020,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		updateVisibleTab(set_zdispl);
 
-		// see if a lot has to be reloaded, put the relevant ones at the end
-		project.getLoader().prepare(layer);
 		updateFrameTitle(layer); // to show the new 'z'
 		// select the Layer in the LayerTree
 		project.select(Display.this.layer); // does so in a separate thread
@@ -1058,11 +1056,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		Utils.updateComponent(c);
 
-		project.getLoader().setMassiveMode(false); // resetting if it was set true
-
 		// update the coloring in the ProjectTree
 		project.getProjectTree().updateUILater();
-		
+
 		setTempCurrentImage();
 	}
 
