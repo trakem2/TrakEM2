@@ -2134,7 +2134,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				IJError.print(t);
 			}
 
-			Utils.log2("Found target " + target + "\n  with al_top.size() = " + al_top.size());
+			//Utils.log2("Found target " + target + "\n  with al_top.size() = " + al_top.size());
 
 			if (null == target) {
 				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true, al_top);
