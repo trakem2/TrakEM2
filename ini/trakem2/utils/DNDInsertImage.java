@@ -80,29 +80,38 @@ public class DNDInsertImage implements DropTargetListener {
 			Transferable t = dtde.getTransferable();
 			DataFlavor[] flavors = t.getTransferDataFlavors();
 			int success = 0;
-			for (int i=0; i<flavors.length; i++) {
-				if (!flavors[i].getRepresentationClass().equals(String.class)) continue;
-				Object ob = t.getTransferData(flavors[i]);
-				if (!(ob instanceof String)) continue;
-				String s = ob.toString().trim();
-
-				BufferedReader br = new BufferedReader(new StringReader(s));
-				String tmp;
-				while (null != (tmp = br.readLine())) {
-					tmp = java.net.URLDecoder.decode(tmp, "UTF-8");
-					if (tmp.startsWith("file://")) {
-						tmp = tmp.substring(7);
-						if (IJ.isMacOSX()) {
-							if (tmp.startsWith("localhost")) {
-								tmp = tmp.substring(9);
-							}
-						}
-						
+			if (IJ.isMacOSX()) {
+				// Try file list first:
+				Object data = t.getTransferData(DataFlavor.javaFileListFlavor);
+				if (null != data) {
+					Iterator iterator = ((List)data).iterator();
+					while(iterator.hasNext()) {
+						File f = (File)iterator.next();
+						String path = f.getCanonicalPath().replace('\\', '/');
+						if (importImageFile(f, path, point)) success++;
 					}
-					File f = new File(tmp);
-					if (importImageFile(f, tmp, point)) success++;
 				}
-				break;
+			}
+			if (0 == success) {
+				// Try now the String representation
+				for (int i=0; i<flavors.length; i++) {
+					if (!flavors[i].getRepresentationClass().equals(String.class)) continue;
+					Object ob = t.getTransferData(flavors[i]);
+					if (!(ob instanceof String)) continue;
+					String s = ob.toString().trim();
+
+					BufferedReader br = new BufferedReader(new StringReader(s));
+					String tmp;
+					while (null != (tmp = br.readLine())) {
+						tmp = java.net.URLDecoder.decode(tmp, "UTF-8");
+						if (tmp.startsWith("file://")) {
+							tmp = tmp.substring(7);
+						}
+						File f = new File(tmp);
+						if (importImageFile(f, tmp, point)) success++;
+					}
+					break;
+				}
 			}
 			if (0 == success && t.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
 				// from ij.plugin.DragAndDrop class by Wayne Rasband
