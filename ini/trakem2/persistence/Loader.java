@@ -753,26 +753,28 @@ abstract public class Loader {
 				if (released >= min_free_bytes) return released;
 
 				// Second some ImagePlus
-				if (0 == imps.size()) continue;
-				for (int i=0; i<BATCH_SIZE; ) {
-					ImagePlus imp = imps.removeFirst();
-					if (null == imp) break; // BATCH_SIZE larger than cache
-					i += imp.getNSlices(); // a stack will contribute much more
-					released += measureSize(imp);
-					flush(imp);
+				if (0 != imps.size()) {
+					for (int i=0; i<BATCH_SIZE; ) {
+						ImagePlus imp = imps.removeFirst();
+						if (null == imp) break; // BATCH_SIZE larger than cache
+						i += imp.getNSlices(); // a stack will contribute much more
+						released += measureSize(imp);
+						flush(imp);
+					}
+					Thread.yield();
+					if (released >= min_free_bytes) return released;
 				}
-				Thread.yield();
-				if (released >= min_free_bytes) return released;
 
 				// Third some awts
-				if (0 == mawts.size()) continue;
-				for (int i=0; i<BATCH_SIZE; i++) {
-					Image mawt = mawts.removeFirst();
-					if (null == mawt) break; // BATCH_SIZE larger than cache
-					released += measureSize(mawt);
-					if (null != mawt) mawt.flush();
+				if (0 != mawts.size()) {
+					for (int i=0; i<BATCH_SIZE; i++) {
+						Image mawt = mawts.removeFirst();
+						if (null == mawt) break; // BATCH_SIZE larger than cache
+						released += measureSize(mawt);
+						if (null != mawt) mawt.flush();
+					}
+					if (released >= min_free_bytes) return released;
 				}
-				if (released >= min_free_bytes) return released;
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
@@ -4212,8 +4214,8 @@ abstract public class Loader {
 			if (0 == n) n = 1; // !@#$%^
 			preloader = Executors.newFixedThreadPool(n);
 			for (int i=0; i<n; i++) {
-				preloader.submit(new Runnable() {
-					public void run() {
+				preloader.submit(new Callable() {
+					public Object call() {
 						Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
 						while (!Thread.currentThread().isInterrupted()) {
 							try {
@@ -4229,6 +4231,7 @@ abstract public class Loader {
 								t.printStackTrace();
 							}
 						}
+						return null;
 					}
 				});
 			}
