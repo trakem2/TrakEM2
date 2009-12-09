@@ -465,6 +465,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return true;
 	}
 
+	/** Enlarge the 2D universe so that all Displayable in the collection fit in it;
+	 * that is, that no Displayable has a negative x,y position or lays beyond bounds.*/
+	synchronized public void enlargeToFit(final Collection<? extends Displayable> ds) {
+		Rectangle r = null;
+		for (Displayable d : ds) {
+			if (null == r) r = d.getBoundingBox();
+			else r.add(d.getBoundingBox());
+		}
+		if (null == r) return; //empty collection
+		r.add(get2DBounds());
+		setDimensions(r.x, r.y, r.width, r.height);
+	}
+
 	/** Enlarges the display in the given direction; the anchor is the point to keep still, and can be any of LayerSet.NORTHWEST (top-left), etc. */
 	synchronized public boolean enlargeToFit(final Displayable d, final int anchor) {
 		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
