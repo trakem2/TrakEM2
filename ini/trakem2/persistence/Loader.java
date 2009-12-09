@@ -1144,9 +1144,11 @@ abstract public class Loader {
 						lock();
 						max_memory += n_bytes;
 						if (null != mawt) {
-							if (REGENERATING != mawt) mawts.put(id, mawt, level);
 							//Utils.log2("returning exact mawt from file for level " + level);
-							Display.repaintSnapshot(p);
+							if (REGENERATING != mawt) {
+								mawts.put(id, mawt, level);
+								Display.repaintSnapshot(p);
+							}
 							return mawt;
 						}
 						// 3 - else, load closest level to it but still giving a larger image
