@@ -1241,21 +1241,23 @@ abstract public class Loader {
 				plock.unlock();
 				Patch.PatchImage pai = p.createTransformedImage();
 				plock.lock();
-				final ImageProcessor ip = pai.target;
-				ip.setMinAndMax(p.getMin(), p.getMax());
-				ByteProcessor alpha_mask = pai.mask; // can be null;
-				final ByteProcessor outside_mask = pai.outside; // can be null
-				if (null == alpha_mask) {
-					alpha_mask = outside_mask;
-				}
-				pai = null;
-				if (null != alpha_mask) {
-					mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
-							       embedAlpha((int[])ip.convertToRGB().getPixels(),
-									  (byte[])alpha_mask.getPixels(),
-									  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
-				} else {
-					mawt = ip.createImage();
+				if (null != pai && null != pai.target) {
+					final ImageProcessor ip = pai.target;
+					ip.setMinAndMax(p.getMin(), p.getMax());
+					ByteProcessor alpha_mask = pai.mask; // can be null;
+					final ByteProcessor outside_mask = pai.outside; // can be null
+					if (null == alpha_mask) {
+						alpha_mask = outside_mask;
+					}
+					pai = null;
+					if (null != alpha_mask) {
+						mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
+								       embedAlpha((int[])ip.convertToRGB().getPixels(),
+										  (byte[])alpha_mask.getPixels(),
+										  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+					} else {
+						mawt = ip.createImage();
+					}
 				}
 			} catch (Exception e) {
 				Utils.log2("Could not create an image for Patch " + p);

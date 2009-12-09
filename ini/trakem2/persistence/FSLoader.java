@@ -1663,7 +1663,7 @@ public final class FSLoader extends Loader {
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
 			Patch.PatchImage pai = patch.createTransformedImage();
-			if (null == pai) {
+			if (null == pai || null == pai.target) {
 				Utils.log("Can't regenerate mipmaps for patch " + patch);
 				cannot_regenerate.add(patch);
 				return false;
