@@ -4243,7 +4243,12 @@ abstract public class Loader {
 						while (!Thread.currentThread().isInterrupted()) {
 							try {
 								synchronized (PL) {
-									if (preloads.isEmpty()) PL.wait();
+									if (preloads.isEmpty()) try {
+										PL.wait();
+									} catch (InterruptedException ie) {
+										// Thread was terminated
+										return null;
+									}
 								}
 								Runnable r;
 								synchronized (preloads) {
