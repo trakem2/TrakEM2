@@ -4724,7 +4724,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			*/
 			if (null == box) box = displ.getBoundingBox(null);
-			if (d.canvas.getSrcRect().intersects(box)) {
+			if (d.getLayer() == d.layer && d.canvas.getSrcRect().intersects(box)) {
 				return true;
 			}
 		}
