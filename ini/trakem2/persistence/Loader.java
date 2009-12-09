@@ -778,6 +778,7 @@ abstract public class Loader {
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
+					if (0 == clonks.incrementAndGet() % 20) runGC();
 					Utils.log2("Loader.releaseMemory: empty cache.");
 					// Remove any autotraces
 					Polyline.flushTraceCache(Project.findProject(this));
@@ -793,6 +794,8 @@ abstract public class Loader {
 		}
 		return released;
 	}
+
+	static private final AtomicLong clonks = new AtomicLong();
 
 	static public void releaseAllCaches() {
 		for (final Loader lo : new Vector<Loader>(v_loaders)) {
