@@ -3867,7 +3867,7 @@ abstract public class Loader {
 				return opener.openImage(path);
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
-				recoverOOME(); // TODO may have to unlock?
+				recoverOOME(); // No need to unlock db_lock: all image loading calls are by design outside the db_lock.
 				Thread.yield();
 				// Retry:
 				retries++;
