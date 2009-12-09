@@ -1242,6 +1242,7 @@ abstract public class Loader {
 				Patch.PatchImage pai = p.createTransformedImage();
 				plock.lock();
 				final ImageProcessor ip = pai.target;
+				ip.setMinAndMax(p.getMin(), p.getMax());
 				ByteProcessor alpha_mask = pai.mask; // can be null;
 				final ByteProcessor outside_mask = pai.outside; // can be null
 				if (null == alpha_mask) {
