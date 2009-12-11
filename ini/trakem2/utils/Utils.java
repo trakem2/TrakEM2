@@ -24,13 +24,16 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.utils;
 
 import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Displayable;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.imaging.FloatProcessorT2;
 import ini.trakem2.vector.VectorString3D;
+import ini.trakem2.plugin.TPlugIn;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -58,8 +61,15 @@ import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.InputEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
+import javax.swing.KeyStroke;
+import java.awt.event.KeyEvent;
 import java.awt.Event;
 import javax.swing.SwingUtilities;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenu;
 
 import java.lang.reflect.Field;
 
@@ -71,9 +81,11 @@ import java.lang.Iterable;
 import java.util.Iterator;
 import java.util.Collection;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -1422,5 +1434,102 @@ public class Utils implements ij.plugin.PlugIn {
 			// if both are null that's ok
 		}
 		return true;
+	}
+
+	/** Returns false if none to add. */
+	static public final boolean addPlugIns(final JPopupMenu popup, final String menu, final Project project, final Callable<Displayable> active) {
+		JMenu m = addPlugIns(menu, project, active);
+		if (null == m) return false;
+		popup.add(m);
+		return true;
+	}
+
+	/** Returns null if none to add. */
+	static public final JMenu addPlugIns(final String menu, final Project project, final Callable<Displayable> active) {
+		final Map<String,TPlugIn> plugins = project.getPlugins(menu);
+		if (0 == plugins.size()) return null;
+		Displayable d = null;
+		try {
+			d = active.call();
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		final JMenu m = new JMenu("Plugins");
+		JMenuItem item;
+		int count = 0;
+		for (final Map.Entry<String,TPlugIn> e : plugins.entrySet()) {
+			item = new JMenuItem(e.getKey());
+			item.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					Bureaucrat.createAndStart(new Worker.Task(e.getKey()) {
+						public void exec() {
+							try {
+								e.getValue().invoke(active.call());
+							} catch (Exception e) {
+								IJError.print(e);
+							}
+						}
+					}, project);
+				}
+			});
+			item.setEnabled(e.getValue().applies(d));
+			if (count < 9) {
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_1 + count, Utils.getControlModifier(), true));
+			}
+			m.add(item);
+			count++;
+		}
+		if (0 == m.getItemCount()) return null;
+		m.addSeparator();
+		// Now all the "Setup " + name
+		for (final Map.Entry<String,TPlugIn> e : plugins.entrySet()) {
+			item = new JMenuItem("Setup " + e.getKey());
+			item.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					Bureaucrat.createAndStart(new Worker.Task(e.getKey()) {
+						public void exec() {
+							try {
+								e.getValue().setup(active.call());
+							} catch (Exception e) {
+								IJError.print(e);
+							}
+						}
+					}, project);
+				}
+			});
+			m.add(item);
+		}
+		return m;
+	}
+
+	/** Returns null if no plugin was launched.
+	 *  To launch a plugin, it needs a Utils.getControlModifier + 1,2,3,4... up to 9.
+	 *  @param active may be null. */
+	static final public Bureaucrat launchTPlugIn(final KeyEvent ke, final String menu, final Project project, final Displayable active) {
+		try {
+			if (0 == (ke.getModifiers() ^ Utils.getControlModifier())) {
+				final TreeMap<String,TPlugIn> plugins = project.getPlugins("Display");
+				if (plugins.size() > 0) {
+					int index = ke.getKeyCode() - KeyEvent.VK_1;
+					if (index < plugins.size()) {
+						int count = 0;
+						for (final Map.Entry<String,TPlugIn> e : plugins.entrySet()) {
+							if (index != count) {
+								count++;
+								continue;
+							}
+							return Bureaucrat.createAndStart(new Worker.Task(e.getKey()) {
+								public void exec() {
+									e.getValue().invoke(active);
+								}
+							}, project);
+						}
+					}
+				}
+			}
+		} catch (Throwable t) {
+			IJError.print(t);
+		}
+		return null;
 	}
 }

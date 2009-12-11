@@ -53,6 +53,7 @@ import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import java.util.concurrent.Callable;
 
 
 public final class ProjectThing extends DBObject implements TitledThing {
@@ -460,9 +461,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			addPopupItem("Show centered in Display", listener, al_items);
 		}
 
-		if (null != object && object instanceof Line3D) {
-			addPopupItem("Identify with fiducials...", listener, al_items);
-		}
+		// plugins
+		JMenuItem plugin_menu = Utils.addPlugIns("Project Tree", project, new Callable<Displayable>() {
+										public Displayable call() {
+											if (object instanceof Displayable) return (Displayable)object;
+											return null; }} );
+		if (null != plugin_menu) al_items.add(plugin_menu);
 
 		addPopupItem("Measure", listener, al_items);
 

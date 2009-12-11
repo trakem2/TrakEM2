@@ -25,8 +25,6 @@ package ini.trakem2.vector;
 import java.util.*;
 import javax.vecmath.Point3f;
 import java.util.Collections;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 
 /** To extract and represent the sequence of editions that convert any N-dimensional vector string to any other of the same number of dimensions. */
 public class Editions {
@@ -100,7 +98,7 @@ public class Editions {
 			// compute proper segment lengths, inlined
 			final double sim = 1.0 - ( (double)non_mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1) );
 
-			//if (sim > 0.7) Utils.log2("similarity: non_mut, len1, len2, i_start, i_end : " + non_mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
+			//if (sim > 0.7) System.out.println("similarity: non_mut, len1, len2, i_start, i_end : " + non_mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
 
 			return sim;
 		} else {
@@ -111,7 +109,7 @@ public class Editions {
 			 * If the max_len is smaller than the number of non-mutations, then a NEGATIVE similarity value is returned,
 			 * but it's ok. All it means is that it's not similar at all.
 			int max_len = Math.max(vs1.length(), vs2.length());
-			Utils.log2("non_mut: " + non_mut + "  total: " + editions.length + "  max length: " + max_len + (non_mut > max_len ? "  WARNING!" : ""));
+			System.out.println("non_mut: " + non_mut + "  total: " + editions.length + "  max length: " + max_len + (non_mut > max_len ? "  WARNING!" : ""));
 			*/
 			return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
 		}
@@ -144,7 +142,7 @@ public class Editions {
 			// compute proper segment lengths, inlined
 			double sim = (double)mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1);
 
-			//if (sim > 0.7) Utils.log2("similarity: mut, len1, len2, i_start, i_end : " + mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
+			//if (sim > 0.7) System.out.println("similarity: mut, len1, len2, i_start, i_end : " + mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
 
 			return sim;
 
@@ -225,8 +223,8 @@ public class Editions {
 			if (average) return dist / len; // can len be zero ?
 			return dist;
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			e.printStackTrace();
+			System.out.println("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			return Double.MAX_VALUE;
 		}
 	}
@@ -267,8 +265,8 @@ public class Editions {
 			return Math.sqrt(std / di.length);
 
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			e.printStackTrace();
+			System.out.println("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			return Double.MAX_VALUE;
 		}
 	}
@@ -370,8 +368,8 @@ public class Editions {
 			// When one does the proximity with the length of the query sequence only and not the max of both, then shorter ref sequences will score better.
 
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("ERROR in getStatistics: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			System.out.println("ERROR in getStatistics: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			e.printStackTrace();
 		}
 
 		return pack;
@@ -381,7 +379,7 @@ public class Editions {
 		final boolean with_source = (vs1 instanceof VectorString3D && vs2 instanceof VectorString3D) ?
 			null != ((VectorString3D)vs1).getSource() && null != ((VectorString3D)vs2).getSource()
 		      : false;
-		//Utils.log2("Editions.init() : With source: " + with_source);
+		//System.out.println("Editions.init() : With source: " + with_source);
 		// equalize point interdistance in both strings of vectors and create the actual vectors
 		vs1.resample(delta, with_source);
 		vs2.resample(delta, with_source);
@@ -860,7 +858,7 @@ public class Editions {
 		}
 
 		if (0 == chunks.size()) {
-			Utils.log2("No chunks found.");
+			System.out.println("No chunks found.");
 			return null;
 		}
 

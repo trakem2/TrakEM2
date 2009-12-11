@@ -109,7 +109,7 @@ public abstract class ZDisplayable extends Displayable {
 			unlink();
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes
-			ini.trakem2.vector.Compare.remove(this);
+			ini.trakem2.analysis.Compare.remove(this);
 			Display.flush(this);
 			return true;
 		}

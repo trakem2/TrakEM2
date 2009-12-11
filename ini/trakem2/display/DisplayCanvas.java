@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import ini.trakem2.utils.Lock;
 
 import ini.trakem2.display.graphics.*;
+import ini.trakem2.plugin.TPlugIn;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
@@ -1931,6 +1932,20 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_F11:
 			case KeyEvent.VK_F12:
 				ProjectToolbar.keyPressed(ke);
+				break;
+			case KeyEvent.VK_1:
+			case KeyEvent.VK_2:
+			case KeyEvent.VK_3:
+			case KeyEvent.VK_4:
+			case KeyEvent.VK_5:
+			case KeyEvent.VK_6:
+			case KeyEvent.VK_7:
+			case KeyEvent.VK_8:
+			case KeyEvent.VK_9:
+				// run a plugin, if any
+				if (null != Utils.launchTPlugIn(ke, "Display", display.getProject(), display.getActive())) {
+					ke.consume();
+				}
 				break;
 			case KeyEvent.VK_UP:
 			case KeyEvent.VK_DOWN:

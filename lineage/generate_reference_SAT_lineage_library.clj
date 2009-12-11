@@ -5,7 +5,7 @@
 ; and reads all lineages from it.
 
 (ns lineage.identify
-  (:import (ini.trakem2.vector Compare)
+  (:import (ini.trakem2.analysis Compare)
            (ini.trakem2 Project ControlWindow)
            (ini.trakem2.display Line3D Pipe Polyline)
            (ij.text TextWindow)

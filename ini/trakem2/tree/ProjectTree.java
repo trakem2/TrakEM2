@@ -233,9 +233,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			} else if (command.equals("Select in display")) {
 				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
 				selectInDisplay(thing, shift_down);
-			} else if (command.equals("Identify with fiducials...")) {
-				if (!(obd instanceof Line3D)) return;
-				lineage.Identify.identify((Line3D)obd);
 			} else if (command.equals("Show centered in Display")) {
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;
@@ -509,15 +506,29 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					ke.consume();
 				}
 				break;
+			case KeyEvent.VK_A:
+				if (0 == flags || (0 == (flags ^ Event.SHIFT_MASK))) {
+					selectInDisplay(pt, 0 == (flags ^ Event.SHIFT_MASK));
+				}
+				break;
 			case KeyEvent.VK_3:
 				if (0 == flags) {
 					ini.trakem2.display.Display3D.showAndResetView(pt);
 					ke.consume();
+					break;
 				}
-				break;
-			case KeyEvent.VK_A:
-				if (0 == flags || (0 == (flags ^ Event.SHIFT_MASK))) {
-					selectInDisplay(pt, 0 == (flags ^ Event.SHIFT_MASK));
+				// else, flow:
+			case KeyEvent.VK_1:
+			case KeyEvent.VK_2:
+			case KeyEvent.VK_4:
+			case KeyEvent.VK_5:
+			case KeyEvent.VK_6:
+			case KeyEvent.VK_7:
+			case KeyEvent.VK_8:
+			case KeyEvent.VK_9:
+				// run a plugin, if any
+				if (pt.getObject() instanceof Displayable && null != Utils.launchTPlugIn(ke, "Project Tree", project, (Displayable)pt.getObject())) {
+					ke.consume();
 				}
 				break;
 		}

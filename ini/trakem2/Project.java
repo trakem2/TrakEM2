@@ -46,13 +46,17 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.vector.Compare;
+import ini.trakem2.analysis.Compare;
+import ini.trakem2.plugin.TPlugIn;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Vector;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Collections;
+import java.util.TreeMap;
 import java.util.Hashtable;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -61,6 +65,10 @@ import javax.swing.tree.*;
 import javax.swing.JTree;
 import java.awt.Rectangle;
 import javax.swing.UIManager;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
 
 /** The top-level class in control. */
 public class Project extends DBObject {
@@ -76,6 +84,108 @@ public class Project extends DBObject {
 		} catch (Exception e) {
 			Utils.log("Failed to set System Look and Feel");
 		}
+	}
+
+
+
+	static final private Vector<PlugInSource> PLUGIN_SOURCES = new Vector<PlugInSource>();
+
+	static private class PlugInSource implements Comparable {
+		String menu;
+		Class c;
+		String title;
+		PlugInSource(String menu, Class c, String title) {
+			this.menu = menu;
+			this.c = c;
+			this.title = title;
+		}
+		public int compareTo(Object ob) {
+			return ((PlugInSource)ob).menu.compareTo(this.menu);
+		}
+	}
+
+	static {
+		// Search for plugins under fiji/plugins directory jar files
+		try {
+			Thread.currentThread().setContextClassLoader(ij.IJ.getClassLoader());
+			final String plugins_dir = Utils.fixDir(ij.Menus.getPlugInsPath());
+			for (String name : new File(plugins_dir).list()) {
+				File f = new File(name);
+				if (f.isHidden() || !name.toLowerCase().endsWith(".jar")) continue;
+				JarFile jar = new JarFile(plugins_dir + name);
+				JarEntry entry = jar.getJarEntry("plugins.trakem2");
+				if (entry == null) continue;
+				// Parse:
+				BufferedReader br = new BufferedReader(new InputStreamReader(jar.getInputStream(entry)));
+				try {
+					while (true) {
+						String line = br.readLine();
+						if (null == line) break;
+						if (line.startsWith("#")) continue;
+						// tokenize:
+						//  - from start to first comma is the menu
+						//  - from first comma to last comma is the title
+						//  - from last comma to end is the class
+						//  The above allows for commas to be inside the title
+						int fc = line.indexOf(',');
+						if (-1 == fc) continue;
+						int lc = line.lastIndexOf(',');
+						if (-1 == lc) continue;
+						String menu = line.substring(0, fc).trim();
+						if (!menu.equals("Project Tree") && !menu.equals("Display")) continue;
+						Class c;
+						String classname = line.substring(lc+1).trim();
+						try {
+							c = Class.forName(classname);
+						} catch (ClassNotFoundException cnfe) {
+							Utils.log2("TPlugIn class not found: " + classname);
+							continue;
+						}
+						int fq = line.indexOf('"', fc);
+						if (-1 == fq) continue;
+						int lq = line.lastIndexOf('"', lc);
+						if (-1 == lq) continue;
+						String title = line.substring(fq+1, lq).trim();
+						try {
+							PLUGIN_SOURCES.add(new PlugInSource(menu, Class.forName(classname), title));
+							Utils.log2("Found plugin for menu " + menu + " titled " + title + " for class " + classname);
+						} catch (ClassNotFoundException cnfe) {
+							Utils.log("Could not find TPlugIn class " + classname);
+						}
+					};
+				} finally {
+					br.close();
+				}
+			}
+		} catch (Throwable t) {
+			Utils.log("ERROR while parsing TrakEM2 plugins:");
+			IJError.print(t);
+		}
+	}
+
+	/** Map of title keys vs TPlugin instances. */
+	private Map<PlugInSource,TPlugIn> plugins = createPlugins();
+
+	/** Create plugin instances for this project. */
+	synchronized private Map<PlugInSource,TPlugIn> createPlugins() {
+		Map<PlugInSource,TPlugIn> m = Collections.synchronizedMap(new TreeMap<PlugInSource,TPlugIn>());
+		for (PlugInSource source : PLUGIN_SOURCES) {
+			try {
+				m.put(source, (TPlugIn)source.c.newInstance());
+			} catch (Exception e) {
+				Utils.log("ERROR initializing plugin!\nParsed tokens: [" + source.menu + "][" + source.title + "][" + source.c.getName() + "]");
+				IJError.print(e);
+			}
+		}
+		return m;
+	}
+
+	synchronized public TreeMap<String,TPlugIn> getPlugins(final String menu) {
+		final TreeMap<String,TPlugIn> m = new TreeMap<String,TPlugIn>();
+		for (Map.Entry<PlugInSource,TPlugIn> e : plugins.entrySet()) {
+			if (e.getKey().menu.equals(menu)) m.put(e.getKey().title, e.getValue());
+		}
+		return m;
 	}
 
 	/* // using virtual frame buffer instead, since the trees are needed

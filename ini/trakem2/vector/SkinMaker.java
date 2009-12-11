@@ -25,8 +25,6 @@ package ini.trakem2.vector;
 import java.util.ArrayList;
 import java.util.List;
 import javax.vecmath.Point3f;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 
 public class SkinMaker {
 
@@ -95,12 +93,12 @@ public class SkinMaker {
 					vs_y = v_y1[i] * (1.0 - alpha) + v_y2[j] * alpha;
 					break;
 				default:
-					Utils.log2("\ngetMorphedPerimeter: Nothing added!");
+					System.out.println("\ngetMorphedPerimeter: Nothing added!");
 					break;
 			}
 			if (next+1 == n_editions) {
-				x = Utils.copy(x, x.length+1);
-				y = Utils.copy(y, y.length+1);
+				x = Util.copy(x, x.length+1);
+				y = Util.copy(y, y.length+1);
 			}
 			// store the point
 			x[next+1] = x[next] + vs_x;
@@ -110,7 +108,7 @@ public class SkinMaker {
 			next++;
 		}
 
-		//Utils.log2("editions length: " + editions.length + "\nx,y length: " + x.length + ", " + y.length);
+		//System.out.println("editions length: " + editions.length + "\nx,y length: " + x.length + ", " + y.length);
 
 
 		// return packed:
@@ -139,7 +137,7 @@ public class SkinMaker {
 	static public ArrayList<SkinMaker.Match> getMorphedPerimeters(final VectorString2D[] vs, int n_morphed_perimeters, double delta_, boolean closed) {
 		//check preconditions:
 		if (n_morphed_perimeters < -1 || vs.length <=0) {
-			Utils.log2("\nERROR: args are not acceptable at getAllPerimeters:\n\t n_morphed_perimeters " + n_morphed_perimeters + ", n_perimeters " + vs.length);
+			System.out.println("\nERROR: args are not acceptable at getAllPerimeters:\n\t n_morphed_perimeters " + n_morphed_perimeters + ", n_perimeters " + vs.length);
 			return null;
 		}
 
@@ -158,7 +156,7 @@ public class SkinMaker {
 				delta = delta / vs.length;
 			}
 
-			Utils.log2("\nUsing delta=" + delta);
+			System.out.println("\nUsing delta=" + delta);
 
 			// fetch morphed ones and fill all_perimeters array:
 			for (int i=1; i<vs.length; i++) {
@@ -176,7 +174,7 @@ public class SkinMaker {
 				// else, add them all
 				final double z_start = vs[i-1].getPoint(2, 0); // z
 				final double z_inc = (vs[i].getPoint(2, 0) - z_start) / (double)( 0 == d.length ? 1 : (d.length + 1)); // if zero, none are added anyway; '1' is a dummy number
-				//Utils.log2("vs[i].z: " + vs[i].getPoint(2, 0) + "  z_start: " + z_start + "  z_inc is: " + z_inc);
+				//System.out.println("vs[i].z: " + vs[i].getPoint(2, 0) + "  z_start: " + z_start + "  z_inc is: " + z_inc);
 				VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {
 					p[k] = new VectorString2D(d[k][0], d[k][1], z_start + z_inc*(k+1), vs[0].isClosed()); // takes the closed value from the first one, ignoring the other
@@ -187,7 +185,7 @@ public class SkinMaker {
 			return al_matches;
 
 		} catch (Exception e) {
-			IJError.print(e);
+			e.printStackTrace();
 		}
 		return null;
 	}

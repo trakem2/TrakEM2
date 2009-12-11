@@ -42,7 +42,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
-import ini.trakem2.vector.Compare;
+import ini.trakem2.analysis.Compare;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject implements Paintable {

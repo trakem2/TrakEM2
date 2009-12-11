@@ -36,7 +36,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.StdOutWindow;
-import ini.trakem2.vector.Compare;
+import ini.trakem2.analysis.Compare;
 import ini.trakem2.persistence.Loader;
 
 import javax.swing.*;

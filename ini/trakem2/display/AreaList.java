@@ -46,7 +46,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.utils.M;
-import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.vector.VectorString3D;
 import ini.trakem2.imaging.Segmentation;

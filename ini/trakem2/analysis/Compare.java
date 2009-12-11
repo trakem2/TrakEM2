@@ -20,7 +20,7 @@ You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 **/
 
-package ini.trakem2.vector;
+package ini.trakem2.analysis;
 
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -33,6 +33,8 @@ import mpicbg.models.MovingLeastSquaresTransform;
 import mpicbg.models.PointMatch;
 import mpicbg.models.AffineModel3D;
 import mpicbg.models.TranslationModel3D;
+
+import ini.trakem2.vector.*;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
@@ -72,14 +74,15 @@ import javax.vecmath.Color3f;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
 import javax.media.j3d.Transform3D;
 
 import ij3d.Content;
 
-import java.io.*;
+import java.lang.reflect.Method;
 
-import lineage.LineageClassifier;
+import java.io.*;
 
 public class Compare {
 
@@ -394,10 +397,241 @@ public class Compare {
 		for (int i=0; i<3; i++) vs[i].resample(delta);
 
 		// return origin vectors for pipe's project
-		final Vector3d[] o = VectorString3D.createOrigin(vs[0], vs[1], vs[2], transform_type, o_ref); // requires resampled vs
+		final Vector3d[] o = Compare.createOrigin(vs[0], vs[1], vs[2], transform_type, o_ref); // requires resampled vs
 
 		return new Object[]{vs, o};
 	}
+
+	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
+	 *
+	 * Expects:
+	 *   X, Y, Z
+	 *   where Z is the one to trust the most, Y the second most trusted, and X only for orientation.
+	 *   ZY define the plane, the direction of the perpendicular of which is given by the X.
+	 *
+	 *   @return normalized vectors for transform_type == Compare.TRANS_ROT, otherwise NOT normalized.
+	 */
+	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type) {
+		Utils.log2("WARNING TODO shouldn't be using this method ever");
+		return createOrigin(x, y, z, transform_type, null);
+	}
+	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type, final Vector3d[] o_ref) {
+		// Aproximate an origin of coordinates
+		final VectorString3D[] vs = new VectorString3D[]{z, y, x};
+		final ArrayList<Point3d> ps = new ArrayList<Point3d>();
+		final int[] dir = new int[]{1, 1, 1};
+
+		for (int i=0; i<vs.length; i++) {
+			for (int k=i+1; k<vs.length; k++) {
+				double min_dist = Double.MAX_VALUE;
+				int ia=0, ib=0;
+				for (int a=0; a<vs[i].length(); a++) {
+					for (int b=0; b<vs[k].length(); b++) {
+						double d = VectorString3D.distance(vs[i], a, vs[k], b);
+						if (d < min_dist) {
+							min_dist = d;
+							ia = a;
+							ib = b;
+						}
+					}
+				}
+				ps.add(new Point3d((vs[i].getPoint(0, ia) + vs[k].getPoint(0, ib))/2,
+						  (vs[i].getPoint(1, ia) + vs[k].getPoint(1, ib))/2,
+						  (vs[i].getPoint(2, ia) + vs[k].getPoint(2, ib))/2));
+				// determine orientation of the VectorString3D relative to the origin
+				if (ia > vs[i].length()/2) dir[i] = -1;
+				if (ib > vs[k].length()/2) dir[k] = -1;
+				// WARNING: we don't check for the case where it contradicts
+			}
+		}
+
+		final Vector3d origin = new Vector3d();
+		final int len = ps.size();
+		for (Point3d p : ps) {
+			p.x /= len;
+			p.y /= len;
+			p.z /= len;
+		}
+		for (Point3d p : ps) origin.add(p);
+
+		// aproximate a vector for each axis
+		Vector3d vz = z.sumVector();
+		Vector3d vy = y.sumVector();
+		Vector3d vx = x.sumVector();
+
+		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
+		vz.scale(dir[0]);
+		vy.scale(dir[1]);
+		vx.scale(dir[2]);
+
+		/*
+		Utils.log2("dir[0]=" + dir[0]);
+		Utils.log2("dir[1]=" + dir[1]);
+		Utils.log2("dir[2]=" + dir[2]);
+		*/
+
+		Vector3d v1 = vx,
+			 v2 = vy,
+			 v3 = vz;
+
+
+		// TRANS_ROT:
+		//     - peduncle rules (vz), and the others are cross products of it
+		//     - query axes vectors made of same length as reference
+		//
+		// TRANS_ROT_SCALE:
+		//     - peduncle rules (vz), and the others are cross products of it
+		//
+		// TRANS_ROT_SCALE_SHEAR:
+		//     - use axes vectors as they are, but normalized to make the longest be 1.0
+
+
+		/* // old way: MB space
+		if (Compare.TRANS_ROT == transform_type) {
+			vx.normalize();
+			vy.normalize();
+			vz.normalize();
+		}
+		*/
+
+		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
+			// 1 - compute MEDIAL vector: perpendicular to the plane made by peduncle and dorsal lobe
+			Vector3d vc_medial = new Vector3d();
+			vc_medial.cross(vz, vy);
+			/* // OLD WAY
+			// check orientation:
+			Vector3d vc_med = new Vector3d(vc_medial);
+			vc_med.normalize();
+			Vector3d vx_norm = new Vector3d(vx);
+			vx_norm.normalize();
+			vc_med.add(vx_norm); // adding the actual medial lobe vector
+			// if the sum is smaller, then it means it should be inverted (it was the other side)
+			if (vc_med.length() < vx_norm.length()) {
+				vc_medial.scale(-1);
+				Utils.log2("Mirroring X axis");
+			}
+			*/
+
+			// 2 - compute DORSAL vector: perpedicular to the plane made by v1 and vc_medial
+			Vector3d vc_dorsal = new Vector3d();
+			vc_dorsal.cross(vz, vc_medial);
+			// check orientation
+			Vector3d vc_dor = new Vector3d(vc_dorsal);
+			vc_dor.add(vy);
+			// if the sum is smaller, invert
+			if (vc_dor.length() < vy.length()) {
+				vc_dorsal.scale(-1);
+				Utils.log("Mirroring Y axis");
+			}
+
+			/*
+			if (Compare.TRANS_ROT == transform_type) {
+				// just in case, for rounding issues
+				vc_medial.normalize();
+				vc_dorsal.normalize();
+			}
+			*/
+
+			v1 = vc_medial;
+			v2 = vc_dorsal;
+			//v3 = vz; // already done, the peduncle
+
+			if (Compare.TRANS_ROT == transform_type && null != o_ref) {
+				// Scale each query axis to length of the reference one
+				// so that there are no scaling differences.
+				v1.normalize();		v1.scale(o_ref[0].length());
+				v2.normalize();		v2.scale(o_ref[1].length());
+				v3.normalize();		v3.scale(o_ref[2].length());
+			}
+		
+		}
+		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
+			// use AS THEY ARE
+
+		return new Vector3d[]{
+			v1, // X axis : medial lobe
+			v2, // Y axis : dorsal lobe
+			v3, // Z axis : peduncle
+			origin     // x,y,z origin of coordinates
+		};
+	}
+
+	static private VectorString3D makeVSFromP(Vector3d p, Vector3d origin) throws Exception {
+		double[] x1 = new double[20];
+		double[] y1 = new double[20];
+		double[] z1 = new double[20];
+		double K = 10;
+		x1[0] = p.x * K;
+		y1[0] = p.y * K;
+		z1[0] = p.z * K;
+		for (int i=1; i<x1.length; i++) {
+			x1[i] = p.x * K + x1[i-1];
+			y1[i] = p.y * K + y1[i-1];
+			z1[i] = p.z * K + z1[i-1];
+		}
+		for (int i=0; i<x1.length; i++) {
+			x1[i] += origin.x;
+			y1[i] += origin.y;
+			z1[i] += origin.z;
+		}
+		return new VectorString3D(x1, y1, z1, false);
+	}
+
+	static public void testCreateOrigin(LayerSet ls, VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
+		try {
+			// create vectors
+			double delta = (vs1.getAverageDelta() + vs2.getAverageDelta() + vs3.getAverageDelta()) / 3;
+			vs1.resample(delta);
+			vs2.resample(delta);
+			vs3.resample(delta);
+			//
+			Vector3d[] o = createOrigin(vs1, vs2, vs3, Compare.TRANS_ROT);
+			Display3D.addMesh(ls, makeVSFromP(o[0], o[3]), "v1", Color.green);
+			Display3D.addMesh(ls, makeVSFromP(o[1], o[3]), "v2", Color.orange);
+			Display3D.addMesh(ls, makeVSFromP(o[2], o[3]), "v3", Color.red);
+			System.out.println("v1:" + o[0]);
+			System.out.println("v2:" + o[1]);
+			System.out.println("v3:" + o[2]);
+
+			// create matrix:
+			Matrix3d rotm = new Matrix3d(
+					o[0].x, o[1].x, o[2].x,
+					o[0].y, o[1].y, o[2].y,
+					o[0].z, o[1].z, o[2].z
+			);
+			Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
+			rot.invert();
+			// DOESN'T WORK // Transform3D trans =  new Transform3D(new Matrix3d(1, 0, 0, 0, 1, 0, 0, 0, 1), new Vector3d(-o[3].x, -o[3].y, -o[3].z), 1.0);
+
+			System.out.println("o3: " + o[3].toString());
+
+			// test:
+			for (int i=0; i<3; i++) {
+				o[i].x += o[3].x;
+				o[i].y += o[3].y;
+				o[i].z += o[3].z;
+			}
+
+			for (int i=0; i<3; i++) {
+				o[i].sub(o[3]); // can't use translation matrix: doesn't work
+				//trans.transform(o[i]);
+				rot.transform(o[i]);
+			}
+
+			System.out.println("v1:" + o[0]); // expect: 1, 0, 0
+			System.out.println("v2:" + o[1]); // expect: 0, 1, 0
+			System.out.println("v3:" + o[2]); // expect: 0, 0, 1
+
+
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+
+
+
 
 	/** Compare pipe to all pipes in pipes_ref, by first transforming to match both sets of axes. */
 	static public final Bureaucrat findSimilarWithAxes(final Line3D pipe, final Line3D[] axes, final Line3D[] axes_ref, final ArrayList<ZDisplayable> pipes_ref, final boolean skip_ends, final int max_mut, final float min_chunk, final int transform_type, final boolean chain_branches, final boolean show_gui, final boolean score_mut, final boolean substring_matching, final boolean direct, final double delta, final int distance_type) {
@@ -3617,6 +3851,15 @@ public class Compare {
 		final AtomicInteger not_found = new AtomicInteger(0); // inc by one when a lineage to compare is not found at all in the brain that works as reference
 		final AtomicInteger already_classified = new AtomicInteger(0);
 
+		Method classify_ = null;
+		if (weka_classify) {
+			try {
+				classify_ = Class.forName("lineage.LineageClassifier").getDeclaredMethod("classify", new Class[]{double[].class});
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+		final Method classify = classify_;
 
 		// All possible pairs of projects, with repetition (it's not the same, although the pipe pairwise comparison itself will be.)
 		for (int _i=0; _i<p_chains.length; _i++) {
@@ -3726,7 +3969,7 @@ public class Compare {
 							double[] param = new double[11];
 							for (int p=0; p<stats.length; p++) param[p] = stats[p];
 							try {
-								if (LineageClassifier.classify(param)) {
+								if (((Boolean)classify.invoke(null, param)).booleanValue()) {
 									if (null != last_classify) {
 										Utils.log2("ALREADY CLASSIFIED " + title + " as " + last_classify + "  (now: " + cm.title + " )");
 										already_classified.incrementAndGet();
@@ -3834,7 +4077,14 @@ public class Compare {
 		}
 		exec.shutdownNow();
 
-		if (weka_classify) LineageClassifier.flush(); // so stateful ... it's a sin.
+		if (weka_classify) {
+			// so stateful ... it's a sin.
+			try {
+				Class.forName("lineage.LineageClassifier").getDeclaredMethod("flush", new Class[]{}).invoke(null, new Object[]{});
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
 
 		// export ARFF for neural network training
 		if (output_arff) {

@@ -11,7 +11,8 @@
      (ij.measure Calibration)
      (ini.trakem2.utils Utils)
      (ini.trakem2.display Display Display3D LayerSet)
-     (ini.trakem2.vector Compare VectorString3D Editions)))
+     (ini.trakem2.analysis Compare)
+     (ini.trakem2.vector VectorString3D Editions)))
 
 (defn- as-VectorString3D
   "Convert a map of {\"name\" {:x (...) :y (...) :z (...)}} into a map of {\"name\" (VectorString3D. ...)}"
@@ -268,7 +269,7 @@
                                                                                   (Editions. (SATs (match :SAT-name)) (.clone vs1) delta false (double 1.1) (double 1.1) (double 1)) (float 0.5))
                                                                                 (str "Interpolated with " (match :SAT-name)) Color/magenta)))
                                          (.add (new-command "Show stdDev plot"
-                                                            #(let [cp (ini.trakem2.vector.Compare$CATAParameters.)]
+                                                            #(let [cp (ini.trakem2.analysis.Compare$CATAParameters.)]
                                                               (if (.setup cp false nil true true)
                                                                 (.show
                                                                   (Compare/makePlot cp

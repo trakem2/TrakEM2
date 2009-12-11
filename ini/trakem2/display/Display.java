@@ -314,6 +314,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	};
 
+
 	private final ScrollLayerListener scroller_listener = new ScrollLayerListener();
 
 	private class ScrollLayerListener implements AdjustmentListener {
@@ -2271,7 +2272,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				if (n < 2) item.setEnabled(false);
 				popup.addSeparator();
 			} else if (Pipe.class == aclass) {
-				item = new JMenuItem("Identify with fiducials..."); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			} else if (Treeline.class == aclass) {
@@ -2445,6 +2445,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			popup.add(menu);
 		} catch (Exception e) { IJError.print(e); }
 
+		// plugins, if any
+		Utils.addPlugIns(popup, "Display", project, new Callable<Displayable>() { public Displayable call() { return Display.this.getActive(); }});
+
 		JMenu align_menu = new JMenu("Align");
 		item = new JMenuItem("Align stack slices"); item.addActionListener(this); align_menu.add(item);
 		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
@@ -2524,7 +2527,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Adjust snapping parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
-		item = new JMenuItem("Setup NIT parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
@@ -3834,11 +3836,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			((Pipe)active).reverse();
 			Display.repaint(Display.this.layer);
 			getLayerSet().addDataEditStep(active);
-		} else if (command.equals("Identify with fiducials...")) {
-			if (!(active instanceof Line3D)) return;
-			lineage.Identify.identify((Line3D)active);
-		} else if (command.equals("Setup NIT parameters...")) {
-			lineage.Identify.setup();
 		} else if (command.equals("View orthoslices")) {
 			if (!(active instanceof Patch)) return;
 			Display3D.showOrthoslices(((Patch)active));
