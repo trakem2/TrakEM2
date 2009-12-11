@@ -101,7 +101,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 		}
 
 		// ignore if doing multiple selection
-		if (!me.isPopupTrigger() && (me.isShiftDown() || (!ij.IJ.isMacOSX() && me.isControlDown()))) {
+		if (!Utils.isPopupTrigger(me) && (me.isShiftDown() || (!ij.IJ.isMacOSX() && me.isControlDown()))) {
 			return;
 		}
 
@@ -111,7 +111,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 		// check if there is a multiple selection
 		TreePath[] paths = this.getSelectionPaths();
 		if (null != paths && paths.length > 1) {
-			if (me.isPopupTrigger() || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
+			if (Utils.isPopupTrigger(me)) {
 				// check that all items are of the same type
 				String type_first = ((LayerThing)((DefaultMutableTreeNode)paths[0].getLastPathComponent()).getUserObject()).getType();
 				for (int i=1; i<paths.length; i++) {
@@ -147,7 +147,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 		setSelectionPath(path);
 		selected_node = (DefaultMutableTreeNode)path.getLastPathComponent();
 
-		if (2 == me.getClickCount() && !me.isPopupTrigger() && MouseEvent.BUTTON1 == me.getButton()) {
+		if (2 == me.getClickCount() && !Utils.isPopupTrigger(me) && MouseEvent.BUTTON1 == me.getButton()) {
 			// create a new Display
 			LayerThing thing = (LayerThing)selected_node.getUserObject();
 			DBObject ob = (DBObject)thing.getObject();
@@ -157,7 +157,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 			//new Display(ob.getProject(), thing.getType().toLowerCase().equals("layer") ? (Layer)ob : ((LayerSet)ob).getParent());
 			Display.createDisplay(ob.getProject(), thing.getType().toLowerCase().equals("layer") ? (Layer)ob : ((LayerSet)ob).getParent());
 			return;
-		} else if (me.isPopupTrigger() /*|| me.isControlDown()*/ || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
+		} else if (Utils.isPopupTrigger(me)) {
 			JPopupMenu popup = getPopupMenu(selected_node);
 			if (null == popup) return;
 			popup.show(this, x, y);
