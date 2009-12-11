@@ -82,32 +82,30 @@ public class LineageClassifier
 	// Hashtable's methods are all synchronized
 	static private final Hashtable<Thread,Instances> table = new Hashtable<Thread,Instances>();
 
-	public static boolean classify (double[] vector) throws Exception
-	{				
-
-		Thread t = Thread.currentThread();
+	public static final boolean classify (final double[] vector) throws Exception {				
+		// Obtain or generate a Thread-local instance
+		final Thread t = Thread.currentThread();
 		Instances unlabeled = table.get(t);
 		if (null == unlabeled) {
 			unlabeled = new Instances(LineageClassifier.unlabeled);
 			table.put(t, unlabeled);
 		}
 
-		unlabeled.add(new Instance(1, vector));
-		
-		final double clsLabel = LineageClassifier.c.classifyInstance(unlabeled.instance(0));
-		//System.out.println(clsLabel + " -> " + unlabeled.classAttribute().value((int) clsLabel));
-		
-		unlabeled.delete(0);
-		
-		final boolean s[] = new boolean[]{false, true};
-		
-		return s[(int) Math.round(clsLabel)];
-		
+		try {
+			// For this Thread-local instance, set the vector of parameters and evaluate:
+			unlabeled.add(new Instance(1, vector));
+			// Was trained to return true or false, represented in weka as 0 or 1
+			return 1 == ((int) Math.round(LineageClassifier.c.classifyInstance(unlabeled.instance(0))));
+			// clsLabel was the returned double value
+			//System.out.println(clsLabel + " -> " + unlabeled.classAttribute().value((int) clsLabel));
+		} finally {
+			// ... and remove it (WEKA is stateful, meh):
+			unlabeled.delete(0);
+		}
 	}
 
 	/** Removes all threads and Instances from the cache tables. */
 	static public final void flush () {
 		table.clear();
 	}
-
 }
