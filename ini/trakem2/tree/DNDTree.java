@@ -288,10 +288,10 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 					final TreePath path = new TreePath(node.getPath());
 					try {
 						tree.scrollPathToVisible(path); // involves repaint, so must be set through invokeAndWait. Why it doesn't do so automatically is beyond me.
+						tree.setSelectionPath(path);
 					} catch (Exception e) {
-						Utils.log2("Error in DNDTree.selectNode tree.scrollPathToVisible(path). Java is buggy, see for yourself: " + e);
+						Utils.log2("Swing, swing, until you hit the building in front.");
 					}
-					tree.setSelectionPath(path);
 				} else {
 					// Not found. But also occurs when adding a new profile/pipe/ball, because it is called 'setActive' on before adding it to the project tree.
 					//Utils.log("DNDTree.selectNode: not found for ob: " + ob);

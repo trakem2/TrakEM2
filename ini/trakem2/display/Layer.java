@@ -297,6 +297,7 @@ public final class Layer extends DBObject implements Bucketable {
 		if (null != root) Bucket.remove(displ, db_map);
 		// now remove proper, so stack_index hasn't changed yet
 		al_displayables.remove(displ);
+		parent.removeFromOffscreens(this);
 		Display.remove(this, displ);
 		return true;
 	}

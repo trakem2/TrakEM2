@@ -3,9 +3,6 @@
  */
 package mpicbg.trakem2.align;
 
-import java.awt.event.ItemEvent;
-import java.awt.event.ItemListener;
-import java.awt.Choice;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
@@ -13,28 +10,14 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.Future;
-import java.util.Vector;
-
-import mpicbg.ij.FeatureTransform;
-import mpicbg.ij.SIFT;
-import mpicbg.imagefeatures.Feature;
-import mpicbg.imagefeatures.FloatArray2DSIFT;
-import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.models.AffineModel2D;
-import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
-import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
-import mpicbg.trakem2.transform.RigidModel2D;
-import mpicbg.trakem2.transform.TranslationModel2D;
 
 import ij.IJ;
-import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
@@ -57,7 +40,6 @@ final public class AlignTask
 	static protected boolean hideDisconnectedTiles = false;
 	static protected boolean deleteDisconnectedTiles = false;
 	static protected boolean deform = false;
-	static protected boolean propagateTransform = false;
 	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
@@ -258,217 +240,6 @@ final public class AlignTask
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 		
 		Utils.log( "Montage done." );
-	}
-	
-
-	final static public Bureaucrat alignLayersLinearlyTask ( final Layer l )
-	{
-		Worker worker = new Worker("Aligning layers", false, true) {
-			public void run() {
-				startedWorking();
-				try {
-					alignLayersLinearly(l);
-				} catch (Throwable e) {
-					IJError.print(e);
-				} finally {
-					finishedWorking();
-				}
-			}
-		};
-		return Bureaucrat.createAndStart(worker, l.getProject());
-	}
-	
-
-	final static public void alignLayersLinearly( final Layer l )
-	{
-		final List< Layer > layers = l.getParent().getLayers();
-		final String[] layerTitles = new String[ layers.size() ];
-		for ( int i = 0; i < layers.size(); ++i )
-			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
-		
-		//Param p = Align.param;
-		//Align.param.sift.maxOctaveSize = 1024;
-		
-		final GenericDialog gd = new GenericDialog( "Align Layers Linearly" );
-		
-		gd.addMessage( "Layer Range:" );
-		final int sel = layers.indexOf(l);
-		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
-		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ]);
-		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
-		final Vector v = gd.getChoices();
-		final Choice cstart = (Choice) v.get(v.size() -3);
-		final Choice cref = (Choice) v.get(v.size() -2);
-		final Choice cend = (Choice) v.get(v.size() -1);
-		cstart.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = cstart.getSelectedIndex();
-				if (index > cref.getSelectedIndex()) cref.select(index);
-				if (index > cend.getSelectedIndex()) cend.select(index);
-			}
-		});
-		cref.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = cref.getSelectedIndex();
-				if (index < cstart.getSelectedIndex()) cstart.select(index);
-				if (index > cend.getSelectedIndex()) cend.select(index);
-			}
-		});
-		cend.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = cend.getSelectedIndex();
-				if (index < cstart.getSelectedIndex()) cstart.select(index);
-				if (index < cref.getSelectedIndex()) cref.select(index);
-			}
-		});
-
-		Align.param.addFields( gd );
-		
-		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "propagate after last transform", propagateTransform );
-		
-		gd.showDialog();
-		if ( gd.wasCanceled() ) return;
-		
-		int first = gd.getNextChoiceIndex();
-		int ref = gd.getNextChoiceIndex();
-		int last = gd.getNextChoiceIndex();
-
-		Align.param.readFields( gd );
-		propagateTransform = gd.getNextBoolean();
-
-		if (ref - first > 0) {
-			Utils.logAll("Registering from layer " + ref + " to layer " + first);
-			alignLayersLinearlyJob(l, ref, first, propagateTransform);
-		}
-		if (last - ref > 0) {
-			Utils.logAll("Registering from layer " + ref + " to layer " + last);
-			alignLayersLinearlyJob(l, ref, last, propagateTransform);
-		}
-	}
-
-	
-	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
-	{
-		final List< Layer > layers = l.getParent().getLayers();
-		final int d = first < last ? 1 : -1;
-		
-		final Align.Param p = Align.param.clone();
-		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
-		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
-		p.maxEpsilon *= scale;
-		
-		final List< Layer > layerRange = new ArrayList< Layer >();
-		for ( int i = first; i != last + d; i += d )
-			layerRange.add( layers.get( i ) );
-		
-		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
-		final SIFT ijSIFT = new SIFT( sift );
-		
-		Rectangle box1 = null;
-		Rectangle box2 = null;
-		final Collection< Feature > features1 = new ArrayList< Feature >();
-		final Collection< Feature > features2 = new ArrayList< Feature >();
-		List< PointMatch > candidates = new ArrayList< PointMatch >();
-		List< PointMatch > inliers = new ArrayList< PointMatch >();
-		
-		AffineTransform a = new AffineTransform();
-		
-		int s = 0;
-		for ( final Layer layer : layerRange )
-		{
-			if ( Thread.currentThread().isInterrupted() ) break;
-			
- 			long t = System.currentTimeMillis();
-			
-			features1.clear();
-			features1.addAll( features2 );
-			features2.clear();
-			
-			final Rectangle box3 = layer.getMinimalBoundingBox( Patch.class );
-			
-			if ( box3 == null || ( box.width == 0 && box.height == 0 ) ) continue;
-			
-			box1 = box2;
-			box2 = box3;
-			
-			ijSIFT.extractFeatures(
-					layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor(),
-					features2 );
-			IJ.log( features2.size() + " features extracted in layer \"" + layer.getTitle() + "\" (took " + ( System.currentTimeMillis() - t ) + " ms)." );
-			
-			if ( features1.size() > 0 )
-			{
-				t = System.currentTimeMillis();
-				
-				candidates.clear();
-				
-				FeatureTransform.matchFeatures(
-					features2,
-					features1,
-					candidates,
-					p.rod );
-
-				final AbstractAffineModel2D< ? > model;
-				switch ( p.expectedModelIndex )
-				{
-				case 0:
-					model = new TranslationModel2D();
-					break;
-				case 1:
-					model = new RigidModel2D();
-					break;
-				case 2:
-					model = new SimilarityModel2D();
-					break;
-				case 3:
-					model = new AffineModel2D();
-					break;
-				default:
-					return;
-				}
-	
-				boolean modelFound;
-				try
-				{
-					modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							p.maxEpsilon,
-							p.minInlierRatio,
-							3 * model.getMinNumMatches(),
-							3 );
-				}
-				catch ( NotEnoughDataPointsException e )
-				{
-					modelFound = false;
-				}
-				
-				if ( modelFound )
-				{
-					IJ.log( "Model found for layer \"" + layer.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t ) + " ms" );
-					final AffineTransform b = new AffineTransform();
-					b.translate( box1.x, box1.y );
-					b.scale( 1.0f / scale, 1.0f / scale );
-					b.concatenate( model.createAffine() );
-					b.scale( scale, scale );
-					b.translate( -box2.x, -box2.y);
-					
-					a.concatenate( b );
-					layer.apply( Displayable.class, a );
-					Display.repaint( layer );
-				}
-				else
-					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor." );
-			}
-			IJ.showProgress( ++s, layerRange.size() );	
-		}
-		if ( propagateTransform )
-		{
-			for ( int i = last + d; i >= 0 && i < layers.size(); i += d )
-				layers.get( i ).apply( Displayable.class, a );
-		}
 	}
 	
 	

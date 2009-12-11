@@ -51,6 +51,7 @@ import ini.trakem2.imaging.StitchingTEM;
 import javax.swing.*;
 import javax.swing.event.*;
 
+import mpicbg.trakem2.align.AlignLayersTask;
 import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.*;
@@ -351,9 +352,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (null != layer) {
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
-				int ahead = project.getProperty("look_ahead_cache", 1);
-				if (ahead < 0) ahead = 0;
-				if (0 != ahead) createColumnScreenshots(ahead);
+				createColumnScreenshots();
 			}
 		}
 
@@ -381,7 +380,20 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 	}
 
-	private void createColumnScreenshots(final int n) {
+	/** Only for DefaultMode. */
+	final private void createColumnScreenshots() {
+		final int n;
+		try {
+			if (mode.getClass() == DefaultMode.class) {
+				int ahead = project.getProperty("look_ahead_cache", 0);
+				if (ahead < 0) ahead = 0;
+				if (0 == ahead) return;
+				n = ahead;
+			} else return;
+		} catch (Exception e) {
+			IJError.print(e);
+			return;
+		}
 		project.getLoader().doLater(new Callable() {
 			public Object call() {
 				final Layer current = Display.this.layer;
@@ -1008,8 +1020,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 
 		updateVisibleTab(set_zdispl);
 
-		// see if a lot has to be reloaded, put the relevant ones at the end
-		project.getLoader().prepare(layer);
 		updateFrameTitle(layer); // to show the new 'z'
 		// select the Layer in the LayerTree
 		project.select(Display.this.layer); // does so in a separate thread
@@ -1046,11 +1056,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		Utils.updateComponent(c);
 
-		project.getLoader().setMassiveMode(false); // resetting if it was set true
-
 		// update the coloring in the ProjectTree
 		project.getProjectTree().updateUILater();
-		
+
 		setTempCurrentImage();
 	}
 
@@ -3646,6 +3654,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 					ls.addTransformStep(linked);
 					Bureaucrat burro = AlignTask.registerStackSlices((Patch)getActive()); // will repaint
 					burro.addPostTask(new Runnable() { public void run() {
+						ls.enlargeToFit(linked);
 						// The current state when done
 						ls.addTransformStep(linked);
 					}});
@@ -3656,22 +3665,24 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Align layers with manual landmarks")) {
 			setMode(new ManualAlignMode(Display.this));
 		} else if (command.equals("Align layers")) {
-			final Layer la = layer;; // caching, since scroll wheel may change it
-			la.getParent().addTransformStep(la);
-			Bureaucrat burro = AlignTask.alignLayersLinearlyTask( la );
+			final Layer la = layer; // caching, since scroll wheel may change it
+			la.getParent().addTransformStep(la.getParent().getLayers());
+			Bureaucrat burro = AlignLayersTask.alignLayersTask( la );
 			burro.addPostTask(new Runnable() { public void run() {
-				la.getParent().addTransformStep(la);
+				getLayerSet().enlargeToFit(getLayerSet().getDisplayables(Patch.class));
+				la.getParent().addTransformStep(la.getParent().getLayers());
 			}});
 		} else if (command.equals("Align multi-layer mosaic")) {
 			final Layer la = layer; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep();
 			Bureaucrat burro = AlignTask.alignMultiLayerMosaicTask( la );
 			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().enlargeToFit(getLayerSet().getDisplayables(Patch.class));
 				la.getParent().addTransformStep();
 			}});
 		} else if (command.equals("Montage all images in this layer")) {
 			final Layer la = layer;
-			List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class));
+			final List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class));
 			if (patches.size() < 2) {
 				Utils.showMessage("Montage needs 2 or more images selected");
 				return;
@@ -3679,6 +3690,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			la.getParent().addTransformStep(la);
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, Arrays.asList(new Patch[]{patches.get(0)}));
 			burro.addPostTask(new Runnable() { public void run() {
+				getLayerSet().enlargeToFit(patches);
 				la.getParent().addTransformStep();
 			}});
 		} else if (command.equals("Montage selected images (SIFT)")) {
@@ -3695,6 +3707,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
 			if (null == burro) return;
 			burro.addPostTask(new Runnable() { public void run() {
+				Collection<Displayable> ds = new ArrayList<Displayable>();
+				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
+				getLayerSet().enlargeToFit(ds);
 				getLayerSet().addLayerEditedStep(layers);
 			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
@@ -3879,6 +3894,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			ls.addTransformStep(affected);
 			Bureaucrat burro = AlignTask.alignSelectionTask( selection );
 			burro.addPostTask(new Runnable() { public void run() {
+				ls.enlargeToFit(affected);
 				ls.addTransformStep(affected);
 			}});
 		} else if (command.equals("Lens correction")) {
@@ -4706,7 +4722,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			*/
 			if (null == box) box = displ.getBoundingBox(null);
-			if (d.canvas.getSrcRect().intersects(box)) {
+			if (d.getLayer() == d.layer && d.canvas.getSrcRect().intersects(box)) {
 				return true;
 			}
 		}
@@ -5074,6 +5090,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}
 		if (null == burro) return;
 		burro.addPostTask(new Runnable() { public void run() {
+			la.getParent().enlargeToFit(selection.getAffected());
 			la.getParent().addTransformStep(la);
 		}});
 	}

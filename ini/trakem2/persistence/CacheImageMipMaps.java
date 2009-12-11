@@ -445,6 +445,7 @@ public class CacheImageMipMaps {
 
 	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
 	public final Image removeFirst() {
+		if (0 == cache.size()) return null;
 		final Entry e = cache.removeFirst();
 		if (use_map) {
 			nullifyMap(e.id, e.level);

@@ -465,6 +465,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return true;
 	}
 
+	/** Enlarge the 2D universe so that all Displayable in the collection fit in it;
+	 * that is, that no Displayable has a negative x,y position or lays beyond bounds.*/
+	synchronized public void enlargeToFit(final Collection<? extends Displayable> ds) {
+		Rectangle r = null;
+		for (Displayable d : ds) {
+			if (null == r) r = d.getBoundingBox();
+			else r.add(d.getBoundingBox());
+		}
+		if (null == r) return; //empty collection
+		r.add(get2DBounds());
+		setDimensions(r.x, r.y, r.width, r.height);
+	}
+
 	/** Enlarges the display in the given direction; the anchor is the point to keep still, and can be any of LayerSet.NORTHWEST (top-left), etc. */
 	synchronized public boolean enlargeToFit(final Displayable d, final int anchor) {
 		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
@@ -810,6 +823,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != root) Bucket.remove(zdispl, db_map);
 		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
+		removeFromOffscreens(zdispl);
 		Display.remove(zdispl);
 		return true;
 	}
@@ -864,21 +878,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
 	}
 
-	/** Returns a sublist of layers from first to last, both inclusive. */
+	/** Returns a sublist of layers from first to last, both inclusive. If last is larger than first, the order is reversed.  */
 	public List<Layer> getLayers(int first, int last) {
-		return al_layers.subList(first, last+1);
+		List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
+		if (first > last) Collections.reverse(las);
+		return new ArrayList<Layer>(las); // editable, thread-safe (a copy)
 	}
 
 	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
 	public List<Layer> getLayers(Layer first, Layer last) {
-		int fi = al_layers.indexOf(first);
-		int la = al_layers.indexOf(last);
-		if (fi > la) {
-			List<Layer> l = al_layers.subList(la, fi+1);
-			Collections.reverse(l);
-			return l;
-		}
-		return al_layers.subList(fi, la+1);
+		return getLayers(al_layers.indexOf(first), al_layers.indexOf(last));
 	}
 
 	public boolean isDeletable() {
@@ -1560,6 +1569,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null == root || null == db_map) recreateBuckets(false);
 	}
 
+	/** Returns the minimal 2D bounding box for Displayables of class @param c in all layers. */
 	public Rectangle getMinimalBoundingBox(final Class c) {
 		Rectangle r = null;
 		for (final Layer la : al_layers) {
@@ -1635,6 +1645,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Add an undo step for the transformations of all Displayable in the layer. */
 	public void addTransformStep(final Layer layer) {
 		addTransformStep(layer.getDisplayables());
+	}
+	public void addTransformStep(final List<Layer> layers) {
+		final ArrayList<Displayable> all = new ArrayList<Displayable>();
+		for (final Layer la : layers) all.addAll(la.getDisplayables());
+		addTransformStep(all);
 	}
 	/** Add an undo step for the transformations of all Displayable in hs. */
 	public void addTransformStep(final Collection<? extends Displayable> col) {
@@ -2024,50 +2039,86 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return old;
 	}
 
-	private final HashMap<DisplayCanvas.Screenshot,Long> offscreens = new HashMap<DisplayCanvas.Screenshot,Long>();
+	private final HashMap<DisplayCanvas.ScreenshotProperties,DisplayCanvas.Screenshot> offscreens = new HashMap<DisplayCanvas.ScreenshotProperties,DisplayCanvas.Screenshot>();
+	private final HashMap<Layer,HashSet<DisplayCanvas.Screenshot>> offscreens2 = new HashMap<Layer,HashSet<DisplayCanvas.Screenshot>>();
 
-	final Long getScreenshotId(final DisplayCanvas.Screenshot s) {
+	final DisplayCanvas.Screenshot getScreenshot(final DisplayCanvas.ScreenshotProperties props) {
 		synchronized (offscreens) {
-			return offscreens.get(s); // must return an OBJECT, otherwise if not there, a null Long throws a NullPointerException instead of becomming a zero or something.
+			return offscreens.get(props);
 		}
+	}
+
+	final private void putO2(final Layer la, final DisplayCanvas.Screenshot sc) {
+		HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(la);
+		if (null == hs) {
+			hs = new HashSet<DisplayCanvas.Screenshot>();
+			offscreens2.put(la, hs);
+		}
+		hs.add(sc);
+	}
+	final private void removeO2(final DisplayCanvas.Screenshot sc) {
+		HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
+		if (null == hs) return;
+		hs.remove(sc);
 	}
 
 	final void storeScreenshot(DisplayCanvas.Screenshot s) {
 		synchronized(offscreens) {
-			offscreens.put(s, s.sid);
+			offscreens.put(s.props, s);
+			putO2(s.layer, s);
 		}
 	}
 	final void trimScreenshots() {
 		synchronized(offscreens) {
 			if (offscreens.size() > 1000) {
 				TreeMap<Long,DisplayCanvas.Screenshot> m = new TreeMap<Long,DisplayCanvas.Screenshot>();
-				for (final DisplayCanvas.Screenshot s : offscreens.keySet()) {
+				for (final DisplayCanvas.Screenshot s : offscreens.values()) {
 					m.put(s.born, s);
 				}
 				offscreens.clear();
+				offscreens2.clear();
 				ArrayList<Long> t = new ArrayList<Long>(m.keySet());
 				for (final DisplayCanvas.Screenshot sc : m.subMap(m.firstKey(), t.get(t.size()/2)).values()) {
-					offscreens.put(sc, sc.sid);
+					offscreens.put(sc.props, sc);
+					putO2(sc.layer, sc);
 				}
 			}
 		}
 	}
 	final void removeFromOffscreens(final DisplayCanvas.Screenshot sc) {
 		synchronized (offscreens) {
-			offscreens.remove(sc);
+			offscreens.remove(sc.props);
+			removeO2(sc);
 		}
 	}
-	final void removeFromOffscreens(final Layer la) {
+	public final void removeFromOffscreens(final Layer la) {
 		synchronized (offscreens) {
-			for (Iterator<DisplayCanvas.Screenshot> it = offscreens.keySet().iterator(); it.hasNext(); ) {
-				if (it.next().layer == la) it.remove();
+			final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.remove(la);
+			if (null != hs) {
+				for (final DisplayCanvas.Screenshot sc : hs) {
+					offscreens.remove(sc.props);
+				}
+			}
+		}
+	}
+	final void removeFromOffscreens(final ZDisplayable zd) {
+		synchronized (offscreens) {
+			// Throw away any cached that intersect the zd
+			final Rectangle box = zd.getBoundingBox();
+			for (final Iterator<DisplayCanvas.Screenshot> it = offscreens.values().iterator(); it.hasNext(); ) {
+				final DisplayCanvas.Screenshot sc = it.next();
+				if (box.intersects(sc.props.srcRect)) {
+					it.remove();
+					final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
+					if (null != hs) hs.remove(sc.props);
+				}
 			}
 		}
 	}
 
 	final boolean containsScreenshot(final DisplayCanvas.Screenshot sc) {
 		synchronized (offscreens) {
-			return offscreens.containsKey(sc);
+			return offscreens.containsKey(sc.props);
 		}
 	}
 }

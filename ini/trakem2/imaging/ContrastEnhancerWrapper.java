@@ -211,10 +211,7 @@ public class ContrastEnhancerWrapper {
 						sub.addAll(a.subList(first, last));
 					}
 				}
-				Patch[] p50 = new Patch[sub.size()];
-				sub.toArray(p50);
-				stats = new StackStatistics(new PatchStack(p50, 1));
-
+				stats = new StackStatistics(new PatchStack(sub.toArray(new Patch[sub.size()]), 1));
 			} else {
 				stats = reference_stats;
 			}

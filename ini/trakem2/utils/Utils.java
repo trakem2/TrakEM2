@@ -74,6 +74,10 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -81,7 +85,7 @@ import java.util.concurrent.Future;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7l 2009-10-01";
+	static public String version = "0.7m 2009-12-04";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -1370,5 +1374,53 @@ public class Utils implements ij.plugin.PlugIn {
 				IJError.print(e);
 			}
 		}
+	}
+
+	/** Convert a D:\\this\that\there to D://this/that/there/
+	 *  Notice it adds an ending backslash. */
+	static public final String fixDir(String path) {
+		if (IJ.isWindows()) path = path.replace('\\', '/');
+		return '/' == path.charAt(path.length() -1) ?
+			  path
+			: new StringBuilder(path.length() +1).append(path).append('/').toString();
+	}
+
+	/** Creates a new fixed thread pool whose threads are in the same ThreadGroup as the Thread that calls this method.
+	 *  This allows for the threads to be interrupted when the caller thread's group is interrupted. */
+	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc) {
+		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
+		exec.setThreadFactory(new ThreadFactory() {
+			public Thread newThread(final Runnable r) {
+				final Thread t = new Thread(Thread.currentThread().getThreadGroup(), r, "AlignLayersTask executor");
+				t.setDaemon(true);
+				t.setPriority(Thread.NORM_PRIORITY);
+				return t;
+			}
+		});
+		return exec;
+	}
+	/** If both are null will throw an error. */
+	static public final boolean equalContent(final Collection a, final Collection b) {
+		if ((null == a && null != b)
+		 || (null != b && null == b)) return false;
+		if (a.size() != b.size()) return false;
+		for (Iterator ia = a.iterator(), ib = b.iterator(); ia.hasNext(); ) {
+			if (!ia.next().equals(ib.next())) return false;
+		}
+		return true;
+	}
+	/** If both are null will throw an error. */
+	static public final boolean equalContent(final Map a, final Map b) {
+		if ((null == a && null != b)
+		 || (null != b && null == b)) return false;
+		if (a.size() != b.size()) return false;
+		for (final Object oe : a.entrySet()) {
+			final Map.Entry e = (Map.Entry)oe;
+			final Object ob = b.get(e.getKey());
+			if (null != ob && !ob.equals(e.getValue())) return false;
+			if (null != e.getValue() && !e.getValue().equals(ob)) return false;
+			// if both are null that's ok
+		}
+		return true;
 	}
 }

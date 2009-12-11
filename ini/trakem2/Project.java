@@ -1285,6 +1285,7 @@ public class Project extends DBObject {
 		double d_look_ahead_cache = gd.getNextNumber();
 		if (!Double.isNaN(d_look_ahead_cache) && d_look_ahead_cache >= 0) {
 			setProperty("look_ahead_cache", Integer.toString((int)d_look_ahead_cache));
+			Utils.logAll("WARNING: look-ahead cache is incomplete.\n  Expect issues when editing objects, adding new ones, and the like.\n  Use \"Project - Flush image cache\" to fix any lack of refreshing issues you encounter.");
 		} else {
 			Utils.log2("Ignoring invalid 'look ahead cache' value " + d_look_ahead_cache);
 		}

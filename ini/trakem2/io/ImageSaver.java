@@ -49,6 +49,7 @@ import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.IIOImage;
+import javax.imageio.stream.ImageOutputStream;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -153,14 +154,17 @@ public class ImageSaver {
 		if (quality > 1f) quality = 1f;
 		synchronized (getPathLock(path)) {
 			FileOutputStream f = null;
+			ImageOutputStream ios = null;
+			ImageWriter writer = null;
+			BufferedImage grey = bi;
 			try {
 				f = new FileOutputStream(path);
-				ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
-				writer.setOutput(ImageIO.createImageOutputStream(f));
+				writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+				ios = ImageIO.createImageOutputStream(f);
+				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
 				param.setCompressionMode(param.MODE_EXPLICIT);
 				param.setCompressionQuality(quality);
-				BufferedImage grey = bi;
 				if (as_grey && bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
 					grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
 					// convert the original colored image to grayscale
@@ -172,15 +176,14 @@ public class ImageSaver {
 				}
 				IIOImage iioImage = new IIOImage(grey, null, null);
 				writer.write(null, iioImage, param);
-				f.close();
-				if (bi != grey) grey.flush(); // release native resources
 			} catch (Exception e) {
-				if (null != f) {
-					try { f.close(); } catch (Exception ee) {}
-				}
 				IJError.print(e);
 				return false;
 			} finally {
+				if (null != f) try { f.close(); } catch (Exception ee) {}
+				if (null != writer) try { writer.dispose(); } catch (Exception ee) {}
+				if (null != ios) try { ios.close(); } catch (Exception ee) {}
+				if (bi != grey) try { grey.flush(); /*release native resources*/ } catch (Exception ee) {}
 				removePathLock(path);
 			}
 		}
@@ -250,6 +253,7 @@ public class ImageSaver {
 		return null;
 	}
 
+	/** The stream IS NOT closed by this method. */
 	static public final BufferedImage openJpegFromStream(final InputStream stream, final boolean as_grey) {
 		try {
 			if (as_grey) {

@@ -234,9 +234,10 @@ public class FilePathRepair {
 			}
 			//
 			String wrong_parent_path = new File(data.vpath.get(row)).getParent();
-			if (!wrong_parent_path.endsWith(File.separator)) wrong_parent_path = new StringBuffer(wrong_parent_path).append(File.separatorChar).toString(); // backslash-safe
+			wrong_parent_path = wrong_parent_path.replace('\\', '/');
+			if (!wrong_parent_path.endsWith("/")) wrong_parent_path = new StringBuffer(wrong_parent_path).append('/').toString(); // not File.separatorChar, TrakEM2 uses '/' as folder separator
 
-			final String path = new StringBuffer(dir).append(filename).toString(); // save concat, no backslash altered
+			final String path = new StringBuffer(dir).append(filename).toString();
 
 			// keep track of fixed slices to avoid calling n_slices * n_slices times!
 			final HashSet<Patch> fixed = new HashSet<Patch>();
@@ -260,7 +261,7 @@ public class FilePathRepair {
 			}
 
 			String good_parent_path = dir;
-			if (!dir.endsWith(File.separator)) good_parent_path = new StringBuffer(good_parent_path).append(File.separatorChar).toString(); // backslash-safe
+			if (!dir.endsWith("/")) good_parent_path = new StringBuffer(good_parent_path).append('/').toString(); // not File.separatorChar, TrakEM2 uses '/' as folder separator
 
 			// Check for similar parent paths and see if they can be fixed
 			if (fix_similar) {
@@ -345,7 +346,9 @@ public class FilePathRepair {
 				}
 				// Check dimensions
 				if (dim.width != ps.getOWidth() || dim.height != ps.getOHeight()) {
-					Utils.log("ERROR different o_width,o_height for patch " + ps + "\n  at new path " + new_path);
+					Utils.log("ERROR different o_width,o_height for patch " + ps + "\n  at new path " + new_path +
+						"\nold o_width,o_height: " + ps.getOWidth() + "," + ps.getOHeight() +
+						"\nnew o_width,o_height: " + dim.width + "," + dim.height);
 					return n_fixed;
 				}
 			}
@@ -375,7 +378,9 @@ public class FilePathRepair {
 			}
 			// Check and set dimensions
 			if (dim.width != patch.getOWidth() || dim.height != patch.getOHeight()) {
-				Utils.log("ERROR different o_width,o_height for patch " + patch + "\n  at new path " + new_path);
+				Utils.log("ERROR different o_width,o_height for patch " + patch + "\n  at new path " + new_path +
+					"\nold o_width,o_height: " + patch.getOWidth() + "," + patch.getOHeight() +
+					"\nnew o_width,o_height: " + dim.width + "," + dim.height);
 				return false;
 			}
 			// flag as good

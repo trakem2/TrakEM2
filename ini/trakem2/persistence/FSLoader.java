@@ -269,7 +269,6 @@ public final class FSLoader extends Loader {
 						i_stream = new BufferedInputStream(new FileInputStream(this.project_file_path));
 					}
 					InputSource input_source = new InputSource(i_stream);
-					setMassiveMode(true);
 					parser.parse(input_source, handler);
 				} catch (java.io.FileNotFoundException fnfe) {
 					Utils.log("ERROR: File not found: " + path);
@@ -278,7 +277,6 @@ public final class FSLoader extends Loader {
 					IJError.print(e);
 					handler = null;
 				} finally {
-					setMassiveMode(false);
 					if (null != i_stream) {
 						try {
 							i_stream.close();
@@ -549,22 +547,21 @@ public final class FSLoader extends Loader {
 
 
 			// reserve memory:
-			synchronized (db_lock) {
-				lock();
-				n_bytes = estimateImageFileSize(p, 0);
-				max_memory -= n_bytes;
-				unlock();
+			n_bytes = estimateImageFileSize(p, 0);
+			try {
+				alterMaxMem(-n_bytes);
+
+				releaseToFit(n_bytes);
+				imp = openImage(path);
+
+				preProcess(p, imp);
+			} finally {
+				alterMaxMem(n_bytes);
 			}
-
-			releaseToFit(n_bytes);
-			imp = openImage(path);
-
-			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
 					lock();
-					max_memory += n_bytes;
 
 					if (null == imp) {
 						if (!hs_unloadable.contains(p)) {
@@ -716,28 +713,15 @@ public final class FSLoader extends Loader {
 		// else, reserve memory and open it:
 		long n_bytes = estimateImageFileSize(patch, 0);
 		// reserve memory:
-		synchronized (db_lock) {
-			lock();
-			max_memory -= n_bytes;
-			unlock();
-		}
+		alterMaxMem(-n_bytes);
 		try {
 			return openImage(original_path);
 		} catch (Throwable t) {
 			IJError.print(t);
 		} finally {
-			synchronized (db_lock) {
-				lock();
-				max_memory += n_bytes;
-				unlock();
-			}
+			alterMaxMem(n_bytes);
 		}
 		return null;
-	}
-
-	public void prepare(Layer layer) {
-		//Utils.log2("FSLoader.prepare(Layer): not implemented.");
-		super.prepare(layer);
 	}
 
 	/* GENERIC, from DBObject calls. Records the id of the object in the HashMap ht_dbo.
@@ -955,32 +939,34 @@ public final class FSLoader extends Loader {
 
 	/** With slice info appended at the end; only if it exists, otherwise null. */
 	public String getAbsolutePath(final Patch patch) {
-		String abs_path = patch.getCurrentPath();
-		if (null != abs_path) return abs_path;
-		// else, compute, set and return it:
-		String path = ht_paths.get(patch.getId());
-		if (null == path) return null;
-		// substract slice info if there
-		int i_sl = path.lastIndexOf("-----#slice=");
-		String slice = null;
-		if (-1 != i_sl) {
-			slice = path.substring(i_sl);
-			path = path.substring(0, i_sl);
-		}
-		if (isRelativePath(path)) {
-			// path is relative: preprend the parent folder of the xml file
-			path = getParentFolder() + path;
-			if (!isURL(path) && !new File(path).exists()) {
-				Utils.log("Path for patch " + patch + " does not exist: " + path);
-				return null;
+		synchronized (patch) {
+			String abs_path = patch.getCurrentPath();
+			if (null != abs_path) return abs_path;
+			// else, compute, set and return it:
+			String path = ht_paths.get(patch.getId());
+			if (null == path) return null;
+			// substract slice info if there
+			int i_sl = path.lastIndexOf("-----#slice=");
+			String slice = null;
+			if (-1 != i_sl) {
+				slice = path.substring(i_sl);
+				path = path.substring(0, i_sl);
 			}
-			// else assume that it exists
+			if (isRelativePath(path)) {
+				// path is relative: preprend the parent folder of the xml file
+				path = getParentFolder() + path;
+				if (!isURL(path) && !new File(path).exists()) {
+					Utils.log("Path for patch " + patch + " does not exist: " + path);
+					return null;
+				}
+				// else assume that it exists
+			}
+			// reappend slice info if existent
+			if (null != slice) path += slice;
+			// set it
+			patch.cacheCurrentPath(path);
+			return path;
 		}
-		// reappend slice info if existent
-		if (null != slice) path += slice;
-		// set it
-		patch.cacheCurrentPath(path);
-		return path;
 	}
 
 	public final String getImageFilePath(final Patch p) {
@@ -1661,7 +1647,7 @@ public final class FSLoader extends Loader {
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
 			Patch.PatchImage pai = patch.createTransformedImage();
-			if (null == pai) {
+			if (null == pai || null == pai.target) {
 				Utils.log("Can't regenerate mipmaps for patch " + patch);
 				cannot_regenerate.add(patch);
 				return false;
@@ -1726,7 +1712,7 @@ public final class FSLoader extends Loader {
 
 			if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
-				releaseToFit(w * h * 4 * 5);
+				releaseToFit(w * h * 4 * 10);
 				final ColorProcessor cp = (ColorProcessor)ip;
 				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
 				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
@@ -1827,7 +1813,7 @@ public final class FSLoader extends Loader {
 				}
 			} else {
 				// Greyscale:
-				releaseToFit(w * h * 4 * 5);
+				releaseToFit(w * h * 4 * 10);
 				final boolean as_grey = !ip.isColorLut();
 				if (as_grey && null == cm) {
 					cm = GRAY_LUT;
@@ -1997,6 +1983,9 @@ public final class FSLoader extends Loader {
 
 			// flush any cached tiles
 			flushMipMaps(patch.getId());
+
+			// flush any cached layer screenshots
+			try { patch.getLayer().getParent().removeFromOffscreens(patch.getLayer()); } catch (Exception e) { IJError.print(e); }
 
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
@@ -2838,22 +2827,21 @@ public final class FSLoader extends Loader {
 
 
 			// reserve memory:
-			synchronized (db_lock) {
-				lock();
-				n_bytes = stack.estimateImageFileSize();
-				max_memory -= n_bytes;
-				unlock();
+			n_bytes = stack.estimateImageFileSize();
+			try {
+				alterMaxMem(-n_bytes);
+
+				releaseToFit(n_bytes);
+				imp = openImage(path);
+
+				//preProcess(p, imp);
+			} finally {
+				alterMaxMem(n_bytes);
 			}
-
-			releaseToFit(n_bytes);
-			imp = openImage(path);
-
-//			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
 					lock();
-					max_memory += n_bytes;
 
 					if (null == imp) {
 						if (!hs_unloadable.contains(stack)) {

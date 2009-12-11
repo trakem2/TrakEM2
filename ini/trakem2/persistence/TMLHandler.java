@@ -90,10 +90,11 @@ public class TMLHandler extends DefaultHandler {
 
 	/** @param path The XML file that contains the project data in XML format.
 	 *  @param loader The FSLoader for the project.
+	 *  Expects the path with '/' as folder separator char.
 	 */
 	public TMLHandler(final String path, FSLoader loader) {
 		this.loader = loader;
-		this.base_dir = path.substring(0, path.lastIndexOf(File.separatorChar) + 1);
+		this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
 		this.xml_path = path;
 		final TemplateThing[] tt = DTDParser.extractTemplate(path);
 		if (null == tt) {
