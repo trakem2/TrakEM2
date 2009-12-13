@@ -14,6 +14,10 @@
      (ini.trakem2.analysis Compare)
      (ini.trakem2.vector VectorString3D Editions)))
 
+(defmacro report
+  [& args]
+  `(ij.IJ/log (str ~@args)))
+
 (defn- as-VectorString3D
   "Convert a map of {\"name\" {:x (...) :y (...) :z (...)}} into a map of {\"name\" (VectorString3D. ...)}"
   [SATs]
@@ -308,12 +312,49 @@
                       (m :filepath)
                       (m :reference-brain))
         (do
-          (ij.IJ/log (str "Unknown lib " lib-name))
+          (report "Unknown lib " lib-name)
           nil))
       (catch Exception e
         (do
-          (ij.IJ/log (str "An error ocurred while loading the SAT library: " e "\nCheck the terminal output."))
+          (report "An error ocurred while loading the SAT library: " e "\nCheck the terminal output.")
           (.printStackTrace e))))))
+
+
+(defn extract-fiducial-points
+  "Find a set of fiducial points in the project.
+  Will find the first node of type 'fiducial_points' and recursively inspect
+  its children nodes for nodes of type 'ball'. To each found 'ball', it will
+  assign the name of the ball node itself or the first superior node that
+  has a name different that this type.
+  Returns nil if none found."
+  [project]
+  (if-let [fp-node (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))]
+    (if-let [ball-nodes (.findChildrenOfTypeR (first fp-node) "ball")]
+      (let [fids (reduce
+                   (fn [fids pt-ball]
+                     (let [title (.. pt-ball getObject getTitle) ; the title of the Ball ob itself, if any
+                           b (.. pt-ball getObject getWorldBalls)]
+                       (if (= 0 (count b))
+                         (do
+                           (println "WARNING: empty ball object" (.getObject pt-ball))
+                           fids)
+                         (do
+                           (if (> (count b) 1)
+                             (println "WARNING: ball object with more than one ball:" (.getObject pt-ball)))
+                           (assoc fids
+                                  (-> (if (not (= title (.getType pt-ball)))
+                                        title
+                                        (.. pt-ball getParent getTitle))
+                                      (.toLowerCase)
+                                      (.replace \space \_))
+                                  (let [b0 (get b 0)]
+                                    (Point3d. (get b0 0) (get b0 1) (get b0 2))))))))
+                   {}
+                   ball-nodes)]
+        (println "Found" (count fids) "fiducial points:\n" fids)
+        fids)
+      (println "No ball objects found for" fp-node))
+    (println "No fiducial points found")))
 
 (defn identify
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT."
@@ -322,17 +363,20 @@
   ([p lib-name delta direct substring]
     (if p
       (if-let [SAT-lib (fetch-lib lib-name)]
-        (identify-SAT
-          (str p)
-          SAT-lib
-          (let [vs (.asVectorString3D p)]
-                (.calibrate vs (.. p getLayerSet getCalibrationCopy))
-                vs)
-          (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
-          delta
-          direct
-          substring))
-      (ij.IJ/log "Cannot identify a null pipe or polyline!"))))
+        (if-let [fids (extract-fiducial-points (.getProject p))]
+          (identify-SAT
+            (str p)
+            SAT-lib
+            (let [vs (.asVectorString3D p)]
+                  (.calibrate vs (.. p getLayerSet getCalibrationCopy))
+                  vs)
+            fids
+            delta
+            direct
+            substring)
+          (report "Cannot find fiducial points for project" (.getProject p)))
+        (report "Cannot find a SAT library for" lib-name))
+      (report "Cannot identify a null pipe or polyline!"))))
 
 
 (defn identify-without-gui
@@ -347,10 +391,10 @@
               query-vs (let [vs (.asVectorString3D p)]
                          (.calibrate vs (.. p getLayerSet getCalibrationCopy))
                          vs)
-              fids (Compare/extractPoints (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+              fids (extract-fiducial-points (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
               vs1 (register-vs query-vs fids (SAT-lib :fids))]
           (match-all SATs vs1 delta direct substring)))
-      (ij.IJ/log "Cannot identify a null pipe or polyline!"))))
+      (report "Cannot identify a null pipe or polyline!"))))
 
 
 ;(defn lib-stats
@@ -365,7 +409,7 @@
 ;
 ;      {:n (count SATs)
 ;       :
-;    (ij.IJ/log (str "Unknown library " lib-name))))
+;    (report (str "Unknown library " lib-name))))
 
 (defn- ready-vs
   "Return a calibrate and registered VectorString3D from a chain."
@@ -387,7 +431,7 @@
   - the TPR: true positive rate: 1 - FNR
   - the length of the sequence queried"
   [project lib-name regex-exclude delta direct substring]
-  (let [fids (Compare/extractPoints (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+  (let [fids (extract-fiducial-points (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
         tops (int 5)
         SAT-lib (fetch-lib lib-name)]
     (if SAT-lib
