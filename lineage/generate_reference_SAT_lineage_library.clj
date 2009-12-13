@@ -36,7 +36,7 @@
     (if-let [peduncle (.findChild (.getRootProjectThing project) "peduncle")]
       (let [medial-lobe (.findChild peduncle "medial lobe")
             dorsal-lobe (.findChild peduncle "dorsal lobe")
-            c1 (ini.trakem2.vector.Compare$Chain. (.getObject (first (.findChildrenOfType peduncle "pipe"))))
+            c1 (ini.trakem2.analysis.Compare$Chain. (.getObject (first (.findChildrenOfType peduncle "pipe"))))
             c2 (.duplicate c1)]
         (.append c1 (.getObject (first (.findChildrenOfType medial-lobe "pipe"))))
         (.append c2 (.getObject (first (.findChildrenOfType dorsal-lobe "pipe"))))
