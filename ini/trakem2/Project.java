@@ -105,8 +105,9 @@ public class Project extends DBObject {
 
 	static {
 		// Search for plugins under fiji/plugins directory jar files
-		try {
-			Thread.currentThread().setContextClassLoader(ij.IJ.getClassLoader());
+		new Thread() { public void run() { try {
+			setPriority(Thread.NORM_PRIORITY);
+			setContextClassLoader(ij.IJ.getClassLoader());
 			final String plugins_dir = Utils.fixDir(ij.Menus.getPlugInsPath());
 			for (String name : new File(plugins_dir).list()) {
 				File f = new File(name);
@@ -159,7 +160,7 @@ public class Project extends DBObject {
 		} catch (Throwable t) {
 			Utils.log("ERROR while parsing TrakEM2 plugins:");
 			IJError.print(t);
-		}
+		}}}.start();
 	}
 
 	/** Map of title keys vs TPlugin instances. */
