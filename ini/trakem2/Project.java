@@ -109,6 +109,7 @@ public class Project extends DBObject {
 			setPriority(Thread.NORM_PRIORITY);
 			setContextClassLoader(ij.IJ.getClassLoader());
 			final String plugins_dir = Utils.fixDir(ij.Menus.getPlugInsPath());
+			synchronized (PLUGIN_SOURCES) {
 			for (String name : new File(plugins_dir).list()) {
 				File f = new File(name);
 				if (f.isHidden() || !name.toLowerCase().endsWith(".jar")) continue;
@@ -156,7 +157,7 @@ public class Project extends DBObject {
 				} finally {
 					br.close();
 				}
-			}
+			}}
 		} catch (Throwable t) {
 			Utils.log("ERROR while parsing TrakEM2 plugins:");
 			IJError.print(t);
@@ -164,17 +165,19 @@ public class Project extends DBObject {
 	}
 
 	/** Map of title keys vs TPlugin instances. */
-	private Map<PlugInSource,TPlugIn> plugins = createPlugins();
+	private Map<PlugInSource,TPlugIn> plugins = null;
 
 	/** Create plugin instances for this project. */
 	synchronized private Map<PlugInSource,TPlugIn> createPlugins() {
-		Map<PlugInSource,TPlugIn> m = Collections.synchronizedMap(new TreeMap<PlugInSource,TPlugIn>());
-		for (PlugInSource source : PLUGIN_SOURCES) {
-			try {
-				m.put(source, (TPlugIn)source.c.newInstance());
-			} catch (Exception e) {
-				Utils.log("ERROR initializing plugin!\nParsed tokens: [" + source.menu + "][" + source.title + "][" + source.c.getName() + "]");
-				IJError.print(e);
+		final Map<PlugInSource,TPlugIn> m = Collections.synchronizedMap(new TreeMap<PlugInSource,TPlugIn>());
+		synchronized (PLUGIN_SOURCES) {
+			for (PlugInSource source : PLUGIN_SOURCES) {
+				try {
+					m.put(source, (TPlugIn)source.c.newInstance());
+				} catch (Exception e) {
+					Utils.log("ERROR initializing plugin!\nParsed tokens: [" + source.menu + "][" + source.title + "][" + source.c.getName() + "]");
+					IJError.print(e);
+				}
 			}
 		}
 		return m;
@@ -182,6 +185,7 @@ public class Project extends DBObject {
 
 	synchronized public TreeMap<String,TPlugIn> getPlugins(final String menu) {
 		final TreeMap<String,TPlugIn> m = new TreeMap<String,TPlugIn>();
+		if (null == plugins) plugins = createPlugins(); // to be created the first time it's asked for
 		for (Map.Entry<PlugInSource,TPlugIn> e : plugins.entrySet()) {
 			if (e.getKey().menu.equals(menu)) m.put(e.getKey().title, e.getValue());
 		}
