@@ -36,7 +36,6 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.StdOutWindow;
-import ini.trakem2.analysis.Compare;
 import ini.trakem2.persistence.Loader;
 
 import javax.swing.*;
@@ -133,7 +132,6 @@ public class ControlWindow {
 		if (null == instance) return;
 		synchronized(instance) {
 			if (IJ.isWindows()) StdOutWindow.quit();
-			Compare.destroy();
 			Display3D.destroy();
 			if (null != ht_projects) {
 				// destroy open projects, release memory

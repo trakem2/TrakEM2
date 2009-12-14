@@ -46,7 +46,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.analysis.Compare;
 import ini.trakem2.plugin.TPlugIn;
 
 import java.io.File;
@@ -688,7 +687,6 @@ public class Project extends DBObject {
 		if (null != project_tree) project_tree.destroy();
 		if (null != layer_tree) layer_tree.destroy();
 		Polyline.flushTraceCache(this);
-		Compare.removeProject(this);
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
