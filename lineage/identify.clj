@@ -176,7 +176,7 @@
 (defn- identify-SAT
   "Takes a calibrated VectorString3D and a list of fiducial points, and checks against the library for identity.
   For consistency in the usage of the Random Forest classifier, the registration is done into the FRT42D-BP106 brain."
-  [title SAT-lib query-vs fids delta direct substring]
+  [pipe SAT-lib query-vs fids delta direct substring]
   (let [SATs (SAT-lib :SATs)
         vs1 (register-vs query-vs fids (SAT-lib :fids))
         [matches names] (match-all SATs vs1 delta direct substring)
@@ -214,7 +214,7 @@
                 (isCellEditable [row col]
                   false)
                 (setValueAt [ob row col] nil)))
-        frame (JFrame. (str "Matches for " title))
+        frame (JFrame. (str "Matches for " pipe))
         dummy-ls (LayerSet. (.. Display getFront getProject) (long -1) "Dummy" (double 0) (double 0) (double 0) (double 0) (double 0) (double 512) (double 512) false (int 0) (java.awt.geom.AffineTransform.))]
     (.setCellRenderer (.getColumn table "Match")
                       (proxy [DefaultTableCellRenderer] []
@@ -275,20 +275,23 @@
                                          (.add (new-command "Show stdDev plot"
                                                             #(let [cp (ini.trakem2.analysis.Compare$CATAParameters.)]
                                                               (if (.setup cp false nil true true)
-                                                                (.show
-                                                                  (Compare/makePlot cp
-                                                                                    (str "Query versus " (match :SAT-name))
-                                                                                    (let [cal (Calibration.) ; Dummy calibration with microns as units. VectorString3D instances are already calibrated.
-                                                                                          condensed (VectorString3D/createInterpolatedPoints
-                                                                                              (let [v1 (.clone vs1)
-                                                                                                    v2 (SATs (match :SAT-name))]
-                                                                                                    (.resample v1 delta true)
-                                                                                                    (.resample v2 delta true)
-                                                                                                    (Editions. v1 v2 delta false (double 1.1) (double 1.1) (double 1)))
-                                                                                              (float 0.5))]
-                                                                                      (.setUnit cal "micron")
-                                                                                      (.calibrate condensed cal)
-                                                                                      condensed)))))))
+                                                                (let [condensed (VectorString3D/createInterpolatedPoints
+                                                                                  (let [v1 (.clone vs1)
+                                                                                        v2 (SATs (match :SAT-name))]
+                                                                                        (.resample v1 delta true)
+                                                                                        (.resample v2 delta true)
+                                                                                        (Editions. v1 v2 delta false (double 1.1) (double 1.1) (double 1)))
+                                                                                    (float 0.5))
+                                                                      _ (let [c1 (Calibration.); Dummy default calibration but with same units as the pipe.
+                                                                                               ; VectorString3D instances are already calibrated.
+                                                                              c2 (.. pipe getLayerSet getCalibrationCopy)]
+                                                                          (.setUnit c1 (.getUnit c2))
+                                                                          (.calibrate condensed c1))
+                                                                      _ (set! (. cp plot_max_x) (.length condensed))
+                                                                      plot (Compare/makePlot cp (str "Query versus " (match :SAT-name)) condensed)]
+                                                                  (if plot
+                                                                    (.show plot)
+                                                                    (report "ERROR: could not make a plot!")))))))
                                          (.show table (.getX ev) (.getY ev)))))))))))
 
     ; Enlarge the cell width of the first column
@@ -365,7 +368,7 @@
       (if-let [SAT-lib (fetch-lib lib-name)]
         (if-let [fids (extract-fiducial-points (.getProject p))]
           (identify-SAT
-            (str p)
+            p
             SAT-lib
             (let [vs (.asVectorString3D p)]
                   (.calibrate vs (.. p getLayerSet getCalibrationCopy))

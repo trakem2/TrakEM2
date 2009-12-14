@@ -1890,6 +1890,7 @@ public class Compare {
 
 	static public Plot makePlot(final CATAParameters cp, final String name, final VectorString3D c) {
 		final double[] stdDev = c.getStdDevAtEachPoint();
+		if (null == stdDev) return null;
 		final double[] index = new double[stdDev.length];
 		for (int i=0; i<index.length; i++) index[i] = i;
 		Utils.log2("name is " + name);
