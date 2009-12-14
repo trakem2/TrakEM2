@@ -710,13 +710,14 @@ public class Polyline extends ZDisplayable implements Line3D {
 				double[] pox = new double[len];
 				double[] poy = new double[len];
 				for (int i=0, j=0; i<len; i++, j+=2) {
-					p_layer_ids[i] = layer_set.getNearestLayer(pos[2][i]).getId(); // z_positions in 0-(N-1), not in 0-N like slices!
+					p_layer_ids[i] = layer_set.getLayer((int)pos[2][i]).getId(); // z_positions in 0-(N-1), not in 1-N like slices!
 					pox[i] = po2[j];
 					poy[i] = po2[j+1];
 				}
 
 				// Simplify path: to steps of 5 calibration units, or 5 pixels when not calibrated.
 				if (simplify) {
+					setTaskName("Simplifying path");
 					Object[] ob = Polyline.simplify(pox, poy, p_layer_ids, 10000, layer_set);
 					pox = (double[])ob[0];
 					poy = (double[])ob[1];
