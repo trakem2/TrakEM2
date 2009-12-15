@@ -233,13 +233,13 @@ public class Connector extends ZDisplayable {
 		if (ProjectToolbar.PEN == tool) {
 			p[index+index] += x_d - x_r;
 			p[index+index+1] += y_d - y_r;
-			repaint(true);
-		}
 
-		if (index > 0 && p[0] == p[index+index] && p[1] == p[index+index+1] && lids[0] == lids[index]) {
-			// remove target: it's identical to source
-			removeTarget(index);
-			//Utils.log("Removed a target identical to origin.");
+			if (p[0] == p[index+index] && p[1] == p[index+index+1] && lids[0] == lids[index]) {
+				// remove target: it's identical to source
+				removeTarget(index);
+				//Utils.log("Removed a target identical to origin.");
+			}
+
 			repaint(true);
 		}
 
@@ -247,13 +247,9 @@ public class Connector extends ZDisplayable {
 		index = -1;
 	}
 
-	public void repaint() {
-		repaint(true);
-	}
-
-	public void repaint(boolean repaint_navigator) {
+	protected void repaint(boolean repaint_navigator) {
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox();
+		calculateBoundingBox(); // there are more efficient ways to compute the new box ... incuding not doing it at all and just repainting the whole visible canvas
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 10, repaint_navigator);
 	}
