@@ -674,6 +674,46 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
+
+		final boolean contains(final Layer layer, final int x, final int y) {
+			Display front = Display.getFront();
+			double radius = 10;
+			if (null != front) {
+				double mag = front.getCanvas().getMagnification();
+				radius = (10.0D / mag);
+				if (radius < 2) radius = 2;
+			}
+			final double z = layer.getZ();
+			// make x,y local
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			return contains(layer, (int)po.x, (int)po.y, z, radius);
+		}
+		final private boolean contains(final Layer layer, final int local_x, final int local_y, final double z, final double radius) {
+			if (null == pline) return false;
+			if (pline.containsLocal(layer, local_x, local_y, radius)) return true;
+			// else assume fixed radius of 10 around the line
+			if (null == branches) return false;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				final int i = e.getKey();
+				for (final Branch b : e.getValue()) {
+					// Check distance to segment to the first point:
+					final double z1 = layer_set.getLayer(pline.p_layer[i]).getZ();
+					final double z2 = layer_set.getLayer(b.pline.p_layer[0]).getZ();
+					if ( (z1 < z && z < z2)
+					  || (z2 < z && z < z1) ) {
+						// line between both points cross the givn layer
+						if (M.distancePointToLine(local_x, local_y, pline.p[0][i], pline.p[1][i], b.pline.p[0][0], b.pline.p[1][0]) < radius) {
+							return true;
+						}
+					}
+					// ... and within the branch itself:
+					if (b.contains(layer, local_x, local_y, z, radius)) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
 	}
 
 	public Treeline(Project project, String title) {
@@ -1020,5 +1060,13 @@ public class Treeline extends ZDisplayable {
 	public void setAlpha(float a) {
 		if (null != root) root.setAlpha(a);
 		super.setAlpha(a);
+	}
+
+	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
+	 *  where a segment is defined as the line between a clicked point and the next. */
+	@Override
+	public boolean contains(final Layer layer, final int x, final int y) {
+		if (null == root) return false;
+		return root.contains(layer, x, y);
 	}
 }
