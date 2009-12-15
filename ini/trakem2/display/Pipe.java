@@ -1826,13 +1826,13 @@ public class Pipe extends ZDisplayable implements Line3D {
 				for (int q=half_parallels+1; q<parallels+1; q++) {
 					sinn = Math.sin(angle*(q-half_parallels));
 					coss = Math.cos(angle*(q-half_parallels));
-					circle[q] = rotate_v_around_axis(v3_PR, v3_P12, sinn, coss);
+					circle[q] = Vector3.rotate_v_around_axis(v3_PR, v3_P12, sinn, coss);
 				}
 				circle[0] = circle[parallels];
 				for (int qq=1; qq<half_parallels; qq++) {
 					sinn = Math.sin(angle*(qq+half_parallels));
 					coss = Math.cos(angle*(qq+half_parallels));
-					circle[qq] = rotate_v_around_axis(v3_PR, v3_P12, sinn, coss);
+					circle[qq] = Vector3.rotate_v_around_axis(v3_PR, v3_P12, sinn, coss);
 				}
 			} else {
 				v3_PR = new Vector3(-v3_P12.y, v3_P12.x, 0);           //thining problems disappear when both types of y coord are equal, but then shifting appears
@@ -1856,7 +1856,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 				for (int q=1; q<parallels; q++) {
 					sinn = Math.sin(angle*q);
 					coss = Math.cos(angle*q);
-					circle[q] = rotate_v_around_axis(v3_PR, v3_P12, sinn, coss);
+					circle[q] = Vector3.rotate_v_around_axis(v3_PR, v3_P12, sinn, coss);
 				}
 				circle[parallels] = v3_PR;
 			}
@@ -1873,32 +1873,6 @@ public class Pipe extends ZDisplayable implements Line3D {
 			all_points[n-1+extra][k][2] = /*z_values[n-1]*/ pz[n-1] + circle[k].z;
 		}
 		return all_points;
-	}
-
-	/** From my former program, A_3D_Editing.java and Pipe.java */
-	static private Vector3 rotate_v_around_axis(final Vector3 v, final Vector3 axis, final double sin, final double cos) {
-
-		final Vector3 result = new Vector3();
-		final Vector3 r = axis.normalize(axis);
-
-		result.set((cos + (1-cos) * r.x * r.x) * v.x + ((1-cos) * r.x * r.y - r.z * sin) * v.y + ((1-cos) * r.x * r.z + r.y * sin) * v.z,
-		           ((1-cos) * r.x * r.y + r.z * sin) * v.x + (cos + (1-cos) * r.y * r.y) * v.y + ((1-cos) * r.y * r.z - r.x * sin) * v.z,
-		           ((1-cos) * r.y * r.z - r.y * sin) * v.x + ((1-cos) * r.y * r.z + r.x * sin) * v.y + (cos + (1-cos) * r.z * r.z) * v.z);
-
-		/*
-		result.x += (cos + (1-cos) * r.x * r.x) * v.x;
-		result.x += ((1-cos) * r.x * r.y - r.z * sin) * v.y;
-		result.x += ((1-cos) * r.x * r.z + r.y * sin) * v.z;
-
-		result.y += ((1-cos) * r.x * r.y + r.z * sin) * v.x;
-		result.y += (cos + (1-cos) * r.y * r.y) * v.y;
-		result.y += ((1-cos) * r.y * r.z - r.x * sin) * v.z;
-
-		result.z += ((1-cos) * r.y * r.z - r.y * sin) * v.x;
-		result.z += ((1-cos) * r.y * r.z + r.x * sin) * v.y;
-		result.z += (cos + (1-cos) * r.z * r.z) * v.z;
-		*/
-		return result;
 	}
 
 	synchronized private Object[] getTransformedData() {
