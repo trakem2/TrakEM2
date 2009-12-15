@@ -929,6 +929,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
+		double[][] p = this.p;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
@@ -953,7 +954,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return n_points;
 	}
 
-	synchronized public boolean contains(final Layer layer, int x, int y) {
+	synchronized public boolean contains(final Layer layer, final int x, final int y) {
 		Display front = Display.getFront();
 		double radius = 10;
 		if (null != front) {
@@ -962,6 +963,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 			if (radius < 2) radius = 2;
 		}
 		// else assume fixed radius of 10 around the line
+
+		// make x,y local
+		final Point2D.Double po = inverseTransformPoint(x, y);
+		return containsLocal(layer, (int)po.x, (int)po.y, radius);	
+	}
+
+	protected boolean containsLocal(final Layer layer, int x, int y, double radius) {
 
 		final long lid = layer.getId();
 		final double z = layer.getZ();
