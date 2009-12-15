@@ -234,8 +234,9 @@ public class Connector extends ZDisplayable {
 			p[index+index] += x_d - x_r;
 			p[index+index+1] += y_d - y_r;
 
-			if (p[0] == p[index+index] && p[1] == p[index+index+1] && lids[0] == lids[index]) {
-				// remove target: it's identical to source
+
+			// Remove target if it's identical to source
+			if (index > 0 && p[0] == p[index+index] && p[1] == p[index+index+1] && lids[0] == lids[index]) {
 				removeTarget(index);
 				//Utils.log("Removed a target identical to origin.");
 			}
@@ -302,16 +303,23 @@ public class Connector extends ZDisplayable {
 
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
+		boolean must_lock = false;
 		for (int i=0; i<lids.length; i++) {
-			for (final Displayable d : layer_set.getLayer(lids[i]).getDisplayables(Patch.class)) {
-				if (d.contains((int)p[i+i], (int)p[i+i+1])) {
-					if (null == hs_linked) this.hs_linked = new HashSet<Displayable>();
-					hs_linked.add(d);
-					break;
-				}
+			Layer la = layer_set.getLayer(lids[i]);
+			if (null == la) {
+				Utils.log2("WARNING: could not find layer with id " + lids[i]);
+				continue;
+			}
+			for (final Displayable d : la.find(Patch.class, (int)p[i+i], (int)p[i+i+1], true)) {
+				link(d);
+				if (d.locked) must_lock = true;
 			}
 		}
-		return true;
+		if (must_lock && !locked) {
+			setLocked(true);
+			return true;
+		}
+		return false;
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
