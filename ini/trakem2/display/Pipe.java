@@ -1386,8 +1386,8 @@ public class Pipe extends ZDisplayable implements Line3D {
 		}
 	}
 
-	// scan the Display and link Patch objects that lay under this Pipe's bounding box:
-	public boolean linkPatches() { // TODO needs to check all layers!!
+	/** Scan the Display and link Patch objects that lay under this Pipe's bounding box. */
+	public boolean linkPatches() {
 		// SHOULD check on every layer where there is a subperimeter. This method below will work only while the Display is not switching layer before deselecting this pipe (which calls linkPatches)
 
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Pipe:
