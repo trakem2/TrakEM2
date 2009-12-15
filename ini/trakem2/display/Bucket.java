@@ -44,8 +44,7 @@ import java.awt.geom.AffineTransform;
 import ini.trakem2.utils.Utils;
 
 
-/** Each Bucket contains up to N_CHILD_BUCKETS, or a list of Displayables contained within.
- *
+/** 
  * A Bucket is a subarea of the Layer area, which contains either other Buckets or a map of stack_index vs. Displayable instances. VERY IMPORTANT: either children is null, or map is null, but both cannot be null at the same time neither not null at the same time.
  *
  */
