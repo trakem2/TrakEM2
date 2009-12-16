@@ -140,7 +140,7 @@
   (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
                   #(int (- (%1 :med) (%2 :med)))
-                  (pmap
+                  (map
                     (fn [e]
                       (let [vs2 (let [copy (.clone (val e))]
                                   (.resample copy delta)
