@@ -8,8 +8,8 @@ import java.io.ObjectInputStream;
 import weka.classifiers.Classifier;
 import weka.core.Instance;
 import weka.core.Instances;
-import weka.core.DenseInstance;
 import weka.core.Attribute;
+import weka.core.FastVector;
 
 import java.util.Hashtable;
 import java.util.ArrayList;
@@ -55,19 +55,32 @@ public class LineageClassifier
 	static private final Hashtable<Thread,Operator> table = new Hashtable<Thread,Operator>();
 
 	final static private String[] attrs = new String[]{"APD", "CPD", "STD", "MPD", "PM", "LEV", "SIM", "PRX", "PRM", "LR", "TR", "CLASS"};
-	final static private ArrayList<Attribute> A = new ArrayList<Attribute>();
+
+	/*
+	// For future weka versions, which will have removed FastVector class
+	final static private ArrayList<Attribute> A = new ArrayList<Attribute>(12);
 
 	static {
 		for (int i=0; i<attrs.length; i++) {
 			A.add(new Attribute(attrs[i]));
 		}
 	}
+	*/
 
 	static private final class Operator {
 		final Classifier c = getClassifier();
-		final Instances data = new Instances("Buh", new ArrayList<Attribute>(A), 0);
+		final Instances data;
 		Operator() {
-			data.setClassIndex(11); // the CLASS
+			FastVector a = new FastVector(12);
+			for (int i=0; i<attrs.length-1; i++) {
+				a.addElement(new Attribute(attrs[i])); // numeric
+			}
+			FastVector d = new FastVector();
+			d.addElement("false");
+			d.addElement("true");
+			a.addElement(new Attribute(attrs[attrs.length-1], d)); // nominal attribute
+			data = new Instances("Buh", a, 0);
+			data.setClassIndex(attrs.length-1); // the CLASS
 		}
 	}
 
@@ -81,13 +94,11 @@ public class LineageClassifier
 			table.put(t, op);
 		}
 
-		try {
-			op.data.add(new DenseInstance(1, vector));
-			// Was trained to return true or false, represented in weka as 0 or 1
-			return 1 == ((int) Math.round(op.c.classifyInstance(op.data.instance(0))));
-		} finally {
-			op.data.remove(0);
-		}
+		// Future weka versions will use new DenseInstance(1, vector) instead
+		Instance ins = new Instance(1, vector);
+		ins.setDataset(op.data);
+		// Was trained to return true or false, represented in weka as 0 or 1
+		return 1 == ((int) Math.round(op.c.classifyInstance(ins)));
 	}
 
 	/** Removes all threads and Instances from the cache tables. */
