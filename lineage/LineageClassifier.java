@@ -8,8 +8,11 @@ import java.io.ObjectInputStream;
 import weka.classifiers.Classifier;
 import weka.core.Instance;
 import weka.core.Instances;
+import weka.core.DenseInstance;
+import weka.core.Attribute;
 
 import java.util.Hashtable;
+import java.util.ArrayList;
 
 /**
  * Lineage classifier class
@@ -34,73 +37,56 @@ import java.util.Hashtable;
 
 public class LineageClassifier 
 {
-	
-	static private Classifier c;
-	static {
-		// deserialize model
-		ObjectInputStream ois;
+	// Deserialize model
+	static private Classifier getClassifier() {
+		ObjectInputStream ois = null;
 		try {
-			ois = new ObjectInputStream(
-					LineageClassifier.class.getResourceAsStream("random_forest_top8_w1.1.model"));
-
-			LineageClassifier.c = (Classifier) ois.readObject();
-			ois.close();
+			ois = new ObjectInputStream(LineageClassifier.class.getResourceAsStream("random_forest_top8_w1.1.model"));
+			return (Classifier) ois.readObject();
 		} catch (Exception e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
-			
+		} finally {
+			if (null != ois) try { ois.close(); } catch (Exception e) { e.printStackTrace(); }
 		}
-	}
-	
-	static private Instances unlabeled;
-	static {
-		BufferedReader bf = null;
-		try{									
-			bf = new BufferedReader(
-					new InputStreamReader(LineageClassifier.class.getResourceAsStream("unlabeled.arff")));
-			unlabeled = new Instances(bf);
-
-			// set class attribute
-			unlabeled.setClassIndex(unlabeled.numAttributes() - 1);						
-		}
-		catch(Exception ex)
-		{
-			ex.printStackTrace();
-		}
-		finally
-		{
-			if(bf != null)
-				try {
-					bf.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-		}
+		return null;
 	}
 
 	// Hashtable's methods are all synchronized
-	static private final Hashtable<Thread,Instances> table = new Hashtable<Thread,Instances>();
+	static private final Hashtable<Thread,Operator> table = new Hashtable<Thread,Operator>();
 
-	public static final boolean classify (final double[] vector) throws Exception {				
+	final static private String[] attrs = new String[]{"APD", "CPD", "STD", "MPD", "PM", "LEV", "SIM", "PRX", "PRM", "LR", "TR", "CLASS"};
+	final static private ArrayList<Attribute> A = new ArrayList<Attribute>();
+
+	static {
+		for (int i=0; i<attrs.length; i++) {
+			A.add(new Attribute(attrs[i]));
+		}
+	}
+
+	static private final class Operator {
+		final Classifier c = getClassifier();
+		final Instances data = new Instances("Buh", new ArrayList<Attribute>(A), 0);
+		Operator() {
+			data.setClassIndex(11); // the CLASS
+		}
+	}
+
+	public static final boolean classify(final double[] vector) throws Exception {
+
 		// Obtain or generate a Thread-local instance
 		final Thread t = Thread.currentThread();
-		Instances unlabeled = table.get(t);
-		if (null == unlabeled) {
-			unlabeled = new Instances(LineageClassifier.unlabeled);
-			table.put(t, unlabeled);
+		Operator op = table.get(t);
+		if (null == op) {
+			op = new Operator();
+			table.put(t, op);
 		}
 
 		try {
-			// For this Thread-local instance, set the vector of parameters and evaluate:
-			unlabeled.add(new Instance(1, vector));
+			op.data.add(new DenseInstance(1, vector));
 			// Was trained to return true or false, represented in weka as 0 or 1
-			return 1 == ((int) Math.round(LineageClassifier.c.classifyInstance(unlabeled.instance(0))));
-			// clsLabel was the returned double value
-			//System.out.println(clsLabel + " -> " + unlabeled.classAttribute().value((int) clsLabel));
+			return 1 == ((int) Math.round(op.c.classifyInstance(op.data.instance(0))));
 		} finally {
-			// ... and remove it (WEKA is stateful, meh):
-			unlabeled.delete(0);
+			op.data.remove(0);
 		}
 	}
 
