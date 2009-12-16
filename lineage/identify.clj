@@ -281,7 +281,7 @@
                                                                                         (.resample v1 delta true)
                                                                                         (.resample v2 delta true)
                                                                                         (Editions. v1 v2 delta false (double 1.1) (double 1.1) (double 1)))
-                                                                                    (float 0.5))
+                                                                                  (float 0.5))
                                                                       _ (let [c1 (Calibration.); Dummy default calibration but with same units as the pipe.
                                                                                                ; VectorString3D instances are already calibrated.
                                                                               c2 (.. pipe getLayerSet getCalibrationCopy)]
@@ -289,6 +289,8 @@
                                                                           (.calibrate condensed c1))
                                                                       _ (set! (. cp plot_max_x) (.length condensed))
                                                                       plot (Compare/makePlot cp (str "Query versus " (match :SAT-name)) condensed)]
+                                                                  ; There are lazy evaluations ... that need to be promoted: lets print some data:
+                                                                  (println "plot is" plot " and condensed has " (.getStdDevAtEachPoint condensed))
                                                                   (if plot
                                                                     (.show plot)
                                                                     (report "ERROR: could not make a plot!")))))))
