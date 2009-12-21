@@ -3,7 +3,9 @@ buildDir=build/
 
 all <- T2-NIT.jar VectorString.jar TrakEM2_.jar
 
-T2-NIT.jar <- lineage/*.java lineage/*.arff lineage/*.model lineage/*clj plugins.trakem2
+T2-NIT.jar <- lineage/*.java lineage/*.arff lineage/*.model lineage/*clj nit.trakem2
+
+T2-TreelineGraph.jar <- treeline/*.java treeline/*clj treeline-graph.trakem2
 
 VectorString.jar <- ini/trakem2/vector/*java
 
