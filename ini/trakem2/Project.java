@@ -99,7 +99,7 @@ public class Project extends DBObject {
 			this.title = title;
 		}
 		public int compareTo(Object ob) {
-			return ((PlugInSource)ob).menu.compareTo(this.menu);
+			return ((PlugInSource)ob).title.compareTo(this.title);
 		}
 	}
 
@@ -114,7 +114,14 @@ public class Project extends DBObject {
 				File f = new File(name);
 				if (f.isHidden() || !name.toLowerCase().endsWith(".jar")) continue;
 				JarFile jar = new JarFile(plugins_dir + name);
-				JarEntry entry = jar.getJarEntry("plugins.trakem2");
+				JarEntry entry = null;
+				for (Enumeration<JarEntry> en = jar.entries(); en.hasMoreElements(); ) {
+					JarEntry je = en.nextElement();
+					if (je.getName().endsWith(".trakem2")) {
+						entry = je;
+						break;
+					}
+				}
 				if (entry == null) continue;
 				// Parse:
 				BufferedReader br = new BufferedReader(new InputStreamReader(jar.getInputStream(entry)));
