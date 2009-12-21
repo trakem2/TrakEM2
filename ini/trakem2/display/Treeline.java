@@ -112,13 +112,28 @@ public class Treeline extends ZDisplayable {
 	}
 
 	/** A branch only holds the first point if it doesn't have any parent. */
-	private final class Branch {
+	public final class Branch {
 
 		final Branch parent;
 
 		HashMap<Integer,ArrayList<Branch>> branches = null;
 
+		public Map<Integer,ArrayList<Branch>> getBranches() {
+			return branches;
+		}
+
 		final Slab pline;
+
+		/** Returns a float[3][n] where 0 is X, 1 is Y and Z is layer-id; uncalibrated. */
+		public float[][] getPoints() {
+			float[][] f = new float[3][pline.n_points];
+			for (int i=0; i<pline.n_points; i++) {
+				f[0][i] = (float) pline.p[0][i];
+				f[1][i] = (float) pline.p[1][i];
+				f[2][i] = (float) pline.p_layer[i];
+			}
+			return f;
+		}
 
 		/** The branch to avoid will be the new parent of this branch.
 		 *  If avoid is null, then the returned new Branch is the new root. */
@@ -1068,5 +1083,9 @@ public class Treeline extends ZDisplayable {
 	public boolean contains(final Layer layer, final int x, final int y) {
 		if (null == root) return false;
 		return root.contains(layer, x, y);
+	}
+
+	public Branch getRoot() {
+		return root;
 	}
 }
