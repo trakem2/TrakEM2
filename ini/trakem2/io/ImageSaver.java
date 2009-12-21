@@ -207,7 +207,7 @@ public class ImageSaver {
 				// 2 - open it as a BufferedImage
 				bi = openJpegFromStream(stream, as_grey);
 
-			} catch (Exception e) {
+			} catch (Throwable e) {
 				// the file might have been generated while trying to read it. So try once more
 				try {
 					Utils.log2("JPEG Decoder failed for " + path);
@@ -273,6 +273,9 @@ public class ImageSaver {
 			// when stream is null, so this should never happen.
 			return null;
 		} catch (IOException ioe) {
+			return null;
+		} catch (Throwable t) {
+			t.printStackTrace();
 			return null;
 		}
 	}
