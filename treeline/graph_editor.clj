@@ -4,9 +4,9 @@
      (cytoscape.data Semantics)
      (ding.view NodeContextMenuListener)
      (csplugins.layout.algorithms.hierarchicalLayout HierarchicalLayoutAlgorithm)
-     (javax.swing JFrame JScrollPane JMenuItem)
+     (javax.swing JFrame JScrollPane JMenuItem JPanel)
      (java.awt Dimension)
-     (java.awt.event ActionListener)))
+     (java.awt.event ActionListener KeyAdapter KeyEvent)))
 
 (defmacro report
   [& args]
@@ -104,7 +104,7 @@
   (let [net (Cytoscape/createNetwork (.getTitle tline) false)
         nodes (create-tree net tline)
         view (Cytoscape/createNetworkView net (.getTitle tline) (HierarchicalLayoutAlgorithm.))]
-    [net nodes view (.getComponent view)]))
+    [net nodes view]))
 
 (defn show
   "Takes any Component and shows it inside a JFrame."
@@ -125,5 +125,42 @@
   Add mouse event hooks to each node to show a contextual menu."
   [tline]
   (if tline
-    (show (with-scroll (last (create-graph tline)) 500 500) (.getTitle tline))
+    (let [[net nodes view] (create-graph tline)
+          frame (JFrame. (.getTitle tline))
+          panel (JScrollPane. (.getComponent view))]
+      (doto panel
+        (.setPreferredSize (Dimension. 500 500)))
+      (.. frame getContentPane (add panel))
+      (doto frame
+        (.pack)
+        (.setVisible true))
+      (doto view
+        ;(.fitContent)
+        (.addNodeContextMenuListener
+          (let [worker (agent nil)
+                items {(JMenuItem. "Fit graph") #(.fitContent view)
+                       (JMenuItem. "Select in 2D") #(report "Selected not yet implemented")}
+                listener (proxy [ActionListener] []
+                           (actionPerformed [evt]
+                            (send-off worker
+                              (fn [_]
+                                (try
+                                  (if-let [action (items (.getSource evt))]
+                                    (action)
+                                    (report "Action not found for " (.getCommand evt))))))))]
+            (doseq [item (keys items)] (.addActionListener item listener))
+            (proxy [NodeContextMenuListener] []
+              (addNodeContextMenuItems [nodeView menu]
+                (.removeAll menu)
+                (doseq [item (keys items)] (.add menu item)))))))
+      (doto (.getComponent view)
+        (.addKeyListener
+          (proxy [KeyAdapter] []
+            (keyPressed [evt]
+              (try
+                (println "key pressed: " (.getKeyChar evt))
+                (if (= KeyEvent/VK_F (.getKeyCode evt))
+                  (.fitContent view))
+                (catch Exception e (.printStackTrace e)))))))
+      view)
     (report "Null Treeline!")))
