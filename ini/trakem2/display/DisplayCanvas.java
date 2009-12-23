@@ -1318,6 +1318,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			 && 0 == (flags & InputEvent.BUTTON3_MASK)
 			//if (me.getButton() == MouseEvent.NOBUTTON
 			 && null != active && active.isVisible() && AreaList.class == active.getClass()) {
+				xMouse = (int)(me.getX() / magnification) + srcRect.x;
+				yMouse = (int)(me.getY() / magnification) + srcRect.y;
 				final int tool = ProjectToolbar.getToolId();
 				Rectangle r = null;
 				if (ProjectToolbar.PEN == tool) {
