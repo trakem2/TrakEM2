@@ -101,7 +101,8 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	protected boolean locked = false;
 	protected String title;
-	protected Color color = Color.yellow;
+	static protected Color last_color = Color.yellow;
+	protected Color color = Displayable.last_color;
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
 	protected boolean visible = true;
 	protected Layer layer;
@@ -749,6 +750,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 	public void setColor(Color color) {
 		if (null == color || color.equals(this.color)) return;
 		this.color = color;
+		Displayable.last_color = color;
 		updateInDatabase("color");
 		Display.repaint(layer, this, 5);
 		Display3D.setColor(this, color);

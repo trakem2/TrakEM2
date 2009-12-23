@@ -124,6 +124,7 @@ public abstract class ZDisplayable extends Displayable {
 	public void setColor(Color color) {
 		if (null == color || color.equals(this.color)) return;
 		this.color = color;
+		Displayable.last_color = color;
 		updateInDatabase("color");
 		Display.repaint(layer_set, this, 5);
 		Display3D.setColor(this, color);
