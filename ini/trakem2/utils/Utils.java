@@ -53,6 +53,9 @@ import java.awt.Checkbox;
 import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FontMetrics;
+import java.awt.Font;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
@@ -1531,5 +1534,20 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(t);
 		}
 		return null;
+	}
+
+	static private java.awt.Frame frame = null;
+
+	/** Get the width and height of single-line text. */
+	static public final Dimension getDimensions(final String text, final Font font) {
+		if (null == frame) { frame = new java.awt.Frame(); frame.pack(); frame.setBackground(Color.white); } // emulating the ImageProcessor class
+		FontMetrics fm = frame.getFontMetrics(font);
+		int[] w = fm.getWidths(); // the advance widths of the first 256 chars
+		int width = 0;
+		for (int i = text.length() -1; i>-1; i--) {
+			int c = (int)text.charAt(i);
+			if (c < 256) width += w[c];
+		}
+		return new Dimension(width, fm.getHeight());
 	}
 }
