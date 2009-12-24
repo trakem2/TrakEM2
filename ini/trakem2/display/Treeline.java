@@ -72,6 +72,11 @@ import javax.vecmath.Point3f;
 /** A sequence of points ordered in a set of connected branches. */
 public class Treeline extends ZDisplayable {
 
+	/** Maximum possible confidence in an edge (ranges from 0 to 5, inclusive).*/
+	static public final byte MAX_EDGE_CONFIDENCE = 5;
+
+	static private float last_radius = -1;
+
 	public Treeline(Project project, String title) {
 		super(project, title, 0, 0);
 		addToDatabase();
@@ -391,6 +396,15 @@ public class Treeline extends ZDisplayable {
 			return children.length -1;
 		}
 		synchronized final boolean remove(final Node child) {
+			if (null == children) {
+				Utils.log("WARNING: tried to remove a child from a childless node!");
+				return false; // no children!
+			}
+			if (1 == children.length) {
+				children = null;
+				confidence = null;
+				return true;
+			}
 			// find its index
 			int k = -1;
 			for (int i=0; i<children.length; i++) {
@@ -524,18 +538,18 @@ public class Treeline extends ZDisplayable {
 		}
 
 		/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.*/
-		final Set<Node> getChildrenR() {
+		final Set<Node> getSubtreeNodes() {
 			HashSet<Node> nodes = new HashSet<Node>();
-			getChildrenR(nodes);
+			getSubtreeNodes(nodes);
 			return nodes;
 		}
 
-		final void getChildrenR(Set<Node> nodes) {
+		final void getSubtreeNodes(Set<Node> nodes) {
 			if (!nodes.add(this)) return; // was already there
 			if (null == children) return;
 			synchronized (this) {
 				for (final Node nd : children) {
-					nd.getChildrenR(nodes);
+					nd.getSubtreeNodes(nodes);
 				}
 			}
 		}
@@ -692,13 +706,15 @@ public class Treeline extends ZDisplayable {
 		// if not an end-point, update cached lists
 		if (null != node.children) {
 			synchronized (node_layer_map) {
-				for (final Node nd : node.getChildrenR()) { // includes itself?
+				for (final Node nd : node.getSubtreeNodes()) { // includes itself
 					node_layer_map.get(nd.la).remove(nd);
 					if (null == nd.children && !end_nodes.remove(nd)) {
 						Utils.log2("WARNING: node to remove had no children but wasn't in end_nodes list!");
 					}
 				}
 			}
+		} else {
+			node_layer_map.get(node.la).remove(node);
 		}
 	}
 
@@ -734,7 +750,7 @@ public class Treeline extends ZDisplayable {
 				if (me.isShiftDown()) {
 					// Create new branch at point, with local coordinates
 					Node node = new Node(active, x_pl, y_pl, layer, active.r);
-					addNode(active, node, (byte)0xff);
+					addNode(active, node, MAX_EDGE_CONFIDENCE);
 					active = node;
 					Utils.log2("3 added active: " + active);
 					return;
@@ -746,14 +762,18 @@ public class Treeline extends ZDisplayable {
 				Node nearest = findNearestEndNode(x_pl, y_pl, layer);
 				// append new child; inherits radius from parent
 				active = new Node(nearest, x_pl, y_pl, layer, nearest.r);
-				addNode(nearest, active, (byte)0xff);
+				addNode(nearest, active, MAX_EDGE_CONFIDENCE);
 				Utils.log2("5 added active: " + active);
 				repaint(true);
 				return;
 			}
 		} else {
+			if (-1 == last_radius) {
+				last_radius = (float) (10 / Display.getFront().getCanvas().getMagnification()); 
+			}
+
 			// First point
-			root = active = new Node(null, x_p, y_p, layer, 0); // world coords, so calculateBoundingBox will do the right thing
+			root = active = new Node(null, x_p, y_p, layer, last_radius); // world coords, so calculateBoundingBox will do the right thing
 			addNode(null, active, (byte)0);
 			Utils.log2("6 first active: " + active);
 		}
