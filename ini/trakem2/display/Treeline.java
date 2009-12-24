@@ -39,6 +39,7 @@ import ini.trakem2.vector.VectorString3D;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
+import java.awt.Dimension;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
@@ -432,34 +433,65 @@ public class Treeline extends ZDisplayable {
 				//Which edge color?
 				Color local_edge_color = Treeline.this.color;
 				if (active_layer == this.la) {} // default color
-				else if (actZ == thisZ) {
+				else if (actZ > thisZ) {
 					local_edge_color = Color.red;
-				} else local_edge_color = Color.blue;
+				} else if (actZ < thisZ) local_edge_color = Color.blue;
 
 				synchronized (this) {
-					for (final Node child : children) {
+					for (int i=0; i<children.length; i++) {
+						final Node child = children[i];
 						if (!to_paint.contains(child)) {
 							// Paint proximal half edge to the child
 							g.setColor(local_edge_color);
 							g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
 						} else {
 							// Paint full edge, but perhaps in two halfs of different colors
-							if (child.la == this.la && this.la == active_layer) {
+							if ((child.la == this.la && this.la == active_layer)
+							  || (this.la.getZ() < actZ && child.la.getZ() < actZ)
+							  || (this.la.getZ() > actZ && child.la.getZ() > actZ)) {
 								// Full edge in local color
 								g.setColor(local_edge_color);
 								g.drawLine((int)x, (int)y, (int)child.x, (int)child.y);
 							} else {
-								// proximal half in the local color
-								g.setColor(local_edge_color);
-								g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
-								// distal half in the child's local color
-								Color child_color = Treeline.this.color;
-								if (active_layer == child.la) {} // default color
-								else if (actZ > child.la.getZ()) {
-									child_color = Color.red;
-								} else child_color = Color.blue;
-								g.drawLine((int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2), (int)child.x, (int)child.y);
+								if (thisZ < actZ && actZ < child.la.getZ()) {
+									// passing by: edge crosses the current layer
+									// Draw middle segment in current color
+									g.setColor(local_edge_color);
+									g.drawLine((int)(x + (child.x - x)/4), (int)(y + (child.y - y)/4),
+										   (int)(x + 3*(child.x - x)/4), (int)(y + 3*(child.y - y)/4));
+								} else if (this.la == active_layer) {
+									// Proximal half in this color
+									g.setColor(local_edge_color);
+									g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
+									// Distal either red or blue:
+									Color c = local_edge_color;
+									// If other towards higher Z:
+									if (actZ < child.la.getZ()) c = Color.blue;
+									// If other towards lower Z:
+									else if (actZ > child.la.getZ()) c = Color.red;
+									//
+									g.setColor(c);
+									g.drawLine((int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2), (int)child.x, (int)child.y);
+								} else if (child.la == active_layer) {
+									// Distal half in the Displayable color
+									g.setColor(Treeline.this.color);
+									g.drawLine((int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2), (int)child.x, (int)child.y);
+									// Proximal half in either red or blue:
+									g.setColor(local_edge_color);
+									g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
+								}
 							}
+						}
+						if (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ > child.la.getZ())) {
+							// Draw confidence half-way through the edge
+							String s = Integer.toString(confidence[i]&0xff);
+							Dimension dim = Utils.getDimensions(s, g.getFont());
+							g.setColor(Color.white);
+							int xc = (int)(x + (child.x - x)/2);
+							int yc = (int)(y + (child.y - y)/2);  // y + 0.5*child.y - 0.5y = (y + child.y)/2
+							g.fillRect(xc, yc, dim.width+2, dim.height+2);
+							g.setColor(Color.black);
+							g.drawString(s, xc+1, yc+dim.height+1);
 						}
 					}
 				}
