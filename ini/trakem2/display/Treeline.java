@@ -527,7 +527,7 @@ public class Treeline extends ZDisplayable {
 								}
 							}
 						}
-						if (active && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ > child.la.getZ()))) {
+						if (active && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ < child.la.getZ()))) {
 							// Draw confidence half-way through the edge
 							String s = Integer.toString(confidence[i]&0xff);
 							Dimension dim = Utils.getDimensions(s, g.getFont());
@@ -752,11 +752,12 @@ public class Treeline extends ZDisplayable {
 				for (final Node nd : node.getSubtreeNodes()) { // includes itself
 					node_layer_map.get(nd.la).remove(nd);
 					if (null == nd.children && !end_nodes.remove(nd)) {
-						Utils.log2("WARNING: node to remove had no children but wasn't in end_nodes list!");
+						Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
 					}
 				}
 			}
 		} else {
+			end_nodes.remove(node);
 			node_layer_map.get(node.la).remove(node);
 		}
 	}
