@@ -50,7 +50,6 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.Stroke;
-import java.awt.BasicStroke;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -117,6 +116,9 @@ public class Treeline extends ZDisplayable {
 		both.preConcatenate(gt);
 		g.setTransform(both);
 
+		final Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
+		Stroke stroke = null;
+
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
 			final Set<Node> nodes;
@@ -126,11 +128,21 @@ public class Treeline extends ZDisplayable {
 				nodes = new HashSet<Node>();
 				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
 			}
-			if (null != nodes) for (final Node nd: nodes) nd.paint(g, active, active_layer, magnification, nodes);
+			if (null != nodes) {
+				// Clear transform and stroke
+				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
+				stroke = g.getStroke();
+				g.setStroke(DisplayCanvas.DEFAULT_STROKE);
+				for (final Node nd : nodes) {
+					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes);
+					nd.paintHandle(g, active, active_layer, srcRect, magnification);
+				}
+			}
 		}
 
 		// restore
 		g.setTransform(gt);
+		if (null != stroke) g.setStroke(stroke);
 
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
@@ -439,7 +451,7 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 		/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-		final void paint(final Graphics2D g, final boolean active, final Layer active_layer, final double magnification, final Set<Node> to_paint) {
+		final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint) {
 			// Since this method is called, this node is to be painted and by definition is inside the Set to_paint.
 			if (null != children) {
 				final double actZ = active_layer.getZ();
@@ -451,13 +463,32 @@ public class Treeline extends ZDisplayable {
 					local_edge_color = Color.red;
 				} else if (actZ < thisZ) local_edge_color = Color.blue;
 
+				final float[] fps = new float[children.length + children.length];
+				fps[0] = this.x;
+				fps[1] = this.y;
+				Treeline.this.at.transform(fps, 0, fps, 0, 1);
+
+				// To screen coords:
+				final int x = (int)((fps[0] - srcRect.x) * magnification);
+				final int y = (int)((fps[1] - srcRect.y) * magnification);
+
 				synchronized (this) {
-					for (int i=0; i<children.length; i++) {
+					// Transform points
+					for (int i=0, k=0; i<children.length; i++, k+=2) {
+						fps[k] = children[i].x;
+						fps[k+1] = children[i].y;
+					}
+					Treeline.this.at.transform(fps, 0, fps, 0, children.length);
+					//
+					for (int i=0, k=0; i<children.length; i++, k+=2) {
 						final Node child = children[i];
+						// To screen coords:
+						final int chx = (int)((fps[k] - srcRect.x) * magnification);
+						final int chy = (int)((fps[k+1] - srcRect.y) * magnification);
 						if (!to_paint.contains(child)) {
 							// Paint proximal half edge to the child
 							g.setColor(local_edge_color);
-							g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
+							g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
 						} else {
 							// Paint full edge, but perhaps in two halfs of different colors
 							if ((child.la == this.la && this.la == active_layer)
@@ -465,18 +496,18 @@ public class Treeline extends ZDisplayable {
 							  || (this.la.getZ() > actZ && child.la.getZ() > actZ)) {
 								// Full edge in local color
 								g.setColor(local_edge_color);
-								g.drawLine((int)x, (int)y, (int)child.x, (int)child.y);
+								g.drawLine((int)x, (int)y, (int)chx, (int)chy);
 							} else {
 								if (thisZ < actZ && actZ < child.la.getZ()) {
 									// passing by: edge crosses the current layer
 									// Draw middle segment in current color
 									g.setColor(local_edge_color);
-									g.drawLine((int)(x + (child.x - x)/4), (int)(y + (child.y - y)/4),
-										   (int)(x + 3*(child.x - x)/4), (int)(y + 3*(child.y - y)/4));
+									g.drawLine((int)(x + (chx - x)/4), (int)(y + (chy - y)/4),
+										   (int)(x + 3*(chx - x)/4), (int)(y + 3*(chy - y)/4));
 								} else if (this.la == active_layer) {
 									// Proximal half in this color
 									g.setColor(local_edge_color);
-									g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
+									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
 									// Distal either red or blue:
 									Color c = local_edge_color;
 									// If other towards higher Z:
@@ -485,24 +516,24 @@ public class Treeline extends ZDisplayable {
 									else if (actZ > child.la.getZ()) c = Color.red;
 									//
 									g.setColor(c);
-									g.drawLine((int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2), (int)child.x, (int)child.y);
+									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
 								} else if (child.la == active_layer) {
 									// Distal half in the Displayable color
 									g.setColor(Treeline.this.color);
-									g.drawLine((int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2), (int)child.x, (int)child.y);
+									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
 									// Proximal half in either red or blue:
 									g.setColor(local_edge_color);
-									g.drawLine((int)x, (int)y, (int)(x + (child.x - x)/2), (int)(y + (child.y - y)/2));
+									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
 								}
 							}
 						}
-						if (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ > child.la.getZ())) {
+						if (active && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ > child.la.getZ()))) {
 							// Draw confidence half-way through the edge
 							String s = Integer.toString(confidence[i]&0xff);
 							Dimension dim = Utils.getDimensions(s, g.getFont());
 							g.setColor(Color.white);
-							int xc = (int)(x + (child.x - x)/2);
-							int yc = (int)(y + (child.y - y)/2);  // y + 0.5*child.y - 0.5y = (y + child.y)/2
+							int xc = (int)(x + (chx - x)/2);
+							int yc = (int)(y + (chy - y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
 							g.fillRect(xc, yc, dim.width+2, dim.height+2);
 							g.setColor(Color.black);
 							g.drawString(s, xc+1, yc+dim.height+1);
@@ -510,6 +541,13 @@ public class Treeline extends ZDisplayable {
 					}
 				}
 			}
+		}
+		/** Paint in the context of offscreen space, without transformations. */
+		final void paintHandle(final Graphics2D g, final boolean active, final Layer active_layer, final Rectangle srcRect, final double magnification) {
+			Point2D.Double po = transformPoint(this.x, this.y);
+			float x = (float)((po.x - srcRect.x) * magnification);
+			float y = (float)((po.y - srcRect.y) * magnification);
+
 			// paint the node as a draggable point
 			if (active && active_layer == this.la) {
 				if (null == parent) {
@@ -526,7 +564,12 @@ public class Treeline extends ZDisplayable {
 					g.drawString("e", (int)x -3, (int)y + 4); // TODO ensure Font is proper
 				} else if (1 == children.length) {
 					// as a slab: no branches
-					DisplayCanvas.drawHandle(g, (int)x, (int)y, magnification);
+					g.setColor(Color.orange);
+					g.drawRect((int)x - 2, (int)y - 2, 5, 5);
+					g.setColor(Color.black);
+					g.drawRect((int)x - 1, (int)y - 1, 3, 3);
+					g.setColor(Color.orange);
+					g.fillRect((int)x, (int)y, 1, 1);
 				} else {
 					// As branch point
 					g.setColor(color.yellow);

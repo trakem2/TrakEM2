@@ -481,8 +481,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
 	}
 
-	static private BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
-	static private AffineTransform DEFAULT_AFFINE = new AffineTransform();
+	static protected BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+	static protected AffineTransform DEFAULT_AFFINE = new AffineTransform();
 
 	static public void drawHandle(Graphics2D g, double x, double y, Rectangle srcRect, double magnification) {
 		AffineTransform original = g.getTransform();
