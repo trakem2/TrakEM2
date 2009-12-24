@@ -3810,7 +3810,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!(active instanceof Treeline)) return;
 			if (null != canvas.last_popup) {
 				getLayerSet().addDataEditStep(active);
-				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer);
 				getLayerSet().addDataEditStep(active);
 				Display.repaint(getLayerSet());
 			}

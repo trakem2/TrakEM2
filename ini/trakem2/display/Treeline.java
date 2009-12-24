@@ -312,15 +312,31 @@ public class Treeline extends ZDisplayable {
 		}
 	}
 
-	/** Reroots at the point closest to the x,y,layer_id world coordinate. */
-	synchronized public void reRoot(double x, double y, long layer_id) {
+	/** Reroots at the point closest to the x,y,layer_id world coordinate.
+	 *  @return true on success. */
+	synchronized public boolean reRoot(double x, double y, Layer layer) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = po.x;
 			y = po.y;
 		}
-		// TODO
-		Utils.log2("Treeline.reRoot not yet implemented");
+		synchronized (node_layer_map) {
+			Set<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes || nodes.isEmpty()) {
+				Utils.log("No node at " + x + ", " + y + ", " + layer);
+				return false;
+			}
+			// Find a node near the coordinate
+			Point2D.Double po = inverseTransformPoint(x, y);
+			Node nd = findNearestNode((float)po.x, (float)po.y, layer);
+			if (null == nd) {
+				Utils.log("No node near " + x + ", " + y + ", " + layer);
+				return false;
+			}
+			nd.setRoot();
+			this.root = nd;
+			return true;
+		}
 	}
 
 	/** Split the Treeline into new Treelines at the point closest to the x,y,layer_id world coordinate. */
@@ -384,8 +400,7 @@ public class Treeline extends ZDisplayable {
 		 *  @param y The Y in local coordinates.
 		 *  @param layer The Layer where the point represented by this Node sits.
 		 *  @param r The radius, in local pixel dimensions (follows the X scaling of the Treeline affine). */
-		Node(final Node parent, final float x, final float y, final Layer la, final float r) {
-			this.parent = parent;
+		Node(final float x, final float y, final Layer la, final float r) {
 			this.x = x;
 			this.y = y;
 			this.la = la;
@@ -405,6 +420,7 @@ public class Treeline extends ZDisplayable {
 			enlargeArrays(1);
 			this.children[children.length-1] = child;
 			this.confidence[children.length-1] = confidence;
+			child.parent = this;
 			return children.length -1;
 		}
 		synchronized final boolean remove(final Node child) {
@@ -604,7 +620,7 @@ public class Treeline extends ZDisplayable {
 		/** Recursive copying of the subtree; smart, handles cycles.
 		 * Makes this node be a root, without parent. */
 		final public Node clone() {
-			Node copy = new Node(null, x, y, la, r);
+			Node copy = new Node(x, y, la, r);
 			cloneChildren(copy, new HashSet<Node>());
 			return copy;
 		}
@@ -616,7 +632,8 @@ public class Treeline extends ZDisplayable {
 			parent_copy.confidence = new byte[this.children.length];
 			for (int i=0; i<this.children.length; i++) {
 				final Node child = this.children[i];
-				parent_copy.children[i] = new Node(parent_copy, child.x, child.y, child.la, child.r);
+				parent_copy.children[i] = new Node(child.x, child.y, child.la, child.r);
+				parent_copy.children[i].parent = parent_copy;
 				parent_copy.confidence[i] = this.confidence[i];
 				this.children[i].cloneChildren(parent_copy.children[i], seen);
 			}
@@ -644,6 +661,32 @@ public class Treeline extends ZDisplayable {
 		final int getChildrenCount() {
 			if (null == children) return 0;
 			return children.length;
+		}
+		/** Assumes this is NOT a graph with cycles. Non-recursive to avoid stack overflows. */
+		final void setRoot() {
+			Node child = this;
+			Node parent = this.parent;
+			while (null != parent) {
+				// 1 - Find out the index of the child node in the parent's child list:
+				byte conf = MAX_EDGE_CONFIDENCE;
+				for (int i=0; i<parent.children.length; i++) {
+					if (child == parent.children[i]) {
+						conf = parent.confidence[i];
+						break;
+					}
+				}
+				// 2 - Remove the child node from the parent's child list
+				parent.remove(child);
+				// 3 - Cache the parent's parent, since it will be overwriten in the next step
+				Node pp = parent.parent;
+				// 4 - Add the parent as a child of the child, with the same edge confidence
+				child.add(parent, conf);
+				// 5 - prepare next step
+				child = parent;
+				parent = pp;
+			}
+			// Make this node the root node
+			this.parent = null;
 		}
 	}
 
@@ -698,9 +741,10 @@ public class Treeline extends ZDisplayable {
 		float sqdist = Float.MAX_VALUE;
 		for (final Node nd : nodes) {
 			final float d = (float) (Math.pow(pixelWidth * (nd.x - lx), 2) + Math.pow(pixelHeight * (nd.y -ly), 2) + Math.pow(pixelWidth * (nd.la.getZ() - lz), 2));
-			if (d > sqdist) continue;
-			sqdist = d;
-			nearest = nd;
+			if (d < sqdist) {
+				sqdist = d;
+				nearest = nd;
+			}
 		}
 		return nearest;
 	}
@@ -793,7 +837,7 @@ public class Treeline extends ZDisplayable {
 				}
 				if (me.isShiftDown()) {
 					// Create new branch at point, with local coordinates
-					Node node = new Node(active, x_pl, y_pl, layer, active.r);
+					Node node = new Node(x_pl, y_pl, layer, active.r);
 					addNode(active, node, MAX_EDGE_CONFIDENCE);
 					active = node;
 					Utils.log2("3 added active: " + active);
@@ -805,7 +849,7 @@ public class Treeline extends ZDisplayable {
 				// Find the point closest to any other starting or ending point in all branches
 				Node nearest = findNearestEndNode(x_pl, y_pl, layer);
 				// append new child; inherits radius from parent
-				active = new Node(nearest, x_pl, y_pl, layer, nearest.r);
+				active = new Node(x_pl, y_pl, layer, nearest.r);
 				addNode(nearest, active, MAX_EDGE_CONFIDENCE);
 				Utils.log2("5 added active: " + active);
 				repaint(true);
@@ -817,7 +861,7 @@ public class Treeline extends ZDisplayable {
 			}
 
 			// First point
-			root = active = new Node(null, x_p, y_p, layer, last_radius); // world coords, so calculateBoundingBox will do the right thing
+			root = active = new Node(x_p, y_p, layer, last_radius); // world coords, so calculateBoundingBox will do the right thing
 			addNode(null, active, (byte)0);
 			Utils.log2("6 first active: " + active);
 		}
