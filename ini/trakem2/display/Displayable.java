@@ -685,6 +685,9 @@ public abstract class Displayable extends DBObject implements Paintable {
 		Utils.log2("mouseReleased not implemented yet for " + this.getClass().getName());
 	}
 
+	/** Does nothing unless overriden. */
+	public void mouseWheelMoved(MouseWheelEvent mwe) {}
+
 	public void keyPressed(KeyEvent ke) {
 
 		int key_code = ke.getKeyCode();

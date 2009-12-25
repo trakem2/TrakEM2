@@ -40,8 +40,10 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Dimension;
+import java.awt.Point;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
@@ -786,6 +788,78 @@ public class Treeline extends ZDisplayable {
 			// Make this node the root node
 			this.parent = null;
 		}
+		final boolean setConfidence(final Node child, final byte conf) {
+			if (null == children) return false;
+			if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
+			for (int i=0; i<children.length; i++) {
+				if (child == children[i]) {
+					confidence[i] = conf;
+					return true;
+				}
+			}
+			return false;
+		}
+		final boolean adjustConfidence(final Node child, final int inc) {
+			if (null == children) return false;
+			for (int i=0; i<children.length; i++) {
+				if (child == children[i]) {
+					byte conf = (byte)((confidence[i]&0xff) + inc);
+					if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
+					confidence[i] = conf;
+					return true;
+				}
+			}
+			return false;
+		}
+	}
+
+	/** Find an edge near the world coords x,y,layer with precision depending upon magnification,
+	 *  and adjust its confidence to @param confidence.
+	 *  @return the node whose parent edge is altered, or null if none found. */
+	protected Node setEdgeConfidence(byte confidence, float x, float y, Layer layer, double magnification) {
+		synchronized (node_layer_map) {
+			Node nearest = findNodeConfidenceBox(x, y, layer, magnification);
+			if (null == nearest) return null;
+
+			if (nearest.parent.setConfidence(nearest, confidence)) return nearest;
+			return null;
+		}
+	}
+
+	protected Node adjustEdgeConfidence(int inc, float x, float y, Layer layer, double magnification) {
+		synchronized (node_layer_map) {
+			Node nearest = findNodeConfidenceBox(x, y, layer, magnification);
+			if (null == nearest) return null;
+
+			if (nearest.parent.adjustConfidence(nearest, inc)) return nearest;
+			return null;
+		}
+	}
+
+	/** Find the node whose confidence box for the parent edge is closest to x,y,layer, if any.  */
+	private Node findNodeConfidenceBox(float x, float y, Layer layer, double magnification) {
+		final Set<Node> nodes = node_layer_map.get(layer);
+		if (null == nodes) return null;
+
+		Point2D.Double po = inverseTransformPoint(x, y);
+		x = (float)po.x;
+		y = (float)po.y;
+
+		float radius = (float)(10 / magnification);
+		if (radius < 2) radius = 2;
+		radius *= radius; // squared
+
+		float min_sq_dist = Float.MAX_VALUE;
+		Node nearest = null;
+		for (final Node nd : nodes) {
+			if (null == nd.parent) continue;
+			float d = (float)(Math.pow((nd.parent.x + nd.x)/2 - x, 2) + Math.pow((nd.parent.y + nd.y)/2 - y, 2));
+			if (d < min_sq_dist && d < radius) {
+				min_sq_dist = d;
+				nearest = nd;
+			}
+		}
+		return nearest;
 	}
 
 	/** Find a node in @param layer near the local coords lx,ly, with precision depending on magnification.  */
@@ -1003,5 +1077,43 @@ public class Treeline extends ZDisplayable {
 		repaint();
 
 		active = null;
+	}
+
+	@Override
+	public void keyPressed(KeyEvent ke ) {
+		Object source = ke.getSource();
+		if (! (source instanceof DisplayCanvas)) return;
+		DisplayCanvas dc = (DisplayCanvas)source;
+		Layer la = dc.getDisplay().getLayer();
+		int keyCode = ke.getKeyCode();
+
+		// assumes MAX_EDGE_CONFIDENCE is <= 9.
+		if (keyCode >= KeyEvent.VK_0 && keyCode <= (KeyEvent.VK_0 + MAX_EDGE_CONFIDENCE)) {
+			// Find an edge near the mouse position, by measuring against the middle of it
+			Point po = dc.getCursorLoc(); // as offscreen coords
+			Utils.log2(po);
+			setEdgeConfidence((byte)(keyCode - KeyEvent.VK_0), po.x, po.y, la, dc.getMagnification());
+			Display.repaint(layer_set);
+			ke.consume();
+		}
+	}
+
+	@Override
+	public void mouseWheelMoved(MouseWheelEvent mwe) {
+		final int modifiers = mwe.getModifiers();
+		if (0 == (MouseWheelEvent.SHIFT_MASK ^ modifiers)) {
+			Object source = mwe.getSource();
+			if (! (source instanceof DisplayCanvas)) return;
+			DisplayCanvas dc = (DisplayCanvas)source;
+			Layer la = dc.getDisplay().getLayer();
+			final int rotation = mwe.getWheelRotation();
+			final double magnification = dc.getMagnification();
+			final Rectangle srcRect = dc.getSrcRect();
+			final float x = (float)((mwe.getX() / magnification) + srcRect.x);
+			final float y = (float)((mwe.getY() / magnification) + srcRect.y);
+
+			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, magnification);
+			Display.repaint(this);
+		}
 	}
 }

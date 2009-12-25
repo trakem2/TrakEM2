@@ -1309,6 +1309,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null == me) return;
 			if (input_disabled || display.getMode().isDragging()) return;
 
+			xMouse = (int)(me.getX() / magnification) + srcRect.x;
+			yMouse = (int)(me.getY() / magnification) + srcRect.y;
 			final Displayable active = display.getActive();
 
 			// only when no mouse buttons are down
@@ -1318,8 +1320,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			 && 0 == (flags & InputEvent.BUTTON3_MASK)
 			//if (me.getButton() == MouseEvent.NOBUTTON
 			 && null != active && active.isVisible() && AreaList.class == active.getClass()) {
-				xMouse = (int)(me.getX() / magnification) + srcRect.x;
-				yMouse = (int)(me.getY() / magnification) + srcRect.y;
 				final int tool = ProjectToolbar.getToolId();
 				Rectangle r = null;
 				if (ProjectToolbar.PEN == tool) {
@@ -1947,8 +1947,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// run a plugin, if any
 				if (null != Utils.launchTPlugIn(ke, "Display", display.getProject(), display.getActive())) {
 					ke.consume();
+					break;
 				}
-				break;
+				// bleed to active
 			case KeyEvent.VK_UP:
 			case KeyEvent.VK_DOWN:
 			case KeyEvent.VK_LEFT:
@@ -2014,7 +2015,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final int modifiers = mwe.getModifiers();
 		final int rotation = mwe.getWheelRotation();
 		if (0 == (modifiers ^ Utils.getControlModifier())) {
-			// scroll zooom under pointer
+			// scroll zoom under pointer
 			int x = mwe.getX();
 			int y = mwe.getY();
 			if (x < 0 || y < 0 || x >= getWidth() || y >= getHeight()) {
@@ -2053,6 +2054,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// scroll layers
 			if (rotation > 0) display.nextLayer(modifiers);
 			else display.previousLayer(modifiers);
+		} else if (null != display.getActive()) {
+			// forward to active
+			display.getActive().mouseWheelMoved(mwe);
 		}
 	}
 
