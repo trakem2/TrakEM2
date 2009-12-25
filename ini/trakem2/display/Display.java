@@ -3818,13 +3818,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!(active instanceof Treeline)) return;
 			if (null != canvas.last_popup) {
 				getLayerSet().addChangeTreesStep();
-				List<Treeline> ts = ((Treeline)active).split(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
+				List<Treeline> ts = ((Treeline)active).splitNear(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification());
+				if (null == ts) return;
 				Displayable elder = Display.this.active;
 				for (Treeline t : ts) {
+					if (t == elder) continue;
 					getLayerSet().add(t); // will change Display.this.active !
 					project.getProjectTree().addSibling(elder, t);
 				}
-				elder.remove2(false);
 				selection.clear();
 				selection.selectAll(ts);
 				getLayerSet().addChangeTreesStep();
