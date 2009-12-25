@@ -51,6 +51,7 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.Stroke;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -385,7 +386,7 @@ public class Treeline extends ZDisplayable {
 					return null;
 				}
 				// Cache the children of 'nd'
-				Set<Node> subtree_nodes = nd.getSubtreeNodes();
+				Collection<Node> subtree_nodes = nd.getSubtreeNodes();
 				// Remove all children nodes of found node 'nd' from the Treeline cache arrays:
 				removeNode(nd, subtree_nodes);
 				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
@@ -406,7 +407,7 @@ public class Treeline extends ZDisplayable {
 		return null;
 	}
 
-	private void cacheSubtree(final Set<Node> nodes) {
+	private void cacheSubtree(final Collection<Node> nodes) {
 		for (final Node child : nodes) {
 			if (null == child.children) end_nodes.add(child);
 			Set<Node> nds = node_layer_map.get(child.la);
@@ -671,13 +672,12 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 
-		/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.*/
+		/* // Recursive, may overflow stack.
 		final Set<Node> getSubtreeNodes() {
 			HashSet<Node> nodes = new HashSet<Node>();
 			getSubtreeNodes(nodes);
 			return nodes;
 		}
-
 		final void getSubtreeNodes(Set<Node> nodes) {
 			if (!nodes.add(this)) return; // was already there
 			if (null == children) return;
@@ -687,6 +687,29 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
+		*/
+
+		/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.
+		 *  Non-recursive, avoids potential stack overflow. */
+		final List<Node> getSubtreeNodes() {
+			final List<Node> nodes = new ArrayList<Node>();
+			final LinkedList<Node> todo = new LinkedList<Node>();
+			todo.add(this);
+
+			while (!todo.isEmpty()) {
+				// Grab one node from the todo list and add it
+				Node nd = todo.removeFirst();
+				nodes.add(nd);
+				// Then add all its children to the todo list
+				if (null != nd.children) {
+					for (final Node child : nd.children) todo.add(child);
+				}
+			}
+
+			return nodes;
+		}
+
+
 		/** Only this node, not any of its children. */
 		final void translate(final float dx, final float dy) {
 			x += dx;
@@ -855,7 +878,7 @@ public class Treeline extends ZDisplayable {
 		}
 	}
 
-	private void removeNode(final Node node, final Set<Node> subtree_nodes) {
+	private void removeNode(final Node node, final Collection<Node> subtree_nodes) {
 		// if not an end-point, update cached lists
 		if (null != node.children) {
 			Utils.log2("Removing children of node " + node);
