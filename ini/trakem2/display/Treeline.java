@@ -583,6 +583,7 @@ public class Treeline extends ZDisplayable {
 							// Paint proximal half edge to the child
 							g.setColor(local_edge_color);
 							g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
+							g.fill(M.createArrowhead(x, y, chx, chy));
 						} else {
 							// Paint full edge, but perhaps in two halfs of different colors
 							if ((child.la == this.la && this.la == active_layer)
@@ -591,6 +592,7 @@ public class Treeline extends ZDisplayable {
 								// Full edge in local color
 								g.setColor(local_edge_color);
 								g.drawLine((int)x, (int)y, (int)chx, (int)chy);
+								g.fill(M.createArrowhead(x, y, chx, chy));
 							} else {
 								if (thisZ < actZ && actZ < child.la.getZ()) {
 									// passing by: edge crosses the current layer
@@ -598,6 +600,7 @@ public class Treeline extends ZDisplayable {
 									g.setColor(local_edge_color);
 									g.drawLine((int)(x + (chx - x)/4), (int)(y + (chy - y)/4),
 										   (int)(x + 3*(chx - x)/4), (int)(y + 3*(chy - y)/4));
+									g.fill(M.createArrowhead(x, y, chx, chy));
 								} else if (this.la == active_layer) {
 									// Proximal half in this color
 									g.setColor(local_edge_color);
@@ -611,6 +614,7 @@ public class Treeline extends ZDisplayable {
 									//
 									g.setColor(c);
 									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
+									g.fill(M.createArrowhead(x, y, chx, chy));
 								} else if (child.la == active_layer) {
 									// Distal half in the Displayable color
 									g.setColor(tline_color);
@@ -618,6 +622,7 @@ public class Treeline extends ZDisplayable {
 									// Proximal half in either red or blue:
 									g.setColor(local_edge_color);
 									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
+									g.fill(M.createArrowhead(x, y, chx, chy));
 								}
 							}
 						}
