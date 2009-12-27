@@ -338,7 +338,12 @@ public class Treeline extends ZDisplayable {
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Treeline tline = (Treeline)d;
-			tline.root = null == this.root ? null : this.root.clone();
+			if (null != this.root) {
+				tline.root = this.root.clone();
+				tline.marked = null;
+				tline.clearCache();
+				tline.cacheSubtree(tline.root.getSubtreeNodes());
+			}
 			return true;
 		}
 	}
@@ -422,6 +427,15 @@ public class Treeline extends ZDisplayable {
 	}
 
 	private void cacheSubtree(final Collection<Node> nodes) {
+		cache(nodes, end_nodes, node_layer_map);
+	}
+	private void clearCache() {
+		end_nodes.clear();
+		node_layer_map.clear();
+	}
+
+	/** Take @param nodes and add them to @param end_nodes and @param node_layer_map as appropriate. */
+	static private void cache(final Collection<Node> nodes, final Collection<Node> end_nodes, final Map<Layer,Set<Node>> node_layer_map) {
 		for (final Node child : nodes) {
 			if (null == child.children) end_nodes.add(child);
 			Set<Node> nds = node_layer_map.get(child.la);
@@ -874,11 +888,15 @@ public class Treeline extends ZDisplayable {
 	}
 
 	protected Node adjustEdgeConfidence(int inc, float x, float y, Layer layer, double magnification) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = (float)po.x;
+			y = (float)po.y;
+		}
 		synchronized (node_layer_map) {
-			Node nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null == nearest) return null;
-
-			if (nearest.parent.adjustConfidence(nearest, inc)) return nearest;
+			Node nearest = findNode(x, y, layer, magnification);
+			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
+			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) return nearest;
 			return null;
 		}
 	}
