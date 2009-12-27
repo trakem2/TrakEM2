@@ -291,7 +291,14 @@ public class Treeline extends ZDisplayable {
 		String type = "t2_treeline";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_treeline (").append(Displayable.commonDTDChildren()).append(")>\n");
+		hs.add("t2_node");
+		sb_header.append(indent).append("<!ELEMENT t2_node EMPTY)>\n");
+		sb_header.append(indent).append(TAG_ATTR1).append("t2_node x").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("t2_node y").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("t2_node r").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("t2_node c").append(TAG_ATTR2)
+		;
+		sb_header.append(indent).append("<!ELEMENT t2_treeline (t2_node,").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
@@ -303,12 +310,73 @@ public class Treeline extends ZDisplayable {
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append(">\n");
-		if (null != root) {
-			sb_body.append(in);
-			//TODO // root.exportXML(sb_body, in);
-			sb_body.append('\n');
-		}
+		if (null != root) exportXML(in, sb_body, root);
 		sb_body.append(indent).append("</t2_treeline>\n");
+	}
+
+	/** One day, java will get tail-call optimization (i.e. no more stack overflow errors) and I will laugh at this function. */
+	static private void exportXML(final String indent_base, final StringBuffer sb, final Node root) {
+		// Simulating recursion
+		//
+		// write depth-first, closing as children get written
+		final LinkedList<Node> list = new LinkedList<Node>();
+		list.add(root);
+		final Map<Node,Integer> table = new HashMap<Node,Integer>();
+
+		while (!list.isEmpty()) {
+			Utils.log2("list size " + list.size());
+			Node node = list.getLast();
+			if (null == node.children) {
+				// Processing end point
+				dataNodeXML(getIndents(indent_base, list.size()), sb, node);
+				list.removeLast();
+				continue;
+			} else {
+				final Integer ii = table.get(node);
+				if (null == ii) {
+					// Never yet processed a child, add first
+					dataNodeXML(getIndents(indent_base, list.size()), sb, node);
+					table.put(node, 0);
+					list.add(node.children[0]);
+					continue;
+				} else {
+					final int i = ii.intValue();
+					// Are there any more children to process?
+					if (i == node.children.length -1) {
+						// No more children to process
+						closeNodeXML(getIndents(indent_base, list.size()), sb);
+						list.removeLast();
+						table.remove(node);
+						continue;
+					} else {
+						// Process the next child
+						list.add(node.children[i+1]);
+						table.put(node, i+1);
+					}
+				}
+			}
+		}
+	}
+	static private StringBuffer getIndents(String base, int more) {
+		final StringBuffer sb = new StringBuffer(base.length() + more);
+		sb.append(base);
+		while (more > 0) {
+			sb.append(' ');
+			more--;
+		}
+		return sb;
+	}
+	static private final void dataNodeXML(final StringBuffer indent, final StringBuffer sb, final Node node) {
+		sb.append(indent)
+		  .append("<t2_node x=\"").append(node.x)
+		  .append("\" y=\"").append(node.y)
+		  .append("\" r=\"").append(node.r);
+		if (null != node.parent) sb.append("\" c=\"").append(node.parent.getConfidence(node));
+		if (null == node.children) sb.append("\" />\n");
+		else sb.append("\">\n");
+	}
+	static private final void closeNodeXML(final StringBuffer indent, final StringBuffer sb) {
+		sb.append(indent).append("</t2_node>\n");
 	}
 
 	public List generateTriangles(double scale, int parallels, int resample) {
@@ -901,6 +969,21 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 			return false;
+		}
+		/** Returns -1 if not a child of this node. */
+		final byte getConfidence(final Node child) {
+			if (null == children) return -1;
+			for (int i=0; i<children.length; i++) {
+				if (child == children[i]) return confidence[i];
+			}
+			return -1;
+		}
+		final int indexOf(final Node child) {
+			if (null == children) return -1;
+			for (int i=0; i<children.length; i++) {
+				if (child == children[i]) return i;
+			}
+			return -1;
 		}
 		final Node findPreviousBranchOrRootPoint() {
 			if (null == this.parent) return null;
