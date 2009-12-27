@@ -2281,6 +2281,17 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item = new JMenuItem("Clear marks (selected Treelines)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
 				item.setSelected(selection.getSelected(Treeline.class).size() > 1);
+				JMenu go = new JMenu("Go");
+				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
+				item = new JMenuItem("Next branch point or end"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, 0, true));
+				go.addSeparator();
+				item = new JMenuItem("Last added point"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, 0, true));
+				item = new JMenuItem("Last edited point"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
+				popup.add(go);
 				popup.addSeparator();
 			}
 
@@ -3860,6 +3871,18 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				Display.repaint(getLayerSet());
 				getLayerSet().addChangeTreesStep();
 			}
+		} else if (command.equals("Previous branch point or start")) {
+			if (!(active instanceof Treeline)) return;
+			center(((Treeline)active).findPreviousBranchOrRootPoint(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification()));
+		} else if (command.equals("Next branch point or end")) {
+			if (!(active instanceof Treeline)) return;
+			center(((Treeline)active).findNextBranchOrEndPoint(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification()));
+		} else if (command.equals("Last added point")) {
+			if (!(active instanceof Treeline)) return;
+			center(((Treeline)active).getLastAdded());
+		} else if (command.equals("Last edited point")) {
+			if (!(active instanceof Treeline)) return;
+			center(((Treeline)active).getLastEdited());
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
 			getLayerSet().addDataEditStep(active);
@@ -4469,6 +4492,22 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			display.selection.clear();
 		}
 		display.showCentered(displ);
+	}
+
+	/** Center the view, if possible, on x,y. It's not possible when zoomed out, in which case it will try to do its best. */
+	public final void center(final double x, final double y) {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Rectangle r = (Rectangle)canvas.getSrcRect().clone();
+			r.x = (int)x - r.width/2;
+			r.y = (int)y - r.height/2;
+			canvas.showCentered(r);
+		}});
+	}
+
+	public final void center(final Coordinate c) {
+		if (null == c) return;
+		slt.set(c.layer);
+		center(c.x, c.y);
 	}
 
 	private final void showCentered(final Displayable displ) {

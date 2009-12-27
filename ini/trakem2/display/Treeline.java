@@ -340,7 +340,6 @@ public class Treeline extends ZDisplayable {
 			final Treeline tline = (Treeline)d;
 			if (null != this.root) {
 				tline.root = this.root.clone();
-				tline.marked = null;
 				tline.clearCache();
 				tline.cacheSubtree(tline.root.getSubtreeNodes());
 			}
@@ -432,6 +431,9 @@ public class Treeline extends ZDisplayable {
 	private void clearCache() {
 		end_nodes.clear();
 		node_layer_map.clear();
+		last_added = null;
+		last_edited = null;
+		marked = null;
 	}
 
 	/** Take @param nodes and add them to @param end_nodes and @param node_layer_map as appropriate. */
@@ -477,15 +479,43 @@ public class Treeline extends ZDisplayable {
 	}
 
 	/** Can only have one parent, so there aren't cyclic graphs. */
-	static private class Node {
+	static public class Node {
 		private Node parent = null;
+		public Node getParent() { return parent; }
+
 		private float x, y, r;
+		public float getX() { return x; }
+		public float getY() { return y; }
+		public float getRadius() { return r; }
+
 		private Layer la;
+		public Layer getLayer() { return la; }
+
 		private Node[] children = null;
+		public List<Node> getChildrenNodes() {
+			final ArrayList<Node> a = new ArrayList<Node>();
+			if (null == children) return a;
+			for (int i=0; i<children.length; i++) a.add(children[i]);
+			return a;
+		}
+		/** @return a map of child node vs edge confidence to that child. */
+		public Map<Node,Byte> getChildren() {
+			final HashMap<Node,Byte> m = new HashMap<Node,Byte>();
+			if (null == children) return m;
+			for (int i=0; i<children.length; i++) m.put(children[i], confidence[i]);
+			return m;
+		}
+
 		/** The confidence value of the edge towards a child;
 		 *  in other words, how much this node can be trusted.
 		 *  Defaults to MAX_EDGE_CONFIDENCE for full trust, and 0 for none. */
 		private byte[] confidence = null;
+		public List<Byte> getEdgeConfidence() {
+			final ArrayList<Byte> a = new ArrayList<Byte>();
+			if (null == children) return a;
+			for (int i=0; i<children.length; i++) a.add(confidence[i]);
+			return a;
+		}
 
 		public String toString() {
 			return new StringBuilder("{:x ").append(x).append(" :y ").append(y).append(" :r ").append(r).append(" :layer ").append(la.getId()).append('}').toString();
@@ -496,7 +526,7 @@ public class Treeline extends ZDisplayable {
 		 *  @param y The Y in local coordinates.
 		 *  @param layer The Layer where the point represented by this Node sits.
 		 *  @param r The radius, in local pixel dimensions (follows the X scaling of the Treeline affine). */
-		Node(final float x, final float y, final Layer la, final float r) {
+		public Node(final float x, final float y, final Layer la, final float r) {
 			this.x = x;
 			this.y = y;
 			this.la = la;
@@ -872,6 +902,59 @@ public class Treeline extends ZDisplayable {
 			}
 			return false;
 		}
+		final Node findPreviousBranchOrRootPoint() {
+			if (null == this.parent) return null;
+			Node parent = this.parent;
+			while (true) {
+				if (1 == parent.children.length) {
+					if (null == parent.parent) return parent; // the root
+					parent = parent.parent;
+					continue;
+				}
+				return parent;
+			}
+		}
+		/** Assumes there aren't any cycles. */
+		final Node findNextBranchOrEndPoint() {
+			Node child = this;
+			while (true) {
+				if (null == child.children || child.children.length > 1) return child;
+				child = child.children[0];
+			}
+		}
+	}
+
+	private Coordinate<Node> createCoordinate(final Node nd) {
+		if (null == nd) return null;
+		double x = nd.x;
+		double y = nd.y;
+		if (!this.at.isIdentity()) {
+			double[] dps = new double[]{x, y};
+			this.at.transform(dps, 0, dps, 0, 1);
+			x = dps[0];
+			y = dps[1];
+		}
+		return new Coordinate<Node>(x, y, nd.la, nd);
+	}
+
+	public Coordinate<Node> findPreviousBranchOrRootPoint(float x, float y, Layer layer, double magnification) {
+		Node nd = findNodeNear(x, y, layer, magnification);
+		if (null == nd) return null;
+		return createCoordinate(nd.findPreviousBranchOrRootPoint());
+	}
+	/** If the node found near x,y,layer is a branch point, returns it; otherwise the next down
+	 *  the chain; on reaching an end point, returns it. */
+	public Coordinate<Node> findNextBranchOrEndPoint(float x, float y, Layer layer, double magnification) {
+		Node nd = findNodeNear(x, y, layer, magnification);
+		if (null == nd) return null;
+		return createCoordinate(nd.findNextBranchOrEndPoint());
+	}
+
+	public Coordinate<Node> getLastEdited() {
+		return createCoordinate(last_edited);
+	}
+	public Coordinate<Node> getLastAdded() {
+		return createCoordinate(last_added);
 	}
 
 	/** Find an edge near the world coords x,y,layer with precision depending upon magnification,
@@ -1000,7 +1083,12 @@ public class Treeline extends ZDisplayable {
 					Utils.log("WARNING: child was alreadu in end_nodes list!");
 				}
 				cacheSubtree(child.getSubtreeNodes());
+
+				last_added = child;
+
 				return true;
+			} else if (0 == nodes.size()) {
+				node_layer_map.remove(child.la);
 			}
 			return false;
 		}
@@ -1104,6 +1192,30 @@ public class Treeline extends ZDisplayable {
 		return true;
 	}
 
+	private Node findNodeNear(float x, float y, final Layer layer, final double magnification) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = (float)po.x;
+			y = (float)po.y;
+		}
+		synchronized (node_layer_map) {
+			// Search within the nodes in layer
+			Set<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes || nodes.isEmpty()) {
+				Utils.log("No nodes at " + x + ", " + y + ", " + layer);
+				return null;
+			}
+			nodes = null;
+			// Find a node near the coordinate
+			Node nd = findNode(x, y, layer, magnification);
+			if (null == nd) {
+				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
+				return null;
+			}
+			return nd;
+		}
+	}
+
 	public boolean markNear(float x, float y, final Layer layer, final double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
@@ -1139,6 +1251,10 @@ public class Treeline extends ZDisplayable {
 	private Node marked = null;
 	/** The Node clicked on, for mouse operations. */
 	private Node active = null;
+	/** The last added node */
+	private Node last_added = null;
+	/** The last edited node, which will be the last added as well until some other node is edited. */
+	private Node last_edited = null;
 
 	static private Polygon MARKED_PARENT, MARKED_CHILD;
 
@@ -1249,6 +1365,8 @@ public class Treeline extends ZDisplayable {
 		active.translate(x_r - x_d, y_r - y_d);
 		repaint();
 
+		last_edited = active;
+
 		active = null;
 	}
 
@@ -1259,15 +1377,40 @@ public class Treeline extends ZDisplayable {
 		DisplayCanvas dc = (DisplayCanvas)source;
 		Layer la = dc.getDisplay().getLayer();
 		int keyCode = ke.getKeyCode();
+		final Point po = dc.getCursorLoc(); // as offscreen coords
 
 		// assumes MAX_EDGE_CONFIDENCE is <= 9.
 		if (keyCode >= KeyEvent.VK_0 && keyCode <= (KeyEvent.VK_0 + MAX_EDGE_CONFIDENCE)) {
 			// Find an edge near the mouse position, by measuring against the middle of it
-			Point po = dc.getCursorLoc(); // as offscreen coords
-			Utils.log2(po);
 			setEdgeConfidence((byte)(keyCode - KeyEvent.VK_0), po.x, po.y, la, dc.getMagnification());
 			Display.repaint(layer_set);
 			ke.consume();
+			return;
+		}
+
+		final int modifiers = ke.getModifiers();
+		final Display display = Display.getFront();
+		final Layer layer = display.getLayer();
+
+		if (0 == modifiers) {
+			switch (keyCode) {
+				case KeyEvent.VK_R:
+					display.center(findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification()));
+					ke.consume();
+					return;
+				case KeyEvent.VK_N:
+					display.center(findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification()));
+					ke.consume();
+					return;
+				case KeyEvent.VK_L:
+					display.center(getLastAdded());
+					ke.consume();
+					return;
+				case KeyEvent.VK_E:
+					display.center(getLastEdited());
+					ke.consume();
+					return;
+			}
 		}
 	}
 
