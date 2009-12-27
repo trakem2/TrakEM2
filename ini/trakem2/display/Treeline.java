@@ -45,6 +45,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.Graphics2D;
@@ -130,10 +131,7 @@ public class Treeline extends ZDisplayable {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		AffineTransform gt = g.getTransform();
-		AffineTransform both = new AffineTransform(this.at);
-		both.preConcatenate(gt);
-		g.setTransform(both);
+		AffineTransform gt = null;
 
 		final Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
 		Stroke stroke = null;
@@ -149,19 +147,33 @@ public class Treeline extends ZDisplayable {
 			}
 			if (null != nodes) {
 				// Clear transform and stroke
+				gt = g.getTransform();
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
 				stroke = g.getStroke();
 				g.setStroke(DisplayCanvas.DEFAULT_STROKE);
 				for (final Node nd : nodes) {
+					if (nd == marked) {
+						if (null == MARKED_CHILD) createMarks();
+						Composite c = g.getComposite();
+						g.setXORMode(Color.green);
+						float[] fps = new float[]{nd.x, nd.y};
+						this.at.transform(fps, 0, fps, 0, 1);
+						AffineTransform aff = new AffineTransform();
+						aff.translate((fps[0] - srcRect.x) * magnification, (fps[1] - srcRect.y) * magnification);
+						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
+						g.setComposite(c);
+					}
 					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color);
-					nd.paintHandle(g, active, active_layer, srcRect, magnification, this);
+					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 			}
 		}
 
 		// restore
-		g.setTransform(gt);
-		if (null != stroke) g.setStroke(stroke);
+		if (null != gt) {
+			g.setTransform(gt);
+			g.setStroke(stroke);
+		}
 
 		//Transparency: fix alpha composite back to original.
 		if (null != original_composite) {
@@ -333,11 +345,11 @@ public class Treeline extends ZDisplayable {
 
 	/** Reroots at the point closest to the x,y,layer_id world coordinate.
 	 *  @return true on success. */
-	synchronized public boolean reRoot(double x, double y, Layer layer) {
+	synchronized public boolean reRoot(float x, float y, Layer layer, double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
-			x = po.x;
-			y = po.y;
+			x = (float)po.x;
+			y = (float)po.y;
 		}
 		synchronized (node_layer_map) {
 			// Search within the nodes in layer
@@ -348,12 +360,12 @@ public class Treeline extends ZDisplayable {
 			}
 			nodes = null;
 			// Find a node near the coordinate
-			Point2D.Double po = inverseTransformPoint(x, y);
-			Node nd = findNearestNode((float)po.x, (float)po.y, layer);
+			Node nd = findNode(x, y, layer, magnification);
 			if (null == nd) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer);
 				return false;
 			}
+
 			nd.setRoot();
 			this.root = nd;
 			return true;
@@ -486,7 +498,7 @@ public class Treeline extends ZDisplayable {
 			if (null != children) {
 				for (final Node nd : children) {
 					if (nd == child) {
-						Utils.log("WARNING: tried to add a node to a parent that already had it!");
+						Utils.log("WARNING: tried to add a node to a parent that already had the node as a child!");
 						return -1;
 					}
 				}
@@ -502,6 +514,18 @@ public class Treeline extends ZDisplayable {
 				Utils.log("WARNING: tried to remove a child from a childless node!");
 				return false; // no children!
 			}
+			// find its index
+			int k = -1;
+			for (int i=0; i<children.length; i++) {
+				if (child == children[i]) {
+					k = i;
+					break;
+				}
+			}
+			if (-1 == k) {
+				Utils.log("Not a child!");
+				return false; // not a child!
+			}
 
 			child.parent = null;
 
@@ -511,16 +535,7 @@ public class Treeline extends ZDisplayable {
 				return true;
 			}
 
-			// find its index
-			int k = -1;
-			for (int i=0; i<children.length; i++) {
-				if (child == children[i]) {
-					k = i;
-					break;
-				}
-			}
-			if (-1 == k) return false; // not a child!
-			// Else, remove:
+			// Else, rearrange arrays:
 			final Node[] ch = new Node[children.length-1];
 			final byte[] co = new byte[children.length-1];
 			System.arraycopy(children, 0, ch, 0, k);
@@ -642,59 +657,40 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 		/** Paint in the context of offscreen space, without transformations. */
-		final void paintHandle(final Graphics2D g, final boolean active, final Layer active_layer, final Rectangle srcRect, final double magnification, final Treeline tline) {
+		final void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Treeline tline) {
 			Point2D.Double po = tline.transformPoint(this.x, this.y);
 			float x = (float)((po.x - srcRect.x) * magnification);
 			float y = (float)((po.y - srcRect.y) * magnification);
 
 			// paint the node as a draggable point
-			if (active && active_layer == this.la) {
-				if (null == parent) {
-					// As origin
-					g.setColor(Color.magenta);
-					g.fillOval((int)x - 6, (int)y - 6, 11, 11);
-					g.setColor(Color.black);
-					g.drawString("S", (int)x -3, (int)y + 4); // TODO ensure Font is proper
-				} else if (null == children) {
-					// as end point
-					g.setColor(Color.white);
-					g.fillOval((int)x - 6, (int)y - 6, 11, 11);
-					g.setColor(Color.black);
-					g.drawString("e", (int)x -3, (int)y + 4); // TODO ensure Font is proper
-				} else if (1 == children.length) {
-					// as a slab: no branches
-					g.setColor(Color.orange);
-					g.drawRect((int)x - 2, (int)y - 2, 5, 5);
-					g.setColor(Color.black);
-					g.drawRect((int)x - 1, (int)y - 1, 3, 3);
-					g.setColor(Color.orange);
-					g.fillRect((int)x, (int)y, 1, 1);
-				} else {
-					// As branch point
-					g.setColor(Color.yellow);
-					g.fillOval((int)x - 6, (int)y - 6, 11, 11);
-					g.setColor(Color.black);
-					g.drawString("Y", (int)x -3, (int)y + 4); // TODO ensure Font is proper
-				}
+			if (null == parent) {
+				// As origin
+				g.setColor(Color.magenta);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("S", (int)x -3, (int)y + 4); // TODO ensure Font is proper
+			} else if (null == children) {
+				// as end point
+				g.setColor(Color.white);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("e", (int)x -3, (int)y + 4); // TODO ensure Font is proper
+			} else if (1 == children.length) {
+				// as a slab: no branches
+				g.setColor(Color.orange);
+				g.drawRect((int)x - 2, (int)y - 2, 5, 5);
+				g.setColor(Color.black);
+				g.drawRect((int)x - 1, (int)y - 1, 3, 3);
+				g.setColor(Color.orange);
+				g.fillRect((int)x, (int)y, 1, 1);
+			} else {
+				// As branch point
+				g.setColor(Color.yellow);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("Y", (int)x -3, (int)y + 4); // TODO ensure Font is proper
 			}
 		}
-
-		/* // Recursive, may overflow stack.
-		final Set<Node> getSubtreeNodes() {
-			HashSet<Node> nodes = new HashSet<Node>();
-			getSubtreeNodes(nodes);
-			return nodes;
-		}
-		final void getSubtreeNodes(Set<Node> nodes) {
-			if (!nodes.add(this)) return; // was already there
-			if (null == children) return;
-			synchronized (this) {
-				for (final Node nd : children) {
-					nd.getSubtreeNodes(nodes);
-				}
-			}
-		}
-		*/
 
 		/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.
 		 *  Non-recursive, avoids potential stack overflow. */
@@ -716,33 +712,39 @@ public class Treeline extends ZDisplayable {
 			return nodes;
 		}
 
-
 		/** Only this node, not any of its children. */
 		final void translate(final float dx, final float dy) {
 			x += dx;
 			y += dy;
 		}
-		/** Recursive copying of the subtree.
-		 * Makes this node be a root, without parent. */
+
+		/** Returns a recursive copy of this Node subtree, where the copy of this Node is the root.
+		 * Non-recursive to avoid stack overflow. */
 		final public Node clone() {
-			Node copy = new Node(x, y, la, r);
-			cloneChildren(copy, new HashSet<Node>());
-			return copy;
-		}
-		final private void cloneChildren(final Node parent_copy, final Set<Node> seen) {
-			if (seen.contains(this)) return;
-			seen.add(this);
-			if (null == children) return;
-			parent_copy.children = new Node[this.children.length];
-			parent_copy.confidence = new byte[this.children.length];
-			for (int i=0; i<this.children.length; i++) {
-				final Node child = this.children[i];
-				parent_copy.children[i] = new Node(child.x, child.y, child.la, child.r);
-				parent_copy.children[i].parent = parent_copy;
-				parent_copy.confidence[i] = this.confidence[i];
-				this.children[i].cloneChildren(parent_copy.children[i], seen);
+			// todo list containing packets of a copied node and the lists of original children and confidence to clone into it
+			final LinkedList<Object[]> todo = new LinkedList<Object[]>();
+			final Node root = new Node(x, y, la, r);
+			if (null != this.children) {
+				todo.add(new Object[]{root, this.children, this.confidence});
 			}
+			while (!todo.isEmpty()) {
+				final Object[] o = todo.removeFirst();
+				final Node copy = (Node)o[0];
+				final Node[] original_children = (Node[])o[1];
+				copy.confidence = (byte[])((byte[])o[2]).clone();
+				copy.children = new Node[original_children.length];
+				for (int i=0; i<original_children.length; i++) {
+					final Node ochild = original_children[i];
+					copy.children[i] = new Node(ochild.x, ochild.y, ochild.la, ochild.r);
+					copy.children[i].parent = copy;
+					if (null != ochild.children) {
+						todo.add(new Object[]{copy.children[i], ochild.children, ochild.confidence});
+					}
+				}
+			}
+			return root;
 		}
+
 		/** Check if this point or the edges to its children are closer to xx,yy than radius, in the 2D plane only. */
 		final boolean isNear(final float xx, final float yy, final float sqradius) {
 			if (null == children) return sqradius > (Math.pow(xx - x, 2) + Math.pow(yy - y, 2));
@@ -769,10 +771,48 @@ public class Treeline extends ZDisplayable {
 		}
 		/** Assumes this is NOT a graph with cycles. Non-recursive to avoid stack overflows. */
 		final void setRoot() {
+			// Works, but can be done in one pass TODO
+			//
+			// Find first the list of nodes from this node to the current root
+			// and then proceed in reverse direction!
+
+			final LinkedList<Node> path = new LinkedList<Node>();
+			path.add(this);
+			Node parent = this.parent;
+			while (null != parent) {
+				path.addFirst(parent);
+				parent = parent.parent;
+			}
+			Node newchild = path.removeFirst();
+			for (final Node nd : path) {
+				// Made nd the parent of newchild (was the opposite)
+				// 1 - Find out the confidence of the edge to the child node:
+				byte conf = MAX_EDGE_CONFIDENCE;
+				for (int i=0; i<newchild.children.length; i++) {
+					if (nd == newchild.children[i]) {
+						conf = newchild.confidence[i];
+						break;
+					}
+				}
+				// 2 - Remove the child node from the parent's child list
+				newchild.remove(nd);
+				// 3 - Reverse: add newchild to nd (newchild was parent of nd)
+				newchild.parent = null;
+				nd.add(newchild, conf);
+				// 4 - Prepare next step
+				newchild = nd;
+			}
+			// As root:
+			this.parent = null;
+
+			// TODO Below, it should work, but it doesn't (?)
+			// It results in all touched nodes not having a parent (all appear as 'S')
+			/*
+
 			Node child = this;
 			Node parent = this.parent;
 			while (null != parent) {
-				// 1 - Find out the index of the child node in the parent's child list:
+				// 1 - Find out the confidence of the edge to the child node:
 				byte conf = MAX_EDGE_CONFIDENCE;
 				for (int i=0; i<parent.children.length; i++) {
 					if (child == parent.children[i]) {
@@ -785,6 +825,7 @@ public class Treeline extends ZDisplayable {
 				// 3 - Cache the parent's parent, since it will be overwriten in the next step
 				Node pp = parent.parent;
 				// 4 - Add the parent as a child of the child, with the same edge confidence
+				parent.parent = null; // so it won't be refused
 				child.add(parent, conf);
 				// 5 - prepare next step
 				child = parent;
@@ -792,6 +833,7 @@ public class Treeline extends ZDisplayable {
 			}
 			// Make this node the root node
 			this.parent = null;
+			*/
 		}
 		final boolean setConfidence(final Node child, final byte conf) {
 			if (null == children) return false;
@@ -939,14 +981,15 @@ public class Treeline extends ZDisplayable {
 				if (null == child.children && !end_nodes.add(child)) {
 					Utils.log("WARNING: child was alreadu in end_nodes list!");
 				}
+				cacheSubtree(child.getSubtreeNodes());
 				return true;
 			}
 			return false;
 		}
 
 		} finally {
-			Utils.log2("new node: " + child + " with parent: " + parent);
-			Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
+			//Utils.log2("new node: " + child + " with parent: " + parent);
+			//Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
 		}
 	}
 
@@ -982,7 +1025,111 @@ public class Treeline extends ZDisplayable {
 		}
 	}
 
+	/** Join all given Treelines by using the first one as the receiver, and all the others as the ones to be merged into the receiver.
+	 *  Requires each Treeline to have a non-null marked Node; otherwise, returns false. */
+	public boolean canJoin(final List<Treeline> tlines) {
+		if (null == marked) {
+			Utils.log("No marked node in to-be parent Treeline " + this);
+			return false;
+		}
+		boolean quit = false;
+		for (final Treeline tl : tlines) {
+			if (this == tl) continue;
+			if (null == tl.marked) {
+				Utils.log("No marked node in to-be child treeline " + tl);
+				quit = true;
+			}
+		}
+		return !quit;
+	}
+
+	/*  Requires each Treeline to have a non-null marked Node; otherwise, returns false. */
+	public boolean join(final List<Treeline> tlines) {
+		if (!canJoin(tlines)) return false;
+		// All Treeline in tlines have a marked node
+
+		final AffineTransform at_inv;
+		try {
+			at_inv = this.at.createInverse();
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+
+		for (final Treeline tl : tlines) {
+			if (this == tl) continue;
+			tl.marked.setRoot();
+			// transform nodes from there to here
+			final AffineTransform aff = new AffineTransform(tl.at); // 1 - to world coords
+			aff.preConcatenate(at_inv);		// 2 - to this local coords
+			final float[] fps = new float[2];
+			for (final Node nd : tl.marked.getSubtreeNodes()) {
+				fps[0] = nd.x;
+				fps[1] = nd.y;
+				aff.transform(fps, 0, fps, 0, 1);
+				nd.x = fps[0];
+				nd.y = fps[1];
+			}
+			addNode(this.marked, tl.marked, MAX_EDGE_CONFIDENCE);
+			// Remove from tl pointers
+			tl.root = null; // stolen!
+			tl.marked = null;
+			// Remove from tl cache
+			tl.node_layer_map.clear();
+			tl.end_nodes.clear();
+		}
+
+		calculateBoundingBox(true);
+
+		// Don't clear this.marked
+
+		return true;
+	}
+
+	public boolean markNear(float x, float y, final Layer layer, final double magnification) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = (float)po.x;
+			y = (float)po.y;
+		}
+		synchronized (node_layer_map) {
+			// Search within the nodes in layer
+			Set<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes || nodes.isEmpty()) {
+				Utils.log("No nodes at " + x + ", " + y + ", " + layer);
+				return false;
+			}
+			nodes = null;
+			// Find a node near the coordinate
+			marked = findNode(x, y, layer, magnification);
+			if (null == marked) {
+				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
+				return false;
+			}
+			return true;
+		}
+	}
+	public boolean unmark() {
+		if (null != marked) {
+			marked = null;
+			return true;
+		}
+		return false;
+	}
+
+	/** The Node double-clicked on, for join operations. */
+	private Node marked = null;
+	/** The Node clicked on, for mouse operations. */
 	private Node active = null;
+
+	static private Polygon MARKED_PARENT, MARKED_CHILD;
+
+	static private final void createMarks() {
+		MARKED_PARENT = new Polygon(new int[]{0, -1, -2, -4, -18, -18, -4, -2, -1},
+					    new int[]{0, -2, -3, -4, -4, 4, 4, 3, 2}, 9);
+		MARKED_CHILD = new Polygon(new int[]{0, 10, 12, 12, 22, 22, 12, 12, 10},
+					   new int[]{0, 10, 10, 4, 4, -4, -4, -10, -10}, 9);
+	}
 
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
@@ -1001,14 +1148,17 @@ public class Treeline extends ZDisplayable {
 			}
 
 			active = findNode(x_pl, y_pl, layer, mag);
-			Utils.log2("1 found active: " + active);
 			if (null != active) {
+				if (2 == me.getClickCount()) {
+					marked = active;
+					active = null;
+					return;
+				}
 				if (me.isShiftDown() && Utils.isControlDown(me)) {
 					// Remove point, and associated branches
 					removeNode(active);
 					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
 					active = null;
-					Utils.log2("2 removed active: " + active);
 					return;
 				}
 				if (me.isShiftDown()) {
@@ -1016,18 +1166,19 @@ public class Treeline extends ZDisplayable {
 					Node node = new Node(x_pl, y_pl, layer, active.r);
 					addNode(active, node, MAX_EDGE_CONFIDENCE);
 					active = node;
-					Utils.log2("3 added active: " + active);
 					return;
 				}
-				Utils.log2("4 pressed on active: " + active);
 			} else {
+				if (2 == me.getClickCount()) {
+					marked = null;
+					return;
+				}
 				// Add new point
 				// Find the point closest to any other starting or ending point in all branches
 				Node nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
 				// append new child; inherits radius from parent
 				active = new Node(x_pl, y_pl, layer, nearest.r);
 				addNode(nearest, active, MAX_EDGE_CONFIDENCE);
-				Utils.log2("5 added active: " + active);
 				repaint(true);
 				return;
 			}
@@ -1039,7 +1190,6 @@ public class Treeline extends ZDisplayable {
 			// First point
 			root = active = new Node(x_p, y_p, layer, last_radius); // world coords, so calculateBoundingBox will do the right thing
 			addNode(null, active, (byte)0);
-			Utils.log2("6 first active: " + active);
 		}
 	}
 

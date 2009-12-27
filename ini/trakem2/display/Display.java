@@ -2277,6 +2277,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else if (Treeline.class == aclass) {
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Mark"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Clear marks (selected Treelines)"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
+				item.setSelected(selection.getSelected(Treeline.class).size() > 1);
 				popup.addSeparator();
 			}
 
@@ -3810,7 +3814,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (!(active instanceof Treeline)) return;
 			if (null != canvas.last_popup) {
 				getLayerSet().addDataEditStep(active);
-				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer);
+				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification());
 				getLayerSet().addDataEditStep(active);
 				Display.repaint(getLayerSet());
 			}
@@ -3830,6 +3834,31 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				selection.selectAll(ts);
 				getLayerSet().addChangeTreesStep();
 				Display.repaint(getLayerSet());
+			}
+		} else if (command.equals("Mark")) {
+			if (!(active instanceof Treeline)) return;
+			if (null != canvas.last_popup) {
+				if (((Treeline)active).markNear(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification())) {
+					Display.repaint(getLayerSet());
+				}
+			}
+		} else if (command.equals("Clear marks (selected Treelines)")) {
+			for (Displayable d : selection.getSelected(Treeline.class)) {
+				((Treeline)d).unmark();
+			}
+			Display.repaint(getLayerSet());
+		} else if (command.equals("Join")) {
+			if (!(active instanceof Treeline)) return;
+			final List<Treeline> tlines = (List<Treeline>) (List) selection.getSelected(Treeline.class);
+			if (((Treeline)active).canJoin(tlines)) {
+				getLayerSet().addChangeTreesStep();
+				((Treeline)active).join(tlines);
+				for (final Treeline tl : tlines) {
+					if (tl == active) continue;
+					tl.remove2(false);
+				}
+				Display.repaint(getLayerSet());
+				getLayerSet().addChangeTreesStep();
 			}
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;

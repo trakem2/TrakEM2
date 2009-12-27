@@ -401,15 +401,14 @@ public final class M {
 		if (i < right) quicksort(data, sortAlso, i, right);
 	}
 
-
-	//static private final Polygon ARROWHEAD = new Polygon(new int[]{0, 6, 3, 3}, new int[]{0, 3, 3, 6}, 4);
-	static private final Polygon ARROWHEAD = new Polygon(new int[]{-14, -13, 0, -13, -14, -9}, new int[]{-5, -5, 0, 5, 5, 0}, 6);
+	static private Polygon arrowhead = null;
 
 	/** Create an arrowhead at the end of the line segment defined by x1,y1 and x2,y2. */
 	static public final Shape createArrowhead(final double x1, final double y1, final double x2, final double y2) {
+		if (null == arrowhead) arrowhead = new Polygon(new int[]{-14, -13, 0, -13, -14, -9}, new int[]{-5, -5, 0, 5, 5, 0}, 6);
 		final AffineTransform aff = new AffineTransform();
 		aff.translate(x2, y2);
 		aff.rotate(M.getAngle(x2 - x1, y2 - y1));
-		return aff.createTransformedShape(ARROWHEAD);
+		return aff.createTransformedShape(arrowhead);
 	}
 }
