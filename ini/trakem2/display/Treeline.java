@@ -350,7 +350,6 @@ public class Treeline extends ZDisplayable {
 		final Map<Node,Integer> table = new HashMap<Node,Integer>();
 
 		while (!list.isEmpty()) {
-			Utils.log2("list size " + list.size());
 			Node node = list.getLast();
 			if (null == node.children) {
 				// Processing end point
