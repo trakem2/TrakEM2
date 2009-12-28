@@ -292,9 +292,10 @@ public class Treeline extends ZDisplayable {
 		if (hs.contains(type)) return;
 		hs.add(type);
 		hs.add("t2_node");
-		sb_header.append(indent).append("<!ELEMENT t2_node EMPTY)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_node EMPTY>\n");
 		sb_header.append(indent).append(TAG_ATTR1).append("t2_node x").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node y").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("t2_node lid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node r").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node c").append(TAG_ATTR2)
 		;
@@ -370,7 +371,9 @@ public class Treeline extends ZDisplayable {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)
 		  .append("\" y=\"").append(node.y)
-		  .append("\" r=\"").append(node.r);
+		  .append("\" lid=\"").append(node.la.getId())
+		  .append("\" r=\"").append(node.r)
+		;
 		if (null != node.parent) sb.append("\" c=\"").append(node.parent.getConfidence(node));
 		if (null == node.children) sb.append("\" />\n");
 		else sb.append("\">\n");
@@ -600,8 +603,18 @@ public class Treeline extends ZDisplayable {
 			this.la = la;
 			this.r = r;
 		}
+		/** To reconstruct from XML, without a layer. */
+		public Node(final HashMap attr) {
+			this.x = Float.parseFloat((String)attr.get("x"));
+			this.y = Float.parseFloat((String)attr.get("y"));
+			this.r = Float.parseFloat((String)attr.get("r"));
+			this.la = null;
+		}
+		public void setLayer(final Layer la) {
+			this.la = la;
+		}
 		/** Returns -1 when not added (e.g. if child is null). */
-		synchronized final int add(final Node child, final byte confidence) {
+		synchronized public final int add(final Node child, final byte confidence) {
 			if (null == child) return -1;
 			if (null != child.parent) {
 				Utils.log("WARNING: tried to add a node that already had a parent!");
@@ -621,7 +634,7 @@ public class Treeline extends ZDisplayable {
 			child.parent = this;
 			return children.length -1;
 		}
-		synchronized final boolean remove(final Node child) {
+		synchronized public final boolean remove(final Node child) {
 			if (null == children) {
 				Utils.log("WARNING: tried to remove a child from a childless node!");
 				return false; // no children!
@@ -1163,7 +1176,7 @@ public class Treeline extends ZDisplayable {
 					parent.add(child, confidence);
 				}
 				if (null == child.children && !end_nodes.add(child)) {
-					Utils.log("WARNING: child was alreadu in end_nodes list!");
+					Utils.log("WARNING: child was already in end_nodes list!");
 				}
 				cacheSubtree(child.getSubtreeNodes());
 
@@ -1514,5 +1527,11 @@ public class Treeline extends ZDisplayable {
 			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, magnification);
 			Display.repaint(this);
 		}
+	}
+
+	/** Used when reconstructing from XML. */
+	public void setRoot(final Node new_root) {
+		this.root = new_root;
+		cacheSubtree(new_root.getSubtreeNodes());
 	}
 }

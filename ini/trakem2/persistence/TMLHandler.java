@@ -25,9 +25,11 @@ package ini.trakem2.persistence;
 import ij.IJ;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.io.File;
 import java.util.regex.Pattern;
 
@@ -68,8 +70,8 @@ public class TMLHandler extends DefaultHandler {
 
 	private Thing current_thing = null;
 	private ArrayList al_open = new ArrayList();
-	private ArrayList al_layers = new ArrayList();
-	private ArrayList al_layer_sets = new ArrayList();
+	private ArrayList<Layer> al_layers = new ArrayList<Layer>();
+	private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
 	private ArrayList al_displays = new ArrayList(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
 	private HashMap ht_displayables = new HashMap();
@@ -82,6 +84,10 @@ public class TMLHandler extends DefaultHandler {
 	private Stack last_stack = null;
 	private Patch last_patch = null;
 	private Treeline last_treeline = null;
+	private Treeline.Node last_root_node = null;
+	private LinkedList<Treeline.Node> nodes = new LinkedList<Treeline.Node>();
+	private Map<Long,List<Treeline.Node>> node_layer_table = new HashMap<Long,List<Treeline.Node>>();
+	private Map<Treeline,Treeline.Node> treeline_root_nodes = new HashMap<Treeline,Treeline.Node>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
@@ -220,7 +226,26 @@ public class TMLHandler extends DefaultHandler {
 			zd.setLayer(zd.getLayerSet().getLayer(0));
 		}
 
-		// 3 - Create displays for later
+		// 4 - Assign layers to Treeline nodes
+		for (final Layer la : al_layers) {
+			final List<Treeline.Node> list = node_layer_table.remove(la.getId());
+			if (null == list) continue;
+			for (final Treeline.Node nd : list) nd.setLayer(la);
+		}
+		if (!node_layer_table.isEmpty()) {
+			Utils.log("ERROR: node_layer_table is not empty!");
+		}
+		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
+		for (final Map.Entry<Treeline,Treeline.Node> e : treeline_root_nodes.entrySet()) {
+			if (null == e.getValue()) {
+				Utils.log2("Ignoring, applies to new Treeline format only.");
+				continue;
+			}
+			e.getKey().setRoot(e.getValue()); // will generate node caches of each Treeline
+		}
+		treeline_root_nodes.clear();
+
+		// Finally - Create displays for later
 		HashMap ht_lid = new HashMap();
 		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = (Layer)it.next();
@@ -347,6 +372,9 @@ public class TMLHandler extends DefaultHandler {
 			last_area_list.__endReconstructing();
 			last_area_list = null;
 			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_node")) {
+			// Remove one node from the stack
+			nodes.removeLast();
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
 			ct_list_stack.remove( ct_list_stack.size() - 1 );
 		} else if (orig_qualified_name.equals("t2_patch")) {
@@ -363,8 +391,13 @@ public class TMLHandler extends DefaultHandler {
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_treeline")) {
 			if (null != last_treeline) {
+				// old
 				last_treeline.parse(last_treeline_data);
 				last_treeline_data = null;
+				// new
+				treeline_root_nodes.put(last_treeline, last_root_node);
+				last_root_node = null;
+				// always:
 				last_treeline = null;
 			}
 			last_displayable = null;
@@ -523,7 +556,26 @@ public class TMLHandler extends DefaultHandler {
 			Object soid = ht_attributes.get("oid");
 			if (null != soid) oid = Long.parseLong((String)soid);
 
-			if (type.equals("profile")) {
+			if (type.equals("node")) {
+				Treeline.Node node = new Treeline.Node(ht_attributes);
+				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
+				long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
+				List<Treeline.Node> list = node_layer_table.get(ndlid);
+				if (null == list) {
+					list = new ArrayList<Treeline.Node>();
+					node_layer_table.put(ndlid, list);
+				}
+				list.add(node);
+				// Set node as root node or add as child to last node in the stack
+				if (null == last_root_node) {
+					last_root_node = node;
+				} else {
+					Treeline.Node last = nodes.getLast();
+					last.add(node, Byte.parseByte((String)ht_attributes.get("c")));
+				}
+				// Put node into stack of nodes (to be removed on closing the tag)
+				nodes.add(node);
+			} else if (type.equals("profile")) {
 				Profile profile = new Profile(this.project, oid, ht_attributes, ht_links);
 				profile.addToDatabase();
 				ht_displayables.put(new Long(oid), profile);
