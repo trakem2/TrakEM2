@@ -30,6 +30,10 @@ import ij.gui.ShapeRoi;
 import ij.gui.Toolbar;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
+import ij.plugin.filter.ThresholdToSelection;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.utils.M;
@@ -60,6 +64,7 @@ import java.awt.geom.Point2D;
 import java.awt.Polygon;
 import java.awt.geom.PathIterator;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Path2D;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
@@ -70,8 +75,10 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Collection;
 import java.io.File;
+import java.util.concurrent.Future;
 
-import mpicbg.models.AffineModel2D;
+import mpicbg.models.CoordinateTransformMesh;
+import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -186,8 +193,22 @@ public final class Patch extends Displayable implements ImageData {
 		if (hasmin && hasmax) {
 			checkMinMax();
 		} else {
-			// standard, from the image, to be defined when first painted
-			min = max = -1;
+			if (ImagePlus.GRAY8 == type || ImagePlus.COLOR_RGB == type || ImagePlus.COLOR_256 == type) {
+				min = 0;
+				max = 255;
+			} else {
+				// Re-read:
+				final ImageProcessor ip = getImageProcessor();
+				if (null == ip) {
+					// Some values, to survive:
+					min = 0;
+					max = Patch.getMaxMax(this.type);
+					Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+				} else {
+					ip.resetMinAndMax(); // finds automatically reasonable values
+					setMinAndMax(ip.getMin(), ip.getMax());
+				}
+			}
 		}
 		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
@@ -216,8 +237,8 @@ public final class Patch extends Displayable implements ImageData {
 	 * If you want to update lots of Patch instances in parallel, consider also
 	 *    project.getLoader().generateMipMaps(ArrayList patches, boolean overwrite);
 	 */
-	public boolean updateMipmaps() {
-		return project.getLoader().update(this);
+	public Future<Boolean> updateMipMaps() {
+		return project.getLoader().regenerateMipMaps(this);
 	}
 
 	/** Update type, original dimensions and min,max from the ImagePlus.
@@ -273,13 +294,11 @@ public final class Patch extends Displayable implements ImageData {
 		if (isStack()) {
 			for (Patch p : getStackPatches()) {
 				p.readProps(new_imp);
-				project.getLoader().generateMipMaps(p); // sequentially
-				project.getLoader().decacheAWT(p.id);
+				project.getLoader().regenerateMipMaps(p);
 			}
 		} else {
 			readProps(new_imp);
-			project.getLoader().generateMipMaps(this);
-			project.getLoader().decacheAWT(this.id);
+			project.getLoader().regenerateMipMaps(this);
 		}
 		Display.repaint(layer, this, 5);
 		return project.getLoader().getAbsolutePath(this);
@@ -287,44 +306,46 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Boundary checks on min and max, given the image type. */
 	private void checkMinMax() {
-		if (-1 == this.type) return;
+		if (-1 == this.type) {
+			Utils.log("ERROR -1 == type for patch " + this);
+			return;
+		}
+		final double max_max = Patch.getMaxMax(this.type);
+		if (-1 == min && -1 == max) {
+			this.min = 0;
+			this.max = max_max;
+		}
 		switch (type) {
 			case ImagePlus.GRAY8:
 			case ImagePlus.COLOR_RGB:
 			case ImagePlus.COLOR_256:
-			     if (this.min < 0) this.min = 0;
+			     if (this.min < 0) {
+				     this.min = 0;
+				     Utils.log("WARNING set min to 0 for patch " + this + " of type " + type);
+			     }
 			     break;
 		}
-		final double max_max = Patch.getMaxMax(this.type);
-		if (this.max > max_max) this.max = max_max;
-		// still this.max could be -1, in which case putMinAndMax will fix it to the ImageProcessor's values
+		if (this.max > max_max) {
+			this.max = max_max;
+			Utils.log("WARNING fixed max larger than maximum max for type " + type);
+		}
+		if (this.min > this.max) {
+			this.min = this.max;
+			Utils.log("WARNING fixed min larger than max for patch " + this);
+		}
 	}
 
 	/** The min and max values are stored with the Patch, so that the image can be flushed away but the non-destructive contrast settings preserved. */
 	public void setMinAndMax(double min, double max) {
 		this.min = min;
 		this.max = max;
+		checkMinMax();
 		updateInDatabase("min_and_max");
 		Utils.log2("Patch.setMinAndMax: min,max " + min + "," + max);
 	}
 
 	public double getMin() { return min; }
 	public double getMax() { return max; }
-
-	/** Needs a non-null ImagePlus with a non-null ImageProcessor in it. This method is meant to be called only immediately after the ImagePlus is loaded. */
-	/* // OBSOLETE
-	public void putMinAndMax(final ImagePlus imp) throws Exception {
-		ImageProcessor ip = imp.getProcessor();
-		// adjust lack of values
-		if (-1 == min || -1 == max) {
-			min = ip.getMin();
-			max = ip.getMax();
-		} else {
-			ip.setMinAndMax(min, max);
-		}
-		//Utils.log2("Patch.putMinAndMax: min,max " + min + "," + max);
-	}
-	*/
 
 	/** Returns the ImagePlus type of this Patch. */
 	public int getType() {
@@ -441,10 +462,15 @@ public final class Patch extends Displayable implements ImageData {
 		return bi;
 	}
 
+	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, fetchImage(magnification, channels, true));
+	}
+
 	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, fetchImage(magnification, channels, false));
+	}
 
-		AffineTransform atp = this.at;
-
+	private Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
 		checkChannels(channels, magnification);
 
 		// Consider all possible scaling components: m00, m01
@@ -454,13 +480,21 @@ public final class Patch extends Displayable implements ImageData {
 							      Math.max(Math.abs(at.getShearX()),
 								       Math.abs(at.getShearY()))));
 		if (sc < 0) sc = magnification;
-		final Image image = project.getLoader().fetchImage(this, sc);
-		//Utils.log2("Patch " + id + " painted image " + image);
+		Image image = wait_for_image ?
+			  project.getLoader().fetchDataImage(this, sc)
+			: project.getLoader().fetchImage(this, sc);
 
 		if (null == image) {
 			//Utils.log2("Patch.paint: null image, returning");
-			return; // TEMPORARY from lazy repaints after closing a Project
+			return null; // TEMPORARY from lazy repaints after closing a Project
 		}
+
+		return image;
+	}
+
+	private void paint(final Graphics2D g, final Image image) {
+
+		AffineTransform atp = this.at;
 
 		// fix dimensions: may be smaller or bigger mipmap than the image itself
 		final int iw = image.getWidth(null);
@@ -715,9 +749,9 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != path && path.equals(path2)) { // this happens when a DB project is exported. It may be a different path when it's a FS loader
 			//Utils.log2("p id=" + id + "  path==path2");
 			rel_path = path2;
-			int i_slash = rel_path.lastIndexOf(java.io.File.separatorChar);
+			int i_slash = rel_path.lastIndexOf('/'); // TrakEM2 uses paths that always have '/' and never '\', so using java.io.File.separatorChar would be an error.
 			if (i_slash > 0) {
-				i_slash = rel_path.lastIndexOf(java.io.File.separatorChar, i_slash -1);
+				i_slash = rel_path.lastIndexOf('/', i_slash -1);
 				if (-1 != i_slash) {
 					rel_path = rel_path.substring(i_slash+1);
 				}
@@ -758,8 +792,8 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != original_path) {
 			sb_body.append(in).append("original_path=\"").append(original_path).append("\"\n");
 		}
-		if (0 != min) sb_body.append(in).append("min=\"").append(min).append("\"\n");
-		if (max != Patch.getMaxMax(type)) sb_body.append(in).append("max=\"").append(max).append("\"\n");
+		sb_body.append(in).append("min=\"").append(min).append("\"\n");
+		sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
 		String pps = getPreprocessorScriptPath();
 		if (null != pps) sb_body.append(in).append("pps=\"").append(project.getLoader().makeRelativePath(pps)).append("\"\n");
@@ -987,12 +1021,12 @@ public final class Patch extends Displayable implements ImageData {
 			for (Patch p : getStackPatches()) {
 				p.project.getLoader().addedPatchFrom(p.original_path, p);
 				p.project.getLoader().cacheImagePlus(p.id, imp);
-				p.project.getLoader().generateMipMaps(p);
+				p.project.getLoader().regenerateMipMaps(p);
 			}
 		} else {
 			project.getLoader().addedPatchFrom(original_path, this);
 			project.getLoader().cacheImagePlus(id, imp);
-			project.getLoader().generateMipMaps(this);
+			project.getLoader().regenerateMipMaps(this);
 		}
 		// 4 - update screens
 		Display.repaint(layer, this, 0);
@@ -1006,7 +1040,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Set a CoordinateTransform to this Patch.
-	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipmaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
+	 *  The resulting image of applying the coordinate transform does not need to be rectangular: an alpha mask will take care of the borders. You should call updateMipMaps() afterwards to update the mipmap images used for painting this Patch to the screen. */
 	public final void setCoordinateTransform(final CoordinateTransform ct) {
 		if (isLinked()) {
 			Utils.log("Cannot set coordinate transform: patch is linked!");
@@ -1042,7 +1076,7 @@ public final class Patch extends Displayable implements ImageData {
 		updateBucket();
 
 		// Updating the mipmaps will call createTransformedImage below if ct is not null
-		/* DISABLED */ //updateMipmaps();
+		/* DISABLED */ //updateMipMaps();
 	}
 	
 	/**
@@ -1184,7 +1218,7 @@ public final class Patch extends Displayable implements ImageData {
 		return null != ct || hasAlphaMask();
 	}
 
-	/** Must call updateMipmaps() afterwards. Set it to null to remove it. */
+	/** Must call updateMipMaps() afterwards. Set it to null to remove it. */
 	public void setAlphaMask(ByteProcessor bp) throws IllegalArgumentException {
 		if (null == bp) {
 			if (hasAlphaMask()) {
@@ -1366,7 +1400,7 @@ public final class Patch extends Displayable implements ImageData {
 						}
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 					setAlphaMask(mask);
-					updateMipmaps();
+					updateMipMaps();
 					Display.repaint();
 					} catch (Exception e) {
 						IJError.print(e);
@@ -1450,10 +1484,260 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public void setPreprocessorScriptPath(final String path) {
+		final String old_path = project.getLoader().getPreprocessorScriptPath(this);
+
+		if (null == path && null == old_path) return;
+
 		project.getLoader().setPreprocessorScriptPath(this, path);
+
+		if (null != old_path || null != path || !path.equals(old_path)) {
+			// Update dimensions
+			ImagePlus imp = getImagePlus(); // transformed by the new preprocessor script, if any
+			final int w = imp.getWidth();
+			final int h = imp.getHeight();
+			imp = null;
+			if (w != this.o_width || h != this.o_height) {
+				// replace source ImagePlus o_width,o_height
+				int old_o_width = this.o_width;
+				int old_o_height = this.o_height;
+				this.o_width = w;
+				this.o_height = h;
+
+				// scale width,height
+				double old_width = this.width;
+				double old_height = this.height;
+				this.width  *= ((double)this.o_width)  / old_o_width;
+				this.height *= ((double)this.o_height) / old_o_height;
+
+				// translate Patch to preserve the center
+				AffineTransform aff = new AffineTransform();
+				aff.translate((old_width - this.width) / 2, (old_height - this.height) / 2);
+				updateInDatabase("dimensions");
+				preTransform(aff, false);
+			}
+		}
 	}
 
 	public String getPreprocessorScriptPath() {
 		return project.getLoader().getPreprocessorScriptPath(this);
+	}
+
+	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
+	public Area getArea() {
+		if (hasAlphaMask()) {
+			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:
+			ImageProcessor alpha_mask = project.getLoader().fetchImageMask(this);
+			if (null == alpha_mask) {
+				Utils.log2("Could not retrieve alpha mask for " + this);
+			} else {
+				if (null != ct) {
+					// must transform it
+					final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+					final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+					alpha_mask = mapping.createMappedImage( alpha_mask ); // Without interpolation
+					// Keep in mind the affine of the Patch already contains the translation specified by the mesh bounds.
+				}
+				// Threshold all non-zero areas of the mask:
+				alpha_mask.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
+				ImagePlus imp = new ImagePlus("", alpha_mask);
+				ThresholdToSelection tts = new ThresholdToSelection();
+				tts.setup("", imp);
+				tts.run(alpha_mask);
+				Roi roi = imp.getRoi();
+				if (null == roi) {
+					// All pixels in the alpha mask have a value of zero
+					return new Area();
+				}
+				return M.getArea(roi).createTransformedArea(this.at);
+			}
+		}
+		// No alpha mask, or error in retrieving it:
+		final int[] x = new int[o_width + o_width + o_height + o_height];
+		final int[] y = new int[x.length];
+		int next = 0;
+		// Top edge:
+		for (int i=0; i<=o_width; i++, next++) { // len: o_width + 1
+			x[next] = i;
+			y[next] = 0;
+		}
+		// Right edge:
+		for (int i=1; i<=o_height; i++, next++) { // len: o_height
+			x[next] = o_width;
+			y[next] = i;
+		}
+		// bottom edge:
+		for (int i=o_width-1; i>-1; i--, next++) { // len: o_width
+			x[next] = i;
+			y[next] = o_height;
+		}
+		// left edge:
+		for (int i=o_height-1; i>0; i--, next++) { // len: o_height -1
+			x[next] = 0;
+			y[next] = i;
+		}
+
+		if (null != ct) {
+			final CoordinateTransformList t = new CoordinateTransformList();
+			t.add(ct);
+			AffineModel2D aff = new AffineModel2D();
+			aff.set(this.at);
+			t.add(aff);
+
+			final float[] f = new float[]{x[0], y[0]};
+			t.applyInPlace(f);
+			final Path2D.Float path = new Path2D.Float(Path2D.Float.WIND_EVEN_ODD, x.length+1);
+			path.moveTo(f[0], f[1]);
+
+			for (int i=1; i<x.length; i++) {
+				f[0] = x[i];
+				f[1] = y[i];
+				t.applyInPlace(f);
+				path.lineTo(f[0], f[1]);
+			}
+			path.closePath(); // line to last call to moveTo
+
+			return new Area(path);
+		} else {
+			return new Area(new Polygon(x, y, x.length)).createTransformedArea(this.at);
+		}
+	}
+
+	/** Creates an ImageProcessor of the specified type.
+	 *  @param scale may be up to 1.0.
+	 *  Patches are painted in the order given in the @param patches list. */
+	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background) {
+		final ImageProcessor ip;
+		final int W, H;
+		if (scale < 1) {
+			W = (int)(srcRect.width * scale);
+			H = (int)(srcRect.height * scale);
+		} else {
+			W = srcRect.width;
+			H = srcRect.height;
+		}
+		switch (type) {
+			case ImagePlus.GRAY8:
+				ip = new ByteProcessor(W, H);
+				break;
+			case ImagePlus.GRAY16:
+				ip = new ShortProcessor(W, H);
+				break;
+			case ImagePlus.GRAY32:
+				ip = new FloatProcessor(W, H);
+				break;
+			case ImagePlus.COLOR_RGB:
+				ip = new ColorProcessor(W, H);
+				break;
+			default:
+				Utils.logAll("Cannot create an image of type " + type + ".\nSupported types: 8-bit, 16-bit, 32-bit and RGB.");
+				return null;
+		}
+
+		// Fill with background
+		if (null != background && Color.black != background) {
+			ip.setColor(background);
+			ip.fill();
+		}
+
+		AffineModel2D sc = null;
+		if ( scale < 1.0 )
+		{
+			sc = new AffineModel2D();
+			sc.set( ( float )scale, 0, 0, ( float )scale, 0, 0 );
+		}
+		for ( final Patch p : patches )
+		{
+			// TODO patches seem to come in in inverse order---find out why
+			
+			// A list to represent all the transformations that the Patch image has to go through to reach the scaled srcRect image
+			final CoordinateTransformList< CoordinateTransform > list = new CoordinateTransformList< CoordinateTransform >();
+
+			final AffineTransform at = new AffineTransform();
+			at.translate( -srcRect.x, -srcRect.y );
+			at.concatenate( p.getAffineTransform() );
+			
+			// 1. The coordinate tranform of the Patch, if any
+			final CoordinateTransform ct = p.getCoordinateTransform();
+			if (null != ct) {
+				list.add(ct);
+				// Remove the translation in the patch_affine that the ct added to it
+				final Rectangle box = p.getCoordinateTransformBoundingBox();
+				at.translate( -box.x, -box.y );
+			}
+			
+			// 2. The affine transform of the Patch
+			final AffineModel2D patch_affine = new AffineModel2D();
+			patch_affine.set( at );
+			list.add( patch_affine );
+
+			// 3. The desired scaling
+			if (null != sc) patch_affine.preConcatenate( sc );
+
+			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, 32, p.getOWidth(), p.getOHeight() );
+			final mpicbg.ij.TransformMeshMapping mapping = new mpicbg.ij.TransformMeshMapping( mesh );
+			
+			// 4. Convert the patch to the required type
+			final ImageProcessor pi;
+			switch ( type )
+			{
+			case ImagePlus.GRAY8:
+				pi = p.getImageProcessor().convertToByte( true );
+				break;
+			case ImagePlus.GRAY16:
+				pi = p.getImageProcessor().convertToShort( true );
+				break;
+			case ImagePlus.GRAY32:
+				pi = p.getImageProcessor().convertToFloat();
+				break;
+			default: // ImagePlus.COLOR_RGB and COLOR_256
+				pi = p.getImageProcessor().convertToRGB();
+				break;
+			}
+			
+			/* TODO for taking into account independent min/max setting for each patch,
+			 * we will need a mapping with an `intensity transfer function' to be implemented.
+			 */
+			mapping.mapInterpolated( pi, ip );
+		}
+
+		return ip;
+	}
+
+	/** Make the border have an alpha of zero. */
+	public boolean maskBorder(final int size) {
+		return maskBorder(size, size, size, size);
+	}
+	/** Make the border have an alpha of zero. */
+	public boolean maskBorder(final int top, final int right, final int bottom, final int left) {
+		int w = o_width - right - left;
+		int h = o_height - top - bottom;
+		if (w < 0 || h < 0 || left > o_width || top > o_height) {
+			Utils.log("Cannot cut border for patch " + this + " : border off image bounds.");
+			return false;
+		}
+		try {
+			ByteProcessor bp = project.getLoader().fetchImageMask(this);
+			if (null == bp) {
+				bp = new ByteProcessor(o_width, o_height);
+				bp.setRoi(new Roi(left, top, w, h));
+				bp.setValue(255);
+				bp.fill();
+			} else {
+				// make borders black
+				bp.setValue(0);
+				for (Roi r : new Roi[]{new Roi(0, 0, o_width, top),
+						       new Roi(0, top, left, o_height - top - bottom),
+						       new Roi(0, o_height - bottom, o_width, bottom),
+						       new Roi(o_width - right, top, right, o_height - top - bottom)}) {
+					bp.setRoi(r);
+					bp.fill();
+				}
+			}
+			setAlphaMask(bp);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+		return true;
 	}
 }

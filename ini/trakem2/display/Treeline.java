@@ -57,6 +57,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Arrays;
+import java.util.TreeMap;
 
 import javax.vecmath.Point3f;
 
@@ -70,9 +71,13 @@ public class Treeline extends ZDisplayable {
 	protected Branch root;
 
 	private final class Slab extends Polyline {
-		Slab() {
-			super(Treeline.this.project, -1, Treeline.this.title, 0, 0, Treeline.this.alpha, true, Treeline.this.color, false, Treeline.this.at);
-			this.layer_set = Treeline.this.layer_set;
+		Slab(Project project, LayerSet layer_set) {
+			super(project, -1, Treeline.this.title, 0, 0, Treeline.this.alpha, true, Treeline.this.color, false, Treeline.this.at);
+			this.layer_set = layer_set;
+		}
+		/** For cloning. */
+		private Slab(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+			super(project, id, title, width, height, alpha, visible, color, locked, at);
 		}
 
 		@Override
@@ -80,24 +85,197 @@ public class Treeline extends ZDisplayable {
 
 		@Override
 		public void repaint(boolean repaint_navigator) {} // disabled
+
+		/** Copies the pointer to the LayerSet too. @param copy_id is ignored; ids are always -1, the Slab is a transient object. */
+		@Override
+		public Slab clone(Project pr, boolean copy_id) {
+			Slab copy = new Slab(pr, -1, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, this.at);
+			// The data:
+			copy.n_points = n_points;
+			copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
+			copy.p_layer = (long[])this.p_layer.clone();
+			copy.layer_set = layer_set;
+			// don't add to database
+			return copy;
+		}
+
+		/** Both inclusive. */
+		@Override
+		public Slab sub(int start, int end) {
+			Slab sub = new Slab(project, -1, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, this.at);
+			sub.n_points = end - start + 1;
+			sub.p[0] = Utils.copy(this.p[0], start, sub.n_points);
+			sub.p[1] = Utils.copy(this.p[1], start, sub.n_points);
+			sub.p_layer = Utils.copy(this.p_layer, start, sub.n_points);
+			return sub;
+		}
 	}
 
 	/** A branch only holds the first point if it doesn't have any parent. */
-	private final class Branch {
+	public final class Branch {
 
 		final Branch parent;
 
 		HashMap<Integer,ArrayList<Branch>> branches = null;
 
+		public Map<Integer,ArrayList<Branch>> getBranches() {
+			return branches;
+		}
+
 		final Slab pline;
 
-		Branch(Branch parent, double first_x, double first_y, long layer_id) {
+		/** Returns a float[3][n] where 0 is X, 1 is Y and Z is layer-id; uncalibrated. */
+		public float[][] getPoints() {
+			float[][] f = new float[3][pline.n_points];
+			for (int i=0; i<pline.n_points; i++) {
+				f[0][i] = (float) pline.p[0][i];
+				f[1][i] = (float) pline.p[1][i];
+				f[2][i] = (float) pline.p_layer[i];
+			}
+			return f;
+		}
+
+		/** The branch to avoid will be the new parent of this branch.
+		 *  If avoid is null, then the returned new Branch is the new root. */
+		Branch reRoot(final int index, final Branch avoid, final Branch new_parent) {
+			// Split pline in two segments:
+			Slab s0 = null,
+			     s1 = null;
+			int len0 = 0,
+			    len1 = 0;
+
+			// Is index on the end?
+			if (index == pline.n_points -1) {
+				s0 = pline.sub(0, index);
+				s0.reverse();
+				len0 = s0.n_points;
+			} else if (0 == index) {
+				s1 = pline.sub(0, pline.n_points -1); // a full clone
+				len1 = s1.n_points;
+			} else {
+				if (index > 0) {
+					s0 = pline.sub(0, index-1);
+					s0.reverse();
+					len0 = s0.n_points;
+				}
+				if (index <= pline.n_points -1) {
+					s1 = pline.sub(index, pline.n_points -1);
+					len1 = s1.n_points;
+				}
+			}
+			// Determine longest segment: from 0 to index, or from index to end
+			// The longest segment becomes the root branch
+			Branch root,
+			       left = null,
+			       right = null;
+			if (len0 > len1) {
+				root = left = new Branch(new_parent, s0);
+				if (null != s1) {
+					right = new Branch(root, s1);
+					root.add(right, 0);
+				}
+			} else {
+				root = right = new Branch(new_parent, s1);
+				if (null != s0) {
+					left = new Branch(root, s0);
+					root.add(left, 0);
+				}
+			}
+			// Add child branches as clones, except the branch to avoid, which has become the new parent
+			if (null != branches) {
+				for (Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+					int i = e.getKey();
+					ArrayList<Branch> bs = e.getValue();
+
+					if (0 == index) {
+						// Add all, direct
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							right.add(b.clone(project, right), i);
+						}
+					} else if (pline.n_points -1 == index) {
+						// Add all, reversed
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							left.add(b.clone(project, left), left.pline.n_points -i -1);
+						}
+					} else if (i < index) {
+						// To the left of index-1
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							left.add(b.clone(project, left), index -i -1);
+						}
+					} else {
+						// To the right of index
+						for (Branch b : bs) {
+							if (avoid == b) continue;
+							right.add(b.clone(project, right), i - index);
+						}
+					}
+				}
+			}
+			// Add parent as branches at last point of left
+			if (null != parent) { // the old parent
+				// Search at what index was this branch set as a child
+				int i = -1;
+				out: for (Map.Entry<Integer,ArrayList<Branch>> e : parent.branches.entrySet()) {
+					for (Branch b : e.getValue()) {
+						if (b == this) {
+							i = e.getKey();
+							break out;
+						}
+					}
+				}
+				if (-1 == i) {
+					Utils.log("ERROR could not find the index for branch of n_points " + this.pline.n_points + " in parent of n_points " + parent.pline.n_points);
+				} else {
+					// Reroot parent at index i, and add it to the left at what was the 0 point:
+					if (0 == index && pline.n_points > 1) right.add(parent.reRoot(i, this, root), 0);
+					else left.add(parent.reRoot(i, this, root), left.pline.n_points -1);
+				}
+			}
+
+			// Provide a layer_set pointer to all new branches
+			root.setLayerSet(Treeline.this.layer_set);
+
+			return root;
+		}
+
+		private void setLayerSet(final LayerSet layer_set) {
+			pline.setLayerSet(layer_set);
+			if (null == branches) return;
+			for (ArrayList<Branch> bs : branches.values()) {
+				for (Branch b : bs) {
+					b.setLayerSet(layer_set); }}
+		}
+
+		Branch clone(final Project project, final Branch parent_copy) {
+			final Branch copy = new Branch(parent_copy, null == this.pline ? null : this.pline.clone(project, true));
+			if (null != branches) {
+				copy.branches = new HashMap<Integer,ArrayList<Branch>>();
+				for (Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+					ArrayList<Branch> a = new ArrayList<Branch>();
+					for (Branch b : e.getValue()) {
+						a.add(b.clone(project, copy));
+					}
+					copy.branches.put(e.getKey(), a);
+				}
+			}
+			return copy;
+		}
+
+		Branch(Branch parent, Slab pline) {
+			this.parent = parent;
+			this.pline = pline;
+		}
+
+		Branch(Branch parent, double first_x, double first_y, long layer_id, Project project, LayerSet layer_set) {
 			this.parent = parent;
 			// Create a new Slab with an invalid id -1:
 			// TODO 
 			//   - each Slab could have its own bounding box, to avoid iterating all
 			// Each Slab has its own AffineTransform -- passing it in the constructor merely sets its values
-			this.pline = new Slab();
+			this.pline = new Slab(project, layer_set);
 			this.pline.addPoint((int)first_x, (int)first_y, layer_id, 1.0);
 		}
 
@@ -109,7 +287,7 @@ public class Treeline extends ZDisplayable {
 			final int first = s.indexOf('(');
 			final int last = s.indexOf(')', first+1);
 			final String[] coords = s.substring(first+1, last).split(" ");
-			this.pline = new Slab();
+			this.pline = new Slab(getProject(), getLayerSet());
 			for (int i=0; i<coords.length; i+=3) {
 				this.pline.appendPoint(Integer.parseInt(coords[i]),
 						       Integer.parseInt(coords[i+1]),
@@ -142,10 +320,15 @@ public class Treeline extends ZDisplayable {
 		/** Create a sub-branch at index i, with new point x,y,layer_id.
 		 *  @return the new child Branch. */
 		final Branch fork(int i, double x, double y, long layer_id) {
-			return add(new Branch(this, x, y, layer_id), i);
+			return add(new Branch(this, x, y, layer_id, getProject(), getLayerSet()), i);
 		}
 
 		final Branch add(Branch child, int i) {
+			if (i < 0) {
+				Utils.log2("Rejecting adding branch of n_points " + child.pline.n_points + " at position " + i
+					   + "\n   Parent had n_points = " + this.pline.n_points + " with first point at " + this.pline.p[0][0] + "," + this.pline.p[1][0]);
+				return null;
+			}
 			if (null == branches) branches = new HashMap<Integer,ArrayList<Branch>>();
 			ArrayList<Branch> list = branches.get(i);
 			if (null == list) {
@@ -156,16 +339,30 @@ public class Treeline extends ZDisplayable {
 			return child;
 		}
 
+		final boolean remove(Branch child) {
+			for (Iterator<Map.Entry<Integer,ArrayList<Branch>>> it = branches.entrySet().iterator(); it.hasNext(); ) {
+				ArrayList<Branch> bs = it.next().getValue();
+				for (Iterator<Branch> itbs = bs.iterator(); itbs.hasNext(); ) {
+					if (itbs.next() == child) {
+						itbs.remove();
+						if (0 == bs.size()) it.remove();
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
 		/** Paint recursively into branches. */
 		final void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final Stroke branch_stroke, final boolean no_color_cues, final double current_z) {
 			this.pline.paint(g, magnification, active, channels, active_layer);
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				final int i = e.getKey();
-				final Point2D.Double po1 = Treeline.this.transformPoint(pline.p[0][i], pline.p[1][i]);
+				final Point2D.Double po1 = pline.transformPoint(pline.p[0][i], pline.p[1][i]);
 				final double z = layer_set.getLayer(pline.p_layer[i]).getZ();
 				boolean paint_link = true;
-				Color c = Treeline.this.color;
+				Color c = getColor();
 				if (z < current_z) {
 					if (no_color_cues) paint_link = false;
 					else c = Color.red;
@@ -178,7 +375,7 @@ public class Treeline extends ZDisplayable {
 					b.paint(g, magnification, active, channels, active_layer, branch_stroke, no_color_cues, current_z);
 					// Paint from i in this.pline to 0 in b.pline
 					if (paint_link) {
-						final Point2D.Double po2 = Treeline.this.transformPoint(b.pline.p[0][0], b.pline.p[1][0]);
+						final Point2D.Double po2 = pline.transformPoint(b.pline.p[0][0], b.pline.p[1][0]);
 						g.setColor(c);
 						Stroke st = g.getStroke();
 						if (null != branch_stroke) g.setStroke(branch_stroke);
@@ -263,6 +460,25 @@ public class Treeline extends ZDisplayable {
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				for (final Branch b : e.getValue()) {
 					b.setAffineTransform(at);
+				}
+			}
+		}
+
+		final void setAlpha(float a) {
+			pline.alpha = a;
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.setAlpha(a);
+				}
+			}
+		}
+		final void setColor(Color c) {
+			pline.color = c;
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.setColor(c);
 				}
 			}
 		}
@@ -372,6 +588,27 @@ public class Treeline extends ZDisplayable {
 				}
 			}
 		}
+		final List findNearestPoint(final int x_pl, final int y_pl, final long layer_id) {
+			final TreeMap<Double,List> m = new TreeMap<Double,List>();
+			findNearestPoint(x_pl, y_pl, layer_id, m);
+			return m.get(m.firstKey());
+		}
+		final private void findNearestPoint(final int x_pl, final int y_pl, final long layer_id, final TreeMap<Double,List> m) {
+			final int i = Displayable.findNearestPoint(pline.p, pline.n_points, x_pl, y_pl);
+			if (-1 != i) {
+				ArrayList pi = new ArrayList();
+				pi.add(this);
+				pi.add(i);
+				m.put(Math.pow(x_pl - pline.p[0][i], 2) + Math.pow(y_pl - pline.p[1][i], 2), pi);
+			}
+			if (null == branches) return;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				for (final Branch b : e.getValue()) {
+					b.findNearestPoint(x_pl, y_pl, layer_id, m);
+				}
+			}
+		}
+		/** Finds the closest segment to x_l,y_l that has a point in layer_id. */
 		final List findClosestSegment(final double x_l, final double y_l, final long layer_id, final double mag) {
 			final ArrayList pi = new ArrayList();
 			findClosestSegment(x_l, y_l, layer_id, mag, pi);
@@ -379,7 +616,8 @@ public class Treeline extends ZDisplayable {
 		}
 		final void findClosestSegment(final double x_l, final double y_l, final long layer_id, final double mag, final List pi) {
 			final int i = pline.findClosestSegment((int)x_l, (int)y_l, layer_id, mag);
-			if (-1 !=  i) {
+			if (-1 !=  i && (layer_id == pline.p_layer[i] || (i != (pline.n_points -1) && layer_id == pline.p_layer[i+1]))) {
+				// The 'if' above doesn't comply with the docs for this fn but almost.
 				pi.add(this);
 				pi.add(i);
 				return;
@@ -436,13 +674,13 @@ public class Treeline extends ZDisplayable {
 			if (null == branches) return;
 			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
 				final int i = e.getKey();
-				final Point2D.Double po = Treeline.this.transformPoint(pline.p[0][i], pline.p[1][i]);
+				final Point2D.Double po = pline.transformPoint(pline.p[0][i], pline.p[1][i]);
 				final float x = (float) (po.x * scale * resample * cal.pixelWidth);
 				final float y = (float) (po.y * scale * resample * cal.pixelHeight);
-				final float z = (float) (layer_set.getLayer(pline.p_layer[i]).getZ() * scale * resample * cal.pixelWidth);
+				final float z = (float) (pline.layer_set.getLayer(pline.p_layer[i]).getZ() * scale * resample * cal.pixelWidth);
 
 				for (final Branch b : e.getValue()) {
-					b.pline.setLayerSet(Treeline.this.layer_set); // needed to retrieve Z coord of layers.
+					b.pline.setLayerSet(pline.layer_set); // needed to retrieve Z coord of layers.
 					List l = asPairwise(b.pline.generateTriangles(scale, parallels, resample, cal));
 					l.add(0, l.get(0));
 					l.add(0, new Point3f(x, y, z));
@@ -450,6 +688,46 @@ public class Treeline extends ZDisplayable {
 					b.generateTriangles(list, scale, parallels, resample, cal);
 				}
 			}
+		}
+
+		final boolean contains(final Layer layer, final int x, final int y) {
+			Display front = Display.getFront();
+			double radius = 10;
+			if (null != front) {
+				double mag = front.getCanvas().getMagnification();
+				radius = (10.0D / mag);
+				if (radius < 2) radius = 2;
+			}
+			final double z = layer.getZ();
+			// make x,y local
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			return contains(layer, (int)po.x, (int)po.y, z, radius);
+		}
+		final private boolean contains(final Layer layer, final int local_x, final int local_y, final double z, final double radius) {
+			if (null == pline) return false;
+			if (pline.containsLocal(layer, local_x, local_y, radius)) return true;
+			// else assume fixed radius of 10 around the line
+			if (null == branches) return false;
+			for (final Map.Entry<Integer,ArrayList<Branch>> e : branches.entrySet()) {
+				final int i = e.getKey();
+				for (final Branch b : e.getValue()) {
+					// Check distance to segment to the first point:
+					final double z1 = layer_set.getLayer(pline.p_layer[i]).getZ();
+					final double z2 = layer_set.getLayer(b.pline.p_layer[0]).getZ();
+					if ( (z1 < z && z < z2)
+					  || (z2 < z && z < z1) ) {
+						// line between both points cross the givn layer
+						if (M.distancePointToLine(local_x, local_y, pline.p[0][i], pline.p[1][i], b.pline.p[0][0], b.pline.p[1][0]) < radius) {
+							return true;
+						}
+					}
+					// ... and within the branch itself:
+					if (b.contains(layer, local_x, local_y, z, radius)) {
+						return true;
+					}
+				}
+			}
+			return false;
 		}
 	}
 
@@ -460,6 +738,15 @@ public class Treeline extends ZDisplayable {
 
 	public Treeline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
 		super(project, id, ht_attr, ht_links);
+	}
+
+	public Treeline(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at, final Branch root_source) {
+		super(project, id, title, locked, at, width, height);
+		this.alpha = alpha;
+		this.visible = visible;
+		this.color = color;
+		this.root = root_source;
+		this.root.setAffineTransform(this.at);
 	}
 
 	/** To reconstruct from XML. */
@@ -508,7 +795,7 @@ public class Treeline extends ZDisplayable {
 		}
 		updateInDatabase("dimensions");
 
-		layer_set.updateBucket(this);
+		if (null != layer_set) layer_set.updateBucket(this);
 	}
 
 	public void repaint() {
@@ -544,9 +831,9 @@ public class Treeline extends ZDisplayable {
 		return root.linkPatches();
 	}
 
-	public Displayable clone(final Project pr, final boolean copy_id) {
-		// TODO
-		return null;
+	public Treeline clone(final Project pr, final boolean copy_id) {
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
+		return new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at, root.clone(project, null));
 	}
 
 	public boolean isDeletable() {
@@ -570,26 +857,35 @@ public class Treeline extends ZDisplayable {
 		if (null != root) {
 			Branch branch = null;
 			int i = -1;
-			final List pi = root.findPoint(x_pl, y_pl, layer_id, mag);
+			List pi = root.findPoint(x_pl, y_pl, layer_id, mag);
 			if (2 == pi.size()) {
 				branch = (Branch)pi.get(0);
 				i = ((Integer)pi.get(1)).intValue();
 			}
+			if (me.isShiftDown() && Utils.isControlDown(me)) {
+				if (-1 == i) {
+					pi = root.findNearestPoint(x_pl, y_pl, layer_id);
+					branch = (Branch)pi.get(0);
+					i = ((Integer)pi.get(1)).intValue();
+				}
+				// Remove point, and associated branches
+				if (-1 != i && layer_id == branch.pline.p_layer[i]) {
+					if (null != branch.branches) {
+						branch.branches.remove(i);
+					}
+					branch.removePoint(i);
+					if (0 == branch.pline.n_points && null != branch.parent) {
+						branch.parent.remove(branch);
+					}
+					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
+					active = null;
+					index = -1;
+				}
+				// In any case, terminate
+				return;
+			}
 			if (-1 != i) {
 				if (me.isShiftDown()) {
-					if (Utils.isControlDown(me)) {
-						// Remove point, and associated branches
-						if (layer_id == branch.pline.p_layer[i]) {
-							if (null != branch.branches) {
-								branch.branches.remove(i);
-							}
-							branch.removePoint(i);
-							repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
-							active = null;
-							index = -1;
-							return;
-						}
-					}
 					// Create new branch at point, with local coordinates
 					active = branch.fork(i, x_pl, y_pl, layer_id);
 					index = 0;
@@ -609,7 +905,7 @@ public class Treeline extends ZDisplayable {
 				return;
 			}
 		} else {
-			root = new Branch(null, x_pl, y_pl, layer_id);
+			root = new Branch(null, x_pl, y_pl, layer_id, project, layer_set);
 			active = root;
 			index = 0;
 		}
@@ -676,6 +972,8 @@ public class Treeline extends ZDisplayable {
 		sb_body.append(indent).append("<t2_treeline\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
+		String[] RGB = Utils.getHexRGBColor(color);
+		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append(">\n");
 		if (null != root) {
@@ -690,5 +988,104 @@ public class Treeline extends ZDisplayable {
 		ArrayList list = new ArrayList();
 		root.generateTriangles(list, scale, parallels, resample, layer_set.getCalibrationCopy());
 		return list;
+	}
+
+	@Override
+	final Class getInternalDataPackageClass() {
+		return DPTreeline.class;
+	}
+
+	@Override
+	synchronized Object getDataPackage() {
+		return new DPTreeline(this);
+	}
+
+	static private final class DPTreeline extends Displayable.DataPackage {
+		final Branch root;
+		DPTreeline(final Treeline tline) {
+			super(tline);
+			this.root = null == tline.root ? null : tline.root.clone(tline.project, null);
+		}
+		@Override
+		final boolean to2(final Displayable d) {
+			super.to1(d);
+			final Treeline tline = (Treeline)d;
+			tline.root = null == this.root ? null : this.root.clone(tline.project, null);
+			return true;
+		}
+	}
+
+	/** Reroots at the point closest to the x,y,layer_id world coordinate. */
+	synchronized public void reRoot(double x, double y, long layer_id) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = po.x;
+			y = po.y;
+		}
+		List pi = root.findNearestPoint((int)x, (int)y, layer_id);
+		Branch branch = (Branch)pi.get(0);
+		int i = ((Integer)pi.get(1)).intValue();
+
+		Utils.log2("point was: " + x + ", " + y + ", " + layer_id);
+		Utils.log2("Rerooting at index " + i + " for branch of length " + branch.pline.n_points);
+
+		root = branch.reRoot(i, null, null);
+	}
+
+	/** Split the Treeline into new Treelines at the point closest to the x,y,layer_id world coordinate. */
+	synchronized public ArrayList<Treeline> split(double x, double y, long layer_id) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = po.x;
+			y = po.y;
+		}
+		List pi = root.findNearestPoint((int)x, (int)y, layer_id);
+		Branch branch = (Branch)pi.get(0);
+		int i = ((Integer)pi.get(1)).intValue();
+
+		// Reroot at split point
+		Branch rerooted = branch.reRoot(i, null, null);
+
+		ArrayList<Branch> roots = new ArrayList<Branch>();
+		// Remove branches from index zero, if any, and add them to the roots
+		if (null != rerooted.branches) {
+			ArrayList<Branch> b0s = rerooted.branches.remove(0);
+			if (null != b0s) roots.addAll(b0s);
+		}
+		// Add the parent as well
+		roots.add(rerooted);
+
+		// Create a Treeline for every root
+		ArrayList<Treeline> tlines = new ArrayList<Treeline>();
+		for (Branch b : roots) {
+			Treeline tline = new Treeline(project, project.getLoader().getNextId(), title, 0, 0, alpha, visible, color, locked, at, b);
+			tline.calculateBoundingBox(true);
+			tlines.add(tline);
+		}
+
+		return tlines;
+	}
+
+	@Override
+	public void setColor(Color c) {
+		if (null != root) root.setColor(c);
+		super.setColor(c);
+	}
+	@Override
+	public void setAlpha(float a) {
+		if (null != root) root.setAlpha(a);
+		super.setAlpha(a);
+	}
+
+	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
+	 *  where a segment is defined as the line between a clicked point and the next. */
+	@Override
+	public boolean contains(final Layer layer, final int x, final int y) {
+		if (null == root) return false;
+		return root.contains(layer, x, y);
+	}
+
+	public Branch getRoot() {
+		return root;
 	}
 }

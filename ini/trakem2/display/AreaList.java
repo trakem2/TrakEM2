@@ -44,8 +44,8 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.utils.M;
-import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.vector.VectorString3D;
 import ini.trakem2.imaging.Segmentation;
@@ -210,6 +210,11 @@ public class AreaList extends ZDisplayable {
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
+	/** Get the range of layers betweeh the first and last layers in which this AreaList paints to. */
+	public List<Layer> getLayerRange() {
+		return layer_set.getLayers(getFirstLayer(), getLastLayer());
+	}
+
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		// cheap way: intersection of the patches' bounding box with the area
@@ -343,7 +348,7 @@ public class AreaList extends ZDisplayable {
 				// An area in world coords:
 				Area bmin = null;
 				Area bmax = null;
-				ArrayList<Area> intersecting = new ArrayList<Area>();
+				ArrayList<Area> intersecting = new ArrayList<Area>(); // a list of areas in world coords
 				// Try to find a hole in this or another visible AreaList, but fill it this
 				int min_area = Integer.MAX_VALUE;
 				int max_area = 0;
@@ -370,7 +375,8 @@ public class AreaList extends ZDisplayable {
 						intersecting.add(bw);
 					}
 				}
-				// Take the largest area and subtract from it all other areas
+
+				// Take the largest area and subtract from it all other visible areas
 				if (intersecting.size() > 1) {
 					Area compound = new Area(bmax);
 					for (Area a : intersecting) {
@@ -399,7 +405,18 @@ public class AreaList extends ZDisplayable {
 					if (null == a) continue;
 					all.add(a.createTransformedArea(ali.at));
 				}
-				final Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+
+				Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
+
+				if (null == polygon && project.getBooleanProperty("flood_fill_to_image_edge")) {
+					Area patch_area = la.getPatchArea(true); // in world coords
+					Rectangle bounds = patch_area.getBounds();
+					if (0 != bounds.width && 0 != bounds.height) {
+						patch_area.subtract(all);
+						polygon = M.findPath(patch_area, x_p_w, y_p_w);
+					}
+				}
+
 				if (null != polygon) {
 					Rectangle bounds = polygon.getBounds();
 					int pol_area = bounds.width * bounds.height;
@@ -408,6 +425,7 @@ public class AreaList extends ZDisplayable {
 						bmin = new Area(polygon);
 					}
 				}
+
 				if (null != bmin) {
 					try {
 						// Add b as local to this AreaList
@@ -417,6 +435,7 @@ public class AreaList extends ZDisplayable {
 						} else {
 							area.add(blocal);
 						}
+						calculateBoundingBox();
 						Display.repaint(Display.getFrontLayer(this.project), bmin.getBounds(), 1); // use b, in world coords
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 				}
@@ -570,11 +589,13 @@ public class AreaList extends ZDisplayable {
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags = dc.getModifiers();
 		private boolean adding = (0 == (flags & alt));
+		private Layer la;
 		private long clicked_layer_id = -1;
 
 		BrushThread(Area area, double mag, Layer la) {
 			super("BrushThread");
 			setPriority(Thread.NORM_PRIORITY);
+			this.la = la;
 			this.clicked_layer_id = la.getId();
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
@@ -663,7 +684,7 @@ public class AreaList extends ZDisplayable {
 					if (PAINT_OVERLAP == PP.paint_mode) {
 						// Nothing happens with PAINT_OVERLAP, default mode.
 					} else {
-						final ArrayList<AreaList> other_alis = (ArrayList<AreaList>) (ArrayList) Display.getFrontLayer(AreaList.this.project).getParent().getZDisplayables(AreaList.class);
+						final Collection<AreaList> other_alis = (Collection<AreaList>) (Collection) Display.getFrontLayer(AreaList.this.project).getParent().findZDisplayables(AreaList.class, la, target_area.createTransformedArea(AreaList.this.at).getBounds(), true);
 
 						// prepare undo step:
 						final HashMap<AreaList,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<AreaList,Runnable>() : null;
@@ -1080,10 +1101,15 @@ public class AreaList extends ZDisplayable {
 		xy[1] = 0;
 		int pos = 1;
 		while (' ' != c) {
-			xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
 			last--;
+			if ('-' == c) {
+				xy[1] *= -1;
+				break;
+			} else {
+				xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
+				pos *= 10;
+			}
 			c = data[last];
-			pos *= 10;
 		}
 
 		// skip separating space
@@ -1094,10 +1120,15 @@ public class AreaList extends ZDisplayable {
 		pos = 1;
 		xy[0] = 0;
 		while (' ' != c) {
-			xy[0] += (((int)c) -48) * pos;
 			last--;
+			if ('-' == c) {
+				xy[0] *= -1;
+				break;
+			} else {
+				xy[0] += (((int)c) -48) * pos;
+				pos *= 10;
+			}
 			c = data[last];
-			pos *= 10;
 		}
 		return first;
 	}
@@ -1650,9 +1681,15 @@ public class AreaList extends ZDisplayable {
 		Roi roi = dc.getFakeImagePlus().getRoi();
 		if (null == roi) return;
 		// Check ROI
-		if (!M.isAreaROI(roi)) {
-			Utils.log("AreaList only accepts region ROIs, not lines.");
-			return;
+		switch (keyCode) {
+			case KeyEvent.VK_A:
+			case KeyEvent.VK_D:
+			case KeyEvent.VK_K:
+				if (!M.isAreaROI(roi)) {
+					Utils.log("AreaList only accepts region ROIs, not lines.");
+					return;
+				}
+				break;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
 		long layer_id = la.getId();
@@ -1666,15 +1703,18 @@ public class AreaList extends ZDisplayable {
 					subtract(layer_id, sroi);
 					ke.consume();
 					break;
-				case KeyEvent.VK_K: // knive
+				case KeyEvent.VK_K: // knife
 					AreaList p = part(layer_id, sroi);
 					if (null != p) {
 						project.getProjectTree().addSibling(this, p);
 					}
 					ke.consume();
+					break;
 			}
-			Display.repaint(la, getBoundingBox(), 5);
-			linkPatches();
+			if (ke.isConsumed()) {
+				Display.repaint(la, getBoundingBox(), 5);
+				linkPatches();
+			}
 		} catch (NoninvertibleTransformException e) {
 			Utils.log("Could not add ROI to area at layer " + dc.getDisplay().getLayer() + " : " + e);
 		}
@@ -2254,61 +2294,15 @@ public class AreaList extends ZDisplayable {
 			else if (this.default_alpha < 0) this.default_alpha = 0.4f; // back to default's default value
 			this.paint_mode = gd.getNextChoiceIndex();
 			// trigger update of GUI radio buttons on all displays:
-			Display.toolChanged("PEN");
+			Display.toolChanged(ProjectToolbar.PEN);
 			return true;
 		}
 
-		public boolean updateGUI(final PaintParametersGUI ppg) {
-			if (0 == ppg.getComponentCount()) ppg.init();
-			ppg.update(paint_mode);
-			return true;
-		}
-	}
-
-	static class PaintParametersGUI extends JPanel implements ActionListener {
-		final String start = "Paint mode: ";
-		final JLabel label = new JLabel();
-		final JRadioButton overlap = new JRadioButton();
-		final JRadioButton exclude = new JRadioButton();
-		final JRadioButton erode = new JRadioButton();
-		final ButtonGroup bg = new ButtonGroup();
-
-		// empty panel
-		PaintParametersGUI() {
-			setMaximumSize(new Dimension(250, 35));
-		}
-		PaintParametersGUI(int paint_mode) {
-			this();
-			init();
-			update(paint_mode);
-		}
-
-		void init() {
-			bg.add(overlap);
-			bg.add(exclude);
-			bg.add(erode);
-			overlap.addActionListener(this);
-			exclude.addActionListener(this);
-			erode.addActionListener(this);
-			add(label);
-			add(overlap);
-			add(exclude);
-			add(erode);
-		}
-		void update(int paint_mode) {
-			if (0 == getComponentCount()) init();
-			switch (paint_mode) {
-				case PAINT_OVERLAP: overlap.setSelected(true); label.setText(start + "overlap"); break;
-				case PAINT_EXCLUDE: exclude.setSelected(true); label.setText(start + "exclude"); break;
-				case PAINT_ERODE: erode.setSelected(true); label.setText(start + "erode"); break;
-			}
-		}
-		public void actionPerformed(ActionEvent ae) {
-			final Object source = ae.getSource();
-			if (source == overlap) PP.paint_mode = PAINT_OVERLAP;
-			else if (source == exclude) PP.paint_mode = PAINT_EXCLUDE;
-			else if (source == erode) PP.paint_mode = PAINT_ERODE;
-			update(PP.paint_mode);
+		public OptionPanel asOptionPanel() {
+			OptionPanel op = new OptionPanel();
+			final String[] modes = {"Allow overlap", "Exclude others", "Erode others"};
+			op.addChoice("AreaList paint mode:", modes, paint_mode, new OptionPanel.ChoiceIntSetter(this, "paint_mode"));
+			return op;
 		}
 	}
 
@@ -2324,5 +2318,50 @@ public class AreaList extends ZDisplayable {
 		}
 		calculateBoundingBox();
 		return true;
+	}
+
+	/** Returns a stack of images representing the pixel data of this LayerSet inside this AreaList. */
+	public ImagePlus getStack(final int type, final double scale) {
+		ImageProcessor ref_ip = Utils.createProcessor(type, 2, 2);
+		if (null == ref_ip) {
+			Utils.log("AreaList.getStack: Unknown type " + type);
+			return null;
+		}
+		Rectangle b = getBoundingBox();
+		int w = (int)(0.5 + b.width * scale);
+		int h = (int)(0.5 + b.height * scale);
+		ImageStack stack = new ImageStack(w, h);
+		for (Layer la : getLayerRange()) {
+			Area area = getArea(la);
+			double z = layer.getZ();
+			project.getLoader().releaseToFit(w * h * 10);
+			ImageProcessor ip = ref_ip.createProcessor(w, h);
+			if (null == area) {
+				stack.addSlice(Double.toString(z), ip);
+				continue;
+			}
+			// Create a ROI from the area at Layer la:
+			AffineTransform aff = getAffineTransformCopy();
+			aff.translate(-b.x, -b.y);
+			aff.scale(scale, scale);
+			ShapeRoi roi = new ShapeRoi(area.createTransformedArea(aff));
+			// Create a cropped snapshot of the images at Layer la under the area:
+			ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, (List<Patch>) (List) la.getDisplayables(Patch.class), Color.black);
+			flat.setRoi(roi);
+			Rectangle rb = roi.getBounds();
+			ip.insert(flat.crop(), rb.x, rb.y);
+			// Clear the outside
+			ImagePlus bimp = new ImagePlus("", ip);
+			bimp.setRoi(roi);
+			ip.setValue(0);
+			ip.setBackgroundValue(0);
+			IJ.run(bimp, "Clear Outside", "");
+
+			stack.addSlice(Double.toString(z), ip);
+		}
+
+		ImagePlus imp = new ImagePlus("AreaList stack for " + this, stack);
+		imp.setCalibration(layer_set.getCalibrationCopy());
+		return imp;
 	}
 }

@@ -33,7 +33,6 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.render3d.Perimeter2D;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.Thing;
@@ -1327,16 +1326,24 @@ public class Profile extends Displayable {
 		;
 	}
 
-	/** Returns the interpolated points as a Perimeter2D. */
-	public Perimeter2D getPerimeter2D() {
-		if (-1 == n_points) setupForDisplay(); // reload
+	/** Returns the interpolated points as a VectorString2D, calibrated.
+	 *  Returns null if there aren't any points. */
+	public VectorString2D getPerimeter2D() {
+		return getPerimeter2D(layer.getParent().getCalibration());
+	}
+	private VectorString2D getPerimeter2D(final Calibration cal) {
+		if (-1 == n_points) setupForDisplay();
 		if (0 == n_points) return null;
 		if (0 == p_i[0].length) generateInterpolatedPoints(0.05);
-		double[] x = new double[p_i[0].length];
-		double[] y = new double[x.length];
-		System.arraycopy(p_i[0], 0, x, 0, x.length);
-		System.arraycopy(p_i[1], 0, y, 0, x.length); // breaking symmetry in purpose, same result
-		return new Perimeter2D(x, y, layer.getZ(), this.closed);
+		double[][] pi = transformPoints(p_i);
+		VectorString2D sv = null;
+		try {
+			sv = new VectorString2D(pi[0], pi[1], this.layer.getZ(), this.closed);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		if (null != cal) sv.calibrate(cal);
+		return sv;
 	}
 
 	public void keyPressed(KeyEvent ke) {
@@ -1557,19 +1564,13 @@ public class Profile extends Displayable {
 			cal.pixelWidth *= scale;
 			cal.pixelHeight *= scale;
 			for (int i=0; i<p.length; i++) {
-				if (-1 == p[i].n_points) p[i].setupForDisplay();
 				if (0 == p[i].n_points) continue;
 				if (0 == i) closed = p[i].closed;
 				else if (p[i].closed != closed) {
 					Utils.log2("All profiles should be either open or closed, not mixed.");
 					return null;
 				}
-				double[][] pi = p[i].transformPoints(p[i].p_i);
-				final double[] x = (double[])pi[0].clone();
-				final double[] y = (double[])pi[1].clone();
-				pi = null;
-				sv[i] = new VectorString2D(x, y, p[i].layer.getZ(), p[i].closed);
-				sv[i].calibrate(cal);
+				sv[i] = p[i].getPerimeter2D(cal);
 			}
 			return SkinMaker.generateTriangles(sv, -1, -1, closed);
 		} catch (Exception e) {

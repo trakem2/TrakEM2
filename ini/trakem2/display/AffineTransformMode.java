@@ -768,6 +768,7 @@ public class AffineTransformMode implements Mode {
 		int dy = y_d - y_d_old;
 
 		execDrag(me, dx, dy);
+		display.getCanvas().repaint(true);
 
 		mouse_dragged = true; // after execDrag, so the first undo step is added.
 	}
@@ -808,7 +809,10 @@ public class AffineTransformMode implements Mode {
 		}
 
 		// me is null when calling from Display, because of popup interfering with mouseReleased
-		if (null != me) execDrag(me, x_r - x_d, y_r - y_d);
+		if (null != me) {
+			execDrag(me, x_r - x_d, y_r - y_d);
+			display.getCanvas().repaint(true);
+		}
 
 		// recalculate box
 		resetBox();
@@ -817,6 +821,7 @@ public class AffineTransformMode implements Mode {
 		if ((null != grabbed && grabbed.id <= iW) || dragging) {
 			floater.center();
 		}
+
 		grabbed = null;
 		dragging = false;
 		rotating = false;

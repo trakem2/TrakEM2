@@ -20,7 +20,6 @@ import ij.gui.GenericDialog;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.persistence.Loader;
@@ -34,15 +33,20 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
-import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
-import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
+/**
+ * A collection of methods regarding SIFT-based alignment
+ * 
+ * TODO Bring the methods and tasks into a class for each method and clean up this mess.
+ * 
+ * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ */
 public class Align
 {
 	static public class Param implements Serializable
@@ -322,12 +326,28 @@ public class Align
 				Collection< Feature > features = deserializeFeatures( p, tile );
 				if ( features == null )
 				{
-					features = new ArrayList< Feature >();
-					long s = System.currentTimeMillis();
-					ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
-					IJ.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
-					if ( !serializeFeatures( p, tile, features ) )
-						IJ.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
+					/* extract features and, in case there is not enough memory available, try to free it and do again */
+					boolean memoryFlushed;
+					do
+					{
+						try
+						{
+							features = new ArrayList< Feature >();
+							long s = System.currentTimeMillis();
+							ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
+							IJ.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+							if ( !serializeFeatures( p, tile, features ) )
+								IJ.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
+							memoryFlushed = false;
+						}
+						catch ( OutOfMemoryError e )
+						{
+							Utils.log2( "Flushing memory for feature extraction" );
+							Loader.releaseAllCaches();
+							memoryFlushed = true;
+						}
+					}
+					while ( memoryFlushed );
 				}
 				else
 				{
@@ -438,9 +458,12 @@ public class Align
 				
 				if ( inliers != null && inliers.size() > 0 )
 				{
-					tilePair[ 0 ].connect( tilePair[ 1 ], inliers );
-					tilePair[ 0 ].clearVirtualMatches();
-					tilePair[ 1 ].clearVirtualMatches();
+					synchronized ( tilePair[ 0 ] )
+					{
+						synchronized ( tilePair[ 1 ] ) { tilePair[ 0 ].connect( tilePair[ 1 ], inliers ); }
+						tilePair[ 0 ].clearVirtualMatches();
+					}
+					synchronized ( tilePair[ 1 ] ) { tilePair[ 1 ].clearVirtualMatches(); }
 				}
 				
 				IJ.showProgress( ap.getAndIncrement(), steps );

@@ -22,9 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
 import ij.measure.Calibration;
 
 /** String of vectors. */
@@ -66,7 +63,7 @@ public class VectorString2D implements VectorString {
 		try {
 			return new VectorString2D(x2, y2, z, closed);
 		} catch (Exception e) {
-			IJError.print(e);
+			e.printStackTrace();
 			return null;
 		}
 	}
@@ -204,10 +201,10 @@ public class VectorString2D implements VectorString {
 			if (j >= ps_length) {
 				// must enlarge
 				ps_length += 20;
-				v_x = Utils.copy(v_x, ps_length);
-				v_y = Utils.copy(v_y, ps_length);
-				ps_x = Utils.copy(ps_x, ps_length);
-				ps_y = Utils.copy(ps_y, ps_length);
+				v_x = Util.copy(v_x, ps_length);
+				v_y = Util.copy(v_y, ps_length);
+				ps_x = Util.copy(ps_x, ps_length);
+				ps_y = Util.copy(ps_y, ps_length);
 			}
 			// get distances of MAX_POINTs ahead from the previous point
 			n_ahead = 0; // reset
@@ -231,7 +228,7 @@ public class VectorString2D implements VectorString {
 				// ...
 				// simpler version: use just the next point
 				dist1 = Math.sqrt((x[i] - ps_x[j-1])*(x[i] - ps_x[j-1]) + (y[i] - ps_y[j-1])*(y[i] - ps_y[j-1]));
-				angleXY = M.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
+				angleXY = Util.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
 
 				dx = Math.cos(angleXY) * delta;
 				dy = Math.sin(angleXY) * delta;
@@ -279,7 +276,7 @@ public class VectorString2D implements VectorString {
 				for (u=0; u<n_ahead; u++) {
 					iu = i+u;
 					if (iu >= p_length) iu -= p_length; 
-					angleXY = M.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
+					angleXY = Util.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
 					dx += w[u] * Math.cos(angleXY);
 					dy += w[u] * Math.sin(angleXY);
 				}
@@ -325,7 +322,7 @@ public class VectorString2D implements VectorString {
 		if (dist1 > delta*1.2) {
 			// TODO needs revision
 			// System.out.println("resampling terminated too early. Why?");
-			angleXY = M.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
+			angleXY = Util.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 			dx = Math.cos(angleXY) * delta;
 			dy = Math.sin(angleXY) * delta;
 			while (dist1 > delta*1.2) {//added 1.2 to prevent last point from being generated too close to the first point
@@ -333,10 +330,10 @@ public class VectorString2D implements VectorString {
 				if (j >= ps_length) {
 					// must enlarge.
 					ps_length += 20;
-					v_x = Utils.copy(v_x, ps_length);
-					v_y = Utils.copy(v_y, ps_length);
-					ps_x = Utils.copy(ps_x, ps_length);
-					ps_y = Utils.copy(ps_y, ps_length);
+					v_x = Util.copy(v_x, ps_length);
+					v_y = Util.copy(v_y, ps_length);
+					ps_x = Util.copy(ps_x, ps_length);
+					ps_y = Util.copy(ps_y, ps_length);
 				}
 				//add a point
 				ps_x[j] = ps_x[j-1] + dx;
@@ -348,7 +345,7 @@ public class VectorString2D implements VectorString {
 			}
 		}
 		// set vector 0 to be the vector from the last point to the first // TODO also for non-closed?
-		angleXY = M.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
+		angleXY = Util.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
 		//v_x[0] = Math.cos(angle) * delta;
 		//v_y[0] = Math.sin(angle) * delta; // can't use delta, it may be too long and thus overtake the first point!
 		v_x[0] = Math.cos(angleXY) * dist1;
@@ -479,8 +476,8 @@ public class VectorString2D implements VectorString {
 
 	/** Invert the order of points. Will clear all vector arrays if any! */
 	public void reverse() {
-		Utils.reverse(x);
-		Utils.reverse(y);
+		Util.reverse(x);
+		Util.reverse(y);
 		delta = 0;
 		if (null != v_x) v_x = v_y = null;
 	}

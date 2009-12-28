@@ -17,7 +17,19 @@
 package bunwarpj.trakem2.transform;
 
 //import ij.IJ;
+import java.awt.geom.AffineTransform;
+import java.util.Collection;
+import java.util.Stack;
+
 import bunwarpj.BSplineModel;
+import bunwarpj.MiscTools;
+import bunwarpj.Param;
+import bunwarpj.Transformation;
+import bunwarpj.bUnwarpJ_;
+import mpicbg.models.IllDefinedDataPointsException;
+import mpicbg.models.Model;
+import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.CoordinateTransform;
 
 /**
@@ -25,7 +37,7 @@ import mpicbg.trakem2.transform.CoordinateTransform;
  * 
  * @author Ignacio Arganda-Carreras (ignacio.arganda@gmail.com)
  */
-public class CubicBSplineTransform implements CoordinateTransform 
+public class CubicBSplineTransform extends Model< CubicBSplineTransform > implements CoordinateTransform 
 {
 	/** grid of B-spline coefficients for x- transformation */
 	private BSplineModel swx = null;
@@ -37,6 +49,12 @@ public class CubicBSplineTransform implements CoordinateTransform
 	private int width = 0;
 	/** height of the image to be transformed */
 	private int height = 0;
+	/** width of the source image (necessary for the fit method) */
+	private int sourceWidth = 0;
+	/** height of the source image (necessary for the fit method) */
+	private int sourceHeight = 0;
+	/** bUnwarpJ parameters (necessary for the fit method) */
+	private Param parameter = new Param(2, 0, 0, 2, 0.1, 0.1, 1.0, 0.0, 0.0, 0.01);
 	
 	// -------------------------------------------------------------------
 	/**
@@ -245,6 +263,79 @@ public class CubicBSplineTransform implements CoordinateTransform
 		CubicBSplineTransform transf = new CubicBSplineTransform();	
 		transf.init( toDataString() );
 		return transf;		
+	}
+
+	@Override
+	public void fit(Collection<PointMatch> matches)
+			throws NotEnoughDataPointsException, IllDefinedDataPointsException 
+	{
+		
+		final Stack< java.awt.Point > sourcePoints = new Stack<java.awt.Point>();
+		final Stack< java.awt.Point > targetPoints = new Stack<java.awt.Point>();
+		
+		for ( final PointMatch pm : matches )
+		{
+			final float[] p1 = pm.getP1().getL();
+			final float[] p2 = pm.getP2().getL();
+			
+			targetPoints.add( new java.awt.Point( Math.round( p1[ 0 ] ), Math.round( p1[ 1 ] ) ) );
+			sourcePoints.add( new java.awt.Point( Math.round( p2[ 0 ] ), Math.round( p2[ 1 ] ) ) );
+		}
+		
+		Transformation transf = bUnwarpJ_.computeTransformationBatch(sourceWidth, 
+				sourceHeight, width, height, sourcePoints, targetPoints, parameter);
+		this.set(transf.getIntervals(), transf.getDirectDeformationCoefficientsX(), 
+				transf.getDirectDeformationCoefficientsY(), width, height);
+	}
+
+	
+	public void scale(final double xScale, final double yScale)
+	{
+		// Adapt transformation to scale
+    	
+    	double[] cx = swx.getCoefficients();
+    	double[] cy = swy.getCoefficients();
+    	
+    	final double xScaleFactor = 1.0/xScale;
+    	final double yScaleFactor = 1.0/yScale;
+    	
+    	for(int i = 0; i < cx.length; i++)    		  		    		
+    	{
+    		cx[i] *= xScaleFactor;
+    		cy[i] *= yScaleFactor;
+    	}
+    	
+	}
+	
+	public void set(Param p, int sourceWidth, int sourceHeight, int targetWidth, int targetHeight)
+	{
+		this.parameter = p;
+		this.sourceHeight = sourceHeight;
+		this.sourceWidth = sourceWidth;
+		this.width = targetWidth;
+		this.height = targetHeight;
+	}
+	
+	@Override
+	public int getMinNumMatches() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
+	@Override
+	public void set(CubicBSplineTransform m) {
+		init( m.toDataString() );
+	}
+
+	@Override
+	public void shake(float amount) {
+		// TODO If you really need, implement it ...
+		
+	}
+
+	@Override
+	public String toString() {
+		return toDataString();
 	}
 	
 

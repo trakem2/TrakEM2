@@ -39,6 +39,9 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.persistence.*;
 
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.Event;
+import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +53,7 @@ import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+import java.util.concurrent.Callable;
 
 
 public final class ProjectThing extends DBObject implements TitledThing {
@@ -438,40 +442,42 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			al_items.add(menu);
 		}
 		// generic for all:
-		addPopupItem("Unhide", listener, al_items); // a 'Show' command on a non-basic type is a render preview.
+		// a 'Show' command on a non-basic type is a render preview.
+		addPopupItem("Unhide", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, Event.ALT_MASK, true));
 
-		addPopupItem("Hide", listener, al_items);
+		addPopupItem("Hide", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_H, 0, true));
 
 		addPopupItem("Info", listener, al_items);
 
-		addPopupItem("Rename...", listener, al_items);
+		addPopupItem("Rename...", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F2, 0, true));
 		// enable duplicating for basic types only
 		if (Project.isBasicType(getType())) {
 			addPopupItem("Duplicate", listener, al_items);
 		}
 
-		addPopupItem("Select in display", listener, al_items);
+		addPopupItem("Select in display", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, 0, true));
 
 		if (null != object && object instanceof Displayable) {
 			addPopupItem("Show centered in Display", listener, al_items);
 		}
 
-		if (null != object && object instanceof Line3D) {
-			addPopupItem("Identify...", listener, al_items);
-			addPopupItem("Identify with axes...", listener, al_items);
-			addPopupItem("Identify with fiducials...", listener, al_items);
-		}
+		// plugins
+		JMenuItem plugin_menu = Utils.addPlugIns("Project Tree", project, new Callable<Displayable>() {
+										public Displayable call() {
+											if (object instanceof Displayable) return (Displayable)object;
+											return null; }} );
+		if (null != plugin_menu) al_items.add(plugin_menu);
 
 		addPopupItem("Measure", listener, al_items);
 
-		addPopupItem("Show in 3D", listener, al_items);
+		addPopupItem("Show in 3D", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_3, 0, true));
 		//addPopupItem("Export 3D...", listener, al_items);
 
 		if (template.getType().equals("project")) {
 			if (project.getLoader() instanceof DBLoader) {
 				addPopupItem("Export project...", listener, al_items);
 			} else if (project.getLoader() instanceof FSLoader) {
-				addPopupItem("Save", listener, al_items);
+				addPopupItem("Save", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 				addPopupItem("Save as...", listener, al_items);
 			}
 		}
@@ -486,10 +492,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return items;
 	}
 
-	private void addPopupItem(String command, ActionListener listener, ArrayList al_items) {
+	private JMenuItem addPopupItem(String command, ActionListener listener, ArrayList al_items) {
 		JMenuItem item = new JMenuItem(command);
 		item.addActionListener(listener);
 		al_items.add(item);
+		return item;
 	}
 
 	/** Switch the visibility of the Displayable objects contained here or in the children. */
@@ -617,20 +624,28 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Recursive into children, searches for the things whose object.toString() matches the given regex, case insensitive. If shallow, the recursive search does not look into the children of a parent that matches. */
-	public ArrayList<ProjectThing> findChildren(final String regex, final boolean shallow) {
+	public ArrayList<ProjectThing> findChildren(final String regex, final String regex_exclude, final boolean shallow) {
 		final ArrayList<ProjectThing> found = new ArrayList<ProjectThing>();
-		findChildren(found, Pattern.compile("^.*" + regex + ".*$", Pattern.CASE_INSENSITIVE | Pattern.DOTALL), shallow);
+		findChildren(found,
+			     null == regex ? null : Pattern.compile("^.*" + regex + ".*$", Pattern.DOTALL),
+			     null == regex_exclude ? null : Pattern.compile("^.*" + regex_exclude + ".*$", Pattern.DOTALL),
+			     shallow);
 		return found;
 	}
 	/** Recursive into children, searches for things whose object.toString() matches the given regex pattern, and stores the found ProjectThing in the given ArrayList. If shallow, the recursive search does not look into the children of a parent that matches. */
-	public void findChildren(final ArrayList<ProjectThing> found, final Pattern pat, final boolean shallow) {
-		if (null != object && pat.matcher(object.toString()).matches()) {
+	public void findChildren(final ArrayList<ProjectThing> found, final Pattern pattern, final Pattern pattern_exclude, final boolean shallow) {
+		if (null == object) return;
+		final String name = object.toString();
+		if (null != pattern_exclude && pattern_exclude.matcher(name).matches()) return;
+		if (null == pattern) {
+			found.add(this);
+		} else if (pattern.matcher(name).matches()) {
 			found.add(this);
 			if (shallow) return; // don't look into children
 		}
 		if (null == al_children) return;
 		for (ProjectThing pt : al_children) {
-			pt.findChildren(found, pat, shallow);
+			pt.findChildren(found, pattern, pattern_exclude, shallow);
 		}
 	}
 

@@ -42,7 +42,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
-import ini.trakem2.vector.Compare;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject implements Paintable {
@@ -102,7 +101,8 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	protected boolean locked = false;
 	protected String title;
-	protected Color color = Color.yellow;
+	static protected Color last_color = Color.yellow;
+	protected Color color = Displayable.last_color;
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
 	protected boolean visible = true;
 	protected Layer layer;
@@ -441,6 +441,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 		paint(g, magnification, active, channels, active_layer);
 	}
 
+	/** Paints waiting for data to load, if necessary. */
+	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, magnification, active, channels, active_layer);
+	}
+
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
 		setDimensions(width, height, true);
@@ -527,7 +532,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 	}
 
 	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
-	 *  Saves one allocation, returns the same Rectangle, modified (or a new one if null). */
+	 *  Returns the same Rectangle, modified. */
 	protected Rectangle getBounds(final Rectangle r) {
 		r.x = 0;
 		r.y = 0;
@@ -745,6 +750,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 	public void setColor(Color color) {
 		if (null == color || color.equals(this.color)) return;
 		this.color = color;
+		Displayable.last_color = color;
 		updateInDatabase("color");
 		Display.repaint(layer, this, 5);
 		Display3D.setColor(this, color);
@@ -819,7 +825,6 @@ public abstract class Displayable extends DBObject implements Paintable {
 			unlink();
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this);
-			Compare.remove(this);
 			Display.flush(this);
 			return true;
 		}
@@ -1590,13 +1595,26 @@ public abstract class Displayable extends DBObject implements Paintable {
 			p2a[j+1] = p[1][i];
 		}
 		final double[] p2b = new double[length * 2];
-		this.at.transform(p2a, 0, p2b, 0, length); // what a silly format: consecutive x,y numbers! Clear case of premature optimization.
+		this.at.transform(p2a, 0, p2b, 0, length);
 		final double[][] p3 = new double[2][length];
 		for (int i=0, j=0; i<length; i++, j+=2) {
 			p3[0][i] = p2b[j];
 			p3[1][i] = p2b[j+1];
 		}
 		return p3;
+	}
+
+	/** Transforms the points represented as X1,Y1,X2,Y2...*/
+	protected double[] transformPoints(final double[] p) {
+		final double[] p2 = new double[p.length];
+		this.at.transform(p, 0, p2, 0, p.length/2);
+		return p2;
+	}
+	/** Transforms the points represented as X1,Y1,X2,Y2...*/
+	protected float[] transformPoints(final float[] p) {
+		final float[] p2 = new float[p.length];
+		this.at.transform(p, 0, p2, 0, p.length/2);
+		return p2;
 	}
 
 	/** Concatenate the given affine to this and all its linked objects. */

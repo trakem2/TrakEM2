@@ -25,8 +25,6 @@ package ini.trakem2.vector;
 import java.util.*;
 import javax.vecmath.Point3f;
 import java.util.Collections;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 
 /** To extract and represent the sequence of editions that convert any N-dimensional vector string to any other of the same number of dimensions. */
 public class Editions {
@@ -34,6 +32,13 @@ public class Editions {
 	static public final int DELETION = 1;
 	static public final int INSERTION = 2;
 	static public final int MUTATION = 3;
+
+	/** Weight for insertion cost. */
+	final protected double WI;
+	/** Weight for deletion cost. */
+	final protected double WD;
+	/** Weight for correspondence cost. */
+	final protected double WM;
 
 	protected VectorString vs1;
 	protected VectorString vs2;
@@ -46,10 +51,17 @@ public class Editions {
 	public double distance;
 
 	public Editions(final VectorString vs1, final VectorString vs2, final double delta, final boolean closed) {
+		this(vs1, vs2, delta, closed, 1, 1, 1);
+	}
+
+	public Editions(final VectorString vs1, final VectorString vs2, final double delta, final boolean closed, final double wi, final double wd, final double wm) {
 		this.vs1 = vs1;
 		this.vs2 = vs2;
 		this.delta = delta;
 		this.closed = closed;
+		this.WI = wi;
+		this.WD = wd;
+		this.WM = wm;
 		init();
 	}
 
@@ -86,7 +98,7 @@ public class Editions {
 			// compute proper segment lengths, inlined
 			final double sim = 1.0 - ( (double)non_mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1) );
 
-			//if (sim > 0.7) Utils.log2("similarity: non_mut, len1, len2, i_start, i_end : " + non_mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
+			//if (sim > 0.7) System.out.println("similarity: non_mut, len1, len2, i_start, i_end : " + non_mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
 
 			return sim;
 		} else {
@@ -97,7 +109,7 @@ public class Editions {
 			 * If the max_len is smaller than the number of non-mutations, then a NEGATIVE similarity value is returned,
 			 * but it's ok. All it means is that it's not similar at all.
 			int max_len = Math.max(vs1.length(), vs2.length());
-			Utils.log2("non_mut: " + non_mut + "  total: " + editions.length + "  max length: " + max_len + (non_mut > max_len ? "  WARNING!" : ""));
+			System.out.println("non_mut: " + non_mut + "  total: " + editions.length + "  max length: " + max_len + (non_mut > max_len ? "  WARNING!" : ""));
 			*/
 			return 1.0 - ( (double)non_mut / Math.max(vs1.length(), vs2.length()) );
 		}
@@ -130,7 +142,7 @@ public class Editions {
 			// compute proper segment lengths, inlined
 			double sim = (double)mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1);
 
-			//if (sim > 0.7) Utils.log2("similarity: mut, len1, len2, i_start, i_end : " + mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
+			//if (sim > 0.7) System.out.println("similarity: mut, len1, len2, i_start, i_end : " + mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
 
 			return sim;
 
@@ -211,8 +223,8 @@ public class Editions {
 			if (average) return dist / len; // can len be zero ?
 			return dist;
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			e.printStackTrace();
+			System.out.println("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			return Double.MAX_VALUE;
 		}
 	}
@@ -253,8 +265,8 @@ public class Editions {
 			return Math.sqrt(std / di.length);
 
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			e.printStackTrace();
+			System.out.println("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			return Double.MAX_VALUE;
 		}
 	}
@@ -267,7 +279,11 @@ public class Editions {
 	 * [3] - median: the average medial physical distance between mutation pairs, more robust than the average to extreme values
 	 * [4] - prop_mut: the proportion of mutation pairs relative to the length of the queried sequence vs1.
 	 * [5] - Levenshtein's distance
-	 * [6] - Similarity (@see getSimilarity)
+	 * [6] - Similarity:  1 - (( N_insertions + N_deletions ) / max(len(seq1), len(seq2)))
+	 * [7] - Proximity: cummulative distance between pairs divided by physical sequence length
+	 * [8] - Proximity of mutation pairs
+	 * [9] - Ratio of sequence lengths: vs1.length / vs2.length
+	 * [10] - Tortuosity: squared ratio of the difference of the euclidian distances from first to last point divided by the euclidian length of the sequence.
 	 */
 	public double[] getStatistics(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean score_mut_only) {
 		return getStatistics(getStartEndSkip(skip_ends, max_mut, min_chunk), score_mut_only);
@@ -282,7 +298,7 @@ public class Editions {
 		final int len1 = vs1.length();
 		final int len2 = vs2.length();
 		final ArrayList<Double> dist = new ArrayList<Double>(); // why not ArrayList<double> ? STUPID JAVA
-		final double[] pack = new double[9];
+		final double[] pack = new double[11];
 
 		Arrays.fill(pack, Double.MAX_VALUE);
 		pack[4] = 0;
@@ -341,12 +357,19 @@ public class Editions {
 			pack[7] = ((double)c_dist) / phys_len;
 			// proximity_mut: Unitless value indicating proximity between mutation pairs only:
 			pack[8] = score_mut_only ? pack[7] : ((double)c_dist_mut) / phys_len;
+			// Proportion of sequence lengths
+			pack[9] = ((double)vs1.length()) / vs2.length();
+			// quadratic normalized tortuosity: the square of the difference between the tortuosity ratios of both VectorString3D.
+			if (vs1 instanceof VectorString3D) {
+				pack[10] = Math.pow(  VectorString3D.distance( (VectorString3D) vs1, 0, (VectorString3D) vs1, vs1.length()-1) / (vs1.length() * vs1.getDelta())
+						    - VectorString3D.distance( (VectorString3D) vs2, 0, (VectorString3D) vs2, vs2.length()-1) / (vs2.length() * vs2.getDelta()), 2);
+			} // else not measured: 0
 
 			// When one does the proximity with the length of the query sequence only and not the max of both, then shorter ref sequences will score better.
 
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("ERROR in getStatistics: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			System.out.println("ERROR in getStatistics: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
+			e.printStackTrace();
 		}
 
 		return pack;
@@ -356,7 +379,7 @@ public class Editions {
 		final boolean with_source = (vs1 instanceof VectorString3D && vs2 instanceof VectorString3D) ?
 			null != ((VectorString3D)vs1).getSource() && null != ((VectorString3D)vs2).getSource()
 		      : false;
-		//Utils.log2("Editions.init() : With source: " + with_source);
+		//System.out.println("Editions.init() : With source: " + with_source);
 		// equalize point interdistance in both strings of vectors and create the actual vectors
 		vs1.resample(delta, with_source);
 		vs2.resample(delta, with_source);
@@ -500,11 +523,11 @@ public class Editions {
 		final double[][] matrix1 = new double[n+1][m+1];
 		// make the first element be i*delta
 		for (i=0; i < n +1; i++) {
-			matrix1[i][0] = i * delta;
+			matrix1[i][0] = i * delta * WD;
 		}
 		// fill first column
 		for (j=0; j < m + 1; j++) {
-			matrix1[0][j] = j * delta;
+			matrix1[0][j] = j * delta * WI;
 		}
 		// return the matrix made matching point 0 of both curves, if the curve is open.
 		if (!closed) {
@@ -697,16 +720,16 @@ public class Editions {
 			mat1 = matrix[i-1];
 			for (j=1; j < m +1; j++) {
 				// cost deletion:
-				fun1 = mat1[j] + delta; // matrix[i-1][j] + delta
+				fun1 = mat1[j] + WD * delta; // matrix[i-1][j] + delta
 				// cost insertion:
-				fun2 = mati[j-1] + delta; // matrix[i][j-1] + delta
+				fun2 = mati[j-1] + WI * delta; // matrix[i][j-1] + delta
 				// cost mutation:
 				if (i == n || j == m) {
 					fun3 = mat1[j-1]; // matrix[i-1][j-1]
 				} else {
 					//dx = v_x1[i] - v_x2[j];
 					//dy = v_y1[i] - v_y2[j];
-					fun3 = mat1[j-1] + vs1.getDiffVectorLength(i, j, vs2); //  Math.sqrt(dx*dx + dy*dy); // the vector length is the hypothenusa.
+					fun3 = mat1[j-1] + WM * vs1.getDiffVectorLength(i, j, vs2); //  Math.sqrt(dx*dx + dy*dy); // the vector length is the hypothenusa.
 				}
 				// insert the lowest value in the matrix.
 				// since most are mutations, start with fun3:
@@ -835,7 +858,7 @@ public class Editions {
 		}
 
 		if (0 == chunks.size()) {
-			Utils.log2("No chunks found.");
+			System.out.println("No chunks found.");
 			return null;
 		}
 

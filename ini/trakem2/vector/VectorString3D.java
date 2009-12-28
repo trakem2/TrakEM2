@@ -22,12 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
-import ini.trakem2.display.Display3D;
-import ini.trakem2.display.LayerSet;
-
 import ij.measure.Calibration;
 
 import java.util.Arrays;
@@ -38,7 +32,6 @@ import Jama.Matrix;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
-import javax.vecmath.Matrix3d;
 import java.awt.Color;
 
 
@@ -180,11 +173,11 @@ public class VectorString3D implements VectorString {
 	}
 
 	public void debug() {
-		Utils.log2("#### " + getClass().getName() + " ####");
+		System.out.println("#### " + getClass().getName() + " ####");
 		for (int i=0; i<x.length; i++) {
-			Utils.log2( i + ": " + x[i] + "," + y[i] + ", " + z[i]);
+			System.out.println( i + ": " + x[i] + "," + y[i] + ", " + z[i]);
 		}
-		Utils.log2("#### END ####");
+		System.out.println("#### END ####");
 	}
 
 
@@ -232,16 +225,16 @@ public class VectorString3D implements VectorString {
 			this.vz[i] = zval;
 		}
 		final void resize(final int new_length) {
-			this.rx = Utils.copy(this.rx, new_length);
-			this.ry = Utils.copy(this.ry, new_length);
-			this.rz = Utils.copy(this.rz, new_length);
-			this.vx = Utils.copy(this.vx, new_length);
-			this.vy = Utils.copy(this.vy, new_length);
-			this.vz = Utils.copy(this.vz, new_length);
+			this.rx = Util.copy(this.rx, new_length);
+			this.ry = Util.copy(this.ry, new_length);
+			this.rz = Util.copy(this.rz, new_length);
+			this.vx = Util.copy(this.vx, new_length);
+			this.vy = Util.copy(this.vy, new_length);
+			this.vz = Util.copy(this.vz, new_length);
 			if (null != dep) {
 				// java doesn't have generators! ARGH
 				double[][] dep2 = new double[dep.length][];
-				for (int i=0; i<dep.length; i++) dep2[i] = Utils.copy(dep[i], new_length);
+				for (int i=0; i<dep.length; i++) dep2[i] = Util.copy(dep[i], new_length);
 				dep = dep2;
 			}
 		}
@@ -255,16 +248,16 @@ public class VectorString3D implements VectorString {
 				       + Math.pow(z - rz[i], 2));
 		}
 		final void put(final VectorString3D vs, final int length) {
-			vs.x = Utils.copy(this.rx, length); // crop away empty slots
-			vs.y = Utils.copy(this.ry, length);
-			vs.z = Utils.copy(this.rz, length);
-			vs.vx = Utils.copy(this.vx, length);
-			vs.vy = Utils.copy(this.vy, length);
-			vs.vz = Utils.copy(this.vz, length);
+			vs.x = Util.copy(this.rx, length); // crop away empty slots
+			vs.y = Util.copy(this.ry, length);
+			vs.z = Util.copy(this.rz, length);
+			vs.vx = Util.copy(this.vx, length);
+			vs.vy = Util.copy(this.vy, length);
+			vs.vz = Util.copy(this.vz, length);
 			vs.length = length;
 			if (null != dep) {
 				vs.dep = new double[dep.length][];
-				for (int i=0; i<dep.length; i++) vs.dep[i] = Utils.copy(dep[i], length);
+				for (int i=0; i<dep.length; i++) vs.dep[i] = Util.copy(dep[i], length);
 			}
 		}
 		final void setDeps(final int i, final double[][] src_dep, final int[] ahead, final double[] weight, final int len) {
@@ -512,7 +505,7 @@ public class VectorString3D implements VectorString {
 
 				if (null != dep) r.setDeps(j, dep, new int[]{i}, new double[]{1.0}, 1);
 
-				//Utils.log2("j: " + j + " (ZERO)  " + vector.computeLength() + "  " + vector.length());
+				//System.out.println("j: " + j + " (ZERO)  " + vector.computeLength() + "  " + vector.length());
 
 				//correct for point overtaking the not-close-enough point ahead in terms of 'delta_p' as it is represented in MAX_DISTANCE, but overtaken by the 'delta' used for subsampling:
 				if (dist1 <= delta) {
@@ -578,7 +571,7 @@ public class VectorString3D implements VectorString {
 				vector.put(j, r);
 				if (null != dep) r.setDeps(j, dep, ahead, w, next_ahead);
 
-				//Utils.log2("j: " + j + "  (" + next_ahead + ")   " + vector.computeLength() + "  " + vector.length());
+				//System.out.println("j: " + j + "  (" + next_ahead + ")   " + vector.computeLength() + "  " + vector.length());
 
 
 				// find the first point that is right ahead of the newly added point
@@ -608,7 +601,7 @@ public class VectorString3D implements VectorString {
 
 		} catch (Exception e) {
 			e.printStackTrace();
-			Utils.log2("Some data: x,y,z .length = " + x.length + "," + y.length + "," + z.length
+			System.out.println("Some data: x,y,z .length = " + x.length + "," + y.length + "," + z.length
 				 + "\nj=" + j + ", i=" + i + ", prev_i=" + prev_i
 					);
 		}
@@ -616,9 +609,9 @@ public class VectorString3D implements VectorString {
 
 		dist_ahead = r.distance(j-1, x[this.length-1], y[this.length-1], z[this.length-1]);
 
-		//Utils.log2("delta: " + delta + "\nlast point: " + x[x.length-1] + ", " + y[y.length-1] + ", " + z[z.length-1]);
-		//Utils.log2("last resampled point: x,y,z " + r.x(j-1) + ", " + r.y(j-1) + ", " + r.z(j-1));
-		//Utils.log2("distance: " + dist_ahead);
+		//System.out.println("delta: " + delta + "\nlast point: " + x[x.length-1] + ", " + y[y.length-1] + ", " + z[z.length-1]);
+		//System.out.println("last resampled point: x,y,z " + r.x(j-1) + ", " + r.y(j-1) + ", " + r.z(j-1));
+		//System.out.println("distance: " + dist_ahead);
 
 		// see whether the subsampling terminated too early, and fill with a line of points.
 		final int last_i = isClosed() ? 0 : this.length -1;
@@ -643,11 +636,11 @@ public class VectorString3D implements VectorString {
 
 		if (with_source) this.source = new_source;
 
-		//Utils.log2("resampling with_source: " + with_source + "    n_sources = " + n_sources);
+		//System.out.println("resampling with_source: " + with_source + "    n_sources = " + n_sources);
 
 		// debug:
-		//if (with_source && j != new_source.size()) Utils.log2("WARNING: len: " + j + ", sources length: " + new_source.size());
-		//if (with_source && n_sources > 1) Utils.log2("n_sources=" + n_sources + " lengths: " + j + ", " + new_source.size());
+		//if (with_source && j != new_source.size()) System.out.println("WARNING: len: " + j + ", sources length: " + new_source.size());
+		//if (with_source && n_sources > 1) System.out.println("n_sources=" + n_sources + " lengths: " + j + ", " + new_source.size());
 	}
 
 	/** Returns a list of lists of Point3d, one list of lists for each point in this VectorString3D; may be null. */
@@ -719,14 +712,14 @@ public class VectorString3D implements VectorString {
 
 	public Object clone() {
 		try {
-			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), isClosed());
+			final VectorString3D vs = new VectorString3D(Util.copy(x, length), Util.copy(y, length), Util.copy(z, length), isClosed());
 			vs.delta = delta;
-			if (null != vx) vs.vx = Utils.copy(vx, length);
-			if (null != vy) vs.vy = Utils.copy(vy, length);
-			if (null != vz) vs.vz = Utils.copy(vz, length);
-			if (null != rvx) vs.rvx = Utils.copy(rvx, length);
-			if (null != rvy) vs.rvy = Utils.copy(rvy, length);
-			if (null != rvz) vs.rvz = Utils.copy(rvz, length);
+			if (null != vx) vs.vx = Util.copy(vx, length);
+			if (null != vy) vs.vy = Util.copy(vy, length);
+			if (null != vz) vs.vz = Util.copy(vz, length);
+			if (null != rvx) vs.rvx = Util.copy(rvx, length);
+			if (null != rvy) vs.rvy = Util.copy(rvy, length);
+			if (null != rvz) vs.rvz = Util.copy(rvz, length);
 			if (null != source) {
 				// shallow clone the source points
 				vs.source = new ArrayList<ArrayList<Point3d>>();
@@ -738,7 +731,7 @@ public class VectorString3D implements VectorString {
 			vs.cal = null == this.cal ? null : this.cal.copy();
 			return vs;
 		} catch (Exception e) {
-			IJError.print(e);
+			e.printStackTrace();
 		}
 		return null;
 	}
@@ -758,7 +751,7 @@ public class VectorString3D implements VectorString {
 
 	public VectorString3D makeReversedCopy() {
 		try {
-			final VectorString3D vs = new VectorString3D(Utils.copy(x, length), Utils.copy(y, length), Utils.copy(z, length), isClosed());
+			final VectorString3D vs = new VectorString3D(Util.copy(x, length), Util.copy(y, length), Util.copy(z, length), isClosed());
 			vs.source = cloneSource(0, length-1);
 			vs.reverse();
 			if (delta != 0 && null != vx) {
@@ -770,7 +763,7 @@ public class VectorString3D implements VectorString {
 			}
 			return vs;
 		} catch (Exception e) {
-			IJError.print(e);
+			e.printStackTrace();
 		}
 		return null;
 	}
@@ -853,7 +846,7 @@ public class VectorString3D implements VectorString {
 			rvx[i] = arr[0][0];
 			rvy[i] = arr[1][0];
 			rvz[i] = arr[2][0];
-			//Utils.log2("rv{x,y,z}[" + i + "]= " + rvx[i] + ", " + rvy[i] + ", " + rvz[i]);
+			//System.out.println("rv{x,y,z}[" + i + "]= " + rvx[i] + ", " + rvy[i] + ", " + rvz[i]);
 		}
 	}
 
@@ -872,7 +865,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	static public VectorString3D createRandom(final int length, final double delta, final boolean closed) throws Exception {
-		Utils.log2("Creating random with length " + length + " and delta " + delta);
+		System.out.println("Creating random with length " + length + " and delta " + delta);
 		double[] x = new double[length];
 		double[] y = new double[length];
 		double[] z = new double[length];
@@ -906,7 +899,7 @@ public class VectorString3D implements VectorString {
 	 */
 	public void calibrate(final Calibration cal) {
 		if (null != this.cal) {
-			Utils.log2("WARNING calibrating VectorString3D more than one time!");
+			System.out.println("WARNING calibrating VectorString3D more than one time!");
 		}
 		if (null == cal) return;
 		this.cal = cal;
@@ -939,9 +932,9 @@ public class VectorString3D implements VectorString {
 	public void reverse() {
 		tags ^= REVERSED; // may be re-reversed
 		// reverse point arrays
-		Utils.reverse(x);
-		Utils.reverse(y);
-		Utils.reverse(z);
+		Util.reverse(x);
+		Util.reverse(y);
+		Util.reverse(z);
 		// eliminate vector data
 		delta = 0;
 		if (null != vx || null != vy || null != vz) {
@@ -967,7 +960,7 @@ public class VectorString3D implements VectorString {
 	public VectorString3D createInterpolated(final VectorString3D other, final Editions ed, final double alpha) throws Exception {
 
 
-		Utils.logAll("THIS METHOD IS BROKEN IN SOME UNKNOWN HORRIBLE WAY.\nFor now, use VectorString3D.createInterpolatedPoints(...) method, which is known to work -- even if conceptually not fully accurate.");
+		System.out.println("THIS METHOD IS BROKEN IN SOME UNKNOWN HORRIBLE WAY.\nFor now, use VectorString3D.createInterpolatedPoints(...) method, which is known to work -- even if conceptually not fully accurate.");
 
 
 
@@ -1076,7 +1069,7 @@ public class VectorString3D implements VectorString {
 					break;
 				default:
 					// using same vectors as last edition
-					Utils.log2("\nIgnoring unknown edition " + editions[e][0]);
+					System.out.println("\nIgnoring unknown edition " + editions[e][0]);
 					break;
 			}
 			// store the point
@@ -1097,7 +1090,7 @@ public class VectorString3D implements VectorString {
 				}
 			}
 			if (next+1 == px.length) {
-				Utils.log2("breaking early");
+				System.out.println("breaking early");
 				break;
 			}
 
@@ -1110,8 +1103,8 @@ public class VectorString3D implements VectorString {
 
 		
 		} catch (Exception e) {
-			IJError.print(e);
-			Utils.log2("next: " + next + " length: " + px.length + " i,j: " + i + ", " + j);
+			e.printStackTrace();
+			System.out.println("next: " + next + " length: " + px.length + " i,j: " + i + ", " + j);
 		}
 
 
@@ -1201,202 +1194,6 @@ public class VectorString3D implements VectorString {
 		      + Math.pow(z1 - z2, 2);
 	}
 
-	/** If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
-	 *  @return the applied scaling factor.
-	 * */
-	/*static public final double matchOrigins(Vector3d[] o1, Vector3d[] o2, final int transform_type) {
-		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
-		// else, scale vectors to make the longest one be of length 1.0
-		double max_len = 0;
-		for (int i=0; i<3; i++) {
-			max_len = Math.max(max_len, o1[i].length());
-			max_len = Math.max(max_len, o2[i].length());
-		}
-		final double K = 1/max_len;
-		for (int i=0; i<3; i++) {
-			o1[i].scale(K);
-			o2[i].scale(K);
-		}
-		return K;
-	}
-	*/
-
-	/** Match together any number of origins. If transform_type is TRANS_ROT_SCALE or TRANS_ROT_SCALE_SHEAR, then scale all axes vectors so that the longest becomes of length 1.0.
-	 *  @return the applied scaling factor.
-	 * */
-	/*static public final double matchOrigins(final Vector3d[][] o, final int transform_type) {
-		if (Compare.TRANS_ROT == transform_type) return 1; // nothing to change, vectors are normalized
-		// else, scale vectors to make the longest one be of length 1.0
-		double max_len = 0;
-		for (int k=0; k<o.length; k++) {
-			for (int i=0; i<3; i++) {
-				max_len = Math.max(max_len, o[k][i].length());
-			}
-		}
-		final double K = 1/max_len;
-		for (int k=0; k<o.length; k++) {
-			for (int i=0; i<3; i++) { // can't do o[k].length because 4==len, the fourth being the origin of coordinates of the given origin axes.
-				o[k][i].scale(K);
-			}
-		}
-		return K;
-	}
-	*/
-
-	/** Returns an array of 4 Vector3d: the three unit vectors in the same order as the vector strings, and the origin of coordinates.
-	 *
-	 * Expects:
-	 *   X, Y, Z
-	 *   where Z is the one to trust the most, Y the second most trusted, and X only for orientation.
-	 *   ZY define the plane, the direction of the perpendicular of which is given by the X.
-	 *
-	 *   @return normalized vectors for transform_type == Compare.TRANS_ROT, otherwise NOT normalized.
-	 */
-	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type) {
-		Utils.log2("WARNING TODO shouldn't be using this method ever");
-		return createOrigin(x, y, z, transform_type, null);
-	}
-	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type, final Vector3d[] o_ref) {
-		// Aproximate an origin of coordinates
-		final VectorString3D[] vs = new VectorString3D[]{z, y, x};
-		final ArrayList<Point3d> ps = new ArrayList<Point3d>();
-		final int[] dir = new int[]{1, 1, 1};
-
-		for (int i=0; i<vs.length; i++) {
-			for (int k=i+1; k<vs.length; k++) {
-				double min_dist = Double.MAX_VALUE;
-				int ia=0, ib=0;
-				for (int a=0; a<vs[i].length(); a++) {
-					for (int b=0; b<vs[k].length(); b++) {
-						double d = distance(vs[i], a, vs[k], b);
-						if (d < min_dist) {
-							min_dist = d;
-							ia = a;
-							ib = b;
-						}
-					}
-				}
-				ps.add(new Point3d((vs[i].x[ia] + vs[k].x[ib])/2,
-						  (vs[i].y[ia] + vs[k].y[ib])/2,
-						  (vs[i].z[ia] + vs[k].z[ib])/2));
-				// determine orientation of the VectorString3D relative to the origin
-				if (ia > vs[i].length()/2) dir[i] = -1;
-				if (ib > vs[k].length()/2) dir[k] = -1;
-				// WARNING: we don't check for the case where it contradicts
-			}
-		}
-
-		final Vector3d origin = new Vector3d();
-		final int len = ps.size();
-		for (Point3d p : ps) {
-			p.x /= len;
-			p.y /= len;
-			p.z /= len;
-		}
-		for (Point3d p : ps) origin.add(p);
-
-		// aproximate a vector for each axis
-		Vector3d vz = z.sumVector();
-		Vector3d vy = y.sumVector();
-		Vector3d vx = x.sumVector();
-
-		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
-		vz.scale(dir[0]);
-		vy.scale(dir[1]);
-		vx.scale(dir[2]);
-
-		/*
-		Utils.log2("dir[0]=" + dir[0]);
-		Utils.log2("dir[1]=" + dir[1]);
-		Utils.log2("dir[2]=" + dir[2]);
-		*/
-
-		Vector3d v1 = vx,
-			 v2 = vy,
-			 v3 = vz;
-
-
-		// TRANS_ROT:
-		//     - peduncle rules (vz), and the others are cross products of it
-		//     - query axes vectors made of same length as reference
-		//
-		// TRANS_ROT_SCALE:
-		//     - peduncle rules (vz), and the others are cross products of it
-		//
-		// TRANS_ROT_SCALE_SHEAR:
-		//     - use axes vectors as they are, but normalized to make the longest be 1.0
-
-
-		/* // old way: MB space
-		if (Compare.TRANS_ROT == transform_type) {
-			vx.normalize();
-			vy.normalize();
-			vz.normalize();
-		}
-		*/
-
-		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
-			// 1 - compute MEDIAL vector: perpendicular to the plane made by peduncle and dorsal lobe
-			Vector3d vc_medial = new Vector3d();
-			vc_medial.cross(vz, vy);
-			/* // OLD WAY
-			// check orientation:
-			Vector3d vc_med = new Vector3d(vc_medial);
-			vc_med.normalize();
-			Vector3d vx_norm = new Vector3d(vx);
-			vx_norm.normalize();
-			vc_med.add(vx_norm); // adding the actual medial lobe vector
-			// if the sum is smaller, then it means it should be inverted (it was the other side)
-			if (vc_med.length() < vx_norm.length()) {
-				vc_medial.scale(-1);
-				Utils.log2("Mirroring X axis");
-			}
-			*/
-
-			// 2 - compute DORSAL vector: perpedicular to the plane made by v1 and vc_medial
-			Vector3d vc_dorsal = new Vector3d();
-			vc_dorsal.cross(vz, vc_medial);
-			// check orientation
-			Vector3d vc_dor = new Vector3d(vc_dorsal);
-			vc_dor.add(vy);
-			// if the sum is smaller, invert
-			if (vc_dor.length() < vy.length()) {
-				vc_dorsal.scale(-1);
-				Utils.log("Mirroring Y axis");
-			}
-
-			/*
-			if (Compare.TRANS_ROT == transform_type) {
-				// just in case, for rounding issues
-				vc_medial.normalize();
-				vc_dorsal.normalize();
-			}
-			*/
-
-			v1 = vc_medial;
-			v2 = vc_dorsal;
-			//v3 = vz; // already done, the peduncle
-
-			if (Compare.TRANS_ROT == transform_type && null != o_ref) {
-				// Scale each query axis to length of the reference one
-				// so that there are no scaling differences.
-				v1.normalize();		v1.scale(o_ref[0].length());
-				v2.normalize();		v2.scale(o_ref[1].length());
-				v3.normalize();		v3.scale(o_ref[2].length());
-			}
-		
-		}
-		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
-			// use AS THEY ARE
-
-		return new Vector3d[]{
-			v1, // X axis : medial lobe
-			v2, // Y axis : dorsal lobe
-			v3, // Z axis : peduncle
-			origin     // x,y,z origin of coordinates
-		};
-	}
-
 	static public final double distance(final VectorString3D vs1, final int i, final VectorString3D vs2, int j) {
 		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
@@ -1443,89 +1240,9 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
-	static public void testCreateOrigin(LayerSet ls, VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
-		try {
-			// create vectors
-			double delta = (vs1.getAverageDelta() + vs2.getAverageDelta() + vs3.getAverageDelta()) / 3;
-			vs1.resample(delta);
-			vs2.resample(delta);
-			vs3.resample(delta);
-			//
-			Vector3d[] o = createOrigin(vs1, vs2, vs3, Compare.TRANS_ROT);
-			Display3D.addMesh(ls, makeVSFromP(o[0], o[3]), "v1", Color.green);
-			Display3D.addMesh(ls, makeVSFromP(o[1], o[3]), "v2", Color.orange);
-			Display3D.addMesh(ls, makeVSFromP(o[2], o[3]), "v3", Color.red);
-			System.out.println("v1:" + o[0]);
-			System.out.println("v2:" + o[1]);
-			System.out.println("v3:" + o[2]);
-
-			// create matrix:
-			Matrix3d rotm = new Matrix3d(
-					o[0].x, o[1].x, o[2].x,
-					o[0].y, o[1].y, o[2].y,
-					o[0].z, o[1].z, o[2].z
-			);
-			Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
-			rot.invert();
-			// DOESN'T WORK // Transform3D trans =  new Transform3D(new Matrix3d(1, 0, 0, 0, 1, 0, 0, 0, 1), new Vector3d(-o[3].x, -o[3].y, -o[3].z), 1.0);
-
-			System.out.println("o3: " + o[3].toString());
-
-			// test:
-			for (int i=0; i<3; i++) {
-				o[i].x += o[3].x;
-				o[i].y += o[3].y;
-				o[i].z += o[3].z;
-			}
-
-			for (int i=0; i<3; i++) {
-				o[i].sub(o[3]); // can't use translation matrix: doesn't work
-				//trans.transform(o[i]);
-				rot.transform(o[i]);
-			}
-
-			System.out.println("v1:" + o[0]); // expect: 1, 0, 0
-			System.out.println("v2:" + o[1]); // expect: 0, 1, 0
-			System.out.println("v3:" + o[2]); // expect: 0, 0, 1
-
-
-
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-	}
-
-	static private void p(String msg) {
-		System.out.println(msg);
-	}
-
 	static private void transform(Transform3D trans, Transform3D rot, Vector3d v) {
 		trans.transform(v);
-		//p("trans v: " + v);
 		rot.transform(v);
-		//p("rot v: " + v);
-	}
-
-
-	static private VectorString3D makeVSFromP(Vector3d p, Vector3d origin) throws Exception {
-		double[] x1 = new double[20];
-		double[] y1 = new double[20];
-		double[] z1 = new double[20];
-		double K = 10;
-		x1[0] = p.x * K;
-		y1[0] = p.y * K;
-		z1[0] = p.z * K;
-		for (int i=1; i<x1.length; i++) {
-			x1[i] = p.x * K + x1[i-1];
-			y1[i] = p.y * K + y1[i-1];
-			z1[i] = p.z * K + z1[i-1];
-		}
-		for (int i=0; i<x1.length; i++) {
-			x1[i] += origin.x;
-			y1[i] += origin.y;
-			z1[i] += origin.z;
-		}
-		return new VectorString3D(x1, y1, z1, false);
 	}
 
 	public Point3d computeCenterOfMass() {
@@ -1627,7 +1344,7 @@ public class VectorString3D implements VectorString {
 			}
 
 			if (with_source) {
-				Utils.log2("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size() + " first,last: " + first + ", " + last);
+				System.out.println("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size() + " first,last: " + first + ", " + last);
 			}
 
 			VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
@@ -1649,7 +1366,7 @@ public class VectorString3D implements VectorString {
 	 * */
 	public VectorString3D chain(final VectorString3D vs) {
 		if (this.isClosed() || vs.isClosed()) {
-			Utils.log2("Can't chain closed VectorString3D instances.");
+			System.out.println("Can't chain closed VectorString3D instances.");
 			return null;
 		}
 		// check both ends, find the two ends that are closest
@@ -1680,9 +1397,9 @@ public class VectorString3D implements VectorString {
 
 	static private final VectorString3D concat(final VectorString3D vs1, final VectorString3D vs2) {
 		final int len = vs1.length + vs2.length;
-		final double[] x = Utils.copy(vs1.x, len);
-		final double[] y = Utils.copy(vs1.y, len);
-		final double[] z = Utils.copy(vs1.z, len);
+		final double[] x = Util.copy(vs1.x, len);
+		final double[] y = Util.copy(vs1.y, len);
+		final double[] z = Util.copy(vs1.z, len);
 		System.arraycopy(vs2.x, 0, x, vs1.length, vs2.length);
 		System.arraycopy(vs2.y, 0, y, vs1.length, vs2.length);
 		System.arraycopy(vs2.z, 0, z, vs1.length, vs2.length);
@@ -1697,13 +1414,27 @@ public class VectorString3D implements VectorString {
 	public VectorString3D substring(final int first, final int last) {
 		if (first < 0 || last > length) return null;
 		final int len = last - first; // no +1 because last is non-inclusive
-		final double[] x2 = Utils.copy(x, first, len);
-		final double[] y2 = Utils.copy(y, first, len);
-		final double[] z2 = Utils.copy(z, first, len);
 		try {
-			return new VectorString3D(x2, y2, z2, false);
+			VectorString3D vs = new VectorString3D(Util.copy(x, first, len), Util.copy(y, first, len), Util.copy(z, first, len), false);
+			vs.delta = delta;
+			if (null != vx) vs.vx = Util.copy(vx, first, len);
+			if (null != vy) vs.vy = Util.copy(vy, first, len);
+			if (null != vz) vs.vz = Util.copy(vz, first, len);
+			if (null != rvx) vs.rvx = Util.copy(rvx, first, len);
+			if (null != rvy) vs.rvy = Util.copy(rvy, first, len);
+			if (null != rvz) vs.rvz = Util.copy(rvz, first, len);
+			if (null != source) {
+				// shallow clone the source points
+				vs.source = new ArrayList<ArrayList<Point3d>>();
+				for (ArrayList<Point3d> ap : this.source) {
+					vs.source.add((ArrayList<Point3d>)ap.clone());
+				}
+			}
+			vs.tags = this.tags;
+			vs.cal = null == this.cal ? null : this.cal.copy();
+			return vs;
 		} catch (Exception e) {
-			IJError.print(e);
+			e.printStackTrace();
 			return null;
 		}
 	}
@@ -1726,9 +1457,9 @@ public class VectorString3D implements VectorString {
 		for (int k=0; k<this.length; k++) {
 			for (int i=0; i<vs.length; i++) {
 				double sqd = sqDistance(x[k], y[k], z[k], vs.x[i], vs.y[i], vs.z[i]);
-				//Utils.log("radius: " + sq_radius + " sqd: " + sqd);
+				//Util.log("radius: " + sq_radius + " sqd: " + sqd);
 				if (sqd <= sq_radius) {
-					Utils.log2("Found nearby " + vs + " at " + Utils.cutNumber(Math.sqrt(sqd), 2));
+					System.out.println("Found nearby " + vs + " at " + Math.sqrt(sqd));
 					return true;
 				}
 			}
@@ -1736,12 +1467,13 @@ public class VectorString3D implements VectorString {
 		return false;
 	}
 
-	/** If null != source, compute the StdDev at each point in this VectorString3D, by comparing it with its associated source points. Returns null if there is no source.  */
+	/** If null != source, compute the StdDev at each point in this VectorString3D, by comparing it with its associated source points. Returns null if there is no source.
+	 * What is meant for stdDev is the stdDev of the points from which any given point in this VectorString3D was generated, returned as a distance to use as radius around that point. */
 	public double[] getStdDevAtEachPoint() {
 		if (null == source) return null;
 		final double[] stdDev = new double[length];
 		int i = 0;
-		Utils.log2("len x: " + length + "  len source: " + source.size());
+		System.out.println("len x: " + length + "  len source: " + source.size());
 		for (ArrayList<Point3d> ap : source) {
 			// 1 - Expected: the current position
 			final Point3d expected = new Point3d(x[i], y[i], z[i]);
@@ -1750,6 +1482,30 @@ public class VectorString3D implements VectorString {
 			for (Point3d p : ap) sd += Math.pow(p.distance(expected), 2);
 			// 3 - stdDev
 			stdDev[i] = Math.sqrt(sd / ap.size());
+
+			// Test separately for each dimension : it's the same
+			/*
+			double sdx = 0,
+			       sdy = 0,
+			       sdz = 0;
+			for (Point3d p : ap) {
+				sdx += Math.pow(p.x - expected.x, 2);
+				sdy += Math.pow(p.y - expected.y, 2);
+				sdz += Math.pow(p.z - expected.z, 2);
+			}
+			sdx = Math.sqrt(sdx / ap.size());
+			sdy = Math.sqrt(sdy / ap.size());
+			sdz = Math.sqrt(sdz / ap.size());
+
+			sd = stdDev[i]; // from above
+
+			// stdDev as radial distance:
+			stdDev[i] = Math.sqrt(sdx*sdx + sdy*sdy + sdz*sdz);
+
+			System.out.println("check: sd =       " + sd +
+				   "       sd indep = " + stdDev[i]);
+			*/
+
 			i++;
 		}
 		return stdDev;

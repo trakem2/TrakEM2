@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
 import java.io.File;
+import java.util.regex.Pattern;
 
 import ini.trakem2.tree.*;
 import ini.trakem2.display.*;
@@ -89,10 +90,11 @@ public class TMLHandler extends DefaultHandler {
 
 	/** @param path The XML file that contains the project data in XML format.
 	 *  @param loader The FSLoader for the project.
+	 *  Expects the path with '/' as folder separator char.
 	 */
 	public TMLHandler(final String path, FSLoader loader) {
 		this.loader = loader;
-		this.base_dir = path.substring(0, path.lastIndexOf(File.separatorChar) + 1);
+		this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
 		this.xml_path = path;
 		final TemplateThing[] tt = DTDParser.extractTemplate(path);
 		if (null == tt) {
@@ -100,14 +102,32 @@ public class TMLHandler extends DefaultHandler {
 			loader = null;
 			return;
 		}
-		// debug:
 		/*
-		Utils.log("ROOTS #####################");
+		// debug:
+		Utils.log2("ROOTS #####################");
 		for (int k=0; k < tt.length; k++) {
 			Utils.log2("tt root " + k + ": " + tt[k]);
 		}
 		*/
 		this.root_tt = tt[0];
+
+		// There should only be one root. There may be more than one
+		// when objects in the DTD are declared but do not exist in a
+		// TemplateThing hierarchy, such as ict_* and iict_*.
+		// Find the first proper root:
+		if (tt.length > 1) {
+			final Pattern icts = Pattern.compile("^i{1,2}ct_transform.*$");
+			this.root_tt = null;
+			for (int k=0; k<tt.length; k++) {
+				if (icts.matcher(tt[k].getType()).matches()) {
+					continue;
+				}
+				this.root_tt = tt[k];
+				break;
+			}
+		}
+		// TODO the above should be a better filtering rule in the DTDParser.
+
 		// create LayerThing templates
 		this.template_layer_thing = new TemplateThing("layer");
 		this.template_layer_set_thing = new TemplateThing("layer set");
@@ -525,6 +545,14 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(new Long(oid), pline);
 				ht_zdispl.put(new Long(oid), pline);
 				addToLastOpenLayerSet(pline);
+				return null;
+			} else if (type.equals("connector")) {
+				Connector con = new Connector(this.project, oid, ht_attributes, ht_links);
+				con.addToDatabase();
+				last_displayable = con;
+				ht_displayables.put(new Long(oid), con);
+				ht_zdispl.put(new Long(oid), con);
+				addToLastOpenLayerSet(con);
 				return null;
 			} else if (type.equals("path")) {
 				last_area_list.__addPath((String)ht_attributes.get("d"));

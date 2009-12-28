@@ -18,14 +18,14 @@ public class SimilarityModel2D extends mpicbg.models.SimilarityModel2D implement
 	}
 
 	public String toDataString() {
-		return super.scos + " " + super.ssin + " " + super.tx + " " + super.ty;
+		return scos + " " + ssin + " " + tx + " " + ty;
 	}
 
 	public String toXML(String indent) {
 		return indent + "<iict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\" />";
 	}
 	
-	//@Override
+	@Override
 	public SimilarityModel2D clone()
 	{
 		final SimilarityModel2D m = new SimilarityModel2D();

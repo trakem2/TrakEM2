@@ -138,4 +138,31 @@ public class Vector3 {
 		return this;
 	}
 
+	/** From my former program, A_3D_Editing.java and Pipe.java */
+	static public final Vector3 rotate_v_around_axis(final Vector3 v, final Vector3 axis, final double sin, final double cos) {
+
+		final Vector3 result = new Vector3();
+		final Vector3 r = axis.normalize(axis);
+
+		result.set((cos + (1-cos) * r.x * r.x) * v.x + ((1-cos) * r.x * r.y - r.z * sin) * v.y + ((1-cos) * r.x * r.z + r.y * sin) * v.z,
+		           ((1-cos) * r.x * r.y + r.z * sin) * v.x + (cos + (1-cos) * r.y * r.y) * v.y + ((1-cos) * r.y * r.z - r.x * sin) * v.z,
+		           ((1-cos) * r.y * r.z - r.y * sin) * v.x + ((1-cos) * r.y * r.z + r.x * sin) * v.y + (cos + (1-cos) * r.z * r.z) * v.z);
+
+		/*
+		result.x += (cos + (1-cos) * r.x * r.x) * v.x;
+		result.x += ((1-cos) * r.x * r.y - r.z * sin) * v.y;
+		result.x += ((1-cos) * r.x * r.z + r.y * sin) * v.z;
+
+		result.y += ((1-cos) * r.x * r.y + r.z * sin) * v.x;
+		result.y += (cos + (1-cos) * r.y * r.y) * v.y;
+		result.y += ((1-cos) * r.y * r.z - r.x * sin) * v.z;
+
+		result.z += ((1-cos) * r.y * r.z - r.y * sin) * v.x;
+		result.z += ((1-cos) * r.y * r.z + r.x * sin) * v.y;
+		result.z += (cos + (1-cos) * r.z * r.z) * v.z;
+		*/
+		return result;
+	}
+
+
 }  // End of class Vector3

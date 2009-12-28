@@ -1278,7 +1278,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			PGpolygon p = null;
 			try {
@@ -1330,7 +1330,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			Area area = new Area();
 			try {
@@ -1362,7 +1362,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			ArrayList al = new ArrayList();
 			try {
@@ -1402,7 +1402,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			ArrayList al = new ArrayList();
 			try {
@@ -2612,7 +2612,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory();
+			releaseMemory2();
 
 			InputStream i_stream = null;
 			try {
@@ -2698,7 +2698,7 @@ public class DBLoader extends Loader {
 			return null;
 		}
 		long imp_size = (long)(patch.getWidth() * patch.getHeight() * 4); // assume RGB, thus multiply by 4 (an int has 4 bytes)
-		releaseMemory(0.5D, true, MIN_FREE_BYTES > imp_size ? MIN_FREE_BYTES : imp_size);
+		releaseMemory(MIN_FREE_BYTES > imp_size ? MIN_FREE_BYTES : imp_size);
 		ImagePlus imp = null;
 		InputStream i_stream = null;
 		try {
@@ -2720,14 +2720,6 @@ public class DBLoader extends Loader {
 		}
 		if (null == imp) Utils.log("WARNING fetching a null original");
 		return imp;
-	}
-
-	public void prepare(Layer layer) {
-		//connect if disconnected
-		if (!connectToDatabase()) {
-			return;
-		}
-		super.prepare(layer);
 	}
 
 	//private Monitor monitor = null;

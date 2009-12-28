@@ -7,10 +7,15 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.Toolbar;
 import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+
+import fiji.geom.AreaCalculations;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.ProjectThing;
@@ -18,6 +23,8 @@ import ini.trakem2.persistence.Loader;
 
 import java.awt.Rectangle;
 import java.awt.Event;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 
 /** Intercept ImageJ menu commands if the current active image is a FakeImagePlus (from a ini.trakem2.display.Display.) */
 public class ImageJCommandListener implements CommandListener {
@@ -368,8 +375,46 @@ public class ImageJCommandListener implements CommandListener {
 
 		// ANALYZE menu
 		else if (command.equals("Measure")) {
-			// TODO
-			niy(command);
+			// Minimal measurement: area of closed ROIs, length of unclosed ROIs, calibrated.
+			Roi roi = fimp.getRoi();
+			if (null != roi) {
+				Calibration cal = fimp.getCalibration();
+				AffineTransform caff = new AffineTransform();
+				caff.scale(cal.pixelWidth, cal.pixelHeight);
+				if (M.isAreaROI(roi)) {
+					Area area = M.getArea(roi);
+					area = area.createTransformedArea(caff);
+					ResultsTable rt = Utils.createResultsTable("ROI area", new String[]{"area", "perimeter"});
+					rt.incrementCounter();
+					rt.addLabel("units", cal.getUnit());
+					rt.addValue(0, Math.abs(AreaCalculations.area(area.getPathIterator(null))));
+					rt.addValue(1, roi.getLength());
+					rt.show("ROI area");
+				} else {
+					ResultsTable rt = Utils.createResultsTable("ROI length", new String[]{"length"});
+					rt.incrementCounter();
+					rt.addLabel("units", cal.getUnit());
+					rt.addValue(0, roi.getLength());
+					rt.show("ROI length");
+				}
+				return null;
+			} else if (null != active) {
+				// Measure the active displayable
+				if (active.getClass() == Patch.class) {
+					// measure like 'm' would in ImageJ for an image
+					ImagePlus imp = ((Patch)active).getImagePlus();
+					imp.setCalibration(active.getLayer().getParent().getCalibrationCopy());
+					IJ.run(imp, "Measure", "");
+				} else {
+					// Call measure like ProjectThing does
+					ProjectThing pt = active.getProject().findProjectThing(active);
+					if (active instanceof Profile)
+						((ProjectThing)pt.getParent()).measure();
+					else pt.measure();
+				}
+				return null;
+			}
+			Utils.log("Draw a ROI or select an object!");
 			return null;
 		} else if (in(command, new String[]{"Analyze Particles...", "Histogram", "Plot Profile", "Surface Plot...", "Color Inspector 3D", "3D Surface Plot", "Color Histogram"})) {
 			return setTempCurrentImage(command, active);
