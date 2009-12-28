@@ -748,7 +748,7 @@ public class Treeline extends ZDisplayable {
 							// Paint proximal half edge to the child
 							g.setColor(local_edge_color);
 							g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-							if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
+							//if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
 						} else {
 							// Paint full edge, but perhaps in two halfs of different colors
 							if ((child.la == this.la && this.la == active_layer)
