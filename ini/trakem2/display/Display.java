@@ -3741,6 +3741,10 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
 			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
+			gd.addCheckbox("Show arrow heads in Treeline", layer.getParent().paint_arrows);
+			gd.addCheckbox("Show edge confidence boxes in Treeline", layer.getParent().paint_edge_confidence_boxes);
+			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
+			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -3767,6 +3771,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
 			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
+			// project props that are stored in LayerSet fields
+			project.setProperty("no_paint_arrows", Boolean.toString(!gd.getNextBoolean()));
+			project.setProperty("no_paint_edge_confidence_boxes", Boolean.toString(!gd.getNextBoolean()));
+			project.setProperty("no_color_cues", Boolean.toString(!gd.getNextBoolean()));
+			project.setProperty("n_layers_color_cue", Integer.toString((int)gd.getNextNumber()));
+			layer.getParent().updateProps();
+			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
 		} else if (command.equals("Adjust fast-marching parameters...")) {

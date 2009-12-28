@@ -97,34 +97,25 @@ public class Treeline extends ZDisplayable {
 
 	private Node root = null;
 
-	static private boolean last_paint_arrows = true;
-
-	private boolean paint_arrows;
-
-
 	public Treeline(Project project, String title) {
 		super(project, title, 0, 0);
 		addToDatabase();
-		this.paint_arrows = last_paint_arrows;
 	}
 
 	public Treeline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
 		super(project, id, ht_attr, ht_links);
-		String p = (String)ht_attr.get("paint_arrows");
-		this.paint_arrows = null == p || "true".equals(p);
 	}
 
-	public Treeline(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at, final Node root, final boolean paint_arrows) {
+	public Treeline(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at, final Node root) {
 		super(project, id, title, locked, at, width, height);
 		this.alpha = alpha;
 		this.visible = visible;
 		this.color = color;
 		this.root = root;
-		this.paint_arrows = paint_arrows;
 	}
 
 	final public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		paint(g, magnification, active, channels, active_layer, paint_arrows);
+		paint(g, magnification, active, channels, active_layer, layer_set.paint_arrows);
 	}
 	final public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final boolean with_arrows) {
 		if (null == root) {
@@ -178,7 +169,7 @@ public class Treeline extends ZDisplayable {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows);
+					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 
@@ -298,7 +289,7 @@ public class Treeline extends ZDisplayable {
 
 	public Treeline clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		return new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at, root.clone(), paint_arrows);
+		return new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at, root.clone());
 	}
 
 	public boolean isDeletable() {
@@ -320,7 +311,6 @@ public class Treeline extends ZDisplayable {
 		;
 		sb_header.append(indent).append("<!ELEMENT t2_treeline (t2_node,").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
-		sb_header.append(indent).append(TAG_ATTR1).append("t2_treeline paint_arrows").append(TAG_ATTR2);
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
@@ -330,7 +320,6 @@ public class Treeline extends ZDisplayable {
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		super.restXML(sb_body, in, any);
-		sb_body.append(indent).append("paint_arrows=\"").append(paint_arrows).append("\"\n");
 		sb_body.append(indent).append(">\n");
 		if (null != root) exportXML(in, sb_body, root);
 		sb_body.append(indent).append("</t2_treeline>\n");
@@ -502,7 +491,7 @@ public class Treeline extends ZDisplayable {
 				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
 				nd.parent = null;
 				// With the found nd, now a root, create a new Treeline
-				Treeline tline = new Treeline(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, (AffineTransform)this.at.clone(), nd, paint_arrows);
+				Treeline tline = new Treeline(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, (AffineTransform)this.at.clone(), nd);
 				// ... and fill its cache arrays
 				tline.cacheSubtree(subtree_nodes); // includes nd itself
 				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
@@ -706,7 +695,7 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 		/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-		final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color tline_color, final boolean with_arrows) {
+		final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color tline_color, final boolean with_arrows, final boolean with_confidence_boxes) {
 			// Since this method is called, this node is to be painted and by definition is inside the Set to_paint.
 			if (null != children) {
 				final double actZ = active_layer.getZ();
@@ -787,7 +776,7 @@ public class Treeline extends ZDisplayable {
 								}
 							}
 						}
-						if (active && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ < child.la.getZ()))) {
+						if (active && with_confidence_boxes && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ < child.la.getZ()))) {
 							// Draw confidence half-way through the edge
 							String s = Integer.toString(confidence[i]&0xff);
 							Dimension dim = Utils.getDimensions(s, g.getFont());
@@ -1569,31 +1558,5 @@ public class Treeline extends ZDisplayable {
 				return;
 			default: return; // case 2: // disabled, no paint
 		}
-	}
-
-	@Override
-	public void adjustProperties() {
-		GenericDialog gd = makeAdjustPropertiesDialog(); // in superclass
-		gd.addCheckbox("Paint arrowheads", this.paint_arrows);
-		gd.showDialog();
-		if (gd.wasCanceled()) return;
-		// superclass processing
-		final Displayable.DoEdit prev = processAdjustPropertiesDialog(gd);
-		// local proccesing
-		final boolean paint_arrows = gd.getNextBoolean();
-		if (this.paint_arrows != paint_arrows) {
-			prev.add("paint_arrows", paint_arrows);
-			this.paint_arrows = paint_arrows;
-			last_paint_arrows = paint_arrows;
-		}
-		// Add current step, with the same modified keys
-		DoEdit current = new DoEdit(this).init(prev);
-		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
-		getLayerSet().addEditStep(current);
-	}
-
-	public void setPaintArrows(final boolean paint_arrows) {
-		this.paint_arrows = paint_arrows;
-		last_paint_arrows = paint_arrows;
 	}
 }
