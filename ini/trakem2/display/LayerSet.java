@@ -1344,10 +1344,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		double scale = max_dimension / Math.max(layer_width, layer_height);
 		return scale > 1 ? 1 : scale;
 	}
-	public void setPixelsMaxDimension(int d) {
-		if (d > 2 && d != max_dimension) {
-			max_dimension = d;
-			Polyline.flushTraceCache(project); // depends on the scale value
+	public void setPixelsMaxDimension(final int d) {
+		if (d > 2) {
+			if (d != max_dimension) {
+				max_dimension = d;
+				Polyline.flushTraceCache(project); // depends on the scale value
+			}
 		} else Utils.log("Can't set virtualization max pixels dimension to smaller than 2!");
 	}
 
