@@ -138,11 +138,26 @@ public class Treeline extends ZDisplayable {
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
 			final Set<Node> nodes;
-			if ("true".equals(project.getProperty("no_color_cues"))) {
-				nodes = node_layer_map.get(active_layer);
-			} else {
+			if (layer_set.color_cues) {
 				nodes = new HashSet<Node>();
-				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
+				if (-1 == layer_set.n_layers_color_cue) {
+					// All layers
+					for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
+				} else {
+					// Just a range
+					int i = layer_set.indexOf(active_layer);
+					int first = i - layer_set.n_layers_color_cue;
+					int last = i + layer_set.n_layers_color_cue;
+					if (first < 0) first = 0;
+					if (last >= layer_set.size()) last = layer_set.size() -1;
+					for (final Layer la : layer_set.getLayers(first, last)) {
+						Set<Node> ns = node_layer_map.get(la);
+						if (null != ns) nodes.addAll(ns);
+					}
+				}
+			} else {
+				// Just the active layer
+				nodes = node_layer_map.get(active_layer);
 			}
 			if (null != nodes) {
 				Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);

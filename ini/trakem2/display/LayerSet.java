@@ -121,13 +121,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean color_cues = true;
 	protected boolean paint_arrows = true;
 	protected boolean paint_edge_confidence_boxes = true;
-	protected int n_layers_color_cue = 1;
+	protected int n_layers_color_cue = -1; // -1 means all
 
 	protected void updateProps() {
 		color_cues = !project.getBooleanProperty("no_color_cues");
 		paint_arrows = !project.getBooleanProperty("no_paint_arrows");
 		paint_edge_confidence_boxes = !project.getBooleanProperty("no_paint_edge_confidence_boxes");
-		n_layers_color_cue = project.getProperty("n_layers_color_cue", 1);
+		n_layers_color_cue = project.getProperty("n_layers_color_cue", -1);
 		// TODO should really be stored locally in the LayerSet XML, as <t2_prop key="" val="" />
 	}
 
