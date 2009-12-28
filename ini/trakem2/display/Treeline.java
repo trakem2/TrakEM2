@@ -114,6 +114,9 @@ public class Treeline extends ZDisplayable {
 	}
 
 	final public void paint(Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+		paint(g, magnification, active, channels, active_layer, true);
+	}
+	final public void paint(Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final boolean with_arrows) {
 		if (null == root) {
 			setupForDisplay();
 			if (null == root) return;
@@ -158,7 +161,7 @@ public class Treeline extends ZDisplayable {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color);
+					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows);
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 			}
@@ -680,7 +683,7 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 		/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-		final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color tline_color) {
+		final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color tline_color, final boolean with_arrows) {
 			// Since this method is called, this node is to be painted and by definition is inside the Set to_paint.
 			if (null != children) {
 				final double actZ = active_layer.getZ();
@@ -718,7 +721,7 @@ public class Treeline extends ZDisplayable {
 							// Paint proximal half edge to the child
 							g.setColor(local_edge_color);
 							g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-							g.fill(M.createArrowhead(x, y, chx, chy));
+							if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
 						} else {
 							// Paint full edge, but perhaps in two halfs of different colors
 							if ((child.la == this.la && this.la == active_layer)
@@ -727,7 +730,7 @@ public class Treeline extends ZDisplayable {
 								// Full edge in local color
 								g.setColor(local_edge_color);
 								g.drawLine((int)x, (int)y, (int)chx, (int)chy);
-								g.fill(M.createArrowhead(x, y, chx, chy));
+								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
 							} else {
 								if (thisZ < actZ && actZ < child.la.getZ()) {
 									// passing by: edge crosses the current layer
@@ -735,7 +738,7 @@ public class Treeline extends ZDisplayable {
 									g.setColor(local_edge_color);
 									g.drawLine((int)(x + (chx - x)/4), (int)(y + (chy - y)/4),
 										   (int)(x + 3*(chx - x)/4), (int)(y + 3*(chy - y)/4));
-									g.fill(M.createArrowhead(x, y, chx, chy));
+									if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
 								} else if (this.la == active_layer) {
 									// Proximal half in this color
 									g.setColor(local_edge_color);
@@ -749,15 +752,15 @@ public class Treeline extends ZDisplayable {
 									//
 									g.setColor(c);
 									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
-									g.fill(M.createArrowhead(x, y, chx, chy));
+									if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
 								} else if (child.la == active_layer) {
 									// Distal half in the Displayable color
 									g.setColor(tline_color);
 									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
+									if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy));
 									// Proximal half in either red or blue:
 									g.setColor(local_edge_color);
 									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-									g.fill(M.createArrowhead(x, y, chx, chy));
 								}
 							}
 						}
@@ -1529,5 +1532,19 @@ public class Treeline extends ZDisplayable {
 		this.root = new_root;
 		if (null == new_root) clearCache();
 		else cacheSubtree(new_root.getSubtreeNodes());
+	}
+
+	@Override
+	public void paintSnapshot(final Graphics2D g, final double mag) {
+		switch (layer_set.getSnapshotsMode()) {
+			case 0:
+				// Paint without arrows
+				paint(g, mag, false, 0xffffffff, layer, false);
+				return;
+			case 1:
+				paintAsBox(g);
+				return;
+			default: return; // case 2: // disabled, no paint
+		}
 	}
 }
