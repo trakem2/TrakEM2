@@ -391,9 +391,11 @@ public class TMLHandler extends DefaultHandler {
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_treeline")) {
 			if (null != last_treeline) {
-				// old
-				last_treeline.parse(last_treeline_data);
-				last_treeline_data = null;
+				// old format:
+				if (null == last_root_node && null != last_treeline_data && last_treeline_data.length() > 0) {
+					last_root_node = parseBranch(Utils.trim(last_treeline_data));
+					last_treeline_data = null;
+				}
 				// new
 				treeline_root_nodes.put(last_treeline, last_root_node);
 				last_root_node = null;
@@ -797,5 +799,56 @@ public class TMLHandler extends DefaultHandler {
 			}
 		}
 		catch ( Exception e ) { IJError.print(e); }
+	}
+
+	private final Treeline.Node parseBranch(String s) {
+		// 1 - Parse the slab
+		final int first = s.indexOf('(');
+		final int last = s.indexOf(')', first+1);
+		final String[] coords = s.substring(first+1, last).split(" ");
+		Treeline.Node prev = null;
+		final List<Treeline.Node> nodes = new ArrayList<Treeline.Node>();
+		for (int i=0; i<coords.length; i+=3) {
+			long lid = Long.parseLong(coords[i+2]);
+			Treeline.Node nd = new Treeline.Node(Integer.parseInt(coords[i]), Integer.parseInt(coords[i+1]), null, 0);
+			nodes.add(nd);
+			// Add to node_layer_table for later assignment of a Layer object to the node
+			List<Treeline.Node> list = node_layer_table.get(lid);
+			if (null == list) {
+				list = new ArrayList<Treeline.Node>();
+				node_layer_table.put(lid, list);
+			}
+			list.add(nd);
+			//
+			if (null == prev) prev = nd;
+			else {
+				prev.add(nd, Treeline.MAX_EDGE_CONFIDENCE);
+				prev = nd; // new parent
+			}
+		}
+		// 2 - Parse the branches
+		final int ibranches = s.indexOf(":branches", last+1);
+		if (-1 != ibranches) {
+			final int len = s.length();
+			int open = s.indexOf('{', ibranches + 9);
+			while (-1 != open) {
+				int end = open + 1; // don't read the first curly bracket
+				int level = 1;
+				for(; end < len; end++) {
+					switch (s.charAt(end)) {
+						case '{': level++; break;
+						case '}': level--; break;
+					}
+					if (0 == level) break;
+				}
+				// Add the root node of the new branch to the node at branch index
+				int openbranch = s.indexOf('{', open+1);
+				int branchindex = Integer.parseInt(s.substring(open+1, openbranch-1));
+				nodes.get(branchindex).add(parseBranch(s.substring(open, end)),
+							   Treeline.MAX_EDGE_CONFIDENCE);
+				open = s.indexOf('{', end+1);
+			}
+		}
+		return nodes.get(0);
 	}
 }

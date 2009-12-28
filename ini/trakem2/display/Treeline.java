@@ -113,11 +113,6 @@ public class Treeline extends ZDisplayable {
 		this.root = root;
 	}
 
-	/** To reconstruct from XML. */
-	public void parse(final StringBuilder sb) {
-		Utils.log2("Treeline.parse(StringBuilder) not yet implemented.");
-	}
-
 	final public void paint(Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (null == root) {
 			setupForDisplay();
@@ -1532,6 +1527,7 @@ public class Treeline extends ZDisplayable {
 	/** Used when reconstructing from XML. */
 	public void setRoot(final Node new_root) {
 		this.root = new_root;
-		cacheSubtree(new_root.getSubtreeNodes());
+		if (null == new_root) clearCache();
+		else cacheSubtree(new_root.getSubtreeNodes());
 	}
 }
