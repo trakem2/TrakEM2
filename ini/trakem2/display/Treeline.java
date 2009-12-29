@@ -116,6 +116,33 @@ public class Treeline extends ZDisplayable {
 		this.root = root;
 	}
 
+	final private Set<Node> getNodesToPaint(final Layer active_layer) {
+		// Determine which layers to paint
+		final Set<Node> nodes;
+		if (layer_set.color_cues) {
+			nodes = new HashSet<Node>();
+			if (-1 == layer_set.n_layers_color_cue) {
+				// All layers
+				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
+			} else {
+				// Just a range
+				int i = layer_set.indexOf(active_layer);
+				int first = i - layer_set.n_layers_color_cue;
+				int last = i + layer_set.n_layers_color_cue;
+				if (first < 0) first = 0;
+				if (last >= layer_set.size()) last = layer_set.size() -1;
+				for (final Layer la : layer_set.getLayers(first, last)) {
+					Set<Node> ns = node_layer_map.get(la);
+					if (null != ns) nodes.addAll(ns);
+				}
+			}
+		} else {
+			// Just the active layer
+			nodes = node_layer_map.get(active_layer);
+		}
+		return nodes;
+	}
+
 	final public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		paint(g, magnification, active, channels, active_layer, layer_set.paint_arrows);
 	}
@@ -139,28 +166,7 @@ public class Treeline extends ZDisplayable {
 
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
-			final Set<Node> nodes;
-			if (layer_set.color_cues) {
-				nodes = new HashSet<Node>();
-				if (-1 == layer_set.n_layers_color_cue) {
-					// All layers
-					for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
-				} else {
-					// Just a range
-					int i = layer_set.indexOf(active_layer);
-					int first = i - layer_set.n_layers_color_cue;
-					int last = i + layer_set.n_layers_color_cue;
-					if (first < 0) first = 0;
-					if (last >= layer_set.size()) last = layer_set.size() -1;
-					for (final Layer la : layer_set.getLayers(first, last)) {
-						Set<Node> ns = node_layer_map.get(la);
-						if (null != ns) nodes.addAll(ns);
-					}
-				}
-			} else {
-				// Just the active layer
-				nodes = node_layer_map.get(active_layer);
-			}
+			final Set<Node> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
 				Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
 				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
@@ -1415,6 +1421,60 @@ public class Treeline extends ZDisplayable {
 		}
 	}
 
+	public boolean insertNode(final Node parent, final Node child, final Node in_between, final byte confidence) {
+		synchronized (node_layer_map) {
+			byte b = parent.getConfidence(child);
+			parent.remove(child);
+			parent.add(in_between, b);
+			in_between.add(child, confidence);
+			// cache
+			Set<Node> nodes = node_layer_map.get(in_between.la);
+			if (null == nodes) {
+				nodes = new HashSet<Node>();
+				node_layer_map.put(in_between.la, nodes);
+			}
+			nodes.add(in_between);
+			// If child was in end_nodes, remains there
+
+			last_added = in_between;
+			return true;
+		}
+	}
+
+	/** Considering only the set of consecutive layers currently painted, find a point near an edge
+	 *  with accurancy depending upon magnification.
+	 *  @return null if none of the edges is close enough, or an array of parent and child describing the edge. */
+	public Node[] findNearestEdge(float x_pl, float y_pl, Layer layer, double magnification) {
+		if (null == root) return null;
+		// Don't traverse all, just look into nodes currently being painted according to layer_set.n_layers_color_cue
+		final Set<Node> nodes = getNodesToPaint(layer);
+		if (null == nodes) return null;
+		//
+		double d = (10.0D / magnification);
+		if (d < 2) d = 2;
+		double min_dist = Float.MAX_VALUE;
+		Node[] ns = new Node[2]; // parent and child
+		//
+		for (final Node node : nodes) {
+			if (null == node.children) continue;
+			// Examine if the point is closer to the 2D-projected edge than any other so far:
+			// TODO it's missing edges with parents beyond the set of painted layers,
+			//      and it's doing edges to children beyond the set of painted layers.
+			for (final Node child : node.children) {
+				double dist = M.distancePointToSegment(x_pl, y_pl,
+								       node.x, node.y,
+								       child.x, child.y);
+				if (dist < min_dist && dist < d) {
+					min_dist = dist;
+					ns[0] = node;
+					ns[1] = child;
+				}
+			}
+		}
+		if (null == ns[0]) return null;
+		return ns;
+	}
+
 	public boolean addNode(final Node parent, final Node child, final byte confidence) {
 		try {
 
@@ -1660,12 +1720,20 @@ public class Treeline extends ZDisplayable {
 					return;
 				}
 				// Add new point
-				// Find the point closest to any other starting or ending point in all branches
-				Node nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
-				// append new child; inherits radius from parent
-				active = new Node(x_pl, y_pl, layer, nearest.r);
-				addNode(nearest, active, MAX_EDGE_CONFIDENCE);
-				repaint(true);
+				if (me.isShiftDown()) {
+					Node[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
+					if (null != ns) {
+						active = new Node(x_pl, y_pl, layer, ns[0].r);
+						insertNode(ns[0], ns[1], active, ns[0].getConfidence(ns[1]));
+					}
+				} else {
+					// Find the point closest to any other starting or ending point in all branches
+					Node nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
+					// append new child; inherits radius from parent
+					active = new Node(x_pl, y_pl, layer, nearest.r);
+					addNode(nearest, active, MAX_EDGE_CONFIDENCE);
+					repaint(true);
+				}
 				return;
 			}
 		} else {
