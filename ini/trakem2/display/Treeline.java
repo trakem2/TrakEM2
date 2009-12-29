@@ -428,8 +428,19 @@ public class Treeline extends ZDisplayable {
 		final float[] fps = new float[2];
 		final Map<Node,Point3f> points = new HashMap<Node,Point3f>();
 
-		while (!todo.isEmpty()) {
+		// A few performance tests are needed:
+		// 1 - if the map caching of points helps or recomputing every time is cheaper than lookup
+		// 2 - if removing no-longer-needed points from the map helps lookup or overall slows down
+
+		boolean go = true;
+		while (go) {
 			final Node node = todo.removeFirst();
+			// Add children to todo list if any
+			if (null != node.children) {
+				for (final Node nd : node.children) todo.add(nd);
+			}
+			go = !todo.isEmpty();
+			// Get node's 3D coordinate
 			Point3f p = points.get(node);
 			if (null == p) {
 				fps[0] = node.x;
@@ -444,9 +455,10 @@ public class Treeline extends ZDisplayable {
 				// Create a line to the parent
 				list.add(points.get(node.parent));
 				list.add(p);
-			}
-			if (null != node.children) {
-				for (final Node nd : node.children) todo.add(nd);
+				if (go && node.parent != todo.getFirst().parent) {
+					// node.parent point no longer needed (last child just processed)
+					points.remove(node.parent);
+				}
 			}
 		}
 		return list;
