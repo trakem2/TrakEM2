@@ -410,10 +410,45 @@ public class Treeline extends ZDisplayable {
 		sb.append(indent).append("</t2_node>\n");
 	}
 
-	public List generateTriangles(double scale, int parallels, int resample) {
-		ArrayList list = new ArrayList();
-		// TODO
+	/** @return a CustomLineMesh.PAIRWISE list for a LineMesh. */
+	public List generateTriangles(double scale_, int parallels, int resample) {
+		if (null == root) return null;
+		final ArrayList list = new ArrayList();
 		//root.generateTriangles(list, scale, parallels, resample, layer_set.getCalibrationCopy());
+
+		// Simulate recursion
+		final LinkedList<Node> todo = new LinkedList<Node>();
+		todo.add(root);
+
+		final float scale = (float)scale_;
+		final Calibration cal = layer_set.getCalibration();
+		final float pixelWidthScaled = (float) cal.pixelWidth * scale;
+		final float pixelHeightScaled = (float) cal.pixelHeight * scale;
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
+		final float[] fps = new float[2];
+		final Map<Node,Point3f> points = new HashMap<Node,Point3f>();
+
+		while (!todo.isEmpty()) {
+			final Node node = todo.removeFirst();
+			Point3f p = points.get(node);
+			if (null == p) {
+				fps[0] = node.x;
+				fps[1] = node.y;
+				this.at.transform(fps, 0, fps, 0, 1);
+				p = new Point3f(fps[0] * pixelWidthScaled,
+						fps[1] * pixelHeightScaled,
+						(float)node.la.getZ() * pixelWidthScaled * sign);
+				points.put(node, p);
+			}
+			if (null != node.parent) {
+				// Create a line to the parent
+				list.add(points.get(node.parent));
+				list.add(p);
+			}
+			if (null != node.children) {
+				for (final Node nd : node.children) todo.add(nd);
+			}
+		}
 		return list;
 	}
 
