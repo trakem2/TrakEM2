@@ -102,10 +102,12 @@ public class Treeline extends ZDisplayable {
 		addToDatabase();
 	}
 
+	/** Reconstruct from XML. */
 	public Treeline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
 		super(project, id, ht_attr, ht_links);
 	}
 
+	/** For cloning purposes, does not call addToDatabase() */
 	public Treeline(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at, final Node root) {
 		super(project, id, title, locked, at, width, height);
 		this.alpha = alpha;
@@ -304,7 +306,9 @@ public class Treeline extends ZDisplayable {
 
 	public Treeline clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		return new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at, root.clone());
+		Treeline tline =  new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at, root.clone());
+		tline.addToDatabase();
+		return tline;
 	}
 
 	public boolean isDeletable() {
@@ -506,6 +510,7 @@ public class Treeline extends ZDisplayable {
 				nd.parent = null;
 				// With the found nd, now a root, create a new Treeline
 				Treeline tline = new Treeline(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, (AffineTransform)this.at.clone(), nd);
+				tline.addToDatabase();
 				// ... and fill its cache arrays
 				tline.cacheSubtree(subtree_nodes); // includes nd itself
 				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
