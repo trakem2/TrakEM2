@@ -431,6 +431,8 @@ public class Treeline extends ZDisplayable {
 		// A few performance tests are needed:
 		// 1 - if the map caching of points helps or recomputing every time is cheaper than lookup
 		// 2 - if removing no-longer-needed points from the map helps lookup or overall slows down
+		//
+		// The method, by the way, is very parallelizable: each is independent.
 
 		boolean go = true;
 		while (go) {
@@ -462,6 +464,174 @@ public class Treeline extends ZDisplayable {
 			}
 		}
 		return list;
+	}
+
+	/** Testing for performance, 100 iterations:
+	 * A: 3307  (current, with clearing of table on the fly)
+	 * B: 4613  (without clearing table)
+	 * C: 4012  (without point caching)
+	 *
+	 * Although in short runs (10 iterations) A can get very bad:
+	 * (first run of 10)
+	 * A: 664
+	 * B: 611
+	 * C: 196
+	 * (second run of 10)
+	 * A: 286
+	 * B: 314
+	 * C: 513  <-- gets worse !?
+	 *
+	 * Differences are not so huge in any case.
+	 */
+	static final public void testMeshGenerationPerformance(int n_iterations) {
+		// test 3D mesh generation
+
+		Layer la = Display.getFrontLayer();
+		java.util.Random rnd = new java.util.Random(67779);
+		Node root = new Node(rnd.nextFloat(), rnd.nextFloat(), la, 0);
+		Node parent = root;
+		for (int i=0; i<10000; i++) {
+			Node child = new Node(rnd.nextFloat(), rnd.nextFloat(), la, 0);
+			parent.add(child, MAX_EDGE_CONFIDENCE);
+			if (0 == i % 100) {
+				// add a branch of 100 nodes
+				Node pa = parent;
+				for (int k = 0; k<100; k++) {
+					Node ch = new Node(rnd.nextFloat(), rnd.nextFloat(), la, 0);
+					pa.add(ch, MAX_EDGE_CONFIDENCE);
+					pa = ch;
+				}
+			}
+			parent = child;
+		}
+
+		final AffineTransform at = new AffineTransform(1, 0, 0, 1, 67, 134);
+
+		final ArrayList list = new ArrayList();
+
+		final LinkedList<Node> todo = new LinkedList<Node>();
+
+		final float scale = 0.345f;
+		final Calibration cal = la.getParent().getCalibration();
+		final float pixelWidthScaled = (float) cal.pixelWidth * scale;
+		final float pixelHeightScaled = (float) cal.pixelHeight * scale;
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
+		final Map<Node,Point3f> points = new HashMap<Node,Point3f>();
+
+		// A few performance tests are needed:
+		// 1 - if the map caching of points helps or recomputing every time is cheaper than lookup
+		// 2 - if removing no-longer-needed points from the map helps lookup or overall slows down
+
+		long t0 = System.currentTimeMillis();
+		for (int i=0; i<n_iterations; i++) {
+			// A -- current method
+			points.clear();
+			todo.clear();
+			todo.add(root);
+			list.clear();
+			final float[] fps = new float[2];
+			
+			boolean go = true;
+			while (go) {
+				final Node node = todo.removeFirst();
+				// Add children to todo list if any
+				if (null != node.children) {
+					for (final Node nd : node.children) todo.add(nd);
+				}
+				go = !todo.isEmpty();
+				// Get node's 3D coordinate
+				Point3f p = points.get(node);
+				if (null == p) {
+					fps[0] = node.x;
+					fps[1] = node.y;
+					at.transform(fps, 0, fps, 0, 1);
+					p = new Point3f(fps[0] * pixelWidthScaled,
+							fps[1] * pixelHeightScaled,
+							(float)node.la.getZ() * pixelWidthScaled * sign);
+					points.put(node, p);
+				}
+				if (null != node.parent) {
+					// Create a line to the parent
+					list.add(points.get(node.parent));
+					list.add(p);
+					if (go && node.parent != todo.getFirst().parent) {
+						// node.parent point no longer needed (last child just processed)
+						points.remove(node.parent);
+					}
+				}
+			}
+		}
+		System.out.println("A: " + (System.currentTimeMillis() - t0));
+
+
+		t0 = System.currentTimeMillis();
+		for (int i=0; i<n_iterations; i++) {
+
+			points.clear();
+			todo.clear();
+			todo.add(root);
+			list.clear();
+			final float[] fps = new float[2];
+
+			// Simpler method, not clearing no-longer-used nodes from map
+			while (!todo.isEmpty()) {
+				final Node node = todo.removeFirst();
+				// Add children to todo list if any
+				if (null != node.children) {
+					for (final Node nd : node.children) todo.add(nd);
+				}
+				// Get node's 3D coordinate
+				Point3f p = points.get(node);
+				if (null == p) {
+					fps[0] = node.x;
+					fps[1] = node.y;
+					at.transform(fps, 0, fps, 0, 1);
+					p = new Point3f(fps[0] * pixelWidthScaled,
+							fps[1] * pixelHeightScaled,
+							(float)node.la.getZ() * pixelWidthScaled * sign);
+					points.put(node, p);
+				}
+				if (null != node.parent) {
+					// Create a line to the parent
+					list.add(points.get(node.parent));
+					list.add(p);
+				}
+			}
+		}
+		System.out.println("B: " + (System.currentTimeMillis() - t0));
+
+		t0 = System.currentTimeMillis();
+		for (int i=0; i<n_iterations; i++) {
+
+			todo.clear();
+			todo.add(root);
+			list.clear();
+
+			// Simplest method: no caching in a map
+			final float[] fp = new float[4];
+			while (!todo.isEmpty()) {
+				final Node node = todo.removeFirst();
+				// Add children to todo list if any
+				if (null != node.children) {
+					for (final Node nd : node.children) todo.add(nd);
+				}
+				if (null != node.parent) {
+					// Create a line to the parent
+					fp[0] = node.x;
+					fp[1] = node.y;
+					fp[2] = node.parent.x;
+					fp[3] = node.parent.y;
+					at.transform(fp, 0, fp, 0, 2);
+					list.add(new Point3f(fp[2] * pixelWidthScaled,
+							     fp[3] * pixelHeightScaled,
+							     (float)node.parent.la.getZ() * pixelWidthScaled * sign));
+					list.add(new Point3f(fp[0] * pixelWidthScaled,
+							     fp[1] * pixelHeightScaled,
+							     (float)node.la.getZ() * pixelWidthScaled * sign));
+				}
+			}
+		}
+		System.out.println("C: " + (System.currentTimeMillis() - t0));
 	}
 
 	@Override
