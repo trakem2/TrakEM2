@@ -466,6 +466,16 @@ public class Treeline extends ZDisplayable {
 		return list;
 	}
 
+	public List generateMesh(double scale_, int parallels, int resample) {
+		// TODO
+		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
+		// With some cleverness, such meshes could be welded together by merging the nearest vertices on the ball
+		// surfaces, or by cleaving the surface where the diameter of the tube cuts it.
+		// A tougher problem is where tubes cut each other, but perhaps if the resulting mesh is still non-manifold, it's ok.
+
+		return null;
+	}
+
 	/** Testing for performance, 100 iterations:
 	 * A: 3307  (current, with clearing of table on the fly)
 	 * B: 4613  (without clearing table)
