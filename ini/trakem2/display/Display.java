@@ -3653,7 +3653,9 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			active.adjustProperties();
 			updateSelection();
 		} else if (command.equals("Show current 2D position in 3D")) {
-			Display3D.addFatPoint("Current 2D Position", getLayerSet(), canvas.last_popup.x, canvas.last_popup.y, layer.getZ(), 10, Color.magenta);
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			Display3D.addFatPoint("Current 2D Position", getLayerSet(), p.x, p.y, layer.getZ(), 10, Color.magenta);
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();
@@ -3834,35 +3836,35 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			burro.goHaveBreakfast();
 		} else if (command.equals("Reroot")) {
 			if (!(active instanceof Treeline)) return;
-			if (null != canvas.last_popup) {
-				getLayerSet().addDataEditStep(active);
-				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification());
-				getLayerSet().addDataEditStep(active);
-				Display.repaint(getLayerSet());
-			}
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			getLayerSet().addDataEditStep(active);
+			((Treeline)active).reRoot(p.x, p.y, layer, canvas.getMagnification());
+			getLayerSet().addDataEditStep(active);
+			Display.repaint(getLayerSet());
 		} else if (command.equals("Split")) {
 			if (!(active instanceof Treeline)) return;
-			if (null != canvas.last_popup) {
-				getLayerSet().addChangeTreesStep();
-				List<Treeline> ts = ((Treeline)active).splitNear(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification());
-				if (null == ts) return;
-				Displayable elder = Display.this.active;
-				for (Treeline t : ts) {
-					if (t == elder) continue;
-					getLayerSet().add(t); // will change Display.this.active !
-					project.getProjectTree().addSibling(elder, t);
-				}
-				selection.clear();
-				selection.selectAll(ts);
-				getLayerSet().addChangeTreesStep();
-				Display.repaint(getLayerSet());
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			getLayerSet().addChangeTreesStep();
+			List<Treeline> ts = ((Treeline)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
+			if (null == ts) return;
+			Displayable elder = Display.this.active;
+			for (Treeline t : ts) {
+				if (t == elder) continue;
+				getLayerSet().add(t); // will change Display.this.active !
+				project.getProjectTree().addSibling(elder, t);
 			}
+			selection.clear();
+			selection.selectAll(ts);
+			getLayerSet().addChangeTreesStep();
+			Display.repaint(getLayerSet());
 		} else if (command.equals("Mark")) {
 			if (!(active instanceof Treeline)) return;
-			if (null != canvas.last_popup) {
-				if (((Treeline)active).markNear(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification())) {
-					Display.repaint(getLayerSet());
-				}
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			if (((Treeline)active).markNear(p.x, p.y, layer, canvas.getMagnification())) {
+				Display.repaint(getLayerSet());
 			}
 		} else if (command.equals("Clear marks (selected Treelines)")) {
 			for (Displayable d : selection.getSelected(Treeline.class)) {
@@ -3884,10 +3886,14 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 		} else if (command.equals("Previous branch point or start")) {
 			if (!(active instanceof Treeline)) return;
-			center(((Treeline)active).findPreviousBranchOrRootPoint(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification()));
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			center(((Treeline)active).findPreviousBranchOrRootPoint(p.x, p.y, layer, canvas.getMagnification()));
 		} else if (command.equals("Next branch point or end")) {
 			if (!(active instanceof Treeline)) return;
-			center(((Treeline)active).findNextBranchOrEndPoint(canvas.last_popup.x, canvas.last_popup.y, layer, canvas.getMagnification()));
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			center(((Treeline)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas.getMagnification()));
 		} else if (command.equals("Last added point")) {
 			if (!(active instanceof Treeline)) return;
 			center(((Treeline)active).getLastAdded());

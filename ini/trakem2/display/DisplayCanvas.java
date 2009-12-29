@@ -517,6 +517,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** In world coordinates. */
 	protected Point last_popup = null;
 
+	protected Point consumeLastPopupPoint() {
+		Point p = last_popup;
+		last_popup = null;
+		return p;
+	}
+
 	public void mousePressed(MouseEvent me) {
 
 		this.flags = me.getModifiers();
