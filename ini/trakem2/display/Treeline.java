@@ -988,22 +988,15 @@ public class Treeline extends ZDisplayable {
 							//if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
 						} else {
 							// Paint full edge, but perhaps in two halfs of different colors
-							if ((child.la == this.la && this.la == active_layer)
-							  || (this.la.getZ() < actZ && child.la.getZ() < actZ)
-							  || (this.la.getZ() > actZ && child.la.getZ() > actZ)) {
+							if ((child.la == this.la && this.la == active_layer)      // in treeline color
+							  || (thisZ < actZ && child.la.getZ() < actZ)    // in red
+							  || (thisZ > actZ && child.la.getZ() > actZ)) { // in blue
 								// Full edge in local color
 								g.setColor(local_edge_color);
 								g.drawLine((int)x, (int)y, (int)chx, (int)chy);
 								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
 							} else {
-								if (thisZ < actZ && actZ < child.la.getZ()) {
-									// passing by: edge crosses the current layer
-									// Draw middle segment in current color
-									g.setColor(local_edge_color);
-									g.drawLine((int)(x + (chx - x)/4), (int)(y + (chy - y)/4),
-										   (int)(x + 3*(chx - x)/4), (int)(y + 3*(chy - y)/4));
-									if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-								} else if (this.la == active_layer) {
+								if (this.la == active_layer) {
 									// Proximal half in this color
 									g.setColor(local_edge_color);
 									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
@@ -1025,6 +1018,22 @@ public class Treeline extends ZDisplayable {
 									// Proximal half in either red or blue:
 									g.setColor(local_edge_color);
 									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
+								} else if (thisZ < actZ && actZ < child.la.getZ()) {
+									// proximal half in red
+									g.setColor(Color.red);
+									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
+									// distal half in blue
+									g.setColor(Color.blue);
+									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
+									if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
+								} else if (thisZ > actZ && actZ > child.la.getZ()) {
+									// proximal half in blue
+									g.setColor(Color.blue);
+									g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
+									// distal half in red
+									g.setColor(Color.red);
+									g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
+									if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
 								}
 							}
 						}
