@@ -199,7 +199,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					final Rectangle clip = null != clipRect ? new Rectangle((int)(clipRect.x * magnification) - srcRect.x, (int)(clipRect.y * magnification) - srcRect.y, (int)(clipRect.width * magnification), (int)(clipRect.height * magnification)) : null;
 					for (int i=0; i<top.length; i++) {
 						if (null != clipRect && !top[i].getBoundingBox(tmp).intersects(clip)) continue;
-						top[i].paint(g, magnification, top[i] == active, c_alphas, active_layer);
+						top[i].paint(g, srcRect, magnification, top[i] == active, c_alphas, active_layer);
 					}
 				}
 			}
@@ -2309,21 +2309,21 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// Direct painting mode, with prePaint abilities
 				if (prepaint)
 					for (final Paintable d : paintables)
-						d.prePaint(g, magnification, d == active, c_alphas, layer);
+						d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
 				else
 					for (final Paintable d : paintables)
-						d.paint(g,  magnification, d == active, c_alphas, layer);
+						d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 			} else if (Display.REPAINT_MULTI_LAYER == mode) {
 				// paint first the current layer Patches only (to set the background)
 				int count = 0;
 				// With prePaint capabilities:
 				if (prepaint) {
 					for (final Paintable d : paintable_patches) {
-						d.prePaint(g, magnification, d == active, c_alphas, layer);
+						d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
 					}
 				} else {
 					for (final Paintable d : paintable_patches) {
-						d.paint(g, magnification, d == active, c_alphas, layer);
+						d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 					}
 				}
 
@@ -2340,12 +2340,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					gb.setTransform(atc);
 					for (final Displayable d : lp.layer.find(srcRect, true)) {
 						if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
-						d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
+						d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 					}
 					// Repeating loop ... the human compiler at work, just because one cannot lazily concatenate both sequences:
 					for (final Displayable d : lp.layer.getParent().findZDisplayables(lp.layer, srcRect, true)) {
 						if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
-						d.paint(gb, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
+						d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 					}
 					try {
 						g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
@@ -2365,7 +2365,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// TODO this loop should be reading from the paintable_patches and paintables, since they length/order *could* have changed
 				//      And yes this means iterating and checking the Class of each.
 				for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
-					d.paint(g, magnification, d == active, c_alphas, layer);
+					d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 				}
 			} else { // Display.REPAINT_RGB_LAYER == mode
 				final HashMap<Color,byte[]> channels = new HashMap<Color,byte[]>();
@@ -2384,7 +2384,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					list.addAll(la.getParent().getZDisplayables(ImageData.class, true)); // Stack.class and perhaps others
 					for (final Paintable d : list) {
-						d.paint(gb, magnification, false, c_alphas, la);
+						d.paint(gb, srcRect, magnification, false, c_alphas, la);
 					}
 					channels.put(e.getKey(), (byte[])new ByteProcessor(bi).getPixels());
 				}
@@ -2411,7 +2411,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// then paint the non-Image objects of the current layer
 				for (final Displayable d : al_paint) {
 					if (ImageData.class.isInstance(d)) continue;
-					d.paint(g, magnification, d == active, c_alphas, layer);
+					d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 				}
 				// TODO having each object type in a key/list<type> table would be so much easier and likely performant.
 			}

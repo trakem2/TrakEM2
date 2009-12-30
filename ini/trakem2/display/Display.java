@@ -2531,6 +2531,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && AreaList.class == active.getClass());
+		item = new JMenuItem("Fly through selected Treeline"); item.addActionListener(this); menu.add(item);
+		item.setEnabled(null != active && Treeline.class == active.getClass());
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -4230,6 +4232,38 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			ImagePlus imp = ((AreaList)active).getStack(type, gd.getNextNumber()/100);
 			if (null != imp) imp.show();
+		} else if (command.equals("Fly through selected Treeline")) {
+			if (null == active || !(active instanceof Treeline)) return;
+			Bureaucrat.createAndStart(new Worker.Task("Creating fly through") {
+				public void exec() {
+					GenericDialog gd = new GenericDialog("Fly through");
+					gd.addNumericField("Width", 512, 0);
+					gd.addNumericField("Height", 512, 0);
+					String[] types = new String[]{"8-bit gray", "Color RGB"};
+					gd.addChoice("Image type", types, types[0]);
+					gd.addSlider("scale", 0, 100, 100);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					int w = (int)gd.getNextNumber();
+					int h = (int)gd.getNextNumber();
+					int type = 0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY8 : ImagePlus.COLOR_RGB;
+					double scale = gd.getNextNumber();
+					if (w <=0 || h <=0) {
+						Utils.log("Invalid width or height: " + w + ", " + h);
+						return;
+					}
+					if (0 == scale || Double.isNaN(scale)) {
+						Utils.log("Invalid scale: " + scale);
+						return;
+					}
+					ImagePlus imp = ((Treeline)active).flyThroughMarked(w, h, scale/100, type);
+					if (null == imp) {
+						Utils.log("Mark a node first!");
+						return;
+					}
+					imp.show();
+				}
+			}, project);
 		} else if (command.startsWith("Arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);

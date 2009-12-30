@@ -62,6 +62,7 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Polyline;
 import ini.trakem2.display.Profile;
+import ini.trakem2.display.Region;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.YesNoDialog;
@@ -2849,14 +2850,14 @@ abstract public class Loader {
 					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 						ZDisplayable zd = (ZDisplayable)itz.next();
 						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-							zd.paint(g2d, scaleP, false, c_alphas, layer);
+							zd.paint(g2d, srcRect, scaleP, false, c_alphas, layer);
 						}
 						count++;
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-					d.paintOffscreen(g2d, scaleP, false, c_alphas, layer);
+					d.paintOffscreen(g2d, srcRect, scaleP, false, c_alphas, layer);
 					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
@@ -2869,7 +2870,7 @@ abstract public class Loader {
 				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 					ZDisplayable zd = (ZDisplayable)itz.next();
 					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-						zd.paint(g2d, scaleP, false, c_alphas, layer);
+						zd.paint(g2d, srcRect, scaleP, false, c_alphas, layer);
 					}
 					count++;
 					//Utils.log2("Painted " + count + " of " + total);
@@ -4527,5 +4528,29 @@ abstract public class Loader {
 			}
 		}
 		return fus;
+	}
+
+	/** Returns an ImageStack, one slice per region. */
+	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
+		ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
+		for (final Region r : regions) {
+			fus.add(exec.submit(new Callable<ImagePlus>() {
+				public ImagePlus call() {
+					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black);
+				}
+			}));
+		}
+		Region r = regions.get(0);
+		ImageStack stack = new ImageStack((int)(r.r.width * magnification), (int)(r.r.height * magnification));
+		for (int i=0; i<regions.size(); i++) {
+			try {
+				stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
+			} catch (Throwable t) {
+				IJError.print(t);
+			}
+		}
+		exec.shutdown();
+		return new ImagePlus("Fly-Through", stack);
 	}
 }

@@ -143,10 +143,10 @@ public class Treeline extends ZDisplayable {
 		return nodes;
 	}
 
-	final public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		paint(g, magnification, active, channels, active_layer, layer_set.paint_arrows);
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layer_set.paint_arrows);
 	}
-	final public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer, final boolean with_arrows) {
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final boolean with_arrows) {
 		if (null == root) {
 			setupForDisplay();
 			if (null == root) return;
@@ -161,7 +161,6 @@ public class Treeline extends ZDisplayable {
 
 		AffineTransform gt = null;
 
-		final Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
 		Stroke stroke = null;
 
 		synchronized (node_layer_map) {
@@ -1874,12 +1873,45 @@ public class Treeline extends ZDisplayable {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows
-				paint(g, mag, false, 0xffffffff, layer, false);
+				paint(g, Display.getFront().getCanvas().getSrcRect(), mag, false, 0xffffffff, layer, false);
 				return;
 			case 1:
 				paintAsBox(g);
 				return;
 			default: return; // case 2: // disabled, no paint
 		}
+	}
+
+	public Set<Node> getEndNodes() {
+		return new HashSet<Node>(end_nodes);
+	}
+
+	/** Fly-through image stack from source node to mark node.
+	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
+	public ImagePlus flyThroughMarked(final int width, final int height, final double magnification, final int type) {
+		if (null == marked) return null;
+		return flyThrough(root, marked, width, height, magnification, type);
+	}
+
+	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
+	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
+	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type) {
+		// Create regions
+		final LinkedList<Region> regions = new LinkedList<Region>();
+		Node node = last;
+		float[] fps = new float[2];
+		while (null != node) {
+			fps[0] = node.x;
+			fps[1] = node.y;
+			this.at.transform(fps, 0, fps, 0, 1);
+			regions.addFirst(new Region(new Rectangle((int)fps[0] - width/2,
+							          (int)fps[1] - height/2,
+								  width, height),
+						    node.la,
+						    node));
+			if (first == node) break;
+			node = node.parent;
+		}
+		return project.getLoader().createFlyThrough(regions, magnification, type);
 	}
 }
