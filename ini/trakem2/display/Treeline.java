@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ini.trakem2.Project;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.HashSet;
 import java.awt.Color;
 import java.awt.geom.AffineTransform;
 import java.awt.event.MouseEvent;
@@ -80,6 +81,24 @@ public class Treeline extends Tree {
 			return true;
 		}
 		public final Float getData() { return this.r; }
+	}
+
+	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+		Tree.exportDTD(sb_header, hs, indent);
+		sb_header.append(indent).append(TAG_ATTR1).append("t2_node r").append(TAG_ATTR2);
+		String type = "t2_treeline";
+		if (hs.contains(type)) return;
+		hs.add(type);
+		sb_header.append(indent).append("<!ELEMENT t2_treeline (t2_node,").append(Displayable.commonDTDChildren()).append(")>\n");
+		Displayable.exportDTD(type, sb_header, hs, indent);
+	}
+
+	protected boolean exportXMLNodeAttributes(final StringBuffer indent, final StringBuffer sb, final Node node) {
+		sb.append(" r=\"").append(node.getData()).append('\"');
+		return true;
+	}
+	protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node) {
+		return false;
 	}
 
 	/** Testing for performance, 100 iterations:

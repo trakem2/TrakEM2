@@ -313,19 +313,15 @@ public abstract class Tree extends ZDisplayable {
 
 	/** Exports to type t2_treeline. */
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_treeline";
+		String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		hs.add("t2_node");
 		sb_header.append(indent).append("<!ELEMENT t2_node EMPTY>\n");
 		sb_header.append(indent).append(TAG_ATTR1).append("t2_node x").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node y").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node lid").append(TAG_ATTR2)
-			 .append(indent).append(TAG_ATTR1).append("t2_node r").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node c").append(TAG_ATTR2)
 		;
-		sb_header.append(indent).append("<!ELEMENT t2_treeline (t2_node,").append(Displayable.commonDTDChildren()).append(")>\n");
-		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
@@ -336,12 +332,12 @@ public abstract class Tree extends ZDisplayable {
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append(">\n");
-		if (null != root) exportXML(in, sb_body, root);
+		if (null != root) exportXML(this, in, sb_body, root);
 		sb_body.append(indent).append("</t2_treeline>\n");
 	}
 
 	/** One day, java will get tail-call optimization (i.e. no more stack overflow errors) and I will laugh at this function. */
-	static private void exportXML(final String indent_base, final StringBuffer sb, final Node root) {
+	static private void exportXML(final Tree tree, final String indent_base, final StringBuffer sb, final Node root) {
 		// Simulating recursion
 		//
 		// write depth-first, closing as children get written
@@ -353,14 +349,14 @@ public abstract class Tree extends ZDisplayable {
 			Node node = list.getLast();
 			if (null == node.children) {
 				// Processing end point
-				dataNodeXML(getIndents(indent_base, list.size()), sb, node);
+				dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
 				list.removeLast();
 				continue;
 			} else {
 				final Integer ii = table.get(node);
 				if (null == ii) {
 					// Never yet processed a child, add first
-					dataNodeXML(getIndents(indent_base, list.size()), sb, node);
+					dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
 					table.put(node, 0);
 					list.add(node.children[0]);
 					continue;
@@ -391,17 +387,28 @@ public abstract class Tree extends ZDisplayable {
 		}
 		return sb;
 	}
-	static private final void dataNodeXML(final StringBuffer indent, final StringBuffer sb, final Node node) {
+	static private final void dataNodeXML(final Tree tree, final StringBuffer indent, final StringBuffer sb, final Node node) {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)
 		  .append("\" y=\"").append(node.y)
-		  .append("\" lid=\"").append(node.la.getId())
-		  // TODO the data! .append("\" r=\"").append(node.r)
+		  .append("\" lid=\"").append(node.la.getId()).append('\"');
 		;
-		if (null != node.parent) sb.append("\" c=\"").append(node.parent.getConfidence(node));
-		if (null == node.children) sb.append("\" />\n");
-		else sb.append("\">\n");
+		if (null != node.parent) sb.append(" c=\"").append(node.parent.getConfidence(node)).append('\"');
+		tree.exportXMLNodeAttributes(indent, sb, node);
+		sb.append(">\n");
+
+		if (null == node.children) {
+			if (tree.exportXMLNodeData(indent, sb, node)) {
+				sb.append(indent).append("</t2_node>\n");
+			} else {
+				sb.setLength(sb.length() -3);
+				sb.append("\" />\n");
+			}
+		}
 	}
+	abstract protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node);
+	abstract protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node);
+
 	static private final void closeNodeXML(final StringBuffer indent, final StringBuffer sb) {
 		sb.append(indent).append("</t2_node>\n");
 	}
