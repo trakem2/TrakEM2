@@ -701,6 +701,7 @@ public final class Display3D {
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (Treeline.class == c) {
+			// A 3D wire skeleton, using CustomLineMesh
 			triangles = ((Treeline)displ).generateTriangles(scale, 12, 1);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
