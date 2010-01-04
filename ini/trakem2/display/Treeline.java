@@ -67,7 +67,8 @@ public class Treeline extends Tree {
 		/** To reconstruct from XML, without a layer. */
 		public RadiusNode(final HashMap attr) {
 			super(attr);
-			this.r = Float.parseFloat((String)attr.get("r"));
+			String sr = (String)attr.get("r");
+			this.r = null == sr ? 0 : Float.parseFloat(sr);
 		}
 
 		public final Node newInstance(final float lx, final float ly, final Layer layer) {
