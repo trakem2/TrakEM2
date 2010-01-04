@@ -155,7 +155,13 @@ public class Treeline extends Tree {
 			a.concatenate(tree.at);
 			Shape shape = a.createTransformedShape(pol);
 
-			g.setColor(tree.getColor());
+			// Which color?
+			if (active_layer == this.la) {
+				g.setColor(tree.getColor());
+			} else {
+				if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
+				else g.setColor(Color.blue);
+			}
 
 			Composite c = g.getComposite();
 			float alpha = tree.getAlpha();
