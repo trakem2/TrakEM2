@@ -862,6 +862,32 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
+	/** Remove a node only (not its subtree).
+	 *  @return true on success. Will return false when the node has 2 or more children.
+	 *  The new edge confidence is that of the parent to the @param node. */
+	public boolean popNode(final Node node) {
+		switch (node.getChildrenCount()) {
+			case 0:
+				// End node:
+				removeNode(node, null);
+				return true;
+			case 1:
+				if (null == node.parent) {
+					// Make its child the new root
+					root = node.children[0];
+				} else {
+					node.parent.children[node.parent.indexOf(node)] = node.children[0];
+					node.children[0].parent = node.parent;
+				}
+				synchronized (node_layer_map) {
+					node_layer_map.get(node.la).remove(node);
+				}
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	/** If the tree is a cyclic graph, it may destroy all. */
 	public void removeNode(final Node node) {
 		synchronized (node_layer_map) {
@@ -1052,8 +1078,17 @@ public abstract class Tree extends ZDisplayable {
 					return;
 				}
 				if (me.isShiftDown() && Utils.isControlDown(me)) {
-					// Remove point, and associated branches
-					removeNode(active);
+					if (me.isAltDown()) {
+						// Remove point and its subtree
+						removeNode(active);
+					} else {
+						// Just remove the slab point, joining parent with child
+						if (!popNode(active)) {
+							Utils.log("Can't pop out branch point!\nUse shift+control+alt+click to remove a branch point and its subtree.");
+							active = null;
+							return;
+						}
+					}
 					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
 					active = null;
 					return;
