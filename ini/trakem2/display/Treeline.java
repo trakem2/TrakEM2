@@ -3,6 +3,8 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.HashSet;
@@ -14,7 +16,11 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
+import java.util.List;
 import javax.vecmath.Point3f;
+import javax.vecmath.Vector3f;
+import javax.media.j3d.Transform3D;
+import javax.vecmath.AxisAngle4f;
 import java.awt.Polygon;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -358,5 +364,119 @@ public class Treeline extends Tree {
 		}
 		System.out.println("C: " + (System.currentTimeMillis() - t0));
 	}
+
+	public List generateMesh(double scale_, int parallels, int resample) {
+		// TODO
+		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
+		// With some cleverness, such meshes could be welded together by merging the nearest vertices on the ball
+		// surfaces, or by cleaving the surface where the diameter of the tube cuts it.
+		// A tougher problem is where tubes cut each other, but perhaps if the resulting mesh is still non-manifold, it's ok.
+
+		final float scale = (float)scale_;
+		if (parallels < 3) parallels = 3;
+
+		// Simple ball-and-stick model
+
+		// first test: just the nodes as icosahedrons with 1 subdivision
+
+		final Calibration cal = layer_set.getCalibration();
+		final float pixelWidthScaled = (float)cal.pixelWidth * scale;
+		final float pixelHeightScaled = (float)cal.pixelHeight * scale;
+		final int sign = cal.pixelDepth < 0 ? -1 : 1;
+
+		final List<Point3f> ico = M.createIcosahedron(1, 1);
+		final List<Point3f> ps = new ArrayList<Point3f>();
+
+		// A plane made of as many edges as parallels, with radius 1
+		// Perpendicular vector of the plane is 0,0,1
+		final List<Point3f> plane = new ArrayList<Point3f>();
+		final double inc_rads = (Math.PI * 2) / parallels;
+		double angle = 0;
+		for (int i=0; i<parallels; i++) {
+			plane.add(new Point3f((float)Math.cos(angle), (float)Math.sin(angle), 0));
+			angle += inc_rads;
+		}
+		final Vector3f vplane = new Vector3f(0, 0, 1);
+		final Transform3D t = new Transform3D();
+		final AxisAngle4f aa = new AxisAngle4f();
+
+
+		for (final Set<Node> nodes : node_layer_map.values()) {
+			for (final Node nd : nodes) {
+				Point2D.Double po = transformPoint(nd.x, nd.y);
+				final float x = (float)po.x * pixelWidthScaled;
+				final float y = (float)po.y * pixelHeightScaled;
+				final float z = (float)nd.la.getZ() * pixelWidthScaled * sign;
+				final float r = ((RadiusNode)nd).r * pixelWidthScaled; // TODO r is not transformed by the AffineTransform
+				for (final Point3f vert : ico) {
+					Point3f v = new Point3f(vert);
+					v.x = v.x * r + x;
+					v.y = v.y * r + y;
+					v.z = v.z * r + z;
+					ps.add(v);
+				}
+				// Tube from parent to child
+				if (null == nd.parent) continue;
+
+				po = null;
+
+				// parent:
+				Point2D.Double pp = transformPoint(nd.parent.x, nd.parent.y);
+				final float parx = (float)pp.x * pixelWidthScaled;
+				final float pary = (float)pp.y * pixelWidthScaled;
+				final float parz = (float)nd.parent.la.getZ() * pixelWidthScaled * sign;
+				final float parr = ((RadiusNode)nd.parent).r * pixelWidthScaled; // TODO r is not transformed by the AffineTransform
+
+				// the vector perpendicular to the plane is 0,0,1
+				// the vector from parent to child is:
+				Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
+				Vector3f cross = new Vector3f();
+				cross.cross(vpc, vplane);
+				cross.normalize(); // not needed?
+				aa.set(cross.x, cross.y, cross.z, vplane.angle(vpc));
+				t.set(aa);
+				
+
+				final List<Point3f> parent_verts = transform(t, plane, parx, pary, parz, parr);
+				final List<Point3f> child_verts = transform(t, plane, x, y, z, r);
+
+				for (int i=1; i<parallels; i++) {
+					addTriangles(ps, parent_verts, child_verts, i-1, i);
+				}
+				// faces from last to first:
+				addTriangles(ps, parent_verts, child_verts, parallels -1, 0);
+			}
+		}
+
+		return ps;
+	}
+
+	static private final void addTriangles(final List<Point3f> ps, final List<Point3f> parent_verts, final List<Point3f> child_verts, final int i0, final int i1) {
+		// one triangle
+		ps.add(new Point3f(parent_verts.get(i0)));
+		ps.add(new Point3f(parent_verts.get(i1)));
+		ps.add(new Point3f(child_verts.get(i0)));
+		// another
+		ps.add(new Point3f(parent_verts.get(i1)));
+		ps.add(new Point3f(child_verts.get(i1)));
+		ps.add(new Point3f(child_verts.get(i0)));
+	}
+
+	static private final List<Point3f> transform(final Transform3D t, final List<Point3f> plane, final float x, final float y, final float z, final float radius) {
+		final List<Point3f> ps = new ArrayList<Point3f>(plane.size());
+		for (Point3f p : plane) {
+			p = new Point3f(p);
+			p.x *= radius;
+			p.y *= radius;
+			p.z *= radius;
+			t.transform(p);
+			p.x += x;
+			p.y += y;
+			p.z += z;
+			ps.add(p);
+		}
+		return ps;
+	}
+
 
 }

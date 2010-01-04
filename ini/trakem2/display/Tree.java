@@ -86,9 +86,9 @@ public abstract class Tree extends ZDisplayable {
 		public final boolean equals(Object ob) { return this == ob; }
 	};
 
-	private final TreeMap<Layer,Set<Node>> node_layer_map = new TreeMap<Layer,Set<Node>>(COMP_LAYERS);
+	protected final TreeMap<Layer,Set<Node>> node_layer_map = new TreeMap<Layer,Set<Node>>(COMP_LAYERS);
 
-	private final Set<Node> end_nodes = new HashSet<Node>();
+	protected final Set<Node> end_nodes = new HashSet<Node>();
 
 	protected Node root = null;
 
@@ -468,16 +468,6 @@ public abstract class Tree extends ZDisplayable {
 			}
 		}
 		return list;
-	}
-
-	public List generateMesh(double scale_, int parallels, int resample) {
-		// TODO
-		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
-		// With some cleverness, such meshes could be welded together by merging the nearest vertices on the ball
-		// surfaces, or by cleaving the surface where the diameter of the tube cuts it.
-		// A tougher problem is where tubes cut each other, but perhaps if the resulting mesh is still non-manifold, it's ok.
-
-		return null;
 	}
 
 	@Override
