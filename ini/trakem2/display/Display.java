@@ -3849,7 +3849,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			getLayerSet().addChangeTreesStep();
-			List<Treeline> ts = ((Treeline)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
+			List<Treeline> ts = (List<Treeline>) (List) ((Treeline)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
 			if (null == ts) return;
 			Displayable elder = Display.this.active;
 			for (Treeline t : ts) {

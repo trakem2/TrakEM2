@@ -84,10 +84,10 @@ public class TMLHandler extends DefaultHandler {
 	private Stack last_stack = null;
 	private Patch last_patch = null;
 	private Treeline last_treeline = null;
-	private Treeline.Node last_root_node = null;
-	private LinkedList<Treeline.Node> nodes = new LinkedList<Treeline.Node>();
-	private Map<Long,List<Treeline.Node>> node_layer_table = new HashMap<Long,List<Treeline.Node>>();
-	private Map<Treeline,Treeline.Node> treeline_root_nodes = new HashMap<Treeline,Treeline.Node>();
+	private Node last_root_node = null;
+	private LinkedList<Node> nodes = new LinkedList<Node>();
+	private Map<Long,List<Node>> node_layer_table = new HashMap<Long,List<Node>>();
+	private Map<Treeline,Node> treeline_root_nodes = new HashMap<Treeline,Node>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
@@ -228,15 +228,15 @@ public class TMLHandler extends DefaultHandler {
 
 		// 4 - Assign layers to Treeline nodes
 		for (final Layer la : al_layers) {
-			final List<Treeline.Node> list = node_layer_table.remove(la.getId());
+			final List<Node> list = node_layer_table.remove(la.getId());
 			if (null == list) continue;
-			for (final Treeline.Node nd : list) nd.setLayer(la);
+			for (final Node nd : list) nd.setLayer(la);
 		}
 		if (!node_layer_table.isEmpty()) {
 			Utils.log("ERROR: node_layer_table is not empty!");
 		}
 		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
-		for (final Map.Entry<Treeline,Treeline.Node> e : treeline_root_nodes.entrySet()) {
+		for (final Map.Entry<Treeline,Node> e : treeline_root_nodes.entrySet()) {
 			if (null == e.getValue()) {
 				Utils.log2("Ignoring, applies to new Treeline format only.");
 				continue;
@@ -559,12 +559,12 @@ public class TMLHandler extends DefaultHandler {
 			if (null != soid) oid = Long.parseLong((String)soid);
 
 			if (type.equals("node")) {
-				Treeline.Node node = new Treeline.Node(ht_attributes);
+				Node node = new Treeline.RadiusNode(ht_attributes);
 				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
 				long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
-				List<Treeline.Node> list = node_layer_table.get(ndlid);
+				List<Node> list = node_layer_table.get(ndlid);
 				if (null == list) {
-					list = new ArrayList<Treeline.Node>();
+					list = new ArrayList<Node>();
 					node_layer_table.put(ndlid, list);
 				}
 				list.add(node);
@@ -572,7 +572,7 @@ public class TMLHandler extends DefaultHandler {
 				if (null == last_root_node) {
 					last_root_node = node;
 				} else {
-					Treeline.Node last = nodes.getLast();
+					Node last = nodes.getLast();
 					last.add(node, Byte.parseByte((String)ht_attributes.get("c")));
 				}
 				// Put node into stack of nodes (to be removed on closing the tag)
@@ -801,28 +801,29 @@ public class TMLHandler extends DefaultHandler {
 		catch ( Exception e ) { IJError.print(e); }
 	}
 
-	private final Treeline.Node parseBranch(String s) {
+	private final Node parseBranch(String s) {
 		// 1 - Parse the slab
 		final int first = s.indexOf('(');
 		final int last = s.indexOf(')', first+1);
 		final String[] coords = s.substring(first+1, last).split(" ");
-		Treeline.Node prev = null;
-		final List<Treeline.Node> nodes = new ArrayList<Treeline.Node>();
+		Node prev = null;
+		final List<Node> nodes = new ArrayList<Node>();
 		for (int i=0; i<coords.length; i+=3) {
 			long lid = Long.parseLong(coords[i+2]);
-			Treeline.Node nd = new Treeline.Node(Integer.parseInt(coords[i]), Integer.parseInt(coords[i+1]), null, 0);
+			Node nd = new Treeline.RadiusNode(Float.parseFloat(coords[i]), Float.parseFloat(coords[i+1]), null);
+			nd.setData(0f);
 			nodes.add(nd);
 			// Add to node_layer_table for later assignment of a Layer object to the node
-			List<Treeline.Node> list = node_layer_table.get(lid);
+			List<Node> list = node_layer_table.get(lid);
 			if (null == list) {
-				list = new ArrayList<Treeline.Node>();
+				list = new ArrayList<Node>();
 				node_layer_table.put(lid, list);
 			}
 			list.add(nd);
 			//
 			if (null == prev) prev = nd;
 			else {
-				prev.add(nd, Treeline.MAX_EDGE_CONFIDENCE);
+				prev.add(nd, Node.MAX_EDGE_CONFIDENCE);
 				prev = nd; // new parent
 			}
 		}
@@ -845,7 +846,7 @@ public class TMLHandler extends DefaultHandler {
 				int openbranch = s.indexOf('{', open+1);
 				int branchindex = Integer.parseInt(s.substring(open+1, openbranch-1));
 				nodes.get(branchindex).add(parseBranch(s.substring(open, end)),
-							   Treeline.MAX_EDGE_CONFIDENCE);
+							   Node.MAX_EDGE_CONFIDENCE);
 				open = s.indexOf('{', end+1);
 			}
 		}
