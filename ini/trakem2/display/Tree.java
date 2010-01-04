@@ -173,6 +173,8 @@ public abstract class Tree extends ZDisplayable {
 				stroke = g.getStroke();
 				g.setStroke(DisplayCanvas.DEFAULT_STROKE);
 				for (final Node nd : nodes) {
+					nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this);
+					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();
 						Composite c = g.getComposite();
@@ -184,7 +186,6 @@ public abstract class Tree extends ZDisplayable {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 

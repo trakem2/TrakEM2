@@ -1,16 +1,26 @@
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
 import ini.trakem2.Project;
+import ini.trakem2.utils.Utils;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.HashSet;
+import java.util.Set;
 import java.awt.Color;
+import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
-import ij.measure.Calibration;
 import javax.vecmath.Point3f;
+import java.awt.Polygon;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.geom.Point2D;
+import java.awt.Composite;
+import java.awt.AlphaComposite;
 
 public class Treeline extends Tree {
 
@@ -55,6 +65,41 @@ public class Treeline extends Tree {
 		super.mousePressed(me, x_p, y_p, mag);
 	}
 
+	@Override
+	public void mouseWheelMoved(MouseWheelEvent mwe) {
+		final int modifiers = mwe.getModifiers();
+		if (0 == (MouseWheelEvent.SHIFT_MASK ^ modifiers)) {
+			Object source = mwe.getSource();
+			if (! (source instanceof DisplayCanvas)) return;
+			DisplayCanvas dc = (DisplayCanvas)source;
+			Layer la = dc.getDisplay().getLayer();
+			final int rotation = mwe.getWheelRotation();
+			final float magnification = (float)dc.getMagnification();
+			final Rectangle srcRect = dc.getSrcRect();
+			final float x = ((mwe.getX() / magnification) + srcRect.x);
+			final float y = ((mwe.getY() / magnification) + srcRect.y);
+
+			float inc = (rotation > 0 ? 1 : -1) * (1/magnification);
+			if (null != adjustNodeRadius(inc, x, y, la, magnification)) {
+				Display.repaint(this);
+				return;
+			}
+		}
+		super.mouseWheelMoved(mwe);
+	}
+
+	protected Node adjustNodeRadius(float inc, float x, float y, Layer layer, double magnification) {
+		if (!this.at.isIdentity()) {
+			final Point2D.Double po = inverseTransformPoint(x, y);
+			x = (float)po.x;
+			y = (float)po.y;
+		}
+		Node<Float> nearest = (Node<Float>) findNode(x, y, layer, magnification);
+		if (null == nearest) return null;
+		nearest.setData(nearest.getData() + inc);
+		return nearest;
+	}
+
 	static public final class RadiusNode extends Node<Float> {
 		private float r;
 
@@ -81,6 +126,45 @@ public class Treeline extends Tree {
 			return true;
 		}
 		public final Float getData() { return this.r; }
+
+		/** Paint radiuses. */
+		@Override
+		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
+			if (null == this.parent) return;
+			RadiusNode parent = (RadiusNode) this.parent;
+			if (0 == this.r && 0 == parent.r) return;
+			// vector:
+			float vx = parent.x - this.x;
+			float vy = parent.y - this.y;
+			float len = (float) Math.sqrt(vx*vx + vy*vy);
+			vx /= len;
+			vy /= len;
+			// perpendicular vector
+			final float vx90 = -vy;
+			final float vy90 = vx;
+			final float vx270 = vy;
+			final float vy270 = -vx;
+
+			Polygon pol = new Polygon(new int[]{(int)(parent.x + vx90 * parent.r), (int)(parent.x + vx270 * parent.r), (int)(this.x + vx270 * this.r), (int)(this.x + vx90 * this.r)},
+						  new int[]{(int)(parent.y + vy90 * parent.r), (int)(parent.y + vy270 * parent.r), (int)(this.y + vy270 * this.r), (int)(this.y + vy90 * this.r)},
+						  4);
+
+			final AffineTransform a = new AffineTransform();
+			a.scale(magnification, magnification);
+			a.translate(-srcRect.x, -srcRect.y);
+			a.concatenate(tree.at);
+			Shape shape = a.createTransformedShape(pol);
+
+			g.setColor(tree.getColor());
+
+			Composite c = g.getComposite();
+			float alpha = tree.getAlpha();
+			if (alpha > 0.4f) alpha = 0.4f;
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			g.fill(shape);
+			g.setComposite(c);
+			g.draw(shape); // in Tree's composite mode (such as an alpha)
+		}
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {

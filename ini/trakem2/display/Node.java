@@ -501,6 +501,9 @@ public abstract class Node<T> {
 	public abstract T getData();
 
 	public abstract Node newInstance(float x, float y, Layer layer);
+
+	abstract public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree);
+
 }
 
 
