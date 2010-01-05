@@ -1233,6 +1233,7 @@ public abstract class Tree extends ZDisplayable {
 
 			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, magnification);
 			Display.repaint(this);
+			mwe.consume();
 		}
 	}
 
