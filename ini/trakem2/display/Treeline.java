@@ -74,7 +74,7 @@ public class Treeline extends Tree {
 	@Override
 	public void mouseWheelMoved(MouseWheelEvent mwe) {
 		final int modifiers = mwe.getModifiers();
-		if (0 == (MouseWheelEvent.SHIFT_MASK ^ modifiers)) {
+		if (0 == ( (MouseWheelEvent.SHIFT_MASK | MouseWheelEvent.ALT_MASK) ^ modifiers)) {
 			Object source = mwe.getSource();
 			if (! (source instanceof DisplayCanvas)) return;
 			DisplayCanvas dc = (DisplayCanvas)source;
@@ -88,6 +88,7 @@ public class Treeline extends Tree {
 			float inc = (rotation > 0 ? 1 : -1) * (1/magnification);
 			if (null != adjustNodeRadius(inc, x, y, la, magnification)) {
 				Display.repaint(this);
+				mwe.consume();
 				return;
 			}
 		}
