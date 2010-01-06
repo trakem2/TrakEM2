@@ -305,6 +305,9 @@ public abstract class Tree extends ZDisplayable {
 
 	abstract protected Node newNode(float lx, float ly, Layer layer);
 
+	/** To reconstruct from XML. */
+	abstract protected Node newNode(HashMap ht_attr);
+
 	public boolean isDeletable() {
 		return null == root;
 	}
@@ -314,16 +317,19 @@ public abstract class Tree extends ZDisplayable {
 		String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_node EMPTY>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_node (t2_area*)>\n");
 		sb_header.append(indent).append(TAG_ATTR1).append("t2_node x").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node y").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node lid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node c").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append("t2_node r NMTOKEN #IMPLIED>\n")
 		;
 	}
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		sb_body.append(indent).append("<t2_treeline\n");
+		String name = getClass().getName().toLowerCase();
+		String type = "t2_" + name.substring(name.lastIndexOf('.'));
+		sb_body.append(indent).append("<").append(type).append('\n');
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		String[] RGB = Utils.getHexRGBColor(color);
@@ -331,7 +337,7 @@ public abstract class Tree extends ZDisplayable {
 		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append(">\n");
 		if (null != root) exportXML(this, in, sb_body, root);
-		sb_body.append(indent).append("</t2_treeline>\n");
+		sb_body.append(indent).append("</").append(type).append(">\n");
 	}
 
 	/** One day, java will get tail-call optimization (i.e. no more stack overflow errors) and I will laugh at this function. */
@@ -396,12 +402,14 @@ public abstract class Tree extends ZDisplayable {
 		sb.append(">\n");
 
 		if (null == node.children) {
+			indent.append(' ');
 			if (tree.exportXMLNodeData(indent, sb, node)) {
 				sb.append(indent).append("</t2_node>\n");
 			} else {
 				sb.setLength(sb.length() -3);
 				sb.append("\" />\n");
 			}
+			indent.setLength(indent.length() -1);
 		}
 	}
 	abstract protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node);

@@ -1,10 +1,12 @@
 package ini.trakem2.display;
 
 import java.awt.Graphics2D;
+import java.awt.Color;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.geom.PathIterator;
+import java.awt.geom.GeneralPath;
 import java.awt.geom.Area;
 import java.awt.Polygon;
 import java.awt.Rectangle;
@@ -35,17 +37,26 @@ import ij.process.FloatPolygon;
 
 public class AreaWrapper {
 
-	private final Displayable source;
 	private final Area area;
 	private Painter painter = null;
 	private Rectangle r_old = null;
+	private Displayable source = null;
 
-	public AreaWrapper(final Displayable d) {
-		this(d, new Area());
-	}
-	public AreaWrapper(final Displayable d, final Area area) {
-		this.source = d;
+	public AreaWrapper(final Displayable source, final Area area) {
+		this.source = source;
 		this.area = area;
+	}
+
+	public AreaWrapper() {
+		this(null, new Area());
+	}
+
+	public AreaWrapper(final Area area) {
+		this(null, area);
+	}
+
+	public void setSource(final Displayable source) {
+		this.source = source;
 	}
 
 	public Displayable getSource() {
@@ -73,8 +84,11 @@ public class AreaWrapper {
 		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 	}
 
-	public void paint(final Graphics2D g, final AffineTransform aff, final boolean fill) {
-		g.setColor(source.getColor());
+	public void paint(final Graphics2D g, final AffineTransform aff, final boolean fill, final Color color) {
+		if (area.isEmpty()) return;
+
+		g.setColor(color);
+
 		if (fill) g.fill(area.createTransformedArea(aff));
 		else      g.draw(area.createTransformedArea(aff));
 

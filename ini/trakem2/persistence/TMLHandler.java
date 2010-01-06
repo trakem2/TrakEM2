@@ -84,10 +84,12 @@ public class TMLHandler extends DefaultHandler {
 	private Stack last_stack = null;
 	private Patch last_patch = null;
 	private Treeline last_treeline = null;
+	private AreaTree last_areatree = null;
+	private ReconstructArea reca = null;
 	private Node last_root_node = null;
 	private LinkedList<Node> nodes = new LinkedList<Node>();
 	private Map<Long,List<Node>> node_layer_table = new HashMap<Long,List<Node>>();
-	private Map<Treeline,Node> treeline_root_nodes = new HashMap<Treeline,Node>();
+	private Map<Tree,Node> tree_root_nodes = new HashMap<Tree,Node>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
@@ -236,14 +238,14 @@ public class TMLHandler extends DefaultHandler {
 			Utils.log("ERROR: node_layer_table is not empty!");
 		}
 		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
-		for (final Map.Entry<Treeline,Node> e : treeline_root_nodes.entrySet()) {
+		for (final Map.Entry<Tree,Node> e : tree_root_nodes.entrySet()) {
 			if (null == e.getValue()) {
 				Utils.log2("Ignoring, applies to new Treeline format only.");
 				continue;
 			}
 			e.getKey().setRoot(e.getValue()); // will generate node caches of each Treeline
 		}
-		treeline_root_nodes.clear();
+		tree_root_nodes.clear();
 
 		// Finally - Create displays for later
 		HashMap ht_lid = new HashMap();
@@ -375,6 +377,16 @@ public class TMLHandler extends DefaultHandler {
 		} else if (orig_qualified_name.equals("t2_node")) {
 			// Remove one node from the stack
 			nodes.removeLast();
+		} else if (orig_qualified_name.equals("t2_area")) {
+			// If it's an AreaNode, set its area data:
+			Utils.log2("close t2_area");
+			if (null != reca) {
+				((AreaTree.AreaNode)nodes.getLast()).setData(new AreaWrapper(reca.getArea()));
+				reca = null;
+				Utils.log2("  consumed reca");
+			} else {
+				Utils.log2("  null reca!");
+			}
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
 			ct_list_stack.remove( ct_list_stack.size() - 1 );
 		} else if (orig_qualified_name.equals("t2_patch")) {
@@ -397,10 +409,18 @@ public class TMLHandler extends DefaultHandler {
 					last_treeline_data = null;
 				}
 				// new
-				treeline_root_nodes.put(last_treeline, last_root_node);
+				tree_root_nodes.put(last_treeline, last_root_node);
 				last_root_node = null;
 				// always:
 				last_treeline = null;
+				nodes.clear();
+			}
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_areatree")) {
+			if (null != last_areatree) {
+				tree_root_nodes.put(last_areatree, last_root_node);
+				last_root_node = null;
+				last_areatree = null;
 			}
 			last_displayable = null;
 		} else if (in(orig_qualified_name, all_displayables)) {
@@ -419,6 +439,7 @@ public class TMLHandler extends DefaultHandler {
 
 	public void characters(char[] c, int start, int length) {
 		if (null != last_treeline) {
+			// for old format:
 			last_treeline_data.append(c, start, length);
 		}
 	}
@@ -559,7 +580,10 @@ public class TMLHandler extends DefaultHandler {
 			if (null != soid) oid = Long.parseLong((String)soid);
 
 			if (type.equals("node")) {
-				Node node = new Treeline.RadiusNode(ht_attributes);
+				Node node;
+				if (null != last_treeline) node = last_treeline.newNode(ht_attributes);
+				else if (null != last_areatree) node = last_areatree.newNode(ht_attributes);
+				else throw new NullPointerException("Can't create a node for null last_treeline or null last_areatree!");
 				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
 				long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
 				List<Node> list = node_layer_table.get(ndlid);
@@ -609,9 +633,22 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet(con);
 				return null;
 			} else if (type.equals("path")) {
+				Utils.log2("t2_path");
+				if (null != reca) {
+					Utils.log2("  append path to reca");
+					reca.add((String)ht_attributes.get("d"));
+					return null;
+				}
+				Utils.log2("  reca is null!");
 				last_area_list.__addPath((String)ht_attributes.get("d"));
 				return null;
 			} else if (type.equals("area")) {
+				Utils.log2("t2_area");
+				if (null != last_areatree) {
+					Utils.log2("  create new ReconstructArea");
+					reca = new ReconstructArea();
+					return null;
+				}
 				last_area_list.__endReconstructing();
 				last_area_list.__startReconstructing(new Long((String)ht_attributes.get("layer_id")).longValue());
 				return null;
@@ -659,6 +696,15 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(oid, tline);
 				ht_zdispl.put(oid, tline);
 				addToLastOpenLayerSet(tline);
+			} else if (type.equals("areatree")) {
+				Utils.log2("creating new AreaTree");
+				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
+				art.addToDatabase();
+				last_areatree = art;
+				last_displayable = art;
+				ht_displayables.put(oid, art);
+				ht_zdispl.put(oid, art);
+				addToLastOpenLayerSet(art);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
 					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),

@@ -47,14 +47,22 @@ public class Treeline extends Tree {
 		super(project, id, title, width, height, alpha, visible, color, locked, at);
 	}
 
+	@Override
 	public Tree newInstance() {
 		return new Treeline(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
+	@Override
 	public Node newNode(float lx, float ly, Layer la) {
 		return new RadiusNode(lx, ly, la, last_radius);
 	}
 
+	@Override
+	public Node newNode(HashMap ht_attr) {
+		return new RadiusNode(ht_attr);
+	}
+
+	@Override
 	public Treeline clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		Treeline tline =  new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at);
@@ -182,7 +190,6 @@ public class Treeline extends Tree {
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
-		sb_header.append(indent).append(TAG_ATTR1).append("t2_node r").append(TAG_ATTR2);
 		String type = "t2_treeline";
 		if (hs.contains(type)) return;
 		hs.add(type);

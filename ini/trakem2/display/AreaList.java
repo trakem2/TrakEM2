@@ -1040,7 +1040,7 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 	}
 
 	/** Assumes first char is 'M' and last char is a 'z'*/
-	private void parse(final GeneralPath gp, final char[] data) {
+	static private void parse(final GeneralPath gp, final char[] data) {
 		if ('z' != data[data.length-1]) {
 			Utils.log("AreaList: no closing z, ignoring sub path");
 			return;
@@ -1070,7 +1070,7 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 	}
 
 	/** Assumes all read chars will be digits except for the separator (single white space char), and won't fail (but generate ugly results) when any char is not a digit. */
-	private final int readXY(final char[] data, int first, final int[] xy) { // final method: inline
+	static private final int readXY(final char[] data, int first, final int[] xy) { // final method: inline
 		if (first >= data.length) return -1;
 		int last = first;
 		char c = data[first];

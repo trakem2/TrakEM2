@@ -50,14 +50,22 @@ public class AreaTree extends Tree implements AreaContainer {
 		super(project, id, title, width, height, alpha, visible, color, locked, at);
 	}
 
+	@Override
 	public Tree newInstance() {
 		return new AreaTree(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
+	@Override
 	public Node newNode(float lx, float ly, Layer la) {
-		return new AreaNode(lx, ly, la, this);
+		return new AreaNode(lx, ly, la);
+	}
+	
+	@Override
+	public Node newNode(HashMap ht_attr) {
+		return new AreaNode(ht_attr);
 	}
 
+	@Override
 	public AreaTree clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		AreaTree art =  new AreaTree(pr, nid, title, width, height, alpha, visible, color, locked, at);
@@ -70,36 +78,38 @@ public class AreaTree extends Tree implements AreaContainer {
 		/** The Area wrapped by AreaWrapper is in local AreaTree coordinates, not in local Node coordinates. */
 		private AreaWrapper aw;
 
-		public AreaNode(final float lx, final float ly, final Layer la, final Displayable d) {
+		public AreaNode(final float lx, final float ly, final Layer la) {
 			super(lx, ly, la);
-			this.aw = new AreaWrapper(d);
+			this.aw = new AreaWrapper();
 		}
 		/** To reconstruct from XML, without a layer. */
 		public AreaNode(final HashMap attr) {
 			super(attr);
-			// TODO create new AreaWrapper
 		}
 
 		public final Node newInstance(final float lx, final float ly, final Layer layer) {
-			return new AreaNode(lx, ly, layer, aw.getSource());
+			return new AreaNode(lx, ly, layer);
 		}
 
 		public final boolean setData(AreaWrapper aw) {
 			this.aw = aw;
 			return true;
 		}
-		public final AreaWrapper getData() { return this.aw; }
+		public final AreaWrapper getData() { 
+			if (null == this.aw) this.aw = new AreaWrapper();
+			return this.aw;
+		}
 
 		@Override
 		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
-			if (active_layer != this.la) return;
+			if (active_layer != this.la || null == aw) return;
 
 			final AffineTransform aff = new AffineTransform();
 			aff.scale(magnification, magnification);
 			aff.translate(-srcRect.x, -srcRect.y);
 			aff.concatenate(tree.at);
 
-			aw.paint(g, aff, ((AreaTree)tree).fill_paint);
+			aw.paint(g, aff, ((AreaTree)tree).fill_paint, tree.getColor());
 		}
 
 		final boolean contains(final int lx, final int ly) {
@@ -121,11 +131,24 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 	}
 
+	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+		Tree.exportDTD(sb_header, hs, indent);
+		String type = "t2_areatree";
+		if (hs.contains(type)) return;
+		hs.add(type);
+		sb_header.append(indent).append("<!ELEMENT t2_areatree (t2_node,").append(Displayable.commonDTDChildren()).append(")>\n");
+		Displayable.exportDTD(type, sb_header, hs, indent);
+	}
+
 	protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node) { return true; }
 
 	protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node) {
+		AreaNode an = (AreaNode)node;
+		if (null == an.aw || an.aw.getArea().isEmpty()) return true;
 		sb.append(indent).append("<t2_area>\n");
-		AreaList.exportArea(sb, indent.toString() + "\n", ((AreaNode)node).aw.getArea());
+		indent.append(' ');
+		AreaList.exportArea(sb, indent.toString(), ((AreaNode)node).aw.getArea());
+		indent.setLength(indent.length() -1);
 		sb.append(indent).append("</t2_area>\n");
 		return true;
 	}
@@ -142,8 +165,13 @@ public class AreaTree extends Tree implements AreaContainer {
 				}
 			}
 		}
+		
 		this.width = box.width;
 		this.height = box.height;
+
+		if (0 == box.x && 0 == box.y) {
+			return true;
+		}
 
 		final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
 
@@ -205,7 +233,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			// Check whether last area is suitable:
 			if (null != receiver && layer == receiver.la) {
 				Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
-				if (receiver.aw.getArea().createTransformedArea(this.at).intersects(srcRect)) {
+				if (receiver.getData().getArea().createTransformedArea(this.at).intersects(srcRect)) {
 					// paint on last area, its in this layer and within current view
 				} else {
 					receiver = null;
@@ -215,7 +243,10 @@ public class AreaTree extends Tree implements AreaContainer {
 			receiver = nd;
 		}
 
-		if (null != receiver) receiver.aw.mousePressed(me, x_p, y_p, mag);
+		if (null != receiver) {
+			receiver.getData().setSource(this);
+			receiver.getData().mousePressed(me, x_p, y_p, mag);
+		}
 	}
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
@@ -224,7 +255,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			return;
 		}
 		if (null == receiver) return;
-		receiver.aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		receiver.getData().mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 	}
 	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
@@ -233,6 +264,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			return;
 		}
 		if (null == receiver) return;
-		receiver.aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		receiver.getData().mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		receiver.getData().setSource(null);
 	}
 }
