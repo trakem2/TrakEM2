@@ -6,6 +6,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.IJError;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -192,34 +193,42 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	private AreaNode findEventReceiver(final Collection<Node> nodes, final int lx, final int ly, final Layer layer, final double mag) {
-		AreaNode nd = (AreaNode) findNode(lx, ly, layer, mag);
+
+		Area brush = null;
+		try {
+			brush = AreaWrapper.makeMouseBrush(ProjectToolbar.getBrushSize(), mag).createTransformedArea(this.at.createInverse());
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+
+		// find the first node that intersects with the brush
+		AreaNode nd = null;
 
 		if (null == nd) {
-			// Try to find an area onto which the point intersects
+			// Try to find an area onto which the point intersects, or the brush diameter
 			synchronized (node_layer_map) {
 				for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) {
-					if (an.contains(lx, ly)) {
+					if (null == an.aw) continue;
+					if (brush.contains(an.x, an.y) || M.intersects(an.getData(), brush)) {
 						nd = an;
 						break;
 					}
 				}
 			}
 		}
+		if (null != nd) return nd;
 
-		if (null == nd) {
-			// Check whether last area is suitable:
-			if (null != receiver && layer == receiver.la) {
-				Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
-				if (receiver.getData().createTransformedArea(this.at).intersects(srcRect)) {
-					// paint on last area, its in this layer and within current view
-					return receiver;
-				} else {
-					return null;
-				}
+		// Check whether last area is suitable:
+		/* // IT'S CONFUSING when there's more than one node per layer
+		if (null != receiver && layer == receiver.la) {
+			Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
+			if (receiver.getData().createTransformedArea(this.at).intersects(srcRect)) {
+				// paint on last area, its in this layer and within current view
+				return receiver;
 			}
-		} else {
-			return nd;
 		}
+		*/
 		return null;
 	}
 
@@ -227,11 +236,12 @@ public class AreaTree extends Tree implements AreaContainer {
 
 	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
-		if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+		int tool = ProjectToolbar.getToolId();
+		if (ProjectToolbar.PEN == tool) {
 			super.mousePressed(me, x_p, y_p, mag);
 			return;
 		}
-		if (null == root) return;
+		if (null == root || tool != ProjectToolbar.BRUSH) return;
 
 		final Layer layer = Display.getFrontLayer();
 		final Collection<Node> nodes = node_layer_map.get(layer);
@@ -255,7 +265,11 @@ public class AreaTree extends Tree implements AreaContainer {
 		if (null != receiver) {
 			receiver.aw.setSource(this);
 			receiver.aw.mousePressed(me, x_p, y_p, mag);
+
+			Utils.log2("receiver: " + receiver);
+			Utils.log2(" at layer: " + receiver.la);
 		}
+
 	}
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {

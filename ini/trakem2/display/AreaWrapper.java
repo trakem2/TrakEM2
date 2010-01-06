@@ -408,37 +408,45 @@ public class AreaWrapper {
 			}
 			return new Area(new Polygon(x, y, next));
 		}
+	}
 
-		/** This method could get tones of improvement, which should be pumped upstream into ImageJ's RoiBrush class which is creating it at every while(true) {} iteration!!!
-		 * The returned area has its coordinates centered around 0,0
-		 */
-		private Area makeBrush(int diameter, double mag) {
-			if (diameter < 1) return null;
-			if (mag >= 1) return new Area(new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon());
-			// else, create a smaller brush and transform it up, i.e. less precise, less points to store -but precision matches what the eye sees, and allows for much better storage -less points.
-			int screen_diameter = (int)(diameter * mag);
-			if (0 == screen_diameter) return null; // can't paint at this mag with this diameter
+	static public Area makeMouseBrush(int diameter, double mag) {
+		Display front = Display.getFront();
+		Area brush = makeBrush(diameter, mag);
+		if (null == front) return brush;
+		Point p = front.getCanvas().getCursorLoc();
+		return brush.createTransformedArea(new AffineTransform(1, 0, 0, 1, p.x, p.y));
+	}
 
-			Area brush = new Area(new OvalRoi(-screen_diameter/2, -screen_diameter/2, screen_diameter, screen_diameter).getPolygon());
-			// scale to world coordinates
-			AffineTransform at = new AffineTransform();
-			at.scale(1/mag, 1/mag);
-			return brush.createTransformedArea(at);
+	/** This method could get tones of improvement, which should be pumped upstream into ImageJ's RoiBrush class which is creating it at every while(true) {} iteration!!!
+	 * The returned area has its coordinates centered around 0,0
+	 */
+	static public Area makeBrush(int diameter, double mag) {
+		if (diameter < 1) return null;
+		if (mag >= 1) return new Area(new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon());
+		// else, create a smaller brush and transform it up, i.e. less precise, less points to store -but precision matches what the eye sees, and allows for much better storage -less points.
+		int screen_diameter = (int)(diameter * mag);
+		if (0 == screen_diameter) return null; // can't paint at this mag with this diameter
+
+		Area brush = new Area(new OvalRoi(-screen_diameter/2, -screen_diameter/2, screen_diameter, screen_diameter).getPolygon());
+		// scale to world coordinates
+		AffineTransform at = new AffineTransform();
+		at.scale(1/mag, 1/mag);
+		return brush.createTransformedArea(at);
 
 
-			// smooth out edges
-			/*
-			Polygon pol = new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon();
-			Polygon pol2 = new Polygon();
-			// cheap and fast: skip every other point, since all will be square angles
-			for (int i=0; i<pol.npoints; i+=2) {
-				pol2.addPoint(pol.xpoints[i], pol.ypoints[i]);
-			}
-			return new Area(pol2);
-			// the above works nice, but then the fill and fill-remove don't work properly (there are traces in the edges)
-			// Needs a workround: before adding/substracting, enlarge the polygon to have square edges
-			*/
+		// smooth out edges
+		/*
+		Polygon pol = new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon();
+		Polygon pol2 = new Polygon();
+		// cheap and fast: skip every other point, since all will be square angles
+		for (int i=0; i<pol.npoints; i+=2) {
+			pol2.addPoint(pol.xpoints[i], pol.ypoints[i]);
 		}
+		return new Area(pol2);
+		// the above works nice, but then the fill and fill-remove don't work properly (there are traces in the edges)
+		// Needs a workround: before adding/substracting, enlarge the polygon to have square edges
+		*/
 	}
 
 	private boolean something_eroded = false;
