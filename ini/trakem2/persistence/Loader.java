@@ -3866,6 +3866,8 @@ abstract public class Loader {
 		while (retries < MAX_RETRIES) try {
 				IJ.redirectErrorMessages();
 				return opener.openImage(path);
+
+				// TODO: Use windowless LOCI to bypass Opener class completely
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
 				recoverOOME(); // No need to unlock db_lock: all image loading calls are by design outside the db_lock.
