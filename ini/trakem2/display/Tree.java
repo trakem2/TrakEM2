@@ -423,7 +423,6 @@ public abstract class Tree extends ZDisplayable {
 	public List generateTriangles(double scale_, int parallels, int resample) {
 		if (null == root) return null;
 		final ArrayList list = new ArrayList();
-		//root.generateTriangles(list, scale, parallels, resample, layer_set.getCalibrationCopy());
 
 		// Simulate recursion
 		final LinkedList<Node> todo = new LinkedList<Node>();

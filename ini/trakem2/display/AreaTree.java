@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 
@@ -309,5 +310,19 @@ public class AreaTree extends Tree implements AreaContainer {
 		} else if (ProjectToolbar.PEN == tool) {
 			super.keyPressed(ke);
 		}
+	}
+
+	public List generateMesh(final double scale, final int resample) {
+		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
+		synchronized (node_layer_map) {
+			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+				final Area a = new Area();
+				for (final AreaNode nd : (Collection<AreaNode>) (Collection) e.getValue()) {
+					if (null != nd.aw) a.add(nd.aw.getArea());
+				}
+				areas.put(e.getKey(), a);
+			}
+		}
+		return AreaUtils.generateTriangles(this, scale, resample, areas);
 	}
 }
