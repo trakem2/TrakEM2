@@ -3795,7 +3795,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		} else if (command.equals("Adjust fast-marching parameters...")) {
 			Segmentation.fmp.setup();
 		} else if (command.equals("Adjust arealist paint parameters...")) {
-			AreaList.PP.setup();
+			AreaWrapper.PP.setup();
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {
@@ -4745,8 +4745,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			case ProjectToolbar.PENCIL:
 				op = Segmentation.fmp.asOptionPanel();
 				break;
-			case ProjectToolbar.PEN:
-				op = AreaList.PP.asOptionPanel();
+			case ProjectToolbar.BRUSH:
+				op = AreaWrapper.PP.asOptionPanel();
 				break;
 			default:
 				break;

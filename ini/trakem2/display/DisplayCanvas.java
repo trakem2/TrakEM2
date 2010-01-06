@@ -403,9 +403,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			g2d.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER));
 
 			// paint brush outline for AreaList, or fast-marching area
-			if (mouse_in && null != active && active.getClass() == AreaList.class) {
+			if (mouse_in && null != active && AreaContainer.class.isInstance(active)) {
 				switch (ProjectToolbar.getToolId()) {
-					case ProjectToolbar.PEN:
+					case ProjectToolbar.BRUSH:
 						int brushSize = ProjectToolbar.getBrushSize();
 						g.setColor(active.getColor());
 						g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
@@ -1033,9 +1033,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	public void mouseExited(MouseEvent me) {
 		mouse_in = false;
 		// paint away the circular brush if any
-		if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) {
+		if (ProjectToolbar.getToolId() == ProjectToolbar.BRUSH) {
 			Displayable active = display.getActive();
-			if (null != active && active.isVisible() && AreaList.class == active.getClass()) {
+			if (null != active && active.isVisible() && AreaContainer.class.isInstance(active)) {
 				if (null != old_brush_box) {
 					this.repaint(old_brush_box, 0);
 					old_brush_box = null;
@@ -1326,10 +1326,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
 			 && 0 == (flags & InputEvent.BUTTON3_MASK)
 			//if (me.getButton() == MouseEvent.NOBUTTON
-			 && null != active && active.isVisible() && AreaList.class == active.getClass()) {
+			 && null != active && active.isVisible() && AreaContainer.class.isInstance(active)) {
 				final int tool = ProjectToolbar.getToolId();
 				Rectangle r = null;
-				if (ProjectToolbar.PEN == tool) {
+				if (ProjectToolbar.BRUSH == tool) {
 					// repaint area where the brush circle is
 					int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
 					r = new Rectangle( xMouse - brushSize/2,
@@ -1787,7 +1787,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				else {
 					display.select(null); // deselect
 					// repaint out the brush if present
-					if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+					if (ProjectToolbar.BRUSH == ProjectToolbar.getToolId()) {
 						repaint(old_brush_box, 0);
 					}
 				}
@@ -2032,12 +2032,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			} else {
 				zoomIn(x, y);
 			}
-		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && Tree.class.isInstance(display.getActive())) {
+		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && AreaContainer.class.isInstance(display.getActive())) {
 			final int tool = ProjectToolbar.getToolId();
 			final int sign = rotation > 0 ? 1 : -1;
-			if (ProjectToolbar.PEN == tool) {
+			if (ProjectToolbar.BRUSH == tool) {
 				int brushSize_old = ProjectToolbar.getBrushSize();
-				// resize brush for AreaList painting
+				// resize brush for AreaList/AreaTree painting
 				int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
 				if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alone
 				int extra = (int)(10 / magnification);

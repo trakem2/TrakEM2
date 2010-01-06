@@ -110,7 +110,7 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 
 	public AreaList(Project project, String title, double x, double y) {
 		super(project, title, x, y);
-		this.alpha = PP.default_alpha;
+		this.alpha = AreaWrapper.PP.default_alpha;
 		addToDatabase();
 	}
 
@@ -138,14 +138,6 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 	}
 
 	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		Object ob = ht_areas.get(new Long(active_layer.getId()));
-		if (null == ob) return;
-		if (AreaList.UNLOADED == ob) {
-			ob = loadLayer(active_layer.getId());
-			if (null == ob) return;
-		}
-		final Area area = (Area)ob;
-		g.setColor(this.color);
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
@@ -153,18 +145,20 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		if (fill_paint) g.fill(area.createTransformedArea(this.at));
-		else 		g.draw(area.createTransformedArea(this.at));  // the contour only
+		if (null != aw) {
+			aw.paint(g, this.at, fill_paint, this.color);
+		} else {
+			Object ob = ht_areas.get(new Long(active_layer.getId()));
+			if (null == ob) return;
+			if (AreaList.UNLOADED == ob) {
+				ob = loadLayer(active_layer.getId());
+				if (null == ob) return;
+			}
+			final Area area = (Area)ob;
+			g.setColor(this.color);
 
-		// If adding, check
-		if (null != last) {
-			try {
-				final Area tmp = last.getTmpArea();
-				if (null != tmp) {
-					if (fill_paint) g.fill(tmp.createTransformedArea(this.at));
-					else            g.draw(tmp.createTransformedArea(this.at)); // won't be perfect except on mouse release
-				}
-			} catch (Exception e) {}
+			if (fill_paint) g.fill(area.createTransformedArea(this.at));
+			else 		g.draw(area.createTransformedArea(this.at));  // the contour only
 		}
 
 		//Transparency: fix alpha composite back to original.
@@ -305,19 +299,17 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		return false;
 	}
 
-	private boolean is_new = false;
-	private boolean something_eroded = false;
-	private Segmentation.BlowCommander blowcommander = null;
+	private AreaWrapper aw = null;
+	private Long lid = null;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
 		final Layer la = Display.getFrontLayer(this.project);
-		final long lid = la.getId(); // isn't this.layer pointing to the current layer always? It *should*
+		lid = la.getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
 		if (null == ob) {
 			area = new Area();
 			ht_areas.put(new Long(lid), area);
-			is_new = true;
 			this.width = layer_set.getLayerWidth(); // will be set properly at mouse release
 			this.height = layer_set.getLayerHeight(); // without this, the first brush slash doesn't get painted because the isOutOfRepaintingClip returns true
 		} else {
@@ -328,175 +320,20 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 			area = (Area)ob;
 		}
 
-		// transform the x_p, y_p to the local coordinates
-		int x_p = x_p_w;
-		int y_p = y_p_w;
-		if (!this.at.isIdentity()) {
-			final Point2D.Double p = inverseTransformPoint(x_p_w, y_p_w);
-			x_p = (int)p.x;
-			y_p = (int)p.y;
-		}
-
-		int tool = ProjectToolbar.getToolId();
-
-		if (ProjectToolbar.PEN == tool) {
-			if (me.isShiftDown()) {
-				// fill/erase a hole/area if the clicked point lays within one
-				// An area in world coords:
-				Area bmin = null;
-				Area bmax = null;
-				ArrayList<Area> intersecting = new ArrayList<Area>(); // a list of areas in world coords
-				// Try to find a hole in this or another visible AreaList, but fill it this
-				int min_area = Integer.MAX_VALUE;
-				int max_area = 0;
-				for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
-					if ( ! zd.isVisible()) continue;
-					final AreaList ali = (AreaList) zd;
-					final Area a = ali.getArea(lid);
-					if (null == a) continue;
-					// bring point to zd space
-					final Point2D.Double p = ali.inverseTransformPoint(x_p_w, y_p_w);
-					final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
-					if (null != polygon) {
-						Area bw = new Area(polygon).createTransformedArea(ali.at);
-						Rectangle bounds = bw.getBounds();
-						int pol_area = bounds.width * bounds.height;
-						if (pol_area < min_area) {
-							bmin = bw;
-							min_area = pol_area;
-						}
-						if (pol_area > max_area) {
-							bmax = bw;
-							max_area = pol_area;
-						}
-						intersecting.add(bw);
-					}
-				}
-
-				// Take the largest area and subtract from it all other visible areas
-				if (intersecting.size() > 1) {
-					Area compound = new Area(bmax);
-					for (Area a : intersecting) {
-						if (bmax == a) continue;
-						compound.intersect(a);
-					}
-					if (!compound.isSingular()) {
-						Polygon polygon = M.findPath(compound, x_p_w, y_p_w);
-						if (null != polygon) {
-							compound = new Area(polygon);
-						}
-					}
-					Rectangle cbounds = compound.getBounds();
-					int carea = cbounds.width * cbounds.height;
-					if (carea < min_area) {
-						min_area = carea;
-						bmin = compound;
-					}
-				}
-				// Also try to merge all visible areas in current layer and find a hole there
-				final Area all = new Area(); // in world coords
-				for (final ZDisplayable zd : Display.getFrontLayer(this.project).getParent().getZDisplayables(AreaList.class)) {
-					if ( ! zd.isVisible()) continue;
-					final AreaList ali = (AreaList) zd;
-					final Area a = ali.getArea(lid);
-					if (null == a) continue;
-					all.add(a.createTransformedArea(ali.at));
-				}
-
-				Polygon polygon = M.findPath(all, x_p_w, y_p_w); // in world coords
-
-				if (null == polygon && project.getBooleanProperty("flood_fill_to_image_edge")) {
-					Area patch_area = la.getPatchArea(true); // in world coords
-					Rectangle bounds = patch_area.getBounds();
-					if (0 != bounds.width && 0 != bounds.height) {
-						patch_area.subtract(all);
-						polygon = M.findPath(patch_area, x_p_w, y_p_w);
-					}
-				}
-
-				if (null != polygon) {
-					Rectangle bounds = polygon.getBounds();
-					int pol_area = bounds.width * bounds.height;
-					if (pol_area < min_area) {
-						min_area = pol_area;
-						bmin = new Area(polygon);
-					}
-				}
-
-				if (null != bmin) {
-					try {
-						// Add b as local to this AreaList
-						Area blocal = bmin.createTransformedArea(this.at.createInverse());
-						if (me.isAltDown()) {
-							area.subtract(blocal);
-						} else {
-							area.add(blocal);
-						}
-						calculateBoundingBox();
-						Display.repaint(Display.getFrontLayer(this.project), bmin.getBounds(), 1); // use b, in world coords
-					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
-				}
-			} else {
-				if (null != last) last.quit();
-				last = new BrushThread(area, mag, la);
-			}
-		} else if (ProjectToolbar.PENCIL == tool) {
-			if (Utils.isControlDown(me)) {
-				// Grow with blow tool
-				try {
-					blowcommander = Segmentation.blowRoi(new AreaWrapper(this, area), Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
-							new Runnable() {
-								public void run() {
-									// Add data edit step when done for undo/redo
-									layer_set.addDataEditStep(AreaList.this);
-								}
-							});
-				} catch (Exception e) {
-					IJError.print(e);
-				}
-			} else {
-				// Grow with fast marching
-				Segmentation.fastMarching(new AreaWrapper(this, area), Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
-						new Runnable() {
-							public void run() {
-								// Add data edit step when done for undo/redo
-								layer_set.addDataEditStep(AreaList.this);
-							}
-						});
-			}
-		}
+		aw = new AreaWrapper(area);
+		aw.setSource(this);
+		aw.mousePressed(me, x_p_w, y_p_w, mag);
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		// nothing, the BrushThread handles it
-		if (null != blowcommander) {
-			blowcommander.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
-		}
+		if (null != aw) aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 	}
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		final int tool = ProjectToolbar.getToolId();
-		if (ProjectToolbar.PEN == tool) {
-			if (null != last) {
-				last.quit();
-				last = null;
-			}
-		} else if (ProjectToolbar.PENCIL == tool) {
-			if (null != blowcommander) {
-				blowcommander.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
-				blowcommander = null;
-			}
-		}
-
-		long lid = Display.getFrontLayer(this.project).getId();
-		Object ob = ht_areas.get(new Long(lid));
-		Area area = null;
-		if (null != ob) {
-			area = (Area)ob;
-		}
+		if (null != aw) aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		Area area = aw.getArea();
 		// check if empty. If so, remove
-		Rectangle bounds = area.getBounds(); // TODO this can fail if the layer changes suddenly while painting
+		Rectangle bounds = area.getBounds();
 		if (0 == bounds.width && 0 == bounds.height) {
-			ht_areas.remove(new Long(lid));
-			//Utils.log("removing empty area");
+			ht_areas.remove(lid);
 		}
 
 		final boolean translated = calculateBoundingBox(); // will reset all areas' top-left coordinates, and update the database if necessary
@@ -508,19 +345,8 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 			updateInDatabase("points=" + lid);
 		}
 
-		if (something_eroded) {
-			Display.repaint(layer_set);
-			something_eroded = false;
-		}
-
-		// Repaint instead the last rectangle, to erase the circle
-		if (null != r_old) {
-			Display.repaint(Display.getFrontLayer(), r_old, 3, false);
-			r_old = null;
-		}
-		// repaint the navigator and snapshot
-		Display.repaint(Display.getFrontLayer(), this);
-
+		lid = null;
+		aw = null;
 	}
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
@@ -556,320 +382,6 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 			return true;
 		}
 		return false;
-	}
-
-	private BrushThread last = null;
-	static private Rectangle r_old = null;
-
-	/** Modeled after the ij.gui.RoiBrush class from ImageJ. */
-	private class BrushThread extends Thread {
-		/** The area to paint into when done or when removing. */
-		final private Area target_area;
-		/** The temporary area to paint to, which is only different than target_area when adding. */
-		final private Area area;
-		/** The list of all painted points. */
-		private final ArrayList<Point> points = new ArrayList<Point>();
-		/** The last point on which a paint event was done. */
-		private Point previous_p = null;
-		private boolean paint = true;
-		private int brush_size; // the diameter
-		private Area brush;
-		final private int leftClick=16, alt=9;
-		final private DisplayCanvas dc = Display.getFront().getCanvas();
-		final private int flags = dc.getModifiers();
-		private boolean adding = (0 == (flags & alt));
-		private Layer la;
-		private long clicked_layer_id = -1;
-
-		BrushThread(Area area, double mag, Layer la) {
-			super("BrushThread");
-			setPriority(Thread.NORM_PRIORITY);
-			this.la = la;
-			this.clicked_layer_id = la.getId();
-			// if adding areas, make it be a copy, to be added on mouse release
-			// (In this way, the receiving Area is small and can be operated on fast)
-			if (adding) {
-				this.target_area = area;
-				this.area = new Area();
-			} else {
-				this.target_area = area;
-				this.area = area;
-			}
-
-			brush_size = ProjectToolbar.getBrushSize();
-			brush = makeBrush(brush_size, mag);
-			if (null == brush) return;
-			start();
-		}
-		final void quit() {
-			this.paint = false;
-			// Make interpolated points affect add or subtract operations
-			synchronized (this) {
-				if (points.size() < 2) {
-					// merge the temporary Area, if any, with the general one
-					if (adding) this.target_area.add(area);
-					return;
-				}
-
-				try {
-
-				// paint the regions between points
-				// A cheap way would be to just make a rectangle between both points, with thickess radius.
-				// A better, expensive way is to fit a spline first, then add each one as a circle.
-				// The spline way is wasteful, but way more precise and beautiful. Since there's only one repaint, it's not excessively slow.
-				int[] xp = new int[points.size()];
-				int[] yp = new int[xp.length];
-				int j = 0;
-				for (final Point p : points) {
-					xp[j] = p.x;
-					yp[j] = p.y;
-					j++;
-				}
-				points.clear();
-
-				PolygonRoi proi = new PolygonRoi(xp, yp, xp.length, Roi.POLYLINE);
-				proi.fitSpline();
-				FloatPolygon fp = proi.getFloatPolygon();
-				proi = null;
-
-				double[] xpd = new double[fp.npoints];
-				double[] ypd = new double[fp.npoints];
-				// Fails: fp contains float[], which for some reason cannot be copied into double[]
-				//System.arraycopy(fp.xpoints, 0, xpd, 0, xpd.length);
-				//System.arraycopy(fp.ypoints, 0, ypd, 0, ypd.length);
-				for (int i=0; i<xpd.length; i++) {
-					xpd[i] = fp.xpoints[i];
-					ypd[i] = fp.ypoints[i];
-				}
-				fp = null;
-
-				try {
-					// VectorString2D resampling doesn't work
-					VectorString3D vs = new VectorString3D(xpd, ypd, new double[xpd.length], false);
-					double delta = ((double)brush_size) / 10;
-					if (delta < 1) delta = 1;
-					vs.resample(delta);
-					xpd = vs.getPoints(0);
-					ypd = vs.getPoints(1);
-					vs = null;
-				} catch (Exception e) { IJError.print(e); }
-
-
-				final AffineTransform atb = new AffineTransform();
-
-				final AffineTransform inv_at = at.createInverse();
-
-				if (adding) {
-					adding = false;
-					for (int i=0; i<xpd.length; i++) {
-						atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
-						atb.preConcatenate(inv_at);
-						area.add(slashInInts(brush.createTransformedArea(atb)));
-					}
-					this.target_area.add(area);
-
-					// now, depending on paint mode, alter the new target area:
-
-					if (PAINT_OVERLAP == PP.paint_mode) {
-						// Nothing happens with PAINT_OVERLAP, default mode.
-					} else {
-						final Collection<AreaList> other_alis = (Collection<AreaList>) (Collection) Display.getFrontLayer(AreaList.this.project).getParent().findZDisplayables(AreaList.class, la, target_area.createTransformedArea(AreaList.this.at).getBounds(), true);
-
-						// prepare undo step:
-						final HashMap<AreaList,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<AreaList,Runnable>() : null;
-
-						for (final AreaList ali : other_alis) {
-							if (AreaList.this == ali) continue;
-							final Area a = ali.getArea(clicked_layer_id);
-							if (null == a) continue;
-							AffineTransform aff;
-							switch (PP.paint_mode) {
-								case PAINT_ERODE:
-									// subtract this target_area from any other AreaList that overlaps with it
-									aff = new AffineTransform(AreaList.this.at);
-									aff.preConcatenate(ali.at.createInverse());
-									final Area ta = target_area.createTransformedArea(aff);
-									if (a.getBounds().intersects(ta.getBounds())) {
-										ops.put(ali, new Runnable() { public void run() { a.subtract(ta); }});
-									}
-									break;
-								case PAINT_EXCLUDE:
-									// subtract all other overlapping AreaList from the target_area
-									aff = new AffineTransform(ali.at);
-									aff.preConcatenate(AreaList.this.at.createInverse());
-									final Area q = a.createTransformedArea(aff);
-									if (q.getBounds().intersects(target_area.getBounds())) {
-										target_area.subtract(q);
-									}
-									break;
-								default:
-									Utils.log2("Can't handle paint mode " + PP.paint_mode);
-									break;
-							}
-						}
-
-						if (null != ops && ops.size() > 0) {
-							AreaList.this.getLayerSet().addDataEditStep(ops.keySet());
-							for (final Runnable r : ops.values()) r.run();
-							something_eroded = true;
-						}
-					}
-				} else {
-					// subtract
-					for (int i=0; i<xpd.length; i++) {
-						atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
-						atb.preConcatenate(inv_at);
-						target_area.subtract(slashInInts(brush.createTransformedArea(atb)));
-					}
-				}
-
-				} catch (Exception ee) {
-					IJError.print(ee);
-				}
-			}
-		}
-		final Area getTmpArea() {
-			if (area != target_area) return area;
-			return null;
-		}
-		/** For best smoothness, each mouse dragged event should be captured!*/
-		public void run() {
-			// create brush
-			Point p;
-			final AffineTransform atb = new AffineTransform();
-			while (paint) {
-				// detect mouse up
-				if (0 == (flags & leftClick)) {
-					quit();
-					return;
-				}
-				p = dc.getCursorLoc(); // as offscreen coords
-				if (p.equals(previous_p) /*|| (null != previous_p && p.distance(previous_p) < brush_size/5) */) {
-					try { Thread.sleep(1); } catch (InterruptedException ie) {}
-					continue;
-				}
-				if (!dc.getDisplay().getLayer().contains(p.x, p.y, 0)) {
-					// Ignoring point off srcRect
-					continue;
-				}
-				// bring to offscreen position of the mouse
-				atb.translate(p.x, p.y);
-				// capture bounds while still in offscreen coordinates
-				final Rectangle r = new Rectangle();
-				final Area slash = createSlash(atb, r);
-				if(null == slash) continue;
-
-				if (0 == (flags & alt)) {
-					// no modifiers, just add
-					area.add(slash);
-				} else {
-					// with alt down, substract
-					area.subtract(slash);
-				}
-				points.add(p);
-				previous_p = p;
-
-				final Rectangle copy = (Rectangle)r.clone();
-				if (null != r_old) copy.add(r_old);
-				r_old = copy;
-
-				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
-
-				// reset
-				atb.setToIdentity();
-			}
-		}
-
-		/** Sets the bounds of the created slash, in offscreen coords, to r if r is not null. */
-		private Area createSlash(final AffineTransform atb, final Rectangle r) {
-				Area slash = brush.createTransformedArea(atb); // + int transform, no problem
-				if (null != r) r.setRect(slash.getBounds());
-				// bring to the current transform, if any
-				if (!at.isIdentity()) {
-					try {
-						slash = slash.createTransformedArea(at.createInverse());
-					} catch (NoninvertibleTransformException nite) {
-						IJError.print(nite);
-						return null;
-					}
-				}
-				// avoid problems with floating-point points, for example inability to properly fill areas or delete them.
-				return slashInInts(slash);
-		}
-
-		private final Area slashInInts(final Area area) {
-			int[] x = new int[400];
-			int[] y = new int[400];
-			int next = 0;
-			for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-				if (x.length == next) {
-					int[] x2 = new int[x.length + 200];
-					int[] y2 = new int[y.length + 200];
-					System.arraycopy(x, 0, x2, 0, x.length);
-					System.arraycopy(y, 0, y2, 0, y.length);
-					x = x2;
-					y = y2;
-				}
-				final float[] coords = new float[6];
-				int seg_type = pit.currentSegment(coords);
-				switch (seg_type) {
-					case PathIterator.SEG_MOVETO:
-					case PathIterator.SEG_LINETO:
-						x[next] = (int)coords[0];
-						y[next] = (int)coords[1];
-						break;
-					case PathIterator.SEG_CLOSE:
-						break;
-					default:
-						Utils.log2("WARNING: AreaList.slashInInts unhandled seg type.");
-						break;
-				}
-				pit.next();
-				if (pit.isDone()) break; // the loop
-				next++;
-			}
-			// resize back (now next is the length):
-			if (x.length == next) {
-				int[] x2 = new int[next];
-				int[] y2 = new int[next];
-				System.arraycopy(x, 0, x2, 0, next);
-				System.arraycopy(y, 0, y2, 0, next);
-				x = x2;
-				y = y2;
-			}
-			return new Area(new Polygon(x, y, next));
-		}
-
-		/** This method could get tones of improvement, which should be pumped upstream into ImageJ's RoiBrush class which is creating it at every while(true) {} iteration!!!
-		 * The returned area has its coordinates centered around 0,0
-		 */
-		private Area makeBrush(int diameter, double mag) {
-			if (diameter < 1) return null;
-			if (mag >= 1) return new Area(new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon());
-			// else, create a smaller brush and transform it up, i.e. less precise, less points to store -but precision matches what the eye sees, and allows for much better storage -less points.
-			int screen_diameter = (int)(diameter * mag);
-			if (0 == screen_diameter) return null; // can't paint at this mag with this diameter
-
-			Area brush = new Area(new OvalRoi(-screen_diameter/2, -screen_diameter/2, screen_diameter, screen_diameter).getPolygon());
-			// scale to world coordinates
-			AffineTransform at = new AffineTransform();
-			at.scale(1/mag, 1/mag);
-			return brush.createTransformedArea(at);
-
-
-			// smooth out edges
-			/*
-			Polygon pol = new OvalRoi(-diameter/2, -diameter/2, diameter, diameter).getPolygon();
-			Polygon pol2 = new Polygon();
-			// cheap and fast: skip every other point, since all will be square angles
-			for (int i=0; i<pol.npoints; i+=2) {
-				pol2.addPoint(pol.xpoints[i], pol.ypoints[i]);
-			}
-			return new Area(pol2);
-			// the above works nice, but then the fill and fill-remove don't work properly (there are traces in the edges)
-			// Needs a workround: before adding/substracting, enlarge the polygon to have square edges
-			*/
-		}
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
@@ -1625,87 +1137,35 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 		DisplayCanvas dc = (DisplayCanvas)source;
-		Layer la = dc.getDisplay().getLayer();
+		Layer layer = dc.getDisplay().getLayer();
 		int keyCode = ke.getKeyCode();
+		long layer_id = layer.getId();
 
-		try {
-			switch (keyCode) {
-				case KeyEvent.VK_C: // COPY
-					Area area = (Area) ht_areas.get(la.getId());
-					if (null != area) {
-						DisplayCanvas.setCopyBuffer(AreaList.class, area.createTransformedArea(this.at));
-					}
-					ke.consume();
-					return;
-				case KeyEvent.VK_V: // PASTE
-					// Casting a null is fine, and addArea survives a null.
-					Area a = (Area) DisplayCanvas.getCopyBuffer(AreaList.class);
-					if (null != a) {
-						addArea(la.getId(), a.createTransformedArea(this.at.createInverse()));
-						calculateBoundingBox();
-					}
-					ke.consume();
-					return;
-				case KeyEvent.VK_F: // fill all holes
-					fillHoles(la);
-					ke.consume();
-					return;
-				case KeyEvent.VK_X: // remove area from current layer, if any
-					if (null != ht_areas.remove(la.getId())) {
-						calculateBoundingBox();
-					}
-					ke.consume();
-					return;
-			}
-		} catch (Exception e) {
-			IJError.print(e);
-		} finally {
-			if (ke.isConsumed()) {
-				Display.repaint(la, getBoundingBox(), 5);
-				linkPatches();
+		if (KeyEvent.VK_K == keyCode) {
+			Roi roi = dc.getFakeImagePlus().getRoi();
+			if (null == roi) return;
+			if (!M.isAreaROI(roi)) {
+				Utils.log("AreaList only accepts region ROIs, not lines.");
 				return;
 			}
-		}
+			ShapeRoi sroi = new ShapeRoi(roi);
 
-		Roi roi = dc.getFakeImagePlus().getRoi();
-		if (null == roi) return;
-		// Check ROI
-		switch (keyCode) {
-			case KeyEvent.VK_A:
-			case KeyEvent.VK_D:
-			case KeyEvent.VK_K:
-				if (!M.isAreaROI(roi)) {
-					Utils.log("AreaList only accepts region ROIs, not lines.");
-					return;
+			try {
+				AreaList p = part(layer_id, sroi);
+				if (null != p) {
+					project.getProjectTree().addSibling(this, p);
 				}
-				break;
-		}
-		ShapeRoi sroi = new ShapeRoi(roi);
-		long layer_id = la.getId();
-		try {
-			switch (keyCode) {
-				case KeyEvent.VK_A:
-					add(layer_id, sroi);
-					ke.consume();
-					break;
-				case KeyEvent.VK_D: // VK_S is for 'save' always
-					subtract(layer_id, sroi);
-					ke.consume();
-					break;
-				case KeyEvent.VK_K: // knife
-					AreaList p = part(layer_id, sroi);
-					if (null != p) {
-						project.getProjectTree().addSibling(this, p);
-					}
-					ke.consume();
-					break;
-			}
-			if (ke.isConsumed()) {
-				Display.repaint(la, getBoundingBox(), 5);
+				Display.repaint(layer, getBoundingBox(), 5);
 				linkPatches();
+			} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+			ke.consume();
+		} else {
+			Area a = getArea(layer_id);
+			if (null == a) {
+				a = new Area();
+				ht_areas.put(layer_id, a);
 			}
-		} catch (NoninvertibleTransformException e) {
-			Utils.log("Could not add ROI to area at layer " + dc.getDisplay().getLayer() + " : " + e);
+			new AreaWrapper(this, a).keyPressed(ke, dc, layer);
 		}
 	}
 
@@ -2262,40 +1722,6 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 			return true;
 		}
 	}
-
-	static public final int PAINT_OVERLAP = 0;
-	static public final int PAINT_EXCLUDE = 1;
-	static public final int PAINT_ERODE = 2;
-
-	static public class PaintParameters {
-		public float default_alpha = 0.4f;
-		public int paint_mode = AreaList.PAINT_OVERLAP;
-
-		public boolean setup() {
-			GenericDialog gd = new GenericDialog("Paint parameters");
-			gd.addSlider("Default_alpha", 0, 100, default_alpha * 100);
-			final String[] modes = {"Allow overlap", "Exclude others", "Erode others"};
-			gd.addChoice("Paint mode", modes, modes[paint_mode]);
-			gd.showDialog();
-			if (gd.wasCanceled()) return false;
-			this.default_alpha = (float) gd.getNextNumber();
-			if (this.default_alpha > 1) this.default_alpha = 1f;
-			else if (this.default_alpha < 0) this.default_alpha = 0.4f; // back to default's default value
-			this.paint_mode = gd.getNextChoiceIndex();
-			// trigger update of GUI radio buttons on all displays:
-			Display.toolChanged(ProjectToolbar.PEN);
-			return true;
-		}
-
-		public OptionPanel asOptionPanel() {
-			OptionPanel op = new OptionPanel();
-			final String[] modes = {"Allow overlap", "Exclude others", "Erode others"};
-			op.addChoice("AreaList paint mode:", modes, paint_mode, new OptionPanel.ChoiceIntSetter(this, "paint_mode"));
-			return op;
-		}
-	}
-
-	static public final PaintParameters PP = new PaintParameters();
 
 	/** Retain the data within the layer range, and through out all the rest. */
 	synchronized public boolean crop(List<Layer> range) {

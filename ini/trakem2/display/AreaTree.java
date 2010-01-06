@@ -125,7 +125,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			if (null == nodes) return null;
 			final List<Area> a = new ArrayList<Area>();
 			for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
-				if (nd.aw.getArea().createTransformedArea(this.at).getBounds().intersects(box)) {
+				if (null != nd.aw && nd.aw.getArea().createTransformedArea(this.at).getBounds().intersects(box)) {
 					a.add(nd.aw.getArea());
 				}
 			}
@@ -163,7 +163,7 @@ public class AreaTree extends Tree implements AreaContainer {
 				for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
 					if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 					else box.add((int)nd.x, (int)nd.y);
-					box.add(nd.aw.getArea().getBounds());
+					if (null != nd.aw) box.add(nd.aw.getArea().getBounds());
 				}
 			}
 		}
@@ -301,8 +301,10 @@ public class AreaTree extends Tree implements AreaContainer {
 
 			AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification());
 
-			if (null != nd) {
+			if (null != nd && null != nd.aw) {
+				nd.aw.setSource(this);
 				nd.aw.keyPressed(ke, dc, layer);
+				nd.aw.setSource(null);
 			}
 		} else if (ProjectToolbar.PEN == tool) {
 			super.keyPressed(ke);
