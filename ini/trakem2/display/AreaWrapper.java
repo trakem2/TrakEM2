@@ -67,10 +67,25 @@ public class AreaWrapper {
 		return area;
 	}
 
+	/** Does not set the @param area, but copies its internal data. */
+	public void putData(final Area a) {
+		if (this.area == a) return;
+		this.area.reset();
+		this.area.add(a);
+	}
+
 	/** Add an area in world coordinates. */
 	public void add(final Area wa) {
 		try {
 			this.area.add(wa.createTransformedArea(source.getAffineTransform().createInverse()));
+			((AreaContainer)source).calculateBoundingBox();
+		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+	}
+
+	/** Subtract an area in world coordinates. */
+	public void subtract(final Area wa) {
+		try {
+			this.area.subtract(wa.createTransformedArea(source.getAffineTransform().createInverse()));
 			((AreaContainer)source).calculateBoundingBox();
 		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 	}
@@ -645,4 +660,103 @@ public class AreaWrapper {
 	}
 
 	static public final PaintParameters PP = new PaintParameters();
+
+	public void keyPressed(KeyEvent ke, DisplayCanvas dc, Layer la) {
+		int keyCode = ke.getKeyCode();
+
+		try {
+			switch (keyCode) {
+				case KeyEvent.VK_C: // COPY
+					DisplayCanvas.setCopyBuffer(source.getClass(), area.createTransformedArea(source.getAffineTransform()));
+					ke.consume();
+					return;
+				case KeyEvent.VK_V: // PASTE
+					// Casting a null is fine, and addArea survives a null.
+					Area a = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
+					if (null != a) {
+						add(a.createTransformedArea(source.getAffineTransform().createInverse()));
+						((AreaContainer)source).calculateBoundingBox();
+					}
+					ke.consume();
+					return;
+				case KeyEvent.VK_F: // fill all holes
+					fillHoles();
+					ke.consume();
+					return;
+				case KeyEvent.VK_X: // remove area from current layer, if any
+					area.reset();
+					((AreaContainer)source).calculateBoundingBox();
+					ke.consume();
+					return;
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (ke.isConsumed()) {
+				Display.repaint(la, source.getBoundingBox(), 5);
+				source.linkPatches();
+				return;
+			}
+		}
+
+		Roi roi = dc.getFakeImagePlus().getRoi();
+		if (null == roi) return;
+		// Check ROI
+		switch (keyCode) {
+			case KeyEvent.VK_A:
+			case KeyEvent.VK_D:
+			case KeyEvent.VK_K:
+				if (!M.isAreaROI(roi)) {
+					Utils.log("Only accepts region ROIs, not lines.");
+					return;
+				}
+				break;
+		}
+		ShapeRoi sroi = new ShapeRoi(roi);
+		long layer_id = la.getId();
+		try {
+			switch (keyCode) {
+				case KeyEvent.VK_A:
+					add(M.getArea(sroi));
+					ke.consume();
+					break;
+				case KeyEvent.VK_D: // VK_S is for 'save' always
+					subtract(M.getArea(sroi));
+					ke.consume();
+					break;
+			}
+			if (ke.isConsumed()) {
+				Display.repaint(la, source.getBoundingBox(), 5);
+				source.linkPatches();
+			}
+		} catch (Exception e) {
+			Utils.log("Could not add ROI to area at layer " + dc.getDisplay().getLayer() + " : " + e);
+		}
+	}
+
+	public void fillHoles() {
+		Polygon pol = new Polygon();
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			float[] coords = new float[6];
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint((int)coords[0], (int)coords[1]);
+					break;
+				case PathIterator.SEG_CLOSE:
+					area.add(new Area(pol));
+					// prepare next:
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+	}
 }

@@ -379,13 +379,9 @@ public class TMLHandler extends DefaultHandler {
 			nodes.removeLast();
 		} else if (orig_qualified_name.equals("t2_area")) {
 			// If it's an AreaNode, set its area data:
-			Utils.log2("close t2_area");
 			if (null != reca) {
-				((AreaTree.AreaNode)nodes.getLast()).setData(new AreaWrapper(reca.getArea()));
+				((AreaTree.AreaNode)nodes.getLast()).setData(reca.getArea());
 				reca = null;
-				Utils.log2("  consumed reca");
-			} else {
-				Utils.log2("  null reca!");
 			}
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
 			ct_list_stack.remove( ct_list_stack.size() - 1 );
@@ -633,19 +629,14 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet(con);
 				return null;
 			} else if (type.equals("path")) {
-				Utils.log2("t2_path");
 				if (null != reca) {
-					Utils.log2("  append path to reca");
 					reca.add((String)ht_attributes.get("d"));
 					return null;
 				}
-				Utils.log2("  reca is null!");
 				last_area_list.__addPath((String)ht_attributes.get("d"));
 				return null;
 			} else if (type.equals("area")) {
-				Utils.log2("t2_area");
 				if (null != last_areatree) {
-					Utils.log2("  create new ReconstructArea");
 					reca = new ReconstructArea();
 					return null;
 				}
@@ -697,7 +688,6 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(oid, tline);
 				addToLastOpenLayerSet(tline);
 			} else if (type.equals("areatree")) {
-				Utils.log2("creating new AreaTree");
 				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
 				art.addToDatabase();
 				last_areatree = art;

@@ -11,11 +11,13 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.awt.Color;
+import java.awt.Point;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collection;
@@ -74,13 +76,12 @@ public class AreaTree extends Tree implements AreaContainer {
 		return art;
 	}
 
-	static public final class AreaNode extends Node<AreaWrapper> {
+	static public final class AreaNode extends Node<Area> {
 		/** The Area wrapped by AreaWrapper is in local AreaTree coordinates, not in local Node coordinates. */
 		private AreaWrapper aw;
 
 		public AreaNode(final float lx, final float ly, final Layer la) {
 			super(lx, ly, la);
-			this.aw = new AreaWrapper();
 		}
 		/** To reconstruct from XML, without a layer. */
 		public AreaNode(final HashMap attr) {
@@ -91,13 +92,14 @@ public class AreaTree extends Tree implements AreaContainer {
 			return new AreaNode(lx, ly, layer);
 		}
 
-		public final boolean setData(AreaWrapper aw) {
-			this.aw = aw;
+		public final boolean setData(Area area) {
+			if (null != this.aw) this.aw.putData(area);
+			else this.aw = new AreaWrapper(area);
 			return true;
 		}
-		public final AreaWrapper getData() { 
+		public final Area getData() {
 			if (null == this.aw) this.aw = new AreaWrapper();
-			return this.aw;
+			return this.aw.getArea();
 		}
 
 		@Override
@@ -179,13 +181,45 @@ public class AreaTree extends Tree implements AreaContainer {
 		for (final Collection<Node> nodes : node_layer_map.values()) {
 			for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
 				nd.translate(-box.x, -box.y); // just the x,y itself
-				nd.getData().getArea().transform(aff);
+				nd.getData().transform(aff);
 			}}
 		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
 		if (null != layer_set) layer_set.updateBucket(this);
 
 		return true;
+	}
+
+	private AreaNode findEventReceiver(final Collection<Node> nodes, final int lx, final int ly, final Layer layer, final double mag) {
+		AreaNode nd = (AreaNode) findNode(lx, ly, layer, mag);
+
+		if (null == nd) {
+			// Try to find an area onto which the point intersects
+			synchronized (node_layer_map) {
+				for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) {
+					if (an.contains(lx, ly)) {
+						nd = an;
+						break;
+					}
+				}
+			}
+		}
+
+		if (null == nd) {
+			// Check whether last area is suitable:
+			if (null != receiver && layer == receiver.la) {
+				Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
+				if (receiver.getData().createTransformedArea(this.at).intersects(srcRect)) {
+					// paint on last area, its in this layer and within current view
+					return receiver;
+				} else {
+					return null;
+				}
+			}
+		} else {
+			return nd;
+		}
+		return null;
 	}
 
 	private AreaNode receiver = null;
@@ -215,37 +249,11 @@ public class AreaTree extends Tree implements AreaContainer {
 			y_pl = (int)po.y;
 		}
 
-		AreaNode nd = (AreaNode) findNode(x_pl, y_pl, layer, mag);
-
-		if (null == nd) {
-			// Try to find an area onto which the point intersects
-			synchronized (node_layer_map) {
-				for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) {
-					if (an.contains(x_pl, y_pl)) {
-						nd = an;
-						break;
-					}
-				}
-			}
-		}
-
-		if (null == nd) {
-			// Check whether last area is suitable:
-			if (null != receiver && layer == receiver.la) {
-				Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
-				if (receiver.getData().getArea().createTransformedArea(this.at).intersects(srcRect)) {
-					// paint on last area, its in this layer and within current view
-				} else {
-					receiver = null;
-				}
-			}
-		} else {
-			receiver = nd;
-		}
+		receiver = findEventReceiver(nodes, x_pl, y_pl, layer, mag);
 
 		if (null != receiver) {
-			receiver.getData().setSource(this);
-			receiver.getData().mousePressed(me, x_p, y_p, mag);
+			receiver.aw.setSource(this);
+			receiver.aw.mousePressed(me, x_p, y_p, mag);
 		}
 	}
 	@Override
@@ -255,7 +263,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			return;
 		}
 		if (null == receiver) return;
-		receiver.getData().mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		receiver.aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 	}
 	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
@@ -264,7 +272,40 @@ public class AreaTree extends Tree implements AreaContainer {
 			return;
 		}
 		if (null == receiver) return;
-		receiver.getData().mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
-		receiver.getData().setSource(null);
+		receiver.aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		receiver.aw.setSource(null);
+	}
+
+	@Override
+	public void keyPressed(KeyEvent ke) {
+		final int tool = ProjectToolbar.getToolId();
+		if (ProjectToolbar.BRUSH == tool) {
+			Object origin = ke.getSource();
+			if (! (origin instanceof DisplayCanvas)) return;
+			DisplayCanvas dc = (DisplayCanvas)origin;
+			Layer layer = dc.getDisplay().getLayer();
+
+			final Collection<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes || nodes.isEmpty()) {
+				return;
+			}
+
+			final Point p = dc.getCursorLoc(); // as offscreen coords
+			int x = p.x;
+			int y = p.y;
+			if (!this.at.isIdentity()) {
+				final Point2D.Double po = inverseTransformPoint(x, y);
+				x = (int)po.x;
+				y = (int)po.y;
+			}
+
+			AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification());
+
+			if (null != nd) {
+				nd.aw.keyPressed(ke, dc, layer);
+			}
+		} else if (ProjectToolbar.PEN == tool) {
+			super.keyPressed(ke);
+		}
 	}
 }
