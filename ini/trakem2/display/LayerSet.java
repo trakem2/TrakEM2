@@ -2138,4 +2138,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return offscreens.containsKey(sc.props);
 		}
 	}
+
+	/** Find all java.awt.geom.Area in layer that intersect with box, if visible. */
+	protected Map<Displayable,List<Area>> findAreas(final Layer layer, final Rectangle box, final boolean visible) {
+		final Map<Displayable,List<Area>> m = new HashMap<Displayable,List<Area>>();
+		for (final Displayable zd : findZDisplayables(layer, box, visible)) {
+			if (!(zd instanceof AreaContainer)) continue;
+			List<Area> a = ((AreaContainer)zd).getAreas(layer, box);
+			if (null == a) continue;
+			m.put(zd, a);
+		}
+		return m;
+	}
 }

@@ -987,6 +987,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
+			case ProjectToolbar.BRUSH:
 				active.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r); // active, not selection (Selection only handles transforms, not active's data editions)
 				// update active's bounding box
 				selection.updateTransform(active);
@@ -2031,7 +2032,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			} else {
 				zoomIn(x, y);
 			}
-		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && display.getActive().getClass() == AreaList.class) {
+		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && Tree.class.isInstance(display.getActive())) {
 			final int tool = ProjectToolbar.getToolId();
 			final int sign = rotation > 0 ? 1 : -1;
 			if (ProjectToolbar.PEN == tool) {

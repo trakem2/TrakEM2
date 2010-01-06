@@ -207,8 +207,8 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
-	protected void calculateBoundingBox(final boolean adjust_position) {
-		if (null == root) return;
+	protected boolean calculateBoundingBox() {
+		if (null == root) return false;
 		Rectangle box = null;
 		synchronized (node_layer_map) {
 			for (final Collection<Node> nodes : node_layer_map.values()) {
@@ -222,17 +222,14 @@ public abstract class Tree extends ZDisplayable {
 		this.width = box.width;
 		this.height = box.height;
 
-		if (adjust_position) {
-			// now readjust points to make min_x,min_y be the x,y
-			for (final Collection<Node> nodes : node_layer_map.values()) {
-				for (final Node nd : nodes) {
-					nd.translate(-box.x, -box.y); }}
-			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-			updateInDatabase("transform");
-		}
-		updateInDatabase("dimensions");
+		// now readjust points to make min_x,min_y be the x,y
+		for (final Collection<Node> nodes : node_layer_map.values()) {
+			for (final Node nd : nodes) {
+				nd.translate(-box.x, -box.y); }}
+		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
 		if (null != layer_set) layer_set.updateBucket(this);
+		return true;
 	}
 
 	public void repaint() {
@@ -243,7 +240,7 @@ public abstract class Tree extends ZDisplayable {
 	public void repaint(boolean repaint_navigator) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox(true);
+		calculateBoundingBox();
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 10, repaint_navigator);
 	}
@@ -567,8 +564,8 @@ public abstract class Tree extends ZDisplayable {
 				// ... and fill its cache arrays
 				t.cacheSubtree(subtree_nodes); // includes nd itself
 				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
-				this.calculateBoundingBox(true);
-				t.calculateBoundingBox(true);
+				this.calculateBoundingBox();
+				t.calculateBoundingBox();
 				// Done!
 				return Arrays.asList(new Tree[]{this, t});
 			}
@@ -972,7 +969,7 @@ public abstract class Tree extends ZDisplayable {
 			tl.end_nodes.clear();
 		}
 
-		calculateBoundingBox(true);
+		calculateBoundingBox();
 
 		// Don't clear this.marked
 
@@ -1052,6 +1049,7 @@ public abstract class Tree extends ZDisplayable {
 					   new int[]{0, 10, 10, 4, 4, -4, -4, -10, -10}, 9);
 	}
 
+	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
 			return;
@@ -1130,6 +1128,7 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
+	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == active) return;
 
@@ -1146,7 +1145,9 @@ public abstract class Tree extends ZDisplayable {
 		repaint(false);
 	}
 
+	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+		Utils.log2("T released!");
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {

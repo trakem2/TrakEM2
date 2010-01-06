@@ -681,6 +681,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Polyline.class, scroll_zdispl);
 		this.ht_tabs.put(Treeline.class, scroll_zdispl);
+		this.ht_tabs.put(AreaTree.class, scroll_zdispl);
 		this.ht_tabs.put(Connector.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
@@ -2043,6 +2044,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(AreaTree d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Connector d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
@@ -2274,13 +2276,13 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
-			} else if (Treeline.class == aclass) {
+			} else if (Treeline.class == aclass || AreaTree.class == aclass) {
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Mark"); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Clear marks (selected Treelines)"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
-				item.setSelected(selection.getSelected(Treeline.class).size() > 1);
+				item.setSelected(selection.getSelected(Tree.class).size() > 1);
 				JMenu go = new JMenu("Go");
 				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
@@ -2439,6 +2441,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (none) item.setEnabled(false);
 			item = new JMenuItem("Unhide all treelines"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(AreaTree.class);
+			item = new JMenuItem("Hide all areatrees"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all areatrees"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
 			none = ! layer.getParent().contains(Ball.class);
 			item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
@@ -2531,8 +2538,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && AreaList.class == active.getClass());
-		item = new JMenuItem("Fly through selected Treeline"); item.addActionListener(this); menu.add(item);
-		item.setEnabled(null != active && Treeline.class == active.getClass());
+		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
+		item.setEnabled(null != active && Tree.class.isInstance(active));
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -2576,6 +2583,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 
@@ -3745,8 +3753,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
 			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
-			gd.addCheckbox("Show arrow heads in Treeline", layer.getParent().paint_arrows);
-			gd.addCheckbox("Show edge confidence boxes in Treeline", layer.getParent().paint_edge_confidence_boxes);
+			gd.addCheckbox("Show arrow heads in Treeline/AreaTree", layer.getParent().paint_arrows);
+			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
 			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
 			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
 			// --------
@@ -3837,22 +3845,22 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}});
 			burro.goHaveBreakfast();
 		} else if (command.equals("Reroot")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			getLayerSet().addDataEditStep(active);
-			((Treeline)active).reRoot(p.x, p.y, layer, canvas.getMagnification());
+			((Tree)active).reRoot(p.x, p.y, layer, canvas.getMagnification());
 			getLayerSet().addDataEditStep(active);
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Split")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			getLayerSet().addChangeTreesStep();
-			List<Treeline> ts = (List<Treeline>) (List) ((Treeline)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
+			List<Tree> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
 			if (null == ts) return;
 			Displayable elder = Display.this.active;
-			for (Treeline t : ts) {
+			for (Tree t : ts) {
 				if (t == elder) continue;
 				getLayerSet().add(t); // will change Display.this.active !
 				project.getProjectTree().addSibling(elder, t);
@@ -3862,24 +3870,24 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			getLayerSet().addChangeTreesStep();
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Mark")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			if (((Treeline)active).markNear(p.x, p.y, layer, canvas.getMagnification())) {
+			if (((Tree)active).markNear(p.x, p.y, layer, canvas.getMagnification())) {
 				Display.repaint(getLayerSet());
 			}
 		} else if (command.equals("Clear marks (selected Treelines)")) {
-			for (Displayable d : selection.getSelected(Treeline.class)) {
-				((Treeline)d).unmark();
+			for (Displayable d : selection.getSelected(Tree.class)) {
+				((Tree)d).unmark();
 			}
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Join")) {
-			if (!(active instanceof Treeline)) return;
-			final List<Treeline> tlines = (List<Treeline>) (List) selection.getSelected(Treeline.class);
-			if (((Treeline)active).canJoin(tlines)) {
+			if (!(active instanceof Tree)) return;
+			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(Treeline.class);
+			if (((Tree)active).canJoin(tlines)) {
 				getLayerSet().addChangeTreesStep();
-				((Treeline)active).join(tlines);
-				for (final Treeline tl : tlines) {
+				((Tree)active).join(tlines);
+				for (final Tree tl : tlines) {
 					if (tl == active) continue;
 					tl.remove2(false);
 				}
@@ -3887,20 +3895,20 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				getLayerSet().addChangeTreesStep();
 			}
 		} else if (command.equals("Previous branch point or start")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			center(((Treeline)active).findPreviousBranchOrRootPoint(p.x, p.y, layer, canvas.getMagnification()));
 		} else if (command.equals("Next branch point or end")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			center(((Treeline)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas.getMagnification()));
+			center(((Tree)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas.getMagnification()));
 		} else if (command.equals("Last added point")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			center(((Treeline)active).getLastAdded());
 		} else if (command.equals("Last edited point")) {
-			if (!(active instanceof Treeline)) return;
+			if (!(active instanceof Tree)) return;
 			center(((Treeline)active).getLastEdited());
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
@@ -4232,8 +4240,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			ImagePlus imp = ((AreaList)active).getStack(type, gd.getNextNumber()/100);
 			if (null != imp) imp.show();
-		} else if (command.equals("Fly through selected Treeline")) {
-			if (null == active || !(active instanceof Treeline)) return;
+		} else if (command.equals("Fly through selected Treeline/AreaTree")) {
+			if (null == active || !(active instanceof Tree)) return;
 			Bureaucrat.createAndStart(new Worker.Task("Creating fly through") {
 				public void exec() {
 					GenericDialog gd = new GenericDialog("Fly through");
@@ -4256,7 +4264,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 						Utils.log("Invalid scale: " + scale);
 						return;
 					}
-					ImagePlus imp = ((Treeline)active).flyThroughMarked(w, h, scale/100, type);
+					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type);
 					if (null == imp) {
 						Utils.log("Mark a node first!");
 						return;

@@ -97,16 +97,13 @@ import fiji.geom.AreaCalculations;
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
  * All Area objects are local to this AreaList's AffineTransform.
  */
-public class AreaList extends ZDisplayable {
+public class AreaList extends ZDisplayable implements AreaContainer {
 
 	/** Contains the table of layer ids and their associated Area object.*/
 	private HashMap ht_areas = new HashMap();
 
 	/** Flag to signal dynamic loading from the database for the Area of a given layer id in the ht_areas HashMap. */
 	static private final Area UNLOADED = new Area();
-
-	/** Flag to repaint faster even if the object is selected. */
-	static private boolean brushing = false;
 
 	/** Paint as outlines (false) or as solid areas (true; default, with a default alpha of 0.4f).*/
 	private boolean fill_paint = true;
@@ -442,13 +439,12 @@ public class AreaList extends ZDisplayable {
 			} else {
 				if (null != last) last.quit();
 				last = new BrushThread(area, mag, la);
-				brushing = true;
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			if (Utils.isControlDown(me)) {
 				// Grow with blow tool
 				try {
-					blowcommander = Segmentation.blowRoi(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+					blowcommander = Segmentation.blowRoi(new AreaWrapper(this, area), Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
 							new Runnable() {
 								public void run() {
 									// Add data edit step when done for undo/redo
@@ -460,7 +456,7 @@ public class AreaList extends ZDisplayable {
 				}
 			} else {
 				// Grow with fast marching
-				Segmentation.fastMarching(this, Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
+				Segmentation.fastMarching(new AreaWrapper(this, area), Display.getFrontLayer(), Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
 						new Runnable() {
 							public void run() {
 								// Add data edit step when done for undo/redo
@@ -472,7 +468,6 @@ public class AreaList extends ZDisplayable {
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// nothing, the BrushThread handles it
-		//irrelevant//if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) brushing = true;
 		if (null != blowcommander) {
 			blowcommander.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		}
@@ -480,12 +475,6 @@ public class AreaList extends ZDisplayable {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN == tool) {
-			if (!brushing) {
-				// nothing changed
-				//Utils.log("AreaList mouseReleased: no brushing");
-				return;
-			}
-			brushing = false;
 			if (null != last) {
 				last.quit();
 				last = null;
@@ -918,7 +907,7 @@ public class AreaList extends ZDisplayable {
 	}
 
 	/** Exports the given area as a list of SVG path elements with integers only. Only reads SEG_MOVETO, SEG_LINETO and SEG_CLOSE elements, all others ignored (but could be just as easily saved in the SVG path). */
-	private void exportArea(StringBuffer sb, String indent, Area area) {
+	static void exportArea(StringBuffer sb, String indent, Area area) {
 		// I could add detectors for straight lines and thus avoid saving so many points.
 		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
 			float[] coords = new float[6];
@@ -2363,5 +2352,13 @@ public class AreaList extends ZDisplayable {
 		ImagePlus imp = new ImagePlus("AreaList stack for " + this, stack);
 		imp.setCalibration(layer_set.getCalibrationCopy());
 		return imp;
+	}
+
+	public List<Area> getAreas(final Layer layer, final Rectangle box) {
+		Area a = (Area) ht_areas.get(layer.getId());
+		if (null == a) return null;
+		ArrayList<Area> l = new ArrayList<Area>();
+		l.add(a);
+		return l;
 	}
 }
