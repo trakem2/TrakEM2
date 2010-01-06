@@ -135,7 +135,7 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		}
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
