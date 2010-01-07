@@ -1830,7 +1830,34 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case KeyEvent.VK_H:
 				handleHide(ke);
+				ke.consume();
 				break;
+			case KeyEvent.VK_F1:
+			case KeyEvent.VK_F2:
+			case KeyEvent.VK_F3:
+			case KeyEvent.VK_F4:
+			case KeyEvent.VK_F5:
+			case KeyEvent.VK_F6:
+			case KeyEvent.VK_F7:
+			case KeyEvent.VK_F8:
+			case KeyEvent.VK_F9:
+			case KeyEvent.VK_F10:
+			case KeyEvent.VK_F11:
+			case KeyEvent.VK_F12:
+				ProjectToolbar.keyPressed(ke);
+				ke.consume();
+				break;
+		}
+
+		if (ke.isConsumed()) return;
+
+		if (null != active) {
+			active.keyPressed(ke);
+			if (ke.isConsumed()) return;
+		}
+
+		// Else:
+		switch (keyCode) {
 			case KeyEvent.VK_I:
 				if (ke.isAltDown()) {
 					if (ke.isShiftDown()) display.importImage();
@@ -1900,6 +1927,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_C:
 				if (null != active) {
 					active.keyPressed(ke);
+					repaint(display.getMode().getRepaintBounds(), Selection.PADDING + 2); // optimization
 				}
 				break;
 			case KeyEvent.VK_P:
@@ -1932,20 +1960,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				}
 				break;
-			case KeyEvent.VK_F1:
-			case KeyEvent.VK_F2:
-			case KeyEvent.VK_F3:
-			case KeyEvent.VK_F4:
-			case KeyEvent.VK_F5:
-			case KeyEvent.VK_F6:
-			case KeyEvent.VK_F7:
-			case KeyEvent.VK_F8:
-			case KeyEvent.VK_F9:
-			case KeyEvent.VK_F10:
-			case KeyEvent.VK_F11:
-			case KeyEvent.VK_F12:
-				ProjectToolbar.keyPressed(ke);
-				break;
 			case KeyEvent.VK_1:
 			case KeyEvent.VK_2:
 			case KeyEvent.VK_3:
@@ -1959,20 +1973,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (null != Utils.launchTPlugIn(ke, "Display", display.getProject(), display.getActive())) {
 					ke.consume();
 					break;
-				}
-				// bleed to active
-			case KeyEvent.VK_UP:
-			case KeyEvent.VK_DOWN:
-			case KeyEvent.VK_LEFT:
-			case KeyEvent.VK_RIGHT:
-				// bleed to active:
-			default:
-				// forward event to active
-				if (null != active) {
-					active.keyPressed(ke);
-					if (ke.isConsumed()) {
-						repaint(display.getMode().getRepaintBounds(), Selection.PADDING + 2); // optimization
-					}
 				}
 		}
 
