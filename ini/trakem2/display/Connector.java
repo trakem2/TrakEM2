@@ -51,7 +51,7 @@ public class Connector extends ZDisplayable {
 			String[] o = origin.split(",");
 			String[] t = null;
 			int len = 1;
-			boolean new_format = true;
+			boolean new_format = 0 == o.length % 4;
 			if (null != targets) {
 				t = targets.split(",");
 				if (0 == t.length % 4) {
