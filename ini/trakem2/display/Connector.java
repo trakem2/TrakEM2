@@ -361,7 +361,7 @@ public class Connector extends ZDisplayable {
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class c) {
-		return get(c, p[0], p[1], lids[0]);
+		return get(c, p[0], p[1], lids[0], radius[0]);
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
@@ -369,7 +369,7 @@ public class Connector extends ZDisplayable {
 		return getOrigins(Displayable.class);
 	}
 
-	private final Set<Displayable> get(final Class c, final double x, final double y, final long layer_id) {
+	private final Set<Displayable> get(final Class c, final double x, final double y, final long layer_id, final double r) {
 		final Set<Displayable> hs = new HashSet<Displayable>();
 		final Layer la = layer_set.getLayer(layer_id);
 		hs.addAll(la.find(c, (int)x, (int)y, false));
@@ -382,7 +382,7 @@ public class Connector extends ZDisplayable {
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		for (int i=1; i<lids.length; i++) {
-			al.add(get(c, p[i+i], p[i+i+1], lids[i]));
+			al.add(get(c, p[i+i], p[i+i+1], lids[i], radius[i]));
 		}
 		return al;
 	}
