@@ -28,6 +28,9 @@ public class Connector extends ZDisplayable {
 	/** Represents points as X1,Y1,X2,Y2,... */
 	private float[] p = null;
 	private long[] lids = null;
+	private float[] radius = null;
+
+	static private float last_radius = 0;
 
 	public Connector(Project project, String title) {
 		super(project, title, 0, 0);
@@ -48,22 +51,37 @@ public class Connector extends ZDisplayable {
 			String[] o = origin.split(",");
 			String[] t = null;
 			int len = 1;
+			boolean new_format = true;
 			if (null != targets) {
 				t = targets.split(",");
-				len += t.length / 3;
+				if (0 == t.length % 4) {
+					// new format, with radii
+					len += t.length / 4;
+				} else {
+					// old format, without radii
+					len += t.length / 3;
+					new_format = false;
+				}
 			}
 			this.p = new float[len + len];
 			this.lids = new long[len];
+			this.radius = new float[len];
 			// Origin:
 			/* X  */ p[0] = Float.parseFloat(o[0]);
 			/* Y  */ p[1] = Float.parseFloat(o[1]);
 			/* LZ */ lids[0] = Long.parseLong(o[2]);
+			if (new_format) {
+				radius[0] = Float.parseFloat(o[3]);
+			}
+
 			// Targets:
 			if (null != targets) {
-				for (int i=0, k=1; i<t.length; i+=3, k++) {
+				int inc = new_format ? 4 : 3;
+				for (int i=0, k=1; i<t.length; i+=inc, k++) {
 					/* X  */ p[k+k] = Float.parseFloat(t[i]);
 					/* Y  */ p[k+k+1] = Float.parseFloat(t[i+1]);
 					/* LZ */ lids[k] = Long.parseLong(t[i+2]);
+					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
 		}
@@ -78,18 +96,22 @@ public class Connector extends ZDisplayable {
 		final long[] lids2 = new long[lids.length + inc];
 		System.arraycopy(lids, 0, lids2, 0, inc > 0 ? lids.length : lids.length + inc);
 		lids = lids2;
+		final float[] radius2 = new float[radius.length + inc];
+		System.arraycopy(radius, 0, radius2, 0, inc > 0 ? radius.length : radius.length + inc);
+		radius = radius2;
 	}
 
 	/** Set an origin and a target point.*/
 	public void set(final float ox, final float oy, final long o_layer_id, final float tx, final float ty, final long t_layer_id) {
 		p = new float[4];
 		lids = new long[2];
+		radius = new float[2]; // zeroes
 		p[0] = ox;	p[1] = oy;	lids[0] = o_layer_id;
 		p[2] = ty; 	p[3] = ty;	lids[1] = t_layer_id;
 		calculateBoundingBox();
 	}
 
-	public int addTarget(final float x, final float y, final long layer_id) {
+	public int addTarget(final float x, final float y, final long layer_id, final float r) {
 		if (null == p) {
 			Utils.log2("No origin set!");
 			return -1;
@@ -98,11 +120,12 @@ public class Connector extends ZDisplayable {
 		p[p.length-2] = x;
 		p[p.length-1] = y;
 		lids[lids.length-1] = layer_id;
+		radius[radius.length-1] = r;
 		return lids.length-1;
 	}
 
-	public int addTarget(final double x, final double y, final long layer_id) {
-		return addTarget((float)x, (float)y, layer_id);
+	public int addTarget(final double x, final double y, final long layer_id, final double r) {
+		return addTarget((float)x, (float)y, layer_id, (float)r);
 	}
 
 	/** To remove a target point of index larger than zero. */
@@ -120,6 +143,10 @@ public class Connector extends ZDisplayable {
 		System.arraycopy(lids, 0, lids2, 0, index);
 		System.arraycopy(lids, index+1, lids2, index, lids.length - index - 1);
 		this.lids = lids2;
+		final float[] radius2 = new float[radius.length -1];
+		System.arraycopy(radius, 0, radius2, 0, index);
+		System.arraycopy(radius, index+1, radius2, index, radius.length - index - 1);
+		this.radius = radius2;
 		return true;
 	}
 
@@ -159,6 +186,7 @@ public class Connector extends ZDisplayable {
 			if (null == p || 0 == p.length) {
 				p = new float[4];
 				lids = new long[2];
+				radius = new float[]{last_radius, last_radius};
 				p[0] = x_p;	p[1] = y_p;
 				p[2] = x_p;	p[3] = y_p;
 				lids[0] = layer_id;	lids[1] = layer_id;
@@ -168,7 +196,7 @@ public class Connector extends ZDisplayable {
 			}
 
 			index = findPoint(x_p, y_p, layer_id, mag);
-
+			
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				if (0 == index) {
 					// Remove origin: remove the entire Connector
@@ -185,7 +213,7 @@ public class Connector extends ZDisplayable {
 				}
 			} else if (-1 == index) {
 				// add target
-				index = addTarget(x_p, y_p, layer_id);
+				index = addTarget(x_p, y_p, layer_id, last_radius);
 				repaint(false);
 			}
 		}
@@ -208,8 +236,16 @@ public class Connector extends ZDisplayable {
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
-			p[index+index] += x_d - x_d_old;
-			p[index+index+1] += y_d - y_d_old;
+			if (me.isShiftDown()) {
+				radius[index] = (float) Math.sqrt(Math.pow(p[index+index] - x_d, 2) + Math.pow(p[index+index+1] - y_d, 2));
+				last_radius = radius[index];
+				Utils.showStatus("radius: " + radius[index], false);
+			} else {
+				// Else drag point
+				p[index+index] += x_d - x_d_old;
+				p[index+index+1] += y_d - y_d_old;
+			}
+
 			repaint(false);
 		}
 	}
@@ -261,12 +297,13 @@ public class Connector extends ZDisplayable {
 		double max_x = 0.0D;
 		double max_y = 0.0D;
 
-		for (int i=0; i<p.length; i+=2) {
+		for (int i=0, j=0; i<p.length; i+=2, j++) {
 			final Point2D.Double po = inverseTransformPoint(p[i], p[i+1]);
-			if (po.x < min_x) min_x = po.x;
-			if (po.y < min_y) min_y = po.y;
-			if (po.x > max_x) max_x = po.x;
-			if (po.y > max_y) max_y = po.y;
+			final float r = radius[j];
+			if (po.x -r < min_x) min_x = po.x -r;
+			if (po.y -r < min_y) min_y = po.y -r;
+			if (po.x +r > max_x) max_x = po.x +r;
+			if (po.y +r > max_y) max_y = po.y +r;
 		}
 
 		this.width = max_x - min_x;
@@ -394,6 +431,10 @@ public class Connector extends ZDisplayable {
 				g.drawLine((int)p[i+i], (int)p[i+i+1],
 					   (int)(p[i+i] + (p[0] - p[i+i])/2), (int)(p[i+i+1] + (p[1] - p[i+i+1])/2));
 			}
+			final float r = radius[i];
+			if (r > 0) {
+				g.drawOval((int)(p[i+i] - r), (int)(p[i+i+1] -r), (int)Math.ceil(r+r), (int)Math.ceil(r+r));
+			}
 		}
 		if (active) {
 			for (int i=0; i<lids.length; i++) {
@@ -439,7 +480,7 @@ public class Connector extends ZDisplayable {
 			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append("\"\n");
 			sb_body.append(in).append("targets=\"");
 			for (int i=1; i<lids.length; i++) {
-				sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',');
+				sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',').append(radius[i]).append(',');
 			}
 			sb_body.setLength(sb_body.length()-1); // remove last comma
 			sb_body.append("\"\n");
@@ -455,6 +496,7 @@ public class Connector extends ZDisplayable {
 		Connector copy = new Connector(pr, nid, title, this.alpha, true, this.color, this.locked, this.at);
 		copy.lids = this.lids.clone();
 		copy.p = this.p.clone();
+		copy.radius = this.radius.clone();
 		return copy;
 	}
 
@@ -473,16 +515,18 @@ public class Connector extends ZDisplayable {
 	}
 
 	static private final class DPConnector extends Displayable.DataPackage {
-		final float[] p;
+		final float[] p, radius;
 		final long[] lids;
 		DPConnector(final Connector con) {
 			super(con);
 			if (null == con.p) {
 				this.p = null;
 				this.lids = null;
+				this.radius = null;
 			} else {
 				this.p = con.p.clone();
 				this.lids = con.lids.clone();
+				this.radius = con.radius.clone();
 			}
 		}
 		@Override
@@ -491,13 +535,14 @@ public class Connector extends ZDisplayable {
 			final Connector con = (Connector)d;
 			con.p = this.p.clone();
 			con.lids = this.lids.clone();
+			con.radius = this.radius.clone();
 			return true;
 		}
 	}
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == p) return rt;
-		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z"});
+		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius"});
 		float[] p = transformPoints(this.p);
 		final Calibration cal = layer_set.getCalibration();
 		for (int i=0; i<lids.length; i++) {
@@ -508,6 +553,7 @@ public class Connector extends ZDisplayable {
 			rt.addValue(2, p[i+i] * cal.pixelWidth);
 			rt.addValue(3, p[i+i+1] * cal.pixelHeight);
 			rt.addValue(4, layer_set.getLayer(lids[i]).getZ() * cal.pixelWidth);
+			rt.addValue(5, radius[i] * cal.pixelWidth);
 		}
 		return rt;
 	}
