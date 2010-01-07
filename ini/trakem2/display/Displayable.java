@@ -434,12 +434,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		Utils.log2("paint g, srcRect, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
-		paint(g, magnification, active, channels, active_layer);
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
-	}
+	//public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	//	Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+	//}
 
 	/** If the painting is expensive, children classes can override this method to provide first a coarse painting, and then call repaint on their own again once the desired graphics are ready. */
 	public void prePaint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
@@ -453,9 +452,9 @@ public abstract class Displayable extends DBObject implements Paintable {
 		paint(g, srcRect, magnification, active, channels, active_layer);
 	}
 	/** Paints waiting for data to load, if necessary. */
-	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, magnification, active, channels, active_layer);
-	}
+	//public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	//	paint(g, magnification, active, channels, active_layer);
+	//}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
@@ -1669,10 +1668,10 @@ public abstract class Displayable extends DBObject implements Paintable {
 		g.drawLine((int)c2[6], (int)c2[7], (int)c2[0], (int)c2[1]);
 	}
 
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
-				paint(g, mag, false, 0xffffffff, layer);
+				paint(g, srcRect, mag, false, 0xffffffff, layer);
 				return;
 			case 1:
 				paintAsBox(g);

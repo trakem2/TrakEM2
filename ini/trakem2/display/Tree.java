@@ -1250,7 +1250,7 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	@Override
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows

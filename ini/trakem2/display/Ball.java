@@ -188,7 +188,7 @@ public class Ball extends ZDisplayable {
 		return index;
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
