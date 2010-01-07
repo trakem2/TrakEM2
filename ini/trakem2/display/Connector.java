@@ -393,7 +393,7 @@ public class Connector extends ZDisplayable {
 	}
 
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		if (null == p) return;
 		//arrange transparency
 		Composite original_composite = null;
