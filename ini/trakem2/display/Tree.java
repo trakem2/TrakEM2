@@ -635,7 +635,7 @@ public abstract class Tree extends ZDisplayable {
 		return root;
 	}
 
-	private Coordinate<Node> createCoordinate(final Node nd) {
+	protected Coordinate<Node> createCoordinate(final Node nd) {
 		if (null == nd) return null;
 		double x = nd.x;
 		double y = nd.y;
@@ -1151,7 +1151,6 @@ public abstract class Tree extends ZDisplayable {
 
 	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		Utils.log2("T released!");
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
@@ -1203,6 +1202,10 @@ public abstract class Tree extends ZDisplayable {
 		if (0 == modifiers) {
 			switch (keyCode) {
 				case KeyEvent.VK_R:
+					display.center(createCoordinate(root));
+					ke.consume();
+					return;
+				case KeyEvent.VK_B:
 					display.center(findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification()));
 					ke.consume();
 					return;

@@ -283,7 +283,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		this.srcRect = (Rectangle)srcRect.clone(); // just in case
 		super.setDrawingSize((int)Math.ceil(srcRect.width * mag), (int)Math.ceil(srcRect.height * mag));
 		setMagnification(mag);
-		display.pack(); // TODO should be run via invokeLater ... need to check many potential locks of invokeLater calling each other.
+		//no longer needed//display.pack(); // TODO should be run via invokeLater ... need to check many potential locks of invokeLater calling each other.
 	}
 
 	/** Does not repaint. */
@@ -1412,7 +1412,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		zoomOut2(x, y);
 	}
 
-	/** Center the srcRect around the given object(s) bounding box, zooming if necessary. */
+	/** Center the srcRect around the given object(s) bounding box, zooming if necessary,
+	 *  so that the given r becomes a rectangle centered in the srcRect and zoomed out by a factor of 2. */
 	public void showCentered(Rectangle r) {
 		// multiply bounding box dimensions by two
 		r.x -= r.width / 2;
@@ -1421,6 +1422,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		r.height += r.height;
 		// compute target magnification
 		double magn = getWidth() / (double)r.width;
+		center(r, magn);
+	}
+
+	/** Show the given r as the srcRect (or as much of it as possible) at the given magnification. */
+	public void center(Rectangle r, double magn) {
 		// bring bounds within limits of the layer and the canvas' drawing size
 		double lw = display.getLayer().getLayerWidth();
 		double lh = display.getLayer().getLayerHeight();

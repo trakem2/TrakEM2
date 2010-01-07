@@ -2289,6 +2289,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
 				item = new JMenuItem("Next branch point or end"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, 0, true));
+				item = new JMenuItem("Root"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0, true));
 				go.addSeparator();
 				item = new JMenuItem("Last added point"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, 0, true));
@@ -3905,6 +3907,11 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			center(((Tree)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas.getMagnification()));
+		} else if (command.equals("Root")) {
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			center(((Tree)active).createCoordinate(((Tree)active).getRoot()));
 		} else if (command.equals("Last added point")) {
 			if (!(active instanceof Tree)) return;
 			center(((Treeline)active).getLastAdded());
@@ -4560,7 +4567,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Rectangle r = (Rectangle)canvas.getSrcRect().clone();
 			r.x = (int)x - r.width/2;
 			r.y = (int)y - r.height/2;
-			canvas.showCentered(r);
+			canvas.center(r, canvas.getMagnification());
 		}});
 	}
 
