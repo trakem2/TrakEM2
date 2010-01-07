@@ -315,11 +315,15 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	}
 
 	public void mousePressed(final MouseEvent me) {
+		display.dispatcher.exec(new Runnable() { public void run() {
+
 		if (display.isTransforming()) return;
 		display.select(d, me.isShiftDown());
 		if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
-			display.getPopupMenu().show(this, me.getX(), me.getY());
+			display.getPopupMenu().show(DisplayablePanel.this, me.getX(), me.getY());
 		}
+
+		}});
 	}
 
 	public void mouseReleased(MouseEvent me) {}
