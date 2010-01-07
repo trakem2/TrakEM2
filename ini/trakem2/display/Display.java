@@ -1800,7 +1800,8 @@ public final class Display extends DBObject implements ActionListener, ImageList
 	public void select(final Displayable d, final boolean shift_down) {
 		if (null != active && active != d && active.getClass() != Patch.class) {
 			// active is being deselected, so link underlying patches
-			final String prop = project.getProperty(Project.getName(active.getClass()).toLowerCase() + "_nolinks");
+			final String prop = active.getClass() == DLabel.class ? project.getProperty("label_nolinks")
+									      : project.getProperty("segmentations_nolinks");
 			HashSet<Displayable> glinked = null;
 			if (null != prop && prop.equals("true")) {
 				// do nothing: linking disabled for active's type

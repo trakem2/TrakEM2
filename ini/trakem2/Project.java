@@ -1328,16 +1328,13 @@ public class Project extends DBObject {
 		GenericDialog gd = new GenericDialog("Properties");
 		gd.addMessage("Ignore image linking for:");
 		boolean link_labels = addBox(gd, DLabel.class);
-		boolean link_arealist = addBox(gd, AreaList.class);
-		boolean link_pipes = addBox(gd, Pipe.class);
-		boolean link_polylines = addBox(gd, Polyline.class);
-		boolean link_balls = addBox(gd, Ball.class);
-		boolean link_dissectors = addBox(gd, Dissector.class);
+		boolean nolink_segmentations = "true".equals(ht_props.get("segmentations_nolinks"));
+		gd.addCheckbox("Segmentations", nolink_segmentations);
+		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
 		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
 		gd.addCheckbox("Paint_color_cues", !no_color_cues);
-		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		String current_mode = ht_props.get("image_resizing_mode");
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
@@ -1370,11 +1367,12 @@ public class Project extends DBObject {
 		//
 		if (gd.wasCanceled()) return;
 		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
-		setLinkProp(link_arealist, gd.getNextBoolean(), AreaList.class);
-		setLinkProp(link_pipes, gd.getNextBoolean(), Pipe.class);
-		setLinkProp(link_polylines, gd.getNextBoolean(), Polyline.class);
-		setLinkProp(link_balls, gd.getNextBoolean(), Ball.class);
-		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
+
+		boolean nolink_segmentations2 = gd.getNextBoolean();
+		if (nolink_segmentations) {
+			if (!nolink_segmentations2) ht_props.remove("segmentations_nolinks");
+		} else if (nolink_segmentations2) ht_props.put("segmentations_nolinks", "true");
+
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
