@@ -20,6 +20,7 @@ import java.awt.geom.Area;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.InputEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collection;
@@ -60,7 +61,8 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	@Override
-	public Node newNode(float lx, float ly, Layer la) {
+	public Node newNode(float lx, float ly, Layer la, Node modelNode) {
+		// Ignore modeNode (could be nice, though, to automatically add the previous area)
 		return new AreaNode(lx, ly, la);
 	}
 	
@@ -95,13 +97,22 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 
 		public final boolean setData(Area area) {
-			if (null != this.aw) this.aw.putData(area);
-			else this.aw = new AreaWrapper(area);
+			if (null == area) {
+				if (null == this.aw) return true;
+				this.aw.getArea().reset();
+			} else {
+				if (null != this.aw) this.aw.putData(area);
+				else this.aw = new AreaWrapper(area);
+			}
 			return true;
 		}
 		public final Area getData() {
 			if (null == this.aw) this.aw = new AreaWrapper();
 			return this.aw.getArea();
+		}
+		public final Area getDataCopy() {
+			if (null == this.aw) return null;
+			return new Area(this.aw.getArea());
 		}
 
 		@Override
@@ -192,7 +203,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		return true;
 	}
 
-	private AreaNode findEventReceiver(final Collection<Node> nodes, final int lx, final int ly, final Layer layer, final double mag) {
+	private AreaNode findEventReceiver(final Collection<Node> nodes, final int lx, final int ly, final Layer layer, final double mag, final InputEvent ie) {
 
 		Area brush = null;
 		try {
@@ -208,16 +219,37 @@ public class AreaTree extends Tree implements AreaContainer {
 		if (null == nd) {
 			// Try to find an area onto which the point intersects, or the brush diameter
 			synchronized (node_layer_map) {
-				for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) {
+				AreaNode closest = null;
+				double min_dist = Double.MAX_VALUE;
+
+				for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) { // nodes are the nodes in the current layer
 					if (null == an.aw) continue;
 					if (brush.contains(an.x, an.y) || M.intersects(an.getData(), brush)) {
-						nd = an;
-						break;
+						return an;
+					}
+					// Look inside holes, for filling
+					final Collection<Polygon> pols = M.getPolygons(an.getData());
+					for (final Polygon pol : pols) {
+						if (pol.contains(lx, ly)) {
+							return an;
+						}
+					}
+					// If erasing, find the closest area to the brush
+					if (ie.isAltDown()) {
+						for (final Polygon pol : pols) {
+							for (int i=0; i<pol.npoints; i++) {
+								double sqdist = Math.pow(lx - pol.xpoints[i], 2) + Math.pow(ly - pol.ypoints[i], 2);
+								if (sqdist < min_dist) {
+									closest = an;
+									min_dist = sqdist;
+								}
+							}
+						}
 					}
 				}
+				if (null != closest) return closest;
 			}
 		}
-		if (null != nd) return nd;
 
 		// Check whether last area is suitable:
 		/* // IT'S CONFUSING when there's more than one node per layer
@@ -260,14 +292,16 @@ public class AreaTree extends Tree implements AreaContainer {
 			y_pl = (int)po.y;
 		}
 
-		receiver = findEventReceiver(nodes, x_pl, y_pl, layer, mag);
+		receiver = findEventReceiver(nodes, x_pl, y_pl, layer, mag, me);
 
 		if (null != receiver) {
+			receiver.getData(); // create the AreaWrapper if not there already
 			receiver.aw.setSource(this);
 			receiver.aw.mousePressed(me, x_p, y_p, mag);
 
 			Utils.log2("receiver: " + receiver);
 			Utils.log2(" at layer: " + receiver.la);
+			Utils.log2(" area: " + receiver.getData());
 		}
 
 	}
@@ -314,7 +348,7 @@ public class AreaTree extends Tree implements AreaContainer {
 				y = (int)po.y;
 			}
 
-			AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification());
+			AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
 
 			if (null != nd && null != nd.aw) {
 				nd.aw.setSource(this);

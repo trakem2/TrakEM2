@@ -53,8 +53,8 @@ public class Treeline extends Tree {
 	}
 
 	@Override
-	public Node newNode(float lx, float ly, Layer la) {
-		return new RadiusNode(lx, ly, la, last_radius);
+	public Node newNode(float lx, float ly, Layer la, Node modelNode) {
+		return new RadiusNode(lx, ly, la, null == modelNode ? 0 : ((RadiusNode)modelNode).r);
 	}
 
 	@Override
@@ -141,6 +141,8 @@ public class Treeline extends Tree {
 			return true;
 		}
 		public final Float getData() { return this.r; }
+
+		public final Float getDataCopy() { return this.r; }
 
 		/** Paint radiuses. */
 		@Override

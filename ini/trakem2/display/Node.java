@@ -324,7 +324,7 @@ public abstract class Node<T> {
 		// todo list containing packets of a copied node and the lists of original children and confidence to clone into it
 		final LinkedList<Object[]> todo = new LinkedList<Object[]>();
 		final Node root = newInstance(x, y, la);
-		root.setData(this.getData());
+		root.setData(this.getDataCopy());
 		if (null != this.children) {
 			todo.add(new Object[]{root, this.children, this.confidence});
 		}
@@ -337,7 +337,7 @@ public abstract class Node<T> {
 			for (int i=0; i<original_children.length; i++) {
 				final Node ochild = original_children[i];
 				copy.children[i] = newInstance(ochild.x, ochild.y, ochild.la);
-				copy.children[i].setData(ochild.getData());
+				copy.children[i].setData(ochild.getDataCopy());
 				copy.children[i].parent = copy;
 				if (null != ochild.children) {
 					todo.add(new Object[]{copy.children[i], ochild.children, ochild.confidence});
@@ -499,6 +499,8 @@ public abstract class Node<T> {
 	public abstract boolean setData(T t);
 
 	public abstract T getData();
+
+	public abstract T getDataCopy();
 
 	public abstract Node newInstance(float x, float y, Layer layer);
 
