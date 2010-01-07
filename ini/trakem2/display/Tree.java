@@ -328,7 +328,7 @@ public abstract class Tree extends ZDisplayable {
 
 	public void exportXML(StringBuffer sb_body, String indent, Object any) {
 		String name = getClass().getName().toLowerCase();
-		String type = "t2_" + name.substring(name.lastIndexOf('.'));
+		String type = "t2_" + name.substring(name.lastIndexOf('.') + 1);
 		sb_body.append(indent).append("<").append(type).append('\n');
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
