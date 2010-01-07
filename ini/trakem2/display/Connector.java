@@ -478,7 +478,7 @@ public class Connector extends ZDisplayable {
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		if (null != p) {
-			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append("\"\n");
+			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append(',').append(radius[0]).append("\"\n");
 			if (lids.length > 0) {
 				sb_body.append(in).append("targets=\"");
 				for (int i=1; i<lids.length; i++) {
