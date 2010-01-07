@@ -176,7 +176,7 @@ public class DLabel extends Displayable {
 	}
 
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, final Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
