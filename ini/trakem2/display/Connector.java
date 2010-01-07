@@ -75,7 +75,7 @@ public class Connector extends ZDisplayable {
 			}
 
 			// Targets:
-			if (null != targets) {
+			if (null != targets && targets.length() > 0) {
 				int inc = new_format ? 4 : 3;
 				for (int i=0, k=1; i<t.length; i+=inc, k++) {
 					/* X  */ p[k+k] = Float.parseFloat(t[i]);
@@ -84,6 +84,7 @@ public class Connector extends ZDisplayable {
 					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
+			if (!new_format) calculateBoundingBox();
 		}
 		// TODO: to parse origin and targets with good performance, I'd have to create a custom NumberReader on a StringReader
 		// that would read batches of 3 numbers as two floats and a long.
@@ -478,12 +479,14 @@ public class Connector extends ZDisplayable {
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		if (null != p) {
 			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append("\"\n");
-			sb_body.append(in).append("targets=\"");
-			for (int i=1; i<lids.length; i++) {
-				sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',').append(radius[i]).append(',');
+			if (lids.length > 0) {
+				sb_body.append(in).append("targets=\"");
+				for (int i=1; i<lids.length; i++) {
+					sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',').append(radius[i]).append(',');
+				}
+				sb_body.setLength(sb_body.length()-1); // remove last comma
+				sb_body.append("\"\n");
 			}
-			sb_body.setLength(sb_body.length()-1); // remove last comma
-			sb_body.append("\"\n");
 		}
 		sb_body.append(indent).append(">\n");
 		super.restXML(sb_body, in, any);
