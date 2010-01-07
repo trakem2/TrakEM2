@@ -299,12 +299,13 @@ public class Connector extends ZDisplayable {
 		double max_y = 0.0D;
 
 		for (int i=0, j=0; i<p.length; i+=2, j++) {
-			final Point2D.Double po = inverseTransformPoint(p[i], p[i+1]);
-			final float r = radius[j];
-			if (po.x -r < min_x) min_x = po.x -r;
-			if (po.y -r < min_y) min_y = po.y -r;
-			if (po.x +r > max_x) max_x = po.x +r;
-			if (po.y +r > max_y) max_y = po.y +r;
+			final float x = p[i],
+			            y = p[i+1],
+				    r = radius[j];
+			if (x -r < min_x) min_x = x -r;
+			if (y -r < min_y) min_y = y -r;
+			if (x +r > max_x) max_x = x +r;
+			if (y +r > max_y) max_y = y +r;
 		}
 
 		this.width = max_x - min_x;
