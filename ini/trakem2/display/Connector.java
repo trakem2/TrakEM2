@@ -52,15 +52,15 @@ public class Connector extends ZDisplayable {
 			String[] t = null;
 			int len = 1;
 			boolean new_format = 0 == o.length % 4;
+			Utils.log2("using new format for id " + id + "  : " + new_format);
 			if (null != targets) {
 				t = targets.split(",");
-				if (0 == t.length % 4) {
+				if (new_format) {
 					// new format, with radii
 					len += t.length / 4;
 				} else {
 					// old format, without radii
 					len += t.length / 3;
-					new_format = false;
 				}
 			}
 			this.p = new float[len + len];
