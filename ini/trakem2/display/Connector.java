@@ -566,4 +566,27 @@ public class Connector extends ZDisplayable {
 		if (null == p) return "Empty";
 		return new StringBuilder("Targets: ").append(lids.length-1).append('\n').toString();
 	}
+
+	/** Temporary while waiting for multi-meshes: create an icosphere with subdividion two, and a tube of half the target diameter from the origin to the targets. */
+	public List generateTriangles(double scale, int resample) {
+
+		if (null == p) return new ArrayList();
+
+		// Create a temporary treeline:  (this is telling how much a Connector should just be a subclass of Tree)
+		Treeline tl = new Treeline(project, -1, "", this.width, this.height, this.alpha, this.visible, this.color, this.locked, this.at);
+		tl.layer_set = this.layer_set;
+		tl.root = tl.newNode(p[0], p[1], layer_set.getLayer(lids[0]), null);
+		float r = 0 == radius[0] ? 1 : radius[0];
+		((Treeline.RadiusNode)tl.root).setData(r);
+		tl.addNode(null, tl.root, Node.MAX_EDGE_CONFIDENCE);
+
+		for (int i=1; i<lids.length; i++) {
+			Treeline.RadiusNode nd = (Treeline.RadiusNode) tl.newNode(p[i+i], p[i+i+1], layer_set.getLayer(lids[i]), null);
+			r = 0 == radius[i] ? 1 : radius[i];
+			nd.setData(r);
+			tl.addNode(tl.root, nd, Node.MAX_EDGE_CONFIDENCE);
+		}
+
+		return tl.generateMesh(scale, 12, resample);
+	}
 }

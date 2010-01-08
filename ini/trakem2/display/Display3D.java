@@ -703,6 +703,8 @@ public final class Display3D {
 		} else if (Treeline.class == c) {
 			// A 3D wire skeleton, using CustomLineMesh
 			triangles = ((Treeline)displ).generateTriangles(scale, 12, 1);
+		} else if (Connector.class == c) {
+			triangles = ((Connector)displ).generateTriangles(scale, 1);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 			no_culling_ = true;
