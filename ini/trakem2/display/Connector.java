@@ -363,6 +363,7 @@ public class Connector extends ZDisplayable {
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class c) {
+		if (null == p) return new HashSet<Displayable>();
 		return get(c, p[0], p[1], lids[0], radius[0]);
 	}
 
@@ -387,6 +388,7 @@ public class Connector extends ZDisplayable {
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
+		if (null == p) return al;
 		for (int i=1; i<lids.length; i++) {
 			al.add(get(c, p[i+i], p[i+i+1], lids[i], radius[i]));
 		}
