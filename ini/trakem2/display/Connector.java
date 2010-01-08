@@ -53,7 +53,6 @@ public class Connector extends ZDisplayable {
 			String[] t = null;
 			int len = 1;
 			boolean new_format = 0 == o.length % 4;
-			Utils.log2("using new format for id " + id + "  : " + new_format);
 			if (null != targets) {
 				t = targets.split(",");
 				if (new_format) {
