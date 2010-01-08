@@ -400,6 +400,11 @@ public class Connector extends ZDisplayable {
 		return getTargets(Displayable.class);
 	}
 
+	public int getTargetCount() {
+		if (null == p) return 0;
+		return lids.length -1;
+	}
+
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		if (null == p) return;
 		//arrange transparency
