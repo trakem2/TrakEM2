@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -505,6 +506,9 @@ public abstract class Node<T> {
 	public abstract Node newInstance(float x, float y, Layer layer);
 
 	abstract public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree);
+
+	/** Expects Area in local coords. */
+	public abstract boolean intersects(Area a);
 
 }
 

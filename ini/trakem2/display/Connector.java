@@ -6,6 +6,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.Composite;
@@ -371,16 +372,20 @@ public class Connector extends ZDisplayable {
 		return getOrigins(Displayable.class);
 	}
 
-	private final Set<Displayable> get(final Class c, final double x, final double y, final long layer_id, final double r) {
-		final Set<Displayable> hs = new HashSet<Displayable>();
+	private final Set<Displayable> get(final Class c, final float x, final float y, final long layer_id, float r) {
 		final Layer la = layer_set.getLayer(layer_id);
-		hs.addAll(la.find(c, (int)x, (int)y, false));
-		if (Displayable.class == c || ZDisplayable.class == c) hs.addAll(layer_set.findZDisplayables(la, (int)x, (int)y, false));
-		else for (final Displayable d : layer_set.findZDisplayables(la, (int)x, (int)y, false)) if (d.getClass() == c) hs.add(d);
-		return hs;
+		float sc = (float)Math.max(Math.abs(at.getScaleX()),
+			                   Math.max(Math.abs(at.getScaleY()),
+					            Math.max(Math.abs(at.getShearX()),
+						             Math.abs(at.getShearY()))));
+		final float[] po = new float[]{x, y};
+		this.at.transform(po, 0, po, 0, 1);
+		r = r * sc;
+		if (r <= 0) r = 1; // r is in pixels, so the minimal search when 0==r is for a circle of diameter 2 pixels.
+		return new HashSet<Displayable>(layer_set.find(c, la, new Area(new Ellipse2D.Float(po[0]-r, po[1]-r, r+r, r+r)), true));
 	}
 
-	/** Returns the list of sets of Displayable objects under each target, or an empty list if none. */
+	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		for (int i=1; i<lids.length; i++) {
@@ -389,11 +394,10 @@ public class Connector extends ZDisplayable {
 		return al;
 	}
 
-	/** Returns the list of sets of Displayable objects under each target, or an empty list if none. */
+	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets() {
 		return getTargets(Displayable.class);
 	}
-
 
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		if (null == p) return;

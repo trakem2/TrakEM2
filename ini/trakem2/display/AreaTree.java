@@ -130,6 +130,12 @@ public class AreaTree extends Tree implements AreaContainer {
 		final boolean contains(final int lx, final int ly) {
 			return aw.getArea().contains(lx, ly);
 		}
+
+		/** Expects @param a in local coords. */
+		public boolean intersects(final Area a) {
+			if (null == aw) return a.contains(x, y);
+			return M.intersects(a, aw.getArea());
+		}
 	}
 
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {

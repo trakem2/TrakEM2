@@ -1076,6 +1076,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al;
 	}
 
+	/** Find any Displayable or ZDisplayable objects of class C which intersect with the Area @param aroi. If @param visible_only, then only those that are not hidden. */
+	public ArrayList<Displayable> find(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		al.addAll(layer.getDisplayables(c, aroi, visible_only));
+		al.addAll(getZDisplayables(c, layer, aroi, visible_only));
+		return al;
+	}
+
+	public ArrayList<Displayable> find(final Class c, final Layer layer, final int x, final int y, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		al.addAll(layer.find(c, x, y, visible_only));
+		al.addAll(findZDisplayables(layer, new Rectangle(x, y, 1, 1), visible_only));
+		return al;
+	}
+
 	/** From zero to size-1. */
 	public int indexOf(Layer layer) {
 		return al_layers.indexOf(layer);

@@ -1335,4 +1335,28 @@ public abstract class Tree extends ZDisplayable {
 
 		return rt;
 	}
+
+	/** Expects Rectangle in world coords. */
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		Set<Node> nodes = node_layer_map.get(layer);
+		if (null == nodes || nodes.isEmpty()) return false;
+		try {
+			return null != findFirstIntersectingNode(nodes, new Area(r).createTransformedArea(this.at.createInverse()));
+		} catch (NoninvertibleTransformException e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(final Layer layer, final Area area) {
+		Set<Node> nodes = node_layer_map.get(layer);
+		if (null == nodes || nodes.isEmpty()) return false;
+		return null != findFirstIntersectingNode(nodes, area);
+	}
+
+	/** Expects an Area in local coordinates. */
+	protected Node findFirstIntersectingNode(final Set<Node> nodes, final Area a) {
+		for (final Node nd : nodes) if (nd.intersects(a)) return nd;
+		return null;
+	}
 }

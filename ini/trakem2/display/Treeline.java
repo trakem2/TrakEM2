@@ -12,6 +12,8 @@ import java.util.Set;
 import java.awt.Color;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.util.ArrayList;
@@ -187,6 +189,12 @@ public class Treeline extends Tree {
 			g.fill(shape);
 			g.setComposite(c);
 			g.draw(shape); // in Tree's composite mode (such as an alpha)
+		}
+
+		/** Expects @param a in local coords. */
+		public boolean intersects(final Area a) {
+			if (0 == r) return a.contains(x, y);
+			return M.intersects(a, new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r)));
 		}
 	}
 
