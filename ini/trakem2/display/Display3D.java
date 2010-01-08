@@ -266,6 +266,8 @@ public final class Display3D {
 		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
 	}
 
+	public double getScale() { return scale; }
+
 	static private boolean check_j3d = true;
 	static private boolean has_j3d_3dviewer = false;
 
