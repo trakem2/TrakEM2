@@ -335,6 +335,9 @@ public class AreaTree extends Tree implements AreaContainer {
 	public void keyPressed(KeyEvent ke) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.BRUSH == tool) {
+			// In any case:
+			ke.consume();
+
 			Object origin = ke.getSource();
 			if (! (origin instanceof DisplayCanvas)) return;
 			DisplayCanvas dc = (DisplayCanvas)origin;
@@ -360,10 +363,12 @@ public class AreaTree extends Tree implements AreaContainer {
 				nd.aw.setSource(this);
 				nd.aw.keyPressed(ke, dc, layer);
 				nd.aw.setSource(null);
+				return;
 			}
-		} else if (ProjectToolbar.PEN == tool) {
-			super.keyPressed(ke);
 		}
+
+		// Try:
+		super.keyPressed(ke);
 	}
 
 	public List generateMesh(final double scale, final int resample) {

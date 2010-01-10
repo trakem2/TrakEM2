@@ -1178,7 +1178,17 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	@Override
-	public void keyPressed(KeyEvent ke ) {
+	public void keyPressed(KeyEvent ke) {
+
+		switch (ProjectToolbar.getToolId()) {
+			case ProjectToolbar.PEN:
+			case ProjectToolbar.BRUSH:
+				break;
+			default:
+				// Reject
+				return;
+		}
+
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 		DisplayCanvas dc = (DisplayCanvas)source;
@@ -1299,16 +1309,21 @@ public abstract class Tree extends ZDisplayable {
 		return project.getLoader().createFlyThrough(regions, magnification, type);
 	}
 
-	/** Measures number of branch points and end points, and total cable length. */
+	/** Measures number of branch points and end points, and total cable length.
+	 *  Cable length is measured as:
+	 *    Cable length: the sum of all distances between all consecutive pairs of nodes.
+	 *    Lower-bound cable length: the sum of all distances between all end points to branch points, branch points to other branch points, and first branch point to root. */
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == root) return rt;
-		double cable = 0;
+		double cable = 0,
+		       lb_cable = 0;
 		int branch_points = 0;
 		final Calibration cal = layer_set.getCalibration();
 		final double pixelWidth = cal.pixelWidth;
 		final double pixelHeight = cal.pixelHeight;
 
 		final float[] fps = new float[4];
+		final float[] fpp = new float[2];
 
 		synchronized (node_layer_map) {
 			for (final Collection<Node> nodes : node_layer_map.values()) {
@@ -1321,17 +1336,34 @@ public abstract class Tree extends ZDisplayable {
 					cable += Math.sqrt(Math.pow( (fps[0] - fps[2]) * pixelWidth, 2)
 							 + Math.pow( (fps[1] - fps[3]) * pixelHeight, 2)
 							 + Math.pow( (nd.la.getZ() - nd.parent.la.getZ()) * pixelWidth, 2));
+
+					// Lower bound cable length:
+					if (1 == nd.getChildrenCount()) continue;
+					else {
+						Node prev = nd.findPreviousBranchOrRootPoint();
+						if (null == prev) {
+							Utils.log("ERROR: Can't find the previous branch or root point for node " + nd);
+							continue;
+						}
+						fpp[0] = prev.x;
+						fpp[1] = prev.y;
+						this.at.transform(fpp, 0, fpp, 0, 1);
+						lb_cable += Math.sqrt(Math.pow( (fpp[0] - fps[0]) * pixelWidth, 2)
+								    + Math.pow( (fpp[1] - fps[1]) * pixelHeight, 2)
+								    + Math.pow( (nd.la.getZ() - nd.parent.la.getZ()) * pixelWidth, 2));
+					}
 				}
 			}
 		}
 
-		if (null == rt) rt = Utils.createResultsTable("Tree results", new String[]{"id", "N branch points", "N end points", "Cable length"});
+		if (null == rt) rt = Utils.createResultsTable("Tree results", new String[]{"id", "N branch points", "N end points", "Cable length", "LB Cable length"});
 		rt.incrementCounter();
 		rt.addLabel("units", cal.getUnit());
 		rt.addValue(0, this.id);
 		rt.addValue(1, branch_points);
 		rt.addValue(2, end_nodes.size());
 		rt.addValue(3, cable);
+		rt.addValue(4, lb_cable);
 
 		return rt;
 	}
