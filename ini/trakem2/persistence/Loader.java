@@ -3545,6 +3545,7 @@ abstract public class Loader {
 				path = fxml.getAbsolutePath().replace('\\', '/');
 			} catch (Exception e) {
 				Utils.log("FAILED to save the file at " + fxml);
+				IJError.print(e);
 				path = null;
 			} finally {
 				writer.close();
