@@ -82,25 +82,21 @@ public class Treeline extends Tree {
 		}
 
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+			final Layer layer = Display.getFrontLayer(this.project);
+			Node nd = findNodeNear(x_p, y_p, layer, mag);
+			if (null == nd) {
+				Utils.log("Can't adjust radius: found more than 1 node within visible area!");
+				return;
+			}
+			// So: only one node within visible area of the canvas:
+			// Adjust the radius by shift+alt+drag
+
 			float xp = x_p,
 			      yp = y_p;
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x_p, y_p);
 				xp = (int)po.x;
 				yp = (int)po.y;
-			}
-			final Layer layer = Display.getFrontLayer(this.project);
-			Node nd = findNode(xp, yp, layer, mag);
-
-			if (null == getActive()) {
-				List<Node> found = findNodesInDisplay(true);
-				if (1 != found.size()) {
-					Utils.log("Can't adjust radius: found more than 1 node within visible area!");
-					return;
-				}
-				nd = found.get(0);
-				// So: only one node within visible area of the canvas:
-				// Adjust the radius by shift+alt+drag
 			}
 
 			setActive(nd);
@@ -161,19 +157,10 @@ public class Treeline extends Tree {
 	}
 
 	protected Node adjustNodeRadius(float inc, float x, float y, Layer layer, double magnification) {
-		if (!this.at.isIdentity()) {
-			final Point2D.Double po = inverseTransformPoint(x, y);
-			x = (float)po.x;
-			y = (float)po.y;
-		}
-		Node nearest = findNode(x, y, layer, magnification);
+		Node nearest = findNodeNear(x, y, layer, magnification);
 		if (null == nearest) {
-			List<Node> nodes = findNodesInDisplay(true);
-			if (1 == nodes.size()) nearest = nodes.get(0);
-			else {
-				Utils.log("Can't adjust radius: found more than 1 node within visible area!");
-				return null;
-			}
+			Utils.log("Can't adjust radius: found more than 1 node within visible area!");
+			return null;
 		}
 		nearest.setData(((Node<Float>)nearest).getData() + inc);
 		return nearest;

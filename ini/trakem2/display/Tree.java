@@ -664,6 +664,17 @@ public abstract class Tree extends ZDisplayable {
 		return createCoordinate(nd.findNextBranchOrEndPoint());
 	}
 
+	public Coordinate<Node> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
+		Node nd = findNodeNear(x, y, layer, magnification);
+		if (null == nd || 1 != nd.getChildrenCount()) return null;
+		return createCoordinate(nd.children[0]);
+	}
+	public Coordinate<Node> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
+		Node nd = findNodeNear(x, y, layer, magnification);
+		if (null == nd || null == nd.parent) return null;
+		return createCoordinate(nd.parent);
+	}
+
 	public Coordinate<Node> getLastEdited() {
 		return createCoordinate(last_edited);
 	}
@@ -986,37 +997,8 @@ public abstract class Tree extends ZDisplayable {
 		return true;
 	}
 
-	/** If @param iff_one is true, then it will return an empty list when more than one node is found within the visible are of the front Display. */
-	protected List<Node> findNodesInDisplay(boolean iff_one) {
-		final List<Node> found = new ArrayList<Node>();
-		final Layer layer = Display.getFrontLayer(this.project);
-		if (null == layer) return found;
-		// Are there any nodes in this layer?
-		Set<Node> nodes = node_layer_map.get(layer);
-		if (null == nodes || nodes.isEmpty()) return found;
-		// Is there only one node within the srcRect?
-		final Area a;
-		try {
-			a = new Area(Display.getFront().getCanvas().getSrcRect())
-				    .createTransformedArea(this.at.createInverse());
-		} catch (NoninvertibleTransformException nite) {
-			IJError.print(nite);
-			return found;
-		}
-		for (final Node nd : nodes) {
-			if (nd.intersects(a)) {
-				if (iff_one && !found.isEmpty()) {
-					found.clear();
-					return found;
-				}
-				found.add(nd);
-			}
-		}
-		return found;
-	}
-
-
-	private Node findNodeNear(float x, float y, final Layer layer, final double magnification) {
+	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
+	protected Node findNodeNear(float x, float y, final Layer layer, final double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -1032,6 +1014,31 @@ public abstract class Tree extends ZDisplayable {
 			nodes = null;
 			// Find a node near the coordinate
 			Node nd = findNode(x, y, layer, magnification);
+			// If that fails, try any node show all by itself in the display:
+
+			if (null == nd) {
+				// Is there only one node within the srcRect?
+				final Area a;
+				try {
+					a = new Area(Display.getFront().getCanvas().getSrcRect())
+						    .createTransformedArea(this.at.createInverse());
+				} catch (NoninvertibleTransformException nite) {
+					IJError.print(nite);
+					return null;
+				}
+				int count = 0;
+				for (final Node node : nodes) {
+					if (node.intersects(a)) {
+						nd = node;
+						count++;
+						if (count > 1) {
+							nd = null;
+							break;
+						}
+					}
+				}
+			}
+
 			if (null == nd) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 				return null;
@@ -1262,6 +1269,14 @@ public abstract class Tree extends ZDisplayable {
 					return;
 				case KeyEvent.VK_E:
 					display.center(getLastEdited());
+					ke.consume();
+					return;
+				case KeyEvent.VK_CLOSE_BRACKET:
+					display.center(findNearAndGetNext(po.x, po.y, layer, dc.getMagnification()));
+					ke.consume();
+					return;
+				case KeyEvent.VK_OPEN_BRACKET:
+					display.center(findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification()));
 					ke.consume();
 					return;
 			}
