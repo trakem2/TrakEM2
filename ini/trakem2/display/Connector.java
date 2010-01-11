@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.M;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
@@ -436,12 +437,13 @@ public class Connector extends ZDisplayable {
 				for (int k=1; k<lids.length; k++) {
 					g.drawLine((int)p[0], (int)p[1],
 						   (int)(p[0] + (p[k+k] - p[0])/2), (int)(p[1] + (p[k+k+1] - p[1])/2));
-
 				}
 			} else {
 				// From a target to half-way to the origin
 				g.drawLine((int)p[i+i], (int)p[i+i+1],
 					   (int)(p[i+i] + (p[0] - p[i+i])/2), (int)(p[i+i+1] + (p[1] - p[i+i+1])/2));
+				// ... plus an arrowhead towards the target
+				g.fill(M.createArrowhead((int)p[0], (int)p[1], (int)p[i+i], (int)p[i+i+1], magnification));
 			}
 			final float r = radius[i];
 			if (r > 0) {
