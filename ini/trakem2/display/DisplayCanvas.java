@@ -1858,6 +1858,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		// Else:
 		switch (keyCode) {
+			case KeyEvent.VK_G:
+				if (browseToNodeLayer()) {
+					ke.consume();
+				}
+				break;
 			case KeyEvent.VK_I:
 				if (ke.isAltDown()) {
 					if (ke.isShiftDown()) display.importImage();
@@ -2578,5 +2583,31 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						  props.hm, props.blending_list, props.mode, props.graphics_source, false, al_top);
 			layer.getProject().getLoader().cacheAWT(sid, img);
 		}
+	}
+
+	private boolean browseToNodeLayer() {
+		// find visible instances of Tree that are currently painting in the canvas
+		final Collection<ZDisplayable> col = display.getLayerSet().getZDisplayables(Treeline.class);
+		col.addAll(display.getLayerSet().getZDisplayables(AreaTree.class));
+		if (col.isEmpty()) return false;
+		final Layer active_layer = display.getLayer();
+		final Point po = getCursorLoc(); // in offscreen coords
+		for (final Tree t : (Collection<Tree>) (Collection) col) {
+			final Node nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
+			if (null != nd) {
+				display.toLayer(nd.la);
+				display.getSelection().add(t);
+				switch (ProjectToolbar.getToolId()) {
+					case ProjectToolbar.PEN:
+					case ProjectToolbar.BRUSH:
+						break;
+					default:
+						ProjectToolbar.setTool(ProjectToolbar.PEN);
+						break;
+				}
+				return true;
+			}
+		}
+		return false;
 	}
 }

@@ -109,7 +109,7 @@ public abstract class Tree extends ZDisplayable {
 		this.color = color;
 	}
 
-	final private Set<Node> getNodesToPaint(final Layer active_layer) {
+	final protected Set<Node> getNodesToPaint(final Layer active_layer) {
 		// Determine which layers to paint
 		final Set<Node> nodes;
 		if (layer_set.color_cues) {
@@ -118,13 +118,7 @@ public abstract class Tree extends ZDisplayable {
 				// All layers
 				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
 			} else {
-				// Just a range
-				int i = layer_set.indexOf(active_layer);
-				int first = i - layer_set.n_layers_color_cue;
-				int last = i + layer_set.n_layers_color_cue;
-				if (first < 0) first = 0;
-				if (last >= layer_set.size()) last = layer_set.size() -1;
-				for (final Layer la : layer_set.getLayers(first, last)) {
+				for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
 					Set<Node> ns = node_layer_map.get(la);
 					if (null != ns) nodes.addAll(ns);
 				}
@@ -738,21 +732,37 @@ public abstract class Tree extends ZDisplayable {
 	/** Find a node in @param layer near the local coords lx,ly, with precision depending on magnification.  */
 	public Node findNode(final float lx, final float ly, final Layer layer, final double magnification) {
 		synchronized (node_layer_map) {
-			final Set<Node> nodes = node_layer_map.get(layer);
-			if (null == nodes) return null;
-			double d = (10.0D / magnification);
-			if (d < 2) d = 2;
-			float min_dist = Float.MAX_VALUE;
-			Node nd = null;
-			for (final Node node : nodes) {
-				float dist = Math.abs(node.x - lx) + Math.abs(node.y - ly);
-				if (dist < min_dist) {
-					min_dist = dist;
-					nd = node;
-				}
-			}
-			return min_dist < d ? nd : null;
+			return findClosestNode(node_layer_map.get(layer), lx, ly, magnification);
 		}
+	}
+
+	/** Expects world coords; with precision depending on magnification. */
+	public Node findClosestNodeW(final Collection<Node> nodes, final float wx, final float wy, final double magnification) {
+		float lx = wx,
+		      ly = wy;
+		if (!this.at.isIdentity()) {
+			Point2D.Double po = inverseTransformPoint(wx, wy);
+			lx = (float)po.x;
+			ly = (float)po.y;
+		}
+		return findClosestNode(nodes, lx, ly, magnification);
+	}
+
+	/** Expects local coords; with precision depending on magnification. */
+	public Node findClosestNode(final Collection<Node> nodes, final float lx, final float ly, final double magnification) {
+		if (null == nodes || nodes.isEmpty()) return null;
+		double d = (10.0D / magnification);
+		if (d < 2) d = 2;
+		float min_dist = Float.MAX_VALUE;
+		Node nd = null;
+		for (final Node node : nodes) {
+			float dist = Math.abs(node.x - lx) + Math.abs(node.y - ly);
+			if (dist < min_dist) {
+				min_dist = dist;
+				nd = node;
+			}
+		}
+		return min_dist < d ? nd : null;
 	}
 
 	/** Find the spatially closest node, in calibrated coords. */
@@ -1279,6 +1289,13 @@ public abstract class Tree extends ZDisplayable {
 					display.center(findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification()));
 					ke.consume();
 					return;
+				case KeyEvent.VK_G:
+					Node nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
+					if (null != nd) {
+						display.toLayer(nd.la);
+						ke.consume();
+						return;
+					}
 			}
 		}
 	}
@@ -1438,5 +1455,13 @@ public abstract class Tree extends ZDisplayable {
 	protected Node findFirstIntersectingNode(final Set<Node> nodes, final Area a) {
 		for (final Node nd : nodes) if (nd.intersects(a)) return nd;
 		return null;
+	}
+
+	@Override
+	public boolean paintsAt(final Layer layer) {
+		synchronized (node_layer_map) {
+			Collection<Node> nodes = node_layer_map.get(layer);
+			return null != nodes && nodes.size() > 0;
+		}
 	}
 }
