@@ -165,7 +165,11 @@ public class AreaTree extends Tree implements AreaContainer {
 
 	protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node) {
 		AreaNode an = (AreaNode)node;
-		if (null == an.aw || an.aw.getArea().isEmpty()) return true;
+		Utils.log2("Calling AreaTree.exportXMLNodeData for node " + an + " which has area: " + (null != an.aw) + " which is not empty: " + (null != an.aw ? !an.aw.getArea().isEmpty() : true));
+		if (null == an.aw || an.aw.getArea().isEmpty()) {
+			return true;
+		}
+		Utils.log2("exporting area:");
 		sb.append(indent).append("<t2_area>\n");
 		indent.append(' ');
 		AreaList.exportArea(sb, indent.toString(), ((AreaNode)node).aw.getArea());
@@ -275,6 +279,7 @@ public class AreaTree extends Tree implements AreaContainer {
 	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		int tool = ProjectToolbar.getToolId();
+		Utils.log2("tool is pen: " + (ProjectToolbar.PEN == tool) + "  or brush: " + (ProjectToolbar.BRUSH == tool));
 		if (ProjectToolbar.PEN == tool) {
 			super.mousePressed(me, x_p, y_p, mag);
 			return;
@@ -304,10 +309,12 @@ public class AreaTree extends Tree implements AreaContainer {
 			receiver.getData(); // create the AreaWrapper if not there already
 			receiver.aw.setSource(this);
 			receiver.aw.mousePressed(me, x_p, y_p, mag);
+			calculateBoundingBox();
+			receiver.aw.setSource(null);
 
-			Utils.log2("receiver: " + receiver);
-			Utils.log2(" at layer: " + receiver.la);
-			Utils.log2(" area: " + receiver.getData());
+			//Utils.log2("receiver: " + receiver);
+			//Utils.log2(" at layer: " + receiver.la);
+			//Utils.log2(" area: " + receiver.getData());
 		}
 
 	}
@@ -318,7 +325,10 @@ public class AreaTree extends Tree implements AreaContainer {
 			return;
 		}
 		if (null == receiver) return;
+		receiver.aw.setSource(this);
 		receiver.aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		// no need, repaint includes the brush area//calculateBoundingBox();
+		receiver.aw.setSource(null); // since a mouse released can occur outside the canvas
 	}
 	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
@@ -327,7 +337,9 @@ public class AreaTree extends Tree implements AreaContainer {
 			return;
 		}
 		if (null == receiver) return;
+		receiver.aw.setSource(this);
 		receiver.aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		calculateBoundingBox();
 		receiver.aw.setSource(null);
 	}
 
@@ -383,5 +395,15 @@ public class AreaTree extends Tree implements AreaContainer {
 			}
 		}
 		return AreaUtils.generateTriangles(this, scale, resample, areas);
+	}
+
+	public void debug() {
+		for (Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+			for (Node nd : e.getValue()) {
+				Area a = ((AreaNode)nd).aw.getArea();
+				Utils.log2("area: " + a + "  " + (null != a ? a.getBounds() : null));
+				Utils.log2(" .. and has paths: " + M.getPolygons(a).size());
+			}
+		}
 	}
 }

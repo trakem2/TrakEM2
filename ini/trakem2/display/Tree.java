@@ -398,19 +398,22 @@ public abstract class Tree extends ZDisplayable {
 		  .append("\" lid=\"").append(node.la.getId()).append('\"');
 		;
 		if (null != node.parent) sb.append(" c=\"").append(node.parent.getConfidence(node)).append('\"');
-		tree.exportXMLNodeAttributes(indent, sb, node);
+		tree.exportXMLNodeAttributes(indent, sb, node); // may not add anything
 		sb.append(">\n");
+		// ... so accumulated potentially extra chars are 3: \">\n
 
-		if (null == node.children) {
-			indent.append(' ');
-			if (tree.exportXMLNodeData(indent, sb, node)) {
+		indent.append(' ');
+		if (tree.exportXMLNodeData(indent, sb, node)) {
+			if (null == node.children) {
+				indent.setLength(indent.length() -1);
 				sb.append(indent).append("</t2_node>\n");
-			} else {
-				sb.setLength(sb.length() -3);
-				sb.append("\" />\n");
+				return;
 			}
-			indent.setLength(indent.length() -1);
+		} else if (null == node.children) {
+			sb.setLength(sb.length() -3); // remove "\">\n"
+			sb.append("\" />\n");
 		}
+		indent.setLength(indent.length() -1);
 	}
 	abstract protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node);
 	abstract protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node);
@@ -1172,7 +1175,25 @@ public abstract class Tree extends ZDisplayable {
 
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		if (null == active || 0 != me.getModifiers()) return;
+		translateActive(me, x_d, y_d, x_d_old, y_d_old);
+	}
+
+	@Override
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+		final int tool = ProjectToolbar.getToolId();
+
+		translateActive(me, x_r, y_d, x_d, y_d);
+
+		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
+			repaint(true); //needed at least for the removePoint
+		}
+
+		active = null;
+	}
+
+	private final void translateActive(MouseEvent me, int x_d, int y_d, int x_d_old, int y_d_old) {
+		if (null == active || me.isAltDown() || Utils.isControlDown(me)) return;
+		// shiftDown is ok: when dragging a newly branched node.
 
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
@@ -1186,34 +1207,7 @@ public abstract class Tree extends ZDisplayable {
 
 		active.translate(x_d - x_d_old, y_d - y_d_old);
 		repaint(false);
-	}
-
-	@Override
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		final int tool = ProjectToolbar.getToolId();
-
-		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
-			repaint(true); //needed at least for the removePoint
-		}
-
-		if (null == active) return;
-
-		// transform to the local coordinates
-		if (!this.at.isIdentity()) {
-			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
-			x_d = (int)pd.x;
-			y_d = (int)pd.y;
-			final Point2D.Double pdo = inverseTransformPoint(x_r, y_r);
-			x_r = (int)pdo.x;
-			y_r = (int)pdo.y;
-		}
-
-		active.translate(x_r - x_d, y_r - y_d);
-		repaint();
-
 		last_edited = active;
-
-		active = null;
 	}
 
 	@Override

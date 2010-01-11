@@ -82,26 +82,30 @@ public class Treeline extends Tree {
 		}
 
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+			float xp = x_p,
+			      yp = y_p;
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x_p, y_p);
-				x_p = (int)po.x;
-				y_p = (int)po.y;
+				xp = (int)po.x;
+				yp = (int)po.y;
 			}
 			final Layer layer = Display.getFrontLayer(this.project);
-			Node active = findNode(x_p, y_p, layer, mag);
+			Node nd = findNode(xp, yp, layer, mag);
 
-			if (null == active) {
+			if (null == getActive()) {
 				List<Node> found = findNodesInDisplay(true);
 				if (1 != found.size()) {
 					Utils.log("Can't adjust radius: found more than 1 node within visible area!");
 					return;
 				}
-				active = found.get(0);
+				nd = found.get(0);
 				// So: only one node within visible area of the canvas:
 				// Adjust the radius by shift+alt+drag
 			}
 
-			setActive(active);
+			setActive(nd);
+			nd.setData((float)Math.sqrt(Math.pow(xp - nd.x, 2) + Math.pow(yp - nd.y, 2)));
+			repaint(true);
 
 			return;
 		}
@@ -124,7 +128,7 @@ public class Treeline extends Tree {
 			}
 			Node nd = getActive();
 			nd.setData((float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2)));
-			repaint(false);
+			repaint(true);
 			return;
 		}
 
