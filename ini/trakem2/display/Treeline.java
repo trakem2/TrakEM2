@@ -106,6 +106,7 @@ public class Treeline extends Tree {
 			setActive(nd);
 			nd.setData((float)Math.sqrt(Math.pow(xp - nd.x, 2) + Math.pow(yp - nd.y, 2)));
 			repaint(true);
+			setLastEdited(nd);
 
 			return;
 		}

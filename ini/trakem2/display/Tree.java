@@ -1071,10 +1071,10 @@ public abstract class Tree extends ZDisplayable {
 		return false;
 	}
 
-	protected void setActive(Node nd) {
-		this.active = nd;
-	}
+	protected void setActive(Node nd) { this.active = nd; }
 	protected Node getActive() { return active; }
+
+	protected void setLastEdited(Node nd) { this.last_edited = nd; }
 
 	/** The Node double-clicked on, for join operations. */
 	private Node marked = null;

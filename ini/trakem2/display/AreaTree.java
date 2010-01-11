@@ -312,6 +312,8 @@ public class AreaTree extends Tree implements AreaContainer {
 			calculateBoundingBox();
 			receiver.aw.setSource(null);
 
+			setLastEdited(receiver);
+
 			//Utils.log2("receiver: " + receiver);
 			//Utils.log2(" at layer: " + receiver.la);
 			//Utils.log2(" area: " + receiver.getData());
@@ -346,41 +348,45 @@ public class AreaTree extends Tree implements AreaContainer {
 	@Override
 	public void keyPressed(KeyEvent ke) {
 		final int tool = ProjectToolbar.getToolId();
-		if (ProjectToolbar.BRUSH == tool) {
-			// In any case:
-			ke.consume();
+		try {
+			if (ProjectToolbar.BRUSH == tool) {
 
-			Object origin = ke.getSource();
-			if (! (origin instanceof DisplayCanvas)) return;
-			DisplayCanvas dc = (DisplayCanvas)origin;
-			Layer layer = dc.getDisplay().getLayer();
+				Object origin = ke.getSource();
+				if (! (origin instanceof DisplayCanvas)) {
+					ke.consume();
+					return;
+				}
+				DisplayCanvas dc = (DisplayCanvas)origin;
+				Layer layer = dc.getDisplay().getLayer();
 
-			final Collection<Node> nodes = node_layer_map.get(layer);
-			if (null == nodes || nodes.isEmpty()) {
-				return;
+				final Collection<Node> nodes = node_layer_map.get(layer);
+				if (null == nodes || nodes.isEmpty()) {
+					return;
+				}
+
+				final Point p = dc.getCursorLoc(); // as offscreen coords
+				int x = p.x;
+				int y = p.y;
+				if (!this.at.isIdentity()) {
+					final Point2D.Double po = inverseTransformPoint(x, y);
+					x = (int)po.x;
+					y = (int)po.y;
+				}
+
+				AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
+
+				if (null != nd && null != nd.aw) {
+					nd.aw.setSource(this);
+					nd.aw.keyPressed(ke, dc, layer);
+					nd.aw.setSource(null);
+					if (ke.isConsumed()) return;
+				}
 			}
-
-			final Point p = dc.getCursorLoc(); // as offscreen coords
-			int x = p.x;
-			int y = p.y;
-			if (!this.at.isIdentity()) {
-				final Point2D.Double po = inverseTransformPoint(x, y);
-				x = (int)po.x;
-				y = (int)po.y;
-			}
-
-			AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
-
-			if (null != nd && null != nd.aw) {
-				nd.aw.setSource(this);
-				nd.aw.keyPressed(ke, dc, layer);
-				nd.aw.setSource(null);
-				return;
+		} finally {
+			if (!ke.isConsumed()) {
+				super.keyPressed(ke);
 			}
 		}
-
-		// Try:
-		super.keyPressed(ke);
 	}
 
 	public List generateMesh(final double scale, final int resample) {
