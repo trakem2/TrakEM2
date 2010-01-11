@@ -1,15 +1,20 @@
 package ini.trakem2.display;
 
 import ij.measure.Calibration;
+import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
+import java.awt.Point;
+import java.awt.Choice;
+import java.awt.TextField;
 import java.awt.Color;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
@@ -18,9 +23,13 @@ import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.ItemEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Collection;
 import javax.vecmath.Point3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.Transform3D;
@@ -545,5 +554,80 @@ public class Treeline extends Tree {
 		return ps;
 	}
 
+	@Override
+	public void keyPressed(KeyEvent ke) {
+		final int tool = ProjectToolbar.getToolId();
+		try {
+			if (ProjectToolbar.PEN == tool) {
+				Object origin = ke.getSource();
+				if (! (origin instanceof DisplayCanvas)) {
+					ke.consume();
+					return;
+				}
+				final int mod = ke.getModifiers();
+				DisplayCanvas dc = (DisplayCanvas)origin;
+				Layer layer = dc.getDisplay().getLayer();
+				final Point p = dc.getCursorLoc(); // as offscreen coords
 
+				switch (ke.getKeyCode()) {
+					case KeyEvent.VK_O:
+						if (askAdjustRadius(p.x, p.y, layer, dc.getMagnification())) {
+							ke.consume();
+						}
+						break;
+				}
+			}
+		} finally {
+			if (!ke.isConsumed()) {
+				super.keyPressed(ke);
+			}
+		}
+	}
+
+	private boolean askAdjustRadius(final float x, final float y, final Layer layer, final double magnification) {
+		final Collection<Node> nodes = node_layer_map.get(layer);
+		if (null == nodes) return false;
+
+		RadiusNode nd = (RadiusNode) findClosestNodeW(nodes, x, y, magnification);
+		if (null == nd) return false;
+
+		GenericDialog gd = new GenericDialog("Adjust radius");
+		final Calibration cal = layer.getParent().getCalibration();
+		String unit = cal.getUnit(); 
+		if (!unit.toLowerCase().startsWith("pixel")) {
+			final String[] units = new String[]{"pixels", unit};
+			gd.addChoice("Units:", units, units[1]);
+			gd.addNumericField("Radius:", nd.getData() * cal.pixelWidth, 2);
+			final TextField tfr = (TextField) gd.getNumericFields().get(0);
+			((Choice)gd.getChoices().get(0)).addItemListener(new ItemListener() {
+				public void itemStateChanged(ItemEvent ie) {
+					final double val = Double.parseDouble(tfr.getText());
+					if (Double.isNaN(val)) return;
+					tfr.setText(Double.toString(units[0] == ie.getItem() ?
+									val / cal.pixelWidth
+								      : val * cal.pixelWidth));
+				}
+			});
+		} else {
+			unit = null;
+			gd.addNumericField("Radius:", nd.getData(), 2, 10, "pixels");
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		double radius = gd.getNextNumber();
+		if (Double.isNaN(radius) || radius < 0) {
+			Utils.log("Invalid radius: " + radius);
+			return false;
+		}
+		if (null != unit && 1 == gd.getNextChoiceIndex() && 0 != radius) {
+			// convert radius from units to pixels
+			radius = radius / cal.pixelWidth;
+		}
+		nd.setData((float)radius);
+
+		calculateBoundingBox();
+		Display.repaint(layer_set);
+
+		return true;
+	}
 }
