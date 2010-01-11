@@ -73,7 +73,7 @@ import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.AffineModel3D;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
-public final class Display extends DBObject implements ActionListener, ImageListener {
+public final class Display extends DBObject implements ActionListener, IJEventListener {
 
 	/** The Layer this Display is showing. */
 	private Layer layer;
@@ -464,7 +464,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		super(project);
 		front = this;
 		makeGUI(layer, null);
-		ImagePlus.addImageListener(this);
+		IJ.addEventListener(this);
 		setLayer(layer);
 		this.layer = layer; // after, or it doesn't update properly
 		al_displays.add(this);
@@ -478,6 +478,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Display.ht_later.put(this, props);
 		}
 		this.layer = layer;
+		IJ.addEventListener(this);
 	}
 
 	/** Open a new Display centered around the given Displayable. */
@@ -486,7 +487,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		front = this;
 		active = displ;
 		makeGUI(layer, null);
-		ImagePlus.addImageListener(this);
+		IJ.addEventListener(this);
 		setLayer(layer);
 		this.layer = layer; // after set layer!
 		al_displays.add(this);
@@ -551,6 +552,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			Display.ht_later.put(this, props);
 		}
 		this.layer = layer;
+		IJ.addEventListener(this);
 	}
 
 	/** After reloading a project from the database, open the Displays that the project had. */
@@ -573,7 +575,6 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			if (ControlWindow.isGUIEnabled()) d.makeGUI(d.layer, props);
 			d.setLayerLater(d.layer, d.layer.get(((Long)props[3]).longValue())); //important to do it after makeGUI
 			if (!ControlWindow.isGUIEnabled()) continue;
-			ImagePlus.addImageListener(d);
 			al_displays.add(d);
 			d.updateFrameTitle(d.layer);
 			// force a repaint if a prePaint was done TODO this should be properly managed with repaints using always the invokeLater, but then it's DOG SLOW
@@ -1287,7 +1288,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		canvas.removeKeyListener(canvas);
 		tabs.removeChangeListener(tabs_listener);
 		tabs.removeKeyListener(canvas);
-		ImagePlus.removeImageListener(this);
+		IJ.removeEventListener(this);
 		bytypelistener = null;
 		canvas.destroy();
 		navigator.destroy();
@@ -4460,39 +4461,12 @@ public final class Display extends DBObject implements ActionListener, ImageList
 		}});
 	}
 
-	/** Listen to interesting updates, such as the ColorPicker and updates to Patch objects. */
-	public void imageUpdated(ImagePlus updated) {
-		// detect ColorPicker WARNING this will work even if the Display is not the window immediately active under the color picker.
-		if (this == front && updated instanceof ij.plugin.ColorPicker) {
-			if (null != active && project.isInputEnabled()) {
-				selection.setColor(Toolbar.getForegroundColor());
-				Display.repaint(front.layer, selection.getBox(), 0);
-			}
-			return;
+	public void eventOccurred(final int eventID) {
+		if (IJEventListener.FOREGROUND_COLOR_CHANGED == eventID) {
+			if (this != front || null == active || !project.isInputEnabled()) return;
+			selection.setColor(Toolbar.getForegroundColor());
+			Display.repaint(front.layer, selection.getBox(), 0);
 		}
-		// $%#@!!  LUT changes don't set the image as changed
-		//if (updated instanceof PatchStack) {
-		//	updated.changes = 1
-		//}
-
-		//Utils.log2("imageUpdated: " + updated + "  " + updated.getClass());
-
-		/* // never gets called (?)
-		// the above is overkill. Instead:
-		if (updated instanceof PatchStack) {
-			Patch p = ((PatchStack)updated).getCurrentPatch();
-			ImageProcessor ip = updated.getProcessor();
-			p.setMinAndMax(ip.getMin(), ip.getMax());
-			Utils.log2("setting min and max: " + ip.getMin() + ", " + ip.getMax());
-			project.getLoader().decacheAWT(p.getId()); // including level 0, which will be editable
-			// on repaint, it will be recreated
-			//((PatchStack)updated).decacheAll(); // so that it will repaint with a newly created image
-		}
-		*/
-
-		// detect LUT changes: DONE at PatchStack, which is the active (virtual) image
-		//Utils.log2("calling decache for " + updated);
-		//getProject().getLoader().decache(updated);
 	}
 
 	public void imageClosed(ImagePlus imp) {}
