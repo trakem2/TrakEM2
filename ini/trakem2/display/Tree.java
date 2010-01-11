@@ -983,6 +983,36 @@ public abstract class Tree extends ZDisplayable {
 		return true;
 	}
 
+	/** If @param iff_one is true, then it will return an empty list when more than one node is found within the visible are of the front Display. */
+	protected List<Node> findNodesInDisplay(boolean iff_one) {
+		final List<Node> found = new ArrayList<Node>();
+		final Layer layer = Display.getFrontLayer(this.project);
+		if (null == layer) return found;
+		// Are there any nodes in this layer?
+		Set<Node> nodes = node_layer_map.get(layer);
+		if (null == nodes || nodes.isEmpty()) return found;
+		// Is there only one node within the srcRect?
+		final Area a;
+		try {
+			a = new Area(Display.getFront().getCanvas().getSrcRect())
+				    .createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return found;
+		}
+		for (final Node nd : nodes) {
+			if (nd.intersects(a)) {
+				if (iff_one && !found.isEmpty()) {
+					found.clear();
+					return found;
+				}
+				found.add(nd);
+			}
+		}
+		return found;
+	}
+
+
 	private Node findNodeNear(float x, float y, final Layer layer, final double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
@@ -1037,6 +1067,11 @@ public abstract class Tree extends ZDisplayable {
 		}
 		return false;
 	}
+
+	protected void setActive(Node nd) {
+		this.active = nd;
+	}
+	protected Node getActive() { return active; }
 
 	/** The Node double-clicked on, for join operations. */
 	private Node marked = null;
@@ -1096,7 +1131,7 @@ public abstract class Tree extends ZDisplayable {
 					active = null;
 					return;
 				}
-				if (me.isShiftDown()) {
+				if (me.isShiftDown() && !me.isAltDown()) {
 					// Create new branch at point, with local coordinates
 					Node node = newNode(x_pl, y_pl, layer, active);
 					addNode(active, node, Node.MAX_EDGE_CONFIDENCE);
@@ -1106,6 +1141,9 @@ public abstract class Tree extends ZDisplayable {
 			} else {
 				if (2 == me.getClickCount()) {
 					marked = null;
+					return;
+				}
+				if (me.isAltDown()) {
 					return;
 				}
 				// Add new point
@@ -1134,7 +1172,7 @@ public abstract class Tree extends ZDisplayable {
 
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		if (null == active) return;
+		if (null == active || 0 != me.getModifiers()) return;
 
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
@@ -1145,6 +1183,7 @@ public abstract class Tree extends ZDisplayable {
 			x_d_old = (int)pdo.x;
 			y_d_old = (int)pdo.y;
 		}
+
 		active.translate(x_d - x_d_old, y_d - y_d_old);
 		repaint(false);
 	}

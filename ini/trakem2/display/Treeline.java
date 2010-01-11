@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 
 import java.util.HashMap;
@@ -12,6 +13,7 @@ import java.util.Set;
 import java.awt.Color;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.event.MouseEvent;
@@ -78,7 +80,55 @@ public class Treeline extends Tree {
 		if (-1 == last_radius) {
 			last_radius = 10 / (float)mag;
 		}
+
+		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+			if (!this.at.isIdentity()) {
+				final Point2D.Double po = inverseTransformPoint(x_p, y_p);
+				x_p = (int)po.x;
+				y_p = (int)po.y;
+			}
+			final Layer layer = Display.getFrontLayer(this.project);
+			Node active = findNode(x_p, y_p, layer, mag);
+
+			if (null == active) {
+				List<Node> found = findNodesInDisplay(true);
+				if (1 != found.size()) {
+					Utils.log("Can't adjust radius: found more than 1 node within visible area!");
+					return;
+				}
+				active = found.get(0);
+				// So: only one node within visible area of the canvas:
+				// Adjust the radius by shift+alt+drag
+			}
+
+			setActive(active);
+
+			return;
+		}
+
 		super.mousePressed(me, x_p, y_p, mag);
+	}
+
+	@Override
+	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+		if (null == getActive()) return;
+
+		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+			// transform to the local coordinates
+			float xd = x_d,
+			      yd = y_d;
+			if (!this.at.isIdentity()) {
+				final Point2D.Double po = inverseTransformPoint(x_d, y_d);
+				xd = (float)po.x;
+				yd = (float)po.y;
+			}
+			Node nd = getActive();
+			nd.setData((float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2)));
+			repaint(false);
+			return;
+		}
+
+		super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 	}
 
 	@Override
@@ -111,9 +161,16 @@ public class Treeline extends Tree {
 			x = (float)po.x;
 			y = (float)po.y;
 		}
-		Node<Float> nearest = (Node<Float>) findNode(x, y, layer, magnification);
-		if (null == nearest) return null;
-		nearest.setData(nearest.getData() + inc);
+		Node nearest = findNode(x, y, layer, magnification);
+		if (null == nearest) {
+			List<Node> nodes = findNodesInDisplay(true);
+			if (1 == nodes.size()) nearest = nodes.get(0);
+			else {
+				Utils.log("Can't adjust radius: found more than 1 node within visible area!");
+				return null;
+			}
+		}
+		nearest.setData(((Node<Float>)nearest).getData() + inc);
 		return nearest;
 	}
 
