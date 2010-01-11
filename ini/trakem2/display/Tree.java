@@ -660,8 +660,12 @@ public abstract class Tree extends ZDisplayable {
 
 	public Coordinate<Node> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
 		Node nd = findNodeNear(x, y, layer, magnification);
-		if (null == nd || 1 != nd.getChildrenCount()) return null;
-		return createCoordinate(nd.children[0]);
+		if (null == nd) return null;
+		int n_children = nd.getChildrenCount();
+		if (0 == n_children) return null;
+		if (1 == n_children) return createCoordinate(nd.children[0]);
+		// else, find the closest child edge
+		return createCoordinate(findNearestChildEdge(nd, x, y));
 	}
 	public Coordinate<Node> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
 		Node nd = findNodeNear(x, y, layer, magnification);
@@ -829,7 +833,7 @@ public abstract class Tree extends ZDisplayable {
 		//
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
-		double min_dist = Float.MAX_VALUE;
+		double min_dist = Double.MAX_VALUE;
 		Node[] ns = new Node[2]; // parent and child
 		//
 		for (final Node node : nodes) {
@@ -850,6 +854,24 @@ public abstract class Tree extends ZDisplayable {
 		}
 		if (null == ns[0]) return null;
 		return ns;
+	}
+
+	private Node findNearestChildEdge(final Node parent, final float lx, final float ly) {
+		if (null == parent || null == parent.children) return null;
+		
+		Node nd = null;
+		double min_dist = Double.MAX_VALUE;
+
+		for (final Node child : parent.children) {
+			double dist = M.distancePointToSegment(lx, ly,
+							       parent.x, parent.y,
+							       child.x, child.y);
+			if (dist < min_dist) {
+				min_dist = dist;
+				nd = child;
+			}
+		}
+		return nd;
 	}
 
 	public boolean addNode(final Node parent, final Node child, final byte confidence) {
@@ -1021,7 +1043,6 @@ public abstract class Tree extends ZDisplayable {
 				Utils.log("No nodes at " + x + ", " + y + ", " + layer);
 				return null;
 			}
-			nodes = null;
 			// Find a node near the coordinate
 			Node nd = findNode(x, y, layer, magnification);
 			// If that fails, try any node show all by itself in the display:
