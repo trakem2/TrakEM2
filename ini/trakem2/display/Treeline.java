@@ -138,8 +138,9 @@ public class Treeline extends Tree {
 			return new RadiusNode(lx, ly, layer, 0);
 		}
 
-		public final boolean setData(Float radius) {
-			this.r = radius;
+		/** Set the radius to a positive value. When zero or negative, it's set to zero. */
+		public final boolean setData(final Float radius) {
+			this.r = radius > 0 ? radius : 0;
 			return true;
 		}
 		public final Float getData() { return this.r; }
