@@ -3870,6 +3870,7 @@ public final class Display extends DBObject implements ActionListener, ImageList
 			}
 			selection.clear();
 			selection.selectAll(ts);
+			selection.add(elder);
 			getLayerSet().addChangeTreesStep();
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Mark")) {
