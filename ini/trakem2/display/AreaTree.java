@@ -136,6 +136,16 @@ public class AreaTree extends Tree implements AreaContainer {
 			if (null == aw) return a.contains(x, y);
 			return M.intersects(a, aw.getArea());
 		}
+
+		@Override
+		public Collection<Displayable> findLinkTargets(final AffineTransform aff) {
+			if (null == aw) return super.findLinkTargets(aff);
+			Area a = aw.getArea();
+			if (!aff.isIdentity()) {
+				a = a.createTransformedArea(aff);
+			}
+			return this.la.getDisplayables(Patch.class, a, true);
+		}
 	}
 
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {

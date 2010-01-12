@@ -6,6 +6,7 @@ import java.util.Set;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.Collection;
 import java.awt.Graphics2D;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -509,6 +510,19 @@ public abstract class Node<T> {
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
+
+	/** Returns a list of Patch to link, which lay under the node. Use the given @param aff to transform the Node data before looking up targets. */
+	public Collection<Displayable> findLinkTargets(final AffineTransform aff) {
+		float x = this.x,
+		      y = this.y;
+		if (!aff.isIdentity()) {
+			float[] fp = new float[]{x, y};
+			aff.transform(fp, 0, fp, 0, 1); // aff is already an inverted affine
+			x = fp[0];
+			y = fp[1];
+		}
+		return this.la.find(Patch.class, (int)x, (int)y, true);
+	}
 
 }
 

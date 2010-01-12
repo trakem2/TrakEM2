@@ -273,20 +273,46 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
+	private final List<Node> tolink = new ArrayList<Node>();
+
+	protected final void addToLinkLater(final Node nd) {
+		synchronized (tolink) {
+			tolink.add(nd);
+		}
+	}
+	protected final void removeFromLinkLater(final Node nd) {
+		synchronized (tolink) {
+			tolink.remove(nd);
+		}
+	}
+
 	public boolean linkPatches() {
 		if (null == root) return false;
+		// Obtain local copy and clear 'tolink':
+		final ArrayList<Node> tolink;
+		synchronized (this.tolink) {
+			tolink = new ArrayList<Node>(this.tolink);
+			this.tolink.clear();
+		}
+		if (tolink.isEmpty()) return true;
+
 		boolean must_lock = false;
-		synchronized (node_layer_map) {
-			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-				final Layer la = e.getKey();
-				for (final Node nd : e.getValue()) {
-					for (final Displayable d : la.find(Patch.class, (int)nd.x, (int)nd.y, true)) {
-						link(d);
-						if (d.locked) must_lock = true;
-					}
-				}
+
+		AffineTransform aff;
+		try {
+			aff = this.at.createInverse();
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+
+		for (final Node nd : tolink) {
+			for (final Patch patch : (Collection<Patch>) (Collection) nd.findLinkTargets(aff)) {
+				link(patch);
+				if (patch.locked) must_lock = true;
 			}
 		}
+
 		if (must_lock && !locked) {
 			setLocked(true);
 			return true;
@@ -809,15 +835,14 @@ public abstract class Tree extends ZDisplayable {
 			parent.add(in_between, b);
 			in_between.add(child, confidence);
 			// cache
-			Set<Node> nodes = node_layer_map.get(in_between.la);
-			if (null == nodes) {
-				nodes = new HashSet<Node>();
-				node_layer_map.put(in_between.la, nodes);
-			}
-			nodes.add(in_between);
+			Collection<Node> subtree = in_between.getSubtreeNodes();
+			cacheSubtree(subtree);
 			// If child was in end_nodes, remains there
 
 			last_added = in_between;
+
+			addToLinkLater(in_between);
+
 			return true;
 		}
 	}
@@ -893,9 +918,14 @@ public abstract class Tree extends ZDisplayable {
 				if (null == child.children && !end_nodes.add(child)) {
 					Utils.log("WARNING: child was already in end_nodes list!");
 				}
-				cacheSubtree(child.getSubtreeNodes());
+				Collection<Node> subtree = child.getSubtreeNodes();
+				cacheSubtree(subtree);
 
 				last_added = child;
+
+				synchronized (tolink) {
+					tolink.addAll(subtree);
+				}
 
 				return true;
 			} else if (0 == nodes.size()) {
@@ -914,6 +944,7 @@ public abstract class Tree extends ZDisplayable {
 	 *  @return true on success. Will return false when the node has 2 or more children.
 	 *  The new edge confidence is that of the parent to the @param node. */
 	public boolean popNode(final Node node) {
+		removeFromLinkLater(node);
 		switch (node.getChildrenCount()) {
 			case 0:
 				// End node:
@@ -965,6 +996,9 @@ public abstract class Tree extends ZDisplayable {
 			}
 			// Finally, remove from parent node
 			node.parent.remove(node);
+		}
+		synchronized (tolink) {
+			tolink.removeAll(subtree_nodes);
 		}
 	}
 
