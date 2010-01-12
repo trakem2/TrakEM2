@@ -45,6 +45,7 @@ public class AreaWrapper {
 	public AreaWrapper(final Displayable source, final Area area) {
 		this.source = source;
 		this.area = area;
+		Utils.printCaller(this, 3);
 	}
 
 	public AreaWrapper() {
@@ -100,16 +101,17 @@ public class AreaWrapper {
 	}
 
 	public void paint(final Graphics2D g, final AffineTransform aff, final boolean fill, final Color color) {
-		if (area.isEmpty()) return;
 
 		g.setColor(color);
 
-		if (fill) g.fill(area.createTransformedArea(aff));
-		else      g.draw(area.createTransformedArea(aff));
+		if (!area.isEmpty()) {
+			if (fill) g.fill(area.createTransformedArea(aff));
+			else      g.draw(area.createTransformedArea(aff));
+		}
 
-		if (null != painter) {
+		if (null != this.painter) {
 			try {
-				final Area tmp = painter.getTmpArea();
+				final Area tmp = this.painter.getTmpArea();
 				if (null != tmp) {
 					if (fill) g.fill(tmp.createTransformedArea(aff));
 					else      g.draw(tmp.createTransformedArea(aff)); // won't be perfect except on mouse release
@@ -159,6 +161,7 @@ public class AreaWrapper {
 		}
 
 		final void quit() {
+			if (!this.paint) return; // already quit
 			this.paint = false;
 			// Make interpolated points affect add or subtract operations
 			synchronized (this) {
@@ -572,8 +575,8 @@ public class AreaWrapper {
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 				}
 			} else {
-				if (null != painter) painter.quit();
-				painter = new Painter(area, mag, la, source.getAffineTransformCopy());
+				if (null != this.painter) this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
+				this.painter = new Painter(area, mag, la, source.getAffineTransformCopy());
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			if (Utils.isControlDown(me)) {
@@ -610,9 +613,9 @@ public class AreaWrapper {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.BRUSH == tool) {
-			if (null != painter) {
-				painter.quit();
-				painter = null;
+			if (null != this.painter) {
+				this.painter.quit();
+				this.painter = null;
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			if (null != blowcommander) {

@@ -96,7 +96,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			return new AreaNode(lx, ly, layer);
 		}
 
-		public final boolean setData(Area area) {
+		public final synchronized boolean setData(Area area) {
 			if (null == area) {
 				if (null == this.aw) return true;
 				this.aw.getArea().reset();
@@ -106,11 +106,11 @@ public class AreaTree extends Tree implements AreaContainer {
 			}
 			return true;
 		}
-		public final Area getData() {
+		public final synchronized Area getData() {
 			if (null == this.aw) this.aw = new AreaWrapper();
 			return this.aw.getArea();
 		}
-		public final Area getDataCopy() {
+		public final synchronized Area getDataCopy() {
 			if (null == this.aw) return null;
 			return new Area(this.aw.getArea());
 		}
@@ -128,7 +128,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 
 		final boolean contains(final int lx, final int ly) {
-			return aw.getArea().contains(lx, ly);
+			return null != aw && aw.getArea().contains(lx, ly);
 		}
 
 		/** Expects @param a in local coords. */
