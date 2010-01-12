@@ -233,20 +233,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			} else if (command.equals("Select in display")) {
 				boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
 				selectInDisplay(thing, shift_down);
-			} else if (command.equals("Identify...")) {
-				// for pipes only for now
-				if (!(obd instanceof Line3D)) return;
-				ini.trakem2.vector.Compare.findSimilar((Line3D)obd);
-			} else if (command.equals("Identify with axes...")) {
-				if (!(obd instanceof Line3D)) return;
-				if (Project.getProjects().size() < 2) {
-					Utils.showMessage("You need at least two projects open:\n-A reference project\n-The current project with the pipe to identify");
-					return;
-				}
-				ini.trakem2.vector.Compare.findSimilarWithAxes((Line3D)obd);
-			} else if (command.equals("Identify with fiducials...")) {
-				if (!(obd instanceof Line3D)) return;
-				ini.trakem2.vector.Compare.findSimilarWithFiducials((Line3D)obd);
 			} else if (command.equals("Show centered in Display")) {
 				if (obd instanceof Displayable) {
 					Displayable displ = (Displayable)obd;
@@ -497,8 +483,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		final ProjectThing pt = (ProjectThing)node.getUserObject();
 		if (null == pt) return;
 		//
-		int key_code = ke.getKeyCode();
-		switch (key_code) {
+		final int flags = ke.getModifiers();
+		switch (ke.getKeyCode()) {
 			case KeyEvent.VK_PAGE_UP:
 				move(node, -1);
 				ke.consume(); // in any case
@@ -510,6 +496,40 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			case KeyEvent.VK_F2:
 				rename(pt);
 				ke.consume();
+				break;
+			case KeyEvent.VK_H:
+				if (0 == (flags ^ Event.ALT_MASK)) {
+					pt.setVisible(true);
+					ke.consume();
+				} else if (0 == flags) {
+					pt.setVisible(false);
+					ke.consume();
+				}
+				break;
+			case KeyEvent.VK_A:
+				if (0 == flags || (0 == (flags ^ Event.SHIFT_MASK))) {
+					selectInDisplay(pt, 0 == (flags ^ Event.SHIFT_MASK));
+				}
+				break;
+			case KeyEvent.VK_3:
+				if (0 == flags) {
+					ini.trakem2.display.Display3D.showAndResetView(pt);
+					ke.consume();
+					break;
+				}
+				// else, flow:
+			case KeyEvent.VK_1:
+			case KeyEvent.VK_2:
+			case KeyEvent.VK_4:
+			case KeyEvent.VK_5:
+			case KeyEvent.VK_6:
+			case KeyEvent.VK_7:
+			case KeyEvent.VK_8:
+			case KeyEvent.VK_9:
+				// run a plugin, if any
+				if (pt.getObject() instanceof Displayable && null != Utils.launchTPlugIn(ke, "Project Tree", project, (Displayable)pt.getObject())) {
+					ke.consume();
+				}
 				break;
 		}
 		}});
@@ -539,7 +559,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
 		Object obd = thing.getObject();
 		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
-		boolean b = thing.remove(true) && removeNode(null != node ? node : findNode(thing, this));
+		boolean b = thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
 		// This is a patch: removal from buckets is subtly broken
 		// thing.getProject().getRootLayerSet().recreateBuckets(true);
 		// The true problem is that the offscreen repaint thread sets the DisplayCanvas.al_top list before, not at the end of removing all.

@@ -25,8 +25,6 @@ package ini.trakem2.vector;
 import java.util.ArrayList;
 import java.util.List;
 import javax.vecmath.Point3f;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 
 public interface VectorString {
 

@@ -24,21 +24,32 @@ package ini.trakem2.io;
 
 import ij.ImagePlus;
 import ij.ImageJ;
-import ij.process.*;
-import ij.io.*;
+import ij.process.ImageProcessor;
 import ij.measure.Calibration;
+import ij.io.FileInfo;
+import ij.io.TiffEncoder;
 
-import com.sun.image.codec.jpeg.*;
-import java.awt.image.*;
+import java.awt.image.BufferedImage;
 import java.awt.Graphics;
 import java.awt.Image;
-import java.io.*;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.IOException;
 import java.net.URL;
-import java.util.zip.*;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+import java.util.HashMap;
+import java.util.Map;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriter;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.IIOImage;
+import javax.imageio.stream.ImageOutputStream;
 
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -63,7 +74,11 @@ public class ImageSaver {
 		if (!fdir.exists()) {
 			try {
 				synchronized (OBDIRS) {
-					return fdir.mkdirs();
+					if (!fdir.exists()) { // need to check again, this time inside the synch block
+						fdir.mkdirs(); // returns false if already exists.
+					}
+					return fdir.exists(); // this is what we care about.
+							      // The OS could have created the dirs outside the synch block. So the return value of mkdirs() is insufficient proof.
 				}
 			} catch (Exception e) {
 				IJError.print(e, true);
@@ -73,6 +88,31 @@ public class ImageSaver {
 		}
 		return true;
 	}
+
+	/** *sigh* -- synchronization is needed. Do so by locking each file path independently.
+	 *  This is all assuming that file paths will be identical, without cases in which one has a single '/' and another has '//' and so on. */
+
+	/** A collection of file paths currently being used for saving images. */
+	static private final Map<String,Object> pathlocks = new HashMap<String,Object>();
+
+	static private final Object getPathLock(final String path) {
+		Object lock = null;
+		synchronized (pathlocks) {
+			lock = pathlocks.get(path);
+			if (null == lock) {
+				lock = new Object();
+				pathlocks.put(path, lock);
+			}
+		}
+		return lock;
+	}
+
+	static private final void removePathLock(final String path) {
+		synchronized (pathlocks) {
+			pathlocks.remove(path);
+		}
+	}
+
 
 	/** Returns true on success.<br />
 	 *  Core functionality adapted from ij.plugin.JpegWriter class by Wayne Rasband.
@@ -112,77 +152,83 @@ public class ImageSaver {
 		if (!checkPath(path)) return false;
 		if (quality < 0f) quality = 0f;
 		if (quality > 1f) quality = 1f;
-		FileOutputStream f = null;
-		try {
-			f = new FileOutputStream(path);
-			final JPEGImageEncoder encoder = JPEGCodec.createJPEGEncoder(f);
-			final JPEGEncodeParam param = as_grey ? encoder.getDefaultJPEGEncodeParam(bi.getRaster(), JPEGDecodeParam.COLOR_ID_GRAY)
-				                              : encoder.getDefaultJPEGEncodeParam(bi);
-			param.setQuality(quality, true);
-			encoder.encode(bi, param);
-			f.close();
-		} catch (Exception e) {
-			if (null != f) {
-				try { f.close(); } catch (Exception ee) {}
+		synchronized (getPathLock(path)) {
+			FileOutputStream f = null;
+			ImageOutputStream ios = null;
+			ImageWriter writer = null;
+			BufferedImage grey = bi;
+			try {
+				f = new FileOutputStream(path);
+				writer = ImageIO.getImageWritersByFormatName("jpeg").next();
+				ios = ImageIO.createImageOutputStream(f);
+				writer.setOutput(ios);
+				ImageWriteParam param = writer.getDefaultWriteParam();
+				param.setCompressionMode(param.MODE_EXPLICIT);
+				param.setCompressionQuality(quality);
+				if (as_grey && bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
+					grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+					// convert the original colored image to grayscale
+					// Very slow:
+					//ColorConvertOp op = new ColorConvertOp(bi.getColorModel().getColorSpace(), grey.getColorModel().getColorSpace(), null);
+					//op.filter(bi, grey);
+					// 9 times faster:
+					grey.createGraphics().drawImage(bi, 0, 0, null);
+				}
+				IIOImage iioImage = new IIOImage(grey, null, null);
+				writer.write(null, iioImage, param);
+			} catch (Exception e) {
+				IJError.print(e);
+				return false;
+			} finally {
+				if (null != f) try { f.close(); } catch (Exception ee) {}
+				if (null != writer) try { writer.dispose(); } catch (Exception ee) {}
+				if (null != ios) try { ios.close(); } catch (Exception ee) {}
+				if (bi != grey) try { grey.flush(); /*release native resources*/ } catch (Exception ee) {}
+				removePathLock(path);
 			}
-			IJError.print(e);
-			return false;
 		}
 		return true;
 	}
 
-	/** Open a jpeg image that is known to be grayscale.<br />
-	 *  This method avoids having to open it as int[] (4 times as big!) and then convert it to grayscale by looping through all its pixels and comparing if all three channels are the same (which, least you don't know, is what ImageJ 139j and before does).
-	 */
 	static public final BufferedImage openGreyJpeg(final String path) {
-		return openJpeg(path, JPEGDecodeParam.COLOR_ID_GRAY);
+		return openJpeg(path, true);
 	}
-
-	/* // ERROR:
-	 * java.lang.IllegalArgumentException: NumComponents not in sync with COLOR_ID
-	 * uh?
-	 */
-	/*
-	static public final BufferedImage openColorJpeg(final String path) throws Exception {
-		return openJpeg(path, JPEGDecodeParam.COLOR_ID_RGB);
-	}
-	*/
 
 	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
-	static private final BufferedImage openJpeg(final String path, final int color_id) {
+	static public final BufferedImage openJpeg(final String path, final boolean as_grey) {
 		InputStream stream = null;
 		BufferedImage bi = null;
-		try {
-
-			// 1 - create a stream if possible
-			stream = openStream(path);
-			if (null == stream) return null;
-
-			// 2 - open it as a BufferedImage
-			bi = openJpeg2(stream, color_id);
-
-		} catch (FileNotFoundException fnfe) {
-			bi = null;
-		} catch (Exception e) {
-			// the file might have been generated while trying to read it. So try once more
+		synchronized (getPathLock(path)) {
 			try {
-				Utils.log2("JPEG Decoder failed for " + path);
-				Thread.sleep(50);
-				// reopen stream
-				if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
+				// 1 - create a stream if possible
 				stream = openStream(path);
-				// decode
-				if (null != stream) bi = openJpeg2(stream, color_id);
-			} catch (Exception e2) {
-				IJError.print(e2, true);
+				if (null == stream) return null;
+				
+				// 2 - open it as a BufferedImage
+				bi = openJpegFromStream(stream, as_grey);
+
+			} catch (Throwable e) {
+				// the file might have been generated while trying to read it. So try once more
+				try {
+					Utils.log2("JPEG Decoder failed for " + path);
+					Thread.sleep(50);
+					// reopen stream
+					if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
+					stream = openStream(path);
+					// decode
+					if (null != stream) bi = openJpegFromStream(stream, as_grey);
+				} catch (Exception e2) {
+					IJError.print(e2, true);
+				}
+			} finally {
+				removePathLock(path);
+				if (null != stream) { try { stream.close(); } catch (Exception e) {} }
 			}
-		} finally {
-			if (null != stream) { try { stream.close(); } catch (Exception e) {} }
 		}
 		return bi;
 	}
 
-	static private final InputStream openStream(final String path) throws Exception {
+	static private final InputStream openStream(final String path) {
 		/*
 		// Proper implementation, incurs in big drag because of new File(path).exists() OS calls.
 		if (FSLoader.isURL(path)) {
@@ -207,8 +253,31 @@ public class ImageSaver {
 		return null;
 	}
 
-	static private final BufferedImage openJpeg2(final InputStream stream, final int color_id) throws Exception {
-		return JPEGCodec.createJPEGDecoder(stream, JPEGCodec.getDefaultJPEGEncodeParam(1, color_id)).decodeAsBufferedImage();
+	/** The stream IS NOT closed by this method. */
+	static public final BufferedImage openJpegFromStream(final InputStream stream, final boolean as_grey) {
+		try {
+			if (as_grey) {
+				final BufferedImage bi = ImageIO.read(stream);
+				if (bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
+					final BufferedImage grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+					grey.createGraphics().drawImage(bi, 0, 0, null);
+					bi.flush();
+					return grey;
+				}
+				return bi;
+			} else {
+				return ImageIO.read(stream);
+			}
+		} catch (IllegalArgumentException iae) {
+			// According to the documentation, only occurs
+			// when stream is null, so this should never happen.
+			return null;
+		} catch (IOException ioe) {
+			return null;
+		} catch (Throwable t) {
+			t.printStackTrace();
+			return null;
+		}
 	}
 
 	/** Returns true on success.<br />
@@ -323,25 +392,29 @@ public class ImageSaver {
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final BufferedImage awt, final String path, final float quality) {
 		if (!checkPath(path)) return false;
-		try {
-			// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression quality for a jpeg.
-			ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next(); // just the first one
-			if (null != writer) {
-				ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
-				iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-				iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
-				writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
-				writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
-				return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
-			}
+		synchronized (getPathLock(path)) {
+			try {
+				// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression quality for a jpeg.
+				ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next(); // just the first one
+				if (null != writer) {
+					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
+					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+					iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
+					writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
+					writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
+				}
 
-			// If the above doesn't find any, magically do it anyway without setting the compression quality:
-			ImageIO.write(awt, "jpeg", new File(path));
-			return true;
-		} catch (FileNotFoundException fnfe) {
-			Utils.log2("saveAsJpegAlpha: Path not found: " + path);
-		} catch (Exception e) {
-			IJError.print(e, true);
+				// If the above doesn't find any, magically do it anyway without setting the compression quality:
+				ImageIO.write(awt, "jpeg", new File(path));
+				return true;
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("saveAsJpegAlpha: Path not found: " + path);
+			} catch (Exception e) {
+				IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
 		}
 		return false;
 	}
@@ -360,17 +433,21 @@ public class ImageSaver {
 
 	/** Open a jpeg file including the alpha channel if it has one. */
 	static public BufferedImage openJpegAlpha(final String path) {
-		try {
-			final BufferedImage img = ImageIO.read(new File(path));
-			BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
-			imgPre.createGraphics().drawImage( img, 0, 0, null );
-			img.flush();
-			return imgPre;
-		} catch (FileNotFoundException fnfe) {
-			Utils.log2("openJpegAlpha: Path not found: " + path);
-		} catch (Exception e) {
-			Utils.log2("openJpegAlpha: cannot open " + path);
-			//IJError.print(e, true);
+		synchronized (getPathLock(path)) {
+			try {
+				final BufferedImage img = ImageIO.read(new File(path));
+				BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+				imgPre.createGraphics().drawImage( img, 0, 0, null );
+				img.flush();
+				return imgPre;
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("openJpegAlpha: Path not found: " + path);
+			} catch (Exception e) {
+				Utils.log2("openJpegAlpha: cannot open " + path);
+				//IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
 		}
 		return null;
 	}

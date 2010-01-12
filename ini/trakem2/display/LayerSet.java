@@ -59,6 +59,8 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Hashtable;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -109,9 +111,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
-
-	/** Tool to manually register using landmarks across two layers. Uses the toolbar's 'Align tool'. */
-	private Align align = null;
 
 	/** The scaling applied to the Layers when painting them for presentation as a LayerStack. If -1, automatic mode (default) */
 	private double virtual_scale = -1;
@@ -466,6 +465,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return true;
 	}
 
+	/** Enlarge the 2D universe so that all Displayable in the collection fit in it;
+	 * that is, that no Displayable has a negative x,y position or lays beyond bounds.*/
+	synchronized public void enlargeToFit(final Collection<? extends Displayable> ds) {
+		Rectangle r = null;
+		for (Displayable d : ds) {
+			if (null == r) r = d.getBoundingBox();
+			else r.add(d.getBoundingBox());
+		}
+		if (null == r) return; //empty collection
+		r.add(get2DBounds());
+		setDimensions(r.x, r.y, r.width, r.height);
+	}
+
 	/** Enlarges the display in the given direction; the anchor is the point to keep still, and can be any of LayerSet.NORTHWEST (top-left), etc. */
 	synchronized public boolean enlargeToFit(final Displayable d, final int anchor) {
 		final Rectangle r = new Rectangle(0, 0, (int)Math.ceil(layer_width), (int)Math.ceil(layer_height));
@@ -642,6 +654,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		al_layers.remove(layer);
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
+		removeFromOffscreens(layer);
 	}
 
 	public Layer next(Layer layer) {
@@ -810,6 +823,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != root) Bucket.remove(zdispl, db_map);
 		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
+		removeFromOffscreens(zdispl);
 		Display.remove(zdispl);
 		return true;
 	}
@@ -864,6 +878,18 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return (ArrayList<Layer>)al_layers.clone(); // for integrity and safety, return a copy.
 	}
 
+	/** Returns a sublist of layers from first to last, both inclusive. If last is larger than first, the order is reversed.  */
+	public List<Layer> getLayers(int first, int last) {
+		List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
+		if (first > last) Collections.reverse(las);
+		return new ArrayList<Layer>(las); // editable, thread-safe (a copy)
+	}
+
+	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
+	public List<Layer> getLayers(Layer first, Layer last) {
+		return getLayers(al_layers.indexOf(first), al_layers.indexOf(last));
+	}
+
 	public boolean isDeletable() {
 		return false;
 	}
@@ -915,6 +941,17 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		return al;
 	}
+	/** Find ZDisplayable objects of the given class that intersect the given rectangle in the given layer. */
+	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Rectangle r, final boolean visible_only) {
+		if (null != root) return root.find(c, r, layer, visible_only);
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (ZDisplayable zd : al_zdispl) {
+			if (zd.getClass() != c) continue;
+			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
+		}
+		return al;
+	}
+	/** Find ZDisplayable objects that intersect the given rectangle in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
 		if (null != root) return root.find(r, layer, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -1086,7 +1123,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		String type = "t2_layer_set";
 		if (!hs.contains(type)) {
-			sb_header.append(indent).append("<!ELEMENT t2_layer_set (").append(Displayable.commonDTDChildren()).append(",t2_layer,t2_pipe,t2_ball,t2_area_list,t2_calibration)>\n");
+			sb_header.append(indent).append("<!ELEMENT t2_layer_set (").append(Displayable.commonDTDChildren()).append(",t2_layer,t2_pipe,t2_ball,t2_area_list,t2_calibration,t2_stack,t2_treeline)>\n");
 			Displayable.exportDTD(type, sb_header, hs, indent);
 			sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_width").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" layer_height").append(TAG_ATTR2)
@@ -1133,37 +1170,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		if (null != align) {
-			align.destroy();
-			align = null;
-		}
-	}
-
-	public boolean isAligning() {
-		return null != align;
-	}
-
-	public void cancelAlign() {
-		if (null != align) {
-			align.cancel(); // will repaint
-			align = null;
-		}
-	}
-
-	public void applyAlign(final boolean post_register) {
-		if (null != align) align.apply(post_register);
-	}
-
-	public void applyAlign(final Layer la_start, final Layer la_end, final Selection selection) {
-		if (null != align) align.apply(la_start, la_end, selection);
-	}
-
-	public void startAlign(Display display) {
-		align = new Align(display);
-	}
-
-	public Align getAlign() {
-		return align;
+		this.offscreens.clear();
 	}
 
 	/** Used by the Layer.setZ method. */
@@ -1562,6 +1569,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null == root || null == db_map) recreateBuckets(false);
 	}
 
+	/** Returns the minimal 2D bounding box for Displayables of class @param c in all layers. */
 	public Rectangle getMinimalBoundingBox(final Class c) {
 		Rectangle r = null;
 		for (final Layer la : al_layers) {
@@ -1637,6 +1645,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Add an undo step for the transformations of all Displayable in the layer. */
 	public void addTransformStep(final Layer layer) {
 		addTransformStep(layer.getDisplayables());
+	}
+	public void addTransformStep(final List<Layer> layers) {
+		final ArrayList<Displayable> all = new ArrayList<Displayable>();
+		for (final Layer la : layers) all.addAll(la.getDisplayables());
+		addTransformStep(all);
 	}
 	/** Add an undo step for the transformations of all Displayable in hs. */
 	public void addTransformStep(final Collection<? extends Displayable> col) {
@@ -2009,11 +2022,103 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	private Overlay overlay = null;
 
+	/** Return the current Overlay or a new one if none yet. */
 	synchronized public Overlay getOverlay() {
 		if (null == overlay) overlay = new Overlay();
 		return overlay;
 	}
+	// Used by DisplayCanvas to paint
 	Overlay getOverlay2() {
 		return overlay;
+	}
+	/** Set to null to remove the Overlay.
+	 *  @return the previous Overlay, if any. */
+	synchronized public Overlay setOverlay(final Overlay o) {
+		Overlay old = this.overlay;
+		this.overlay = o;
+		return old;
+	}
+
+	private final HashMap<DisplayCanvas.ScreenshotProperties,DisplayCanvas.Screenshot> offscreens = new HashMap<DisplayCanvas.ScreenshotProperties,DisplayCanvas.Screenshot>();
+	private final HashMap<Layer,HashSet<DisplayCanvas.Screenshot>> offscreens2 = new HashMap<Layer,HashSet<DisplayCanvas.Screenshot>>();
+
+	final DisplayCanvas.Screenshot getScreenshot(final DisplayCanvas.ScreenshotProperties props) {
+		synchronized (offscreens) {
+			return offscreens.get(props);
+		}
+	}
+
+	final private void putO2(final Layer la, final DisplayCanvas.Screenshot sc) {
+		HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(la);
+		if (null == hs) {
+			hs = new HashSet<DisplayCanvas.Screenshot>();
+			offscreens2.put(la, hs);
+		}
+		hs.add(sc);
+	}
+	final private void removeO2(final DisplayCanvas.Screenshot sc) {
+		HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
+		if (null == hs) return;
+		hs.remove(sc);
+	}
+
+	final void storeScreenshot(DisplayCanvas.Screenshot s) {
+		synchronized(offscreens) {
+			offscreens.put(s.props, s);
+			putO2(s.layer, s);
+		}
+	}
+	final void trimScreenshots() {
+		synchronized(offscreens) {
+			if (offscreens.size() > 1000) {
+				TreeMap<Long,DisplayCanvas.Screenshot> m = new TreeMap<Long,DisplayCanvas.Screenshot>();
+				for (final DisplayCanvas.Screenshot s : offscreens.values()) {
+					m.put(s.born, s);
+				}
+				offscreens.clear();
+				offscreens2.clear();
+				ArrayList<Long> t = new ArrayList<Long>(m.keySet());
+				for (final DisplayCanvas.Screenshot sc : m.subMap(m.firstKey(), t.get(t.size()/2)).values()) {
+					offscreens.put(sc.props, sc);
+					putO2(sc.layer, sc);
+				}
+			}
+		}
+	}
+	final void removeFromOffscreens(final DisplayCanvas.Screenshot sc) {
+		synchronized (offscreens) {
+			offscreens.remove(sc.props);
+			removeO2(sc);
+		}
+	}
+	public final void removeFromOffscreens(final Layer la) {
+		synchronized (offscreens) {
+			final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.remove(la);
+			if (null != hs) {
+				for (final DisplayCanvas.Screenshot sc : hs) {
+					offscreens.remove(sc.props);
+				}
+			}
+		}
+	}
+	final void removeFromOffscreens(final ZDisplayable zd) {
+		synchronized (offscreens) {
+			// Throw away any cached that intersect the zd
+			final Rectangle box = zd.getBoundingBox();
+			for (final Iterator<DisplayCanvas.Screenshot> it = offscreens.values().iterator(); it.hasNext(); ) {
+				final DisplayCanvas.Screenshot sc = it.next();
+				if (box.intersects(sc.props.srcRect)) {
+					it.remove();
+					final HashSet<DisplayCanvas.Screenshot> hs = offscreens2.get(sc.layer);
+					if (null != hs) hs.remove(sc.props);
+				}
+			}
+		}
+	}
+
+	final boolean containsScreenshot(final DisplayCanvas.Screenshot sc) {
+		synchronized (offscreens) {
+			return offscreens.containsKey(sc.props);
+		}
 	}
 }

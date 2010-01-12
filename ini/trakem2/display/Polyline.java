@@ -23,7 +23,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ij.gui.Plot;
-import ij.gui.Toolbar;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
@@ -65,6 +64,7 @@ import tracing.TracerThread;
 import tracing.SearchProgressCallback;
 
 import javax.vecmath.Vector3d;
+import javax.vecmath.Point3f;
 
 
 /** A sequence of points that make multiple chained line segments. */
@@ -162,6 +162,44 @@ public class Polyline extends ZDisplayable implements Line3D {
 		this.p_layer = p_layer_copy;
 	}
 
+	/** Returns the index of the first point in the segment made of any two consecutive points. */
+	synchronized protected int findClosestSegment(final int x_p, final int y_p, final long layer_id, final double mag) {
+		if (1 == n_points) return -1;
+		if (0 == n_points) return -1;
+		int index = -1;
+		double d = (10.0D / mag);
+		if (d < 2) d = 2;
+		double sq_d = d*d;
+		double min_sq_dist = Double.MAX_VALUE;
+		final Calibration cal = layer_set.getCalibration();
+		final double z = layer_set.getLayer(layer_id).getZ() * cal.pixelWidth;
+
+		double x2 = p[0][0] * cal.pixelWidth;
+		double y2 = p[1][0] * cal.pixelHeight;
+		double z2 = layer_set.getLayer(p_layer[0]).getZ() * cal.pixelWidth;
+		double x1, y1, z1;
+
+		for (int i=1; i<n_points; i++) {
+			x1 = x2;
+			y1 = y2;
+			z1 = z2;
+			x2 = p[0][i] * cal.pixelWidth;
+			y2 = p[1][i] * cal.pixelHeight;
+			z2 = layer_set.getLayer(p_layer[i]).getZ() * cal.pixelWidth;
+
+			double sq_dist = M.distancePointToSegmentSq(x_p * cal.pixelWidth, y_p * cal.pixelHeight, z,
+					                            x1, y1, z1,
+								    x2, y2, z2);
+
+			if (sq_dist < sq_d && sq_dist < min_sq_dist) {
+				min_sq_dist = sq_dist;
+				index = i-1; // previous
+			}
+		}
+		return index;
+	}
+
+
 	/**Find a point in an array, with a precision dependent on the magnification. Only points in the given  layer are considered, the rest are ignored. Returns -1 if none found. */
 	synchronized protected int findPoint(final int x_p, final int y_p, final long layer_id, final double mag) {
 		int index = -1;
@@ -173,6 +211,21 @@ public class Polyline extends ZDisplayable implements Line3D {
 			if (layer_id == p_layer[i] && dist <= d && dist <= min_dist) {
 				min_dist = dist;
 				index = i;
+			}
+		}
+		return index;
+	}
+
+	/** Find closest point within the current layer. */
+	synchronized protected int findNearestPoint(final int x_p, final int y_p, final long layer_id) {
+		int index = -1;
+		double min_dist = Double.MAX_VALUE;
+		for (int i=0; i<n_points; i++) {
+			if (layer_id != p_layer[i]) continue;
+			double sq_dist = Math.pow(p[0][i] - x_p, 2) + Math.pow(p[1][i] - y_p, 2);
+			if (sq_dist < min_dist) {
+				index = i;
+				min_dist = sq_dist;
 			}
 		}
 		return index;
@@ -219,11 +272,65 @@ public class Polyline extends ZDisplayable implements Line3D {
 		}
 	}
 
+	/** @param x_p,y_p in local coords. */
+	protected double[] sqDistanceToEndPoints(final double x_p, final double y_p, final long layer_id) {
+		final Calibration cal = layer_set.getCalibration();
+		final double lz = layer_set.getLayer(layer_id).getZ();
+		final double p0z =layer_set.getLayer(p_layer[0]).getZ();
+		final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
+		double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
+				 + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
+				 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth; // double multiplication by pixelWidth, ok, since it's what it's used to compute the pixel position in Z
+		double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
+				 + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
+				 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
+
+		return new double[]{sqdist0, sqdistN};
+	}
+
+	synchronized public void insertPoint(int i, int x_p, int y_p, long layer_id) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		if (p[0].length == n_points) enlargeArrays();
+		double[][] p2 = new double[2][p[0].length];
+		long[] p_layer2 = new long[p_layer.length];
+		if (0 != i) {
+			System.arraycopy(p[0], 0, p2[0], 0, i);
+			System.arraycopy(p[1], 0, p2[1], 0, i);
+			System.arraycopy(p_layer, 0, p_layer2, 0, i);
+		}
+		p2[0][i] = x_p;
+		p2[1][i] = y_p;
+		p_layer2[i] = layer_id;
+		if (n_points != i) {
+			System.arraycopy(p[0], i, p2[0], i+1, n_points -i);
+			System.arraycopy(p[1], i, p2[1], i+1, n_points -i);
+			System.arraycopy(p_layer, i, p_layer2, i+1, n_points -i);
+		}
+		p = p2;
+		p_layer = p_layer2;
+		n_points++;
+	}
+
+	/** Append a point at the end. Returns the index of the new point. */
+	synchronized protected int appendPoint(int x_p, int y_p, long layer_id) {
+		if (-1 == n_points) setupForDisplay(); //reload
+		//check array size
+		if (p[0].length == n_points) {
+			enlargeArrays();
+		}
+		p[0][n_points] = x_p;
+		p[1][n_points] = y_p;
+		p_layer[n_points] = layer_id;
+		n_points++;
+		return n_points-1;
+	}
+
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
 	synchronized protected int addPoint(int x_p, int y_p, long layer_id, double magnification) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		//lookup closest point and then get the closest clicked point to it
-		int index = findPoint(x_p, y_p, layer_id, magnification);
+		int index = 0;
+		if (n_points > 1) index = findClosestSegment(x_p, y_p, layer_id, magnification);
 		//check array size
 		if (p[0].length == n_points) {
 			enlargeArrays();
@@ -240,17 +347,12 @@ public class Polyline extends ZDisplayable implements Line3D {
 		} else if (-1 == index) {
 			// decide whether to append at the end or prepend at the beginning
 			// compute distance in the 3D space to the first and last points
-			final Calibration cal = layer_set.getCalibration();
-			final double lz = layer_set.getLayer(layer_id).getZ();
-			final double p0z =layer_set.getLayer(p_layer[0]).getZ();
-			final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
-			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
-				         + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
-					 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth; // double multiplication by pixelWidth, ok, since it's what it's used to compute the pixel position in Z
-			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
-				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
-					 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
-			if (sqdistN < sqdist0) {
+			final double[] sqd0N = sqDistanceToEndPoints(x_p, y_p, layer_id);
+			//final double sqdist0 = sqd0N[0];
+			//final double sqdistN = sqd0N[1];
+
+			//if (sqdistN < sqdist0)
+			if (sqd0N[1] < sqd0N[0]) {
 				//append at the end
 				p[0][n_points] = x_p;
 				p[1][n_points] = y_p;
@@ -355,10 +457,23 @@ public class Polyline extends ZDisplayable implements Line3D {
 			g.drawLine((int)p[0][0], (int)p[1][0],
 				   (int)((p[0][0] + p[0][1])/2), (int)((p[1][0] + p[1][1])/2));
 		}
+
+		final Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
+
 		// Paint handle if active and in the current layer
 		if (active && layer_id == p_layer[0]) {
 			g.setColor(this.color);
-			DisplayCanvas.drawHandle(g, (int)p[0][0], (int)p[1][0], magnification);
+			DisplayCanvas.drawHandle(g, p[0][0], p[1][0], srcRect, magnification);
+			// Label the first point distinctively
+			Composite comp = g.getComposite();
+			AffineTransform aff = g.getTransform();
+			g.setTransform(new AffineTransform());
+			g.setColor(Color.white);
+			g.setXORMode(Color.green);
+			g.drawString("1", (int)( (p[0][0] - srcRect.x)*magnification + (4.0 / magnification)),
+					  (int)( (p[1][0] - srcRect.y)*magnification)); // displaced 4 screen pixels to the right
+			g.setComposite(comp);
+			g.setTransform(aff);
 		}
 
 		for (int i=1; i<n_points; i++) {
@@ -383,7 +498,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 			// Paint handle if active and in the current layer
 			if (active && layer_id == p_layer[i]) {
 				g.setColor(this.color);
-				DisplayCanvas.drawHandle(g, (int)p[0][i], (int)p[1][i], magnification);
+				DisplayCanvas.drawHandle(g, p[0][i], p[1][i], srcRect, magnification);
 			}
 		}
 
@@ -417,7 +532,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	/**Helper vars for mouse events. It's safe to have them static since only one Pipe will be edited at a time.*/
-	static private int index;
+	static protected int index;
 	static private boolean is_new_point = false;
 
 	final static private HashMap<LayerSet,TraceParameters> tr_map = new HashMap<LayerSet,TraceParameters>();
@@ -455,12 +570,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		final Display display = ((DisplayCanvas)me.getSource()).getDisplay();
 		final long layer_id = display.getLayer().getId();
 
-
-		if (Utils.isControlDown(me) && me.isShiftDown()) {
-			index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
-		} else {
-			index = findPoint(x_p, y_p, layer_id, mag);
-		}
+		index = findPoint(x_p, y_p, layer_id, mag);
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
@@ -600,13 +710,14 @@ public class Polyline extends ZDisplayable implements Line3D {
 				double[] pox = new double[len];
 				double[] poy = new double[len];
 				for (int i=0, j=0; i<len; i++, j+=2) {
-					p_layer_ids[i] = layer_set.getNearestLayer(pos[2][i]).getId(); // z_positions in 0-(N-1), not in 0-N like slices!
+					p_layer_ids[i] = layer_set.getLayer((int)pos[2][i]).getId(); // z_positions in 0-(N-1), not in 1-N like slices!
 					pox[i] = po2[j];
 					poy[i] = po2[j+1];
 				}
 
 				// Simplify path: to steps of 5 calibration units, or 5 pixels when not calibrated.
 				if (simplify) {
+					setTaskName("Simplifying path");
 					Object[] ob = Polyline.simplify(pox, poy, p_layer_ids, 10000, layer_set);
 					pox = (double[])ob[0];
 					poy = (double[])ob[1];
@@ -633,14 +744,20 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
 
-			if (-1 != index) {
-				if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer(this.project).getId()) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
+				final long lid = Display.getFrontLayer(this.project).getId();
+				if (-1 == index || lid != p_layer[index]) {
+					index = findNearestPoint(x_p, y_p, layer_id);
+				}
+				if (-1 != index) {
 					//delete point
 					removePoint(index);
 					index = -1;
 					repaint(false);
-					return;
 				}
+
+				// In any case, terminate
+				return;
 			}
 
 			if (-1 != index && layer_id != p_layer[index]) index = -1; // disable!
@@ -659,9 +776,9 @@ public class Polyline extends ZDisplayable implements Line3D {
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
-			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
-			x_p = (int)p.x;
-			y_p = (int)p.y;
+			//final Point2D.Double p = inverseTransformPoint(x_p, y_p);
+			//x_p = (int)p.x;
+			//y_p = (int)p.y;
 			final Point2D.Double pd = inverseTransformPoint(x_d, y_d);
 			x_d = (int)pd.x;
 			y_d = (int)pd.y;
@@ -716,15 +833,36 @@ public class Polyline extends ZDisplayable implements Line3D {
 	}
 
 	synchronized protected void calculateBoundingBox(final boolean adjust_position) {
-		double min_x = Double.MAX_VALUE;
-		double min_y = Double.MAX_VALUE;
-		double max_x = 0.0D;
-		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
 			layer_set.updateBucket(this);
 			return;
 		}
+		final double[] m = calculateDataBoundingBox();
+
+		this.width = m[2] - m[0];  // max_x - min_x;
+		this.height = m[3] - m[1]; // max_y - min_y;
+
+		if (adjust_position) {
+			// now readjust points to make min_x,min_y be the x,y
+			for (int i=0; i<n_points; i++) {
+				p[0][i] -= m[0]; // min_x;
+				p[1][i] -= m[1]; // min_y;
+			}
+			this.at.translate(m[0], m[1]) ; // (min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+			updateInDatabase("transform");
+		}
+		updateInDatabase("dimensions");
+
+		layer_set.updateBucket(this);
+	}
+
+	/** Returns min_x, min_y, max_x, max_y. */
+	protected double[] calculateDataBoundingBox() {
+		double min_x = Double.MAX_VALUE;
+		double min_y = Double.MAX_VALUE;
+		double max_x = 0.0D;
+		double max_y = 0.0D;
 		// check the points
 		for (int i=0; i<n_points; i++) {
 			if (p[0][i] < min_x) min_x = p[0][i];
@@ -732,21 +870,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 			if (p[0][i] > max_x) max_x = p[0][i];
 			if (p[1][i] > max_y) max_y = p[1][i];
 		}
-
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
-
-		if (adjust_position) {
-			// now readjust points to make min_x,min_y be the x,y
-			for (int i=0; i<n_points; i++) {
-				p[0][i] -= min_x;	p[1][i] -= min_y;
-			}
-			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-			updateInDatabase("transform");
-		}
-		updateInDatabase("dimensions");
-
-		layer_set.updateBucket(this);
+		return new double[]{min_x, min_y, max_x, max_y};
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -778,6 +902,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/**Make this object ready to be painted.*/
 	synchronized private void setupForDisplay() {
+		if (-1 == n_points) n_points = 0;
 		// load points
 		/* Database storage not implemented yet
 		if (null == p) {
@@ -804,6 +929,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
+		double[][] p = this.p;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
@@ -828,7 +954,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		return n_points;
 	}
 
-	synchronized public boolean contains(final Layer layer, int x, int y) {
+	synchronized public boolean contains(final Layer layer, final int x, final int y) {
 		Display front = Display.getFront();
 		double radius = 10;
 		if (null != front) {
@@ -837,6 +963,13 @@ public class Polyline extends ZDisplayable implements Line3D {
 			if (radius < 2) radius = 2;
 		}
 		// else assume fixed radius of 10 around the line
+
+		// make x,y local
+		final Point2D.Double po = inverseTransformPoint(x, y);
+		return containsLocal(layer, (int)po.x, (int)po.y, radius);	
+	}
+
+	protected boolean containsLocal(final Layer layer, int x, int y, double radius) {
 
 		final long lid = layer.getId();
 		final double z = layer.getZ();
@@ -972,34 +1105,43 @@ public class Polyline extends ZDisplayable implements Line3D {
 
 	/** Calibrated. */
 	synchronized public List generateTriangles(double scale, int parallels, int resample) {
-		if (n_points < 2) return null;
-		// check minimum requirements.
-		if (parallels < 3) parallels = 3;
-		//
-		final double[][][] all_points = generateJoints(parallels, resample, layer_set.getCalibrationCopy());
-		return Pipe.generateTriangles(all_points, scale);
+		return generateTriangles(scale, parallels, resample, layer_set.getCalibrationCopy());
 	}
 
-	private double[][][] generateJoints(final int parallels, final int resample, final Calibration cal) {
+	/** Returns a list of Point3f that define a polyline in 3D, for usage with an ij3d CustomLineMesh CONTINUOUS. @param parallels is ignored. */
+	synchronized public List generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
 		if (-1 == n_points) setupForDisplay();
-		
+
+		if (0 == n_points) return null;
+
 		// local pointers, since they may be transformed
-		int n_points = this.n_points;
-		double[][] p = this.p;
+		final int n_points;
+		final double[][] p;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
 			n_points = p[0].length;
+		} else {
+			n_points = this.n_points;
+			p = this.p;
 		}
-		double[] p_width = new double[n_points];
-		double[] z_values = new double[n_points];
+
+		final ArrayList list = new ArrayList();
+		final double KW = scale * cal.pixelWidth * resample;
+		final double KH = scale * cal.pixelHeight * resample;
 
 		for (int i=0; i<n_points; i++) {
-			p_width[i] = 1;
-			z_values[i] = layer_set.getLayer(p_layer[i]).getZ();
+			list.add(new Point3f((float) (p[0][i] * KW),
+					     (float) (p[1][i] * KH),
+					     (float) (layer_set.getLayer(p_layer[i]).getZ() * KW)));
 		}
 
-		return Pipe.makeTube(p[0], p[1], z_values, p_width, resample, parallels, cal);
+		if (n_points < 2) {
+			// Duplicate first point
+			list.add(list.get(0));
+		}
+
+		return list;
 	}
 
 	synchronized private Object[] getTransformedData() {
@@ -1273,5 +1415,22 @@ public class Polyline extends ZDisplayable implements Line3D {
 		}
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	/** Create a shorter Polyline, from start to end (inclusive); not added to the LayerSet. */
+	synchronized public Polyline sub(int start, int end) {
+		Polyline sub = new Polyline(project, title);
+		sub.n_points = end - start + 1;
+		sub.p[0] = Utils.copy(this.p[0], start, sub.n_points);
+		sub.p[1] = Utils.copy(this.p[1], start, sub.n_points);
+		sub.p_layer = new long[sub.n_points];
+		System.arraycopy(this.p_layer, start, sub.p_layer, 0, sub.n_points);
+		return sub;
+	}
+
+	synchronized public void reverse() {
+		Utils.reverse(p[0]);
+		Utils.reverse(p[1]);
+		Utils.reverse(p_layer);
 	}
 }

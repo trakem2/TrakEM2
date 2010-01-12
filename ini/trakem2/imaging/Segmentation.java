@@ -15,6 +15,7 @@ import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.OptionPanel;
 
 import java.awt.Rectangle;
 import java.awt.Polygon;
@@ -64,6 +65,24 @@ public class Segmentation {
 		public int width = 100,
 		           height = 100;
 
+		public OptionPanel asOptionPanel() {
+			OptionPanel op = new OptionPanel();
+			op.addMessage("Fast Marching:");
+			op.addNumericField("Grey value threshold:", fm_grey, new OptionPanel.IntSetter(this, "fm_grey"));
+			op.addNumericField("Distance threshold:", fm_dist, 2, new OptionPanel.DoubleSetter(this, "fm_dist"));
+			op.addNumericField("Max iterations:", max_iterations, new OptionPanel.IntSetter(this, "max_iterations"));
+			op.addNumericField("Iterations inc:", iter_inc, new OptionPanel.IntSetter(this, "iter_inc"));
+			op.addCheckbox("Grey value erosion filter:", apply_grey_value_erosion, new OptionPanel.BooleanSetter(this, "apply_grey_value_erosion"));
+			op.addMessage("Lasso:");
+			op.addNumericField("Ratio space/color:", ratio_space_color, 2, new OptionPanel.DoubleSetter(this, "ratio_space_color"));
+			op.addMessage("Preprocessing by bandpass filter:");
+			op.addCheckbox("Bandpass filter:", apply_bandpass_filter, new OptionPanel.BooleanSetter(this, "apply_bandpass_filter"));
+			op.addNumericField("Filter down to:", low_frequency_threshold, new OptionPanel.IntSetter(this, "low_frequency_threshold"));
+			op.addNumericField("Filter up to:", high_frequency_threshold, new OptionPanel.IntSetter(this, "high_frequency_threshold"));
+			op.addCheckbox("Saturate when autoscaling:", saturate_when_autoscaling, new OptionPanel.BooleanSetter(this, "saturate_when_autoscaling"));
+			return op;
+		}
+
 		public boolean setup() {
 			GenericDialog gd = new GenericDialog("Fast Marching Options");
 			gd.addMessage("Fast Marching:");
@@ -72,7 +91,7 @@ public class Segmentation {
 			gd.addNumericField("Max iterations", max_iterations, 0);
 			gd.addNumericField("Iterations inc", iter_inc, 0);
 			gd.addCheckbox("Enable grey value erosion filter", apply_grey_value_erosion);
-			gd.addMessage("Lasso tool:");
+			gd.addMessage("Lasso:");
 			gd.addNumericField("ratio space/color:", ratio_space_color, 2);
 			gd.addMessage("Preprocessing by bandpass filter:");
 			gd.addCheckbox("Enable bandpass filter", apply_bandpass_filter);

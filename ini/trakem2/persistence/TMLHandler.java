@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
 import java.io.File;
+import java.util.regex.Pattern;
 
 import ini.trakem2.tree.*;
 import ini.trakem2.display.*;
@@ -80,6 +81,8 @@ public class TMLHandler extends DefaultHandler {
 	private Dissector last_dissector = null;
 	private Stack last_stack = null;
 	private Patch last_patch = null;
+	private Treeline last_treeline = null;
+	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
 	private boolean open_displays = true;
@@ -87,10 +90,11 @@ public class TMLHandler extends DefaultHandler {
 
 	/** @param path The XML file that contains the project data in XML format.
 	 *  @param loader The FSLoader for the project.
+	 *  Expects the path with '/' as folder separator char.
 	 */
 	public TMLHandler(final String path, FSLoader loader) {
 		this.loader = loader;
-		this.base_dir = path.substring(0, path.lastIndexOf(File.separatorChar) + 1);
+		this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
 		this.xml_path = path;
 		final TemplateThing[] tt = DTDParser.extractTemplate(path);
 		if (null == tt) {
@@ -98,14 +102,32 @@ public class TMLHandler extends DefaultHandler {
 			loader = null;
 			return;
 		}
-		// debug:
 		/*
-		Utils.log("ROOTS #####################");
+		// debug:
+		Utils.log2("ROOTS #####################");
 		for (int k=0; k < tt.length; k++) {
 			Utils.log2("tt root " + k + ": " + tt[k]);
 		}
 		*/
 		this.root_tt = tt[0];
+
+		// There should only be one root. There may be more than one
+		// when objects in the DTD are declared but do not exist in a
+		// TemplateThing hierarchy, such as ict_* and iict_*.
+		// Find the first proper root:
+		if (tt.length > 1) {
+			final Pattern icts = Pattern.compile("^i{1,2}ct_transform.*$");
+			this.root_tt = null;
+			for (int k=0; k<tt.length; k++) {
+				if (icts.matcher(tt[k].getType()).matches()) {
+					continue;
+				}
+				this.root_tt = tt[k];
+				break;
+			}
+		}
+		// TODO the above should be a better filtering rule in the DTDParser.
+
 		// create LayerThing templates
 		this.template_layer_thing = new TemplateThing("layer");
 		this.template_layer_set_thing = new TemplateThing("layer set");
@@ -339,12 +361,19 @@ public class TMLHandler extends DefaultHandler {
 		} else if (orig_qualified_name.equals( "t2_stack" )) {
 			last_stack = null;
 			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_treeline")) {
+			if (null != last_treeline) {
+				last_treeline.parse(last_treeline_data);
+				last_treeline_data = null;
+				last_treeline = null;
+			}
+			last_displayable = null;
 		} else if (in(orig_qualified_name, all_displayables)) {
 			last_displayable = null;
 		}
 	}
 
-	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile", "t2_stack"};
+	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile", "t2_stack", "t2_treeline"};
 
 	private final boolean in(final String s, final String[] all) {
 		for (int i=all.length-1; i>-1; i--) {
@@ -353,7 +382,11 @@ public class TMLHandler extends DefaultHandler {
 		return false;
 	}
 
-	public void characters(char[] c, int start, int length) {}
+	public void characters(char[] c, int start, int length) {
+		if (null != last_treeline) {
+			last_treeline_data.append(c, start, length);
+		}
+	}
 
 	public void fatalError(SAXParseException e) {
 		Utils.log("Fatal error: column=" + e.getColumnNumber() + " line=" + e.getLineNumber());
@@ -513,6 +546,14 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(new Long(oid), pline);
 				addToLastOpenLayerSet(pline);
 				return null;
+			} else if (type.equals("connector")) {
+				Connector con = new Connector(this.project, oid, ht_attributes, ht_links);
+				con.addToDatabase();
+				last_displayable = con;
+				ht_displayables.put(new Long(oid), con);
+				ht_zdispl.put(new Long(oid), con);
+				addToLastOpenLayerSet(con);
+				return null;
 			} else if (type.equals("path")) {
 				last_area_list.__addPath((String)ht_attributes.get("d"));
 				return null;
@@ -555,6 +596,15 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(new Long(oid), stack);
 				ht_zdispl.put( new Long(oid), stack );
 				addToLastOpenLayerSet( stack );
+			} else if (type.equals("treeline")) {
+				Treeline tline = new Treeline(this.project, oid, ht_attributes, ht_links);
+				tline.addToDatabase();
+				last_treeline = tline;
+				last_treeline_data = new StringBuilder();
+				last_displayable = tline;
+				ht_displayables.put(oid, tline);
+				ht_zdispl.put(oid, tline);
+				addToLastOpenLayerSet(tline);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
 					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),
