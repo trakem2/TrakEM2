@@ -223,42 +223,37 @@ public class AreaTree extends Tree implements AreaContainer {
 			return null;
 		}
 
-		// find the first node that intersects with the brush
-		AreaNode nd = null;
+		// Try to find an area onto which the point intersects, or the brush diameter
+		synchronized (node_layer_map) {
+			AreaNode closest = null;
+			double min_dist = Double.MAX_VALUE;
 
-		if (null == nd) {
-			// Try to find an area onto which the point intersects, or the brush diameter
-			synchronized (node_layer_map) {
-				AreaNode closest = null;
-				double min_dist = Double.MAX_VALUE;
-
-				for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) { // nodes are the nodes in the current layer
-					if (null == an.aw) continue;
-					if (brush.contains(an.x, an.y) || M.intersects(an.getData(), brush)) {
+			for (final AreaNode an : (Collection<AreaNode>) (Collection) nodes) { // nodes are the nodes in the current layer
+				if (brush.contains(an.x, an.y) || M.intersects(an.getData(), brush)) {
+					return an;
+				}
+				if (null == an.aw) continue;
+				// Look inside holes, for filling
+				final Collection<Polygon> pols = M.getPolygons(an.getData());
+				for (final Polygon pol : pols) {
+					if (pol.contains(lx, ly)) {
 						return an;
 					}
-					// Look inside holes, for filling
-					final Collection<Polygon> pols = M.getPolygons(an.getData());
+				}
+				// If erasing, find the closest area to the brush
+				if (ie.isAltDown()) {
 					for (final Polygon pol : pols) {
-						if (pol.contains(lx, ly)) {
-							return an;
-						}
-					}
-					// If erasing, find the closest area to the brush
-					if (ie.isAltDown()) {
-						for (final Polygon pol : pols) {
-							for (int i=0; i<pol.npoints; i++) {
-								double sqdist = Math.pow(lx - pol.xpoints[i], 2) + Math.pow(ly - pol.ypoints[i], 2);
-								if (sqdist < min_dist) {
-									closest = an;
-									min_dist = sqdist;
-								}
+						for (int i=0; i<pol.npoints; i++) {
+							double sqdist = Math.pow(lx - pol.xpoints[i], 2) + Math.pow(ly - pol.ypoints[i], 2);
+							if (sqdist < min_dist) {
+								closest = an;
+								min_dist = sqdist;
 							}
 						}
 					}
 				}
-				if (null != closest) return closest;
 			}
+			if (null != closest) return closest;
 		}
 
 		// Check whether last area is suitable:
