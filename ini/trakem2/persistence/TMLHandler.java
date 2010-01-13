@@ -253,81 +253,91 @@ public class TMLHandler extends DefaultHandler {
 		}
 		tree_root_nodes.clear();
 
-		// Create a table with all layer ids vs layer instances:
-		final HashMap<Long,Layer> ht_lids = new HashMap<Long,Layer>();
-		for (final Layer layer : al_layers) {
-			ht_lids.put(new Long(layer.getId()), layer);
-		}
+		try {
 
-		// Spawn threads to recreate buckets, starting from the subset of displays to open
-		int n = Runtime.getRuntime().availableProcessors();
-		if (n > 1) {
-			if (n > 4) n -= 2;
-			else n = 3;
-		}
-		final ExecutorService exec = Executors.newFixedThreadPool(n);
-
-		final Set<Long> dlids = new HashSet();
-		final LayerSet layer_set = (LayerSet) root_lt.getObject();
-
-		for (final HashMap ht_attributes : al_displays) {
-			Object ob = ht_attributes.get("layer_id");
-			if (null == ob) continue;
-			final Long lid = new Long((String)ob);
-			dlids.add(lid);
-			final Layer la = ht_lids.get(lid);
-			if (null == la) {
-				ht_lids.remove(lid);
-				continue;
+			// Create a table with all layer ids vs layer instances:
+			final HashMap<Long,Layer> ht_lids = new HashMap<Long,Layer>();
+			for (final Layer layer : al_layers) {
+				ht_lids.put(new Long(layer.getId()), layer);
 			}
-			// to open later:
-			new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
-			exec.submit(new Runnable() { public void run() {
-				la.recreateBuckets();
-			}});
-		}
-		if (dlids.isEmpty() && layer_set.size() > 0) {
-			dlids.add(layer_set.getLayer(0).getId());
-		}
-		final List<Layer> layers = layer_set.getLayers();
-		final List<Future> fus = new ArrayList<Future>();
-		for (final Long lid : new HashSet<Long>(dlids)) {
-			fus.add(exec.submit(new Runnable() { public void run() {
-				int start = layers.indexOf(layer_set.getLayer(lid.longValue()));
-				int next = start + 1;
-				int prev = start -1;
-				while (next < layer_set.size() || prev > -1) {
-					if (prev > -1) {
-						final Layer lprev = layers.get(prev);
-						synchronized (dlids) {
-							if (dlids.add(lprev.getId())) { // returns true if not there already
-								fus.add(exec.submit(new Runnable() { public void run() {
-									Utils.log2("recreating buckets for " + lprev);
-									lprev.recreateBuckets();
-								}}));
-							}
-						}
-						prev--;
-					}
-					if (next < layers.size()) {
-						final Layer lnext = layers.get(next);
-						synchronized (dlids) {
-							if (dlids.add(lnext.getId())) { // returns true if not there already
-								fus.add(exec.submit(new Runnable() { public void run() {
-									Utils.log2("recreating buckets for " + lnext);
-									lnext.recreateBuckets();
-								}}));
-							}
-						}
-						next++;
-					}
+
+			// Spawn threads to recreate buckets, starting from the subset of displays to open
+			int n = Runtime.getRuntime().availableProcessors();
+			if (n > 1) {
+				if (n > 4) n -= 2;
+				else n = 3;
+			}
+			final ExecutorService exec = Executors.newFixedThreadPool(n);
+
+			final Set<Long> dlids = new HashSet();
+			final LayerSet layer_set = (LayerSet) root_lt.getObject();
+
+			for (final HashMap ht_attributes : al_displays) {
+				Object ob = ht_attributes.get("layer_id");
+				if (null == ob) continue;
+				final Long lid = new Long((String)ob);
+				dlids.add(lid);
+				final Layer la = ht_lids.get(lid);
+				if (null == la) {
+					ht_lids.remove(lid);
+					continue;
 				}
+				// to open later:
+				new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
+				fus.add(exec.submit(new Runnable() { public void run() {
+					la.recreateBuckets();
+				}}));
+			}
+
+			fus.add(exec.submit(new Runnable() { public void run() {
+				layer_set.recreateBuckets(false); // only for ZDisplayable
 			}}));
+
+			// Ensure launching:
+			if (dlids.isEmpty() && layer_set.size() > 0) {
+				dlids.add(layer_set.getLayer(0).getId());
+			}
+
+			final List<Layer> layers = layer_set.getLayers();
+			final List<Future> fus = new ArrayList<Future>();
+			for (final Long lid : new HashSet<Long>(dlids)) {
+				fus.add(exec.submit(new Runnable() { public void run() {
+					int start = layers.indexOf(layer_set.getLayer(lid.longValue()));
+					int next = start + 1;
+					int prev = start -1;
+					while (next < layer_set.size() || prev > -1) {
+						if (prev > -1) {
+							final Layer lprev = layers.get(prev);
+							synchronized (dlids) {
+								if (dlids.add(lprev.getId())) { // returns true if not there already
+									fus.add(exec.submit(new Runnable() { public void run() {
+										lprev.recreateBuckets();
+									}}));
+								}
+							}
+							prev--;
+						}
+						if (next < layers.size()) {
+							final Layer lnext = layers.get(next);
+							synchronized (dlids) {
+								if (dlids.add(lnext.getId())) { // returns true if not there already
+									fus.add(exec.submit(new Runnable() { public void run() {
+										lnext.recreateBuckets();
+									}}));
+								}
+							}
+							next++;
+						}
+					}
+				}}));
+			}
+			exec.submit(new Runnable() { public void run() {
+				Utils.wait(fus);
+				exec.shutdownNow();
+			}});
+		} catch (Throwable t) {
+			IJError.print(t);
 		}
-		exec.submit(new Runnable() { public void run() {
-			Utils.wait(fus);
-			exec.shutdownNow();
-		}});
 
 		// debug:
 		//root_tt.debug("");
