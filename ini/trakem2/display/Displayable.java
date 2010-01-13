@@ -1387,6 +1387,11 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		return value;
 	}
+	final static public String getXMLSafeValue(String value) {
+		if (-1 != value.indexOf('"')) value = value.replace('"', '\'');
+		if (-1 != value.indexOf('\n')) value = value.replace('\n', ' ');
+		return value;
+	}
 
 	/////////////
 
