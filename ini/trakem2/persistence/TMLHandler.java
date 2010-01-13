@@ -30,8 +30,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.Set;
+import java.util.HashSet;
 import java.io.File;
 import java.util.regex.Pattern;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import ini.trakem2.tree.*;
 import ini.trakem2.display.*;
@@ -72,7 +76,7 @@ public class TMLHandler extends DefaultHandler {
 	private ArrayList al_open = new ArrayList();
 	private ArrayList<Layer> al_layers = new ArrayList<Layer>();
 	private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
-	private ArrayList al_displays = new ArrayList(); // contains HashMap instances with display data.
+	private ArrayList<HashMap> al_displays = new ArrayList<HashMap>(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
 	private HashMap ht_displayables = new HashMap();
 	private HashMap ht_zdispl = new HashMap();
@@ -248,22 +252,71 @@ public class TMLHandler extends DefaultHandler {
 		}
 		tree_root_nodes.clear();
 
-		// Finally - Create displays for later
-		HashMap ht_lid = new HashMap();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
-			ht_lid.put(new Long(layer.getId()), layer);
+		// Create a table with all layer ids vs layer instances:
+		final HashMap<Long,Layer> ht_lids = new HashMap<Long,Layer>();
+		for (final Layer layer : al_layers) {
+			ht_lids.put(new Long(layer.getId()), layer);
 		}
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ){
-			HashMap ht_attributes = (HashMap)it.next();
+
+		// Spawn threads to recreate buckets, starting from the subset of displays to open
+		int n = Runtime.getRuntime().availableProcessors();
+		if (n > 1) {
+			if (n > 4) n -= 2;
+			else n = 3;
+		}
+		final ExecutorService exec = Executors.newFixedThreadPool(n);
+
+		final Set<Long> dlids = new HashSet();
+
+		for (final HashMap ht_attributes : al_displays) {
 			Object ob = ht_attributes.get("layer_id");
-			if (null != ob) {
-				Object lob = ht_lid.get(new Long((String)ob));
-				if (null != lob)  {
-					new Display(project, Long.parseLong((String)ht_attributes.get("id")), (Layer)lob, ht_attributes);
+			if (null == ob) continue;
+			final Long lid = new Long((String)ob);
+			dlids.add(lid);
+			exec.submit(new Runnable() { public void run() {
+				Layer la = ht_lids.get(lid);
+				if (null == la) {
+					ht_lids.remove(lid);
+					return;
 				}
-			}
+				la.recreateBuckets();
+				// to open later:
+				new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
+			}});
 		}
+		for (final Long lid : new HashSet<Long>(dlids)) {
+			exec.submit(new Runnable() { public void run() {
+				int start = layer_set.indexOf(layer_set.getLayer(lid.longValue()));
+				int next = start + 1;
+				int prev = start -1;
+				while (next < layer_set.size() || prev > 0) {
+					if (prev > -1) {
+						final Layer lprev = layer_set.getLayer(prev);
+						synchronized (dlids) {
+							if (dlids.add(lprev.getId())) { // returns true if not there already
+								exec.submit(new Runnable() { public void run() {
+									lprev.recreateBuckets();
+								}});
+							}
+						}
+						prev--;
+					}
+					if (next < layer_set.size()) {
+						final Layer lnext = layer_set.getLayer(next);
+						synchronized (dlids) {
+							if (dlids.add(lnext.getId())) { // returns true if not there already
+								exec.submit(new Runnable() { public void run() {
+									lnext.recreateBuckets();
+								}});
+							}
+						}
+						next++;
+					}
+				}
+			}});
+		}
+
+		exec.shutdown();
 
 		// debug:
 		//root_tt.debug("");

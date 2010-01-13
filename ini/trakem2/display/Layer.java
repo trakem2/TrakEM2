@@ -890,7 +890,7 @@ public final class Layer extends DBObject implements Bucketable {
 		return pa.getPixel(x, y, mag);
 	}
 
-	public void recreateBuckets() {
+	synchronized public void recreateBuckets() {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);

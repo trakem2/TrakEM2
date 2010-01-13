@@ -1597,7 +1597,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != root) root.updatePosition(d, db_map);
 	}
 
-	public void recreateBuckets(final boolean layers) {
+	synchronized public void recreateBuckets(final boolean layers) {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
