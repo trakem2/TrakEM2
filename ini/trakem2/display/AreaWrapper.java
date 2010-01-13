@@ -45,7 +45,6 @@ public class AreaWrapper {
 	public AreaWrapper(final Displayable source, final Area area) {
 		this.source = source;
 		this.area = area;
-		Utils.printCaller(this, 3);
 	}
 
 	public AreaWrapper() {
