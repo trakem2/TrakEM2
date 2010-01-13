@@ -2054,4 +2054,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 							return true; }}}}}
 		return false;
 	}
+
+	// private to the package
+	void removeTag(Tag tag) {}
 }

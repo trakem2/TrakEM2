@@ -24,6 +24,8 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 
+import java.awt.event.KeyEvent;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.HashMap;
@@ -272,6 +274,8 @@ public class TMLHandler extends DefaultHandler {
 			final Set<Long> dlids = new HashSet();
 			final LayerSet layer_set = (LayerSet) root_lt.getObject();
 
+			final List<Future> fus = new ArrayList<Future>();
+
 			for (final HashMap ht_attributes : al_displays) {
 				Object ob = ht_attributes.get("layer_id");
 				if (null == ob) continue;
@@ -299,7 +303,6 @@ public class TMLHandler extends DefaultHandler {
 			}
 
 			final List<Layer> layers = layer_set.getLayers();
-			final List<Future> fus = new ArrayList<Future>();
 			for (final Long lid : new HashSet<Long>(dlids)) {
 				fus.add(exec.submit(new Runnable() { public void run() {
 					int start = layers.indexOf(layer_set.getLayer(lid.longValue()));
@@ -734,7 +737,14 @@ public class TMLHandler extends DefaultHandler {
 				return null;
 			} else if (type.equals("tag")) {
 				Taggable t = taggables.getLast();
-				if (null != t) t.addTag(ht_attributes.get("name"));
+				if (null != t) {
+					Object ob = ht_attributes.get("key");
+					int keyCode = KeyEvent.VK_T; // defaults to 't'
+					if (null != ob) keyCode = (int)((String)ob).charAt(0);
+					Tag tag = new Tag(ht_attributes.get("name"), keyCode);
+					al_layer_sets.get(al_layer_sets.size()-1).putTag(tag, keyCode);
+					t.addTag(tag);
+				}
 			} else if (type.equals("ball_ob")) {
 				// add a ball to the last open Ball
 				if (null != last_ball) {

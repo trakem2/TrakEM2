@@ -50,9 +50,12 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.HashMap;
+import java.util.Arrays;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -2177,5 +2180,91 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			m.put(zd, a);
 		}
 		return m;
+	}
+
+	protected final Map<Integer,TreeSet<Tag>> tags = new HashMap<Integer,TreeSet<Tag>>();
+
+	{
+		tags.put(KeyEvent.VK_T, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("TODO", KeyEvent.VK_T)})));
+		tags.put(KeyEvent.VK_U, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("Uncertain end", KeyEvent.VK_T)})));
+	}
+
+	public Tag putTag(final Object tag, final int keyCode) {
+		if (null == tag) return null;
+		Tag t;
+		synchronized (tags) {
+			TreeSet<Tag> ts = tags.get(keyCode);
+			if (null == ts) {
+				ts = new TreeSet<Tag>();
+				tags.put(keyCode, ts);
+			}
+			if (tag instanceof Tag) t = (Tag)tag; // the keyCode may be different, but doesn't matter.
+			else t = new Tag(tag, keyCode);
+			ts.add(t);
+		}
+		return t;
+	}
+
+	/** If there aren't any tags for keyCode, returns an empty TreeSet. */
+	public TreeSet<Tag> getTags(final int keyCode) {
+		synchronized (tags) {
+			final TreeSet<Tag> ts = tags.get(keyCode);
+			return null == ts ? new TreeSet<Tag>()
+					  : ts;
+		}
+	}
+
+	protected Tag askForNewTag(final int keyCode) {
+		GenericDialog gd = new GenericDialog("New tag");
+		gd.addMessage("Add new tag for key: " + ((char)keyCode));
+		TreeSet<Tag> ts = getTags(keyCode);
+		gd.addStringField("New tag:", "");
+		if (null != ts & ts.size() > 0) {
+			String[] names = new String[ts.size()];
+			int next = 0;
+			for (Tag t : ts) names[next++] = t.toString();
+			gd.addChoice("Existing tags for " + ((char)keyCode) + ":", names, names[0]);
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+		String tag = gd.getNextString().trim();
+		if (0 == tag.length()) {
+			Utils.logAll("Invalid tag " + tag);
+			return null;
+		}
+		return putTag(tag, keyCode);
+	}
+
+	protected void askToRemoveTag(final int keyCode) {
+		TreeSet<Tag> ts = getTags(keyCode);
+		if (null == ts || ts.isEmpty()) return;
+		String[] tags = new String[ts.size()];
+		int next = 0;
+		for (Tag t : ts) tags[next++] = t.toString();
+		GenericDialog gd = new GenericDialog("Remove tag");
+		gd.addMessage("Remove a tag for key: " + ((char)keyCode));
+		gd.addChoice("Remove:", tags, tags[0]);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		String tag = gd.getNextChoice();
+		removeTag(tag, keyCode);
+		// TODO: remove the tag from all Taggable that have it?
+	}
+
+	public void removeTag(final Object tag, final int keyCode) {
+		Tag t;
+		synchronized (tags) {
+			TreeSet<Tag> ts = tags.get(keyCode);
+			if (null == ts) return;
+			t = new Tag(tag, keyCode);
+			ts.remove(t);
+		}
+		for (final Displayable d : getDisplayables()) {
+			d.removeTag(t);
+		}
+		for (final ZDisplayable zd : al_zdispl) {
+			zd.removeTag(t);
+		}
+		Display.repaint(this);
 	}
 }

@@ -48,6 +48,8 @@ import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.ActionEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
@@ -62,6 +64,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.TreeSet;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -72,6 +75,10 @@ import java.util.Arrays;
 import java.util.TreeMap;
 
 import javax.vecmath.Point3f;
+import javax.swing.KeyStroke;
+import javax.swing.JPopupMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JLabel;
 
 // Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
 // That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
@@ -343,6 +350,7 @@ public abstract class Tree extends ZDisplayable {
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_tag EMPTY>\n");
 		sb_header.append(indent).append(TAG_ATTR1).append("t2_tag name").append(TAG_ATTR2);
+		sb_header.append(indent).append(TAG_ATTR1).append("t2_tag key").append(TAG_ATTR2);
 		sb_header.append(indent).append("<!ELEMENT t2_node (t2_area*,t2_tag*)>\n");
 		sb_header.append(indent).append(TAG_ATTR1).append("t2_node x").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node y").append(TAG_ATTR2)
@@ -454,8 +462,9 @@ public abstract class Tree extends ZDisplayable {
 	abstract protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node);
 
 	static private void exportTags(final Node node, final StringBuffer sb, final StringBuffer indent) {
-		for (final Object ob : node.getTags()) {
-			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(ob.toString())).append("\" />\n");
+		for (final Tag tag : (Collection<Tag>) node.getTags()) {
+			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(tag.toString()))
+					 .append("\" key=\"").append(tag.getKeyCode()).append("\" />\n");
 		}
 	}
 
@@ -1303,8 +1312,9 @@ public abstract class Tree extends ZDisplayable {
 		last_edited = active;
 	}
 
-	private Node to_tag = null;
-	private Node to_untag = null;
+	static private Node to_tag = null;
+	static private Node to_untag = null;
+	static private boolean show_tag_dialogs = false;
 
 	@Override
 	public void keyPressed(KeyEvent ke) {
@@ -1321,22 +1331,92 @@ public abstract class Tree extends ZDisplayable {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 
-		int keyCode = ke.getKeyCode();
+		final int keyCode = ke.getKeyCode();
+		final DisplayCanvas dc = (DisplayCanvas)source;
 
-		if (null != to_tag) {
-			to_tag.addTag(TAGS.get(keyCode));
-			to_tag = null;
-			Display.repaint(layer_set);
-			return;
-		}
-		if (null != to_untag) {
-			to_untag.removeTag(TAGS.get(keyCode));
-			to_untag = null;
-			Display.repaint(layer_set);
-			return;
+		if (null != to_tag || null != to_untag) {
+			if (KeyEvent.VK_0 == keyCode) {
+				// force dialogs for next key
+				show_tag_dialogs = true;
+				return;
+			}
+
+			final boolean untag = null != to_untag;
+			final Node target = untag ? to_untag : to_tag;
+
+			try {
+				if (show_tag_dialogs) {
+					if (untag) layer_set.askToRemoveTag(keyCode);
+					else if (null != layer_set.askForNewTag(keyCode)) {
+						target.addTag(layer_set.getTags(keyCode).last());
+						Display.repaint(layer_set);
+					}
+					show_tag_dialogs = false;
+					return;
+				}
+
+				TreeSet<Tag> ts = layer_set.getTags(keyCode);
+				if (ts.isEmpty()) {
+					if (untag) return;
+					if (null == layer_set.askForNewTag(keyCode)) return;
+					ts = layer_set.getTags(keyCode);
+				}
+				// Ask to chose one, if more than one
+				if (ts.size() > 1) {
+					final JPopupMenu popup = new JPopupMenu();
+					popup.add(new JLabel(untag ? "Untag:" : "Tag:"));
+					int i = 1;
+					for (final Tag tag : ts) {
+						JMenuItem item = new JMenuItem(tag.toString());
+						popup.add(item);
+						if (i < 10) {
+							item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0 + i, 0, true));
+						}
+						i++;
+						item.addActionListener(new ActionListener() {
+							public void actionPerformed(ActionEvent ae) {
+								if (untag) target.removeTag(tag);
+								else target.addTag(tag);
+								Display.repaint(layer_set);
+							}
+						});
+					}
+					popup.addSeparator();
+					JMenuItem item = new JMenuItem(untag ? "Remove tag..." : "Create new tag...");
+					popup.add(item);
+					item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0, 0, true));
+					item.addActionListener(new ActionListener() {
+						public void actionPerformed(ActionEvent ae) {
+							if (untag) {
+								layer_set.askToRemoveTag(keyCode);
+							} else {
+								if (null == layer_set.askForNewTag(keyCode)) return;
+								target.addTag(layer_set.getTags(keyCode).last());
+								Display.repaint(layer_set);
+							}
+						}
+					});
+
+					// Show the popup on the Display, under the node
+					final float[] fp = new float[]{target.x, target.y};
+					this.at.transform(fp, 0, fp, 0, 1);
+					Rectangle srcRect = dc.getSrcRect();
+					double magnification = dc.getMagnification();
+					final int x = (int)((fp[0] - srcRect.x) * magnification);
+					final int y = (int)((fp[1] - srcRect.y) * magnification);
+					popup.show(dc, x, y);
+				} else {
+					if (untag) target.removeTag(ts.first());
+					else target.addTag(ts.first());
+					Display.repaint(layer_set);
+				}
+				return;
+			} finally {
+				to_tag = null;
+				to_untag = null;
+			}
 		}
 
-		DisplayCanvas dc = (DisplayCanvas)source;
 		Layer la = dc.getDisplay().getLayer();
 		final Point po = dc.getCursorLoc(); // as offscreen coords
 
@@ -1569,9 +1649,14 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
-	static private final Map<Integer,Object> TAGS = new HashMap<Integer,Object>();
-	static {
-		TAGS.put(KeyEvent.VK_T, "TODO");
-		TAGS.put(KeyEvent.VK_U, "Uncertain end");
+	@Override
+	void removeTag(final Tag tag) {
+		synchronized (node_layer_map) {
+			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+				for (final Node nd : e.getValue()) {
+					nd.removeTag(tag);
+				}
+			}
+		}
 	}
 }

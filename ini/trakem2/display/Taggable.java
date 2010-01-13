@@ -10,14 +10,14 @@ public interface Taggable {
 	static public final BasicStroke DASHED_STROKE = new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{ 4, 2, 4, 2 }, 0);
 
 	/** @return true if the tag wasn't there already. */
-	public boolean addTag(Object tag);
+	public boolean addTag(Tag tag);
 
 	/** @return true if the tag was there. */
-	public boolean removeTag(Object tag);
+	public boolean removeTag(Tag tag);
 
 	/** @return the tags, if any, or null. */
-	public Set getTags();
+	public Set<Tag> getTags();
 
 	/** @return the tags, if any, or null. */
-	public Set removeAllTags();
+	public Set<Tag> removeAllTags();
 }

@@ -528,16 +528,16 @@ public abstract class Node<T> implements Taggable {
 		return this.la.find(Patch.class, (int)x, (int)y, true);
 	}
 
-	TreeSet tags = null; // private to the package
+	TreeSet<Tag> tags = null; // private to the package
 
 	/** @return true if the tag wasn't there already. */
-	synchronized public boolean addTag(Object tag) {
-		if (null == tags) tags = new TreeSet();
+	synchronized public boolean addTag(Tag tag) {
+		if (null == tags) tags = new TreeSet<Tag>();
 		return tags.add(tag);
 	}
 
 	/** @return true if the tag was there. */
-	synchronized public boolean removeTag(Object tag) {
+	synchronized public boolean removeTag(Tag tag) {
 		if (null == tags) return false;
 		boolean b = tags.remove(tag);
 		if (tags.isEmpty()) tags = null;
@@ -545,23 +545,23 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** @return a shallow copy of the tags set, if any, or null. */
-	synchronized public Set getTags() {
+	synchronized public Set<Tag> getTags() {
 		if (null == tags) return null;
-		return (Set) tags.clone();
+		return (Set<Tag>) tags.clone();
 	}
 
 	/** @return the tags, if any, or null. */
-	synchronized public Set removeAllTags() {
-		Set tags = this.tags;
+	synchronized public Set<Tag> removeAllTags() {
+		Set<Tag> tags = this.tags;
 		this.tags = null;
 		return tags;
 	}
 
 	public void paintTags(final Graphics2D g, final Rectangle srcRect, final double magnification, final AffineTransform aff) {
 		if (null == this.tags) return;
-		Set tags;
+		Set<Tag> tags;
 		synchronized (this) {
-			tags = new TreeSet(this.tags);
+			tags = new TreeSet<Tag>(this.tags);
 		}
 		final float[] fp = new float[]{x, y};
 		aff.transform(fp, 0, fp, 0, 1);
@@ -577,7 +577,7 @@ public abstract class Node<T> implements Taggable {
 		g.drawLine(x, y, ox, oy);
 		g.setStroke(stroke);
 
-		for (final Object ob : tags) {
+		for (final Tag ob : tags) {
 			String tag = ob.toString();
 			Dimension dim = Utils.getDimensions(tag, g.getFont());
 			final int arc = (int)(dim.height / 3.0f);
