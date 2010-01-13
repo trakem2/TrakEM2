@@ -167,7 +167,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		String type = "t2_areatree";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_areatree (t2_node,").append(Displayable.commonDTDChildren()).append(")>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_areatree (t2_node*,").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
