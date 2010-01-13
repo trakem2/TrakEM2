@@ -240,7 +240,7 @@ public class TMLHandler extends DefaultHandler {
 		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
 		for (final Map.Entry<Tree,Node> e : tree_root_nodes.entrySet()) {
 			if (null == e.getValue()) {
-				Utils.log2("Ignoring, applies to new Treeline format only.");
+				//Utils.log2("Ignoring, applies to new Treeline format only.");
 				continue;
 			}
 			e.getKey().setRoot(e.getValue()); // will generate node caches of each Treeline
