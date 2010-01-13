@@ -36,6 +36,7 @@ import java.io.File;
 import java.util.regex.Pattern;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import ini.trakem2.tree.*;
 import ini.trakem2.display.*;
@@ -267,56 +268,66 @@ public class TMLHandler extends DefaultHandler {
 		final ExecutorService exec = Executors.newFixedThreadPool(n);
 
 		final Set<Long> dlids = new HashSet();
+		final LayerSet layer_set = (LayerSet) root_lt.getObject();
 
 		for (final HashMap ht_attributes : al_displays) {
 			Object ob = ht_attributes.get("layer_id");
 			if (null == ob) continue;
 			final Long lid = new Long((String)ob);
 			dlids.add(lid);
+			final Layer la = ht_lids.get(lid);
+			if (null == la) {
+				ht_lids.remove(lid);
+				continue;
+			}
+			// to open later:
+			new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
 			exec.submit(new Runnable() { public void run() {
-				Layer la = ht_lids.get(lid);
-				if (null == la) {
-					ht_lids.remove(lid);
-					return;
-				}
 				la.recreateBuckets();
-				// to open later:
-				new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
 			}});
 		}
+		if (dlids.isEmpty() && layer_set.size() > 0) {
+			dlids.add(layer_set.getLayer(0).getId());
+		}
+		final List<Layer> layers = layer_set.getLayers();
+		final List<Future> fus = new ArrayList<Future>();
 		for (final Long lid : new HashSet<Long>(dlids)) {
-			exec.submit(new Runnable() { public void run() {
-				int start = layer_set.indexOf(layer_set.getLayer(lid.longValue()));
+			fus.add(exec.submit(new Runnable() { public void run() {
+				int start = layers.indexOf(layer_set.getLayer(lid.longValue()));
 				int next = start + 1;
 				int prev = start -1;
-				while (next < layer_set.size() || prev > 0) {
+				while (next < layer_set.size() || prev > -1) {
 					if (prev > -1) {
-						final Layer lprev = layer_set.getLayer(prev);
+						final Layer lprev = layers.get(prev);
 						synchronized (dlids) {
 							if (dlids.add(lprev.getId())) { // returns true if not there already
-								exec.submit(new Runnable() { public void run() {
+								fus.add(exec.submit(new Runnable() { public void run() {
+									Utils.log2("recreating buckets for " + lprev);
 									lprev.recreateBuckets();
-								}});
+								}}));
 							}
 						}
 						prev--;
 					}
-					if (next < layer_set.size()) {
-						final Layer lnext = layer_set.getLayer(next);
+					if (next < layers.size()) {
+						final Layer lnext = layers.get(next);
 						synchronized (dlids) {
 							if (dlids.add(lnext.getId())) { // returns true if not there already
-								exec.submit(new Runnable() { public void run() {
+								fus.add(exec.submit(new Runnable() { public void run() {
+									Utils.log2("recreating buckets for " + lnext);
 									lnext.recreateBuckets();
-								}});
+								}}));
 							}
 						}
 						next++;
 					}
 				}
-			}});
+			}}));
 		}
-
-		exec.shutdown();
+		exec.submit(new Runnable() { public void run() {
+			Utils.wait(fus);
+			exec.shutdownNow();
+		}});
 
 		// debug:
 		//root_tt.debug("");
