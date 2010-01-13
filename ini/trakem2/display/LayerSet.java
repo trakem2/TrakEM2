@@ -1150,8 +1150,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != al_layers) {
 			//Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
 			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-				((Layer)it.next()).exportXML(sb_body, in, any);
 				sb_body.setLength(0);
+				((Layer)it.next()).exportXML(sb_body, in, any);
 				writer.write(sb_body.toString());
 			}
 		}
