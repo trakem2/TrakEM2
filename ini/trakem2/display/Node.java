@@ -3,13 +3,17 @@ package ini.trakem2.display;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Collection;
+import java.util.Collections;
 import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -19,7 +23,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
 /** Can only have one parent, so there aren't cyclic graphs. */
-public abstract class Node<T> {
+public abstract class Node<T> implements Taggable {
 	/** Maximum possible confidence in an edge (ranges from 0 to 5, inclusive).*/
 	static public final byte MAX_EDGE_CONFIDENCE = 5;
 
@@ -524,6 +528,67 @@ public abstract class Node<T> {
 		return this.la.find(Patch.class, (int)x, (int)y, true);
 	}
 
+	TreeSet tags = null; // private to the package
+
+	/** @return true if the tag wasn't there already. */
+	synchronized public boolean addTag(Object tag) {
+		if (null == tags) tags = new TreeSet();
+		return tags.add(tag);
+	}
+
+	/** @return true if the tag was there. */
+	synchronized public boolean removeTag(Object tag) {
+		if (null == tags) return false;
+		boolean b = tags.remove(tag);
+		if (tags.isEmpty()) tags = null;
+		return b;
+	}
+
+	/** @return a shallow copy of the tags set, if any, or null. */
+	synchronized public Set getTags() {
+		if (null == tags) return null;
+		return (Set) tags.clone();
+	}
+
+	/** @return the tags, if any, or null. */
+	synchronized public Set removeAllTags() {
+		Set tags = this.tags;
+		this.tags = null;
+		return tags;
+	}
+
+	public void paintTags(final Graphics2D g, final Rectangle srcRect, final double magnification, final AffineTransform aff) {
+		if (null == this.tags) return;
+		Set tags;
+		synchronized (this) {
+			tags = new TreeSet(this.tags);
+		}
+		final float[] fp = new float[]{x, y};
+		aff.transform(fp, 0, fp, 0, 1);
+		final int x = (int)((fp[0] - srcRect.x) * magnification);
+		final int y = (int)((fp[1] - srcRect.y) * magnification);
+
+		final int ox = x + 20;
+		int oy = y + 20;
+
+		Stroke stroke = g.getStroke();
+		g.setStroke(Taggable.DASHED_STROKE);
+		g.setColor(Taggable.TAG_BACKGROUND);
+		g.drawLine(x, y, ox, oy);
+		g.setStroke(stroke);
+
+		for (final Object ob : tags) {
+			String tag = ob.toString();
+			Dimension dim = Utils.getDimensions(tag, g.getFont());
+			final int arc = (int)(dim.height / 3.0f);
+			RoundRectangle2D rr = new RoundRectangle2D.Float(ox, oy, dim.width+4, dim.height+2, arc, arc);
+			g.setColor(Taggable.TAG_BACKGROUND);
+			g.fill(rr);
+			g.setColor(Color.blue);
+			g.drawString(tag, ox +2, oy +dim.height -1);
+			oy += dim.height + 3;
+		}
+	}
 }
 
 

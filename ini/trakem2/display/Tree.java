@@ -40,6 +40,8 @@ import ini.trakem2.vector.VectorString3D;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
+import java.awt.Stroke;
+import java.awt.BasicStroke;
 import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.RenderingHints;
@@ -55,6 +57,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.Stroke;
+import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collection;
@@ -180,6 +183,7 @@ public abstract class Tree extends ZDisplayable {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
+					if (with_arrows) nd.paintTags(g, srcRect, magnification, this.at); // avoid painting to DisplayNavigator
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 
@@ -326,7 +330,7 @@ public abstract class Tree extends ZDisplayable {
 	abstract protected Node newNode(float lx, float ly, Layer layer, Node modelNode);
 
 	/** To reconstruct from XML. */
-	abstract protected Node newNode(HashMap ht_attr);
+	abstract public Node newNode(HashMap ht_attr);
 
 	public boolean isDeletable() {
 		return null == root;
@@ -337,7 +341,9 @@ public abstract class Tree extends ZDisplayable {
 		String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
-		sb_header.append(indent).append("<!ELEMENT t2_node (t2_area*)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_tag EMPTY>\n");
+		sb_header.append(indent).append(TAG_ATTR1).append("t2_tag name").append(TAG_ATTR2);
+		sb_header.append(indent).append("<!ELEMENT t2_node (t2_area*,t2_tag*)>\n");
 		sb_header.append(indent).append(TAG_ATTR1).append("t2_node x").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node y").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append("t2_node lid").append(TAG_ATTR2)
@@ -423,20 +429,35 @@ public abstract class Tree extends ZDisplayable {
 		// ... so accumulated potentially extra chars are 3: \">\n
 
 		indent.append(' ');
-		if (tree.exportXMLNodeData(indent, sb, node)) {
+		boolean data = tree.exportXMLNodeData(indent, sb, node);
+		if (data) {
+			if (null != node.tags) exportTags(node, sb, indent);
 			if (null == node.children) {
 				indent.setLength(indent.length() -1);
 				sb.append(indent).append("</t2_node>\n");
 				return;
 			}
 		} else if (null == node.children) {
-			sb.setLength(sb.length() -3); // remove "\">\n"
-			sb.append("\" />\n");
+			if (null != node.tags) {
+				exportTags(node, sb, indent);
+				sb.append(indent).append("</t2_node>\n");
+			} else {
+				sb.setLength(sb.length() -3); // remove "\">\n"
+				sb.append("\" />\n");
+			}
+		} else if (null != node.tags) {
+			exportTags(node, sb, indent);
 		}
 		indent.setLength(indent.length() -1);
 	}
 	abstract protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node);
 	abstract protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node);
+
+	static private void exportTags(final Node node, final StringBuffer sb, final StringBuffer indent) {
+		for (final Object ob : node.getTags()) {
+			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(ob.toString())).append("\" />\n");
+		}
+	}
 
 	static private final void closeNodeXML(final StringBuffer indent, final StringBuffer sb) {
 		sb.append(indent).append("</t2_node>\n");
@@ -1282,6 +1303,9 @@ public abstract class Tree extends ZDisplayable {
 		last_edited = active;
 	}
 
+	private Node to_tag = null;
+	private Node to_untag = null;
+
 	@Override
 	public void keyPressed(KeyEvent ke) {
 
@@ -1296,9 +1320,24 @@ public abstract class Tree extends ZDisplayable {
 
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
+
+		int keyCode = ke.getKeyCode();
+
+		if (null != to_tag) {
+			to_tag.addTag(TAGS.get(keyCode));
+			to_tag = null;
+			Display.repaint(layer_set);
+			return;
+		}
+		if (null != to_untag) {
+			to_untag.removeTag(TAGS.get(keyCode));
+			to_untag = null;
+			Display.repaint(layer_set);
+			return;
+		}
+
 		DisplayCanvas dc = (DisplayCanvas)source;
 		Layer la = dc.getDisplay().getLayer();
-		int keyCode = ke.getKeyCode();
 		final Point po = dc.getCursorLoc(); // as offscreen coords
 
 		// assumes Node.MAX_EDGE_CONFIDENCE is <= 9.
@@ -1314,6 +1353,16 @@ public abstract class Tree extends ZDisplayable {
 		final Display display = Display.getFront();
 		final Layer layer = display.getLayer();
 
+		switch (keyCode) {
+			case KeyEvent.VK_T:
+				if (0 == modifiers) {
+					to_tag = findNodeNear(po.x, po.y, layer, dc.getMagnification());
+				} else if (0 == (modifiers ^ KeyEvent.SHIFT_MASK)) {
+					to_untag = findNodeNear(po.x, po.y, layer, dc.getMagnification());
+				}
+				ke.consume();
+				return;
+		}
 		if (0 == modifiers) {
 			switch (keyCode) {
 				case KeyEvent.VK_R:
@@ -1518,5 +1567,11 @@ public abstract class Tree extends ZDisplayable {
 			Collection<Node> nodes = node_layer_map.get(layer);
 			return null != nodes && nodes.size() > 0;
 		}
+	}
+
+	static private final Map<Integer,Object> TAGS = new HashMap<Integer,Object>();
+	static {
+		TAGS.put(KeyEvent.VK_T, "TODO");
+		TAGS.put(KeyEvent.VK_U, "Uncertain end");
 	}
 }

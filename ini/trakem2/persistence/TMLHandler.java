@@ -85,6 +85,7 @@ public class TMLHandler extends DefaultHandler {
 	private Patch last_patch = null;
 	private Treeline last_treeline = null;
 	private AreaTree last_areatree = null;
+	private LinkedList<Taggable> taggables = new LinkedList<Taggable>();
 	private ReconstructArea reca = null;
 	private Node last_root_node = null;
 	private LinkedList<Node> nodes = new LinkedList<Node>();
@@ -377,6 +378,7 @@ public class TMLHandler extends DefaultHandler {
 		} else if (orig_qualified_name.equals("t2_node")) {
 			// Remove one node from the stack
 			nodes.removeLast();
+			taggables.removeLast();
 		} else if (orig_qualified_name.equals("t2_area")) {
 			// If it's an AreaNode, set its area data:
 			if (null != reca) {
@@ -577,9 +579,13 @@ public class TMLHandler extends DefaultHandler {
 
 			if (type.equals("node")) {
 				Node node;
-				if (null != last_treeline) node = last_treeline.newNode(ht_attributes);
-				else if (null != last_areatree) node = last_areatree.newNode(ht_attributes);
-				else throw new NullPointerException("Can't create a node for null last_treeline or null last_areatree!");
+				Tree last_tree = (null != last_treeline ? last_treeline
+									: (null != last_areatree ? last_areatree : null));
+				if (null == last_tree) {
+					throw new NullPointerException("Can't create a node for null last_treeline or null last_areatree!");
+				}
+				node = last_tree.newNode(ht_attributes);
+				taggables.add(node);
 				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
 				long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
 				List<Node> list = node_layer_table.get(ndlid);
@@ -652,6 +658,9 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(new Long(oid), area);
 				addToLastOpenLayerSet(area);
 				return null;
+			} else if (type.equals("tag")) {
+				Taggable t = taggables.getLast();
+				if (null != t) t.addTag(ht_attributes.get("name"));
 			} else if (type.equals("ball_ob")) {
 				// add a ball to the last open Ball
 				if (null != last_ball) {

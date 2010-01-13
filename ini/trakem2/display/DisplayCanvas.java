@@ -1758,7 +1758,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// else, the 'z' command restores the image using ImageJ internal undo
 				break;
 			case KeyEvent.VK_T:
-				if (null != active && !isTransforming()) {
+				if (null != active && !isTransforming() && ProjectToolbar.getToolId() <= ProjectToolbar.SELECT) {
 					if (0 == ke.getModifiers()) {
 						display.setMode(new AffineTransformMode(display));
 					} else if (Event.SHIFT_MASK == ke.getModifiers()) {
