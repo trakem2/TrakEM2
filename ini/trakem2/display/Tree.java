@@ -537,7 +537,7 @@ public abstract class Tree extends ZDisplayable {
 		return new DPTree(this);
 	}
 
-	static private final class DPTree extends Displayable.DataPackage {
+	static class DPTree extends Displayable.DataPackage {
 		final Node root;
 		DPTree(final Tree t) {
 			super(t);
@@ -1345,11 +1345,18 @@ public abstract class Tree extends ZDisplayable {
 			final Node target = untag ? to_untag : to_tag;
 
 			try {
+
+				layer_set.addPreDataEditStep(this);
+
 				if (show_tag_dialogs) {
-					if (untag) layer_set.askToRemoveTag(keyCode);
-					else if (null != layer_set.askForNewTag(keyCode)) {
+					if (untag) {
+						if (layer_set.askToRemoveTag(keyCode)) {
+							layer_set.addDataEditStep(this);
+						}
+					} else if (null != layer_set.askForNewTag(keyCode)) {
 						target.addTag(layer_set.getTags(keyCode).last());
 						Display.repaint(layer_set);
+						layer_set.addDataEditStep(this); // no 'with' macros ... without half a dozen layers of cruft.
 					}
 					show_tag_dialogs = false;
 					return;
@@ -1378,6 +1385,7 @@ public abstract class Tree extends ZDisplayable {
 								if (untag) target.removeTag(tag);
 								else target.addTag(tag);
 								Display.repaint(layer_set);
+								layer_set.addDataEditStep(Tree.this);
 							}
 						});
 					}
@@ -1394,6 +1402,7 @@ public abstract class Tree extends ZDisplayable {
 								target.addTag(layer_set.getTags(keyCode).last());
 								Display.repaint(layer_set);
 							}
+							layer_set.addDataEditStep(Tree.this);
 						}
 					});
 
@@ -1409,6 +1418,7 @@ public abstract class Tree extends ZDisplayable {
 					if (untag) target.removeTag(ts.first());
 					else target.addTag(ts.first());
 					Display.repaint(layer_set);
+					layer_set.addDataEditStep(this);
 				}
 				return;
 			} finally {

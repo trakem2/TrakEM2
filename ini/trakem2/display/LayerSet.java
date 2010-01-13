@@ -2235,9 +2235,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return putTag(tag, keyCode);
 	}
 
-	protected void askToRemoveTag(final int keyCode) {
+	/** Returns false if the dialog was canceled or there wasn't any tag to remove. */
+	protected boolean askToRemoveTag(final int keyCode) {
 		TreeSet<Tag> ts = getTags(keyCode);
-		if (null == ts || ts.isEmpty()) return;
+		if (null == ts || ts.isEmpty()) return false;
 		String[] tags = new String[ts.size()];
 		int next = 0;
 		for (Tag t : ts) tags[next++] = t.toString();
@@ -2245,12 +2246,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		gd.addMessage("Remove a tag for key: " + ((char)keyCode));
 		gd.addChoice("Remove:", tags, tags[0]);
 		gd.showDialog();
-		if (gd.wasCanceled()) return;
+		if (gd.wasCanceled()) return false;
 		String tag = gd.getNextChoice();
 		removeTag(tag, keyCode);
-		// TODO: remove the tag from all Taggable that have it?
+		return true;
 	}
 
+	/** Removes the tag from the list of possible tags, and then from wherever it has been assigned. The @param tag is duck-typed. */
 	public void removeTag(final Object tag, final int keyCode) {
 		Tag t;
 		synchronized (tags) {

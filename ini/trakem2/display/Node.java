@@ -331,6 +331,7 @@ public abstract class Node<T> implements Taggable {
 		final LinkedList<Object[]> todo = new LinkedList<Object[]>();
 		final Node root = newInstance(x, y, la);
 		root.setData(this.getDataCopy());
+		root.tags = null == this.tags ? null : new TreeSet<Tag>(this.tags);
 		if (null != this.children) {
 			todo.add(new Object[]{root, this.children, this.confidence});
 		}
@@ -345,6 +346,7 @@ public abstract class Node<T> implements Taggable {
 				copy.children[i] = newInstance(ochild.x, ochild.y, ochild.la);
 				copy.children[i].setData(ochild.getDataCopy());
 				copy.children[i].parent = copy;
+				copy.children[i].tags = null == ochild.tags ? null : new TreeSet<Tag>(ochild.tags);
 				if (null != ochild.children) {
 					todo.add(new Object[]{copy.children[i], ochild.children, ochild.confidence});
 				}
