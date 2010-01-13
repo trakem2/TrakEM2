@@ -175,11 +175,11 @@ public class AreaTree extends Tree implements AreaContainer {
 
 	protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node) {
 		AreaNode an = (AreaNode)node;
-		Utils.log2("Calling AreaTree.exportXMLNodeData for node " + an + " which has area: " + (null != an.aw) + " which is not empty: " + (null != an.aw ? !an.aw.getArea().isEmpty() : true));
+		//Utils.log2("Calling AreaTree.exportXMLNodeData for node " + an + " which has area: " + (null != an.aw) + " which is not empty: " + (null != an.aw ? !an.aw.getArea().isEmpty() : true));
 		if (null == an.aw || an.aw.getArea().isEmpty()) {
 			return true;
 		}
-		Utils.log2("exporting area:");
+		//Utils.log2("exporting area:");
 		sb.append(indent).append("<t2_area>\n");
 		indent.append(' ');
 		AreaList.exportArea(sb, indent.toString(), ((AreaNode)node).aw.getArea());
@@ -284,7 +284,7 @@ public class AreaTree extends Tree implements AreaContainer {
 	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
 		int tool = ProjectToolbar.getToolId();
-		Utils.log2("tool is pen: " + (ProjectToolbar.PEN == tool) + "  or brush: " + (ProjectToolbar.BRUSH == tool));
+		//Utils.log2("tool is pen: " + (ProjectToolbar.PEN == tool) + "  or brush: " + (ProjectToolbar.BRUSH == tool));
 		if (ProjectToolbar.PEN == tool) {
 			super.mousePressed(me, x_p, y_p, mag);
 			return;
