@@ -1137,11 +1137,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			;
 		}
 		writer.write(sb_body.toString());
-		sb_body.setLength(0);
 		// export ZDisplayable objects
 		if (null != al_zdispl) {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 				ZDisplayable zd = (ZDisplayable)it.next();
+				sb_body.setLength(0);
 				zd.exportXML(sb_body, in, any);
 				writer.write(sb_body.toString()); // each separately, for they can be huge
 			}
@@ -1151,6 +1151,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			//Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
 			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
 				((Layer)it.next()).exportXML(sb_body, in, any);
+				sb_body.setLength(0);
 				writer.write(sb_body.toString());
 			}
 		}
