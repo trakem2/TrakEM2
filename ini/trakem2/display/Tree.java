@@ -1382,7 +1382,7 @@ public abstract class Tree extends ZDisplayable {
 						});
 					}
 					popup.addSeparator();
-					JMenuItem item = new JMenuItem(untag ? "Remove tag..." : "Create new tag...");
+					JMenuItem item = new JMenuItem(untag ? "Remove tag..." : "Define new tag...");
 					popup.add(item);
 					item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0, 0, true));
 					item.addActionListener(new ActionListener() {

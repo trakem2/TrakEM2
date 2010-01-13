@@ -2215,8 +2215,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	protected Tag askForNewTag(final int keyCode) {
-		GenericDialog gd = new GenericDialog("New tag");
-		gd.addMessage("Add new tag for key: " + ((char)keyCode));
+		GenericDialog gd = new GenericDialog("Define new tag");
+		gd.addMessage("Define new tag for key: " + ((char)keyCode));
 		TreeSet<Tag> ts = getTags(keyCode);
 		gd.addStringField("New tag:", "");
 		if (null != ts & ts.size() > 0) {
