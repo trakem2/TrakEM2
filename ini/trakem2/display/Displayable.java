@@ -24,7 +24,14 @@ package ini.trakem2.display;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
@@ -44,7 +51,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject implements Paintable {
+public abstract class Displayable extends DBObject implements Paintable  {
 	
 	final static protected String[] compositeModes = new String[]{
 		"Normal",
@@ -148,6 +155,10 @@ public abstract class Displayable extends DBObject implements Paintable {
 	synchronized public Map<String,String> getProperties() {
 		if (null == props) return null;
 		return new HashMap<String,String>(props);
+	}
+
+	synchronized public boolean hasProperties() {
+		return null != props && props.size() > 0;
 	}
 
 	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
@@ -1346,11 +1357,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 	/** Add properties, links, etc. Does NOT close the tag. */
 	synchronized protected void restXML(final StringBuffer sb_body, final String in, final Object any) {
 		// Properties:
-		if (null != props && !props.isEmpty()) {
+		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
 				final String value = e.getValue();
 				if (null == value) continue; // impossible, but with reflection one may set it so
-				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
+				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(getXMLSafeValue(e, value)).append("\" />\n");
 			}
 		}
 		if (null != linked_props && !linked_props.isEmpty()) {
@@ -1359,24 +1370,25 @@ public abstract class Displayable extends DBObject implements Paintable {
 				for (final Map.Entry<String,String> e : et.getValue().entrySet()) {
 					final String value = e.getValue();
 					if (null == value) continue; // impossible, but with reflection one may set it so
-					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
+					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(getXMLSafeValue(e, value)).append("\" />\n");
 				}
 			}
 		}
 	}
-
-	// Make sure the value is valid for an XML attribute content inside double quotes.
-	final private String cleanAttr(final Map.Entry<String,String> e, String value) {
+	/** Make sure the value is valid for an XML attribute content inside double quotes. This means double quotes and newline characters are not allowed and are replaced by a single quote and a space, respectively. */
+	final static public String getXMLSafeValue(final Map.Entry<String,String> e, String value) {
 		if (-1 != value.indexOf('"')) {
-			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
+			Utils.log("Property " + e.getKey() + " contains a \" which is being replaced by a single quote");
 			value = value.replace('"', '\'');
 		}
 		if (-1 != value.indexOf('\n')) {
-			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
+			Utils.log("Property " + e.getKey() + " contains a newline char which is being replaced by a space.");
 			value = value.replace('\n', ' ');
 		}
 		return value;
 	}
+
+	/////////////
 
 	// I'm sure it could be made more efficient, but I'm too tired!
 	public boolean hasLinkedGroupWithinLayer(Layer la) {

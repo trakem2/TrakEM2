@@ -123,14 +123,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean paint_edge_confidence_boxes = true;
 	protected int n_layers_color_cue = -1; // -1 means all
 
-	protected void updateProps() {
-		color_cues = !project.getBooleanProperty("no_color_cues");
-		paint_arrows = !project.getBooleanProperty("no_paint_arrows");
-		paint_edge_confidence_boxes = !project.getBooleanProperty("no_paint_edge_confidence_boxes");
-		n_layers_color_cue = project.getProperty("n_layers_color_cue", -1);
-		// TODO should really be stored locally in the LayerSet XML, as <t2_prop key="" val="" />
-	}
-
 	private Calibration calibration = new Calibration(); // default values
 
 	/** Dummy. */
@@ -148,7 +140,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
 		addToDatabase();
-		updateProps();
 	}
 
 	/** Reconstruct from the database. */
@@ -162,7 +153,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.snapshots_mode = snapshots_mode;
 		// the parent will be set by the LayerThing.setup() calling Layer.addSilently()
 		// the al_layers will be filled idem.
-		updateProps();
 	}
 
 	/** Reconstruct from an XML entry. */
@@ -192,6 +182,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 						break;
 					}
 				}
+			} else if (key.equals("color_cues")) {
+				color_cues = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("n_layers_color_cue")) {
+				n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
+				if (n_layers_color_cue < -1) n_layers_color_cue = -1;
+			} else if (key.equals("paint_arrows")) {
+				paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("paint_edge_confidence_boxes")) {
+				paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
 			}
 			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
@@ -1138,11 +1137,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			;
 		}
 		writer.write(sb_body.toString());
+		sb_body.setLength(0);
 		// export ZDisplayable objects
 		if (null != al_zdispl) {
 			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
 				ZDisplayable zd = (ZDisplayable)it.next();
-				sb_body.setLength(0);
 				zd.exportXML(sb_body, in, any);
 				writer.write(sb_body.toString()); // each separately, for they can be huge
 			}
@@ -1151,7 +1150,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != al_layers) {
 			//Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
 			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-				sb_body.setLength(0);
 				((Layer)it.next()).exportXML(sb_body, in, any);
 				writer.write(sb_body.toString());
 			}
@@ -1172,7 +1170,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_quality").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_mode").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" color_cues").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" n_layers_color_cue").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_arrows").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_edge_confidence_boxes").append(TAG_ATTR2)
 			;
 			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)

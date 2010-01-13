@@ -86,7 +86,6 @@ public class Project extends DBObject {
 	}
 
 
-
 	static final private Vector<PlugInSource> PLUGIN_SOURCES = new Vector<PlugInSource>();
 
 	static private class PlugInSource implements Comparable {
@@ -1333,8 +1332,6 @@ public class Project extends DBObject {
 		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
-		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
-		gd.addCheckbox("Paint_color_cues", !no_color_cues);
 		String current_mode = ht_props.get("image_resizing_mode");
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
@@ -1375,9 +1372,6 @@ public class Project extends DBObject {
 
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
-		}
-		if (adjustProp("no_color_cues", no_color_cues, !gd.getNextBoolean())) {
-			Display.repaint(layer_set);
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
 		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());

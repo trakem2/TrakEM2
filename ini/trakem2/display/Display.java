@@ -3787,12 +3787,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
 			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
-			// project props that are stored in LayerSet fields
-			project.setProperty("no_paint_arrows", Boolean.toString(!gd.getNextBoolean()));
-			project.setProperty("no_paint_edge_confidence_boxes", Boolean.toString(!gd.getNextBoolean()));
-			project.setProperty("no_color_cues", Boolean.toString(!gd.getNextBoolean()));
-			project.setProperty("n_layers_color_cue", Integer.toString((int)gd.getNextNumber()));
-			layer.getParent().updateProps();
+			layer.getParent().paint_arrows = gd.getNextBoolean();
+			layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
+			layer.getParent().color_cues = gd.getNextBoolean();
+			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
 			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");

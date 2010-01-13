@@ -1929,22 +1929,23 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 				}
 				break;
-			case KeyEvent.VK_C:
-				if (null != active) {
-					active.keyPressed(ke);
-					repaint(display.getMode().getRepaintBounds(), Selection.PADDING + 2); // optimization
-				}
-				break;
 			case KeyEvent.VK_P:
 				if (0 == ke.getModifiers()) {
-					final Project pro = display.getProject();
-					if ("true".equals(pro.getProperty("no_color_cues"))) {
-						// remove key
-						pro.setProperty("no_color_cues", null);
-					} else {
-						pro.setProperty("no_color_cues", "true");
-					}
-					Display.repaint(display.getLayer().getParent());
+					display.getLayerSet().color_cues = !display.getLayerSet().color_cues;
+					Display.repaint(display.getLayerSet());
+					ke.consume();
+				}
+				break;
+			case KeyEvent.VK_F:
+				if (0 == (ke.getModifiers() ^ KeyEvent.SHIFT_MASK)) {
+					// toggle visibility of edge arrows
+					display.getLayerSet().paint_arrows = !display.getLayerSet().paint_arrows;
+					Display.repaint();
+					ke.consume();
+				} else if (0 == ke.getModifiers()) {
+					// toggle visibility of edge confidence boxes
+					display.getLayerSet().paint_edge_confidence_boxes = !display.getLayerSet().paint_edge_confidence_boxes;
+					Display.repaint();
 					ke.consume();
 				}
 				break;
