@@ -115,7 +115,12 @@ public class Search {
 			all.add(search_tabs);
 			search_frame.getContentPane().add(all);
 			search_frame.pack();
-			search_frame.setVisible(true);
+			javax.swing.SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					ij.gui.GUI.center(search_frame);
+					search_frame.setVisible(true);
+				}
+			});
 		} else {
 			search_frame.toFront();
 		}

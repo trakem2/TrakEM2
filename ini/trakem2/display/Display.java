@@ -2619,6 +2619,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		popup.add(menu);
 
 		item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, Utils.getControlModifier(), true));
 
 		//canvas.add(popup);
 		return popup;

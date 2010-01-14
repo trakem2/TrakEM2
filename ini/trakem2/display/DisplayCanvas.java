@@ -1677,6 +1677,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			display.getProject().getLoader().save(display.getProject());
 			ke.consume();
 			return;
+		} else if (KeyEvent.VK_F == keyCode && Utils.isControlDown(ke)) {
+			new Search();
+			ke.consume();
+			return;
 		}
 
 		// if display is not read-only, check for other keys:
