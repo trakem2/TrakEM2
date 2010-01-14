@@ -185,6 +185,7 @@ public class Search {
 			if (-1 != i) {
 				v_obs.remove(i);
 				v_txt.remove(i);
+				v_co.remove(i);
 				return true;
 			}
 			return false;
