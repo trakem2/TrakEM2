@@ -2533,6 +2533,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Tags ..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Export");
@@ -2545,6 +2546,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item.setEnabled(null != active && AreaList.class == active.getClass());
 		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && Tree.class.isInstance(active));
+		item = new JMenuItem("Tags..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -4339,6 +4341,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			project.getLoader().regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
 		} else if (command.equals("Regenerate mipmaps (selected images)")) {
 			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
+		} else if (command.equals("Tags...")) {
+			// get a file first
+			File f = Utils.chooseFile(null, "tags", ".xml");
+			if (null == f) return;
+			if (!Utils.saveToFile(f, getLayerSet().exportTags())) {
+				Utils.logAll("ERROR when saving tags to file " + f.getAbsolutePath());
+			}
+		} else if (command.equals("Tags ...")) {
+			String[] ff = Utils.selectFile("Import tags");
+			if (null == ff) return;
+			GenericDialog gd = new GenericDialog("Import tags");
+			String[] modes = new String[]{"Append to current tags", "Replace current tags"};
+			gd.addChoice("Import tags mode:", modes, modes[0]);
+			gd.addMessage("Replacing current tags\nwill remove all tags\n from all nodes first!");
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			getLayerSet().importTags(new StringBuilder(ff[0]).append('/').append(ff[1]).toString(), 1 == gd.getNextChoiceIndex());
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}

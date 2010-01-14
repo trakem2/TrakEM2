@@ -65,6 +65,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Hashtable;
 
+import org.xml.sax.helpers.DefaultHandler;
+import org.xml.sax.InputSource;
+import org.xml.sax.Attributes;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.parsers.SAXParser;
+
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
 public final class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
@@ -2269,4 +2275,60 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		Display.repaint(this);
 	}
+
+	public void removeAllTags() {
+		// the easy and unperformant way ... I have better things to do
+		for (final Map.Entry<Integer,TreeSet<Tag>> e : tags.entrySet()) {
+			final int keyCode = e.getKey().intValue();
+			for (final Tag t : e.getValue()) {
+				removeTag(t, keyCode);
+			}
+		}
+	}
+
+	public String exportTags() {
+		StringBuilder sb = new StringBuilder("<tags>\n");
+		for (final Map.Entry<Integer,TreeSet<Tag>> e : tags.entrySet()) {
+			final char key = (char)e.getKey().intValue();
+			for (final Tag t : e.getValue()) {
+				sb.append(" <tag key=\"").append(key).append("\" val=\"").append(t.toString()).append("\" />\n");
+			}
+		}
+		return sb.append("</tags>").toString();
+	}
+
+	public void importTags(String path, boolean replace) {
+		HashMap<Integer,TreeSet<Tag>> backup = new HashMap<Integer,TreeSet<Tag>>(this.tags); // copy!
+		try {
+			if (replace) removeAllTags();
+			SAXParserFactory f = SAXParserFactory.newInstance();
+			f.setValidating(false);
+			SAXParser parser = f.newSAXParser();
+			parser.parse(new InputSource(Utils.createStream(path)), new TagsParser());
+		} catch (Throwable t) {
+			IJError.print(t);
+			// restore:
+			this.tags.clear();
+			this.tags.putAll(backup);
+			// no undo for all potentially removed tags ...
+		}
+	}
+	
+	private class TagsParser extends DefaultHandler {
+		public void startElement(String uri, String localName, String qName, Attributes attributes) {
+			if (!"tag".equals(qName.toLowerCase())) return;
+			final HashMap m = new HashMap();
+			for (int i=attributes.getLength() -1; i>-1; i--) {
+				m.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
+			}
+			final String key = (String)m.get("key"),
+				     content = (String)m.get("val");
+			if (null == key || key.length() > 1 || Character.isDigit(key.charAt(0)) || null == content) {
+				Utils.log("Ignoring invalid tag with key '" + key + "' and value '" + content + "'");
+				return;
+			}
+			putTag(content, (int)key.charAt(0));
+		}
+	}
+
 }

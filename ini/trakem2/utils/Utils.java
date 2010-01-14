@@ -669,7 +669,6 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
 	static public final File chooseFile(String default_dir, String name, String extension) {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
-		String user = System.getProperty("user.name");
 		String name2 = null;
 		if (null != name && null != extension) name2 = name + extension;
 		else if (null != name) name2 = name;
@@ -1549,5 +1548,11 @@ public class Utils implements ij.plugin.PlugIn {
 			if (c < 256) width += w[c];
 		}
 		return new Dimension(width, fm.getHeight());
+	}
+
+	static public final java.io.InputStream createStream(final String path_or_url) throws Exception {
+		return 0 == path_or_url.indexOf("http://") ?
+			  new java.net.URL(path_or_url).openStream()
+			: new java.io.BufferedInputStream(new java.io.FileInputStream(path_or_url));
 	}
 }
