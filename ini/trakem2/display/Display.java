@@ -2280,10 +2280,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				popup.addSeparator();
 			} else if (Treeline.class == aclass || AreaTree.class == aclass) {
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Part subtree"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Mark"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Show tabular view"); item.addActionListener(this); popup.add(item);
 				item.setSelected(selection.getSelected(Tree.class).size() > 1);
 				JMenu go = new JMenu("Go");
 				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
@@ -3855,7 +3856,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			((Tree)active).reRoot(p.x, p.y, layer, canvas.getMagnification());
 			getLayerSet().addDataEditStep(active);
 			Display.repaint(getLayerSet());
-		} else if (command.equals("Split")) {
+		} else if (command.equals("Part subtree")) {
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
@@ -3873,6 +3874,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			selection.add(elder);
 			getLayerSet().addChangeTreesStep();
 			Display.repaint(getLayerSet());
+		} else if (command.equals("Show tabular view")) {
+			if (!(active instanceof Tree)) return;
+			((Tree)active).createMultiTableView();
 		} else if (command.equals("Mark")) {
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();

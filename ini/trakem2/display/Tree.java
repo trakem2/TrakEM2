@@ -1856,6 +1856,7 @@ public abstract class Tree extends ZDisplayable {
 
 			frame.getContentPane().add(tabs);
 			frame.pack();
+			ij.gui.GUI.center(frame);
 			frame.setVisible(true);
 		}
 		private synchronized void create(final Node root) {
@@ -1897,21 +1898,25 @@ public abstract class Tree extends ZDisplayable {
 			if (!regex.startsWith("^")) sb.append("^.*");
 			sb.append(regex);
 			if (!regex.endsWith("$")) sb.append(".*$");
-			final Pattern pat = Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-			this.searchnodes = new ArrayList<Node>();
-			for (final Node nd : allnodes) {
-				final Collection<Tag> tags = (Collection<Tag>) nd.getTags();
-				if (null == tags) continue;
-				for (final Tag tag : tags) {
-					if (pat.matcher(tag.toString()).matches()) {
-						this.searchnodes.add(nd);
-						break;
+			try {
+				final Pattern pat = Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
+				this.searchnodes = new ArrayList<Node>();
+				for (final Node nd : allnodes) {
+					final Collection<Tag> tags = (Collection<Tag>) nd.getTags();
+					if (null == tags) continue;
+					for (final Tag tag : tags) {
+						if (pat.matcher(tag.toString()).matches()) {
+							this.searchnodes.add(nd);
+							break;
+						}
 					}
 				}
+				this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
+				this.table_searchnodes.setModel(this.model_searchnodes);
+				this.frame.pack();
+			} catch (Exception e) {
+				IJError.print(e);
 			}
-			this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
-			this.table_searchnodes.setModel(this.model_searchnodes);
-			this.frame.pack();
 		}
 	}
 
