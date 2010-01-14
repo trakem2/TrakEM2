@@ -87,6 +87,7 @@ public class TMLHandler extends DefaultHandler {
 	private HashMap ht_pt_expanded = new HashMap();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
+	private long last_area_list_layer_id = -1;
 	private Dissector last_dissector = null;
 	private Stack last_stack = null;
 	private Patch last_patch = null;
@@ -449,7 +450,6 @@ public class TMLHandler extends DefaultHandler {
 		}
 		// terminate non-single clause objects
 		if (orig_qualified_name.equals("t2_area_list")) {
-			last_area_list.__endReconstructing();
 			last_area_list = null;
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_node")) {
@@ -457,9 +457,12 @@ public class TMLHandler extends DefaultHandler {
 			nodes.removeLast();
 			taggables.removeLast();
 		} else if (orig_qualified_name.equals("t2_area")) {
-			// If it's an AreaNode, set its area data:
 			if (null != reca) {
-				((AreaTree.AreaNode)nodes.getLast()).setData(reca.getArea());
+				if (null != last_area_list) {
+					last_area_list.addArea(last_area_list_layer_id, reca.getArea()); // it's local
+				} else {
+					((AreaTree.AreaNode)nodes.getLast()).setData(reca.getArea());
+				}
 				reca = null;
 			}
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
@@ -716,15 +719,12 @@ public class TMLHandler extends DefaultHandler {
 					reca.add((String)ht_attributes.get("d"));
 					return null;
 				}
-				last_area_list.__addPath((String)ht_attributes.get("d"));
 				return null;
 			} else if (type.equals("area")) {
-				if (null != last_areatree) {
-					reca = new ReconstructArea();
-					return null;
+				reca = new ReconstructArea();
+				if (null != last_area_list) {
+					last_area_list_layer_id = Long.parseLong((String)ht_attributes.get("layer_id"));
 				}
-				last_area_list.__endReconstructing();
-				last_area_list.__startReconstructing(new Long((String)ht_attributes.get("layer_id")).longValue());
 				return null;
 			} else if (type.equals("area_list")) {
 				AreaList area = new AreaList(this.project, oid, ht_attributes, ht_links);
