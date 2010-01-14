@@ -4577,6 +4577,25 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		center(c.x, c.y);
 	}
 
+	static public final void centerAt(final Coordinate c) {
+		centerAt(c, false, false);
+	}
+	static public final void centerAt(final Coordinate<Displayable> c, final boolean select, final boolean shift_down) {
+		if (null == c) return;
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Display display = front;
+			if (null == display || c.layer.getParent() != display.getLayerSet()) {
+				display = new Display(c.layer.getProject(), c.layer); // gets set to front
+			}
+			display.center(c);
+
+			if (select) {
+				if (!shift_down) display.selection.clear();
+				display.selection.add(c.object);
+			}
+		}});
+	}
+
 	private final void showCentered(final Displayable displ) {
 		if (null == displ) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {

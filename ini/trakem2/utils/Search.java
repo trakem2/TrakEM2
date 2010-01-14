@@ -30,12 +30,15 @@ import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.event.*;
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.regex.*;
 import java.util.Map;
+import java.util.Set;
+import java.util.Collection;
 
 public class Search {
 	private JFrame search_frame = null;
@@ -55,7 +58,7 @@ public class Search {
 			instance.makeGUI();
 		} else {
 			instance = this;
-			types =  new Class[]{DBObject.class, Displayable.class, DLabel.class, Patch.class, AreaList.class, Profile.class, Pipe.class, Ball.class, Layer.class, Dissector.class};
+			types =  new Class[]{DBObject.class, Displayable.class, DLabel.class, Patch.class, AreaList.class, Profile.class, Pipe.class, Ball.class, Layer.class, Dissector.class, Polyline.class, Treeline.class, AreaTree.class, Connector.class};
 			makeGUI();
 		}
 	}
@@ -79,7 +82,7 @@ public class Search {
 	private void makeGUI() {
 		// create GUI if not there
 		if (null == search_frame) {
-			search_frame = ControlWindow.createJFrame("Search");
+			search_frame = ControlWindow.createJFrame("Search Regular Expressions");
 			search_frame.addWindowListener(new WindowAdapter() {
 				public void windowClosing(WindowEvent we) {
 					instance.destroy();
@@ -96,7 +99,7 @@ public class Search {
 			search_field.addKeyListener(new VKEnterListener());
 			JButton b = new JButton("Search");
 			b.addActionListener(new ButtonListener());
-			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Pipes", "Balls", "Layers", "Dissectors"});
+			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Pipes", "Balls", "Layers", "Dissectors", "Polylines", "Treelines", "AreaTrees", "Connectors"});
 			JPanel top = new JPanel();
 			top.add(search_field);
 			top.add(b);
@@ -135,10 +138,12 @@ public class Search {
 	private class DisplayableTableModel extends AbstractTableModel {
 		private Vector v_obs;
 		private Vector v_txt;
-		DisplayableTableModel(Vector v_obs, Vector v_txt) {
+		private Vector v_co;
+		DisplayableTableModel(Vector v_obs, Vector v_txt, Vector v_co) {
 			super();
 			this.v_obs = v_obs;
 			this.v_txt = v_txt;
+			this.v_co = v_co;
 		}
 		public String getColumnName(int col) {
 			if (0 == col) return "Type";
@@ -159,6 +164,9 @@ public class Search {
 		}
 		public Displayable getDisplayableAt(int row) {
 			return (Displayable)v_obs.get(row);
+		}
+		public Coordinate getCoordinateAt(int row) {
+			return (Coordinate) v_co.get(row);
 		}
 		public boolean isCellEditable(int row, int col) {
 			return false;
@@ -204,6 +212,8 @@ public class Search {
 		if (0 == al.size()) return;
 		final Vector v_obs = new Vector();
 		final Vector v_txt = new Vector();
+		final Vector v_co = new Vector();
+		Coordinate co = null;
 		for (Iterator it = al.iterator(); it.hasNext(); ) {
 			final DBObject dbo = (DBObject)it.next();
 			boolean matched = false;
@@ -253,21 +263,57 @@ public class Search {
 					}
 				}
 			}
+			if (!matched && dbo instanceof Tree) {
+				// search Node tags
+				Node root = ((Tree)dbo).getRoot();
+				if (null == root) continue;
+				for (final Node nd : (Collection<Node>) root.getSubtreeNodes()) {
+					Set<Tag> tags = nd.getTags();
+					if (null == tags) continue;
+					for (final Tag tag : tags) {
+						if (pat.matcher(tag.toString()).matches()) {
+							v_obs.add(dbo);
+							v_txt.add(new StringBuilder(tag.toString()).append(" (").append(dbo.toString()).append(')').toString());
+							v_co.add(createCoordinate((Tree)dbo, nd));
+						}
+					}
+				}
+				continue; // all added if any
+			}
+
 			if (!matched) continue;
 
 			//txt = txt.length() > 30 ? txt.substring(0, 27) + "..." : txt;
 			v_obs.add(dbo);
 			v_txt.add(txt);
+			v_co.add(co);
 		}
 
 		if (0 == v_obs.size()) {
 			Utils.showMessage("Nothing found.");
 			return;
 		}
-		final JScrollPane jsp = makeTable(new DisplayableTableModel(v_obs, v_txt));
+		final JScrollPane jsp = makeTable(new DisplayableTableModel(v_obs, v_txt, v_co));
 		search_tabs.addTab(typed_pattern, jsp);
 		search_tabs.setSelectedComponent(jsp);
 		search_frame.pack();
+	}
+
+	private Coordinate<Node> createCoordinate(Tree tree, Node nd) {
+		double x = nd.getX(),
+		       y = nd.getY();
+		if (!tree.getAffineTransform().isIdentity()) {
+			double[] dp = new double[]{x, y};
+			tree.getAffineTransform().transform(dp, 0, dp, 0, 1);
+			x = dp[0];
+			y = dp[1];
+		}
+		return new Coordinate<Node>(x, y, nd.getLayer(), nd);
+	}
+
+	private Coordinate<Displayable> createCoordinate(Displayable d) {
+		Rectangle r = d.getBoundingBox();
+		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, d.getLayer(), d);
 	}
 
 	private JScrollPane makeTable(TableModel model) {
@@ -301,15 +347,17 @@ public class Search {
 	private class DisplayableListListener extends MouseAdapter {
 		public void mousePressed(MouseEvent me) {
 			final JTable table = (JTable)me.getSource();
-			final DBObject ob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(table.rowAtPoint(me.getPoint()));
+			final int row = table.rowAtPoint(me.getPoint());
+			final DBObject ob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(row);
+			final Coordinate co = ((DisplayableTableModel)table.getModel()).getCoordinateAt(row);
 			if (2 == me.getClickCount()) {
-				// is a table//Utils.log2("LLL source is " + me.getSource());
-				// JTable is AN ABSOLUTE PAIN to work with
-				// ???? THERE IS NO OBVIOUS WAY to retrieve the data. How lame.
-				// Ah, a "model" ... since when a model holds the DATA (!!), same with JTree, how lame.
+				if (null != co) {
+					Display.centerAt(co);
+					return;
+				}
 				if (ob instanceof Displayable) {
-					Displayable displ = (Displayable)ob;
-					Display.showCentered(displ.getLayer(), displ, true, me.isShiftDown());
+					// no zoom
+					Display.centerAt(createCoordinate((Displayable)ob), true, me.isShiftDown());
 				} else if (ob instanceof Layer) {
 					Display.showFront((Layer)ob);
 				} else {
@@ -324,8 +372,7 @@ public class Search {
 						final String command = ae.getActionCommand();
 						if (command.equals(show2D)) {
 							if (ob instanceof Displayable) {
-								Displayable displ = (Displayable)ob;
-								Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
+								Display.centerAt(createCoordinate((Displayable)ob), true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 							} else if (ob instanceof Layer) {
 								Display.showFront((Layer)ob);
 							}

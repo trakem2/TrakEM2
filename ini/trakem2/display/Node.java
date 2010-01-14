@@ -300,7 +300,7 @@ public abstract class Node<T> implements Taggable {
 
 	/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.
 	 *  Non-recursive, avoids potential stack overflow. */
-	final List<Node> getSubtreeNodes() {
+	public final List<Node> getSubtreeNodes() {
 		final List<Node> nodes = new ArrayList<Node>();
 		final LinkedList<Node> todo = new LinkedList<Node>();
 		todo.add(this);
