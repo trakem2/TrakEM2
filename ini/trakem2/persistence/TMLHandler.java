@@ -740,7 +740,7 @@ public class TMLHandler extends DefaultHandler {
 				if (null != t) {
 					Object ob = ht_attributes.get("key");
 					int keyCode = KeyEvent.VK_T; // defaults to 't'
-					if (null != ob) keyCode = (int)((String)ob).charAt(0);
+					if (null != ob) keyCode = (int)((String)ob).toUpperCase().charAt(0); // KeyEvent.VK_U is char U, not u
 					Tag tag = new Tag(ht_attributes.get("name"), keyCode);
 					al_layer_sets.get(al_layer_sets.size()-1).putTag(tag, keyCode);
 					t.addTag(tag);
