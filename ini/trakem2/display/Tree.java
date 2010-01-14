@@ -91,6 +91,7 @@ import javax.swing.JPanel;
 import javax.swing.JTable;
 import javax.swing.table.AbstractTableModel;
 import java.awt.event.KeyAdapter;
+import java.awt.event.MouseAdapter;
 
 import fiji.geom.AreaCalculations;
 
@@ -1691,13 +1692,29 @@ public abstract class Tree extends ZDisplayable {
 	 *  Double-click on a row positions the front display at that coordinate.
 	 *  An extra tab has a search field, to list nodes for a given typed-in (regex) tag. */
 	public JFrame createMultiTableView() {
-		if (null == tndv) {
-			tndv = new TreeNodesDataView(root);
-			return tndv.frame;
-		} else {
-			tndv.show();
-			return tndv.frame;
+		if (null == root) return null;
+		synchronized (this) {
+			if (null == tndv) {
+				tndv = new TreeNodesDataView(root);
+				return tndv.frame;
+			} else {
+				tndv.show();
+				return tndv.frame;
+			}
 		}
+	}
+
+	public boolean remove2(boolean check) {
+		if (super.remove2(check)) {
+			synchronized (this) {
+				if (null != tndv) {
+					tndv.frame.dispose();
+					tndv = null;
+				}
+			}
+			return true;
+		}
+		return false;
 	}
 
 	private class TreeNodesDataView {
@@ -1706,10 +1723,10 @@ public abstract class Tree extends ZDisplayable {
 				   endnodes,
 				   allnodes,
 				   searchnodes;
-		private JTable table_branchnodes = new JTable(),
-			       table_endnodes = new JTable(),
-			       table_allnodes = new JTable(),
-			       table_searchnodes = new JTable();
+		private Table table_branchnodes = new Table(),
+			      table_endnodes = new Table(),
+			      table_allnodes = new Table(),
+			      table_searchnodes = new Table();
 		private NodeTableModel model_branchnodes,
 				       model_endnodes,
 				       model_allnodes,
@@ -1718,6 +1735,42 @@ public abstract class Tree extends ZDisplayable {
 		TreeNodesDataView(final Node root) {
 			recreate(root);
 			createGUI();
+		}
+		private final class Table extends JTable {
+			Table() {
+				super();
+				this.addMouseListener(new MouseAdapter() {
+					public void mousePressed(MouseEvent me) {
+						final int row = Table.this.rowAtPoint(me.getPoint());
+						if (2 == me.getClickCount()) {
+							go(row);
+						} else if (Utils.isPopupTrigger(me)) {
+							JPopupMenu popup = new JPopupMenu();
+							final JMenuItem go = new JMenuItem("Go"); popup.add(go);
+							//
+							ActionListener listener = new ActionListener() {
+								public void actionPerformed(ActionEvent ae) {
+									final Object src = ae.getSource();
+									if (src == go) go(row);
+								}
+							};
+							go.addActionListener(listener);
+							popup.show(Table.this, me.getX(), me.getY());
+						}
+					}
+				});
+				this.addKeyListener(new KeyAdapter() {
+					public void keyPressed(KeyEvent ke) {
+						if (ke.getKeyCode() == KeyEvent.VK_G) {
+							final int row = getSelectedRow();
+							if (-1 != row) go(row);
+						}
+					}
+				});
+			}
+			void go(int row) {
+				Display.centerAt(Tree.this.createCoordinate(((NodeTableModel)this.getModel()).nodes.get(row)));
+			}
 		}
 		void show() {
 			frame.pack();
