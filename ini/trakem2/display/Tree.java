@@ -40,9 +40,7 @@ import ini.trakem2.vector.VectorString3D;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.Stroke;
 import java.awt.BasicStroke;
-import java.awt.Dimension;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
@@ -50,6 +48,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
@@ -73,12 +73,26 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Arrays;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 import javax.vecmath.Point3f;
 import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JLabel;
+import javax.swing.JButton;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.JFrame;
+import javax.swing.JTabbedPane;
+import java.awt.GridBagLayout;
+import java.awt.GridBagConstraints;
+import javax.swing.JPanel;
+import javax.swing.JTable;
+import javax.swing.table.AbstractTableModel;
+import java.awt.event.KeyAdapter;
+
+import fiji.geom.AreaCalculations;
 
 // Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
 // That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
@@ -1668,5 +1682,239 @@ public abstract class Tree extends ZDisplayable {
 				}
 			}
 		}
+	}
+
+	private TreeNodesDataView tndv = null;
+
+	/** Create a GUI to list, in three tabs: starting point, branch points, end points, and all points.
+	 *  The table has columns for X, Y, Z, data (radius or area), Layer, and tags.
+	 *  Double-click on a row positions the front display at that coordinate.
+	 *  An extra tab has a search field, to list nodes for a given typed-in (regex) tag. */
+	public JFrame createMultiTableView() {
+		if (null == tndv) {
+			tndv = new TreeNodesDataView(root);
+			return tndv.frame;
+		} else {
+			tndv.show();
+			return tndv.frame;
+		}
+	}
+
+	private class TreeNodesDataView {
+		private JFrame frame;
+		private List<Node> branchnodes,
+				   endnodes,
+				   allnodes,
+				   searchnodes;
+		private JTable table_branchnodes = new JTable(),
+			       table_endnodes = new JTable(),
+			       table_allnodes = new JTable(),
+			       table_searchnodes = new JTable();
+		private NodeTableModel model_branchnodes,
+				       model_endnodes,
+				       model_allnodes,
+				       model_searchnodes;
+
+		TreeNodesDataView(final Node root) {
+			recreate(root);
+			createGUI();
+		}
+		void show() {
+			frame.pack();
+			frame.setVisible(true);
+			frame.toFront();
+		}
+		private void createGUI() {
+			this.frame = new JFrame("Nodes for " + Tree.this);
+			frame.addWindowListener(new WindowAdapter() {
+				public void windowClosing(WindowEvent we) {
+					Tree.this.tndv = null;
+				}
+			});
+			JTabbedPane tabs = new JTabbedPane();
+			tabs.setPreferredSize(new Dimension(500, 500));
+			tabs.add("All nodes", new JScrollPane(table_allnodes));
+			tabs.add("Branch nodes", new JScrollPane(table_branchnodes));
+			tabs.add("End nodes", new JScrollPane(table_endnodes));
+
+			final JTextField search = new JTextField(14);
+			search.addKeyListener(new KeyAdapter() {
+				public void keyPressed(KeyEvent ke) {
+					if (ke.getKeyCode() == KeyEvent.VK_ENTER) {
+						search(search.getText());
+					}
+				}
+			});
+			JButton b = new JButton("Search");
+			b.addActionListener(new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					search(search.getText());
+				}
+			});
+			JPanel pane = new JPanel();
+			GridBagLayout gb = new GridBagLayout();
+			GridBagConstraints c = new GridBagConstraints();
+			c.gridx = 0;
+			c.gridy = 0;
+			c.weightx = 0;
+			c.gridwidth = 1;
+			c.anchor = GridBagConstraints.NORTH;
+			gb.setConstraints(search, c);
+			pane.add(search);
+			c.gridx = 1;
+			gb.setConstraints(b, c);
+			pane.add(b);
+			c.gridx = 0;
+			c.gridy = 1;
+			c.gridwidth = 2;
+			c.fill = GridBagConstraints.BOTH;
+			pane.add(new JScrollPane(table_searchnodes));
+			tabs.add("Search", pane);
+
+			frame.getContentPane().add(tabs);
+			frame.pack();
+			frame.setVisible(true);
+		}
+		private void recreate(final Node root) {
+			this.branchnodes = new ArrayList<Node>();
+			this.endnodes = new ArrayList<Node>();
+			this.allnodes = new ArrayList<Node>(root.getSubtreeNodes());
+			this.searchnodes = new ArrayList<Node>();
+			for (final Node nd : allnodes) {
+				switch (nd.getChildrenCount()) {
+					case 0: endnodes.add(nd); break;
+					case 1: continue; // slab
+					default: branchnodes.add(nd); break;
+				}
+			}
+			this.model_branchnodes = new NodeTableModel(branchnodes);
+			this.model_endnodes = new NodeTableModel(endnodes);
+			this.model_allnodes = new NodeTableModel(allnodes);
+			this.model_searchnodes = new NodeTableModel(searchnodes);
+
+			this.table_branchnodes.setModel(this.model_branchnodes);
+			this.table_endnodes.setModel(this.model_endnodes);
+			this.table_allnodes.setModel(this.model_allnodes);
+			this.table_searchnodes.setModel(this.model_searchnodes);
+		}
+		private void search(final String regex) {
+			final StringBuilder sb = new StringBuilder();
+			if (!regex.startsWith("^")) sb.append("^.*");
+			sb.append(regex);
+			if (!regex.endsWith("$")) sb.append(".*$");
+			final Pattern pat = Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
+			this.searchnodes = new ArrayList<Node>();
+			for (final Node nd : allnodes) {
+				final Collection<Tag> tags = (Collection<Tag>) nd.getTags();
+				if (null == tags) continue;
+				for (final Tag tag : tags) {
+					if (pat.matcher(tag.toString()).matches()) {
+						this.searchnodes.add(nd);
+						break;
+					}
+				}
+			}
+			this.model_searchnodes = new NodeTableModel(this.searchnodes);
+			this.table_searchnodes.setModel(this.model_searchnodes);
+			this.frame.pack();
+		}
+	}
+
+	private class NodeTableModel extends AbstractTableModel {
+		final List<Node> nodes;
+		final HashMap<Node,NodeData> nodedata = new HashMap<Node,NodeData>();
+
+		private class NodeData {
+			final String x, y, z, data, tags;
+			NodeData(final Node nd) {
+				final float[] fp = new float[]{nd.x, nd.y};
+				Tree.this.at.transform(fp, 0, fp, 0, 1);
+				final Calibration cal = Tree.this.layer_set.getCalibration();
+				this.x = Utils.cutNumber(fp[0] * cal.pixelHeight, 1);
+				this.y = Utils.cutNumber(fp[1] * cal.pixelWidth, 1);
+				this.z = Utils.cutNumber(nd.la.getZ() * cal.pixelWidth, 1);
+				//
+				if (nd.getClass() == AreaTree.AreaNode.class) {
+					this.data = new StringBuilder
+						(Utils.cutNumber
+						  (Math.abs
+						    (AreaCalculations.area
+						      (((AreaTree.AreaNode)nd).getData().getPathIterator(null)))
+						    * cal.pixelWidth * cal.pixelHeight, 1)).append(' ').append(cal.getUnits()).append('^').append(2).toString();
+				} else {
+					this.data = new StringBuilder(Utils.cutNumber(((Treeline.RadiusNode)nd).getData(), 1)).append(' ').append(cal.getUnits()).toString();
+				}
+				//
+				final Set<Tag> ts = nd.getTags();
+				if (null != ts) {
+					if (1 == ts.size()) this.tags = ts.iterator().next().toString();
+					else {
+						final StringBuilder sb = new StringBuilder();
+						for (final Tag t : ts) sb.append(t.toString()).append(", ");
+						sb.setLength(sb.length() -2);
+						this.tags = sb.toString();
+					}
+				} else {
+					this.tags = "";
+				}
+			}
+		}
+
+		private NodeTableModel(final List<Node> nodes) {
+			this.nodes = nodes;
+		}
+		private String getDataName() {
+			if (nodes.isEmpty()) return "Data";
+			if (nodes.get(0) instanceof Treeline.RadiusNode) return "Radius";
+			if (nodes.get(0) instanceof AreaTree.AreaNode) return "Area";
+			return "Data";
+		}
+		public String getColumnName(int col) {
+			switch (col) {
+				case 0: return ""; // listing
+				case 1: return "X";
+				case 2: return "Y";
+				case 3: return "Z";
+				case 4: return "Layer";
+				case 5: return getDataName();
+				case 6: return "Tags";
+				default: return null; // should be an error
+			}
+		}
+		public int getRowCount() { return nodes.size(); }
+		public int getColumnCount() { return 7; }
+		public Object getValueAt(int row, int col) {
+			if (0 == nodes.size()) return null;
+			final Node nd = nodes.get(row);
+			switch (col) {
+				case 0: return row+1;
+				case 1: return getNodeData(nd).x;
+				case 2: return getNodeData(nd).y;
+				case 3: return getNodeData(nd).z;
+				case 4: return nd.la;
+				case 5: return getNodeData(nd).data;
+				case 6: return getNodeData(nd).tags;
+				default: return null;
+			}
+		}
+		private NodeData getNodeData(final Node nd) {
+			synchronized (nodedata) {
+				NodeData ndat = nodedata.get(nd);
+				if (null == ndat) {
+					ndat = new NodeData(nd);
+					nodedata.put(nd, ndat);
+				}
+				return ndat;
+			}
+		}
+		void update(final Node nd) {
+			synchronized (nodedata) {
+				nodedata.remove(nd); // will be re-added on demand
+			}
+		}
+		public boolean isCellEditable(int row, int col) {
+			return false;
+		}
+		public void setValueAt(Object value, int row, int col) {}
 	}
 }
