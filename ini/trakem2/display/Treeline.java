@@ -142,6 +142,13 @@ public class Treeline extends Tree {
 	}
 
 	@Override
+	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+		if (null == getActive()) return;
+
+		updateViewData(getActive());
+	}
+
+	@Override
 	public void mouseWheelMoved(MouseWheelEvent mwe) {
 		final int modifiers = mwe.getModifiers();
 		if (0 == ( (MouseWheelEvent.SHIFT_MASK | MouseWheelEvent.ALT_MASK) ^ modifiers)) {

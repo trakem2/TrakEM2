@@ -348,6 +348,9 @@ public class AreaTree extends Tree implements AreaContainer {
 		receiver.aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 		calculateBoundingBox();
 		receiver.aw.setSource(null);
+
+		updateViewData(receiver);
+		receiver = null;
 	}
 
 	@Override
@@ -384,7 +387,10 @@ public class AreaTree extends Tree implements AreaContainer {
 					nd.aw.setSource(this);
 					nd.aw.keyPressed(ke, dc, layer);
 					nd.aw.setSource(null);
-					if (ke.isConsumed()) return;
+					if (ke.isConsumed()) {
+						updateViewData(nd);
+						return;
+					}
 				}
 			}
 		} finally {

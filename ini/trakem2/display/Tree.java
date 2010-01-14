@@ -74,9 +74,12 @@ import java.util.Set;
 import java.util.Arrays;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JLabel;
@@ -566,6 +569,7 @@ public abstract class Tree extends ZDisplayable {
 				t.root = this.root.clone();
 				t.clearCache();
 				t.cacheSubtree(t.root.getSubtreeNodes());
+				t.updateView();
 			}
 			return true;
 		}
@@ -596,6 +600,7 @@ public abstract class Tree extends ZDisplayable {
 
 			nd.setRoot();
 			this.root = nd;
+			updateView();
 			return true;
 		}
 	}
@@ -885,6 +890,7 @@ public abstract class Tree extends ZDisplayable {
 			// If child was in end_nodes, remains there
 
 			last_added = in_between;
+			updateView();
 
 			addToLinkLater(in_between);
 
@@ -967,6 +973,7 @@ public abstract class Tree extends ZDisplayable {
 				cacheSubtree(subtree);
 
 				last_added = child;
+				updateView();
 
 				synchronized (tolink) {
 					tolink.addAll(subtree);
@@ -1006,6 +1013,7 @@ public abstract class Tree extends ZDisplayable {
 				synchronized (node_layer_map) {
 					node_layer_map.get(node.la).remove(node);
 				}
+				updateView();
 				return true;
 			default:
 				return false;
@@ -1045,6 +1053,7 @@ public abstract class Tree extends ZDisplayable {
 		synchronized (tolink) {
 			tolink.removeAll(subtree_nodes);
 		}
+		updateView();
 	}
 
 	/** Join all given Trees by using the first one as the receiver, and all the others as the ones to be merged into the receiver.
@@ -1104,6 +1113,8 @@ public abstract class Tree extends ZDisplayable {
 		calculateBoundingBox();
 
 		// Don't clear this.marked
+
+		updateView();
 
 		return true;
 	}
@@ -1305,6 +1316,8 @@ public abstract class Tree extends ZDisplayable {
 			repaint(true); //needed at least for the removePoint
 		}
 
+		updateViewData(active);
+
 		active = null;
 	}
 
@@ -1437,6 +1450,7 @@ public abstract class Tree extends ZDisplayable {
 				}
 				return;
 			} finally {
+				updateViewData(untag ? to_untag : to_tag);
 				to_tag = null;
 				to_untag = null;
 			}
@@ -1691,16 +1705,31 @@ public abstract class Tree extends ZDisplayable {
 	 *  The table has columns for X, Y, Z, data (radius or area), Layer, and tags.
 	 *  Double-click on a row positions the front display at that coordinate.
 	 *  An extra tab has a search field, to list nodes for a given typed-in (regex) tag. */
-	public JFrame createMultiTableView() {
+	public Future<JFrame> createMultiTableView() {
 		if (null == root) return null;
-		synchronized (this) {
-			if (null == tndv) {
-				tndv = new TreeNodesDataView(root);
-				return tndv.frame;
-			} else {
-				tndv.show();
-				return tndv.frame;
+		return project.getLoader().doLater(new Callable<JFrame>() { public JFrame call() {
+			synchronized (Tree.this) {
+				if (null == tndv) {
+					tndv = new TreeNodesDataView(root);
+					return tndv.frame;
+				} else {
+					tndv.show();
+					return tndv.frame;
+				}
 			}
+		}});
+	}
+
+	protected void updateView() {
+		if (null == tndv) return;
+		synchronized (tndv) {
+			tndv.recreate(this.root);
+		}
+	}
+	protected void updateViewData(final Node node) {
+		if (null == tndv) return;
+		synchronized (tndv) {
+			tndv.updateData(node);
 		}
 	}
 
@@ -1731,9 +1760,10 @@ public abstract class Tree extends ZDisplayable {
 				       model_endnodes,
 				       model_allnodes,
 				       model_searchnodes;
+		private final HashMap<Node,NodeData> nodedata = new HashMap<Node,NodeData>();
 
 		TreeNodesDataView(final Node root) {
-			recreate(root);
+			create(root);
 			createGUI();
 		}
 		private final class Table extends JTable {
@@ -1828,10 +1858,10 @@ public abstract class Tree extends ZDisplayable {
 			frame.pack();
 			frame.setVisible(true);
 		}
-		private void recreate(final Node root) {
+		private synchronized void create(final Node root) {
 			this.branchnodes = new ArrayList<Node>();
 			this.endnodes = new ArrayList<Node>();
-			this.allnodes = new ArrayList<Node>(root.getSubtreeNodes());
+			this.allnodes = null == root ? new ArrayList<Node>() : new ArrayList<Node>(root.getSubtreeNodes());
 			this.searchnodes = new ArrayList<Node>();
 			for (final Node nd : allnodes) {
 				switch (nd.getChildrenCount()) {
@@ -1840,15 +1870,27 @@ public abstract class Tree extends ZDisplayable {
 					default: branchnodes.add(nd); break;
 				}
 			}
-			this.model_branchnodes = new NodeTableModel(branchnodes);
-			this.model_endnodes = new NodeTableModel(endnodes);
-			this.model_allnodes = new NodeTableModel(allnodes);
-			this.model_searchnodes = new NodeTableModel(searchnodes);
+			this.model_branchnodes = new NodeTableModel(branchnodes, nodedata);
+			this.model_endnodes = new NodeTableModel(endnodes, nodedata);
+			this.model_allnodes = new NodeTableModel(allnodes, nodedata);
+			this.model_searchnodes = new NodeTableModel(searchnodes, nodedata);
 
 			this.table_branchnodes.setModel(this.model_branchnodes);
 			this.table_endnodes.setModel(this.model_endnodes);
 			this.table_allnodes.setModel(this.model_allnodes);
 			this.table_searchnodes.setModel(this.model_searchnodes);
+		}
+		void recreate(final Node root) {
+			Tree.this.project.getLoader().doLater(new Callable() { public Object call() {
+				create(root);
+				Utils.revalidateComponent(frame);
+				return null;
+			}});
+		}
+		void updateData(final Node node) {
+			synchronized (nodedata) {
+				nodedata.remove(node);
+			}
 		}
 		private void search(final String regex) {
 			final StringBuilder sb = new StringBuilder();
@@ -1867,54 +1909,55 @@ public abstract class Tree extends ZDisplayable {
 					}
 				}
 			}
-			this.model_searchnodes = new NodeTableModel(this.searchnodes);
+			this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
 			this.table_searchnodes.setModel(this.model_searchnodes);
 			this.frame.pack();
 		}
 	}
 
-	private class NodeTableModel extends AbstractTableModel {
-		final List<Node> nodes;
-		final HashMap<Node,NodeData> nodedata = new HashMap<Node,NodeData>();
-
-		private class NodeData {
-			final String x, y, z, data, tags;
-			NodeData(final Node nd) {
-				final float[] fp = new float[]{nd.x, nd.y};
-				Tree.this.at.transform(fp, 0, fp, 0, 1);
-				final Calibration cal = Tree.this.layer_set.getCalibration();
-				this.x = Utils.cutNumber(fp[0] * cal.pixelHeight, 1);
-				this.y = Utils.cutNumber(fp[1] * cal.pixelWidth, 1);
-				this.z = Utils.cutNumber(nd.la.getZ() * cal.pixelWidth, 1);
-				//
-				if (nd.getClass() == AreaTree.AreaNode.class) {
-					this.data = new StringBuilder
-						(Utils.cutNumber
-						  (Math.abs
-						    (AreaCalculations.area
-						      (((AreaTree.AreaNode)nd).getData().getPathIterator(null)))
-						    * cal.pixelWidth * cal.pixelHeight, 1)).append(' ').append(cal.getUnits()).append('^').append(2).toString();
-				} else {
-					this.data = new StringBuilder(Utils.cutNumber(((Treeline.RadiusNode)nd).getData(), 1)).append(' ').append(cal.getUnits()).toString();
+	private final class NodeData {
+		final String x, y, z, data, tags;
+		NodeData(final Node nd) {
+			final float[] fp = new float[]{nd.x, nd.y};
+			Tree.this.at.transform(fp, 0, fp, 0, 1);
+			final Calibration cal = Tree.this.layer_set.getCalibration();
+			this.x = Utils.cutNumber(fp[0] * cal.pixelHeight, 1);
+			this.y = Utils.cutNumber(fp[1] * cal.pixelWidth, 1);
+			this.z = Utils.cutNumber(nd.la.getZ() * cal.pixelWidth, 1);
+			//
+			if (nd.getClass() == AreaTree.AreaNode.class) {
+				this.data = new StringBuilder
+					(Utils.cutNumber
+					  (Math.abs
+					    (AreaCalculations.area
+					      (((AreaTree.AreaNode)nd).getData().getPathIterator(null)))
+					    * cal.pixelWidth * cal.pixelHeight, 1)).append(' ').append(cal.getUnits()).append('^').append(2).toString();
+			} else {
+				this.data = new StringBuilder(Utils.cutNumber(((Treeline.RadiusNode)nd).getData(), 1)).append(' ').append(cal.getUnits()).toString();
+			}
+			//
+			final Set<Tag> ts = nd.getTags();
+			if (null != ts) {
+				if (1 == ts.size()) this.tags = ts.iterator().next().toString();
+				else {
+					final StringBuilder sb = new StringBuilder();
+					for (final Tag t : ts) sb.append(t.toString()).append(", ");
+					sb.setLength(sb.length() -2);
+					this.tags = sb.toString();
 				}
-				//
-				final Set<Tag> ts = nd.getTags();
-				if (null != ts) {
-					if (1 == ts.size()) this.tags = ts.iterator().next().toString();
-					else {
-						final StringBuilder sb = new StringBuilder();
-						for (final Tag t : ts) sb.append(t.toString()).append(", ");
-						sb.setLength(sb.length() -2);
-						this.tags = sb.toString();
-					}
-				} else {
-					this.tags = "";
-				}
+			} else {
+				this.tags = "";
 			}
 		}
+	}
 
-		private NodeTableModel(final List<Node> nodes) {
+	private class NodeTableModel extends AbstractTableModel {
+		final List<Node> nodes;
+		final HashMap<Node,NodeData> nodedata;
+
+		private NodeTableModel(final List<Node> nodes, final HashMap<Node,NodeData> nodedata) {
 			this.nodes = nodes;
+			this.nodedata = nodedata; // a cache
 		}
 		private String getDataName() {
 			if (nodes.isEmpty()) return "Data";
@@ -1958,11 +2001,6 @@ public abstract class Tree extends ZDisplayable {
 					nodedata.put(nd, ndat);
 				}
 				return ndat;
-			}
-		}
-		void update(final Node nd) {
-			synchronized (nodedata) {
-				nodedata.remove(nd); // will be re-added on demand
 			}
 		}
 		public boolean isCellEditable(int row, int col) {
