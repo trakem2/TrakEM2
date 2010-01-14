@@ -25,7 +25,6 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-import ij.gui.GenericDialog;
 
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
@@ -1363,6 +1362,14 @@ public abstract class Tree extends ZDisplayable {
 		final DisplayCanvas dc = (DisplayCanvas)source;
 
 		if (null != to_tag || null != to_untag) {
+			// Can only add a tag for A-Z or numbers!
+			if (! (Character.isLetterOrDigit((char)keyCode) && (Character.isDigit((char)keyCode) || Character.isUpperCase((char)keyCode)))) { // VK_F1, F2 ... are lower case letters! Evil!
+				// Cancel tagging
+				Utils.showStatus("Canceled tagging");
+				to_tag = null;
+				to_untag = null;
+				return;
+			}
 			if (KeyEvent.VK_0 == keyCode) {
 				// force dialogs for next key
 				show_tag_dialogs = true;
@@ -1378,13 +1385,16 @@ public abstract class Tree extends ZDisplayable {
 
 				if (show_tag_dialogs) {
 					if (untag) {
-						if (layer_set.askToRemoveTag(keyCode)) {
+						if (layer_set.askToRemoveTag(keyCode)) { // if removed from tag namespace, it will be removed from all nodes that have it
 							layer_set.addDataEditStep(this);
 						}
-					} else if (null != layer_set.askForNewTag(keyCode)) {
-						target.addTag(layer_set.getTags(keyCode).last());
-						Display.repaint(layer_set);
-						layer_set.addDataEditStep(this); // no 'with' macros ... without half a dozen layers of cruft.
+					} else {
+						Tag t = layer_set.askForNewTag(keyCode);
+						if (null != t) {
+							target.addTag(t);
+							Display.repaint(layer_set);
+							layer_set.addDataEditStep(this); // no 'with' macros ... without half a dozen layers of cruft.
+						}
 					}
 					show_tag_dialogs = false;
 					return;

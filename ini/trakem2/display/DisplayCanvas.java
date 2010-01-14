@@ -1612,6 +1612,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		repaint(true);
 	}
 
+	private int last_keyCode = KeyEvent.VK_ESCAPE;
+	private boolean tagging = false;
+
 	public void keyPressed(KeyEvent ke) {
 
 		Displayable active = display.getActive();
@@ -1626,13 +1629,38 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}
 
+		final int keyCode = ke.getKeyCode();
+
+		try {
+			// Enable tagging system for any alphanumeric key:
+			if (null != active && active instanceof Tree && ProjectToolbar.isDataEditTool(ProjectToolbar.getToolId())) {
+				if (tagging) {
+					if (KeyEvent.VK_0 == keyCode && KeyEvent.VK_0 != last_keyCode) {
+						// do nothing: keep tagging as true
+					} else {
+						// last step of tagging: a char after t or after t and a number (and the char itself can be a number)
+						tagging = false;
+					}
+					active.keyPressed(ke);
+					return;
+				} else if (KeyEvent.VK_T == keyCode) {
+					tagging = true;
+					active.keyPressed(ke);
+					return;
+				}
+			}
+		} finally {
+			last_keyCode = keyCode;
+		}
+
+		tagging = false;
+
 		/*
 		 * TODO screen editor ... TEMPORARY if (active instanceof DLabel) {
 		 * active.keyPressed(ke); ke.consume(); return; }
 		 */
 
-		int keyCode = ke.getKeyCode();
-		int keyChar = ke.getKeyChar();
+		final int keyChar = ke.getKeyChar();
 
 		boolean used = false;
 

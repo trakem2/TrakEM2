@@ -271,4 +271,15 @@ public class ProjectToolbar implements MouseListener {
 				break;
 		}
 	}
+
+	static public boolean isDataEditTool(final int tool) {
+		switch (tool) {
+			case PENCIL:
+			case BRUSH:
+			case PEN:
+				return true;
+			default:
+				return false;
+		}
+	}
 }
