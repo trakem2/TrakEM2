@@ -482,7 +482,7 @@ public abstract class Tree extends ZDisplayable {
 	static private void exportTags(final Node node, final StringBuffer sb, final StringBuffer indent) {
 		for (final Tag tag : (Collection<Tag>) node.getTags()) {
 			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(tag.toString()))
-					 .append("\" key=\"").append(tag.getKeyCode()).append("\" />\n");
+					 .append("\" key=\"").append((char)tag.getKeyCode()).append("\" />\n");
 		}
 	}
 
