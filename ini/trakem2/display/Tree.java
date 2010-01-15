@@ -1061,13 +1061,14 @@ public abstract class Tree extends ZDisplayable {
 		if (null != node.parent) {
 			if (1 == node.parent.getChildrenCount()) {
 				end_nodes.add(node.parent);
-				Utils.log2("removeNode: added parent to set of end_nodes");
 			}
 			// Finally, remove from parent node
 			node.parent.remove(node);
 		}
 		synchronized (tolink) {
-			tolink.removeAll(subtree_nodes);
+			if (null != subtree_nodes) {
+				tolink.removeAll(subtree_nodes);
+			} else tolink.remove(node);
 		}
 		fireNodeRemoved(node);
 		updateView();
@@ -1530,6 +1531,10 @@ public abstract class Tree extends ZDisplayable {
 		final Display display = Display.getFront();
 		final Layer layer = display.getLayer();
 
+		Node nd = null;
+		Coordinate<Node> c = null;
+		try {
+
 		switch (keyCode) {
 			case KeyEvent.VK_T:
 				if (0 == modifiers) {
@@ -1540,26 +1545,36 @@ public abstract class Tree extends ZDisplayable {
 				ke.consume();
 				return;
 		}
+
 		if (0 == modifiers) {
 			switch (keyCode) {
 				case KeyEvent.VK_R:
+					nd = root;
 					display.center(createCoordinate(root));
 					ke.consume();
 					return;
 				case KeyEvent.VK_B:
-					display.center(findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification()));
+					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification());
+					nd = c.object;
+					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_N:
-					display.center(findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification()));
+					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification());
+					nd = c.object;
+					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_L:
-					display.center(getLastAdded());
+					c = getLastAdded();
+					nd = c.object;
+					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_E:
-					display.center(getLastEdited());
+					c = getLastEdited();
+					nd = c.object;
+					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_CLOSE_BRACKET:
@@ -1571,13 +1586,16 @@ public abstract class Tree extends ZDisplayable {
 					ke.consume();
 					return;
 				case KeyEvent.VK_G:
-					Node nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
+					nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
 					if (null != nd) {
 						display.toLayer(nd.la);
 						ke.consume();
 						return;
 					}
 			}
+		}
+		} finally {
+			if (null != nd) setLastVisited(nd);
 		}
 	}
 

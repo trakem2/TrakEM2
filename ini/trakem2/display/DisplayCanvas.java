@@ -2629,6 +2629,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final Node nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
 			if (null != nd) {
 				display.toLayer(nd.la);
+				t.setLastVisited(nd);
 				display.getSelection().add(t);
 				switch (ProjectToolbar.getToolId()) {
 					case ProjectToolbar.PEN:
