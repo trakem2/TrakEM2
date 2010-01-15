@@ -666,9 +666,10 @@ public abstract class Tree extends ZDisplayable {
 	private void clearCache() {
 		end_nodes.clear();
 		node_layer_map.clear();
-		last_added = null;
-		last_edited = null;
-		marked = null;
+		setLastAdded(null);
+		setLastEdited(null);
+		setLastMarked(null);
+		setLastVisited(null);
 	}
 
 	/** Take @param nodes and add them to @param end_nodes and @param node_layer_map as appropriate. */
@@ -739,18 +740,26 @@ public abstract class Tree extends ZDisplayable {
 		return createCoordinate(nd.findNextBranchOrEndPoint());
 	}
 
-	public Coordinate<Node> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
-		Node nd = findNodeNear(x, y, layer, magnification);
+	protected Coordinate<Node> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
+		Node nd = last_visited;
+		if (null == nd) nd = findNodeNear(x, y, layer, magnification);
 		if (null == nd) return null;
 		int n_children = nd.getChildrenCount();
 		if (0 == n_children) return null;
-		if (1 == n_children) return createCoordinate(nd.children[0]);
+		if (1 == n_children) {
+			setLastVisited(nd.children[0]);
+			return createCoordinate(nd.children[0]);
+		}
 		// else, find the closest child edge
-		return createCoordinate(findNearestChildEdge(nd, x, y));
+		nd = findNearestChildEdge(nd, x, y);
+		if (null != nd) setLastVisited(nd);
+		return createCoordinate(nd);
 	}
-	public Coordinate<Node> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
-		Node nd = findNodeNear(x, y, layer, magnification);
+	protected Coordinate<Node> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
+		Node nd = last_visited;
+		if (null == nd) nd = findNodeNear(x, y, layer, magnification);
 		if (null == nd || null == nd.parent) return null;
+		setLastVisited(nd.parent);
 		return createCoordinate(nd.parent);
 	}
 
@@ -894,7 +903,7 @@ public abstract class Tree extends ZDisplayable {
 			cacheSubtree(subtree);
 			// If child was in end_nodes, remains there
 
-			last_added = in_between;
+			setLastAdded(in_between);
 			updateView();
 
 			addToLinkLater(in_between);
@@ -937,6 +946,7 @@ public abstract class Tree extends ZDisplayable {
 		return ns;
 	}
 
+	/** In projected 2D only, since that's the perspective of the user. */
 	private Node findNearestChildEdge(final Node parent, final float lx, final float ly) {
 		if (null == parent || null == parent.children) return null;
 		
@@ -977,7 +987,7 @@ public abstract class Tree extends ZDisplayable {
 				Collection<Node> subtree = child.getSubtreeNodes();
 				cacheSubtree(subtree);
 
-				last_added = child;
+				setLastAdded(child);
 				updateView();
 
 				synchronized (tolink) {
@@ -1018,6 +1028,7 @@ public abstract class Tree extends ZDisplayable {
 				synchronized (node_layer_map) {
 					node_layer_map.get(node.la).remove(node);
 				}
+				fireNodeRemoved(node);
 				updateView();
 				return true;
 			default:
@@ -1058,6 +1069,7 @@ public abstract class Tree extends ZDisplayable {
 		synchronized (tolink) {
 			tolink.removeAll(subtree_nodes);
 		}
+		fireNodeRemoved(node);
 		updateView();
 	}
 
@@ -1109,7 +1121,7 @@ public abstract class Tree extends ZDisplayable {
 			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
 			// Remove from tl pointers
 			tl.root = null; // stolen!
-			tl.marked = null;
+			tl.setLastMarked(null);
 			// Remove from tl cache
 			tl.node_layer_map.clear();
 			tl.end_nodes.clear();
@@ -1188,26 +1200,49 @@ public abstract class Tree extends ZDisplayable {
 			}
 			nodes = null;
 			// Find a node near the coordinate
-			marked = findNode(x, y, layer, magnification);
-			if (null == marked) {
+			Node found = findNode(x, y, layer, magnification);
+			if (null == found) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 				return false;
 			}
+			setLastMarked(found);
 			return true;
 		}
 	}
 	public boolean unmark() {
 		if (null != marked) {
-			marked = null;
+			setLastMarked(null);
 			return true;
 		}
 		return false;
 	}
 
-	protected void setActive(Node nd) { this.active = nd; }
+	protected void setActive(Node nd) {
+		this.active = nd;
+		if (null != nd) setLastVisited(nd);
+	}
 	protected Node getActive() { return active; }
 
-	protected void setLastEdited(Node nd) { this.last_edited = nd; }
+	protected void setLastEdited(Node nd) {
+		this.last_edited = nd;
+		setLastVisited(nd);
+	}
+	protected void setLastAdded(Node nd) {
+		this.last_added = nd;
+		setLastVisited(nd);
+	}
+	protected void setLastMarked(Node nd) {
+		this.marked = nd;
+		setLastVisited(nd);
+	}
+	protected void setLastVisited(Node nd) { this.last_visited = nd; }
+
+	protected void fireNodeRemoved(final Node nd) {
+		if (nd == marked) marked = null;
+		if (nd == last_added) last_added = null;
+		if (nd == last_edited) last_edited = null;
+		if (nd == last_visited) last_visited = null;
+	}
 
 	/** The Node double-clicked on, for join operations. */
 	private Node marked = null;
@@ -1217,6 +1252,8 @@ public abstract class Tree extends ZDisplayable {
 	private Node last_added = null;
 	/** The last edited node, which will be the last added as well until some other node is edited. */
 	private Node last_edited = null;
+	/** The last visited node, either navigating or editing. */
+	private Node last_visited = null;
 
 	static private Polygon MARKED_PARENT, MARKED_CHILD;
 
@@ -1244,39 +1281,41 @@ public abstract class Tree extends ZDisplayable {
 				y_pl = (int)po.y;
 			}
 
-			active = findNode(x_pl, y_pl, layer, mag);
-			if (null != active) {
+			Node found = findNode(x_pl, y_pl, layer, mag);
+			setActive(found);
+
+			if (null != found) {
 				if (2 == me.getClickCount()) {
-					marked = active;
-					active = null;
+					setLastMarked(found);
+					setActive(null);
 					return;
 				}
 				if (me.isShiftDown() && Utils.isControlDown(me)) {
 					if (me.isAltDown()) {
 						// Remove point and its subtree
-						removeNode(active);
+						removeNode(found);
 					} else {
 						// Just remove the slab point, joining parent with child
-						if (!popNode(active)) {
+						if (!popNode(found)) {
 							Utils.log("Can't pop out branch point!\nUse shift+control+alt+click to remove a branch point and its subtree.");
-							active = null;
+							setActive(null);
 							return;
 						}
 					}
 					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
-					active = null;
+					setActive(null);
 					return;
 				}
 				if (me.isShiftDown() && !me.isAltDown()) {
 					// Create new branch at point, with local coordinates
-					Node node = newNode(x_pl, y_pl, layer, active);
-					addNode(active, node, Node.MAX_EDGE_CONFIDENCE);
-					active = node;
+					Node child = newNode(x_pl, y_pl, layer, found);
+					addNode(found, child, Node.MAX_EDGE_CONFIDENCE);
+					setActive(child);
 					return;
 				}
 			} else {
 				if (2 == me.getClickCount()) {
-					marked = null;
+					setLastMarked(null);
 					return;
 				}
 				if (me.isAltDown()) {
@@ -1286,23 +1325,26 @@ public abstract class Tree extends ZDisplayable {
 				if (me.isShiftDown()) {
 					Node[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
 					if (null != ns) {
-						active = newNode(x_pl, y_pl, layer, ns[0]);
-						insertNode(ns[0], ns[1], active, ns[0].getConfidence(ns[1]));
+						found = newNode(x_pl, y_pl, layer, ns[0]);
+						insertNode(ns[0], ns[1], found, ns[0].getConfidence(ns[1]));
+						setActive(found);
 					}
 				} else {
 					// Find the point closest to any other starting or ending point in all branches
 					Node nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
 					// append new child; inherits radius from parent
-					active = newNode(x_pl, y_pl, layer, nearest);
-					addNode(nearest, active, Node.MAX_EDGE_CONFIDENCE);
+					found = newNode(x_pl, y_pl, layer, nearest);
+					addNode(nearest, found, Node.MAX_EDGE_CONFIDENCE);
+					setActive(found);
 					repaint(true);
 				}
 				return;
 			}
 		} else {
 			// First point
-			root = active = newNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
-			addNode(null, active, (byte)0);
+			root = newNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
+			addNode(null, root, (byte)0);
+			setActive(root);
 		}
 	}
 
@@ -1323,7 +1365,7 @@ public abstract class Tree extends ZDisplayable {
 
 		updateViewData(active);
 
-		active = null;
+		setActive(null);
 	}
 
 	private final void translateActive(MouseEvent me, int x_d, int y_d, int x_d_old, int y_d_old) {
@@ -1342,7 +1384,7 @@ public abstract class Tree extends ZDisplayable {
 
 		active.translate(x_d - x_d_old, y_d - y_d_old);
 		repaint(false);
-		last_edited = active;
+		setLastEdited(active);
 	}
 
 	static private Node to_tag = null;
