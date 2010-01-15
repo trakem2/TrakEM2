@@ -2045,16 +2045,19 @@ public abstract class Tree extends ZDisplayable {
 						nd1 = nd2;
 						nd2 = tmp;
 					}
-					Object val1 = fixEmptyString(getValueAt(nodes.indexOf(nd1), col));
-					Object val2 = fixEmptyString(getValueAt(nodes.indexOf(nd2), col));
+					Object val1 = fixStrings(getValueAt(nodes.indexOf(nd1), col));
+					Object val2 = fixStrings(getValueAt(nodes.indexOf(nd2), col));
 					return ((Comparable)val1).compareTo((Comparable)val2);
 				}
 			});
 			fireTableDataChanged();
 			fireTableStructureChanged();
 		}
-		private final Object fixEmptyString(final Object val) {
-			if (val.getClass() == String.class && 0 == ((String)val).length()) return "zzzzzz";
+		private final Object fixStrings(final Object val) {
+			if (val.getClass() == String.class) {
+				if (0 == ((String)val).length()) return "zzzzzz";
+				else return ((String)val).toLowerCase();
+			}
 			return val;
 		}
 	}
