@@ -599,6 +599,6 @@ public class Connector extends ZDisplayable {
 			tl.addNode(tl.root, nd, Node.MAX_EDGE_CONFIDENCE);
 		}
 
-		return tl.generateMesh(scale, 12, resample);
+		return tl.generateMesh(scale, 12);
 	}
 }
