@@ -1930,7 +1930,7 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	private final class NodeData {
-		final String x, y, z, data, tags;
+		final String x, y, z, data, tags, conf;
 		NodeData(final Node nd) {
 			final float[] fp = new float[]{nd.x, nd.y};
 			Tree.this.at.transform(fp, 0, fp, 0, 1);
@@ -1949,6 +1949,7 @@ public abstract class Tree extends ZDisplayable {
 			} else {
 				this.data = new StringBuilder(Utils.cutNumber(((Treeline.RadiusNode)nd).getData(), 1)).append(' ').append(cal.getUnits()).toString();
 			}
+			this.conf = null == nd.parent ? "root" : Byte.toString(nd.parent.getEdgeConfidence(nd));
 			//
 			final Set<Tag> ts = nd.getTags();
 			if (null != ts) {
@@ -1986,13 +1987,14 @@ public abstract class Tree extends ZDisplayable {
 				case 2: return "Y";
 				case 3: return "Z";
 				case 4: return "Layer";
-				case 5: return getDataName();
-				case 6: return "Tags";
+				case 5: return "Edge confidence";
+				case 6: return getDataName();
+				case 7: return "Tags";
 				default: return null; // should be an error
 			}
 		}
 		public int getRowCount() { return nodes.size(); }
-		public int getColumnCount() { return 7; }
+		public int getColumnCount() { return 8; }
 		public Object getValueAt(int row, int col) {
 			if (0 == nodes.size()) return null;
 			final Node nd = nodes.get(row);
@@ -2002,8 +2004,9 @@ public abstract class Tree extends ZDisplayable {
 				case 2: return getNodeData(nd).y;
 				case 3: return getNodeData(nd).z;
 				case 4: return nd.la;
-				case 5: return getNodeData(nd).data;
-				case 6: return getNodeData(nd).tags;
+				case 5: return getNodeData(nd).conf;
+				case 6: return getNodeData(nd).data;
+				case 7: return getNodeData(nd).tags;
 				default: return null;
 			}
 		}

@@ -62,6 +62,13 @@ public abstract class Node<T> implements Taggable {
 		for (int i=0; i<children.length; i++) a.add(confidence[i]);
 		return a;
 	}
+	public byte getEdgeConfidence(final Node child) {
+		if (null == children) return (byte)0;
+		for (int i=0; i<children.length; i++) {
+			if (child == children[i]) return confidence[i];
+		}
+		return (byte)0;
+	}
 
 	public String toString() {
 		return new StringBuilder("{:x ").append(x).append(" :y ").append(y).append(" :layer ").append(la.getId()).append('}').toString();
