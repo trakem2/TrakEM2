@@ -683,8 +683,8 @@ public final class Display3D {
 			line_mesh_mode = Integer.MAX_VALUE;
 		} else {
 			c = displ.getClass();
-			line_mesh = Treeline.class == c || Polyline.class == c;
-			if (Treeline.class == c) line_mesh_mode = CustomLineMesh.PAIRWISE;
+			line_mesh = Tree.class.isAssignableFrom(c) || Polyline.class == c;
+			if (Tree.class.isAssignableFrom(c)) line_mesh_mode = CustomLineMesh.PAIRWISE;
 			else if (Polyline.class == c) line_mesh_mode = CustomLineMesh.CONTINUOUS;
 			else line_mesh_mode = Integer.MAX_VALUE; // disabled
 		}
@@ -702,9 +702,9 @@ public final class Display3D {
 			// Pipe and Polyline
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
-		} else if (Treeline.class == c) {
+		} else if (displ instanceof Tree) {
 			// A 3D wire skeleton, using CustomLineMesh
-			triangles = ((Treeline)displ).generateTriangles(scale, 12, 1);
+			triangles = ((Tree)displ).generateTriangles(scale, 12, 1);
 		} else if (Connector.class == c) {
 			triangles = ((Connector)displ).generateTriangles(scale, 1);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
