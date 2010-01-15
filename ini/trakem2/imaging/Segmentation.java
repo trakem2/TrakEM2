@@ -11,6 +11,7 @@ import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.AreaWrapper;
 import ini.trakem2.display.Patch;
+import ini.trakem2.display.AreaContainer;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.IJError;
@@ -140,14 +141,33 @@ public class Segmentation {
 			this.height += inc;
 			Utils.log2("fmp w,h: " + width + ", " + height);
 		}
+
+		/** Return bounds relative to the given mouse position. */
+		public Rectangle getBounds(final int x_p, final int y_p) {
+			return new Rectangle(x_p - width/2, y_p - height/2, width, height);
+		}
 	}
 
 	static public final FastMarchingParam fmp = new FastMarchingParam();
 
-	static public Thread fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+	static class EndTask<T,D> {
+		T target;
+		Runnable after;
+		EndTask(T target, Runnable after) {
+			this.target = target;
+			this.after = after;
+		}
+		void run() {
+		}
+	}
+
+	static public Bureaucrat fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		// Capture pointers before they are set to null
+		final AreaContainer ac = (AreaContainer)aw.getSource();
+		final AffineTransform source_aff = aw.getSource().getAffineTransform();
+		final Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
-			Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 			Utils.log2("fmp box is " + box);
 			ImagePlus imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
 			// Bandpass filter
@@ -251,7 +271,19 @@ public class Segmentation {
 			}
 			*/
 
-			aw.add(area, new AffineTransform(1, 0, 0, 1, box.x, box.y));
+			/// FAILS because by now AreaWrapper's source is null
+			//aw.add(area, new AffineTransform(1, 0, 0, 1, box.x, box.y));
+
+			// Instead, compose an Area that is local to the AreaWrapper's area
+			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, box.x, box.y);
+			try {
+				aff.preConcatenate(source_aff.createInverse());
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return;
+			}
+			aw.getArea().add(area.createTransformedArea(aff));
+			ac.calculateBoundingBox();
 
 			Display.repaint(layer);
 		}}, layer.getProject());
@@ -264,9 +296,14 @@ public class Segmentation {
 		BlowRunner br = null;
 		final ExecutorService dispatcher = Executors.newFixedThreadPool(1);
 		final Runnable post_task;
+		final AffineTransform source_aff;
+		final AreaContainer ac;
 
 		public BlowCommander(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
 			this.post_task = post_task;
+			this.ac = (AreaContainer)aw.getSource();
+			this.source_aff = aw.getSource().getAffineTransform();
+
 			dispatcher.submit(new Runnable() {
 				public void run() {
 					// Creation in the contex of the ExecutorService thread, so 'imp' will be local to it
@@ -299,7 +336,7 @@ public class Segmentation {
 				public void run() {
 					// Add the roi to the Area
 					try {
-						br.finish();
+						br.finish(ac, source_aff);
 					} catch (Throwable t) {
 						IJError.print(t);
 					}
@@ -359,13 +396,19 @@ public class Segmentation {
 				Display.getFront().getCanvas().getFakeImagePlus().setRoi(sroi);
 			}
 		}
-		public void finish() throws Exception {
+		public void finish(final AreaContainer ac, final AffineTransform source_aff) throws Exception {
 			Roi roi = imp.getRoi();
 			if (null == roi) return;
 			ShapeRoi sroi = new ShapeRoi(roi);
 			Rectangle b = sroi.getBounds();
 			sroi.setLocation(box.x + b.x, box.y + b.y);
-			aw.add(M.getArea(sroi));
+
+			try {
+				aw.getArea().add(M.getArea(sroi).createTransformedArea(source_aff.createInverse()));
+				ac.calculateBoundingBox();
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+			}
 		}
 	}
 

@@ -578,6 +578,7 @@ public class AreaWrapper {
 				this.painter = new Painter(area, mag, la, source.getAffineTransformCopy());
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
+			final Displayable src = this.source;
 			if (Utils.isControlDown(me)) {
 				// Grow with blow tool
 				try {
@@ -585,7 +586,7 @@ public class AreaWrapper {
 							new Runnable() {
 								public void run() {
 									// Add data edit step when done for undo/redo
-									source.getLayerSet().addDataEditStep(source);
+									src.getLayerSet().addDataEditStep(src);
 								}
 							});
 				} catch (Exception e) {
@@ -597,7 +598,7 @@ public class AreaWrapper {
 						new Runnable() {
 							public void run() {
 								// Add data edit step when done for undo/redo
-								source.getLayerSet().addDataEditStep(source);
+								src.getLayerSet().addDataEditStep(src);
 							}
 						});
 			}

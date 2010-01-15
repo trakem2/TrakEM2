@@ -7,6 +7,7 @@ import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.imaging.Segmentation;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.awt.Point;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.KeyEvent;
@@ -289,7 +291,8 @@ public class AreaTree extends Tree implements AreaContainer {
 			super.mousePressed(me, x_p, y_p, mag);
 			return;
 		}
-		if (null == root || tool != ProjectToolbar.BRUSH) return;
+
+		if (null == root) return;
 
 		final Layer layer = Display.getFrontLayer();
 		final Collection<Node> nodes = node_layer_map.get(layer);
@@ -299,16 +302,33 @@ public class AreaTree extends Tree implements AreaContainer {
 
 		// Find a node onto which a click was made
 		//
-		// transform the x_p, y_p to the local coordinates
-		int x_pl = x_p;
-		int y_pl = y_p;
-		if (!this.at.isIdentity()) {
-			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
-			x_pl = (int)po.x;
-			y_pl = (int)po.y;
-		}
 
-		receiver = findEventReceiver(nodes, x_pl, y_pl, layer, mag, me);
+		if (tool == ProjectToolbar.PENCIL) {
+			// Semi automatic segmentation tools
+			final Area roi;
+			try {
+				roi = new Area(this.at.createInverse().createTransformedShape(Segmentation.fmp.getBounds(x_p, y_p)));
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return;
+			}
+			for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
+				if (nd.intersects(roi)) {
+					receiver = nd;
+					break;
+				}
+			}
+		} else if (tool == ProjectToolbar.BRUSH) {
+			// transform the x_p, y_p to the local coordinates
+			int x_pl = x_p;
+			int y_pl = y_p;
+			if (!this.at.isIdentity()) {
+				final Point2D.Double po = inverseTransformPoint(x_p, y_p);
+				x_pl = (int)po.x;
+				y_pl = (int)po.y;
+			}
+			receiver = findEventReceiver(nodes, x_pl, y_pl, layer, mag, me);
+		}
 
 		if (null != receiver) {
 			receiver.getData(); // create the AreaWrapper if not there already
