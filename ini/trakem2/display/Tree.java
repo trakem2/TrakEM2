@@ -62,6 +62,7 @@ import java.awt.Dimension;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.TreeSet;
 import java.util.HashSet;
@@ -1778,6 +1779,15 @@ public abstract class Tree extends ZDisplayable {
 		private final class Table extends JTable {
 			Table() {
 				super();
+				getTableHeader().addMouseListener(new MouseAdapter() {
+					public void mouseClicked(MouseEvent me) { // mousePressed would fail to repaint due to asynch issues
+						if (2 != me.getClickCount()) return;
+						int viewColumn = getColumnModel().getColumnIndexAtX(me.getX());
+						int column = convertColumnIndexToModel(viewColumn);
+						if (-1 == column) return;
+						((NodeTableModel)getModel()).sortByColumn(column, me.isShiftDown());
+					}
+				});
 				this.addMouseListener(new MouseAdapter() {
 					public void mousePressed(MouseEvent me) {
 						final int row = Table.this.rowAtPoint(me.getPoint());
@@ -1803,6 +1813,8 @@ public abstract class Tree extends ZDisplayable {
 						if (ke.getKeyCode() == KeyEvent.VK_G) {
 							final int row = getSelectedRow();
 							if (-1 != row) go(row);
+						} else if (ke.getKeyCode() == KeyEvent.VK_W && (0 == (Utils.getControlModifier() ^ ke.getModifiers()))) {
+							frame.dispose();
 						}
 					}
 				});
@@ -2024,5 +2036,26 @@ public abstract class Tree extends ZDisplayable {
 			return false;
 		}
 		public void setValueAt(Object value, int row, int col) {}
+		public void sortByColumn(final int col, final boolean descending) {
+			final ArrayList<Node> nodes = new ArrayList<Node>(NodeTableModel.this.nodes);
+			Collections.sort(NodeTableModel.this.nodes, new Comparator<Node>() {
+				public int compare(Node nd1, Node nd2) {
+					if (descending) {
+						Node tmp = nd1;
+						nd1 = nd2;
+						nd2 = tmp;
+					}
+					Object val1 = fixEmptyString(getValueAt(nodes.indexOf(nd1), col));
+					Object val2 = fixEmptyString(getValueAt(nodes.indexOf(nd2), col));
+					return ((Comparable)val1).compareTo((Comparable)val2);
+				}
+			});
+			fireTableDataChanged();
+			fireTableStructureChanged();
+		}
+		private final Object fixEmptyString(final Object val) {
+			if (val.getClass() == String.class && 0 == ((String)val).length()) return "zzzzzz";
+			return val;
+		}
 	}
 }
