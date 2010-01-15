@@ -207,7 +207,6 @@ public abstract class Tree extends ZDisplayable {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-					if (with_arrows) nd.paintTags(g, srcRect, magnification, this.at); // avoid painting to DisplayNavigator
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 

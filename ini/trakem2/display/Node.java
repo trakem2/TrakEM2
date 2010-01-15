@@ -259,6 +259,9 @@ public abstract class Node<T> implements Taggable {
 						g.drawString(s, xc+1, yc+dim.height+1);
 					}
 				}
+				if (with_arrows && null != tags) {
+					paintTags(g, x, y, local_edge_color);
+				}
 			}
 		}
 	}
@@ -559,23 +562,18 @@ public abstract class Node<T> implements Taggable {
 		return tags;
 	}
 
-	public void paintTags(final Graphics2D g, final Rectangle srcRect, final double magnification, final AffineTransform aff) {
-		if (null == this.tags) return;
-		Set<Tag> tags;
-		synchronized (this) {
-			tags = new TreeSet<Tag>(this.tags);
-		}
-		final float[] fp = new float[]{x, y};
-		aff.transform(fp, 0, fp, 0, 1);
-		final int x = (int)((fp[0] - srcRect.x) * magnification);
-		final int y = (int)((fp[1] - srcRect.y) * magnification);
-
+	private void paintTags(final Graphics2D g, final int x, final int y, Color background_color) {
 		final int ox = x + 20;
 		int oy = y + 20;
 
+		Color fontcolor = Color.blue;
+		if (Color.red == background_color || Color.blue == background_color) fontcolor = Color.white;
+		else background_color = Taggable.TAG_BACKGROUND;
+		// so the Color indicated in the parameter background_color is used only as a flag
+
 		Stroke stroke = g.getStroke();
 		g.setStroke(Taggable.DASHED_STROKE);
-		g.setColor(Taggable.TAG_BACKGROUND);
+		g.setColor(background_color);
 		g.drawLine(x, y, ox, oy);
 		g.setStroke(stroke);
 
@@ -584,9 +582,9 @@ public abstract class Node<T> implements Taggable {
 			Dimension dim = Utils.getDimensions(tag, g.getFont());
 			final int arc = (int)(dim.height / 3.0f);
 			RoundRectangle2D rr = new RoundRectangle2D.Float(ox, oy, dim.width+4, dim.height+2, arc, arc);
-			g.setColor(Taggable.TAG_BACKGROUND);
+			g.setColor(background_color);
 			g.fill(rr);
-			g.setColor(Color.blue);
+			g.setColor(fontcolor);
 			g.drawString(tag, ox +2, oy +dim.height -1);
 			oy += dim.height + 3;
 		}
