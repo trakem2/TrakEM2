@@ -741,8 +741,8 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	protected Coordinate<Node> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
-		Node nd = last_visited;
-		if (null == nd) nd = findNodeNear(x, y, layer, magnification);
+		Node nd = findNodeNear(x, y, layer, magnification);
+		if (null == nd) nd = last_visited;
 		if (null == nd) return null;
 		int n_children = nd.getChildrenCount();
 		if (0 == n_children) return null;
@@ -756,8 +756,8 @@ public abstract class Tree extends ZDisplayable {
 		return createCoordinate(nd);
 	}
 	protected Coordinate<Node> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
-		Node nd = last_visited;
-		if (null == nd) nd = findNodeNear(x, y, layer, magnification);
+		Node nd = findNodeNear(x, y, layer, magnification);
+		if (null == nd) nd = last_visited;
 		if (null == nd || null == nd.parent) return null;
 		setLastVisited(nd.parent);
 		return createCoordinate(nd.parent);
@@ -1178,10 +1178,12 @@ public abstract class Tree extends ZDisplayable {
 				}
 			}
 
+			/*
 			if (null == nd) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 				return null;
 			}
+			*/
 			return nd;
 		}
 	}
