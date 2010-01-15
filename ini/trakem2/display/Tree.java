@@ -229,8 +229,7 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
-	protected boolean calculateBoundingBox() {
-		if (null == root) return false;
+	protected Rectangle getPaintingBounds() {
 		Rectangle box = null;
 		synchronized (node_layer_map) {
 			for (final Collection<Node> nodes : node_layer_map.values()) {
@@ -240,6 +239,13 @@ public abstract class Tree extends ZDisplayable {
 				}
 			}
 		}
+		return box;
+	}
+
+	protected boolean calculateBoundingBox() {
+		if (null == root) return false;
+
+		final Rectangle box = getPaintingBounds();
 
 		this.width = box.width;
 		this.height = box.height;

@@ -212,13 +212,8 @@ public class Treeline extends Tree {
 
 		public final Float getDataCopy() { return this.r; }
 
-		/** Paint radiuses. */
-		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
-			if (null == this.parent) return;
-			RadiusNode parent = (RadiusNode) this.parent;
-			if (0 == this.r && 0 == parent.r) return;
-			// vector:
+		private Polygon getSegment() {
+			final RadiusNode parent = (RadiusNode) this.parent;
 			float vx = parent.x - this.x;
 			float vy = parent.y - this.y;
 			float len = (float) Math.sqrt(vx*vx + vy*vy);
@@ -230,15 +225,23 @@ public class Treeline extends Tree {
 			final float vx270 = vy;
 			final float vy270 = -vx;
 
-			Polygon pol = new Polygon(new int[]{(int)(parent.x + vx90 * parent.r), (int)(parent.x + vx270 * parent.r), (int)(this.x + vx270 * this.r), (int)(this.x + vx90 * this.r)},
-						  new int[]{(int)(parent.y + vy90 * parent.r), (int)(parent.y + vy270 * parent.r), (int)(this.y + vy270 * this.r), (int)(this.y + vy90 * this.r)},
-						  4);
+			return new Polygon(new int[]{(int)(parent.x + vx90 * parent.r), (int)(parent.x + vx270 * parent.r), (int)(this.x + vx270 * this.r), (int)(this.x + vx90 * this.r)},
+					   new int[]{(int)(parent.y + vy90 * parent.r), (int)(parent.y + vy270 * parent.r), (int)(this.y + vy270 * this.r), (int)(this.y + vy90 * this.r)},
+					   4);
+		}
+
+		/** Paint radiuses. */
+		@Override
+		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
+			if (null == this.parent) return;
+			RadiusNode parent = (RadiusNode) this.parent;
+			if (0 == this.r && 0 == parent.r) return;
 
 			final AffineTransform a = new AffineTransform();
 			a.scale(magnification, magnification);
 			a.translate(-srcRect.x, -srcRect.y);
 			a.concatenate(tree.at);
-			Shape shape = a.createTransformedShape(pol);
+			Shape shape = a.createTransformedShape(getSegment());
 
 			// Which color?
 			if (active_layer == this.la) {
@@ -636,5 +639,20 @@ public class Treeline extends Tree {
 		Display.repaint(layer_set);
 
 		return true;
+	}
+
+	protected Rectangle getPaintingBounds() {
+		Rectangle box = null;
+		synchronized (node_layer_map) {
+			for (final Collection<Node> nodes : node_layer_map.values()) {
+				for (final RadiusNode nd : (Collection<RadiusNode>) (Collection) nodes) {
+					if (null == nd.parent) continue;
+					// Get the segment with the parent node
+					if (null == box) box = nd.getSegment().getBounds();
+					else box.add(nd.getSegment().getBounds());
+				}
+			}
+		}
+		return box;
 	}
 }
