@@ -165,26 +165,37 @@ public abstract class Node<T> implements Taggable {
 	}
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
 	final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color t_color, final boolean with_arrows, final boolean with_confidence_boxes) {
-		// Since this method is called, this node is to be painted and by definition is inside the Set to_paint.
+		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
+
+		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
+
+		final float[] fps;
+
+		if (null == children) {
+			if (!paint) return;
+			fps = new float[2];
+		} else {
+			fps = new float[children.length * 2];
+		}
+
+		final double actZ = active_layer.getZ();
+		final double thisZ = this.la.getZ();
+		//Which edge color?
+		Color local_edge_color = t_color;
+		if (active_layer == this.la) {} // default color
+		else if (actZ > thisZ) {
+			local_edge_color = Color.red;
+		} else if (actZ < thisZ) local_edge_color = Color.blue;
+
+		fps[0] = this.x;
+		fps[1] = this.y;
+		aff.transform(fps, 0, fps, 0, 1);
+
+		// To screen coords:
+		final int x = (int)((fps[0] - srcRect.x) * magnification);
+		final int y = (int)((fps[1] - srcRect.y) * magnification);
+
 		if (null != children) {
-			final double actZ = active_layer.getZ();
-			final double thisZ = this.la.getZ();
-			//Which edge color?
-			Color local_edge_color = t_color;
-			if (active_layer == this.la) {} // default color
-			else if (actZ > thisZ) {
-				local_edge_color = Color.red;
-			} else if (actZ < thisZ) local_edge_color = Color.blue;
-
-			final float[] fps = new float[children.length + children.length];
-			fps[0] = this.x;
-			fps[1] = this.y;
-			aff.transform(fps, 0, fps, 0, 1);
-
-			// To screen coords:
-			final int x = (int)((fps[0] - srcRect.x) * magnification);
-			final int y = (int)((fps[1] - srcRect.y) * magnification);
-
 			synchronized (this) {
 				// Transform points
 				for (int i=0, k=0; i<children.length; i++, k+=2) {
@@ -266,10 +277,10 @@ public abstract class Node<T> implements Taggable {
 						g.drawString(s, xc+1, yc+dim.height+1);
 					}
 				}
-				if (with_arrows && null != tags) {
-					paintTags(g, x, y, local_edge_color);
-				}
 			}
+		}
+		if (paint) {
+			paintTags(g, x, y, local_edge_color);
 		}
 	}
 	/** Paint in the context of offscreen space, without transformations. */
