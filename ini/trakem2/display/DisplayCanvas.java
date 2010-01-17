@@ -48,6 +48,16 @@ import ini.trakem2.utils.Lock;
 import ini.trakem2.display.graphics.*;
 import ini.trakem2.plugin.TPlugIn;
 
+import javax.vecmath.Point2f;
+import javax.vecmath.Vector2f;
+import javax.vecmath.Vector3d;
+import ij.measure.Calibration;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
 	private Display display;
@@ -563,6 +573,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			tool = Toolbar.HAND;
 		}
 		//Utils.log2("button: " + me.getButton() + "  BUTTON2: " + MouseEvent.BUTTON2);
+
+		if (!zoom_and_pan) {
+			// stop animations when clicking (and on pushing ESC)
+			cancelAnimations();
+		}
 
 		switch (tool) {
 		case Toolbar.MAGNIFIER:
@@ -1585,6 +1600,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			offscreen_lock.unlock();
 		}
+		synchronized (animator_lock) {
+			animator_lock.lock();
+			if (null != animator) {
+				animator.shutdownNow();
+			}
+			animator = null;
+			sfs = null;
+			animator_lock.unlock();
+		}
 	}
 
 	public void destroy() {
@@ -1631,12 +1655,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			ke.consume();
 			return;
 		}
-
+		
 		final int keyCode = ke.getKeyCode();
 
 		try {
 			// Enable tagging system for any alphanumeric key:
-			if (null != active && active instanceof Tree && ProjectToolbar.isDataEditTool(ProjectToolbar.getToolId())) {
+			if (!input_disabled && null != active && active instanceof Tree && ProjectToolbar.isDataEditTool(ProjectToolbar.getToolId())) {
 				if (tagging) {
 					if (KeyEvent.VK_0 == keyCode && KeyEvent.VK_0 != last_keyCode) {
 						// do nothing: keep tagging as true
@@ -1662,6 +1686,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		 * TODO screen editor ... TEMPORARY if (active instanceof DLabel) {
 		 * active.keyPressed(ke); ke.consume(); return; }
 		 */
+
+		if (!zoom_and_pan) {
+			if (KeyEvent.VK_ESCAPE == keyCode) {
+				cancelAnimations();
+			}
+			return;
+		}
 
 		final int keyChar = ke.getKeyChar();
 
@@ -2066,7 +2097,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (dragging) return; // prevent unexpected mouse wheel movements
 		final int modifiers = mwe.getModifiers();
 		final int rotation = mwe.getWheelRotation();
-		if (0 != (modifiers | Utils.getControlModifier())) {
+		if (0 != (modifiers & Utils.getControlModifier())) {
+			if (!zoom_and_pan) return;
 			// scroll zoom under pointer
 			int x = mwe.getX();
 			int y = mwe.getY();
@@ -2078,7 +2110,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// Current mouse point in world coords
 			final double xx = x/magnification + srcRect.x;
 			final double yy = y/magnification + srcRect.y;
-			// Delta of view: 5 screen pixels
+			// Delta of view, in screen pixels:
 			final int px_inc;
 			if ( 0 != (modifiers & MouseWheelEvent.SHIFT_MASK)) {
 				if (0 != (modifiers & MouseWheelEvent.ALT_MASK)) px_inc = 1;
@@ -2700,5 +2732,166 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 		}
 		return false;
+	}
+
+	/** Smoothly move the canvas from x0,y0,layer0 to x1,y1,layer1 */
+	synchronized protected void animateBrowsing(final int dx, final int dy) {
+		// check preconditions
+		final float mag = (float)this.magnification;
+		final Rectangle startSrcRect = (Rectangle)this.srcRect.clone();
+		// The motion will be displaced by some screen pixels at every time step.
+		final Vector2f v = new Vector2f(dx, dy);
+		v.normalize();
+		v.scale(20/mag);
+		final Point2f cp = new Point2f(0, 0); // the current deltas
+		//
+		final ScheduledFuture[] sf = new ScheduledFuture[1];
+		sf[0] = animate(new Runnable() {
+			public void run() {
+				cp.add(v);
+				Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
+				int x, y;
+				if (cp.x > dx || cp.y > dy) {
+					// set target position
+					x = startSrcRect.x + dx;
+					y = startSrcRect.y + dy;
+					// quit animation
+					sf[0].cancel(true);
+				} else {
+					// set position
+					x = startSrcRect.x + (int)(cp.x);
+					y = startSrcRect.y + (int)(cp.y);
+				}
+				setSrcRect(x, y, startSrcRect.width, startSrcRect.height);
+				display.repaintAll2();
+			}
+		}, 0, 50, TimeUnit.MILLISECONDS);
+	}
+
+	/** Smoothly move the canvas from its current position until the given rectangle is included within the srcRect.
+	 * If the given rectangle is larger than the srcRect, it will refuse to work (for now). */
+	synchronized public boolean animateBrowsing(final Rectangle target_, final Layer target_layer) {
+		// Crop target to world's 2D dimensions
+		Area a = new Area(target_);
+		a.intersect(new Area(display.getLayerSet().get2DBounds()));
+		final Rectangle target = a.getBounds();
+		if (0 == target.width || 0 == target.height) {
+			return false;
+		}
+		// animate at all?
+		if (this.srcRect.contains(target) && target_layer == display.getLayer()) {
+			return false;
+		}
+
+		// The motion will be displaced by some screen pixels at every time step.
+		final int ox = srcRect.x + srcRect.width/2;
+		final int oy = srcRect.y + srcRect.height/2;
+		final int tx = target.x + target.width/2;
+		final int ty = target.y + target.height/2;
+		final Vector2f v = new Vector2f(tx - ox, ty - oy);
+		v.normalize();
+		v.scale(20/(float)magnification);
+
+		
+		// The layer range
+		final Layer start_layer = display.getLayer();
+		/*
+		int ithis = display.getLayerSet().indexOf(start_layer);
+		int itarget = display.getLayerSet().indexOf(target_layer);
+		final java.util.List<Layer> layers = display.getLayerSet().getLayers(ithis, itarget);
+		*/
+		Calibration cal = display.getLayerSet().getCalibrationCopy();
+		final double pixelWidth = cal.pixelWidth;
+		final double pixelHeight = cal.pixelHeight;
+
+		final double dist_to_travel = Math.sqrt(Math.pow((tx - ox)*pixelWidth, 2) + Math.pow((ty - oy)*pixelHeight, 2)
+						                + Math.pow((start_layer.getZ() - target_layer.getZ()) * pixelWidth, 2));
+
+		// vector in calibrated coords between origin and target
+		final Vector3d g = new Vector3d((tx - ox)*pixelWidth, (ty - oy)*pixelHeight, (target_layer.getZ() - start_layer.getZ())*pixelWidth);
+
+		final ScheduledFuture[] sf = new ScheduledFuture[1];
+		sf[0] = animate(new Runnable() {
+			public void run() {
+				if (DisplayCanvas.this.srcRect.contains(target)) {
+					// reached destination
+					if (display.getLayer() != target_layer) display.toLayer(target_layer);
+					sf[0].cancel(true);
+				} else {
+					setSrcRect(srcRect.x + (int)v.x, srcRect.y + (int)v.y, srcRect.width, srcRect.height);
+					// which layer?
+					if (start_layer != target_layer) {
+						int cx = srcRect.x + srcRect.width/2;
+						int cy = srcRect.y + srcRect.height/2;
+						double dist = Math.sqrt(Math.pow((cx - ox)*pixelWidth, 2) + Math.pow((cy - oy)*pixelHeight, 2)
+									+ Math.pow((display.getLayer().getZ() - start_layer.getZ()) * pixelWidth, 2));
+
+						Vector3d gg = new Vector3d(g);
+						gg.normalize();
+						gg.scale((float)dist);
+						Layer la = display.getLayerSet().getNearestLayer(start_layer.getZ() + gg.z/pixelWidth);
+						if (la != display.getLayer()) {
+							display.toLayer(la);
+						}
+					}
+					display.repaintAll2();
+				}
+			}
+		}, 0, 50, TimeUnit.MILLISECONDS);
+		return true;
+	}
+
+	private ScheduledExecutorService animator = null;
+	private boolean zoom_and_pan = true;
+	private final Lock animator_lock = new Lock();
+	private ArrayList<ScheduledFuture> sfs = null;
+
+	private void cancelAnimations() {
+		new Thread() {
+			{ setPriority(Thread.NORM_PRIORITY); }
+			public void run() {
+				java.util.List<ScheduledFuture> sfs = null;
+				synchronized (animator_lock) {
+					animator_lock.lock();
+					sfs = null == DisplayCanvas.this.sfs ? null : new ArrayList<ScheduledFuture>(DisplayCanvas.this.sfs);
+					animator_lock.unlock();
+				}
+				if (null != sfs) {
+					for (ScheduledFuture sf : sfs) sf.cancel(true);
+				}
+			}
+		}.start();
+	}
+
+	private ScheduledFuture animate(Runnable run, long initialDelay, long delay, TimeUnit units) {
+		synchronized (animator_lock) {
+			animator_lock.lock();
+			try {
+				if (null == animator) {
+					animator = Executors.newScheduledThreadPool(2);
+					sfs = new ArrayList<ScheduledFuture>();
+				}
+				display.getProject().setReceivesInput(false);
+				zoom_and_pan = false;
+				final ScheduledFuture sf = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
+				animator.scheduleWithFixedDelay(new Runnable() {
+					public void run() {
+						if (sf.isCancelled()) {
+							synchronized (animator_lock) {
+								zoom_and_pan = true;
+								display.getProject().setReceivesInput(true);
+								animator_lock.unlock();
+							}
+						}
+					}
+				}, 100, 700, TimeUnit.MILLISECONDS);
+				sfs.add(sf);
+				return sf;
+			} catch (Throwable t) {
+				IJError.print(t);
+				animator_lock.unlock();
+			}
+		}
+		return null;
 	}
 }

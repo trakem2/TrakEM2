@@ -4609,6 +4609,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		center(c.x, c.y);
 	}
 
+	public final void animateBrowsingTo(final Coordinate c) {
+		if (null == c) return;
+		final double padding = 50/canvas.getMagnification(); // 50 screen pixels
+		canvas.animateBrowsing(new Rectangle((int)(c.x - padding), (int)(c.y - padding), (int)(2*padding), (int)(2*padding)), c.layer);
+	}
+
 	static public final void centerAt(final Coordinate c) {
 		centerAt(c, false, false);
 	}

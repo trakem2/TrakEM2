@@ -1580,11 +1580,11 @@ public abstract class Tree extends ZDisplayable {
 					ke.consume();
 					return;
 				case KeyEvent.VK_CLOSE_BRACKET:
-					display.centerIfNotWithinSrcRect(findNearAndGetNext(po.x, po.y, layer, dc.getMagnification()));
+					display.animateBrowsingTo(findNearAndGetNext(po.x, po.y, layer, dc.getMagnification()));
 					ke.consume();
 					return;
 				case KeyEvent.VK_OPEN_BRACKET:
-					display.centerIfNotWithinSrcRect(findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification()));
+					display.animateBrowsingTo(findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification()));
 					ke.consume();
 					return;
 				case KeyEvent.VK_G:
