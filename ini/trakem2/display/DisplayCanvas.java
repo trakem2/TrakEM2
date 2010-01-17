@@ -324,6 +324,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	*/
 
 	public void setMagnification(double mag) {
+		if (mag < 0.00000001) mag = 0.00000001;
 		// ensure a stroke of thickness 1.0 regardless of magnification
 		this.stroke = new BasicStroke((float)(1.0/mag), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
 		// FIXES MAG TO ImageCanvas.zoomLevel LIMITS!!
@@ -1084,6 +1085,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 	/** Set the srcRect - used by the DisplayNavigator. */
 	protected void setSrcRect(int x, int y, int width, int height) {
+		if (width < 1) width = 1;
+		if (height < 1) height = 1;
 		this.srcRect.setRect(x, y, width, height);
 		display.updateInDatabase("srcRect");
 		display.getMode().srcRectUpdated(srcRect, magnification);
@@ -2063,7 +2066,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (dragging) return; // prevent unexpected mouse wheel movements
 		final int modifiers = mwe.getModifiers();
 		final int rotation = mwe.getWheelRotation();
-		if (0 == (modifiers ^ Utils.getControlModifier())) {
+		if (0 != (modifiers | Utils.getControlModifier())) {
 			// scroll zoom under pointer
 			int x = mwe.getX();
 			int y = mwe.getY();
@@ -2071,11 +2074,65 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				x = getWidth()/2;
 				y = getHeight()/2;
 			}
+
+			// Current mouse point in world coords
+			final double xx = x/magnification + srcRect.x;
+			final double yy = y/magnification + srcRect.y;
+			// Delta of view: 5 screen pixels
+			final int px_inc;
+			if ( 0 != (modifiers & MouseWheelEvent.SHIFT_MASK)) {
+				if (0 != (modifiers & MouseWheelEvent.ALT_MASK)) px_inc = 1;
+				else px_inc = 5;
+			} else px_inc = 20;
+			final double inc = px_inc/magnification;
+
+			final Rectangle r = new Rectangle();
+
 			if (rotation > 0) {
-				zoomOut(x, y);
+				// zoom out
+				r.width = srcRect.width + (int)(inc+0.5);
+				r.height = srcRect.height + (int)(inc+0.5);
+				r.x = (int)(xx - ((xx - srcRect.x)/srcRect.width) * r.width + 0.5);
+				r.y = (int)(yy - ((yy - srcRect.y)/srcRect.height) * r.height + 0.5);
+				// check boundaries
+				if (r.width * magnification < getWidth()
+				 || r.height * magnification < getHeight()) {
+					// Can't zoom at point: would chage field of view's flow or would have to shift the canvas position!
+					Utils.showStatus("To zoom more, use -/+ keys");
+					return;
+				}
 			} else {
-				zoomIn(x, y);
+				//zoom in
+				r.width = srcRect.width - (int)(inc+0.5);
+				r.height = srcRect.height - (int)(inc+0.5);
+				if (r.width < 1 || r.height < 1) {
+					return;
+				}
+				r.x = (int)(xx - ((xx - srcRect.x)/srcRect.width) * r.width + 0.5);
+				r.y = (int)(yy - ((yy - srcRect.y)/srcRect.height) * r.height + 0.5);
 			}
+			final double newMag = magnification * (srcRect.width / (double)r.width);
+			// correct floating-point-induced erroneous drift: the int-precision offscreen point under the mouse shoud remain the same
+			r.x -= (int)((x/newMag + r.x) - xx);
+			r.y -= (int)((y/newMag + r.y) - yy);
+
+			// adjust bounds
+			int w = (int) Math.round(dstWidth / newMag);
+			if (w * newMag < dstWidth) w++;
+			if (w > imageWidth) w = imageWidth;
+			int h = (int) Math.round(dstHeight / newMag);
+			if (h * newMag < dstHeight) h++;
+			if (h > imageHeight) h = imageHeight;
+			if (r.x < 0) r.x = 0;
+			if (r.y < 0) r.y = 0;
+			if (r.x + w > imageWidth) r.x = imageWidth - w;
+			if (r.y + h > imageHeight) r.y = imageHeight - h; //imageWidth and imageHeight are the LayerSet's width,height, ie. the world's 2D dimensions.
+
+			// set!
+			this.setMagnification(newMag);
+			this.setSrcRect(r.x, r.y, w, h);
+			display.repaintAll2();
+
 		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && AreaContainer.class.isInstance(display.getActive())) {
 			final int tool = ProjectToolbar.getToolId();
 			final int sign = rotation > 0 ? 1 : -1;

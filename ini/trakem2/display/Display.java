@@ -4601,6 +4601,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		center(c.x, c.y);
 	}
 
+	public final void centerIfNotWithinSrcRect(final Coordinate c) {
+		if (null == c) return;
+		slt.set(c.layer);
+		Rectangle srcRect = canvas.getSrcRect();
+		if (srcRect.contains((int)(c.x+0.5), (int)(c.y+0.5))) return;
+		center(c.x, c.y);
+	}
+
 	static public final void centerAt(final Coordinate c) {
 		centerAt(c, false, false);
 	}
