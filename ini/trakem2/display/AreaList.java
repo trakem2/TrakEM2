@@ -321,12 +321,20 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		aw = new AreaWrapper(area);
 		aw.setSource(this);
 		aw.mousePressed(me, x_p_w, y_p_w, mag);
+		aw.setSource(null);
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		if (null != aw) aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		if (null == aw) return;
+		aw.setSource(this);
+		aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		aw.setSource(null);
 	}
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		if (null != aw) aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		if (null == aw) return;
+		aw.setSource(this);
+		aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		aw.setSource(null);
+
 		Area area = aw.getArea();
 		// check if empty. If so, remove
 		Rectangle bounds = area.getBounds();
