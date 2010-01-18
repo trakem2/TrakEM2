@@ -2358,23 +2358,27 @@ abstract public class Loader {
 						// If loaded twice as many, wait for mipmaps to finish
 						// Otherwise, images would end up loaded twice for no reason
 						if (0 == (i % (NP+NP))) {
+							final ArrayList<Future> a = new ArrayList<Future>(NP+NP);
 							synchronized (fus) { // .add is also synchronized, it's a Vector
 								int k = 0;
-								for (final Iterator<Future> it = fus.iterator(); it.hasNext(); ) {
-									if (NP == k) break; // let the rest go
-									try {
-										it.next().get();
-										it.remove();
-										k++;
-									} catch (Throwable t) {
-										t.printStackTrace();
-									}
+								while (!fus.isEmpty() && k < NP+NP) {
+									a.add(fus.remove(0));
+									k++;
+								}
+							}
+							for (final Future fu : a) {
+								try {
+									if (wo.hasQuitted()) return;
+									fu.get();
+								} catch (Throwable t) {
+									t.printStackTrace();
 								}
 							}
 						}
 
 						imported.add(exec.submit(new Runnable() {
 							public void run() {
+								if (wo.hasQuitted()) return;
 								releaseMemory(); //ensures a usable minimum is free
 								/* */
 								IJ.redirectErrorMessages();
