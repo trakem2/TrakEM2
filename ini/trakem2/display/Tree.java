@@ -39,7 +39,6 @@ import ini.trakem2.vector.VectorString3D;
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.BasicStroke;
 import java.awt.Point;
 import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
