@@ -2492,6 +2492,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
 		item = new JMenuItem("Montage multiple layers (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
+		item = new JMenuItem("Montage multiple layers (SIFT)"); item.addActionListener(this); align_menu.add(item);
+		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
 		item = new JMenuItem("Link images..."); item.addActionListener(this); link_menu.add(item);
@@ -3743,6 +3745,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			getLayerSet().addLayerEditedStep(layers);
 			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
 			if (null == burro) return;
+			burro.addPostTask(new Runnable() { public void run() {
+				Collection<Displayable> ds = new ArrayList<Displayable>();
+				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
+				getLayerSet().enlargeToFit(ds);
+				getLayerSet().addLayerEditedStep(layers);
+			}});
+		} else if (command.equals("Montage multiple layers (SIFT)")) {
+			final GenericDialog gd = new GenericDialog("Choose range");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
+			getLayerSet().addLayerEditedStep(layers);
+			Bureaucrat burro = AlignTask.montageLayersTask(layers);
 			burro.addPostTask(new Runnable() { public void run() {
 				Collection<Displayable> ds = new ArrayList<Displayable>();
 				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
