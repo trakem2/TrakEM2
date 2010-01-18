@@ -209,6 +209,7 @@ final public class AlignTask
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
 			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>());
+			Display.repaint(layer);
 		}
 	}
 
