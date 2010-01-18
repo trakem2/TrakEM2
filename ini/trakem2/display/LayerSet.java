@@ -904,7 +904,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Returns a sublist of layers from first to last, both inclusive. If last is larger than first, the order is reversed.  */
 	public List<Layer> getLayers(int first, int last) {
 		List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
-		if (first > last) Collections.reverse(las);
+		if (first > last) {
+			List<Layer> las2 = new ArrayList<Layer>(las);
+			Collections.reverse(las2); // would otherwise reverse the original list! A monumental error.
+			return las2;
+		}
 		return new ArrayList<Layer>(las); // editable, thread-safe (a copy)
 	}
 
