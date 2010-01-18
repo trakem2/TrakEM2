@@ -196,6 +196,7 @@ final public class AlignTask
 	final static public void montageLayers(final Align.ParamOptimize p, final List<Layer> layers) {
 		int i = 0;
 		for (final Layer layer : layers) {
+			if (Thread.currentThread().isInterrupted()) return;
 			Collection<Displayable> patches = layer.getDisplayables(Patch.class, true);
 			if (patches.isEmpty()) continue;
 			for (final Displayable patch : patches) {
@@ -204,6 +205,7 @@ final public class AlignTask
 					continue;
 				}
 			}
+			Utils.log("====\nMontaging layer " + layer);
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
 			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>());
