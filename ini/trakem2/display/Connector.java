@@ -601,4 +601,19 @@ public class Connector extends ZDisplayable {
 
 		return tl.generateMesh(scale, 12);
 	}
+
+	protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		if (0 == lids.length) return true; // empty
+		if (la.getId() == lids[0]) {
+			return remove2(false);
+		}
+		for (int i=1; i<lids.length; i++) {
+			if (la.getId() == lids[i]) {
+				removeTarget(i);
+				i--;
+			}
+		}
+		return true;
+	}
 }

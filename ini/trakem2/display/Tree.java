@@ -242,7 +242,12 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	protected boolean calculateBoundingBox() {
-		if (null == root) return false;
+		if (null == root) {
+			this.at.setToIdentity();
+			this.width = 0;
+			this.height = 0;
+			return true;
+		}
 
 		final Rectangle box = getPaintingBounds();
 
@@ -645,6 +650,7 @@ public abstract class Tree extends ZDisplayable {
 				// With the found nd, now a root, create a new Tree
 				Tree t = newInstance();
 				t.addToDatabase();
+				t.root = nd;
 				// ... and fill its cache arrays
 				t.cacheSubtree(subtree_nodes); // includes nd itself
 				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
@@ -1003,6 +1009,11 @@ public abstract class Tree extends ZDisplayable {
 		} finally {
 			//Utils.log2("new node: " + child + " with parent: " + parent);
 			//Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
+			if (null == parent) {
+				Utils.log2("just added parent: ");
+				Utils.log2(" nodes to paint: " + Utils.toString(getNodesToPaint(Display.getFrontLayer())));
+				Utils.log2(" nodes in node_layer_map: " + Utils.toString(node_layer_map));
+			}
 		}
 	}
 
@@ -1010,7 +1021,6 @@ public abstract class Tree extends ZDisplayable {
 	 *  @return true on success. Will return false when the node has 2 or more children.
 	 *  The new edge confidence is that of the parent to the @param node. */
 	public boolean popNode(final Node node) {
-		removeFromLinkLater(node);
 		switch (node.getChildrenCount()) {
 			case 0:
 				// End node:
@@ -1020,6 +1030,7 @@ public abstract class Tree extends ZDisplayable {
 				if (null == node.parent) {
 					// Make its child the new root
 					root = node.children[0];
+					root.parent = null;
 				} else {
 					node.parent.children[node.parent.indexOf(node)] = node.children[0];
 					node.children[0].parent = node.parent;
@@ -1043,21 +1054,24 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	private void removeNode(final Node node, final Collection<Node> subtree_nodes) {
-		// if not an end-point, update cached lists
-		if (null != node.children) {
-			Utils.log2("Removing children of node " + node);
-			for (final Node nd : subtree_nodes) { // includes the node itself
-				node_layer_map.get(nd.la).remove(nd);
-				if (null == nd.children && !end_nodes.remove(nd)) {
-					Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
-				}
-			}
+		if (null == node.parent) {
+			root = null;
+			clearCache();
 		} else {
-			Utils.log2("Just removing node " + node);
-			end_nodes.remove(node);
-			node_layer_map.get(node.la).remove(node);
-		}
-		if (null != node.parent) {
+			// if not an end-point, update cached lists
+			if (null != node.children) {
+				Utils.log2("Removing children of node " + node);
+				for (final Node nd : subtree_nodes) { // includes the node itself
+					node_layer_map.get(nd.la).remove(nd);
+					if (null == nd.children && !end_nodes.remove(nd)) {
+						Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
+					}
+				}
+			} else {
+				Utils.log2("Just removing node " + node);
+				end_nodes.remove(node);
+				node_layer_map.get(node.la).remove(node);
+			}
 			if (1 == node.parent.getChildrenCount()) {
 				end_nodes.add(node.parent);
 			}
@@ -1244,6 +1258,7 @@ public abstract class Tree extends ZDisplayable {
 		if (nd == last_added) last_added = null;
 		if (nd == last_edited) last_edited = null;
 		if (nd == last_visited) last_visited = null;
+		removeFromLinkLater(nd);
 	}
 
 	/** The Node double-clicked on, for join operations. */
@@ -2127,5 +2142,64 @@ public abstract class Tree extends ZDisplayable {
 			}
 			return val;
 		}
+	}
+
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		final Set<Node> nodes = node_layer_map.remove(la);
+		if (null == nodes) return true;
+		final List<Tree> siblings = new ArrayList<Tree>();
+		for (final Iterator<Node> it = nodes.iterator(); it.hasNext(); ) {
+			final Node nd = it.next();
+			it.remove();
+			fireNodeRemoved(nd);
+			if (null == nd.parent) {
+				switch (nd.getChildrenCount()) {
+					case 1:
+						this.root = nd.children[0];
+						nd.children[0] = null;
+						break;
+					case 0:
+						this.root = null;
+						break;
+					default:
+						// split: the first child remains as root:
+						this.root = nd.children[0];
+						nd.children[0] = null;
+						// ... and the rest of children become a new Tree each when done
+						for (int i=1; i<nd.children.length; i++) {
+							Tree t = newInstance();
+							t.addToDatabase();
+							t.root = nd.children[i];
+							nd.children[i] = null;
+							siblings.add(t);
+						}
+						break;
+				}
+			} else {
+				if (null == nd.children) {
+					end_nodes.remove(nd);
+				} else {
+					// add all its children to the parent
+					for (int i=0; i<nd.children.length; i++) {
+						nd.children[i].parent = null;
+						nd.parent.add(nd.children[i], nd.confidence[i]);
+					}
+				}
+				nd.parent.remove(nd);
+			}
+		}
+		if (!siblings.isEmpty()) {
+			this.clearCache();
+			if (null != this.root) this.cacheSubtree(root.getSubtreeNodes());
+			for (Tree t : siblings) {
+				t.cacheSubtree(t.root.getSubtreeNodes());
+				t.calculateBoundingBox();
+				layer_set.add(t);
+				project.getProjectTree().addSibling(this, t);
+			}
+		}
+		this.calculateBoundingBox();
+		return true;
 	}
 }

@@ -2172,4 +2172,15 @@ public class Pipe extends ZDisplayable implements Line3D {
 		calculateBoundingBox(true);
 		return true;
 	}
+
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
+	}
 }

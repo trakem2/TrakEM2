@@ -1431,4 +1431,14 @@ public class Polyline extends ZDisplayable implements Line3D {
 		Utils.reverse(p[1]);
 		Utils.reverse(p_layer);
 	}
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
+	}
 }

@@ -1420,4 +1420,10 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		l.add(a);
 		return l;
 	}
+
+	protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		ht_areas.remove(la.getId());
+		return true;
+	}
 }
