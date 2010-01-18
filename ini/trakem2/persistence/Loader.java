@@ -2361,7 +2361,7 @@ abstract public class Loader {
 							final ArrayList<Future> a = new ArrayList<Future>(NP+NP);
 							synchronized (fus) { // .add is also synchronized, it's a Vector
 								int k = 0;
-								while (!fus.isEmpty() && k < NP+NP) {
+								while (!fus.isEmpty() && k < NP) {
 									a.add(fus.remove(0));
 									k++;
 								}
