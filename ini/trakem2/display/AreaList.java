@@ -2051,7 +2051,12 @@ public class AreaList extends ZDisplayable {
 		final TreeMap<Integer,Area> ias = new TreeMap<Integer,Area>();
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
-			ias.put(layer_set.indexOf(layer_set.getLayer((Long)entry.getKey())), (Area)entry.getValue());
+			int ilayer = layer_set.indexOf(layer_set.getLayer((Long)entry.getKey()));
+			if (-1 == ilayer) {
+				Utils.log("Could not find a layer with id " + entry.getKey());
+				continue;
+			}
+			ias.put(ilayer, (Area)entry.getValue());
 		}
 
 		ArrayList<Layer> layers = layer_set.getLayers();
@@ -2068,7 +2073,12 @@ public class AreaList extends ZDisplayable {
 
 			// fetch Layer
 			int layer_index = e.getKey();
-			Layer layer = layers.get(layer_index);
+			try {
+				Layer layer = layers.get(layer_index);
+			} catch (IndexOutOfBoundsException iobe) {
+				Utils.log("Could not find a layer at index " + layer_index);
+				continue;
+			}
 
 			// fetch Area
 			Area area = e.getValue();
