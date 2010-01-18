@@ -2288,7 +2288,7 @@ abstract public class Loader {
 							np = np / 2;
 							break;
 					}
-					final ExecutorService exec = Executors.newFixedThreadPool(np);
+					final ExecutorService ex = Executors.newFixedThreadPool(np);
 					final List<Future> imported = new ArrayList<Future>();
 					final Worker wo = this;
 
@@ -2376,7 +2376,7 @@ abstract public class Loader {
 							}
 						}
 
-						imported.add(exec.submit(new Runnable() {
+						imported.add(ex.submit(new Runnable() {
 							public void run() {
 								if (wo.hasQuitted()) return;
 								releaseMemory(); //ensures a usable minimum is free
@@ -2402,6 +2402,7 @@ abstract public class Loader {
 					}
 
 					Utils.wait(imported);
+					ex.shutdown();
 
 					if (0 == n_imported.get()) {
 						Utils.log("No images imported.");
@@ -4511,10 +4512,10 @@ abstract public class Loader {
 
 	/** Returns an ImageStack, one slice per region. */
 	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
-		ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		ExecutorService ex = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
 		for (final Region r : regions) {
-			fus.add(exec.submit(new Callable<ImagePlus>() {
+			fus.add(ex.submit(new Callable<ImagePlus>() {
 				public ImagePlus call() {
 					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black);
 				}
@@ -4529,7 +4530,7 @@ abstract public class Loader {
 				IJError.print(t);
 			}
 		}
-		exec.shutdown();
+		ex.shutdown();
 		return new ImagePlus("Fly-Through", stack);
 	}
 }
