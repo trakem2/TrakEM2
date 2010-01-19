@@ -420,6 +420,23 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 	}
 
+	protected Rectangle getPaintingBounds() {
+		Rectangle box = null;
+		synchronized (node_layer_map) {
+			for (final Collection<Node> nodes : node_layer_map.values()) {
+				for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
+					Rectangle b;
+					if (null == nd.aw || nd.aw.getArea().isEmpty()) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
+					else b = nd.aw.getArea().getBounds();
+					//
+					if (null == box) box = b;
+					else box.add(b);
+				}
+			}
+		}
+		return box;
+	}
+
 	public List generateMesh(final double scale, final int resample) {
 		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
