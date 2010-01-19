@@ -525,7 +525,7 @@ public class Treeline extends Tree {
 				Vector3f cross = new Vector3f();
 				cross.cross(vpc, vplane);
 				cross.normalize(); // not needed?
-				aa.set(cross.x, cross.y, cross.z, vplane.angle(vpc));
+				aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
 				t.set(aa);
 				
 
