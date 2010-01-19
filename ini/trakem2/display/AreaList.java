@@ -320,7 +320,15 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 
 		aw = new AreaWrapper(area);
 		aw.setSource(this);
-		aw.mousePressed(me, x_p_w, y_p_w, mag);
+		final Area a = aw.getArea();
+		final Long lid = this.lid;
+		aw.mousePressed(me, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { public void run() {
+			// check if empty. If so, remove
+			Rectangle bounds = a.getBounds();
+			if (0 == bounds.width && 0 == bounds.height) {
+				ht_areas.remove(lid);
+			}
+		}}}));
 		aw.setSource(null);
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
@@ -334,22 +342,6 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		aw.setSource(this);
 		aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 		aw.setSource(null);
-
-		Area area = aw.getArea();
-		// check if empty. If so, remove
-		Rectangle bounds = area.getBounds();
-		if (0 == bounds.width && 0 == bounds.height) {
-			ht_areas.remove(lid);
-		}
-
-		final boolean translated = calculateBoundingBox(); // will reset all areas' top-left coordinates, and update the database if necessary
-		if (translated) {
-			// update for all, since the bounding box has changed
-			updateInDatabase("all_points");
-		} else {
-			// update the points for the current layer only
-			updateInDatabase("points=" + lid);
-		}
 
 		lid = null;
 		aw = null;

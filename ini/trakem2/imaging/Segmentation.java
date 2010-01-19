@@ -29,6 +29,8 @@ import java.awt.Checkbox;
 import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
 
 import levelsets.ij.ImageContainer;
 import levelsets.ij.ImageProgressContainer;
@@ -162,6 +164,9 @@ public class Segmentation {
 	}
 
 	static public Bureaucrat fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		return fastMarching(aw, layer, srcRect, x_p_w, y_p_w, Arrays.asList(new Runnable[]{post_task}));
+	}
+	static public Bureaucrat fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) {
 		// Capture pointers before they are set to null
 		final AreaContainer ac = (AreaContainer)aw.getSource();
 		final AffineTransform source_aff = aw.getSource().getAffineTransform();
@@ -287,7 +292,7 @@ public class Segmentation {
 
 			Display.repaint(layer);
 		}}, layer.getProject());
-		if (null != post_task) burro.addPostTask(post_task);
+		if (null != post_tasks) for (Runnable task : post_tasks) burro.addPostTask(task);
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -295,18 +300,18 @@ public class Segmentation {
 	static public class BlowCommander {
 		BlowRunner br = null;
 		final ExecutorService dispatcher = Executors.newFixedThreadPool(1);
-		final Runnable post_task;
+		final List<Runnable> post_tasks;
 		final AffineTransform source_aff;
 		final AreaContainer ac;
 
-		public BlowCommander(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
-			this.post_task = post_task;
+		public BlowCommander(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) throws Exception {
+			this.post_tasks = post_tasks;
 			this.ac = (AreaContainer)aw.getSource();
 			this.source_aff = aw.getSource().getAffineTransform();
 
 			dispatcher.submit(new Runnable() {
 				public void run() {
-					// Creation in the contex of the ExecutorService thread, so 'imp' will be local to it
+					// Creation in the context of the ExecutorService thread, so 'imp' will be local to it
 					try {
 						br = new BlowRunner(aw, layer, srcRect, x_p_w, y_p_w);
 					} catch (Throwable t) {
@@ -341,9 +346,9 @@ public class Segmentation {
 						IJError.print(t);
 					}
 					// Execute post task if any
-					if (null != post_task) {
+					if (null != post_tasks) {
 						try {
-							post_task.run();
+							for (Runnable task : post_tasks) task.run();
 						} catch (Throwable t) {
 							IJError.print(t);
 						}
@@ -398,6 +403,7 @@ public class Segmentation {
 		}
 		public void finish(final AreaContainer ac, final AffineTransform source_aff) throws Exception {
 			Roi roi = imp.getRoi();
+			Utils.log2("roi is " + roi);
 			if (null == roi) return;
 			ShapeRoi sroi = new ShapeRoi(roi);
 			Rectangle b = sroi.getBounds();
@@ -406,6 +412,7 @@ public class Segmentation {
 			try {
 				aw.getArea().add(M.getArea(sroi).createTransformedArea(source_aff.createInverse()));
 				ac.calculateBoundingBox();
+				Display.getFront().getCanvas().getFakeImagePlus().killRoi();
 			} catch (NoninvertibleTransformException nite) {
 				IJError.print(nite);
 			}
@@ -413,7 +420,9 @@ public class Segmentation {
 	}
 
 	static public BlowCommander blowRoi(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
-		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, post_task);
+		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, Arrays.asList(new Runnable[]{post_task}));
 	}
-
+	static public BlowCommander blowRoi(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) throws Exception {
+		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, post_tasks);
+	}
 }

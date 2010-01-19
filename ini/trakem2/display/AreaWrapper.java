@@ -12,6 +12,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Point;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -453,9 +454,14 @@ public class AreaWrapper {
 
 	private boolean something_eroded = false;
 	private Segmentation.BlowCommander blowcommander = null;
+	private List<Runnable> post_mouseReleased_tasks = null;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
+		mousePressed(me, x_p_w, y_p_w, mag, null);
+	}
+	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag, final List<Runnable> post_tasks) {
 		final Layer la = Display.getFrontLayer(source.getProject());
+		this.post_mouseReleased_tasks = post_tasks;
 
 		// transform the x_p, y_p to the local coordinates
 		int x_p = x_p_w;
@@ -579,28 +585,28 @@ public class AreaWrapper {
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			final Displayable src = this.source;
+			final ArrayList<Runnable> ptasks = new ArrayList<Runnable>();
+			if (null != post_mouseReleased_tasks) {
+				ptasks.addAll(post_mouseReleased_tasks);
+				post_mouseReleased_tasks = null; // avoid running them twice
+			}
+			ptasks.add(new Runnable() {
+				public void run() {
+					// Add data edit step when done for undo/redo
+					src.getLayerSet().addDataEditStep(src);
+				}
+			});
 			if (Utils.isControlDown(me)) {
 				// Grow with blow tool
 				try {
-					blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
-							new Runnable() {
-								public void run() {
-									// Add data edit step when done for undo/redo
-									src.getLayerSet().addDataEditStep(src);
-								}
-							});
+					blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
+
 				} catch (Exception e) {
 					IJError.print(e);
 				}
 			} else {
 				// Grow with fast marching
-				Segmentation.fastMarching(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w,
-						new Runnable() {
-							public void run() {
-								// Add data edit step when done for undo/redo
-								src.getLayerSet().addDataEditStep(src);
-							}
-						});
+				Segmentation.fastMarching(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
 			}
 		}
 	}
@@ -622,6 +628,10 @@ public class AreaWrapper {
 				blowcommander.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 				blowcommander = null;
 			}
+		}
+
+		if (null != post_mouseReleased_tasks) {
+			for (Runnable task : post_mouseReleased_tasks) task.run();
 		}
 
 		if (something_eroded) {
