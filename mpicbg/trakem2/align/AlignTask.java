@@ -166,7 +166,7 @@ final public class AlignTask
 	 *  Considers visible Patches only. */
 	final static public Bureaucrat montageLayersTask(final List<Layer> layers) {
 		if (null == layers || layers.isEmpty()) return null;
-		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers") {
+		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers", true) {
 			public void exec() {
 				//final Align.ParamOptimize p = Align.paramOptimize;
 				final GenericDialog gd = new GenericDialog( "Montage Layers" );
@@ -594,7 +594,7 @@ final public class AlignTask
 	 *  If a null @param p_snap is given, it will use the AlignTask.p_snap.
 	 *  If @param setup is true, it will show a dialog to adjust parameters. */
 	static public final Bureaucrat snap(final Patch patch, final Align.ParamOptimize p_snap, final boolean setup) {
-		return Bureaucrat.createAndStart(new Worker.Task("Snapping") {
+		return Bureaucrat.createAndStart(new Worker.Task("Snapping", true) {
 			public void exec() {
 
 		final Align.ParamOptimize p = null == p_snap ? AlignTask.p_snap : p_snap;
@@ -682,7 +682,7 @@ final public class AlignTask
 	}
 
 	static public final Bureaucrat registerStackSlices(final Patch slice) {
-		return Bureaucrat.createAndStart(new Worker.Task("Registering slices") {
+		return Bureaucrat.createAndStart(new Worker.Task("Registering slices", true) {
 			public void exec() {
 
 		// build the list

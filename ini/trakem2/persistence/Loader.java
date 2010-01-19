@@ -1623,7 +1623,7 @@ abstract public class Loader {
 		final double bt_overlap_ = bt_overlap;
 		final double lr_overlap_ = lr_overlap;
 
-		return Bureaucrat.createAndStart(new Worker.Task("Importing 1/" + n_slices) {
+		return Bureaucrat.createAndStart(new Worker.Task("Importing 1/" + n_slices, true) {
 			public void exec() {
 				// Slice up list:
 				for (int sl=0; sl<n_slices; sl++) {
@@ -2250,7 +2250,7 @@ abstract public class Loader {
 		final boolean homogenize_contrast = homogenize_contrast_;
 
 
-		return Bureaucrat.createAndStart(new Worker.Task("Importing images") {
+		return Bureaucrat.createAndStart(new Worker.Task("Importing images", true) {
 			public void exec() {
 				try {
 					// 1 - read text file
@@ -2293,7 +2293,10 @@ abstract public class Loader {
 
 					// 3 - parse each line
 					for (int i = 0; i < lines.length; i++) {
-						if (Thread.currentThread().isInterrupted()) return;
+						if (Thread.currentThread().isInterrupted() || hasQuitted()) {
+							this.quit();
+							return;
+						}
 						// process line
 						String line = lines[i].replace('\\','/').trim(); // first thing is the backslash removal, before they get processed at all
 						int ic = line.indexOf('#');
@@ -4521,6 +4524,7 @@ abstract public class Loader {
 		ImageStack stack = new ImageStack((int)(r.r.width * magnification), (int)(r.r.height * magnification));
 		for (int i=0; i<regions.size(); i++) {
 			try {
+				if (Thread.currentThread().isInterrupted()) break;
 				stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
 			} catch (Throwable t) {
 				IJError.print(t);

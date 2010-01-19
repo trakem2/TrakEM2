@@ -4273,7 +4273,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (null != imp) imp.show();
 		} else if (command.equals("Fly through selected Treeline/AreaTree")) {
 			if (null == active || !(active instanceof Tree)) return;
-			Bureaucrat.createAndStart(new Worker.Task("Creating fly through") {
+			Bureaucrat.createAndStart(new Worker.Task("Creating fly through", true) {
 				public void exec() {
 					GenericDialog gd = new GenericDialog("Fly through");
 					gd.addNumericField("Width", 512, 0);
