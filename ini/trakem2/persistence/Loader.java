@@ -2257,7 +2257,6 @@ abstract public class Loader {
 					final String[] lines = Utils.openTextFileLines(abs_text_file_path);
 					if (null == lines || 0 == lines.length) {
 						Utils.log2("No images to import from " + abs_text_file_path);
-						finishedWorking();
 						return;
 					}
 
@@ -2336,7 +2335,6 @@ abstract public class Loader {
 								String dir = dc.getDirectory();
 								if (null == dir) {
 									// quit all threads
-									finishedWorking();
 									return;
 								}
 								base_dir = Utils.fixDir(dir);
@@ -2406,7 +2404,6 @@ abstract public class Loader {
 
 					if (0 == n_imported.get()) {
 						Utils.log("No images imported.");
-						finishedWorking();
 						return;
 					}
 
@@ -2427,7 +2424,6 @@ abstract public class Loader {
 				} catch (Exception e) {
 					IJError.print(e);
 				}
-				finishedWorking();
 			}
 		}, base_layer.getProject());
 	}
