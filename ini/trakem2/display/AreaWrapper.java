@@ -320,7 +320,7 @@ public class AreaWrapper {
 					try { Thread.sleep(1); } catch (InterruptedException ie) {}
 					continue;
 				}
-				if (!dc.getDisplay().getLayer().contains(p.x, p.y, 0)) {
+				if (!la.contains(p.x, p.y, 0)) {
 					// Ignoring point off srcRect
 					continue;
 				}
