@@ -1053,6 +1053,8 @@ public abstract class Tree extends ZDisplayable {
 		}
 	}
 
+	// TODO this function is not thread safe. Works well because multiple threads aren't so far calling cache-modifying functions.
+	// Should synchronize on node_layer_map.
 	private void removeNode(final Node node, final Collection<Node> subtree_nodes) {
 		if (null == node.parent) {
 			root = null;
