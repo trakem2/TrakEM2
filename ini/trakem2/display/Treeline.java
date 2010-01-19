@@ -145,7 +145,11 @@ public class Treeline extends Tree {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		if (null == getActive()) return;
 
-		updateViewData(getActive());
+		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+			updateViewData(getActive());
+			return;
+		}
+		super.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 	}
 
 	@Override
