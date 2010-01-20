@@ -2114,9 +2114,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// Delta of view, in screen pixels:
 			final int px_inc;
 			if ( 0 != (modifiers & MouseWheelEvent.SHIFT_MASK)) {
-				if (0 != (modifiers & MouseWheelEvent.ALT_MASK)) px_inc = 1;
-				else px_inc = 5;
-			} else px_inc = 20;
+				if (0 != (modifiers & MouseWheelEvent.ALT_MASK)) px_inc = 10;
+				else px_inc = 50;
+			} else px_inc = 200;
 			final double inc = px_inc/magnification;
 
 			final Rectangle r = new Rectangle();
