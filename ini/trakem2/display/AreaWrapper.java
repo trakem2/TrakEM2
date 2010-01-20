@@ -14,6 +14,7 @@ import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
@@ -35,6 +36,11 @@ import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.process.FloatPolygon;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class AreaWrapper {
 
@@ -126,24 +132,30 @@ public class AreaWrapper {
 		/** The temporary area to paint to, which is only different than target_area when adding. */
 		final private Area area;
 		/** The list of all painted points. */
-		private final ArrayList<Point> points = new ArrayList<Point>();
+		private final LinkedList<Point> points = new LinkedList<Point>();
 		/** The last point on which a paint event was done. */
 		private Point previous_p = null;
 		private boolean paint = true;
 		private int brush_size; // the diameter
-		private Area brush;
+		private final Area brush;
 		final private int leftClick=16, alt=9;
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags = dc.getModifiers();
 		private boolean adding = (0 == (flags & alt));
 		private final Layer la;
-		private final AffineTransform at;
+		private final AffineTransform at, at_inv;
+		private final Object arealock = new Object();
+		private final ExecutorService accumulator;
+		private final ScheduledExecutorService composer;
+		private final ScheduledFuture composition;
+		private final Runnable interpolator;
 
-		Painter(Area area, double mag, Layer la, AffineTransform at) {
+		Painter(Area area, double mag, Layer la, AffineTransform at) throws Exception {
 			super("AreaWrapper.Painter");
 			setPriority(Thread.NORM_PRIORITY);
 			this.la = la;
 			this.at = at;
+			this.at_inv = at.createInverse();
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
 			if (adding) {
@@ -156,8 +168,92 @@ public class AreaWrapper {
 
 			brush_size = ProjectToolbar.getBrushSize();
 			brush = makeBrush(brush_size, mag);
-			if (null == brush) return;
+			if (null == brush) throw new RuntimeException("Can't paint with brush of size 0.");
 			start();
+			accumulator = Executors.newFixedThreadPool(1);
+			composer = Executors.newScheduledThreadPool(1);
+			this.interpolator = new Runnable() {
+				public void run() {
+					final ArrayList<Point> ps;
+					final int n_points;
+					synchronized (arealock) {
+						n_points = points.size();
+						if (0 == n_points) return;
+						ps = new ArrayList<Point>(points);
+						points.clear();
+						points.add(ps.get(n_points -1)); // to start the next spline from the last point
+					}
+					if (1 == n_points) {
+						// No interpolation required
+						final AffineTransform atb = new AffineTransform(1, 0, 0, 1, ps.get(0).x, ps.get(0).y);
+						atb.preConcatenate(at_inv);
+						Area chunk = slashInInts(brush.createTransformedArea(atb));
+						synchronized (arealock) {
+							if (adding) Painter.this.area.add(chunk);
+							else Painter.this.area.subtract(chunk);
+						}
+						return;
+					}
+					try {
+						// paint the regions between points, using spline interpolation
+						// A cheap way would be to just make a rectangle between both points, with thickess radius.
+						// A better, expensive way is to fit a spline first, then add each one as a circle.
+						// The spline way is wasteful, but way more precise and beautiful. Since there's only one repaint, it's not excessively slow.
+
+						int[] xp = new int[ps.size()];
+						int[] yp = new int[xp.length];
+						int j = 0;
+						for (final Point p : ps) {
+							xp[j] = p.x;
+							yp[j] = p.y;
+							j++;
+						}
+
+						PolygonRoi proi = new PolygonRoi(xp, yp, xp.length, Roi.POLYLINE);
+						proi.fitSpline();
+						FloatPolygon fp = proi.getFloatPolygon();
+						proi = null;
+
+						double[] xpd = new double[fp.npoints];
+						double[] ypd = new double[fp.npoints];
+						// Fails: fp contains float[], which for some reason cannot be copied into double[]
+						//System.arraycopy(fp.xpoints, 0, xpd, 0, xpd.length);
+						//System.arraycopy(fp.ypoints, 0, ypd, 0, ypd.length);
+						for (int i=0; i<xpd.length; i++) {
+							xpd[i] = fp.xpoints[i];
+							ypd[i] = fp.ypoints[i];
+						}
+						fp = null;
+
+						// VectorString2D resampling doesn't work
+						VectorString3D vs = new VectorString3D(xpd, ypd, new double[xpd.length], false);
+						double delta = ((double)brush_size) / 10;
+						if (delta < 1) delta = 1;
+						vs.resample(delta);
+						xpd = vs.getPoints(0);
+						ypd = vs.getPoints(1);
+						vs = null;
+
+						final Area chunk = new Area();
+						final AffineTransform atb = new AffineTransform();
+						for (int i=0; i<xpd.length; i++) {
+							atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
+							atb.preConcatenate(at_inv);
+							chunk.add(slashInInts(brush.createTransformedArea(atb)));
+						}
+						synchronized (arealock) {
+							if (adding) Painter.this.area.add(chunk);
+							else Painter.this.area.subtract(chunk);
+						}
+
+						Display.repaint(Painter.this.la, 3, r_old, false, false);
+
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+				}
+			};
+			composition = composer.scheduleWithFixedDelay(interpolator, 200, 500, TimeUnit.MILLISECONDS);
 		}
 
 		final void quit() {
@@ -173,59 +269,17 @@ public class AreaWrapper {
 
 				try {
 
-				// paint the regions between points
-				// A cheap way would be to just make a rectangle between both points, with thickess radius.
-				// A better, expensive way is to fit a spline first, then add each one as a circle.
-				// The spline way is wasteful, but way more precise and beautiful. Since there's only one repaint, it's not excessively slow.
-				int[] xp = new int[points.size()];
-				int[] yp = new int[xp.length];
-				int j = 0;
-				for (final Point p : points) {
-					xp[j] = p.x;
-					yp[j] = p.y;
-					j++;
+				accumulator.shutdownNow();
+				composition.cancel(true);
+				composer.shutdown();
+				composer.awaitTermination(30, TimeUnit.SECONDS);
+				if (points.size() > 1) {
+					// one last time:
+					interpolator.run();
 				}
-				points.clear();
-
-				PolygonRoi proi = new PolygonRoi(xp, yp, xp.length, Roi.POLYLINE);
-				proi.fitSpline();
-				FloatPolygon fp = proi.getFloatPolygon();
-				proi = null;
-
-				double[] xpd = new double[fp.npoints];
-				double[] ypd = new double[fp.npoints];
-				// Fails: fp contains float[], which for some reason cannot be copied into double[]
-				//System.arraycopy(fp.xpoints, 0, xpd, 0, xpd.length);
-				//System.arraycopy(fp.ypoints, 0, ypd, 0, ypd.length);
-				for (int i=0; i<xpd.length; i++) {
-					xpd[i] = fp.xpoints[i];
-					ypd[i] = fp.ypoints[i];
-				}
-				fp = null;
-
-				try {
-					// VectorString2D resampling doesn't work
-					VectorString3D vs = new VectorString3D(xpd, ypd, new double[xpd.length], false);
-					double delta = ((double)brush_size) / 10;
-					if (delta < 1) delta = 1;
-					vs.resample(delta);
-					xpd = vs.getPoints(0);
-					ypd = vs.getPoints(1);
-					vs = null;
-				} catch (Exception e) { IJError.print(e); }
-
-
-				final AffineTransform atb = new AffineTransform();
-
-				final AffineTransform inv_at = at.createInverse();
 
 				if (adding) {
 					adding = false;
-					for (int i=0; i<xpd.length; i++) {
-						atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
-						atb.preConcatenate(inv_at);
-						area.add(slashInInts(brush.createTransformedArea(atb)));
-					}
 					this.target_area.add(area);
 
 					// now, depending on paint mode, alter the new target area:
@@ -286,14 +340,8 @@ public class AreaWrapper {
 							something_eroded = true;
 						}
 					}
-				} else {
-					// subtract
-					for (int i=0; i<xpd.length; i++) {
-						atb.setToTranslation((int)xpd[i], (int)ypd[i]); // always integers
-						atb.preConcatenate(inv_at);
-						target_area.subtract(slashInInts(brush.createTransformedArea(atb)));
-					}
 				}
+				// else do nothing, the subtract is already done
 
 				} catch (Exception ee) {
 					IJError.print(ee);
@@ -307,52 +355,53 @@ public class AreaWrapper {
 		/** For best smoothness, each mouse dragged event should be captured!*/
 		public void run() {
 			// create brush
-			Point p;
-			final AffineTransform atb = new AffineTransform();
 			while (paint) {
 				// detect mouse up
-				if (0 == (flags & leftClick)) {
+				if (0 == (flags & leftClick)) { // I think this never happens
 					quit();
 					return;
 				}
-				p = dc.getCursorLoc(); // as offscreen coords
+				final Point p = dc.getCursorLoc(); // as offscreen coords
 				if (p.equals(previous_p) /*|| (null != previous_p && p.distance(previous_p) < brush_size/5) */) {
-					try { Thread.sleep(1); } catch (InterruptedException ie) {}
+					try { Thread.sleep(3); } catch (InterruptedException ie) {}
 					continue;
 				}
 				if (!la.contains(p.x, p.y, 0)) {
 					// Ignoring point off srcRect
 					continue;
 				}
-				// bring to offscreen position of the mouse
-				atb.translate(p.x, p.y);
-				// capture bounds while still in offscreen coordinates
-				final Rectangle r = new Rectangle();
-				final Area slash = createSlash(atb, r);
-				if(null == slash) continue;
+				accumulator.submit(new Runnable() {
+					public void run() {
+						final AffineTransform aff = new AffineTransform(1, 0, 0, 1, p.x, p.y);
+						aff.concatenate(at_inv);
+						final Area slash = slashInInts(brush.createTransformedArea(aff));
+						synchronized (arealock) {
+							if (0 == (flags & alt)) {
+								// no modifiers, just add
+								area.add(slash);
+							} else {
+								// with alt down, substract
+								area.subtract(slash);
+							}
+							points.add(p);
+						}
+						final Rectangle copy = new Rectangle(p.x - brush_size/2, p.y - brush_size/2, brush_size, brush_size);
+						// repaint only the last added slash
+						Display.repaint(la, 3, copy, false, false); 
+						// accumulate rectangle for repainting out the brush circle
+						synchronized (arealock) {
+							if (null != r_old) copy.add(r_old);
+							r_old = copy;
+						}
+					}
+				});
 
-				if (0 == (flags & alt)) {
-					// no modifiers, just add
-					area.add(slash);
-				} else {
-					// with alt down, substract
-					area.subtract(slash);
-				}
-				points.add(p);
 				previous_p = p;
-
-				final Rectangle copy = (Rectangle)r.clone();
-				if (null != r_old) copy.add(r_old);
-				r_old = copy;
-
-				Display.repaint(Display.getFrontLayer(), 3, r, false, false); // repaint only the last added slash
-
-				// reset
-				atb.setToIdentity();
 			}
 		}
 
 		/** Sets the bounds of the created slash, in offscreen coords, to r if r is not null. */
+		/*
 		private Area createSlash(final AffineTransform atb, final Rectangle r) {
 				Area slash = brush.createTransformedArea(atb); // + int transform, no problem
 				if (null != r) r.setRect(slash.getBounds());
@@ -368,6 +417,7 @@ public class AreaWrapper {
 				// avoid problems with floating-point points, for example inability to properly fill areas or delete them.
 				return slashInInts(slash);
 		}
+		*/
 
 		private final Area slashInInts(final Area area) {
 			int[] x = new int[400];
@@ -581,7 +631,11 @@ public class AreaWrapper {
 				}
 			} else {
 				if (null != this.painter) this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
-				this.painter = new Painter(area, mag, la, source.getAffineTransformCopy());
+				try {
+					this.painter = new Painter(area, mag, la, source.getAffineTransformCopy());
+				} catch (Exception e) {
+					Utils.log2("Oops: " + e);
+				}
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			final Displayable src = this.source;
