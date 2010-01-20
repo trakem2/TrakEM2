@@ -1856,6 +1856,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return true;
 	}
 
+	protected boolean removeLastUndoStep() {
+		synchronized (edit_history) {
+			if (edit_history.isEmpty()) return false;
+			final long time = edit_history.lastKey();
+			final DoStep step = edit_history.remove(time);
+			if (null != step.getD()) dedits.get(step.getD()).remove(time);
+			// shift current
+			if (step == current_edit_step) {
+				current_edit_time = edit_history.lastKey();
+				current_edit_step = edit_history.get(current_edit_time);
+			}
+		}
+		return true;
+	}
+
 	/** Redoes one step of the ongoing transformation history, otherwise of the overall LayerSet history. */
 	public boolean redoOneStep() {
 		synchronized (edit_history) {

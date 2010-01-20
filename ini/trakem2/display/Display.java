@@ -4967,12 +4967,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	protected void duplicateLinkAndSendTo(final Displayable active, final int position, final Layer other_layer) {
 		if (null == active || !(active instanceof Profile)) return;
 		if (active.getLayer() == other_layer) return; // can't do that!
+		// set current state
+		Set<DoStep> dataedits = new HashSet<DoStep>();
+		dataedits.add(new Displayable.DoEdit(active).init(active, new String[]{"data"})); // the links!
+		getLayerSet().addChangeTreesStep(dataedits);
 		Profile profile = project.getProjectTree().duplicateChild((Profile)active, position, other_layer);
-		if (null == profile) return;
+		if (null == profile) {
+			getLayerSet().removeLastUndoStep();
+			return;
+		}
 		active.link(profile);
 		other_layer.add(profile);
 		slt.setAndWait(other_layer);
 		selection.add(profile);
+		// set new state
+		dataedits = new HashSet<DoStep>();
+		dataedits.add(new Displayable.DoEdit(active).init(active, new String[]{"data"})); // the links!
+		dataedits.add(new Displayable.DoEdit(profile).init(profile, new String[]{"data"})); // the links!
+		getLayerSet().addChangeTreesStep(dataedits);
 	}
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
