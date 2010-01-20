@@ -183,7 +183,7 @@ public class AreaWrapper {
 						points.clear();
 						points.add(ps.get(n_points -1)); // to start the next spline from the last point
 					}
-					if (1 == n_points) {
+					if (n_points < 2) {
 						// No interpolation required
 						final AffineTransform atb = new AffineTransform(1, 0, 0, 1, ps.get(0).x, ps.get(0).y);
 						atb.preConcatenate(at_inv);
@@ -233,6 +233,13 @@ public class AreaWrapper {
 						xpd = vs.getPoints(0);
 						ypd = vs.getPoints(1);
 						vs = null;
+						// adjust first and last points back to integer precision
+						Point po = ps.get(0);
+						xpd[0] = po.x;
+						ypd[0] = po.y;
+						po = ps.get(ps.size()-1);
+						xpd[xpd.length-1] = po.x;
+						ypd[ypd.length-1] = po.y;
 
 						final Area chunk = new Area();
 						final AffineTransform atb = new AffineTransform();
@@ -261,21 +268,22 @@ public class AreaWrapper {
 			this.paint = false;
 			// Make interpolated points affect add or subtract operations
 			synchronized (this) {
-				if (points.size() < 2) {
-					// merge the temporary Area, if any, with the general one
-					if (adding) this.target_area.add(area);
-					return;
-				}
-
 				try {
 
 				accumulator.shutdownNow();
 				composition.cancel(true);
 				composer.shutdown();
 				composer.awaitTermination(30, TimeUnit.SECONDS);
+
 				if (points.size() > 1) {
 					// one last time:
 					interpolator.run();
+				} else {
+					// Just one point: no interpolation needed
+					// merge the temporary Area, if any, with the general one
+					if (adding) this.target_area.add(area);
+					// If subtracting, it was already done
+					return;
 				}
 
 				if (adding) {
