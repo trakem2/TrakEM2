@@ -513,6 +513,8 @@ public class AreaWrapper {
 	private boolean something_eroded = false;
 	private Segmentation.BlowCommander blowcommander = null;
 	private List<Runnable> post_mouseReleased_tasks = null;
+	// shared, and thus made null at every mouse release
+	static private Integer controller_key = null;
 
 	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
 		mousePressed(me, x_p_w, y_p_w, mag, null);
@@ -533,6 +535,9 @@ public class AreaWrapper {
 		int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.BRUSH == tool) {
+			if (null != AreaWrapper.controller_key) {
+				return;
+			}
 			if (me.isShiftDown()) {
 				// fill/erase a hole/area if the clicked point lays within one
 				// An area in world coords:
@@ -674,6 +679,14 @@ public class AreaWrapper {
 	}
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// nothing, the BrushThread handles it
+		if (null != AreaWrapper.controller_key && KeyEvent.VK_M == AreaWrapper.controller_key.intValue() && ProjectToolbar.getToolId() == ProjectToolbar.BRUSH) {
+			// "move" the area
+			Rectangle r = area.getBounds();
+			area.transform(new AffineTransform(1, 0, 0, 1, x_d - x_d_old, y_d - y_d_old));
+			r.add(new Rectangle(r.x + (x_d_old - x_d), r.y + (y_d_old - y_d), r.width, r.height));
+			Display.getFront().getCanvas().repaint(source.at.createTransformedShape(r).getBounds(), 1);
+			return;
+		}
 		if (null != blowcommander) {
 			blowcommander.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		}
@@ -681,6 +694,11 @@ public class AreaWrapper {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.BRUSH == tool) {
+			if (null != AreaWrapper.controller_key) {
+				// finish
+				AreaWrapper.controller_key = null;
+				return;
+			}
 			if (null != this.painter) {
 				this.painter.quit();
 				this.painter = null;
@@ -745,8 +763,18 @@ public class AreaWrapper {
 	static public final PaintParameters PP = new PaintParameters();
 
 	public void keyPressed(KeyEvent ke, DisplayCanvas dc, Layer la) {
-		int keyCode = ke.getKeyCode();
+		final int keyCode = ke.getKeyCode();
 
+		if (null != AreaWrapper.controller_key && KeyEvent.VK_ENTER == keyCode) {
+			AreaWrapper.controller_key = null;
+			ke.consume();
+			return;
+		}
+		if (KeyEvent.VK_M == keyCode) {
+			AreaWrapper.controller_key = keyCode;
+			ke.consume();
+			return;
+		}
 		try {
 			switch (keyCode) {
 				case KeyEvent.VK_C: // COPY
