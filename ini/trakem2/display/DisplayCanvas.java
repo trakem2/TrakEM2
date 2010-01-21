@@ -2750,7 +2750,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		sf[0] = animate(new Runnable() {
 			public void run() {
 				cp.add(v);
-				Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
+				//Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
 				int x, y;
 				if (v.lengthSquared() >= sqdist_to_travel) {
 					// set target position
@@ -2782,7 +2782,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// animate at all?
 		if (this.srcRect.contains(target) && target_layer == display.getLayer()) {
 			// So: don't animate, but at least highlight the target
-			playHighlight(target);
+			animateHighlight(target);
 			return false;
 		}
 
@@ -2819,10 +2819,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (DisplayCanvas.this.srcRect.contains(target)) {
 					// reached destination
 					if (display.getLayer() != target_layer) display.toLayer(target_layer);
-					sf[0].cancel(true);
-					//Utils.log2("canceled animation, now playing highlight");
 					playHighlight(target);
-					//Utils.log2("played highlight");
+					sf[0].cancel(true);
 				} else {
 					setSrcRect(srcRect.x + (int)v.x, srcRect.y + (int)v.y, srcRect.width, srcRect.height);
 					// which layer?
@@ -2873,10 +2871,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		synchronized (animator_lock) {
 			animator_lock.lock();
 			try {
-				if (null == animator) {
-					animator = Executors.newScheduledThreadPool(2);
-					sfs = new ArrayList<ScheduledFuture>();
-				}
+				initAnimator();
 				display.getProject().setReceivesInput(false);
 				zoom_and_pan = false;
 				final ScheduledFuture[] sf = new ScheduledFuture[2];
@@ -2884,9 +2879,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
 					public void run() {
 						if (sf[0].isCancelled()) {
+							zoom_and_pan = true;
+							display.getProject().setReceivesInput(true);
 							synchronized (animator_lock) {
-								zoom_and_pan = true;
-								display.getProject().setReceivesInput(true);
 								animator_lock.unlock();
 							}
 							// cancel yourself!
@@ -2936,16 +2931,36 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	private void playHighlight(final Rectangle target) {
+	private void animateHighlight(final Rectangle target) {
+		synchronized (animator_lock) {
+			animator_lock.lock();
+			try {
+				initAnimator();
+				sfs.add(playHighlight(target));
+			} catch (Throwable t) {
+				IJError.print(t);
+			} finally {
+				animator_lock.unlock();
+			}
+		}
+	}
+
+	private ScheduledFuture playHighlight(final Rectangle target) {
 		final Highlighter highlight = new Highlighter(target);
 		final ScheduledFuture[] sf = new ScheduledFuture[1];
-		sf[0] = animate(new Runnable() {
+		sf[0] = animator.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
 				if (!highlight.next()) {
 					sf[0].cancel(true);
 				}
 			}
 		}, 10, 100, TimeUnit.MILLISECONDS);
-		// TODO should add sf[0] to sfs
+		return sf[0];
+	}
+	private void initAnimator() {
+		if (null == animator) {
+			animator = Executors.newScheduledThreadPool(2);
+			sfs = new ArrayList<ScheduledFuture>();
+		}
 	}
 }
