@@ -1580,24 +1580,28 @@ public abstract class Tree extends ZDisplayable {
 					return;
 				case KeyEvent.VK_B:
 					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification());
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_N:
 					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification());
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_L:
 					c = getLastAdded();
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_E:
 					c = getLastEdited();
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
