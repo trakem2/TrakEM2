@@ -2742,6 +2742,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final Rectangle startSrcRect = (Rectangle)this.srcRect.clone();
 		// The motion will be displaced by some screen pixels at every time step.
 		final Vector2f v = new Vector2f(dx, dy);
+		final float sqdist_to_travel = v.lengthSquared();
 		v.normalize();
 		v.scale(20/mag);
 		final Point2f cp = new Point2f(0, 0); // the current deltas
@@ -2752,7 +2753,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				cp.add(v);
 				Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
 				int x, y;
-				if (cp.x > dx || cp.y > dy) {
+				if (v.lengthSquared() >= sqdist_to_travel) {
 					// set target position
 					x = startSrcRect.x + dx;
 					y = startSrcRect.y + dy;
@@ -2885,20 +2886,24 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 				display.getProject().setReceivesInput(false);
 				zoom_and_pan = false;
-				final ScheduledFuture sf = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
-				animator.scheduleWithFixedDelay(new Runnable() {
+				final ScheduledFuture[] sf = new ScheduledFuture[2];
+				sf[0] = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
+				sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
 					public void run() {
-						if (sf.isCancelled()) {
+						if (sf[0].isCancelled()) {
 							synchronized (animator_lock) {
 								zoom_and_pan = true;
 								display.getProject().setReceivesInput(true);
 								animator_lock.unlock();
 							}
+							// cancel yourself!
+							sf[1].cancel(true);
 						}
 					}
 				}, 100, 700, TimeUnit.MILLISECONDS);
-				sfs.add(sf);
-				return sf;
+				sfs.add(sf[0]);
+				sfs.add(sf[1]);
+				return sf[0];
 			} catch (Throwable t) {
 				IJError.print(t);
 				animator_lock.unlock();
