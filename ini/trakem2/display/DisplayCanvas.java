@@ -1601,15 +1601,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			offscreen_lock.unlock();
 		}
-		synchronized (animator_lock) {
-			animator_lock.lock();
+		try {
 			if (null != animator) {
 				animator.shutdownNow();
+				cancelAnimations();
 			}
-			animator = null;
-			sfs = null;
-			animator_lock.unlock();
-		}
+		} catch (Exception e) {}
+		animator = null;
+		sfs = null;
 	}
 
 	public void destroy() {
