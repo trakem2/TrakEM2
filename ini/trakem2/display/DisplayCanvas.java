@@ -2827,9 +2827,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// reached destination
 					if (display.getLayer() != target_layer) display.toLayer(target_layer);
 					sf[0].cancel(true);
-					Utils.log2("canceled animation, now playing highlight");
+					//Utils.log2("canceled animation, now playing highlight");
 					playHighlight(target);
-					Utils.log2("played highlight");
+					//Utils.log2("played highlight");
 				} else {
 					setSrcRect(srcRect.x + (int)v.x, srcRect.y + (int)v.y, srcRect.width, srcRect.height);
 					// which layer?
@@ -2914,18 +2914,18 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private void playHighlight(final Rectangle target) {
 		Ellipse2D.Float elf = new Ellipse2D.Float(target.x, target.y, target.width, target.height);
-		Utils.log2("elf: " + elf);
+		//Utils.log2("elf: " + elf);
 		try {
 			final Stroke stroke = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{4,4,4,4}, 0);
 			display.getLayerSet().getOverlay().add(elf, Color.yellow, stroke, true);
 			// divide decrements into 5 chunks
 			final float dec = (float)((Math.max(target.width, target.height)*magnification / 10)/magnification);
-			Utils.log2("dec is " + dec);
+			//Utils.log2("dec is " + dec);
 			long start = System.currentTimeMillis();
 			do {
 				invalidateVolatile();
 				repaint(target, 5, false);
-				Utils.log2("elapsed: " + (System.currentTimeMillis() - start));
+				//Utils.log2("elapsed: " + (System.currentTimeMillis() - start));
 				Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
 				elf2.x += dec;
 				elf2.y += dec;
