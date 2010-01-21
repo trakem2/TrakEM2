@@ -3588,15 +3588,29 @@ abstract public class Loader {
 	public String saveAs(Project project, String xmlpath, boolean export_images) {
 		long size = countObjects(project.getRootLayerSet()) * 500;
 		releaseToFit(size > MIN_FREE_BYTES ? size : MIN_FREE_BYTES);
-		String default_dir = null;
-		default_dir = getStorageFolder();
+		String storage_dir = getStorageFolder();
+		String mipmaps_dir = getMipMapsFolder();
 		// Select a file to export to
-		File fxml = null == xmlpath ? Utils.chooseFile(default_dir, null, ".xml") : new File(xmlpath);
+		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, null, ".xml") : new File(xmlpath);
+		Hashtable<Long,String> copy = null;
 		if (null == fxml) return null;
+		else {
+			copy = getPathsCopy();
+			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'));
+		}
 		String path = export(project, fxml, export_images);
 		if (null != path) setChanged(false);
+		else {
+			// failed, so restore paths
+			restorePaths(copy, mipmaps_dir, storage_dir);
+		}
+		//
 		return path;
 	}
+
+	protected void makeAllPathsRelativeTo(final String xml_path) {}
+	protected Hashtable<Long,String> getPathsCopy() { return null; }
+	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 
 	/** Meant to be overriden -- as is, will call saveAs(project, path, export_images = getClass() != FSLoader.class ). */
 	public String saveAs(String path, boolean overwrite) {
