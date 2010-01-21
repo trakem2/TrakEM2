@@ -58,6 +58,7 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Line2D;
+import java.awt.image.BufferedImage;
 import java.awt.event.*;
 import java.util.*;
 import java.util.List;
@@ -71,6 +72,8 @@ import java.util.concurrent.Callable;
 import lenscorrection.DistortionCorrectionTask;
 import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.AffineModel3D;
+
+import ij.process.*;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
@@ -436,7 +439,68 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		});
 	}
-
+	/** Export current field of view as a stack accessible to the rest of ImageJ. */
+	/* little script to test, in Jython interpreter:
+	 from ij import IJ, ImageStack, ImagePlus
+	 from ini.trakem2.display import Display, DisplayCanvas
+	 display = Display.getFront()
+	 imp = display.fovToStack(80)
+	 imp.show()
+	 */
+	final public ImagePlus fovToStack(int aheadbehind) {
+		if (mode.getClass() == DefaultMode.class) {
+			final Layer current = Display.this.layer;
+			final ArrayList<DisplayCanvas.Screenshot> s = new ArrayList<DisplayCanvas.Screenshot>();
+			Layer now = current;
+			s.add(canvas.createScreenshot(current));
+			 
+			Layer prev = now.getParent().previous(now);
+			int i = 0;
+			Layer next = now.getParent().next(now);
+			while (now != next && i < aheadbehind) {
+				s.add(canvas.createScreenshot(next));
+				now = next;
+				next = now.getParent().next(now);
+				i++;
+			}
+			now = current;
+			i = 0;
+			while (now != prev && i < aheadbehind) {
+				s.add(0, canvas.createScreenshot(prev));
+				now = prev;
+				prev = now.getParent().previous(now);
+				i++;
+			}
+			
+			ImageStack imgstack = null;
+			for (final DisplayCanvas.Screenshot sc : s) {
+				BufferedImage img = canvas.paintOffscreen(sc.layer, sc.props.g_width, sc.props.g_height, sc.props.srcRect, sc.props.magnification,
+						  this.getActive(), sc.props.c_alphas, null, current.getProject().getLoader(),
+						  sc.props.hm, sc.props.blending_list, sc.props.mode, sc.props.graphics_source, false, sc.al_top);
+				// IJ.wait(1000);
+				if (null == imgstack) { 
+					ImagePlus imp = new ImagePlus("TrakEM2_FOV", img);
+					imgstack = imp.createEmptyStack();
+				}
+				ImageProcessor ip = new ColorProcessor((Image) img); // TODO check image type
+				// ip = ip.convertToByte(false);
+				Utils.log("daviFOVtoStack: adding slice" + sc.props);
+				imgstack.addSlice("daviFOVtoStack", ip);
+			}
+			return new ImagePlus("TrakEM2_FOV", imgstack);
+			/*
+			DisplayCanvas.Screenshot sc = canvas.createScreenshot(current);
+			BufferedImage img = canvas.paintOffscreen(layer, sc.props.g_width, sc.props.g_height, sc.props.srcRect, sc.props.magnification,
+					  this.getActive(), sc.props.c_alphas, null, current.getProject().getLoader(),
+					  sc.props.hm, sc.props.blending_list, sc.props.mode, sc.props.graphics_source, false, sc.al_top);
+			// IJ.wait(1000); // TODO fix this kludge...
+			return new ImagePlus("TrakEM2_FOV", img);
+			*/
+		} else return null;
+		
+		
+	}
+	
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
 	static public void createDisplay(final Project project, final Layer layer) {
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
