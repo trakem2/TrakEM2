@@ -756,6 +756,11 @@ public abstract class Tree extends ZDisplayable {
 			return createCoordinate(nd.children[0]);
 		}
 		// else, find the closest child edge
+		if (!this.at.isIdentity()) {
+			Point2D.Double po = inverseTransformPoint(x, y);
+			x = (float)po.x;
+			y = (float)po.y;
+		}
 		nd = findNearestChildEdge(nd, x, y);
 		if (null != nd) setLastVisited(nd);
 		return createCoordinate(nd);
