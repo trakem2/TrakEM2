@@ -607,6 +607,8 @@ public abstract class Tree extends ZDisplayable {
 				return false;
 			}
 
+			end_nodes.add(this.root);
+			end_nodes.remove(nd);
 			nd.setRoot();
 			this.root = nd;
 			updateView();
