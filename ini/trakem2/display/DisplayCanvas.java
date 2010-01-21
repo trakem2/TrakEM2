@@ -2783,13 +2783,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// animate at all?
 		if (this.srcRect.contains(target) && target_layer == display.getLayer()) {
 			// So: don't animate, but at least highlight the target
-			final ScheduledFuture[] sf = new ScheduledFuture[1];
-			sf[0] = animate(new Runnable() {
-				public void run() {
-					playHighlight(target);
-					sf[0].cancel(true);
-				}
-			}, 0, 50, TimeUnit.MILLISECONDS);
+			playHighlight(target);
 			return false;
 		}
 
@@ -2912,37 +2906,47 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		return null;
 	}
 
-	private void playHighlight(final Rectangle target) {
-		Ellipse2D.Float elf = new Ellipse2D.Float(target.x, target.y, target.width, target.height);
-		//Utils.log2("elf: " + elf);
-		try {
-			final Stroke stroke = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{4,4,4,4}, 0);
+	private final class Highlighter {
+		Ellipse2D.Float elf;
+		final Stroke stroke = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{4,4,4,4}, 0);
+		final float dec;
+		final Rectangle target;
+		Highlighter(final Rectangle target) {
+			this.target = target;
+			elf = new Ellipse2D.Float(target.x, target.y, target.width, target.height);
 			display.getLayerSet().getOverlay().add(elf, Color.yellow, stroke, true);
-			// divide decrements into 5 chunks
-			final float dec = (float)((Math.max(target.width, target.height)*magnification / 10)/magnification);
-			//Utils.log2("dec is " + dec);
-			long start = System.currentTimeMillis();
-			do {
-				invalidateVolatile();
-				repaint(target, 5, false);
-				//Utils.log2("elapsed: " + (System.currentTimeMillis() - start));
-				Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
-				elf2.x += dec;
-				elf2.y += dec;
-				elf2.width -= (dec+dec);
-				elf2.height -= (dec+dec);
-				try {
-					Thread.sleep(100);
-					display.getLayerSet().getOverlay().remove(elf);
-					display.getLayerSet().getOverlay().add(elf2, Color.yellow, stroke, true);
-					elf = elf2;
-				} catch (InterruptedException ie) {} // don't interrupt
-			} while (elf.width > 1 || elf.height > 1);
-		} catch (Exception e) {
-			IJError.print(e);
-		} finally {
-			display.getLayerSet().getOverlay().remove(elf);
-			repaint(target, 5, false);
+			dec = (float)((Math.max(target.width, target.height)*magnification / 10)/magnification);
 		}
+		/** @return true if there is another iteration to paint. */
+		boolean next() {
+			invalidateVolatile();
+			repaint(target, 5, false);
+			// setup next iteration
+			display.getLayerSet().getOverlay().remove(elf);
+			Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
+			elf2.x += dec;
+			elf2.y += dec;
+			elf2.width -= (dec+dec);
+			elf2.height -= (dec+dec);
+			if (elf.width > 1 || elf.height > 1) {
+				display.getLayerSet().getOverlay().add(elf2, Color.yellow, stroke, true);
+				elf = elf2;
+				return true;
+			}
+			return false;
+		}
+	}
+
+	private void playHighlight(final Rectangle target) {
+		final Highlighter highlight = new Highlighter(target);
+		final ScheduledFuture[] sf = new ScheduledFuture[1];
+		sf[0] = animate(new Runnable() {
+			public void run() {
+				if (!highlight.next()) {
+					sf[0].cancel(true);
+				}
+			}
+		}, 10, 100, TimeUnit.MILLISECONDS);
+		// TODO should add sf[0] to sfs
 	}
 }
