@@ -1099,8 +1099,50 @@ public final class FSLoader extends Loader {
 		return ht_paths.get(patch.getId());
 	}
 
+	protected Hashtable<Long,String> getPathsCopy() {
+		return (Hashtable<Long,String>) ht_paths.clone();
+	}
+
+	/** Try to make all paths in ht_paths be relative to the given xml_path.
+	 *  This is intended for making all paths relative when saving to XML for the first time. */
+	protected void makeAllPathsRelativeTo(final String xml_path) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				this.dir_storage = FSLoader.makeRelativePath(xml_path, this.dir_storage);
+				this.dir_mipmaps = FSLoader.makeRelativePath(xml_path, this.dir_mipmaps);
+				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
+					e.setValue(FSLoader.makeRelativePath(xml_path, e.getValue()));
+				}
+			} catch (Throwable t) {
+				IJError.print(t);
+			} finally {
+				unlock();
+			}
+		}
+	}
+	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				this.dir_mipmaps = mipmaps_folder;
+				this.dir_storage = storage_folder;
+				ht_paths.clear();
+				ht_paths.putAll(copy);
+			} catch (Throwable t) {
+				IJError.print(t);
+			} finally {
+				unlock();
+			}
+		}
+	}
+
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
 	public String makeRelativePath(String path) {
+		return FSLoader.makeRelativePath(this.project_file_path, path);
+	}
+
+	static private String makeRelativePath(final String project_file_path, String path) {
 		if (null == project_file_path) {
 			//unsaved project
 			return path;
@@ -1118,18 +1160,18 @@ public final class FSLoader extends Loader {
 			path = path.substring(0, isl);
 		}
 		//
-		if (isRelativePath(path)) {
+		if (FSLoader.isRelativePath(path)) {
 			// already relative
 			if (-1 != isl) path += slice;
 			return path;
 		}
 		// the long and verbose way, to be cross-platform. Should work with URLs just the same.
 		String xdir = new File(project_file_path).getParentFile().getAbsolutePath();
-		if (!xdir.endsWith("/")) xdir += "/";
 		if (IJ.isWindows()) {
 			xdir = xdir.replace('\\', '/');
 			path = path.replace('\\', '/');
 		}
+		if (!xdir.endsWith("/")) xdir += "/";
 		if (path.startsWith(xdir)) {
 			path = path.substring(xdir.length());
 		}
@@ -1400,7 +1442,6 @@ public final class FSLoader extends Loader {
 	public String getMipMapsFolder() {
 		return dir_mipmaps;
 	}
-
 
 	/*
 	static private IndexColorModel thresh_cm = null;

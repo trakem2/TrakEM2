@@ -1132,6 +1132,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
 		       .append(in).append("snapshots_mode=\"").append(snapshot_modes[snapshots_mode]).append("\"\n")
+		       .append(in).append("color_cues=\"").append(color_cues).append("\"\n")
+		       .append(in).append("n_layers_color_cue=\"").append(n_layers_color_cue).append("\"\n")
+		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
+		       .append(in).append("paint_edge_confidence_boxes=\"").append(paint_edge_confidence_boxes).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");

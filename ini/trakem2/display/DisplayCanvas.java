@@ -58,6 +58,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.FutureTask;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
@@ -1601,15 +1602,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			offscreen_lock.unlock();
 		}
-		synchronized (animator_lock) {
-			animator_lock.lock();
-			if (null != animator) {
-				animator.shutdownNow();
-			}
-			animator = null;
-			sfs = null;
-			animator_lock.unlock();
-		}
+		try {
+			synchronized (this) { if (null != animator) animator.shutdownNow(); }
+			cancelAnimations();
+		} catch (Exception e) {}
+		animator = null;
 	}
 
 	public void destroy() {
@@ -2736,12 +2733,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Smoothly move the canvas from x0,y0,layer0 to x1,y1,layer1 */
-	synchronized protected void animateBrowsing(final int dx, final int dy) {
+	protected void animateBrowsing(final int dx, final int dy) {
 		// check preconditions
 		final float mag = (float)this.magnification;
 		final Rectangle startSrcRect = (Rectangle)this.srcRect.clone();
 		// The motion will be displaced by some screen pixels at every time step.
 		final Vector2f v = new Vector2f(dx, dy);
+		final float sqdist_to_travel = v.lengthSquared();
 		v.normalize();
 		v.scale(20/mag);
 		final Point2f cp = new Point2f(0, 0); // the current deltas
@@ -2750,14 +2748,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		sf[0] = animate(new Runnable() {
 			public void run() {
 				cp.add(v);
-				Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
+				//Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
 				int x, y;
-				if (cp.x > dx || cp.y > dy) {
+				if (v.lengthSquared() >= sqdist_to_travel) {
 					// set target position
 					x = startSrcRect.x + dx;
 					y = startSrcRect.y + dy;
 					// quit animation
-					sf[0].cancel(true);
+					cancelAnimation(sf[0]);
 				} else {
 					// set position
 					x = startSrcRect.x + (int)(cp.x);
@@ -2771,7 +2769,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Smoothly move the canvas from its current position until the given rectangle is included within the srcRect.
 	 * If the given rectangle is larger than the srcRect, it will refuse to work (for now). */
-	synchronized public boolean animateBrowsing(final Rectangle target_, final Layer target_layer) {
+	public boolean animateBrowsing(final Rectangle target_, final Layer target_layer) {
 		// Crop target to world's 2D dimensions
 		Area a = new Area(target_);
 		a.intersect(new Area(display.getLayerSet().get2DBounds()));
@@ -2782,13 +2780,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// animate at all?
 		if (this.srcRect.contains(target) && target_layer == display.getLayer()) {
 			// So: don't animate, but at least highlight the target
-			final ScheduledFuture[] sf = new ScheduledFuture[1];
-			sf[0] = animate(new Runnable() {
-				public void run() {
-					playHighlight(target);
-					sf[0].cancel(true);
-				}
-			}, 0, 50, TimeUnit.MILLISECONDS);
+			playHighlight(target);
 			return false;
 		}
 
@@ -2825,10 +2817,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (DisplayCanvas.this.srcRect.contains(target)) {
 					// reached destination
 					if (display.getLayer() != target_layer) display.toLayer(target_layer);
-					sf[0].cancel(true);
-					Utils.log2("canceled animation, now playing highlight");
 					playHighlight(target);
-					Utils.log2("played highlight");
+					cancelAnimation(sf[0]);
 				} else {
 					setSrcRect(srcRect.x + (int)v.x, srcRect.y + (int)v.y, srcRect.width, srcRect.height);
 					// which layer?
@@ -2855,89 +2845,113 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private ScheduledExecutorService animator = null;
 	private boolean zoom_and_pan = true;
-	private final Lock animator_lock = new Lock();
-	private ArrayList<ScheduledFuture> sfs = null;
+	private final Vector<ScheduledFuture> sfs = new Vector<ScheduledFuture>();
 
 	private void cancelAnimations() {
-		new Thread() {
-			{ setPriority(Thread.NORM_PRIORITY); }
-			public void run() {
-				java.util.List<ScheduledFuture> sfs = null;
-				synchronized (animator_lock) {
-					animator_lock.lock();
-					sfs = null == DisplayCanvas.this.sfs ? null : new ArrayList<ScheduledFuture>(DisplayCanvas.this.sfs);
-					animator_lock.unlock();
-				}
-				if (null != sfs) {
-					for (ScheduledFuture sf : sfs) sf.cancel(true);
-				}
-			}
-		}.start();
+		if (sfs.isEmpty()) return;
+		Vector<ScheduledFuture> sfs = (Vector<ScheduledFuture>)this.sfs.clone();
+		for (ScheduledFuture sf : sfs) {
+			sf.cancel(true);
+		}
+		this.sfs.clear();
+		try {
+			// wait
+			Thread.currentThread().sleep(150);
+		} catch (InterruptedException ie) {}
+	}
+	private void cancelAnimation(final ScheduledFuture sf) {
+		sfs.remove(sf);
+		sf.cancel(true);
 	}
 
 	private ScheduledFuture animate(Runnable run, long initialDelay, long delay, TimeUnit units) {
-		synchronized (animator_lock) {
-			animator_lock.lock();
-			try {
-				if (null == animator) {
-					animator = Executors.newScheduledThreadPool(2);
-					sfs = new ArrayList<ScheduledFuture>();
+		initAnimator();
+		// Cancel any animations currently running
+		cancelAnimations();
+		// Disable user input
+		display.getProject().setReceivesInput(false);
+		zoom_and_pan = false;
+		// Create tasks to run periodically: a task and a watcher task
+		final ScheduledFuture[] sf = new ScheduledFuture[2];
+		sf[0] = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
+		sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
+			public void run() {
+				if (sf[0].isCancelled()) {
+					// Enable user input
+					zoom_and_pan = true;
+					display.getProject().setReceivesInput(true);
+					// cancel yourself
+					sf[1].cancel(true);
 				}
-				display.getProject().setReceivesInput(false);
-				zoom_and_pan = false;
-				final ScheduledFuture sf = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
-				animator.scheduleWithFixedDelay(new Runnable() {
-					public void run() {
-						if (sf.isCancelled()) {
-							synchronized (animator_lock) {
-								zoom_and_pan = true;
-								display.getProject().setReceivesInput(true);
-								animator_lock.unlock();
-							}
-						}
-					}
-				}, 100, 700, TimeUnit.MILLISECONDS);
-				sfs.add(sf);
-				return sf;
-			} catch (Throwable t) {
-				IJError.print(t);
-				animator_lock.unlock();
 			}
-		}
-		return null;
+		}, 100, 700, TimeUnit.MILLISECONDS);
+		// Store task for future cancelation
+		sfs.add(sf[0]);
+		// but not the watcher task, which must finish on its own after the main task finishes.
+		return sf[0];
 	}
 
-	private void playHighlight(final Rectangle target) {
-		Ellipse2D.Float elf = new Ellipse2D.Float(target.x, target.y, target.width, target.height);
-		Utils.log2("elf: " + elf);
-		try {
-			final Stroke stroke = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{4,4,4,4}, 0);
+	/** Draw a dotted circle centered on the given Rectangle. */
+	private final class Highlighter {
+		Ellipse2D.Float elf;
+		final Stroke stroke = new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 3, new float[]{4,4,4,4}, 0);
+		final float dec;
+		final Rectangle target;
+		Highlighter(final Rectangle target) {
+			this.target = target;
+			elf = new Ellipse2D.Float(target.x, target.y, target.width, target.height);
 			display.getLayerSet().getOverlay().add(elf, Color.yellow, stroke, true);
-			// divide decrements into 5 chunks
-			final float dec = (float)((Math.max(target.width, target.height)*magnification / 10)/magnification);
-			Utils.log2("dec is " + dec);
-			long start = System.currentTimeMillis();
-			do {
-				invalidateVolatile();
-				repaint(target, 5, false);
-				Utils.log2("elapsed: " + (System.currentTimeMillis() - start));
-				Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
-				elf2.x += dec;
-				elf2.y += dec;
-				elf2.width -= (dec+dec);
-				elf2.height -= (dec+dec);
-				try {
-					Thread.sleep(100);
-					display.getLayerSet().getOverlay().remove(elf);
-					display.getLayerSet().getOverlay().add(elf2, Color.yellow, stroke, true);
-					elf = elf2;
-				} catch (InterruptedException ie) {} // don't interrupt
-			} while (elf.width > 1 || elf.height > 1);
-		} catch (Exception e) {
-			IJError.print(e);
-		} finally {
-			display.getLayerSet().getOverlay().remove(elf);
-			repaint(target, 5, false);
+			dec = (float)((Math.max(target.width, target.height)*magnification / 10)/magnification);
 		}
+		boolean next() {
+			invalidateVolatile();
+			repaint(target, 5, false);
+			// setup next iteration
+			display.getLayerSet().getOverlay().remove(elf);
+			Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
+			elf2.x += dec;
+			elf2.y += dec;
+			elf2.width -= (dec+dec);
+			elf2.height -= (dec+dec);
+			if (elf2.width > 1 || elf2.height > 1) {
+				elf = elf2;
+				display.getLayerSet().getOverlay().add(elf, Color.yellow, stroke, true);
+				return true;
+			} else {
+				display.getLayerSet().getOverlay().remove(elf);
+				return false;
+			}
+		}
+		void cleanup() {
+			display.getLayerSet().getOverlay().remove(elf);
+		}
+	}
+
+	private ScheduledFuture playHighlight(final Rectangle target) {
+		initAnimator();
+		final Highlighter highlight = new Highlighter(target);
+		final ScheduledFuture[] sf = new ScheduledFuture[2];
+		sf[0] = animator.scheduleWithFixedDelay(new Runnable() {
+			public void run() {
+				if (!highlight.next()) {
+					cancelAnimation(sf[0]);
+					highlight.cleanup();
+				}
+			}
+		}, 10, 100, TimeUnit.MILLISECONDS);
+		sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
+			public void run() {
+				if (sf[0].isCancelled()) {
+					highlight.cleanup();
+					sf[1].cancel(true); // itself
+				}
+			}
+		}, 50, 100, TimeUnit.MILLISECONDS);
+		sfs.add(sf[0]);
+		return sf[0];
+	}
+
+	synchronized private void initAnimator() {
+		if (null == animator) animator = Executors.newScheduledThreadPool(2);
 	}
 }

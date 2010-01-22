@@ -3966,7 +3966,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (((Tree)active).markNear(p.x, p.y, layer, canvas.getMagnification())) {
 				Display.repaint(getLayerSet());
 			}
-		} else if (command.equals("Clear marks (selected Treelines)")) {
+		} else if (command.equals("Clear marks (selected Trees)")) {
 			for (Displayable d : selection.getSelected(Tree.class)) {
 				((Tree)d).unmark();
 			}

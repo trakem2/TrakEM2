@@ -607,6 +607,8 @@ public abstract class Tree extends ZDisplayable {
 				return false;
 			}
 
+			end_nodes.add(this.root);
+			end_nodes.remove(nd);
 			nd.setRoot();
 			this.root = nd;
 			updateView();
@@ -756,6 +758,11 @@ public abstract class Tree extends ZDisplayable {
 			return createCoordinate(nd.children[0]);
 		}
 		// else, find the closest child edge
+		if (!this.at.isIdentity()) {
+			Point2D.Double po = inverseTransformPoint(x, y);
+			x = (float)po.x;
+			y = (float)po.y;
+		}
 		nd = findNearestChildEdge(nd, x, y);
 		if (null != nd) setLastVisited(nd);
 		return createCoordinate(nd);
@@ -1573,24 +1580,28 @@ public abstract class Tree extends ZDisplayable {
 					return;
 				case KeyEvent.VK_B:
 					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification());
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_N:
 					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification());
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_L:
 					c = getLastAdded();
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_E:
 					c = getLastEdited();
+					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
