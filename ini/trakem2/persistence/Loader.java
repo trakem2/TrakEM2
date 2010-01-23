@@ -2184,7 +2184,67 @@ abstract public class Loader {
 	public Bureaucrat importImages(final Layer ref_layer) {
 		return importImages(ref_layer, null, null, 0, 0, false);
 	}
-
+	/** Duplicate layers without creating new mipmaps (davi-experimenting)<br />
+	 * purpose: test how TrakEM2 handles 1200 enormous sections instead of 80, in anticipation of a full aligned stack from PSC<br />
+	 * code derived from importImages<br />
+	 * TODO optionally replicate mipmaps, project objects
+	 */
+	public Bureaucrat scaleUp(final Layer ref_layer) {
+		GenericDialog gdd = new GenericDialog("Scale Up options");
+		gdd.addMessage("Enter how many times the stack should be replicated (min 1, max 100):");
+		gdd.addNumericField("Scale up by: ", 1, 0); // default: 15 x
+		gdd.showDialog();
+		if (gdd.wasCanceled()) return null;
+		double scale_up_by_ = gdd.getNextNumber();
+		if (scale_up_by_ < 1 || scale_up_by_ > 100 || Double.isNaN(scale_up_by_)) {
+			Utils.log("Improper value for 'scale up by'.");
+			return null;
+		} 
+		
+		// make vars accessible from inner threads: (TODO necessary?)
+		final Layer base_layer = ref_layer;
+		final Double scale_up_by = scale_up_by_;
+		
+		return Bureaucrat.createAndStart(new Worker.Task("Scaling up", true) {
+			public void exec() {
+				try {
+					final Set<Layer> touched_layers = new HashSet<Layer>(); // TODO why final?
+					final LayerSet layer_set = base_layer.getParent();
+					ArrayList<Layer> layers = layer_set.getLayers();
+					Iterator it = layers.iterator();
+					double max_z = Double.MIN_VALUE;
+					while (it.hasNext()) {
+						Layer cur_layer = (Layer)it.next();
+						double cur_z = cur_layer.getZ();		
+						// Utils.log2("scaleUp cur_z = " + Double.toString(cur_z));
+						if (cur_z > max_z) max_z = cur_z;
+					}
+					for (int pass = 0; pass < scale_up_by; pass++) {
+						it = layers.iterator();
+						while (it.hasNext()) {
+							max_z = max_z + 1;
+							Layer cur_layer = (Layer)it.next();
+							// If copy_id (last parameter to cur_layer.clone) is set to false, the new layer and all the patches within it will 
+							// get a new id.  This results in new mipmap generation despite the origin path being the same.
+							// However, if copy_id is set to true, navigating layers with the scroll wheel is broken. If I were to re-implement
+							// clone, such that a new id was created for the layer, but the patches used the old id (thereby avoiding generation of
+							// new mipmaps), I suspect that this would also break in strange ways.  But let's test it.
+							Layer new_layer = cur_layer.clone(base_layer.getProject(), layer_set, layer_set.get2DBounds(), true); // layer_set.getLayer(max_z, cur_layer.getThickness(), true); // creates a new layer
+							new_layer.setZ(max_z);
+							layer_set.add(new_layer);
+							base_layer.getProject().getLayerTree().addLayer(layer_set, new_layer);
+							touched_layers.add(new_layer);
+						}
+					}
+					// Utils.log2("scaleUp max_z = " + Double.toString(max_z));
+					recreateBuckets(touched_layers);
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			}
+		}, base_layer.getProject());
+	}
+	
 	/** Import images from the given text file, which is expected to contain 4 columns:<br />
 	 * - column 1: image file path (if base_dir is not null, it will be prepended)<br />
 	 * - column 2: x coord<br />
