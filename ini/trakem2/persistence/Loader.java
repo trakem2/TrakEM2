@@ -2228,7 +2228,7 @@ abstract public class Loader {
 							// get a new id.  This results in new mipmap generation despite the origin path being the same.
 							// However, if copy_id is set to true, navigating layers with the scroll wheel is broken. If I were to re-implement
 							// clone, such that a new id was created for the layer, but the patches used the old id (thereby avoiding generation of
-							// new mipmaps), I suspect that this would also break in strange ways.  But let's test it.
+							// new mipmaps), I suspect that this would also break in strange ways.  But let's test it. ==> works so far
 							Layer new_layer = cur_layer.clone(base_layer.getProject(), layer_set, layer_set.get2DBounds(), true); // layer_set.getLayer(max_z, cur_layer.getThickness(), true); // creates a new layer
 							new_layer.setZ(max_z);
 							layer_set.add(new_layer);
