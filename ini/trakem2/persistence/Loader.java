@@ -2191,8 +2191,10 @@ abstract public class Loader {
 	 */
 	public Bureaucrat scaleUp(final Layer ref_layer) {
 		GenericDialog gdd = new GenericDialog("Scale Up options");
-		gdd.addMessage("Enter how many times the stack should be replicated (min 1, max 100):");
+		gdd.addMessage("How many times stack should");
+		gdd.addMessage("be replicated (min 1, max 100):");
 		gdd.addNumericField("Scale up by: ", 1, 0); // default: 15 x
+		gdd.addCheckbox("Generate new mipmaps?", false);
 		gdd.showDialog();
 		if (gdd.wasCanceled()) return null;
 		double scale_up_by_ = gdd.getNextNumber();
@@ -2200,10 +2202,11 @@ abstract public class Loader {
 			Utils.log("Improper value for 'scale up by'.");
 			return null;
 		} 
-		
-		// make vars accessible from inner threads: (TODO necessary?)
+		boolean generate_new_mipmaps_ = gdd.getNextBoolean();
+		// make vars accessible from inner threads: (TODO necessary? just blindly following importImages template...)
 		final Layer base_layer = ref_layer;
 		final Double scale_up_by = scale_up_by_;
+		final boolean generate_new_mipmaps = generate_new_mipmaps_;
 		
 		return Bureaucrat.createAndStart(new Worker.Task("Scaling up", true) {
 			public void exec() {
@@ -2229,7 +2232,7 @@ abstract public class Loader {
 							// However, if copy_id is set to true, navigating layers with the scroll wheel is broken. If I were to re-implement
 							// clone, such that a new id was created for the layer, but the patches used the old id (thereby avoiding generation of
 							// new mipmaps), I suspect that this would also break in strange ways.  But let's test it. ==> works so far
-							Layer new_layer = cur_layer.clone(base_layer.getProject(), layer_set, layer_set.get2DBounds(), true); // layer_set.getLayer(max_z, cur_layer.getThickness(), true); // creates a new layer
+							Layer new_layer = cur_layer.clone(base_layer.getProject(), layer_set, layer_set.get2DBounds(), !generate_new_mipmaps); // layer_set.getLayer(max_z, cur_layer.getThickness(), true); // creates a new layer
 							new_layer.setZ(max_z);
 							layer_set.add(new_layer);
 							base_layer.getProject().getLayerTree().addLayer(layer_set, new_layer);
