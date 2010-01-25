@@ -4,12 +4,14 @@ import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.IJError;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -335,9 +337,53 @@ public class Connector extends ZDisplayable {
 		return la;
 	}
 
+	/** Expects Area in world coords. */
 	public boolean intersects(Area area, double z_first, double z_last) {
-		// TODO
-		Utils.log2("Connector.intersects not implemented yet");
+		if (null == p || 0 == lids.length) return false; // empty
+		try {
+			area = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			double laz = layer_set.getLayer(lids[i]).getZ();
+			if (laz < z_first || laz > z_last) continue;
+			float r = radius[i];
+			if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
+		}
+		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(Area area) {
+		if (null == p || 0 == lids.length) return false; // empty
+		try {
+			area = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			float r = radius[i];
+			if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
+		}
+		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(final Layer layer, Area area) {
+		if (null == p || 0 == lids.length) return false; // empty
+		try {
+			area = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			if (layer.getId() == lids[i]) {
+				float r = radius[i];
+				if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
+			}
+		}
 		return false;
 	}
 
@@ -582,7 +628,7 @@ public class Connector extends ZDisplayable {
 	/** Temporary while waiting for multi-meshes: create an icosphere with subdividion two, and a tube of half the target diameter from the origin to the targets. */
 	public List generateTriangles(double scale, int resample) {
 
-		if (null == p) return new ArrayList();
+		if (null == p || 0 == p.length) return new ArrayList();
 
 		// Create a temporary treeline:  (this is telling how much a Connector should just be a subclass of Tree)
 		Treeline tl = new Treeline(project, -1, "", this.width, this.height, this.alpha, this.visible, this.color, this.locked, this.at);
@@ -604,7 +650,7 @@ public class Connector extends ZDisplayable {
 
 	protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
-		if (0 == lids.length) return true; // empty
+		if (null == p || 0 == lids.length) return true; // empty
 		if (la.getId() == lids[0]) {
 			return remove2(false);
 		}
@@ -615,5 +661,20 @@ public class Connector extends ZDisplayable {
 			}
 		}
 		return true;
+	}
+
+	public boolean contains(final Layer la, int x_p, int y_p) {
+		if (null == p || 0 == lids.length) return false; // empty
+		final long lid = la.getId();
+		if (!this.at.isIdentity()) {
+			Point2D.Double po = inverseTransformPoint(x_p, y_p);
+			x_p = (int)po.x;
+			y_p = (int)po.y;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			if (lid != lids[i]) continue;
+			if ((float)(Math.pow(p[j] - x_p, 2) + Math.pow(p[j+1] - y_p, 2)) < radius[i]*radius[i]) return true;
+		}
+		return false;
 	}
 }
