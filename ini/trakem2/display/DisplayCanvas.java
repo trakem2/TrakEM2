@@ -2277,7 +2277,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					sc = layer.getParent().getScreenshot(new ScreenshotProperties(layer, srcRect, magnification, g_width, g_height, c_alphas, graphics_source));
 					if (null != sc) {
 						//Utils.log2("Using cached screenshot " + sc + " with srcRect " + sc.srcRect);
-						target = (BufferedImage) layer.getProject().getLoader().getCachedAWT(sc.sid, 0);
+						target = (BufferedImage) loader.getCachedAWT(sc.sid, 0);
 						if (null == target) layer.getParent().removeFromOffscreens(sc); // the image was thrown out of the cache
 						else if ( (sc.al_top.size() > 0 && sc.al_top.get(0) != display.getActive())
 						       || (0 == sc.al_top.size() && null != display.getActive()) ) {
