@@ -352,7 +352,11 @@ public final class FSLoader extends Loader {
 		Utils.showStatus("", false);
 		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
 		touched_mipmaps.addAll(mipmaps_to_remove);
-		for (final Patch p : touched_mipmaps) {
+		Set<Patch> touched = new HashSet<Patch>();
+		synchronized (touched_mipmaps) {
+			touched.addAll(touched_mipmaps);
+		}
+		for (final Patch p : touched) {
 			File f = new File(getAbsolutePath(p)); // with slice info appended
 			//Utils.log2("File f is " + f);
 			Utils.log2("Removing mipmaps for " + p);
@@ -2454,6 +2458,37 @@ public final class FSLoader extends Loader {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
+	/** Does the actual fetching of the file. Returns null if the file does not exist. */
+	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
+		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+
+		final int max_level = getHighestMipMapLevel(patch);
+
+		final String filename = getInternalFileName(patch);
+		if (null == filename) {
+			Utils.log2("null internal filename!");
+			return null;
+		}
+
+		// New style:
+		final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
+
+		if (patch.hasAlphaChannel()) {
+			return ImageSaver.openJpegAlpha(path);
+		} else {
+			switch (patch.getType()) {
+				case ImagePlus.GRAY16:
+				case ImagePlus.GRAY8:
+				case ImagePlus.GRAY32:
+					return ImageSaver.openGreyJpeg(path);
+				default:
+					// For color images: (considers URL as well)
+					IJ.redirectErrorMessages();
+					return patch.createImage(openImagePlus(path)); // considers c_alphas
+			}
+		}
+	}
+
 	/** Will lock on db_lock to free memory. */
 	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
@@ -2462,49 +2497,10 @@ public final class FSLoader extends Loader {
 		}
 		while (retries < MAX_RETRIES) {
 			try {
-				releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
-
 				// TODO should wait if the file is currently being generated
-				//  (it's somewhat handled by a double-try to open the jpeg image)
 
-				final int max_level = getHighestMipMapLevel(patch);
-
-				//Utils.log2("level is: " + max_level);
-
-				final String filename = getInternalFileName(patch);
-				if (null == filename) {
-					Utils.log2("null internal filename!");
-					return null;
-				}
-				// Old style:
-				//final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filename).append('.').append(patch.getId()).append(".jpg").toString();
-				// New style:
-				final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
-
-				Image img = null;
-
-				if (patch.hasAlphaChannel()) {
-					img = ImageSaver.openJpegAlpha(path);
-				} else {
-					switch (patch.getType()) {
-						case ImagePlus.GRAY16:
-						case ImagePlus.GRAY8:
-						case ImagePlus.GRAY32:
-							img = ImageSaver.openGreyJpeg(path);
-							break;
-						default:
-							IJ.redirectErrorMessages();
-							ImagePlus imp = openImagePlus(path); // considers URL as well
-							if (null != imp) return patch.createImage(imp); // considers c_alphas
-							//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
-							//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
-							//Utils.log2("color jpeg path: "+ path);
-							//Utils.log2("exists ? " + new File(path).exists());
-							break;
-					}
-				}
+				final Image img = fetchMipMap(patch, level, n_bytes);
 				if (null != img) return img;
-
 
 				// if we got so far ... try to regenerate the mipmaps
 				if (!mipmaps_regen) {
