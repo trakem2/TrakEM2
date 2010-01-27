@@ -354,7 +354,8 @@ public class Utils implements ij.plugin.PlugIn {
 		} else {
 			return ob.toString();
 		}
-		sb.setLength(sb.length()-2);
+		final int len = sb.length();
+		if (len > 2) sb.setLength(len-2); // remove the last ", "
 		sb.append(closing);
 		sb.append('\n');
 		return sb.toString();
