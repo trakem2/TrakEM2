@@ -387,6 +387,11 @@ public class Connector extends ZDisplayable {
 		return false;
 	}
 
+	/** Expects Rectangle in world coords. */
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		return intersects(layer, new Area(r));
+	}
+
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		boolean must_lock = false;
