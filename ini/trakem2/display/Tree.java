@@ -978,7 +978,7 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	public boolean addNode(final Node parent, final Node child, final byte confidence) {
-		try {
+		//try {
 
 		synchronized (node_layer_map) {
 			Set<Node> nodes = node_layer_map.get(child.la);
@@ -1013,7 +1013,7 @@ public abstract class Tree extends ZDisplayable {
 			return false;
 		}
 
-		} finally {
+		/*} finally {
 			//Utils.log2("new node: " + child + " with parent: " + parent);
 			//Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
 			if (null == parent) {
@@ -1021,7 +1021,7 @@ public abstract class Tree extends ZDisplayable {
 				Utils.log2(" nodes to paint: " + Utils.toString(getNodesToPaint(Display.getFrontLayer())));
 				Utils.log2(" nodes in node_layer_map: " + Utils.toString(node_layer_map));
 			}
-		}
+		}*/
 	}
 
 	/** Remove a node only (not its subtree).
