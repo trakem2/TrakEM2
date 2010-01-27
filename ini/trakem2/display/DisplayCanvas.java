@@ -1637,6 +1637,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		repaint(true);
 	}
 
+	// necessary because the Display object doesn't respond to keypressed events?
+	public void relayCreateRepeatable() {
+		display.getProject().getProjectTree().createRepeatable();
+	}
+	
 	private int last_keyCode = KeyEvent.VK_ESCAPE;
 	private boolean tagging = false;
 
@@ -1909,6 +1914,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_F11:
 			case KeyEvent.VK_F12:
 				ProjectToolbar.keyPressed(ke);
+				ke.consume();
+				break;
+			case KeyEvent.VK_SEMICOLON:
+				// TODO is this the right place in the method to handle this event?
+				if (display.getProject().getProjectTree().hasRepeatable()) {
+					relayCreateRepeatable();
+				}
 				ke.consume();
 				break;
 		}

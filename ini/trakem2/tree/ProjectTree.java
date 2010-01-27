@@ -72,6 +72,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	private DefaultMutableTreeNode selected_node = null;
+	private DefaultMutableTreeNode repeatable_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
 		super(project, DNDTree.makeNode(project_thing), new Color(240,230,255)); // new Color(185,156,255));
@@ -99,6 +100,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		JMenu node_menu = new JMenu("Node");
 		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
 		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
+		item = new JMenuItem("Set as repeatable (davi-experimenting)"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SEMICOLON, 0, true)); node_menu.add(item);
 
 		popup.add(node_menu);
 		return popup;
@@ -244,6 +246,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
+				if (repeatable_node == selected_node) {
+					setRepeatableNode(null);
+				}
 				remove(true, thing, selected_node);
 				return;
 			} else if (command.equals("Rename...")) {
@@ -292,6 +297,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				move(selected_node, -1);
 			} else if (command.equals("Move down")) {
 				move(selected_node, 1);
+			} else if (command.equals("Set as repeatable (davi-experimenting)")) {
+				setRepeatableNode(selected_node);
+				return;
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -485,6 +493,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		//
 		final int flags = ke.getModifiers();
 		switch (ke.getKeyCode()) {
+			case KeyEvent.VK_SEMICOLON:
+				setRepeatableNode(node);
+				ke.consume();
+				break;
 			case KeyEvent.VK_PAGE_UP:
 				move(node, -1);
 				ke.consume(); // in any case
@@ -553,6 +565,25 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		this.scrollPathToVisible(trp);
 		this.setSelectionPath(trp);
 		this.updateUILater();
+	}
+	
+	private void setRepeatableNode(final DefaultMutableTreeNode node) {
+		repeatable_node = node;
+	}
+	
+	public void createRepeatable() {
+		// debugging info:
+		Utils.log("caught repeat item create request");
+		if (null != repeatable_node) {
+			final Object ob = repeatable_node.getUserObject();
+			if (!(ob instanceof ProjectThing)) return; // TODO raise an error, this shouldn't happen?
+			final ProjectThing thing = (ProjectThing)ob;
+			showInfo(thing);
+		}
+	}
+	
+	public boolean hasRepeatable() {
+		return (null != repeatable_node);
 	}
 
 	/** If the given node is null, it will be searched for. */

@@ -2637,6 +2637,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate mipmaps (selected images)"); item.addActionListener(this); menu.add(item);
+		if (this.getProject().getProjectTree().hasRepeatable()) {
+			item = new JMenuItem("Repeat item create (davi-experimenting)"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SEMICOLON, 0, true));
+		}
 		popup.add(menu);
 
 		menu = new JMenu("Selection");
@@ -4429,6 +4433,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			project.getLoader().regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
 		} else if (command.equals("Regenerate mipmaps (selected images)")) {
 			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
+		} else if (command.equals("Repeat item create (davi-experimenting)")) {
+			canvas.relayCreateRepeatable();
 		} else if (command.equals("Tags...")) {
 			// get a file first
 			File f = Utils.chooseFile(null, "tags", ".xml");
@@ -5357,4 +5363,5 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			la.getParent().addTransformStep(la);
 		}});
 	}
+	
 }
