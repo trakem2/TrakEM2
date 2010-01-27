@@ -352,11 +352,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
-		final ArrayList al_used_keys = new ArrayList();
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry entry : (Collection<Map.Entry>) ht.entrySet()) {
+			final String key = (String)entry.getKey();
+			final String data = (String)entry.getValue();
 			try {
 				if (key.equals("width")) width = Double.parseDouble(data);
 				else if (key.equals("height")) height = Double.parseDouble(data);
@@ -421,14 +419,10 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					rot = Double.parseDouble(data);
 				} else if (key.equals("composite")) {
 					compositeMode = Byte.parseByte(data);
-				} else continue;
-				al_used_keys.add(key);
+				}
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
-		}
-		for (Iterator it = al_used_keys.iterator(); it.hasNext(); ) {
-			ht.remove(it.next());
 		}
 
 		// support old versions:

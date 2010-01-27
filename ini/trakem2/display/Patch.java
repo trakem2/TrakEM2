@@ -145,9 +145,7 @@ public final class Patch extends Displayable implements ImageData {
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		final Iterator it = ht_attributes.entrySet().iterator();
-		while (it.hasNext()) {
-			final Map.Entry entry = (Map.Entry)it.next();
+		for (final Map.Entry entry : (Collection<Map.Entry>) ht_attributes.entrySet()) {
 			final String key = (String)entry.getKey();
 			final String data = (String)entry.getValue();
 			if (key.equals("type")) {
