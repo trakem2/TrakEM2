@@ -572,14 +572,21 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 	
 	public void createRepeatable() {
-		// debugging info:
-		Utils.log("caught repeat item create request");
-		if (null != repeatable_node) {
-			final Object ob = repeatable_node.getUserObject();
-			if (!(ob instanceof ProjectThing)) return; // TODO raise an error, this shouldn't happen?
-			final ProjectThing thing = (ProjectThing)ob;
-			showInfo(thing);
-		}
+		// following code for ProjectTree.actionPerformed "new" command
+		if (!Project.getInstance(this).isInputEnabled()) { Utils.log("Warning: ProjectTree.createRepeatable was invoked when the project tree was not input enabled"); return;}
+		if (null == repeatable_node) { Utils.log("Warning: ProjectTree.createRepeatable was invoked when repeatable_node was null"); return; }
+		final Object ob = repeatable_node.getUserObject();
+		if (!(ob instanceof ProjectThing)) { Utils.log("Warning: ProjectTree.createRepeatable was invoked on a repeatable_node not of type ProjectThing"); return; }
+		final ProjectThing thing = (ProjectThing)ob;
+		if (thing.getRootParent() == thing) { Utils.log("Warning: ProjectTree.createRepeatable was invoked on the root node"); return; } // TODO dunno if this is possible; dunno what to do if it is.
+		
+		project.getRootLayerSet().addChangeTreesStep();
+		ArrayList nc = thing.createSibling(null, (ProjectThing)thing.getParent());
+		addLeafs((ArrayList<Thing>)nc, new Runnable() {
+			public void run() {
+				project.getRootLayerSet().addChangeTreesStep();
+			}});
+		// Utils.log("caught repeat item create request");
 	}
 	
 	public boolean hasRepeatable() {

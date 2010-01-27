@@ -544,6 +544,21 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 	}
 
+	/** Creates a sibling node whose graph is identical but whose leaves are empty (i.e. segmentation content is not copied)*/ 
+	public ArrayList<ProjectThing> createSibling(ArrayList<ProjectThing> al, ProjectThing pt_parent) {
+		if (null == al) al = new ArrayList<ProjectThing>(); // top-level invocation
+		final ProjectThing sibling = pt_parent.createChild(this.getType()); if (null == sibling) return null; // TODO warning
+		al.add(sibling);
+		final ArrayList children = this.getChildren();
+		if (null != children) {
+			for (Iterator it = children.iterator(); it.hasNext(); ) {
+				ProjectThing pt_child = (ProjectThing)it.next();
+				pt_child.createSibling(al, sibling);
+			}
+		}
+		return al; // not used by the recursion, just a convenience for the top-level caller
+	}
+	
 	public boolean canHaveAsChild(String type) {
 		return null != template.getChildTemplate(type);
 	}
