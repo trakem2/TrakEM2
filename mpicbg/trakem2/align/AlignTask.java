@@ -161,6 +161,58 @@ final public class AlignTask
 		alignPatches( p, patches, fixedPatches );
 	}
 
+	/** Montage each layer independently, with SIFT.
+	 *  Does NOT register layers to each other.
+	 *  Considers visible Patches only. */
+	final static public Bureaucrat montageLayersTask(final List<Layer> layers) {
+		if (null == layers || layers.isEmpty()) return null;
+		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers", true) {
+			public void exec() {
+				//final Align.ParamOptimize p = Align.paramOptimize;
+				final GenericDialog gd = new GenericDialog( "Montage Layers" );
+				Align.paramOptimize.addFields( gd );
+				
+				gd.addMessage( "Miscellaneous:" );
+				gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+				gd.addCheckbox( "consider largest graph only", largestGraphOnly );
+				gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+				gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+				
+				gd.showDialog();
+				if ( gd.wasCanceled() ) return;
+				
+				Align.paramOptimize.readFields( gd );
+				tilesAreInPlace = gd.getNextBoolean();
+				largestGraphOnly = gd.getNextBoolean();
+				hideDisconnectedTiles = gd.getNextBoolean();
+				deleteDisconnectedTiles = gd.getNextBoolean();
+				
+				final Align.ParamOptimize p = Align.paramOptimize.clone();
+				montageLayers(p, layers);
+			}
+		}, layers.get(0).getProject());
+	}
+
+	final static public void montageLayers(final Align.ParamOptimize p, final List<Layer> layers) {
+		int i = 0;
+		for (final Layer layer : layers) {
+			if (Thread.currentThread().isInterrupted()) return;
+			Collection<Displayable> patches = layer.getDisplayables(Patch.class, true);
+			if (patches.isEmpty()) continue;
+			for (final Displayable patch : patches) {
+				if (patch.isLinked() && !patch.isOnlyLinkedTo(Patch.class)) {
+					Utils.log("Cannot montage layer " + layer + "\nReason: at least one Patch is linked to non-image data: " + patch);
+					continue;
+				}
+			}
+			Utils.log("====\nMontaging layer " + layer);
+			Utils.showProgress(((double)i)/layers.size());
+			i++;
+			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>());
+			Display.repaint(layer);
+		}
+	}
+
 	final static public void alignPatches(
 			final Align.ParamOptimize p,
 			final List< Patch > patches,
@@ -542,7 +594,7 @@ final public class AlignTask
 	 *  If a null @param p_snap is given, it will use the AlignTask.p_snap.
 	 *  If @param setup is true, it will show a dialog to adjust parameters. */
 	static public final Bureaucrat snap(final Patch patch, final Align.ParamOptimize p_snap, final boolean setup) {
-		return Bureaucrat.createAndStart(new Worker.Task("Snapping") {
+		return Bureaucrat.createAndStart(new Worker.Task("Snapping", true) {
 			public void exec() {
 
 		final Align.ParamOptimize p = null == p_snap ? AlignTask.p_snap : p_snap;
@@ -630,7 +682,7 @@ final public class AlignTask
 	}
 
 	static public final Bureaucrat registerStackSlices(final Patch slice) {
-		return Bureaucrat.createAndStart(new Worker.Task("Registering slices") {
+		return Bureaucrat.createAndStart(new Worker.Task("Registering slices", true) {
 			public void exec() {
 
 		// build the list

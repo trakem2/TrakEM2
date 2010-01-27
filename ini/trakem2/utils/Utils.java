@@ -53,6 +53,9 @@ import java.awt.Checkbox;
 import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FontMetrics;
+import java.awt.Font;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
@@ -351,7 +354,8 @@ public class Utils implements ij.plugin.PlugIn {
 		} else {
 			return ob.toString();
 		}
-		sb.setLength(sb.length()-2);
+		final int len = sb.length();
+		if (len > 2) sb.setLength(len-2); // remove the last ", "
 		sb.append(closing);
 		sb.append('\n');
 		return sb.toString();
@@ -666,7 +670,6 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
 	static public final File chooseFile(String default_dir, String name, String extension) {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
-		String user = System.getProperty("user.name");
 		String name2 = null;
 		if (null != name && null != extension) name2 = name + extension;
 		else if (null != name) name2 = name;
@@ -1531,5 +1534,26 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(t);
 		}
 		return null;
+	}
+
+	static private java.awt.Frame frame = null;
+
+	/** Get the width and height of single-line text. */
+	static public final Dimension getDimensions(final String text, final Font font) {
+		if (null == frame) { frame = new java.awt.Frame(); frame.pack(); frame.setBackground(Color.white); } // emulating the ImageProcessor class
+		FontMetrics fm = frame.getFontMetrics(font);
+		int[] w = fm.getWidths(); // the advance widths of the first 256 chars
+		int width = 0;
+		for (int i = text.length() -1; i>-1; i--) {
+			int c = (int)text.charAt(i);
+			if (c < 256) width += w[c];
+		}
+		return new Dimension(width, fm.getHeight());
+	}
+
+	static public final java.io.InputStream createStream(final String path_or_url) throws Exception {
+		return 0 == path_or_url.indexOf("http://") ?
+			  new java.net.URL(path_or_url).openStream()
+			: new java.io.BufferedInputStream(new java.io.FileInputStream(path_or_url));
 	}
 }

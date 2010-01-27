@@ -352,7 +352,11 @@ public final class FSLoader extends Loader {
 		Utils.showStatus("", false);
 		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
 		touched_mipmaps.addAll(mipmaps_to_remove);
-		for (final Patch p : touched_mipmaps) {
+		Set<Patch> touched = new HashSet<Patch>();
+		synchronized (touched_mipmaps) {
+			touched.addAll(touched_mipmaps);
+		}
+		for (final Patch p : touched) {
 			File f = new File(getAbsolutePath(p)); // with slice info appended
 			//Utils.log2("File f is " + f);
 			Utils.log2("Removing mipmaps for " + p);
@@ -1099,8 +1103,50 @@ public final class FSLoader extends Loader {
 		return ht_paths.get(patch.getId());
 	}
 
+	protected Hashtable<Long,String> getPathsCopy() {
+		return (Hashtable<Long,String>) ht_paths.clone();
+	}
+
+	/** Try to make all paths in ht_paths be relative to the given xml_path.
+	 *  This is intended for making all paths relative when saving to XML for the first time. */
+	protected void makeAllPathsRelativeTo(final String xml_path) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				this.dir_storage = FSLoader.makeRelativePath(xml_path, this.dir_storage);
+				this.dir_mipmaps = FSLoader.makeRelativePath(xml_path, this.dir_mipmaps);
+				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
+					e.setValue(FSLoader.makeRelativePath(xml_path, e.getValue()));
+				}
+			} catch (Throwable t) {
+				IJError.print(t);
+			} finally {
+				unlock();
+			}
+		}
+	}
+	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
+		synchronized (db_lock) {
+			try {
+				lock();
+				this.dir_mipmaps = mipmaps_folder;
+				this.dir_storage = storage_folder;
+				ht_paths.clear();
+				ht_paths.putAll(copy);
+			} catch (Throwable t) {
+				IJError.print(t);
+			} finally {
+				unlock();
+			}
+		}
+	}
+
 	/** Takes the given path and tries to makes it relative to this instance's project_file_path, if possible. Otherwise returns the argument as is. */
 	public String makeRelativePath(String path) {
+		return FSLoader.makeRelativePath(this.project_file_path, path);
+	}
+
+	static private String makeRelativePath(final String project_file_path, String path) {
 		if (null == project_file_path) {
 			//unsaved project
 			return path;
@@ -1118,18 +1164,18 @@ public final class FSLoader extends Loader {
 			path = path.substring(0, isl);
 		}
 		//
-		if (isRelativePath(path)) {
+		if (FSLoader.isRelativePath(path)) {
 			// already relative
 			if (-1 != isl) path += slice;
 			return path;
 		}
 		// the long and verbose way, to be cross-platform. Should work with URLs just the same.
 		String xdir = new File(project_file_path).getParentFile().getAbsolutePath();
-		if (!xdir.endsWith("/")) xdir += "/";
 		if (IJ.isWindows()) {
 			xdir = xdir.replace('\\', '/');
 			path = path.replace('\\', '/');
 		}
+		if (!xdir.endsWith("/")) xdir += "/";
 		if (path.startsWith(xdir)) {
 			path = path.substring(xdir.length());
 		}
@@ -1400,7 +1446,6 @@ public final class FSLoader extends Loader {
 	public String getMipMapsFolder() {
 		return dir_mipmaps;
 	}
-
 
 	/*
 	static private IndexColorModel thresh_cm = null;
@@ -2413,6 +2458,37 @@ public final class FSLoader extends Loader {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
+	/** Does the actual fetching of the file. Returns null if the file does not exist. */
+	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
+		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+
+		final int max_level = getHighestMipMapLevel(patch);
+
+		final String filename = getInternalFileName(patch);
+		if (null == filename) {
+			Utils.log2("null internal filename!");
+			return null;
+		}
+
+		// New style:
+		final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
+
+		if (patch.hasAlphaChannel()) {
+			return ImageSaver.openJpegAlpha(path);
+		} else {
+			switch (patch.getType()) {
+				case ImagePlus.GRAY16:
+				case ImagePlus.GRAY8:
+				case ImagePlus.GRAY32:
+					return ImageSaver.openGreyJpeg(path);
+				default:
+					// For color images: (considers URL as well)
+					IJ.redirectErrorMessages();
+					return patch.createImage(openImagePlus(path)); // considers c_alphas
+			}
+		}
+	}
+
 	/** Will lock on db_lock to free memory. */
 	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
@@ -2421,49 +2497,10 @@ public final class FSLoader extends Loader {
 		}
 		while (retries < MAX_RETRIES) {
 			try {
-				releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
-
 				// TODO should wait if the file is currently being generated
-				//  (it's somewhat handled by a double-try to open the jpeg image)
 
-				final int max_level = getHighestMipMapLevel(patch);
-
-				//Utils.log2("level is: " + max_level);
-
-				final String filename = getInternalFileName(patch);
-				if (null == filename) {
-					Utils.log2("null internal filename!");
-					return null;
-				}
-				// Old style:
-				//final String path = new StringBuffer(dir_mipmaps).append( level > max_level ? max_level : level ).append('/').append(filename).append('.').append(patch.getId()).append(".jpg").toString();
-				// New style:
-				final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
-
-				Image img = null;
-
-				if (patch.hasAlphaChannel()) {
-					img = ImageSaver.openJpegAlpha(path);
-				} else {
-					switch (patch.getType()) {
-						case ImagePlus.GRAY16:
-						case ImagePlus.GRAY8:
-						case ImagePlus.GRAY32:
-							img = ImageSaver.openGreyJpeg(path);
-							break;
-						default:
-							IJ.redirectErrorMessages();
-							ImagePlus imp = openImagePlus(path); // considers URL as well
-							if (null != imp) return patch.createImage(imp); // considers c_alphas
-							//img = patch.adjustChannels(Toolkit.getDefaultToolkit().createImage(path)); // doesn't work
-							//img = patch.adjustChannels(ImageSaver.openColorJpeg(path)); // doesn't work
-							//Utils.log2("color jpeg path: "+ path);
-							//Utils.log2("exists ? " + new File(path).exists());
-							break;
-					}
-				}
+				final Image img = fetchMipMap(patch, level, n_bytes);
 				if (null != img) return img;
-
 
 				// if we got so far ... try to regenerate the mipmaps
 				if (!mipmaps_regen) {

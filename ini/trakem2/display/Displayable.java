@@ -24,7 +24,14 @@ package ini.trakem2.display;
 
 import java.awt.*;
 import java.awt.event.*;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
@@ -44,7 +51,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
 
 /** The class that any element to be drawn on a Display must extend. */
-public abstract class Displayable extends DBObject implements Paintable {
+public abstract class Displayable extends DBObject implements Paintable  {
 	
 	final static protected String[] compositeModes = new String[]{
 		"Normal",
@@ -148,6 +155,10 @@ public abstract class Displayable extends DBObject implements Paintable {
 	synchronized public Map<String,String> getProperties() {
 		if (null == props) return null;
 		return new HashMap<String,String>(props);
+	}
+
+	synchronized public boolean hasProperties() {
+		return null != props && props.size() > 0;
 	}
 
 	/** Add a property that is specific to the relationship between this Displayable and the target, and will be deleted when the target Displayable is deleted. */
@@ -432,19 +443,29 @@ public abstract class Displayable extends DBObject implements Paintable {
 		// scaling in old versions will be lost
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+		Utils.log2("paint g, srcRect, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
 	}
+
+	//public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	//	Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+	//}
 
 	/** If the painting is expensive, children classes can override this method to provide first a coarse painting, and then call repaint on their own again once the desired graphics are ready. */
 	public void prePaint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, magnification, active, channels, active_layer);
+		prePaint(g, magnification, active, channels, active_layer);
+	}
+	public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, srcRect, magnification, active, channels, active_layer);
 	}
 
-	/** Paints waiting for data to load, if necessary. */
-	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, magnification, active, channels, active_layer);
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+		paint(g, srcRect, magnification, active, channels, active_layer);
 	}
+	/** Paints waiting for data to load, if necessary. */
+	//public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	//	paint(g, magnification, active, channels, active_layer);
+	//}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
@@ -684,6 +705,9 @@ public abstract class Displayable extends DBObject implements Paintable {
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		Utils.log2("mouseReleased not implemented yet for " + this.getClass().getName());
 	}
+
+	/** Does nothing unless overriden. */
+	public void mouseWheelMoved(MouseWheelEvent mwe) {}
 
 	public void keyPressed(KeyEvent ke) {
 
@@ -1333,11 +1357,11 @@ public abstract class Displayable extends DBObject implements Paintable {
 	/** Add properties, links, etc. Does NOT close the tag. */
 	synchronized protected void restXML(final StringBuffer sb_body, final String in, final Object any) {
 		// Properties:
-		if (null != props && !props.isEmpty()) {
+		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
 				final String value = e.getValue();
 				if (null == value) continue; // impossible, but with reflection one may set it so
-				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
+				sb_body.append(in).append("<t2_prop key=\"").append(e.getKey()).append("\" value=\"").append(getXMLSafeValue(e, value)).append("\" />\n");
 			}
 		}
 		if (null != linked_props && !linked_props.isEmpty()) {
@@ -1346,24 +1370,30 @@ public abstract class Displayable extends DBObject implements Paintable {
 				for (final Map.Entry<String,String> e : et.getValue().entrySet()) {
 					final String value = e.getValue();
 					if (null == value) continue; // impossible, but with reflection one may set it so
-					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(cleanAttr(e, value)).append("\" />\n");
+					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(getXMLSafeValue(e, value)).append("\" />\n");
 				}
 			}
 		}
 	}
-
-	// Make sure the value is valid for an XML attribute content inside double quotes.
-	final private String cleanAttr(final Map.Entry<String,String> e, String value) {
+	/** Make sure the value is valid for an XML attribute content inside double quotes. This means double quotes and newline characters are not allowed and are replaced by a single quote and a space, respectively. */
+	final static public String getXMLSafeValue(final Map.Entry<String,String> e, String value) {
 		if (-1 != value.indexOf('"')) {
-			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a \" which is being replaced by '.");
+			Utils.log("Property " + e.getKey() + " contains a \" which is being replaced by a single quote");
 			value = value.replace('"', '\'');
 		}
 		if (-1 != value.indexOf('\n')) {
-			Utils.log("Property " + e.getKey() + " for ob id=#" + this.id + " contains a newline char which is being replaced by a space.");
+			Utils.log("Property " + e.getKey() + " contains a newline char which is being replaced by a space.");
 			value = value.replace('\n', ' ');
 		}
 		return value;
 	}
+	final static public String getXMLSafeValue(String value) {
+		if (-1 != value.indexOf('"')) value = value.replace('"', '\'');
+		if (-1 != value.indexOf('\n')) value = value.replace('\n', ' ');
+		return value;
+	}
+
+	/////////////
 
 	// I'm sure it could be made more efficient, but I'm too tired!
 	public boolean hasLinkedGroupWithinLayer(Layer la) {
@@ -1655,10 +1685,10 @@ public abstract class Displayable extends DBObject implements Paintable {
 		g.drawLine((int)c2[6], (int)c2[7], (int)c2[0], (int)c2[1]);
 	}
 
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
-				paint(g, mag, false, 0xffffffff, layer);
+				paint(g, srcRect, mag, false, 0xffffffff, layer);
 				return;
 			case 1:
 				paintAsBox(g);
@@ -2024,4 +2054,7 @@ public abstract class Displayable extends DBObject implements Paintable {
 							return true; }}}}}
 		return false;
 	}
+
+	// private to the package
+	void removeTag(Tag tag) {}
 }

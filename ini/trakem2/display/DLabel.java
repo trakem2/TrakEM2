@@ -59,7 +59,6 @@ public class DLabel extends Displayable {
 
 	private int type;
 	private Font font;
-	static private Frame frame = null;
 	private JFrame editor = null;
 
 	public DLabel(Project project, String text, double x, double y) {
@@ -130,16 +129,9 @@ public class DLabel extends Displayable {
 		if (null == title || 0 == title.length()) return;
 		String text = getShortTitle();
 		// measure dimensions of the painted label
-		if (null == frame) { frame = new Frame(); frame.pack(); frame.setBackground(Color.white); } // emulating the ImageProcessor class
-		FontMetrics fm = frame.getFontMetrics(font);
-		this.height = fm.getHeight();
-		int[] w = fm.getWidths(); // the advance widths of the first 256 chars
-		this.width = 0;
-		for (int i = text.length() -1; i>-1; i--) {
-			int c = (int)text.charAt(i);
-			if (c < 256) this.width += w[c];
-		}
-		frame = null;
+		Dimension dim = Utils.getDimensions(text, font);
+		this.width = dim.width;
+		this.height = dim.height;
 		Display.updateTransform(this); // need to update the Selection with the actual width and height!
 		updateInDatabase("dimensions");
 		layer.updateBucket(this);
@@ -184,7 +176,7 @@ public class DLabel extends Displayable {
 	}
 
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, final Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
@@ -328,7 +320,6 @@ public class DLabel extends Displayable {
 	*/
 
 	public void edit() {
-		if (null == frame) { frame = new Frame(); frame.pack(); frame.setBackground(Color.white); } // emulating the ImageProcessor class
 		if (null == editor) editor = new Editor(this);
 		else editor.toFront();
 	}
@@ -370,7 +361,6 @@ public class DLabel extends Displayable {
 			dispose();
 			Display.repaint(layer, label, 1);
 			editor = null;
-			frame = null;
 		}
 		public void windowClosed(WindowEvent we) {}
 		public void windowOpened(WindowEvent we) {}

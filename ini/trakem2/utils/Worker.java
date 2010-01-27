@@ -123,6 +123,10 @@ public abstract class Worker implements Runnable {
 		public Task(String title) {
 			super(title);
 		}
+		public Task(String title, boolean interrupt_on_quit) {
+			this(title);
+			super.interrupt_on_quit = interrupt_on_quit;
+		}
 
 		abstract public void exec();
 

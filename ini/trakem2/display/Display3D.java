@@ -52,6 +52,7 @@ import customnode.CustomMeshNode;
 import customnode.CustomMesh;
 import customnode.CustomTriangleMesh;
 import customnode.CustomLineMesh;
+import customnode.CustomMultiMesh;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -265,6 +266,8 @@ public final class Display3D {
 		}
 		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
 	}
+
+	public double getScale() { return scale; }
 
 	static private boolean check_j3d = true;
 	static private boolean has_j3d_3dviewer = false;
@@ -681,16 +684,20 @@ public final class Display3D {
 			line_mesh_mode = Integer.MAX_VALUE;
 		} else {
 			c = displ.getClass();
-			line_mesh = Treeline.class == c || Polyline.class == c;
-			if (Treeline.class == c) line_mesh_mode = CustomLineMesh.PAIRWISE;
+			line_mesh = Tree.class.isAssignableFrom(c) || Polyline.class == c;
+			if (Tree.class.isAssignableFrom(c)) line_mesh_mode = CustomLineMesh.PAIRWISE;
 			else if (Polyline.class == c) line_mesh_mode = CustomLineMesh.CONTINUOUS;
 			else line_mesh_mode = Integer.MAX_VALUE; // disabled
 		}
 
-		if (AreaList.class == c) {
-			int rs = resample;
+		List extra_triangles = null;
+
+		int rs = resample;
+		if (displ instanceof AreaContainer) {
 			if (-1 == resample) rs = Display3D.this.resample = adjustResampling(); // will adjust this.resample, and return it (even if it's a default value)
 			else rs = Display3D.this.resample;
+		}
+		if (AreaList.class == c) {
 			triangles = ((AreaList)displ).generateTriangles(scale, rs);
 			//triangles = removeNonManifold(triangles);
 		} else if (Ball.class == c) {
@@ -700,8 +707,16 @@ public final class Display3D {
 			// Pipe and Polyline
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
-		} else if (Treeline.class == c) {
-			triangles = ((Treeline)displ).generateTriangles(scale, 12, 1);
+		} else if (displ instanceof Tree) {
+			// A 3D wire skeleton, using CustomLineMesh
+			triangles = ((Tree)displ).generateTriangles(scale, 12, 1);
+			if (displ instanceof Treeline) {
+				extra_triangles = ((Treeline)displ).generateMesh(scale, 12);
+			} else if (displ instanceof AreaTree) {
+				extra_triangles = ((AreaTree)displ).generateMesh(scale, rs);
+			}
+		} else if (Connector.class == c) {
+			triangles = ((Connector)displ).generateTriangles(scale, 1);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 			no_culling_ = true;
@@ -759,8 +774,11 @@ public final class Display3D {
 				// If it exists, remove and add as new:
 				universe.removeContent(title);
 
+				CustomMesh cm = null;
+
 				if (line_mesh) {
-					ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
+					//ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
+					cm = new CustomLineMesh(triangles, line_mesh_mode, c3, 0);
 				} else if (no_culling) {
 					// create a mesh with the same color and zero transparency (that is, full opacity)
 					CustomTriangleMesh mesh = new CustomTriangleMesh(triangles, c3, 0);
@@ -770,14 +788,21 @@ public final class Display3D {
 					pa.setBackFaceNormalFlip(true);
 					mesh.setColor(c3);
 					// After setting properties, add to the viewer
-					//ct = universe.addCustomMesh(mesh, title);
-					ct = universe.createContent(mesh, title);
+					//ct = universe.createContent(mesh, title);
+					cm = mesh;
 				} else {
-					//ct = universe.addTriangleMesh(triangles, c3, title);
-					ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
+					//ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
+					cm = new CustomTriangleMesh(triangles, c3, 0);
 				}
 
-				if (null == ct) return null;
+				//if (null == ct) return null;
+				if (null == cm) return null;
+
+				if (null == extra_triangles) {
+					ct = universe.createContent(cm, title);
+				} else {
+				        ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, new CustomTriangleMesh(extra_triangles, c3, 0)})), title);
+				}
 
 				// Set general content properties
 				ct.setTransparency(1f - alpha);

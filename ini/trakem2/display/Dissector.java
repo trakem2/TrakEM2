@@ -336,6 +336,15 @@ public class Dissector extends ZDisplayable {
 			n_points--;
 		}
 
+		final void layerRemoved(long lid) {
+			for (int i=0; i<n_points; i++) {
+				if (lid == p_layer[i]) {
+					remove(i);
+					i--;
+				}
+			}
+		}
+
 		final Rectangle getBoundingBox() {
 			int x1=Integer.MAX_VALUE;
 			int y1=x1,
@@ -391,7 +400,7 @@ public class Dissector extends ZDisplayable {
 		// individual items will be added as soon as parsed
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		AffineTransform gt = null;
 		Stroke stroke = null;
 		AffineTransform aff = this.at;
@@ -659,7 +668,8 @@ public class Dissector extends ZDisplayable {
 	}
 
 	/** Always paint as box. TODO paint as the area of an associated ROI. */
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	@Override
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		paintAsBox(g);
 	}
 
@@ -731,6 +741,12 @@ public class Dissector extends ZDisplayable {
 			}
 		}
 		calculateBoundingBox();
+		return true;
+	}
+
+	protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (Item item : al_items) item.layerRemoved(la.getId());
 		return true;
 	}
 }

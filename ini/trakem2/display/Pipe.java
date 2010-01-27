@@ -527,7 +527,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 	}
 
 	// synchronizing to protect n_points ... need to wrap it in a lock
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -2170,6 +2170,17 @@ public class Pipe extends ZDisplayable implements Line3D {
 		}
 		generateInterpolatedPoints(0.05);
 		calculateBoundingBox(true);
+		return true;
+	}
+
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
 		return true;
 	}
 }

@@ -415,7 +415,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		updateInDatabase("points");
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -457,8 +457,6 @@ public class Polyline extends ZDisplayable implements Line3D {
 			g.drawLine((int)p[0][0], (int)p[1][0],
 				   (int)((p[0][0] + p[0][1])/2), (int)((p[1][0] + p[1][1])/2));
 		}
-
-		final Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
 
 		// Paint handle if active and in the current layer
 		if (active && layer_id == p_layer[0]) {
@@ -1432,5 +1430,15 @@ public class Polyline extends ZDisplayable implements Line3D {
 		Utils.reverse(p[0]);
 		Utils.reverse(p[1]);
 		Utils.reverse(p_layer);
+	}
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
 	}
 }

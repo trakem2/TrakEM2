@@ -696,17 +696,12 @@ public class Selection {
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
 	public ArrayList<Displayable> getSelected(final Class c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		if (null == c || c.equals(Displayable.class)) {
+		if (null == c || c == Displayable.class) {
 			al.addAll((LinkedList<Displayable>)queue);
 			return al;
 		}
-		boolean zd = c.equals(ZDisplayable.class);
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if ((zd && ob instanceof ZDisplayable)
-			  || c.equals(ob.getClass())) {
-				al.add((Displayable)ob);
-			 }
+		for (Displayable d : queue) {
+			if (c.isInstance(d)) al.add(d);
 		}
 		return al;
 	}
