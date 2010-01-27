@@ -368,6 +368,7 @@ public final class Display3D {
 						synchronized (ht_layer_sets) {
 							d3ds.addAll(ht_layer_sets.values());
 						}
+						/* // Disabled, it's annoying
 						for (Display3D d3d : d3ds) {
 							synchronized (d3d) {
 								if (d3d.universe.getContents().contains(c)) {
@@ -375,7 +376,8 @@ public final class Display3D {
 									d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
 								}
 							}
-						}
+						}*/
+						Utils.logAll("Reset 3D view if not within field of view!");
 					} catch (Exception e) {
 						IJError.print(e);
 					}
