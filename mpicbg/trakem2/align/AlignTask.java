@@ -336,7 +336,17 @@ final public class AlignTask
 	}
 
 
-	public static final void alignMultiLayerMosaicTask( final List< Layer > layerRange, final Align.Param cp, final Align.ParamOptimize p, final Align.ParamOptimize pcp, final boolean tilesAreInPlace, final boolean largestGraphOnly, final boolean hideDisconnectedTiles, final boolean deleteDisconnectedTiles, final boolean deform ) {
+	public static final void alignMultiLayerMosaicTask(
+			final List< Layer > layerRange,
+			final Align.Param cp,
+			final Align.ParamOptimize p,
+			final Align.ParamOptimize pcp,
+			final boolean tilesAreInPlace,
+			final boolean largestGraphOnly,
+			final boolean hideDisconnectedTiles,
+			final boolean deleteDisconnectedTiles,
+			final boolean deform )
+	{
 
 		/* register */
 		
