@@ -2598,7 +2598,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Import grid..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
-		item = new JMenuItem("Scale up (davi-experimenting)"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Tags ..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
@@ -3647,14 +3646,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				burro.addPostTask(new Runnable() { public void run() {
 					Display.this.getLayerSet().addChangeTreesStep();
 				}});
-		} else if (command.equals("Scale up (davi-experimenting)")) {
+/*		} else if (command.equals("Scale up (davi-experimenting)")) {
 				Display.this.getLayerSet().addChangeTreesStep();
 				Bureaucrat burro = project.getLoader().scaleUp(layer);
 				if (null != burro)
 					burro.addPostTask(new Runnable() { public void run() {
 						Display.this.getLayerSet().addChangeTreesStep();
 					}});
-		} else if (command.equals("Import labels as arealists...")) {
+*/		} else if (command.equals("Import labels as arealists...")) {
 			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
 			burro.addPostTask(new Runnable() { public void run() {

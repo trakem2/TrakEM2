@@ -812,9 +812,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
 	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi, final boolean copy_id) {
-		//	final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		// create a new id for the layer no matter what
-		final long nid = pr.getLoader().getNextId();
+		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Layer copy = new Layer(pr, nid, z, thickness);
 		copy.parent = ls;
 		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
