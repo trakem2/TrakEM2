@@ -148,6 +148,14 @@ public class AreaTree extends Tree implements AreaContainer {
 			}
 			return this.la.getDisplayables(Patch.class, a, true);
 		}
+
+		public void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) {
+			// transform the point itself
+			super.apply(ict);
+			// ... and the area
+			if (null == aw) return;
+			M.apply(ict, aw.getArea());
+		}
 	}
 
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {

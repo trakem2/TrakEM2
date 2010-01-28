@@ -95,7 +95,7 @@ import fiji.geom.AreaCalculations;
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
  * All Area objects are local to this AreaList's AffineTransform.
  */
-public class AreaList extends ZDisplayable implements AreaContainer {
+public class AreaList extends ZDisplayable implements AreaContainer, VectorData {
 
 	/** Contains the table of layer ids and their associated Area object.*/
 	private HashMap ht_areas = new HashMap();
@@ -1426,6 +1426,17 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 	protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
 		ht_areas.remove(la.getId());
+		return true;
+	}
+
+	public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		final Area a = getArea(la);
+		if (null == a) return true;
+		AffineTransform inverse = this.at.createInverse();
+		if (M.intersects(a, roi.createTransformedArea(inverse))) {
+			M.apply(M.wrap(this.at, ict, inverse), a);
+			calculateBoundingBox();
+		}
 		return true;
 	}
 }

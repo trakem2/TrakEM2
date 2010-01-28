@@ -27,6 +27,10 @@ import ini.trakem2.persistence.Loader;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 
+import mpicbg.trakem2.transform.AffineModel2D;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransformList;
+
 /** TrakEM2's mathematician. */
 public final class M {
 
@@ -315,6 +319,47 @@ public final class M {
 		return pols;
 	}
 
+	/** Return a new Area resulting from applying @param ict to @param a;
+	 *  converts the newly transformed points to ints (TrakEM2 operates with ints in its areas). */
+	static public final Area transform(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict, final Area a) {
+		final Area a2 = new Area();
+		final float[] fp = new float[2];
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					fp[0] = coords[0];
+					fp[1] = coords[1];
+					ict.applyInPlace(fp);
+					pol.addPoint((int)fp[0], (int)fp[1]); // as ints!
+					break;
+				case PathIterator.SEG_CLOSE:
+					a2.add(new Area(pol));
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return a2;
+	}
+
+	/** Apply in place the @param ict to the Area @param a. */
+	static final public void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict, final Area a) {
+		Area a2 = M.transform(ict, a);
+		a.reset();
+		a.add(a2);
+	}
+
 	static private Field shape_field = null;
 
 	static public final Shape getShape(final ShapeRoi roi) {
@@ -500,5 +545,31 @@ public final class M {
 		}
 
 		return ps;
+	}
+
+	/** Reuses the @param fp to apply in place. */
+	static public final void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict, final double[][] p, final int i, final float[] fp) {
+		fp[0] = (float)p[0][i];
+		fp[1] = (float)p[1][i];
+		ict.applyInPlace(fp);
+		p[0][i] = fp[0];
+		p[1][i] = fp[1];
+	}
+
+	/** The @param ict is expected to transform this data as if this data was expressed in world coordinates,
+	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
+	static public final InvertibleCoordinateTransform wrap(final AffineTransform to_world, final InvertibleCoordinateTransform ict, final AffineTransform to_local) throws Exception {
+		final InvertibleCoordinateTransformList chain = new InvertibleCoordinateTransformList();
+		// 1 - Prepend to world
+		final AffineModel2D toworld = new AffineModel2D();
+		toworld.set(to_world);
+		chain.add(toworld);
+		// 2 - Perform the transform in world coordinates
+		chain.add(ict);
+		// 3 - back to local
+		final AffineModel2D tolocal = new AffineModel2D();
+		tolocal.set(to_local);
+		chain.add(tolocal);
+		return chain;
 	}
 }

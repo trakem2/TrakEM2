@@ -269,6 +269,20 @@ public class Treeline extends Tree {
 			if (0 == r) return a.contains(x, y);
 			return M.intersects(a, new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r)));
 		}
+
+		public void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) {
+			// store the point
+			float ox = x,
+			      oy = y;
+			// transform the point itself
+			super.apply(ict);
+			// transform the radius: assume it's a point to its right
+			if (0 != r) {
+				float[] fp = new float[]{ox + r, oy};
+				ict.applyInPlace(fp);
+				r = Math.abs(fp[0] - this.x);
+			}
+		}
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {

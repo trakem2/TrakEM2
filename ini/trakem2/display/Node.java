@@ -607,6 +607,11 @@ public abstract class Node<T> implements Taggable {
 			oy += dim.height + 3;
 		}
 	}
+
+	public void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) {
+		final float[] fp = new float[]{x, y};
+		ict.applyInPlace(fp);
+		this.x = fp[0];
+		this.y = fp[1];
+	}
 }
-
-

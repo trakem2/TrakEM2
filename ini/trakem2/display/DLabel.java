@@ -51,7 +51,7 @@ import ini.trakem2.persistence.DBObject;
  * All of them can contain text, editable through double-click.
  *
  * */
-public class DLabel extends Displayable {
+public class DLabel extends Displayable implements VectorData {
 
 	public static final int TEXT = 0;
 	public static final int ARROW = 1;
@@ -494,5 +494,18 @@ public class DLabel extends Displayable {
 			((DLabel)d).font = new Font(font.getFamily(), font.getStyle(), font.getSize());
 			return true;
 		}
+	}
+
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		// Considers only the point where this floating text label is.
+		final float[] fp = new float[2]; // point is 0,0
+		this.at.transform(fp, 0, fp, 0, 1); // to world
+		if (roi.contains(fp[0], fp[1])) {
+			ict.applyInPlace(fp);
+			this.at.createInverse().transform(fp, 0, fp, 0, 1); // back to local
+			// as a result, there has been a translation:
+			this.at.preConcatenate(new AffineTransform(1, 0, 0, 1, fp[0], fp[1]));
+		}
+		return true;
 	}
 }

@@ -102,7 +102,7 @@ import fiji.geom.AreaCalculations;
 // In practice, I want to reuse Polyline's semiautomatic tracing and thus I am using Polylines for each slab.
 
 /** A sequence of points ordered in a set of connected branches. */
-public abstract class Tree extends ZDisplayable {
+public abstract class Tree extends ZDisplayable implements VectorData {
 
 	static private final Comparator<Layer> COMP_LAYERS = new Comparator<Layer>() {
 		public final int compare(final Layer l1, final Layer l2) {
@@ -2213,6 +2213,27 @@ public abstract class Tree extends ZDisplayable {
 			}
 		}
 		this.calculateBoundingBox();
+		return true;
+	}
+
+	public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		synchronized (node_layer_map) {
+			if (null == root) return true;
+			final Set<Node> nodes = node_layer_map.get(la);
+			if (null == nodes || nodes.isEmpty()) return true;
+			AffineTransform inverse = this.at.createInverse();
+			final Area localroi = roi.createTransformedArea(inverse);
+			mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+			for (final Node nd : nodes) {
+				if (nd.intersects(localroi)) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+					}
+				}
+				nd.apply(chain);
+			}
+			if (null != chain) calculateBoundingBox();
+		}
 		return true;
 	}
 }

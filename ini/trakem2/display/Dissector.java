@@ -56,7 +56,7 @@ import java.awt.Stroke;
  *  labels are grouped; each member label of the group has the same number.
  *
  */
-public class Dissector extends ZDisplayable {
+public class Dissector extends ZDisplayable implements VectorData {
 
 	/** The list of items to count. */
 	private ArrayList<Item> al_items = new ArrayList<Item>();
@@ -747,6 +747,35 @@ public class Dissector extends ZDisplayable {
 	protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
 		for (Item item : al_items) item.layerRemoved(la.getId());
+		return true;
+	}
+
+	public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		float[] fp = null;
+		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (final Item item : al_items) {
+			long[] p_layer = item.p_layer;
+			double[][] p = item.p;
+			for (int i=0; i<item.n_points; i++) {
+				if (p_layer[i] == la.getId()) {
+					if (null == localroi) {
+						inverse = this.at.createInverse();
+						localroi = roi.createTransformedArea(inverse);
+					}
+					if (localroi.contains(p[0][i], p[1][i])) {
+						if (null == chain) {
+							chain = M.wrap(this.at, ict, inverse);
+							fp = new float[2];
+						}
+						// Transform the point
+						M.apply(chain, p, i, fp);
+					}
+				}
+			}
+		}
+		if (null != chain) calculateBoundingBox();
 		return true;
 	}
 }
