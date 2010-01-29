@@ -585,7 +585,7 @@ final public class AlignTask
 				{
 					alignGraphs( cp, layer, previousLayer, currentLayerGraph, previousLayerGraph );
 					
-					/* TODO pair the overlapping tiles if align was successful */
+					/* TODO this is pointless data shuffling just for type incompatibility---fix this at the root */
 					final ArrayList< AbstractAffineTile2D< ? > > previousLayerGraphTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 					previousLayerGraphTiles.addAll( ( Set )previousLayerGraph );
 					
@@ -597,8 +597,6 @@ final public class AlignTask
 			}
 			
 			
-			/* TODO Do it really... */
-			
 			/* ------------------------------------------------------------------------ */
 			
 			
@@ -607,22 +605,22 @@ final public class AlignTask
 			
 			Align.connectTilePairs( cp, csCurrentLayerTiles, crossLayerTilePairs, Runtime.getRuntime().availableProcessors() );
 			
-			for ( final AbstractAffineTile2D< ? >[] tilePair : crossLayerTilePairs )
-			{
-				Display.getFront().setLayer( tilePair[ 0 ].getPatch().getLayer() );
-				Display.getFront().getSelection().clear();
-				Display.getFront().getSelection().add( tilePair[ 0 ].getPatch() );
-				Display.getFront().getSelection().add( tilePair[ 1 ].getPatch() );
-				
-				Utils.showMessage( "1: OK?" );
-				
-				Display.getFront().setLayer( tilePair[ 1 ].getPatch().getLayer() );
-				Display.getFront().getSelection().clear();
-				Display.getFront().getSelection().add( tilePair[ 0 ].getPatch() );
-				Display.getFront().getSelection().add( tilePair[ 1 ].getPatch() );
-				
-				Utils.showMessage( "2: OK?" );
-			}
+//			for ( final AbstractAffineTile2D< ? >[] tilePair : crossLayerTilePairs )
+//			{
+//				Display.getFront().setLayer( tilePair[ 0 ].getPatch().getLayer() );
+//				Display.getFront().getSelection().clear();
+//				Display.getFront().getSelection().add( tilePair[ 0 ].getPatch() );
+//				Display.getFront().getSelection().add( tilePair[ 1 ].getPatch() );
+//				
+//				Utils.showMessage( "1: OK?" );
+//				
+//				Display.getFront().setLayer( tilePair[ 1 ].getPatch().getLayer() );
+//				Display.getFront().getSelection().clear();
+//				Display.getFront().getSelection().add( tilePair[ 0 ].getPatch() );
+//				Display.getFront().getSelection().add( tilePair[ 1 ].getPatch() );
+//				
+//				Utils.showMessage( "2: OK?" );
+//			}
 			
 			/* prepare the next loop */
 			
@@ -665,49 +663,55 @@ final public class AlignTask
 				for ( AbstractAffineTile2D< ? > t : allTiles )
 					if ( !interestingTiles.contains( t ) )
 						t.getPatch().remove( false );
+		}
+		else
+			interestingTiles = new ArrayList< AbstractAffineTile2D<?> >( allTiles );
 			
-			if ( deform )
+		if ( deform )
+		{
+			/* ############################################ */
+			/* experimental: use the center points of all tiles to define a MLS deformation from the pure intra-layer registration to the globally optimal */
+			
+			Utils.log( "deforming..." );
+			
+			/* store the center location of each single tile for later deformation */
+			for ( final AbstractAffineTile2D< ? > t : interestingTiles )
 			{
-				/* ############################################ */
-				/* experimental: use the center points of all tiles to define a MLS deformation from the pure intra-layer registration to the globally optimal */
+				final float[] c = new float[]{ ( float )t.getWidth() / 2.0f,( float )t.getHeight() / 2.0f };
+				t.getModel().applyInPlace( c );
+				final Point q = new Point( c );
+				tileCenterPoints.put( t.getPatch(), new PointMatch( q.clone(), q ) );
+			}
+			
+			for ( final Layer layer : layerRange )
+			{
+				Utils.log( "layer" + layer );
 				
-				Utils.log( "deforming..." );
+				if ( Thread.currentThread().isInterrupted() ) return;
+
+				/* again, align all tiles in the layer */
 				
-				/* store the center location of each single tile for later deformation */
-				for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+				List< Patch > patches = new ArrayList< Patch >();
+				for ( Displayable a : layer.getDisplayables( Patch.class ) )
+					if ( a instanceof Patch ) patches.add( ( Patch )a );
+				final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+				final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+				Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
+							
+				/* add a fixed tile only if there was a Patch selected */
+				allFixedTiles.addAll( fixedTiles );
+				
+				alignTiles( p, currentLayerTiles, fixedTiles, false );
+				
+				/* for each independent graph do an independent transform */
+				final List< Set< Tile< ? > > > currentLayerGraphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
+				for ( final Set< Tile< ? > > graph : currentLayerGraphs )
 				{
-					final float[] c = new float[]{ ( float )t.getWidth() / 2.0f,( float )t.getHeight() / 2.0f };
-					t.getModel().applyInPlace( c );
-					final Point q = new Point( c );
-					tileCenterPoints.put( t.getPatch(), new PointMatch( q.clone(), q ) );
-				}
 				
-				for ( final Layer layer : layerRange )
-				{
-					Utils.log( "layer" + layer );
-					
-					if ( Thread.currentThread().isInterrupted() ) return;
-	
-					/* again, align all tiles in the layer */
-					
-					List< Patch > patches = new ArrayList< Patch >();
-					for ( Displayable a : layer.getDisplayables( Patch.class ) )
-						if ( a instanceof Patch ) patches.add( ( Patch )a );
-					final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-					final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
-					Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
-								
-					/* add a fixed tile only if there was a Patch selected */
-					allFixedTiles.addAll( fixedTiles );
-					
-					alignTiles( p, currentLayerTiles, fixedTiles, false );
-					
-					/* TODO for each independent graph do an independent transform */
-					
 					/* update the tile-center pointmatches */
 					final Collection< PointMatch > matches = new ArrayList< PointMatch >();
 					final Collection< AbstractAffineTile2D< ? > > toBeDeformedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-					for ( final AbstractAffineTile2D< ? > t : currentLayerTiles )
+					for ( final AbstractAffineTile2D< ? > t : ( Collection< AbstractAffineTile2D< ? > > )( Collection )graph )
 					{
 						final PointMatch pm = tileCenterPoints.get( t.getPatch() );
 						if ( pm == null ) continue;
