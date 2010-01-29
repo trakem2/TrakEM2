@@ -29,6 +29,7 @@ import ij.measure.*;
 import ij.*;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.LayerStack;
 
@@ -158,23 +159,26 @@ public class FakeImagePlus extends ImagePlus {
 
 	@Override
 	public void mouseMoved(final int x, final int y) {
-		final StringBuilder sb = new StringBuilder("x=").append(x).append(", y=").append(y).append(", value=");
-		final int[] v = getPixel(x, y);
-		switch (type) {
-			case ImagePlus.GRAY8:
-			case ImagePlus.GRAY16:
-				sb.append(v[0]);
-				break;
-			case ImagePlus.COLOR_256:
-			case ImagePlus.COLOR_RGB:
-				sb.append(v[0]).append(',').append(v[1]).append(',').append(v[2]);
-				break;
-			case ImagePlus.GRAY32:
-				sb.append(Float.intBitsToFloat(v[0]));
-				break;
-			default:
-				sb.setLength(sb.length() -8); // no value info
-				break;
+		final StringBuilder sb = new StringBuilder("x=").append(x).append(", y=").append(y);
+		if (ProjectToolbar.getToolId() <= ProjectToolbar.SELECT) {
+			sb.append(", value=");
+			final int[] v = getPixel(x, y);
+			switch (type) {
+				case ImagePlus.GRAY8:
+				case ImagePlus.GRAY16:
+					sb.append(v[0]);
+					break;
+				case ImagePlus.COLOR_256:
+				case ImagePlus.COLOR_RGB:
+					sb.append(v[0]).append(',').append(v[1]).append(',').append(v[2]);
+					break;
+				case ImagePlus.GRAY32:
+					sb.append(Float.intBitsToFloat(v[0]));
+					break;
+				default:
+					sb.setLength(sb.length() -8); // no value info
+					break;
+			}
 		}
 		// Utils.showStatus would be too slow at reporting, because it waits for fast subsequent calls.
 		IJ.showStatus(sb.toString());

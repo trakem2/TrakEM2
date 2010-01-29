@@ -50,9 +50,12 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.HashMap;
+import java.util.Arrays;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.Iterator;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -61,6 +64,12 @@ import java.util.Set;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Hashtable;
+
+import org.xml.sax.helpers.DefaultHandler;
+import org.xml.sax.InputSource;
+import org.xml.sax.Attributes;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.parsers.SAXParser;
 
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
@@ -117,6 +126,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** The maximum size of either width or height when virtuzaling pixel access to the layers.*/
 	private int max_dimension = 1024;
 	private boolean virtualization_enabled = false;
+
+	protected boolean color_cues = true;
+	protected boolean paint_arrows = true;
+	protected boolean paint_edge_confidence_boxes = true;
+	protected int n_layers_color_cue = -1; // -1 means all
 
 	private Calibration calibration = new Calibration(); // default values
 
@@ -177,6 +191,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 						break;
 					}
 				}
+			} else if (key.equals("color_cues")) {
+				color_cues = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("n_layers_color_cue")) {
+				n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
+				if (n_layers_color_cue < -1) n_layers_color_cue = -1;
+			} else if (key.equals("paint_arrows")) {
+				paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("paint_edge_confidence_boxes")) {
+				paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
 			}
 			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
@@ -652,6 +675,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void remove(Layer layer) {
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
+		for (final ZDisplayable zd : new ArrayList<ZDisplayable>(al_zdispl)) zd.layerRemoved(layer); // may call back and add/remove ZDisplayable objects
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
 		removeFromOffscreens(layer);
@@ -881,13 +905,28 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Returns a sublist of layers from first to last, both inclusive. If last is larger than first, the order is reversed.  */
 	public List<Layer> getLayers(int first, int last) {
 		List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
-		if (first > last) Collections.reverse(las);
+		if (first > last) {
+			List<Layer> las2 = new ArrayList<Layer>(las);
+			Collections.reverse(las2); // would otherwise reverse the original list! A monumental error.
+			return las2;
+		}
 		return new ArrayList<Layer>(las); // editable, thread-safe (a copy)
 	}
 
 	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
 	public List<Layer> getLayers(Layer first, Layer last) {
 		return getLayers(al_layers.indexOf(first), al_layers.indexOf(last));
+	}
+
+	/** Returns the list of layers to paint by considering the range of n_layers_color_cue around the active layer index. */
+	public List<Layer> getColorCueLayerRange(final Layer active_layer) {
+		int i = al_layers.indexOf(active_layer);
+		int first = i - n_layers_color_cue;
+		int last = i + n_layers_color_cue;
+		if (first < 0) first = 0;
+		int size = al_layers.size();
+		if (last >= size) last = size -1;
+		return getLayers(first, last);
 	}
 
 	public boolean isDeletable() {
@@ -1061,6 +1100,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al;
 	}
 
+	/** Find any Displayable or ZDisplayable objects of class C which intersect with the Area @param aroi. If @param visible_only, then only those that are not hidden. */
+	public ArrayList<Displayable> find(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		al.addAll(layer.getDisplayables(c, aroi, visible_only));
+		al.addAll(getZDisplayables(c, layer, aroi, visible_only));
+		return al;
+	}
+
+	public ArrayList<Displayable> find(final Class c, final Layer layer, final int x, final int y, final boolean visible_only) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		al.addAll(layer.find(c, x, y, visible_only));
+		al.addAll(findZDisplayables(layer, new Rectangle(x, y, 1, 1), visible_only));
+		return al;
+	}
+
 	/** From zero to size-1. */
 	public int indexOf(Layer layer) {
 		return al_layers.indexOf(layer);
@@ -1078,6 +1132,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("rot_z=\"").append(rot_z).append("\"\n")
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
 		       .append(in).append("snapshots_mode=\"").append(snapshot_modes[snapshots_mode]).append("\"\n")
+		       .append(in).append("color_cues=\"").append(color_cues).append("\"\n")
+		       .append(in).append("n_layers_color_cue=\"").append(n_layers_color_cue).append("\"\n")
+		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
+		       .append(in).append("paint_edge_confidence_boxes=\"").append(paint_edge_confidence_boxes).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
@@ -1131,7 +1189,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_y").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_quality").append(TAG_ATTR2)
-				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_mode").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" color_cues").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" n_layers_color_cue").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_arrows").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_edge_confidence_boxes").append(TAG_ATTR2)
 			;
 			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)
@@ -1329,10 +1390,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		double scale = max_dimension / Math.max(layer_width, layer_height);
 		return scale > 1 ? 1 : scale;
 	}
-	public void setPixelsMaxDimension(int d) {
-		if (d > 2 && d != max_dimension) {
-			max_dimension = d;
-			Polyline.flushTraceCache(project); // depends on the scale value
+	public void setPixelsMaxDimension(final int d) {
+		if (d > 2) {
+			if (d != max_dimension) {
+				max_dimension = d;
+				Polyline.flushTraceCache(project); // depends on the scale value
+			}
 		} else Utils.log("Can't set virtualization max pixels dimension to smaller than 2!");
 	}
 
@@ -1552,7 +1615,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != root) root.updatePosition(d, db_map);
 	}
 
-	public void recreateBuckets(final boolean layers) {
+	synchronized public void recreateBuckets(final boolean layers) {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
@@ -1793,6 +1856,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Utils.log("Undoing " + current_edit_step.getClass().getSimpleName());
 
 			Display.updateVisibleTabs(project);
+		}
+		return true;
+	}
+
+	protected boolean removeLastUndoStep() {
+		synchronized (edit_history) {
+			if (edit_history.isEmpty()) return false;
+			final long time = edit_history.lastKey();
+			final DoStep step = edit_history.remove(time);
+			if (null != step.getD()) dedits.get(step.getD()).remove(time);
+			// shift current
+			if (step == current_edit_step) {
+				current_edit_time = edit_history.lastKey();
+				current_edit_step = edit_history.get(current_edit_time);
+			}
 		}
 		return true;
 	}
@@ -2121,4 +2199,160 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return offscreens.containsKey(sc.props);
 		}
 	}
+
+	/** Find all java.awt.geom.Area in layer that intersect with box, if visible. */
+	protected Map<Displayable,List<Area>> findAreas(final Layer layer, final Rectangle box, final boolean visible) {
+		final Map<Displayable,List<Area>> m = new HashMap<Displayable,List<Area>>();
+		for (final Displayable zd : findZDisplayables(layer, box, visible)) {
+			if (!(zd instanceof AreaContainer)) continue;
+			List<Area> a = ((AreaContainer)zd).getAreas(layer, box);
+			if (null == a) continue;
+			m.put(zd, a);
+		}
+		return m;
+	}
+
+	protected final Map<Integer,TreeSet<Tag>> tags = new HashMap<Integer,TreeSet<Tag>>();
+
+	{
+		tags.put(KeyEvent.VK_T, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("TODO", KeyEvent.VK_T)})));
+		tags.put(KeyEvent.VK_U, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("Uncertain end", KeyEvent.VK_T)})));
+	}
+
+	public Tag putTag(final Object tag, final int keyCode) {
+		if (null == tag) return null;
+		Tag t;
+		synchronized (tags) {
+			TreeSet<Tag> ts = tags.get(keyCode);
+			if (null == ts) {
+				ts = new TreeSet<Tag>();
+				tags.put(keyCode, ts);
+			}
+			if (tag instanceof Tag) t = (Tag)tag; // the keyCode may be different, but doesn't matter.
+			else t = new Tag(tag, keyCode);
+			ts.add(t);
+		}
+		return t;
+	}
+
+	/** If there aren't any tags for keyCode, returns an empty TreeSet. */
+	public TreeSet<Tag> getTags(final int keyCode) {
+		synchronized (tags) {
+			final TreeSet<Tag> ts = tags.get(keyCode);
+			return null == ts ? new TreeSet<Tag>()
+					  : ts;
+		}
+	}
+
+	protected Tag askForNewTag(final int keyCode) {
+		GenericDialog gd = new GenericDialog("Define new tag");
+		gd.addMessage("Define new tag for key: " + ((char)keyCode));
+		TreeSet<Tag> ts = getTags(keyCode);
+		gd.addStringField("New tag:", "");
+		if (null != ts & ts.size() > 0) {
+			String[] names = new String[ts.size()];
+			int next = 0;
+			for (Tag t : ts) names[next++] = t.toString();
+			gd.addChoice("Existing tags for " + ((char)keyCode) + ":", names, names[0]);
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+		String tag = gd.getNextString().trim();
+		if (0 == tag.length()) {
+			Utils.logAll("Invalid tag " + tag);
+			return null;
+		}
+		return putTag(tag, keyCode);
+	}
+
+	/** Returns false if the dialog was canceled or there wasn't any tag to remove. */
+	protected boolean askToRemoveTag(final int keyCode) {
+		TreeSet<Tag> ts = getTags(keyCode);
+		if (null == ts || ts.isEmpty()) return false;
+		String[] tags = new String[ts.size()];
+		int next = 0;
+		for (Tag t : ts) tags[next++] = t.toString();
+		GenericDialog gd = new GenericDialog("Remove tag");
+		gd.addMessage("Remove a tag for key: " + ((char)keyCode));
+		gd.addChoice("Remove:", tags, tags[0]);
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		String tag = gd.getNextChoice();
+		removeTag(tag, keyCode);
+		return true;
+	}
+
+	/** Removes the tag from the list of possible tags, and then from wherever it has been assigned. The @param tag is duck-typed. */
+	public void removeTag(final Object tag, final int keyCode) {
+		Tag t;
+		synchronized (tags) {
+			TreeSet<Tag> ts = tags.get(keyCode);
+			if (null == ts) return;
+			t = new Tag(tag, keyCode);
+			ts.remove(t);
+		}
+		for (final Displayable d : getDisplayables()) {
+			d.removeTag(t);
+		}
+		for (final ZDisplayable zd : al_zdispl) {
+			zd.removeTag(t);
+		}
+		Display.repaint(this);
+	}
+
+	public void removeAllTags() {
+		// the easy and unperformant way ... I have better things to do
+		for (final Map.Entry<Integer,TreeSet<Tag>> e : tags.entrySet()) {
+			final int keyCode = e.getKey().intValue();
+			for (final Tag t : e.getValue()) {
+				removeTag(t, keyCode);
+			}
+		}
+	}
+
+	public String exportTags() {
+		StringBuilder sb = new StringBuilder("<tags>\n");
+		for (final Map.Entry<Integer,TreeSet<Tag>> e : tags.entrySet()) {
+			final char key = (char)e.getKey().intValue();
+			for (final Tag t : e.getValue()) {
+				sb.append(" <tag key=\"").append(key).append("\" val=\"").append(t.toString()).append("\" />\n");
+			}
+		}
+		return sb.append("</tags>").toString();
+	}
+
+	public void importTags(String path, boolean replace) {
+		HashMap<Integer,TreeSet<Tag>> backup = new HashMap<Integer,TreeSet<Tag>>(this.tags); // copy!
+		try {
+			if (replace) removeAllTags();
+			SAXParserFactory f = SAXParserFactory.newInstance();
+			f.setValidating(false);
+			SAXParser parser = f.newSAXParser();
+			parser.parse(new InputSource(Utils.createStream(path)), new TagsParser());
+		} catch (Throwable t) {
+			IJError.print(t);
+			// restore:
+			this.tags.clear();
+			this.tags.putAll(backup);
+			// no undo for all potentially removed tags ...
+		}
+	}
+	
+	private class TagsParser extends DefaultHandler {
+		public void startElement(String uri, String localName, String qName, Attributes attributes) {
+			if (!"tag".equals(qName.toLowerCase())) return;
+			final HashMap m = new HashMap();
+			for (int i=attributes.getLength() -1; i>-1; i--) {
+				m.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
+			}
+			final String key = (String)m.get("key"),
+				     content = (String)m.get("val");
+			if (null == key || key.length() > 1 || Character.isDigit(key.charAt(0)) || null == content) {
+				Utils.log("Ignoring invalid tag with key '" + key + "' and value '" + content + "'");
+				return;
+			}
+			putTag(content, (int)key.charAt(0));
+		}
+	}
+
 }

@@ -62,6 +62,7 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Polyline;
 import ini.trakem2.display.Profile;
+import ini.trakem2.display.Region;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.YesNoDialog;
@@ -1622,7 +1623,7 @@ abstract public class Loader {
 		final double bt_overlap_ = bt_overlap;
 		final double lr_overlap_ = lr_overlap;
 
-		return Bureaucrat.createAndStart(new Worker.Task("Importing 1/" + n_slices) {
+		return Bureaucrat.createAndStart(new Worker.Task("Importing 1/" + n_slices, true) {
 			public void exec() {
 				// Slice up list:
 				for (int sl=0; sl<n_slices; sl++) {
@@ -2248,32 +2249,14 @@ abstract public class Loader {
 		final double calibration = calibration_;
 		final boolean homogenize_contrast = homogenize_contrast_;
 
-		final Set touched_layers = Collections.synchronizedSet(new HashSet());
 
-
-		/* If requested, ask for a text file containing the non-linear deformation coefficients
-		 * and obtain a NonLinearTransform object and coefficients to apply to all images. */
-		/*
-		// NOT READY YET
-		final NonLinearTransform nlt = apply_non_linear_def ? askForNonLinearTransform() : null;
-		final double[][] nlt_coeffs = null != nlt ? nlt.getCoefficients() : null;
-
-		if (apply_non_linear_def && null == nlt) {
-			return null;
-		}
-		*/
-
-
-		final Worker worker = new Worker("Importing images") {
-			public void run() {
-				startedWorking();
-				final Worker wo = this;
+		return Bureaucrat.createAndStart(new Worker.Task("Importing images", true) {
+			public void exec() {
 				try {
 					// 1 - read text file
 					final String[] lines = Utils.openTextFileLines(abs_text_file_path);
 					if (null == lines || 0 == lines.length) {
 						Utils.log2("No images to import from " + abs_text_file_path);
-						finishedWorking();
 						return;
 					}
 
@@ -2285,28 +2268,35 @@ abstract public class Loader {
 
 					final String sep2 = column_separator + column_separator;
 					// 2 - set a base dir path if necessary
-					final String[] base_dir = new String[]{null, null}; // second item will work as flag if the dialog to ask for a directory is canceled in any of the threads.
+					String base_dir = null;
 
 					final Vector<Future> fus = new Vector<Future>(); // to wait on mipmap regeneration
 
-					///////// Multithreading ///////
-					final AtomicInteger ai = new AtomicInteger(0);
-					final Thread[] threads = MultiThreading.newThreads();
-
-					final Lock lock = new Lock();
 					final LayerSet layer_set = base_layer.getParent();
 					final double z_zero = base_layer.getZ();
 					final AtomicInteger n_imported = new AtomicInteger(0);
+					final Set<Layer> touched_layers = new HashSet<Layer>();
 
-					for (int ithread = 0; ithread < threads.length; ++ithread) {
-						threads[ithread] = new Thread() {
-							public void run() {
-								setPriority(Thread.NORM_PRIORITY);
-					///////////////////////////////
+					final int NP = Runtime.getRuntime().availableProcessors();
+					int np = NP;
+					switch (np) {
+						case 1:
+						case 2:
+							break;
+						default:
+							np = np / 2;
+							break;
+					}
+					final ExecutorService ex = Executors.newFixedThreadPool(np);
+					final List<Future> imported = new ArrayList<Future>();
+					final Worker wo = this;
 
 					// 3 - parse each line
-					for (int i = ai.getAndIncrement(); i < lines.length; i = ai.getAndIncrement()) {
-						if (wo.hasQuitted()) return;
+					for (int i = 0; i < lines.length; i++) {
+						if (Thread.currentThread().isInterrupted() || hasQuitted()) {
+							this.quit();
+							return;
+						}
 						// process line
 						String line = lines[i].replace('\\','/').trim(); // first thing is the backslash removal, before they get processed at all
 						int ic = line.indexOf('#');
@@ -2341,93 +2331,82 @@ abstract public class Loader {
 						if (0 == path.length()) continue;
 						// check if path is relative
 						if ((!IJ.isWindows() && '/' != path.charAt(0)) || (IJ.isWindows() && 1 != path.indexOf(":/"))) {
-							synchronized (lock) {
-								lock.lock();
-								if ("QUIT".equals(base_dir[1])) {
-									// dialog to ask for directory was quitted
-									lock.unlock();
-									finishedWorking();
+							//  path is relative.
+							if (null == base_dir) { // may not be null if another thread that got the lock first set it to non-null
+								//  Ask for source directory
+								DirectoryChooser dc = new DirectoryChooser("Choose source directory");
+								String dir = dc.getDirectory();
+								if (null == dir) {
+									// quit all threads
 									return;
 								}
-								//  path is relative.
-								if (null == base_dir[0]) { // may not be null if another thread that got the lock first set it to non-null
-									//  Ask for source directory
-									DirectoryChooser dc = new DirectoryChooser("Choose source directory");
-									String dir = dc.getDirectory();
-									if (null == dir) {
-										// quit all threads
-										base_dir[1] = "QUIT";
-										lock.unlock();
-										finishedWorking();
-										return;
-									}
-									// else, set the base dir
-									base_dir[0] = dir.replace('\\', '/');
-									if (!base_dir[0].endsWith("/")) base_dir[0] += "/";
-								}
-								lock.unlock();
+								base_dir = Utils.fixDir(dir);
 							}
 						}
-						if (null != base_dir[0]) path = base_dir[0] + path;
+						if (null != base_dir) path = base_dir + path;
 						File f = new File(path);
 						if (!f.exists()) {
 							Utils.log("No file found for path " + path);
 							continue;
 						}
-						releaseMemory(); //ensures a usable minimum is free
-						/* */
-						IJ.redirectErrorMessages();
-						ImagePlus imp = openImagePlus(path);
-						if (null == imp) {
-							Utils.log("Ignoring unopenable image from " + path);
-							continue;
-						}
-						// add Patch and generate its mipmaps
-						Patch patch = null;
-						Layer layer = null;
-						synchronized (lock) {
-							try {
-								lock.lock();
-								layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
-								touched_layers.add(layer);
-								patch = new Patch(layer.getProject(), imp.getTitle(), x, y, imp);
-								//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
-								addedPatchFrom(path, patch);
-							} catch (Exception e) {
-								IJError.print(e);
-							} finally {
-								lock.unlock();
+
+						final Layer layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
+						touched_layers.add(layer);
+						final String imagefilepath = path;
+						final double xx = x;
+						final double yy = y;
+
+						// If loaded twice as many, wait for mipmaps to finish
+						// Otherwise, images would end up loaded twice for no reason
+						if (0 == (i % (NP+NP))) {
+							final ArrayList<Future> a = new ArrayList<Future>(NP+NP);
+							synchronized (fus) { // .add is also synchronized, it's a Vector
+								int k = 0;
+								while (!fus.isEmpty() && k < NP) {
+									a.add(fus.remove(0));
+									k++;
+								}
 							}
-						}
-						if (null != patch) {
-							if (!homogenize_contrast) {
-								fus.add(regenerateMipMaps(patch));
-							}
-							synchronized (lock) {
+							for (final Future fu : a) {
 								try {
-									lock.lock();
-									layer.add(patch, true);
-								} catch (Exception e) {
-									IJError.print(e);
-								} finally {
-									lock.unlock();
+									if (wo.hasQuitted()) return;
+									fu.get();
+								} catch (Throwable t) {
+									t.printStackTrace();
 								}
 							}
 						}
 
-						wo.setTaskName("Imported " + (n_imported.getAndIncrement() + 1) + "/" + lines.length);
+						imported.add(ex.submit(new Runnable() {
+							public void run() {
+								if (wo.hasQuitted()) return;
+								releaseMemory(); //ensures a usable minimum is free
+								/* */
+								IJ.redirectErrorMessages();
+								ImagePlus imp = openImagePlus(imagefilepath);
+								if (null == imp) {
+									Utils.log("Ignoring unopenable image from " + imagefilepath);
+									return;
+								}
+								// add Patch and generate its mipmaps
+								final Patch patch = new Patch(layer.getProject(), imp.getTitle(), xx, yy, imp);
+								addedPatchFrom(imagefilepath, patch);
+								if (!homogenize_contrast) {
+									fus.add(regenerateMipMaps(patch));
+								}
+								synchronized (layer) {
+									layer.add(patch, true);
+								}
+								wo.setTaskName("Imported " + (n_imported.incrementAndGet() + 1) + "/" + lines.length);
+							}
+						}));
 					}
 
-					/////////////////////////
-							}
-						};
-					}
-					MultiThreading.startAndJoin(threads);
-					/////////////////////////
+					Utils.wait(imported);
+					ex.shutdown();
 
 					if (0 == n_imported.get()) {
 						Utils.log("No images imported.");
-						finishedWorking();
 						return;
 					}
 
@@ -2448,10 +2427,8 @@ abstract public class Loader {
 				} catch (Exception e) {
 					IJError.print(e);
 				}
-				finishedWorking();
 			}
-		};
-		return Bureaucrat.createAndStart(worker, base_layer.getProject());
+		}, base_layer.getProject());
 	}
 
 	public Bureaucrat importLabelsAsAreaLists(final Layer layer) {
@@ -2849,14 +2826,14 @@ abstract public class Loader {
 					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 						ZDisplayable zd = (ZDisplayable)itz.next();
 						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-							zd.paint(g2d, scaleP, false, c_alphas, layer);
+							zd.paint(g2d, srcRect, scaleP, false, c_alphas, layer);
 						}
 						count++;
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-					d.paintOffscreen(g2d, scaleP, false, c_alphas, layer);
+					d.paintOffscreen(g2d, srcRect, scaleP, false, c_alphas, layer);
 					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
@@ -2869,7 +2846,7 @@ abstract public class Loader {
 				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 					ZDisplayable zd = (ZDisplayable)itz.next();
 					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-						zd.paint(g2d, scaleP, false, c_alphas, layer);
+						zd.paint(g2d, srcRect, scaleP, false, c_alphas, layer);
 					}
 					count++;
 					//Utils.log2("Painted " + count + " of " + total);
@@ -3544,6 +3521,7 @@ abstract public class Loader {
 				path = fxml.getAbsolutePath().replace('\\', '/');
 			} catch (Exception e) {
 				Utils.log("FAILED to save the file at " + fxml);
+				IJError.print(e);
 				path = null;
 			} finally {
 				writer.close();
@@ -3610,15 +3588,29 @@ abstract public class Loader {
 	public String saveAs(Project project, String xmlpath, boolean export_images) {
 		long size = countObjects(project.getRootLayerSet()) * 500;
 		releaseToFit(size > MIN_FREE_BYTES ? size : MIN_FREE_BYTES);
-		String default_dir = null;
-		default_dir = getStorageFolder();
+		String storage_dir = getStorageFolder();
+		String mipmaps_dir = getMipMapsFolder();
 		// Select a file to export to
-		File fxml = null == xmlpath ? Utils.chooseFile(default_dir, null, ".xml") : new File(xmlpath);
+		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, null, ".xml") : new File(xmlpath);
+		Hashtable<Long,String> copy = null;
 		if (null == fxml) return null;
+		else {
+			copy = getPathsCopy();
+			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'));
+		}
 		String path = export(project, fxml, export_images);
 		if (null != path) setChanged(false);
+		else {
+			// failed, so restore paths
+			restorePaths(copy, mipmaps_dir, storage_dir);
+		}
+		//
 		return path;
 	}
+
+	protected void makeAllPathsRelativeTo(final String xml_path) {}
+	protected Hashtable<Long,String> getPathsCopy() { return null; }
+	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 
 	/** Meant to be overriden -- as is, will call saveAs(project, path, export_images = getClass() != FSLoader.class ). */
 	public String saveAs(String path, boolean overwrite) {
@@ -3865,6 +3857,8 @@ abstract public class Loader {
 		while (retries < MAX_RETRIES) try {
 				IJ.redirectErrorMessages();
 				return opener.openImage(path);
+
+				// TODO: Use windowless LOCI to bypass Opener class completely
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("openImagePlus: recovering from OutOfMemoryError");
 				recoverOOME(); // No need to unlock db_lock: all image loading calls are by design outside the db_lock.
@@ -4527,5 +4521,30 @@ abstract public class Loader {
 			}
 		}
 		return fus;
+	}
+
+	/** Returns an ImageStack, one slice per region. */
+	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
+		ExecutorService ex = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
+		for (final Region r : regions) {
+			fus.add(ex.submit(new Callable<ImagePlus>() {
+				public ImagePlus call() {
+					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black);
+				}
+			}));
+		}
+		Region r = regions.get(0);
+		ImageStack stack = new ImageStack((int)(r.r.width * magnification), (int)(r.r.height * magnification));
+		for (int i=0; i<regions.size(); i++) {
+			try {
+				if (Thread.currentThread().isInterrupted()) break;
+				stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
+			} catch (Throwable t) {
+				IJError.print(t);
+			}
+		}
+		ex.shutdown();
+		return new ImagePlus("Fly-Through", stack);
 	}
 }

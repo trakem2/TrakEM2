@@ -29,6 +29,7 @@ import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
@@ -47,7 +48,7 @@ import java.awt.geom.Area;
 
 import javax.vecmath.Point3f;
 
-public class Ball extends ZDisplayable {
+public class Ball extends ZDisplayable implements VectorData {
 
 	/**The number of points.*/
 	protected int n_points;
@@ -188,7 +189,7 @@ public class Ball extends ZDisplayable {
 		return index;
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -1012,6 +1013,50 @@ public class Ball extends ZDisplayable {
 			}
 		}
 		calculateBoundingBox(true);
+		return true;
+	}
+
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
+	}
+
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		float[] fp = null;
+		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] == la.getId()) {
+				if (null == localroi) {
+					inverse = this.at.createInverse();
+					localroi = roi.createTransformedArea(inverse);
+				}
+				if (localroi.contains(p[0][i], p[1][i])) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+						fp = new float[2];
+					}
+					// Keep point copy
+					double ox = p[0][i],
+					       oy = p[1][i];
+					// Transform the point
+					M.apply(chain, p, i, fp);
+					// For radius, assume it's a point to the right of the center point
+					fp[0] = (float)(ox + p_width[i]);
+					fp[1] = (float)oy;
+					chain.applyInPlace(fp);
+					p_width[i] = Math.abs(fp[0] - p[0][i]);
+				}
+			}
+		}
+		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
 		return true;
 	}
 }

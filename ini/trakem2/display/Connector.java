@@ -3,11 +3,15 @@ package ini.trakem2.display;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.IJError;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -23,11 +27,14 @@ import ij.measure.ResultsTable;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
-public class Connector extends ZDisplayable {
+public class Connector extends ZDisplayable implements VectorData {
 
 	/** Represents points as X1,Y1,X2,Y2,... */
 	private float[] p = null;
 	private long[] lids = null;
+	private float[] radius = null;
+
+	static private float last_radius = 0;
 
 	public Connector(Project project, String title) {
 		super(project, title, 0, 0);
@@ -48,24 +55,39 @@ public class Connector extends ZDisplayable {
 			String[] o = origin.split(",");
 			String[] t = null;
 			int len = 1;
+			boolean new_format = 0 == o.length % 4;
 			if (null != targets) {
 				t = targets.split(",");
-				len += t.length / 3;
+				if (new_format) {
+					// new format, with radii
+					len += t.length / 4;
+				} else {
+					// old format, without radii
+					len += t.length / 3;
+				}
 			}
 			this.p = new float[len + len];
 			this.lids = new long[len];
+			this.radius = new float[len];
 			// Origin:
 			/* X  */ p[0] = Float.parseFloat(o[0]);
 			/* Y  */ p[1] = Float.parseFloat(o[1]);
 			/* LZ */ lids[0] = Long.parseLong(o[2]);
+			if (new_format) {
+				radius[0] = Float.parseFloat(o[3]);
+			}
+
 			// Targets:
-			if (null != targets) {
-				for (int i=0, k=1; i<t.length; i+=3, k++) {
+			if (null != targets && targets.length() > 0) {
+				int inc = new_format ? 4 : 3;
+				for (int i=0, k=1; i<t.length; i+=inc, k++) {
 					/* X  */ p[k+k] = Float.parseFloat(t[i]);
 					/* Y  */ p[k+k+1] = Float.parseFloat(t[i+1]);
 					/* LZ */ lids[k] = Long.parseLong(t[i+2]);
+					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
+			if (!new_format) calculateBoundingBox();
 		}
 		// TODO: to parse origin and targets with good performance, I'd have to create a custom NumberReader on a StringReader
 		// that would read batches of 3 numbers as two floats and a long.
@@ -78,18 +100,22 @@ public class Connector extends ZDisplayable {
 		final long[] lids2 = new long[lids.length + inc];
 		System.arraycopy(lids, 0, lids2, 0, inc > 0 ? lids.length : lids.length + inc);
 		lids = lids2;
+		final float[] radius2 = new float[radius.length + inc];
+		System.arraycopy(radius, 0, radius2, 0, inc > 0 ? radius.length : radius.length + inc);
+		radius = radius2;
 	}
 
 	/** Set an origin and a target point.*/
 	public void set(final float ox, final float oy, final long o_layer_id, final float tx, final float ty, final long t_layer_id) {
 		p = new float[4];
 		lids = new long[2];
+		radius = new float[2]; // zeroes
 		p[0] = ox;	p[1] = oy;	lids[0] = o_layer_id;
 		p[2] = ty; 	p[3] = ty;	lids[1] = t_layer_id;
 		calculateBoundingBox();
 	}
 
-	public int addTarget(final float x, final float y, final long layer_id) {
+	public int addTarget(final float x, final float y, final long layer_id, final float r) {
 		if (null == p) {
 			Utils.log2("No origin set!");
 			return -1;
@@ -98,11 +124,12 @@ public class Connector extends ZDisplayable {
 		p[p.length-2] = x;
 		p[p.length-1] = y;
 		lids[lids.length-1] = layer_id;
+		radius[radius.length-1] = r;
 		return lids.length-1;
 	}
 
-	public int addTarget(final double x, final double y, final long layer_id) {
-		return addTarget((float)x, (float)y, layer_id);
+	public int addTarget(final double x, final double y, final long layer_id, final double r) {
+		return addTarget((float)x, (float)y, layer_id, (float)r);
 	}
 
 	/** To remove a target point of index larger than zero. */
@@ -120,6 +147,10 @@ public class Connector extends ZDisplayable {
 		System.arraycopy(lids, 0, lids2, 0, index);
 		System.arraycopy(lids, index+1, lids2, index, lids.length - index - 1);
 		this.lids = lids2;
+		final float[] radius2 = new float[radius.length -1];
+		System.arraycopy(radius, 0, radius2, 0, index);
+		System.arraycopy(radius, index+1, radius2, index, radius.length - index - 1);
+		this.radius = radius2;
 		return true;
 	}
 
@@ -159,6 +190,7 @@ public class Connector extends ZDisplayable {
 			if (null == p || 0 == p.length) {
 				p = new float[4];
 				lids = new long[2];
+				radius = new float[]{last_radius, last_radius};
 				p[0] = x_p;	p[1] = y_p;
 				p[2] = x_p;	p[3] = y_p;
 				lids[0] = layer_id;	lids[1] = layer_id;
@@ -168,7 +200,7 @@ public class Connector extends ZDisplayable {
 			}
 
 			index = findPoint(x_p, y_p, layer_id, mag);
-
+			
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				if (0 == index) {
 					// Remove origin: remove the entire Connector
@@ -185,7 +217,7 @@ public class Connector extends ZDisplayable {
 				}
 			} else if (-1 == index) {
 				// add target
-				index = addTarget(x_p, y_p, layer_id);
+				index = addTarget(x_p, y_p, layer_id, last_radius);
 				repaint(false);
 			}
 		}
@@ -208,8 +240,16 @@ public class Connector extends ZDisplayable {
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
-			p[index+index] += x_d - x_d_old;
-			p[index+index+1] += y_d - y_d_old;
+			if (me.isShiftDown()) {
+				radius[index] = (float) Math.sqrt(Math.pow(p[index+index] - x_d, 2) + Math.pow(p[index+index+1] - y_d, 2));
+				last_radius = radius[index];
+				Utils.showStatus("radius: " + radius[index], false);
+			} else {
+				// Else drag point
+				p[index+index] += x_d - x_d_old;
+				p[index+index+1] += y_d - y_d_old;
+			}
+
 			repaint(false);
 		}
 	}
@@ -261,12 +301,14 @@ public class Connector extends ZDisplayable {
 		double max_x = 0.0D;
 		double max_y = 0.0D;
 
-		for (int i=0; i<p.length; i+=2) {
-			final Point2D.Double po = inverseTransformPoint(p[i], p[i+1]);
-			if (po.x < min_x) min_x = po.x;
-			if (po.y < min_y) min_y = po.y;
-			if (po.x > max_x) max_x = po.x;
-			if (po.y > max_y) max_y = po.y;
+		for (int i=0, j=0; i<p.length; i+=2, j++) {
+			final float x = p[i],
+			            y = p[i+1],
+				    r = radius[j];
+			if (x -r < min_x) min_x = x -r;
+			if (y -r < min_y) min_y = y -r;
+			if (x +r > max_x) max_x = x +r;
+			if (y +r > max_y) max_y = y +r;
 		}
 
 		this.width = max_x - min_x;
@@ -295,10 +337,59 @@ public class Connector extends ZDisplayable {
 		return la;
 	}
 
+	/** Expects Area in world coords. */
 	public boolean intersects(Area area, double z_first, double z_last) {
-		// TODO
-		Utils.log2("Connector.intersects not implemented yet");
+		if (null == p || 0 == lids.length) return false; // empty
+		try {
+			area = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			double laz = layer_set.getLayer(lids[i]).getZ();
+			if (laz < z_first || laz > z_last) continue;
+			float r = radius[i];
+			if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
+		}
 		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(Area area) {
+		if (null == p || 0 == lids.length) return false; // empty
+		try {
+			area = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			float r = radius[i];
+			if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
+		}
+		return false;
+	}
+	/** Expects Area in world coords. */
+	public boolean intersects(final Layer layer, Area area) {
+		if (null == p || 0 == lids.length) return false; // empty
+		try {
+			area = area.createTransformedArea(this.at.createInverse());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			if (layer.getId() == lids[i]) {
+				float r = radius[i];
+				if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
+			}
+		}
+		return false;
+	}
+
+	/** Expects Rectangle in world coords. */
+	public boolean intersects(final Layer layer, final Rectangle r) {
+		return intersects(layer, new Area(r));
 	}
 
 	public boolean linkPatches() {
@@ -324,7 +415,8 @@ public class Connector extends ZDisplayable {
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class c) {
-		return get(c, p[0], p[1], lids[0]);
+		if (null == p) return new HashSet<Displayable>();
+		return get(c, p[0], p[1], lids[0], radius[0]);
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
@@ -332,31 +424,40 @@ public class Connector extends ZDisplayable {
 		return getOrigins(Displayable.class);
 	}
 
-	private final Set<Displayable> get(final Class c, final double x, final double y, final long layer_id) {
-		final Set<Displayable> hs = new HashSet<Displayable>();
+	private final Set<Displayable> get(final Class c, final float x, final float y, final long layer_id, float r) {
 		final Layer la = layer_set.getLayer(layer_id);
-		hs.addAll(la.find(c, (int)x, (int)y, false));
-		if (Displayable.class == c || ZDisplayable.class == c) hs.addAll(layer_set.findZDisplayables(la, (int)x, (int)y, false));
-		else for (final Displayable d : layer_set.findZDisplayables(la, (int)x, (int)y, false)) if (d.getClass() == c) hs.add(d);
-		return hs;
+		float sc = (float)Math.max(Math.abs(at.getScaleX()),
+			                   Math.max(Math.abs(at.getScaleY()),
+					            Math.max(Math.abs(at.getShearX()),
+						             Math.abs(at.getShearY()))));
+		final float[] po = new float[]{x, y};
+		this.at.transform(po, 0, po, 0, 1);
+		r = r * sc;
+		if (r <= 0) r = 1; // r is in pixels, so the minimal search when 0==r is for a circle of diameter 2 pixels.
+		return new HashSet<Displayable>(layer_set.find(c, la, new Area(new Ellipse2D.Float(po[0]-r, po[1]-r, r+r, r+r)), true));
 	}
 
-	/** Returns the list of sets of Displayable objects under each target, or an empty list if none. */
+	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
+		if (null == p) return al;
 		for (int i=1; i<lids.length; i++) {
-			al.add(get(c, p[i+i], p[i+i+1], lids[i]));
+			al.add(get(c, p[i+i], p[i+i+1], lids[i], radius[i]));
 		}
 		return al;
 	}
 
-	/** Returns the list of sets of Displayable objects under each target, or an empty list if none. */
+	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets() {
 		return getTargets(Displayable.class);
 	}
 
+	public int getTargetCount() {
+		if (null == p) return 0;
+		return lids.length -1;
+	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		if (null == p) return;
 		//arrange transparency
 		Composite original_composite = null;
@@ -387,12 +488,17 @@ public class Connector extends ZDisplayable {
 				for (int k=1; k<lids.length; k++) {
 					g.drawLine((int)p[0], (int)p[1],
 						   (int)(p[0] + (p[k+k] - p[0])/2), (int)(p[1] + (p[k+k+1] - p[1])/2));
-
 				}
 			} else {
 				// From a target to half-way to the origin
 				g.drawLine((int)p[i+i], (int)p[i+i+1],
 					   (int)(p[i+i] + (p[0] - p[i+i])/2), (int)(p[i+i+1] + (p[1] - p[i+i+1])/2));
+				// ... plus an arrowhead towards the target
+				g.fill(M.createArrowhead((int)p[0], (int)p[1], (int)p[i+i], (int)p[i+i+1], magnification));
+			}
+			final float r = radius[i];
+			if (r > 0) {
+				g.drawOval((int)(p[i+i] - r), (int)(p[i+i+1] -r), (int)Math.ceil(r+r), (int)Math.ceil(r+r));
 			}
 		}
 		if (active) {
@@ -436,13 +542,15 @@ public class Connector extends ZDisplayable {
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		if (null != p) {
-			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append("\"\n");
-			sb_body.append(in).append("targets=\"");
-			for (int i=1; i<lids.length; i++) {
-				sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',');
+			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append(',').append(radius[0]).append("\"\n");
+			if (lids.length > 0) {
+				sb_body.append(in).append("targets=\"");
+				for (int i=1; i<lids.length; i++) {
+					sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',').append(radius[i]).append(',');
+				}
+				sb_body.setLength(sb_body.length()-1); // remove last comma
+				sb_body.append("\"\n");
 			}
-			sb_body.setLength(sb_body.length()-1); // remove last comma
-			sb_body.append("\"\n");
 		}
 		sb_body.append(indent).append(">\n");
 		super.restXML(sb_body, in, any);
@@ -455,6 +563,7 @@ public class Connector extends ZDisplayable {
 		Connector copy = new Connector(pr, nid, title, this.alpha, true, this.color, this.locked, this.at);
 		copy.lids = this.lids.clone();
 		copy.p = this.p.clone();
+		copy.radius = this.radius.clone();
 		return copy;
 	}
 
@@ -473,16 +582,18 @@ public class Connector extends ZDisplayable {
 	}
 
 	static private final class DPConnector extends Displayable.DataPackage {
-		final float[] p;
+		final float[] p, radius;
 		final long[] lids;
 		DPConnector(final Connector con) {
 			super(con);
 			if (null == con.p) {
 				this.p = null;
 				this.lids = null;
+				this.radius = null;
 			} else {
 				this.p = con.p.clone();
 				this.lids = con.lids.clone();
+				this.radius = con.radius.clone();
 			}
 		}
 		@Override
@@ -491,13 +602,14 @@ public class Connector extends ZDisplayable {
 			final Connector con = (Connector)d;
 			con.p = this.p.clone();
 			con.lids = this.lids.clone();
+			con.radius = this.radius.clone();
 			return true;
 		}
 	}
 
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == p) return rt;
-		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z"});
+		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius"});
 		float[] p = transformPoints(this.p);
 		final Calibration cal = layer_set.getCalibration();
 		for (int i=0; i<lids.length; i++) {
@@ -508,6 +620,7 @@ public class Connector extends ZDisplayable {
 			rt.addValue(2, p[i+i] * cal.pixelWidth);
 			rt.addValue(3, p[i+i+1] * cal.pixelHeight);
 			rt.addValue(4, layer_set.getLayer(lids[i]).getZ() * cal.pixelWidth);
+			rt.addValue(5, radius[i] * cal.pixelWidth);
 		}
 		return rt;
 	}
@@ -515,5 +628,95 @@ public class Connector extends ZDisplayable {
 	public String getInfo() {
 		if (null == p) return "Empty";
 		return new StringBuilder("Targets: ").append(lids.length-1).append('\n').toString();
+	}
+
+	/** Temporary while waiting for multi-meshes: create an icosphere with subdividion two, and a tube of half the target diameter from the origin to the targets. */
+	public List generateTriangles(double scale, int resample) {
+
+		if (null == p || 0 == p.length) return new ArrayList();
+
+		// Create a temporary treeline:  (this is telling how much a Connector should just be a subclass of Tree)
+		Treeline tl = new Treeline(project, -1, "", this.width, this.height, this.alpha, this.visible, this.color, this.locked, this.at);
+		tl.layer_set = this.layer_set;
+		tl.root = tl.newNode(p[0], p[1], layer_set.getLayer(lids[0]), null);
+		float r = 0 == radius[0] ? 1 : radius[0];
+		((Treeline.RadiusNode)tl.root).setData(r);
+		tl.addNode(null, tl.root, Node.MAX_EDGE_CONFIDENCE);
+
+		for (int i=1; i<lids.length; i++) {
+			Treeline.RadiusNode nd = (Treeline.RadiusNode) tl.newNode(p[i+i], p[i+i+1], layer_set.getLayer(lids[i]), null);
+			r = 0 == radius[i] ? 1 : radius[i];
+			nd.setData(r);
+			tl.addNode(tl.root, nd, Node.MAX_EDGE_CONFIDENCE);
+		}
+
+		return tl.generateMesh(scale, 12);
+	}
+
+	protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		if (null == p || 0 == lids.length) return true; // empty
+		if (la.getId() == lids[0]) {
+			return remove2(false);
+		}
+		for (int i=1; i<lids.length; i++) {
+			if (la.getId() == lids[i]) {
+				removeTarget(i);
+				i--;
+			}
+		}
+		return true;
+	}
+
+	public boolean contains(final Layer la, int x_p, int y_p) {
+		if (null == p || 0 == lids.length) return false; // empty
+		final long lid = la.getId();
+		if (!this.at.isIdentity()) {
+			Point2D.Double po = inverseTransformPoint(x_p, y_p);
+			x_p = (int)po.x;
+			y_p = (int)po.y;
+		}
+		for (int i=0,j=0; i<lids.length; i++,j+=2) {
+			if (lid != lids[i]) continue;
+			if ((float)(Math.pow(p[j] - x_p, 2) + Math.pow(p[j+1] - y_p, 2)) < radius[i]*radius[i]) return true;
+		}
+		return false;
+	}
+
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		if (null == p || 0 == lids.length) return true; // empty
+		float[] fp = null;
+		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (int i=0; i<lids.length; i++) {
+			if (la.getId() == lids[i]) {
+				if (null == localroi) {
+					inverse = this.at.createInverse();
+					localroi = roi.createTransformedArea(inverse);
+				}
+				if (localroi.contains(p[i+i], p[i+i+1])) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+						fp = new float[2];
+					}
+					// Keep point copy
+					float ox = p[i+i],
+					      oy = p[i+i+1];
+					// Do the point
+					fp[0] = p[i+i];
+					fp[1] = p[i+i+1];
+					chain.applyInPlace(fp);
+					p[i+i] = fp[0];
+					p[i+i+1] = fp[1];
+					// Transform radius by considering it a point to the right of the actual point
+					fp[0] = ox + radius[i];
+					fp[1] = oy;
+					chain.applyInPlace(fp);
+					radius[i] = Math.abs(p[i+i] - fp[0]);
+				}
+			}
+		}
+		return true;
 	}
 }

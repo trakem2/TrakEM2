@@ -58,7 +58,7 @@ import java.awt.Shape;
 import javax.vecmath.Point3f;
 
 
-public class Pipe extends ZDisplayable implements Line3D {
+public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 	/**The number of points.*/
 	protected int n_points;
@@ -527,7 +527,7 @@ public class Pipe extends ZDisplayable implements Line3D {
 	}
 
 	// synchronizing to protect n_points ... need to wrap it in a lock
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -2170,6 +2170,56 @@ public class Pipe extends ZDisplayable implements Line3D {
 		}
 		generateInterpolatedPoints(0.05);
 		calculateBoundingBox(true);
+		return true;
+	}
+
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
+	}
+
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		float[] fp = new float[2];
+		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] == la.getId()) {
+				if (null == localroi) {
+					inverse = this.at.createInverse();
+					localroi = roi.createTransformedArea(inverse);
+				}
+				if (localroi.contains(p[0][i], p[1][i])) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+						fp = new float[2];
+					}
+					// Keep point copy
+					double ox = p[0][i],
+					       oy = p[1][i];
+					// Transform the point
+					M.apply(chain, p, i, fp);
+					// For radius, assume it's a point to the right of the center point
+					fp[0] = (float)(ox + p_width[i]);
+					fp[1] = (float)oy;
+					chain.applyInPlace(fp);
+					p_width[i] = Math.abs(fp[0] - p[0][i]);
+					// The two associated control points:
+					M.apply(chain, p_l, i, fp);
+					M.apply(chain, p_r, i, fp);
+				}
+			}
+		}
+		if (null != chain) {
+			generateInterpolatedPoints(0.05);
+			calculateBoundingBox(true);
+		}
 		return true;
 	}
 }

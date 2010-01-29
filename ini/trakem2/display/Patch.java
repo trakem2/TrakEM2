@@ -145,9 +145,7 @@ public final class Patch extends Displayable implements ImageData {
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		final Iterator it = ht_attributes.entrySet().iterator();
-		while (it.hasNext()) {
-			final Map.Entry entry = (Map.Entry)it.next();
+		for (final Map.Entry entry : (Collection<Map.Entry>) ht_attributes.entrySet()) {
 			final String key = (String)entry.getKey();
 			final String data = (String)entry.getValue();
 			if (key.equals("type")) {
@@ -462,11 +460,11 @@ public final class Patch extends Displayable implements ImageData {
 		return bi;
 	}
 
-	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		paint(g, fetchImage(magnification, channels, true));
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		paint(g, fetchImage(magnification, channels, false));
 	}
 
@@ -865,13 +863,13 @@ public final class Patch extends Displayable implements ImageData {
 		return false;
 	}
 
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				if (!project.getLoader().isSnapPaintable(this.id)) {
 					paintAsBox(g);
 				} else {
-					paint(g, mag, false, this.channels, layer);
+					paint(g, srcRect, mag, false, this.channels, layer);
 				}
 				return;
 			case 1:

@@ -49,7 +49,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.Image;
 
-public final class Layer extends DBObject implements Bucketable {
+public final class Layer extends DBObject implements Bucketable, Comparable<Layer> {
 
 	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
 	/** For fast search. */
@@ -890,7 +890,7 @@ public final class Layer extends DBObject implements Bucketable {
 		return pa.getPixel(x, y, mag);
 	}
 
-	public void recreateBuckets() {
+	synchronized public void recreateBuckets() {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
 		this.root.populate(this, db_map);
@@ -1051,5 +1051,12 @@ public final class Layer extends DBObject implements Bucketable {
 		Overlay old = this.overlay;
 		this.overlay = o;
 		return old;
+	}
+
+	public int compareTo(final Layer layer) {
+		double diff = this.z - layer.z;
+		if (diff < 0) return -1;
+		if (diff > 0) return 1;
+		return 0;
 	}
 }

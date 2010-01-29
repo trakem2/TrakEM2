@@ -569,7 +569,7 @@ public class Selection {
 				lock();
 				if (c.equals(Displayable.class) && queue.size() > 0) return true;
 				for (Iterator it = queue.iterator(); it.hasNext(); ) {
-					if (it.next().getClass().equals(c)) return true;
+					if (c.isInstance(it.next())) return true;
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -686,27 +686,18 @@ public class Selection {
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones). */
 	public ArrayList<Displayable> getSelected() {
-		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			al.add((Displayable)it.next());
-		}
-		return al;
+		return new ArrayList<Displayable>(queue);
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
 	public ArrayList<Displayable> getSelected(final Class c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		if (null == c || c.equals(Displayable.class)) {
-			al.addAll((LinkedList<Displayable>)queue);
+		if (null == c || c == Displayable.class) {
+			al.addAll(queue);
 			return al;
 		}
-		boolean zd = c.equals(ZDisplayable.class);
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			if ((zd && ob instanceof ZDisplayable)
-			  || c.equals(ob.getClass())) {
-				al.add((Displayable)ob);
-			 }
+		for (Displayable d : queue) {
+			if (c.isInstance(d)) al.add(d);
 		}
 		return al;
 	}
@@ -746,13 +737,8 @@ public class Selection {
 				unlock();
 				return copy;
 			}
-			boolean zd = ZDisplayable.class.equals(c);
-			for (Displayable d : this.hs) {
-				if (zd && d instanceof ZDisplayable) {
-					copy.add(d);
-				} else if (d.getClass().equals(c)) {
-					copy.add(d);
-				}
+			for (final Displayable d : this.hs) {
+				if (c.isInstance(d)) copy.add(d);
 			}
 			unlock();
 		}
@@ -767,12 +753,8 @@ public class Selection {
 				unlock();
 				return true;
 			}
-			boolean zd = ZDisplayable.class.equals(c);
-			for (Displayable d : hs) {
-				if (zd && d instanceof ZDisplayable) {
-					unlock();
-					return true;
-				} else if (d.getClass().equals(c)) {
+			for (final Displayable d : hs) {
+				if (c.isInstance(d)) {
 					unlock();
 					return true;
 				}

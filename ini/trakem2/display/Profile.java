@@ -69,7 +69,7 @@ import javax.vecmath.Point3f;
  * 	- the whole curve is updated when only a particular set of points needs readjustment
  * 	- also, points are smooth, and options should be given to make them non-smooth.
  */
-public class Profile extends Displayable {
+public class Profile extends Displayable implements VectorData {
 
 	/**The number of points.*/
 	protected int n_points;
@@ -531,7 +531,7 @@ public class Profile extends Displayable {
 	}
 
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -1729,5 +1729,35 @@ public class Profile extends Displayable {
 			profile.closed = closed;
 			return true;
 		}
+	}
+
+	// It's such a pitty that this code is almost identical to that of the Pipe, and it can't be abstracted effectively any further.
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+		if (this.layer != la) return true;
+		float[] fp = null;
+		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (int i=0; i<n_points; i++) {
+			if (null == localroi) {
+				inverse = this.at.createInverse();
+				localroi = roi.createTransformedArea(inverse);
+			}
+			if (localroi.contains(p[0][i], p[1][i])) {
+				if (null == chain) {
+					chain = M.wrap(this.at, ict, inverse);
+					fp = new float[2];
+				}
+				// The point and its two associated control points:
+				M.apply(chain, p, i, fp);
+				M.apply(chain, p_l, i, fp);
+				M.apply(chain, p_r, i, fp);
+			}
+		}
+		if (null != chain) {
+			generateInterpolatedPoints(0.05);
+			calculateBoundingBox(true);
+		}
+		return true;
 	}
 }
