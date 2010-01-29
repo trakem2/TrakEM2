@@ -20,9 +20,7 @@
 package mpicbg.trakem2.align;
 
 import ij.process.ByteProcessor;
-import ini.trakem2.display.Display;
 import ini.trakem2.display.Patch;
-import ini.trakem2.utils.Utils;
 
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;

@@ -1070,8 +1070,8 @@ public final class Patch extends Displayable implements ImageData {
 		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
 		final Rectangle box = mesh.getBoundingBox();
 		this.at.translate(box.x, box.y);
-		this.width = box.width;
-		this.height = box.height;
+		width = box.width;
+		height = box.height;
 		updateInDatabase("transform+dimensions"); // the AffineTransform
 		updateBucket();
 

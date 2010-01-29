@@ -648,7 +648,7 @@ public class PhaseCorrelation2D
         ArrayList< Point2D > peaks = new ArrayList< Point2D >();
 
         for (int j = 0; j < checkImages; j++)
-            peaks.add(new Point2D(0, 0, Float.MIN_VALUE));
+            peaks.add(new Point2D(0, 0, -Float.MAX_VALUE));
 
         for (int y = 0; y < h; y++)
             for (int x = 0; x < w; x++)

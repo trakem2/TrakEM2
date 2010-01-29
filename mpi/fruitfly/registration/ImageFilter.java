@@ -1168,7 +1168,7 @@ public class ImageFilter
     public static final void enhance( FloatArray2D src, float scale )
     {
     	float min = Float.MAX_VALUE;
-    	float max = Float.MIN_VALUE;
+    	float max = -Float.MAX_VALUE;
     	for ( int i = 0; i < src.data.length; ++i )
     	{
     		if ( src.data[ i ] < min ) min = src.data[ i ];
