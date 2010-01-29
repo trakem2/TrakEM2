@@ -1732,10 +1732,10 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	// It's such a pitty that this code is almost identical to that of the Pipe, and it can't be abstracted effectively any further.
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		if (this.layer != la) return true;
 		float[] fp = null;
-		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (int i=0; i<n_points; i++) {

@@ -496,7 +496,7 @@ public class DLabel extends Displayable implements VectorData {
 		}
 	}
 
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		// Considers only the point where this floating text label is.
 		final float[] fp = new float[2]; // point is 0,0
 		this.at.transform(fp, 0, fp, 0, 1); // to world

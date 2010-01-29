@@ -2216,21 +2216,21 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return true;
 	}
 
-	public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		synchronized (node_layer_map) {
 			if (null == root) return true;
 			final Set<Node> nodes = node_layer_map.get(la);
 			if (null == nodes || nodes.isEmpty()) return true;
 			AffineTransform inverse = this.at.createInverse();
 			final Area localroi = roi.createTransformedArea(inverse);
-			mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+			mpicbg.models.CoordinateTransform chain = null;
 			for (final Node nd : nodes) {
 				if (nd.intersects(localroi)) {
 					if (null == chain) {
 						chain = M.wrap(this.at, ict, inverse);
 					}
 				}
-				nd.apply(chain);
+				nd.apply(chain, roi);
 			}
 			if (null != chain) calculateBoundingBox();
 		}

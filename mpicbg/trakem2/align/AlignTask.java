@@ -5,17 +5,23 @@ package mpicbg.trakem2.align;
 
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
+import mpicbg.models.NoninvertibleModelException;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 
 import ij.IJ;
 import ij.gui.GenericDialog;
@@ -24,9 +30,12 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
+import ini.trakem2.display.VectorData;
+import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
 /**
@@ -130,11 +139,6 @@ final public class AlignTask
 				Utils.log("The list of fixed patches contains at least one Patch not included in the list of patches to align!");
 				return;
 			}
-			if ( patch.isLinked() && !patch.isOnlyLinkedTo( Patch.class ) )
-			{
-				Utils.log("At least one Patch is linked to non-image data, can't align!");
-				return;
-			}
 		}
 
 		//final Align.ParamOptimize p = Align.paramOptimize;
@@ -213,16 +217,146 @@ final public class AlignTask
 		}
 	}
 
+	final static private class InverseICT implements mpicbg.models.InvertibleCoordinateTransform {
+		final mpicbg.models.InvertibleCoordinateTransform ict;
+		/** Sets this to the inverse of ict. */
+		InverseICT(final mpicbg.models.InvertibleCoordinateTransform ict) {
+			this.ict = ict;
+		}
+		
+		public final float[] apply(final float[] p) {
+			float[] q = p.clone();
+			applyInPlace(q);
+			return q;
+		}
+		public final float[] applyInverse(final float[] p) {
+			float[] q = p.clone();
+			applyInverseInPlace(q);
+			return q;
+		}
+		public final void applyInPlace(final float[] p) {
+			try {
+				ict.applyInverseInPlace(p);
+			} catch (NoninvertibleModelException e) { e.printStackTrace(); }
+		}
+		public final void applyInverseInPlace(final float[] p) {
+			ict.applyInPlace(p);
+		}
+		public final InvertibleCoordinateTransform createInverse() {
+			return null;
+		}
+	}
+
+	final static public void alignPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
+		// Store transformation data for each Patch
+		final Map<Patch,Patch.TransformProperties> tp = new HashMap<Patch,Patch.TransformProperties>();
+		for (final Patch patch : patches) tp.put(patch, patch.getTransformPropertiesCopy()); 
+		
+		// Align:
+		alignment.run();
+
+		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
+
+		// Apply transforms to all non-image objects that overlapped with each Patch
+		// 1 - Sort patches by layer, and patches by stack index within the layer
+		final Map<Layer,TreeMap<Integer,Patch>> lm = new HashMap<Layer,TreeMap<Integer,Patch>>();
+		for (final Patch patch : patches) {
+			TreeMap<Integer,Patch> sp = lm.get(patch.getLayer());
+			if (null == sp) {
+				sp = new TreeMap<Integer,Patch>();
+				lm.put(patch.getLayer(), sp);
+			}
+			sp.put(patch.getLayer().indexOf(patch), patch);
+		}
+		// 2 - for each layer, transform the part of each segmentation on top of the Patch, but only the area that has not been used already:
+		for (final Map.Entry<Layer,TreeMap<Integer,Patch>> e : lm.entrySet()) {
+			final Layer layer = e.getKey();
+			// The area already processed
+			final Area used_area = new Area();
+			final List<Patch> sorted = new ArrayList<Patch>(e.getValue().values());
+			Collections.reverse(sorted); // so now it's from top to bottom
+			for (final Patch patch : sorted) {
+				final Patch.TransformProperties props = tp.remove(patch);
+				if (null == props) {
+					Utils.log("ERROR: could not find any Patch.TransformProperties for patch " + patch);
+					continue;
+				}
+				final Area a = new Area(props.area);
+				a.subtract(used_area);
+				if (M.isEmpty(a)) {
+					Utils.log2("Skipping fully occluded Patch " + patch);
+					continue; // Patch fully occluded by other patches
+				}
+				// Accumulate:
+				used_area.add(props.area);
+				//
+				mpicbg.trakem2.transform.CoordinateTransformList tlist = null;
+				// For the remaining area, see who intersects it
+				final Set<Displayable> linked = patch.getLinked();
+				Utils.log("Found linked: " + Utils.toString(linked));
+				final List<Displayable> ds = layer.getDisplayables(Displayable.class, a, false);
+				ds.addAll(layer.getParent().getZDisplayables(ZDisplayable.class, layer, a, false));
+				Utils.log2("Found under area: " + Utils.toString(ds));
+				for (final Displayable d : ds) {
+					if (d instanceof VectorData) {
+						if (null != linked && !linked.contains(d)) {
+							Utils.log("Not transforming non-linked object " + d);
+							continue;
+						}
+						if (null == tlist) {
+							// Generate a CoordinateTransformList that includes:
+							// 1 - an inverted transform from Patch coords to world coords
+							// 2 - the CoordinateTransform of the Patch, if any
+							// 3 - the AffineTransform of the Patch
+							tlist = new CoordinateTransformList();
+
+							final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
+							if (null != props.ct) {
+								final mpicbg.models.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, patch.getOWidth(), patch.getOHeight());
+								old.add(mesh);
+							}
+							final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
+							old_aff.set(props.at);
+							old.add(old_aff);
+
+							tlist.add(new InverseICT(old));
+
+							// The new part:
+							final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
+							if (null != ct) tlist.add(ct);
+							final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
+							new_aff.set(patch.getAffineTransform());
+							tlist.add(new_aff);
+						}
+
+						Utils.log("Transforming " + d + " with Patch " + patch);
+
+						try {
+							((VectorData)d).apply(layer, a, tlist);
+						} catch (Throwable er) {
+							Utils.log("ERROR: can't apply transform to " + d);
+							IJError.print(er);
+						}
+					}
+				}
+			}
+		}
+	}
+
 	final static public void alignPatches(
 			final Align.ParamOptimize p,
 			final List< Patch > patches,
 			final List< Patch > fixedPatches )
 	{
-		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
-		
-		alignTiles( p, tiles, fixedTiles );
+
+		alignPatchesAndVectorData(patches, new Runnable() {
+			public void run() {
+				alignTiles( p, tiles, fixedTiles );
+			}
+		});
 	}
 
 	final static public void alignTiles(

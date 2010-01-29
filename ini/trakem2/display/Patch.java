@@ -857,9 +857,31 @@ public final class Patch extends Displayable implements ImageData {
 		return copy;
 	}
 
+	static public final class TransformProperties {
+		final public Rectangle bounds;
+		final public AffineTransform at;
+		final public CoordinateTransform ct;
+		final public int o_width, o_height;
+		final public Area area;
+
+		public TransformProperties(final Patch p) {
+			this.at = new AffineTransform(p.at);
+			this.ct = null == p.ct ? null : p.ct.clone();
+			this.bounds = p.getBoundingBox(null);
+			this.o_width = p.o_width;
+			this.o_height = p.o_height;
+			this.area = p.getArea();
+		}
+	}
+
+	public Patch.TransformProperties getTransformPropertiesCopy() {
+		return new Patch.TransformProperties(this);
+	}
+
+
 	/** Override to cancel. */
 	public boolean linkPatches() {
-		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
+		Utils.log2("Patch class can't link other patches using Displayable.linkPatches()");
 		return false;
 	}
 
