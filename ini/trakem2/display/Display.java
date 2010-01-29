@@ -1706,6 +1706,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Repaint the Displayable in every Display that shows a Layer belonging to the given LayerSet. */
 	static public void repaint(final LayerSet set, final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator) {
 		if (repaint_disabled) return;
+		if (null == set) return;
 		for (final Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				if (repaint_navigator) {
