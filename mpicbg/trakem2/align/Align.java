@@ -81,6 +81,7 @@ public class Align
 		
 		public Param()
 		{
+			sift.maxOctaveSize = 600;
 			sift.fdSize = 8;
 		}
 		
