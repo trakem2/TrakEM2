@@ -3993,11 +3993,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				return;
 			}
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
-			for (final Displayable d : affected)
-				if (d.isLinked()) {
-					Utils.showMessage( "You cannot montage linked objects." );
-					return;
-				}
 			// make an undo step!
 			final LayerSet ls = layer.getParent();
 			ls.addTransformStep(affected);
