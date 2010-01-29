@@ -931,7 +931,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		for (int i=0; i<n_points; i++)  {
 			final Rectangle[] rec = getSubPerimeters(layer_set.getLayer(p_layer[i]));
 			for (int k=0; k<rec.length; k++) {
-				Area a = new Area(rec[k]).createTransformedArea(this.at);
+				Area a = new Area(rec[k]); // subperimeters already in world coords
 				a.intersect(area);
 				Rectangle r = a.getBounds();
 				if (0 != r.width && 0 != r.height) return true;
