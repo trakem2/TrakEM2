@@ -359,6 +359,11 @@ public final class M {
 	}
 
 	static final public void apply(final VectorDataTransform vdt, final Area a) {
+		apply(vdt, a, false);
+	}
+
+	/** Parts of @param a not intersected by any of @pram vdt rois will be left untouched if @param remove_outside is true. */
+	static final public void apply(final VectorDataTransform vdt, final Area a, final boolean remove_outside) {
 		final Area b = new Area();
 		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
 			// Cut the intersecting part from a:
@@ -368,6 +373,15 @@ public final class M {
 			// .. and add it to b, transformed:
 			b.add(M.transform(rt.ct, intersection));
 		}
+
+		if (!M.isEmpty(a)) {
+			if (remove_outside) {
+				// Clear areas not affected any ROITransform
+				Utils.log("WARNING: parts of an area in layer " + vdt.layer + "\n    did not intersect any transformation target\n    and where removed.");
+				a.reset();
+			} else Utils.log("WARNING: parts of an area in layer " + vdt.layer + "\n    remain untransformed.");
+		}
+
 		// Add b (the transformed parts) to what remains of a
 		a.add(b);
 	}
