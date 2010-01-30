@@ -2222,4 +2222,34 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 		return true;
 	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			if (vdt.layer.getId() == p_layer[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[0][i], p[1][i])) {
+						// Keep point copy
+						double ox = p[0][i],
+						       oy = p[1][i];
+						// Transform the point
+						M.apply(rt.ct, p, i, fp);
+						// For radius, assume it's a point to the right of the center point
+						fp[0] = (float)(ox + p_width[i]);
+						fp[1] = (float)oy;
+						rt.ct.applyInPlace(fp);
+						p_width[i] = Math.abs(fp[0] - p[0][i]);
+						// The two associated control points:
+						M.apply(rt.ct, p_l, i, fp);
+						M.apply(rt.ct, p_r, i, fp);
+						break;
+					}
+				}
+			}
+		}
+		generateInterpolatedPoints(0.05);
+		calculateBoundingBox(true);
+		return true;
+	}
 }

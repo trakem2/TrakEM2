@@ -2236,4 +2236,17 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		return true;
 	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		synchronized (node_layer_map) {
+			if (null == root) return true;
+			final Set<Node> nodes = node_layer_map.get(vdt.layer);
+			if (null == nodes || nodes.isEmpty()) return true;
+			final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+			for (final Node nd : nodes) {
+				nd.apply(vlocal);
+			}
+			calculateBoundingBox();
+		}
+		return true;
+	}
 }

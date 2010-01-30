@@ -1432,11 +1432,18 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ct) throws Exception {
 		final Area a = getArea(la);
 		if (null == a) return true;
-		AffineTransform inverse = this.at.createInverse();
+		final AffineTransform inverse = this.at.createInverse();
 		if (M.intersects(a, roi.createTransformedArea(inverse))) {
 			M.apply(M.wrap(this.at, ct, inverse), roi, a);
 			calculateBoundingBox();
 		}
+		return true;
+	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final Area a = getArea(vdt.layer);
+		if (null == a) return true;
+		M.apply(vdt.makeLocalTo(this), a);
 		return true;
 	}
 }

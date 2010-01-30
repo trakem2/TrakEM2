@@ -505,7 +505,22 @@ public class DLabel extends Displayable implements VectorData {
 			this.at.createInverse().transform(fp, 0, fp, 0, 1); // back to local
 			// as a result, there has been a translation:
 			this.at.preConcatenate(new AffineTransform(1, 0, 0, 1, fp[0], fp[1]));
+			return true;
 		}
-		return true;
+		return false;
+	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2]; // point is 0,0
+		this.at.transform(fp, 0, fp, 0, 1); // to world
+		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+			if (rt.roi.contains(fp[0], fp[1])) {
+				rt.ct.applyInPlace(fp);
+				this.at.createInverse().transform(fp, 0, fp, 0, 1); // back to local
+				// as a result, there has been a translation
+				this.at.preConcatenate(new AffineTransform(1, 0, 0, 1, fp[0], fp[1]));
+				return true;
+			}
+		}
+		return false;
 	}
 }

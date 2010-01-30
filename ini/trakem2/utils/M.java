@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.display.VectorDataTransform;
 
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
@@ -355,6 +356,20 @@ public final class M {
 		intersection.intersect(roi);
 		a.subtract(intersection);
 		a.add(M.transform(ict, intersection));
+	}
+
+	static final public void apply(final VectorDataTransform vdt, final Area a) {
+		final Area b = new Area();
+		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+			// Cut the intersecting part from a:
+			final Area intersection = new Area(a);
+			intersection.intersect(rt.roi);
+			a.subtract(intersection);
+			// .. and add it to b, transformed:
+			b.add(M.transform(rt.ct, intersection));
+		}
+		// Add b (the transformed parts) to what remains of a
+		a.add(b);
 	}
 
 	static private Field shape_field = null;

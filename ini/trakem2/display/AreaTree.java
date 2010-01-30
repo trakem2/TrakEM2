@@ -157,6 +157,15 @@ public class AreaTree extends Tree implements AreaContainer {
 			if (null == aw) return;
 			M.apply(ct, roi, aw.getArea());
 		}
+
+		@Override
+		public void apply(final VectorDataTransform vdt) {
+			// transform the point itself
+			super.apply(vdt);
+			// ... and the area
+			if (null == aw) return;
+			M.apply(vdt, aw.getArea());
+		}
 	}
 
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {

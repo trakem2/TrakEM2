@@ -1465,4 +1465,21 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
 		return true;
 	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			if (vdt.layer.getId() == p_layer[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[0][i], p[1][i])) {
+						// Transform the point
+						M.apply(rt.ct, p, i, fp);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox(true);
+		return true;
+	}
 }

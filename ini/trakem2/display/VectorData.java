@@ -15,4 +15,6 @@ public interface VectorData {
 	 * @param roi Only data inside this world-coordinates Area may be transformed.
 	 * @param ict The transform to apply to the data that is in @param la and within @param roi. */
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception;
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception;
 }

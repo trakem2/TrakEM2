@@ -31,6 +31,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.VectorData;
+import ini.trakem2.display.VectorDataTransform;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
@@ -273,6 +274,9 @@ final public class AlignTask
 			final Layer layer = e.getKey();
 			// The area already processed
 			final Area used_area = new Area();
+			// The list of transforms to apply to each VectorData
+			final Map<VectorData,VectorDataTransform> transforms = new HashMap<VectorData,VectorDataTransform>();
+			// The patches, in proper stack index order:
 			final List<Patch> sorted = new ArrayList<Patch>(e.getValue().values());
 			Collections.reverse(sorted); // so now it's from top to bottom
 			for (final Patch patch : sorted) {
@@ -331,13 +335,23 @@ final public class AlignTask
 
 						Utils.log("Transforming " + d + " with Patch " + patch);
 
-						try {
-							((VectorData)d).apply(layer, a, tlist);
-						} catch (Throwable er) {
-							Utils.log("ERROR: can't apply transform to " + d);
-							IJError.print(er);
+						VectorDataTransform vdt = transforms.get((VectorData)d);
+						if (null == vdt) {
+							vdt = new VectorDataTransform(layer);
+							transforms.put((VectorData)d, vdt);
 						}
+						vdt.add(a, tlist);
 					}
+				}
+			}
+
+			// Apply:
+			for (final Map.Entry<VectorData,VectorDataTransform> et : transforms.entrySet()) {
+				try {
+					et.getKey().apply(et.getValue());
+				} catch (Throwable er) {
+					Utils.log("ERROR: can't apply transforms to " + et.getKey());
+					IJError.print(er);
 				}
 			}
 		}

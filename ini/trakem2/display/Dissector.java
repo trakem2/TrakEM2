@@ -778,4 +778,24 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (null != chain) calculateBoundingBox();
 		return true;
 	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (final Item item : al_items) {
+			for (int i=0; i<item.n_points; i++) {
+				if (vdt.layer.getId() == item.p_layer[i]) {
+					for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+						if (rt.roi.contains(item.p[0][i], item.p[1][i])) {
+							// Transform the point
+							M.apply(rt.ct, item.p, i, fp);
+							break;
+						}
+					}
+				}
+			}
+		}
+		calculateBoundingBox();
+		return true;
+	}
 }

@@ -284,6 +284,30 @@ public class Treeline extends Tree {
 				r = Math.abs(fp[0] - this.x);
 			}
 		}
+		@Override
+		public void apply(final VectorDataTransform vdt) {
+			for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+				// Apply only the first one that contains the point
+				if (rt.roi.contains(x, y)) {
+					// Store point
+					float ox = x,
+					      oy = y;
+					// Transform point
+					float[] fp = new float[]{x, y};
+					rt.ct.applyInPlace(fp);
+					x = fp[0];
+					y = fp[1];
+					// Transform the radius: assume it's a point to the right of the untransformed point
+					if (0 != r) {
+						fp[0] = ox + r;
+						fp[1] = oy;
+						rt.ct.applyInPlace(fp);
+						r = Math.abs(fp[0] - this.x);
+					}
+					break;
+				}
+			}
+		}
 	}
 
 	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {

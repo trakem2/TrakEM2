@@ -1059,4 +1059,29 @@ public class Ball extends ZDisplayable implements VectorData {
 		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
 		return true;
 	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			if (vdt.layer.getId() == p_layer[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[0][i], p[1][i])) {
+						// Keep point copy
+						double ox = p[0][i],
+						       oy = p[1][i];
+						// Transform the point
+						M.apply(rt.ct, p, i, fp);
+						// For radius, assume it's a point to the right of the center point
+						fp[0] = (float)(ox + p_width[i]);
+						fp[1] = (float)oy;
+						rt.ct.applyInPlace(fp);
+						p_width[i] = Math.abs(fp[0] - p[0][i]);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox(true);
+		return true;
+	}
 }
