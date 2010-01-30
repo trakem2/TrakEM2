@@ -322,6 +322,7 @@ public class Align
 
 			for ( int i = ai.getAndIncrement(); i < tiles.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
+				if (isInterrupted()) return;
 				AbstractAffineTile2D< ? > tile = tiles.get( i );
 				Collection< Feature > features = deserializeFeatures( p, tile );
 				if ( features == null )
@@ -392,6 +393,7 @@ public class Align
 				
 			for ( int i = ai.getAndIncrement(); i < tilePairs.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
+				if (isInterrupted()) return;
 				candidates.clear();
 				final AbstractAffineTile2D< ? >[] tilePair = tilePairs.get( i );
 				
