@@ -300,18 +300,18 @@ final public class AlignLayersTask
 					b.translate( -box2.x, -box2.y);
 					
 					a.concatenate( b );
-					layer.apply( Displayable.class, a );
+					AlignTask.transformPatchesAndVectorData(layer, a);
 					Display.repaint( layer );
 				}
 				else
 					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor." );
 			}
-			IJ.showProgress( ++s, layerRange.size() );	
+			IJ.showProgress( ++s, layerRange.size() );
 		}
 		if ( propagateTransform )
 		{
 			for (Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
-				la.apply( Displayable.class, a );
+				AlignTask.transformPatchesAndVectorData(la, a);
 			}
 		}
 	}
@@ -335,7 +335,14 @@ final public class AlignLayersTask
 		
 		/* do not work if there is only one layer selected */
 		if ( layerRange.size() < 2 ) return;
-		
+
+		final List<Patch> all = new ArrayList<Patch>();
+		for (final Layer la : layerRange) all.addAll((Collection<Patch>)(Collection)la.getDisplayables(Patch.class));
+
+		AlignTask.transformPatchesAndVectorData(all, new Runnable() { public void run() {
+
+			/////
+
 		final Loader loader = l.getProject().getLoader();
 
 		// Not concurrent safe! So two copies, one per layer and Thread:
@@ -535,5 +542,7 @@ final public class AlignLayersTask
 			}
 		}
 		*/
+
+		}}); // end of transformPatchesAndVectorData
 	}
 }
