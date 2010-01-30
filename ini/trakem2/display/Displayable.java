@@ -1838,13 +1838,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					for (int i=0; i<c.length; i++) {
 						try {
 							java.lang.reflect.Field f = c[i].getDeclaredField(fields[k]);
-							if (null == f) continue; // will throw a NoSuchFieldException, but just in case
 							f.setAccessible(true);
 							Object ob = f.get(d);
 							content.put(fields[k], null != ob ? duplicate(ob, fields[k]) : null);
 							got_it = true;
 						} catch (NoSuchFieldException nsfe) {
-						} catch (IllegalAccessException iae) {}
+							IJError.print(nsfe);
+						} catch (IllegalAccessException iae) {
+							IJError.print(iae);
+						}
 					}
 					if (!got_it) {
 						Utils.log2("ERROR: could not get '" + fields[k] + "' field for " + d);
