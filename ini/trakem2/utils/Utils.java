@@ -53,6 +53,9 @@ import java.awt.Checkbox;
 import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FontMetrics;
+import java.awt.Font;
 import java.awt.MenuBar;
 import java.awt.Menu;
 import java.awt.MenuItem;
@@ -84,6 +87,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -97,7 +101,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7n 2009-12-14";
+	static public String version = "0.7o 2010-01-27";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -351,7 +355,8 @@ public class Utils implements ij.plugin.PlugIn {
 		} else {
 			return ob.toString();
 		}
-		sb.setLength(sb.length()-2);
+		final int len = sb.length();
+		if (len > 2) sb.setLength(len-2); // remove the last ", "
 		sb.append(closing);
 		sb.append('\n');
 		return sb.toString();
@@ -666,7 +671,6 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
 	static public final File chooseFile(String default_dir, String name, String extension) {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
-		String user = System.getProperty("user.name");
 		String name2 = null;
 		if (null != name && null != extension) name2 = name + extension;
 		else if (null != name) name2 = name;
@@ -1400,10 +1404,15 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Creates a new fixed thread pool whose threads are in the same ThreadGroup as the Thread that calls this method.
 	 *  This allows for the threads to be interrupted when the caller thread's group is interrupted. */
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc) {
+		return newFixedThreadPool(n_proc, null);
+	}
+	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc, final String namePrefix) {
 		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
+		final AtomicInteger ai = new AtomicInteger(0);
 		exec.setThreadFactory(new ThreadFactory() {
 			public Thread newThread(final Runnable r) {
-				final Thread t = new Thread(Thread.currentThread().getThreadGroup(), r, "AlignLayersTask executor");
+				final ThreadGroup tg = Thread.currentThread().getThreadGroup();
+				final Thread t = new Thread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
 				t.setDaemon(true);
 				t.setPriority(Thread.NORM_PRIORITY);
 				return t;
@@ -1531,5 +1540,26 @@ public class Utils implements ij.plugin.PlugIn {
 			IJError.print(t);
 		}
 		return null;
+	}
+
+	static private java.awt.Frame frame = null;
+
+	/** Get the width and height of single-line text. */
+	static public final Dimension getDimensions(final String text, final Font font) {
+		if (null == frame) { frame = new java.awt.Frame(); frame.pack(); frame.setBackground(Color.white); } // emulating the ImageProcessor class
+		FontMetrics fm = frame.getFontMetrics(font);
+		int[] w = fm.getWidths(); // the advance widths of the first 256 chars
+		int width = 0;
+		for (int i = text.length() -1; i>-1; i--) {
+			int c = (int)text.charAt(i);
+			if (c < 256) width += w[c];
+		}
+		return new Dimension(width, fm.getHeight());
+	}
+
+	static public final java.io.InputStream createStream(final String path_or_url) throws Exception {
+		return 0 == path_or_url.indexOf("http://") ?
+			  new java.net.URL(path_or_url).openStream()
+			: new java.io.BufferedInputStream(new java.io.FileInputStream(path_or_url));
 	}
 }

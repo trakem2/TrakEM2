@@ -68,7 +68,7 @@ import javax.vecmath.Point3f;
 
 
 /** A sequence of points that make multiple chained line segments. */
-public class Polyline extends ZDisplayable implements Line3D {
+public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 	/**The number of points.*/
 	protected int n_points;
@@ -415,7 +415,7 @@ public class Polyline extends ZDisplayable implements Line3D {
 		updateInDatabase("points");
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -457,8 +457,6 @@ public class Polyline extends ZDisplayable implements Line3D {
 			g.drawLine((int)p[0][0], (int)p[1][0],
 				   (int)((p[0][0] + p[0][1])/2), (int)((p[1][0] + p[1][1])/2));
 		}
-
-		final Rectangle srcRect = Display.getFront().getCanvas().getSrcRect();
 
 		// Paint handle if active and in the current layer
 		if (active && layer_id == p_layer[0]) {
@@ -1432,5 +1430,56 @@ public class Polyline extends ZDisplayable implements Line3D {
 		Utils.reverse(p[0]);
 		Utils.reverse(p[1]);
 		Utils.reverse(p_layer);
+	}
+	synchronized protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (int i=0; i<p_layer.length; i++) {
+			if (la.getId() == p_layer[i]) {
+				removePoint(i);
+				i--;
+			}
+		}
+		return true;
+	}
+
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		float[] fp = null;
+		mpicbg.models.CoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] == la.getId()) {
+				if (null == localroi) {
+					inverse = this.at.createInverse();
+					localroi = roi.createTransformedArea(inverse);
+				}
+				if (localroi.contains(p[0][i], p[1][i])) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+						fp = new float[2];
+					}
+					M.apply(chain, p, i, fp);
+				}
+			}
+		}
+		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
+		return true;
+	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			if (vdt.layer.getId() == p_layer[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[0][i], p[1][i])) {
+						// Transform the point
+						M.apply(rt.ct, p, i, fp);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox(true);
+		return true;
 	}
 }

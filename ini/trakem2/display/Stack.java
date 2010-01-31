@@ -272,7 +272,7 @@ public class Stack extends ZDisplayable implements ImageData
 
 	/** Slow paint: will wait until the image is generated and cached, then paint it. */
 	@Override
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		Image image = null;
 		Future< Image > fu = null;
 		final SliceViewKey sliceViewKey = new SliceViewKey( magnification, active_layer.getZ() );
@@ -438,6 +438,7 @@ public class Stack extends ZDisplayable implements ImageData
 	@Override
 	public void prePaint(
 			final Graphics2D g,
+			final Rectangle srcRect,
 			final double magnification,
 			final boolean active,
 			final int channels,

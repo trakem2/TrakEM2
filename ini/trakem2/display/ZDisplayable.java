@@ -155,4 +155,12 @@ public abstract class ZDisplayable extends Displayable {
 	public boolean crop(List<Layer> range) {
 		return true;
 	}
+
+	/** Update internal datastructures to reflect the fact that @param layer has been removed from the containing LayerSet.*/
+	protected boolean layerRemoved(Layer la) {
+		if (null != hs_linked) {
+			for (final Displayable d : hs_linked) if (d.layer == la) unlink(d);
+		}
+		return true;
+	}
 }

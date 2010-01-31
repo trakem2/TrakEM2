@@ -145,9 +145,7 @@ public final class Patch extends Displayable implements ImageData {
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		final Iterator it = ht_attributes.entrySet().iterator();
-		while (it.hasNext()) {
-			final Map.Entry entry = (Map.Entry)it.next();
+		for (final Map.Entry entry : (Collection<Map.Entry>) ht_attributes.entrySet()) {
 			final String key = (String)entry.getKey();
 			final String data = (String)entry.getValue();
 			if (key.equals("type")) {
@@ -462,15 +460,16 @@ public final class Patch extends Displayable implements ImageData {
 		return bi;
 	}
 
-	public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		paint(g, fetchImage(magnification, channels, true));
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	@Override
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		paint(g, fetchImage(magnification, channels, false));
 	}
 
-	private Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
+	private final Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
 		checkChannels(channels, magnification);
 
 		// Consider all possible scaling components: m00, m01
@@ -480,16 +479,9 @@ public final class Patch extends Displayable implements ImageData {
 							      Math.max(Math.abs(at.getShearX()),
 								       Math.abs(at.getShearY()))));
 		if (sc < 0) sc = magnification;
-		Image image = wait_for_image ?
+		return wait_for_image ?
 			  project.getLoader().fetchDataImage(this, sc)
 			: project.getLoader().fetchImage(this, sc);
-
-		if (null == image) {
-			//Utils.log2("Patch.paint: null image, returning");
-			return null; // TEMPORARY from lazy repaints after closing a Project
-		}
-
-		return image;
 	}
 
 	private void paint(final Graphics2D g, final Image image) {
@@ -517,7 +509,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
-	public void prePaint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 
 		AffineTransform atp = this.at;
 
@@ -536,21 +529,11 @@ public final class Patch extends Displayable implements ImageData {
 			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
 			boolean thread = false;
 			if (null == image) {
-				// fetch the proper image, nothing is cached
-				if (sc <= 0.5001) {
-					// load the mipmap
-					image = project.getLoader().fetchImage(this, sc);
-				} else {
-					// load a smaller mipmap, and then load the larger one and repaint on load.
-					image = project.getLoader().fetchImage(this, 0.25);
-					thread = true;
-				}
-				// TODO to be non-blocking, this should paint a black square with a "loading..." legend in it or something, then fire a later repaint thread like below. So don't wait!
-			} else {
-				// painting a smaller image, will need to repaint with the proper one
-				thread = true;
+				// fetch the smallest image possible
+				image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
 			}
-			if (thread && !Loader.NOT_FOUND.equals(image)) {
+			// painting a smaller image, will need to repaint with the proper one
+			if (!Loader.NOT_FOUND.equals(image)) {
 				// use the lower resolution image, but ask to repaint it on load
 				Loader.preload(this, sc, true);
 			}
@@ -859,19 +842,41 @@ public final class Patch extends Displayable implements ImageData {
 		return copy;
 	}
 
+	static public final class TransformProperties {
+		final public Rectangle bounds;
+		final public AffineTransform at;
+		final public CoordinateTransform ct;
+		final public int o_width, o_height;
+		final public Area area;
+
+		public TransformProperties(final Patch p) {
+			this.at = new AffineTransform(p.at);
+			this.ct = null == p.ct ? null : p.ct.clone();
+			this.bounds = p.getBoundingBox(null);
+			this.o_width = p.o_width;
+			this.o_height = p.o_height;
+			this.area = p.getArea();
+		}
+	}
+
+	public Patch.TransformProperties getTransformPropertiesCopy() {
+		return new Patch.TransformProperties(this);
+	}
+
+
 	/** Override to cancel. */
 	public boolean linkPatches() {
-		Utils.log2("Patch class can't link other patches using Displayble.linkPatches()");
+		Utils.log2("Patch class can't link other patches using Displayable.linkPatches()");
 		return false;
 	}
 
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				if (!project.getLoader().isSnapPaintable(this.id)) {
 					paintAsBox(g);
 				} else {
-					paint(g, mag, false, this.channels, layer);
+					paint(g, srcRect, mag, false, this.channels, layer);
 				}
 				return;
 			case 1:

@@ -334,6 +334,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		private final Lock lock = new Lock();
 
 		SetLayerThread() {
+			super("SetLayerThread");
 			setPriority(Thread.NORM_PRIORITY);
 			setDaemon(true);
 			start();
@@ -682,6 +683,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.ht_tabs.put(Pipe.class, scroll_zdispl);
 		this.ht_tabs.put(Polyline.class, scroll_zdispl);
 		this.ht_tabs.put(Treeline.class, scroll_zdispl);
+		this.ht_tabs.put(AreaTree.class, scroll_zdispl);
 		this.ht_tabs.put(Connector.class, scroll_zdispl);
 		this.ht_tabs.put(Ball.class, scroll_zdispl);
 		this.ht_tabs.put(Dissector.class, scroll_zdispl);
@@ -1705,6 +1707,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Repaint the Displayable in every Display that shows a Layer belonging to the given LayerSet. */
 	static public void repaint(final LayerSet set, final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator) {
 		if (repaint_disabled) return;
+		if (null == set) return;
 		for (final Display d : al_displays) {
 			if (set.contains(d.layer)) {
 				if (repaint_navigator) {
@@ -1800,7 +1803,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	public void select(final Displayable d, final boolean shift_down) {
 		if (null != active && active != d && active.getClass() != Patch.class) {
 			// active is being deselected, so link underlying patches
-			final String prop = project.getProperty(Project.getName(active.getClass()).toLowerCase() + "_nolinks");
+			final String prop = active.getClass() == DLabel.class ? project.getProperty("label_nolinks")
+									      : project.getProperty("segmentations_nolinks");
 			HashSet<Displayable> glinked = null;
 			if (null != prop && prop.equals("true")) {
 				// do nothing: linking disabled for active's type
@@ -2044,6 +2048,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(AreaTree d) { selectTab((ZDisplayable)d); }
 	private void selectTab(Connector d) { selectTab((ZDisplayable)d); }
 	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
 	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
@@ -2275,9 +2280,27 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
-			} else if (Treeline.class == aclass) {
+			} else if (Treeline.class == aclass || AreaTree.class == aclass) {
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Part subtree"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Mark"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("Show tabular view"); item.addActionListener(this); popup.add(item);
+				item.setSelected(selection.getSelected(Tree.class).size() > 1);
+				JMenu go = new JMenu("Go");
+				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
+				item = new JMenuItem("Next branch point or end"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, 0, true));
+				item = new JMenuItem("Root"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0, true));
+				go.addSeparator();
+				item = new JMenuItem("Last added point"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, 0, true));
+				item = new JMenuItem("Last edited point"); item.addActionListener(this); go.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
+				popup.add(go);
 				popup.addSeparator();
 			}
 
@@ -2425,6 +2448,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (none) item.setEnabled(false);
 			item = new JMenuItem("Unhide all treelines"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
+			none = ! layer.getParent().contains(AreaTree.class);
+			item = new JMenuItem("Hide all areatrees"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
+			item = new JMenuItem("Unhide all areatrees"); item.addActionListener(this); menu.add(item);
+			if (none) item.setEnabled(false);
 			none = ! layer.getParent().contains(Ball.class);
 			item = new JMenuItem("Hide all balls"); item.addActionListener(this); menu.add(item);
 			if (none) item.setEnabled(false);
@@ -2465,6 +2493,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Montage selected images (phase correlation)"); item.addActionListener(this); align_menu.add(item);
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
 		item = new JMenuItem("Montage multiple layers (phase correlation)"); item.addActionListener(this); align_menu.add(item);
+		popup.add(align_menu);
+		item = new JMenuItem("Montage multiple layers (SIFT)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
 
 		JMenu link_menu = new JMenu("Link");
@@ -2507,6 +2537,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Import sequence as grid..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import from text file..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Import labels as arealists..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Tags ..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Export");
@@ -2517,6 +2548,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
 		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && AreaList.class == active.getClass());
+		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
+		item.setEnabled(null != active && Tree.class.isInstance(active));
+		item = new JMenuItem("Tags..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -2560,6 +2594,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 
@@ -2591,6 +2626,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		popup.add(menu);
 
 		item = new JMenuItem("Search..."); item.addActionListener(this); popup.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, Utils.getControlModifier(), true));
 
 		//canvas.add(popup);
 		return popup;
@@ -3639,7 +3675,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			active.adjustProperties();
 			updateSelection();
 		} else if (command.equals("Show current 2D position in 3D")) {
-			Display3D.addFatPoint("Current 2D Position", getLayerSet(), canvas.last_popup.x, canvas.last_popup.y, layer.getZ(), 10, Color.magenta);
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			Display3D.addFatPoint("Current 2D Position", getLayerSet(), p.x, p.y, layer.getZ(), 10, Color.magenta);
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();
@@ -3654,12 +3692,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 					final LayerSet ls = slice.getLayerSet();
 					final HashSet<Displayable> linked = slice.getLinkedGroup(null);
-					ls.addTransformStep(linked);
+					ls.addTransformStepWithData(linked);
 					Bureaucrat burro = AlignTask.registerStackSlices((Patch)getActive()); // will repaint
 					burro.addPostTask(new Runnable() { public void run() {
 						ls.enlargeToFit(linked);
 						// The current state when done
-						ls.addTransformStep(linked);
+						ls.addTransformStepWithData(linked);
 					}});
 				} else {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
@@ -3715,6 +3753,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				getLayerSet().enlargeToFit(ds);
 				getLayerSet().addLayerEditedStep(layers);
 			}});
+		} else if (command.equals("Montage multiple layers (SIFT)")) {
+			final GenericDialog gd = new GenericDialog("Choose range");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
+			getLayerSet().addLayerEditedStep(layers);
+			Bureaucrat burro = AlignTask.montageLayersTask(layers);
+			burro.addPostTask(new Runnable() { public void run() {
+				Collection<Displayable> ds = new ArrayList<Displayable>();
+				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
+				getLayerSet().enlargeToFit(ds);
+				getLayerSet().addLayerEditedStep(layers);
+			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
 			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
@@ -3727,6 +3779,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
 			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
+			gd.addCheckbox("Show arrow heads in Treeline/AreaTree", layer.getParent().paint_arrows);
+			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
+			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
+			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -3753,12 +3809,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			//
 			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
 			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
+			layer.getParent().paint_arrows = gd.getNextBoolean();
+			layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
+			layer.getParent().color_cues = gd.getNextBoolean();
+			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
+			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
 		} else if (command.equals("Adjust fast-marching parameters...")) {
 			Segmentation.fmp.setup();
 		} else if (command.equals("Adjust arealist paint parameters...")) {
-			AreaList.PP.setup();
+			AreaWrapper.PP.setup();
 		} else if (command.equals("Search...")) {
 			new Search();
 		} else if (command.equals("Select all")) {
@@ -3808,29 +3869,80 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}});
 			burro.goHaveBreakfast();
 		} else if (command.equals("Reroot")) {
-			if (!(active instanceof Treeline)) return;
-			if (null != canvas.last_popup) {
-				getLayerSet().addDataEditStep(active);
-				((Treeline)active).reRoot(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
-				getLayerSet().addDataEditStep(active);
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			getLayerSet().addDataEditStep(active);
+			((Tree)active).reRoot(p.x, p.y, layer, canvas.getMagnification());
+			getLayerSet().addDataEditStep(active);
+			Display.repaint(getLayerSet());
+		} else if (command.equals("Part subtree")) {
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			getLayerSet().addChangeTreesStep();
+			List<Tree> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
+			if (null == ts) return;
+			Displayable elder = Display.this.active;
+			for (Tree t : ts) {
+				if (t == elder) continue;
+				getLayerSet().add(t); // will change Display.this.active !
+				project.getProjectTree().addSibling(elder, t);
+			}
+			selection.clear();
+			selection.selectAll(ts);
+			selection.add(elder);
+			getLayerSet().addChangeTreesStep();
+			Display.repaint(getLayerSet());
+		} else if (command.equals("Show tabular view")) {
+			if (!(active instanceof Tree)) return;
+			((Tree)active).createMultiTableView();
+		} else if (command.equals("Mark")) {
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			if (((Tree)active).markNear(p.x, p.y, layer, canvas.getMagnification())) {
 				Display.repaint(getLayerSet());
 			}
-		} else if (command.equals("Split")) {
-			if (!(active instanceof Treeline)) return;
-			if (null != canvas.last_popup) {
+		} else if (command.equals("Clear marks (selected Trees)")) {
+			for (Displayable d : selection.getSelected(Tree.class)) {
+				((Tree)d).unmark();
+			}
+			Display.repaint(getLayerSet());
+		} else if (command.equals("Join")) {
+			if (!(active instanceof Tree)) return;
+			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(Treeline.class);
+			if (((Tree)active).canJoin(tlines)) {
 				getLayerSet().addChangeTreesStep();
-				List<Treeline> ts = ((Treeline)active).split(canvas.last_popup.x, canvas.last_popup.y, layer.getId());
-				Displayable elder = Display.this.active;
-				for (Treeline t : ts) {
-					getLayerSet().add(t); // will change Display.this.active !
-					project.getProjectTree().addSibling(elder, t);
+				((Tree)active).join(tlines);
+				for (final Tree tl : tlines) {
+					if (tl == active) continue;
+					tl.remove2(false);
 				}
-				elder.remove2(false);
-				selection.clear();
-				selection.selectAll(ts);
-				getLayerSet().addChangeTreesStep();
 				Display.repaint(getLayerSet());
+				getLayerSet().addChangeTreesStep();
 			}
+		} else if (command.equals("Previous branch point or start")) {
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			center(((Treeline)active).findPreviousBranchOrRootPoint(p.x, p.y, layer, canvas.getMagnification()));
+		} else if (command.equals("Next branch point or end")) {
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			center(((Tree)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas.getMagnification()));
+		} else if (command.equals("Root")) {
+			if (!(active instanceof Tree)) return;
+			Point p = canvas.consumeLastPopupPoint();
+			if (null == p) return;
+			center(((Tree)active).createCoordinate(((Tree)active).getRoot()));
+		} else if (command.equals("Last added point")) {
+			if (!(active instanceof Tree)) return;
+			center(((Treeline)active).getLastAdded());
+		} else if (command.equals("Last edited point")) {
+			if (!(active instanceof Tree)) return;
+			center(((Treeline)active).getLastEdited());
 		} else if (command.equals("Reverse point order")) {
 			if (!(active instanceof Pipe)) return;
 			getLayerSet().addDataEditStep(active);
@@ -3877,23 +3989,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				IJ.log("Please select more than one overlapping image.");
 			}
 		} else if (command.equals("Montage")) {
-			if (!(active instanceof Patch)) {
-				Utils.showMessage("Please select only images.");
-				return;
-			}
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
-			for (final Displayable d : affected)
-				if (d.isLinked()) {
-					Utils.showMessage( "You cannot montage linked objects." );
-					return;
-				}
 			// make an undo step!
 			final LayerSet ls = layer.getParent();
-			ls.addTransformStep(affected);
+			ls.addTransformStepWithData(affected);
 			Bureaucrat burro = AlignTask.alignSelectionTask( selection );
 			burro.addPostTask(new Runnable() { public void run() {
 				ls.enlargeToFit(affected);
-				ls.addTransformStep(affected);
+				ls.addTransformStepWithData(affected);
 			}});
 		} else if (command.equals("Lens correction")) {
 			final Layer la = layer;
@@ -4161,6 +4264,38 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			ImagePlus imp = ((AreaList)active).getStack(type, gd.getNextNumber()/100);
 			if (null != imp) imp.show();
+		} else if (command.equals("Fly through selected Treeline/AreaTree")) {
+			if (null == active || !(active instanceof Tree)) return;
+			Bureaucrat.createAndStart(new Worker.Task("Creating fly through", true) {
+				public void exec() {
+					GenericDialog gd = new GenericDialog("Fly through");
+					gd.addNumericField("Width", 512, 0);
+					gd.addNumericField("Height", 512, 0);
+					String[] types = new String[]{"8-bit gray", "Color RGB"};
+					gd.addChoice("Image type", types, types[0]);
+					gd.addSlider("scale", 0, 100, 100);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					int w = (int)gd.getNextNumber();
+					int h = (int)gd.getNextNumber();
+					int type = 0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY8 : ImagePlus.COLOR_RGB;
+					double scale = gd.getNextNumber();
+					if (w <=0 || h <=0) {
+						Utils.log("Invalid width or height: " + w + ", " + h);
+						return;
+					}
+					if (0 == scale || Double.isNaN(scale)) {
+						Utils.log("Invalid scale: " + scale);
+						return;
+					}
+					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type);
+					if (null == imp) {
+						Utils.log("Mark a node first!");
+						return;
+					}
+					imp.show();
+				}
+			}, project);
 		} else if (command.startsWith("Arealists as labels")) {
 			GenericDialog gd = new GenericDialog("Export labels");
 			gd.addSlider("Scale: ", 1, 100, 100);
@@ -4215,6 +4350,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			project.getLoader().regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
 		} else if (command.equals("Regenerate mipmaps (selected images)")) {
 			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
+		} else if (command.equals("Tags...")) {
+			// get a file first
+			File f = Utils.chooseFile(null, "tags", ".xml");
+			if (null == f) return;
+			if (!Utils.saveToFile(f, getLayerSet().exportTags())) {
+				Utils.logAll("ERROR when saving tags to file " + f.getAbsolutePath());
+			}
+		} else if (command.equals("Tags ...")) {
+			String[] ff = Utils.selectFile("Import tags");
+			if (null == ff) return;
+			GenericDialog gd = new GenericDialog("Import tags");
+			String[] modes = new String[]{"Append to current tags", "Replace current tags"};
+			gd.addChoice("Import tags mode:", modes, modes[0]);
+			gd.addMessage("Replacing current tags\nwill remove all tags\n from all nodes first!");
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			getLayerSet().importTags(new StringBuilder(ff[0]).append('/').append(ff[1]).toString(), 1 == gd.getNextChoiceIndex());
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
@@ -4442,6 +4594,55 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		display.showCentered(displ);
 	}
 
+	/** Center the view, if possible, on x,y. It's not possible when zoomed out, in which case it will try to do its best. */
+	public final void center(final double x, final double y) {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Rectangle r = (Rectangle)canvas.getSrcRect().clone();
+			r.x = (int)x - r.width/2;
+			r.y = (int)y - r.height/2;
+			canvas.center(r, canvas.getMagnification());
+		}});
+	}
+
+	public final void center(final Coordinate c) {
+		if (null == c) return;
+		slt.set(c.layer);
+		center(c.x, c.y);
+	}
+
+	public final void centerIfNotWithinSrcRect(final Coordinate c) {
+		if (null == c) return;
+		slt.set(c.layer);
+		Rectangle srcRect = canvas.getSrcRect();
+		if (srcRect.contains((int)(c.x+0.5), (int)(c.y+0.5))) return;
+		center(c.x, c.y);
+	}
+
+	public final void animateBrowsingTo(final Coordinate c) {
+		if (null == c) return;
+		final double padding = 50/canvas.getMagnification(); // 50 screen pixels
+		canvas.animateBrowsing(new Rectangle((int)(c.x - padding), (int)(c.y - padding), (int)(2*padding), (int)(2*padding)), c.layer);
+	}
+
+	static public final void centerAt(final Coordinate c) {
+		centerAt(c, false, false);
+	}
+	static public final void centerAt(final Coordinate<Displayable> c, final boolean select, final boolean shift_down) {
+		if (null == c) return;
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Display display = front;
+			if (null == display || c.layer.getParent() != display.getLayerSet()) {
+				display = new Display(c.layer.getProject(), c.layer); // gets set to front
+			}
+			display.center(c);
+
+			if (select) {
+				if (!shift_down) display.selection.clear();
+				display.selection.add(c.object);
+			}
+		}});
+	}
+
 	private final void showCentered(final Displayable displ) {
 		if (null == displ) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -4466,6 +4667,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (this != front || null == active || !project.isInputEnabled()) return;
 			selection.setColor(Toolbar.getForegroundColor());
 			Display.repaint(front.layer, selection.getBox(), 0);
+		} else if (IJEventListener.TOOL_CHANGED == eventID) {
+			Display.repaintToolbar();
 		}
 	}
 
@@ -4591,8 +4794,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			case ProjectToolbar.PENCIL:
 				op = Segmentation.fmp.asOptionPanel();
 				break;
-			case ProjectToolbar.PEN:
-				op = AreaList.PP.asOptionPanel();
+			case ProjectToolbar.BRUSH:
+				op = AreaWrapper.PP.asOptionPanel();
 				break;
 			default:
 				break;
@@ -4759,12 +4962,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	protected void duplicateLinkAndSendTo(final Displayable active, final int position, final Layer other_layer) {
 		if (null == active || !(active instanceof Profile)) return;
 		if (active.getLayer() == other_layer) return; // can't do that!
+		// set current state
+		Set<DoStep> dataedits = new HashSet<DoStep>();
+		dataedits.add(new Displayable.DoEdit(active).init(active, new String[]{"data"})); // the links!
+		getLayerSet().addChangeTreesStep(dataedits);
 		Profile profile = project.getProjectTree().duplicateChild((Profile)active, position, other_layer);
-		if (null == profile) return;
+		if (null == profile) {
+			getLayerSet().removeLastUndoStep();
+			return;
+		}
 		active.link(profile);
 		other_layer.add(profile);
 		slt.setAndWait(other_layer);
 		selection.add(profile);
+		// set new state
+		dataedits = new HashSet<DoStep>();
+		dataedits.add(new Displayable.DoEdit(active).init(active, new String[]{"data"})); // the links!
+		dataedits.add(new Displayable.DoEdit(profile).init(profile, new String[]{"data"})); // the links!
+		getLayerSet().addChangeTreesStep(dataedits);
 	}
 
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();

@@ -49,7 +49,7 @@ public class ProjectToolbar implements MouseListener {
 	/**A tool to draw/edit.*/
 	public static final int PEN = Toolbar.SPARE3;
 	/**A tool to align objects from two different layers.*/
-	//public static final int ALIGN = Toolbar.SPARE4;
+	public static final int BRUSH = Toolbar.SPARE4;
 
 	static private String startup_macros = null;
 
@@ -103,7 +103,7 @@ public class ProjectToolbar implements MouseListener {
 			sb_tools.append("macro 'Select and Transform Tool-C000L2242L2363L3494L35b5L46c6L4797L48a8L49b9L5a6aL8acaL5b6bL9bdbL5c5cLacdcLbdcd' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'SELECT');\n}\n")
 				.append("macro 'Freehand Tool-C000Lb0c0La1d1L92e2L83f3L74f4L65e5L56d6L47c7L38b8L29a9L2a2aL4a9aL1b2bL5b8bL1c1cL6c7cL0d1dL5d6dL0e0eL3e5eL0f3f' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'PENCIL');\n}\n")
 				.append("macro 'Pen Tool-C000L8080L7191L7292L6363L8383La3a3L6464L8484Lb4b4L5555L8585Lb5b5L4646L8686Lc6c6L4747Lc7c7L3838Ld8d8L4949Lc9c9L4a4aLcacaL5b5bLbbbbL5c5cLbcbcL4dcdL5e5eLbebeL5fbf' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'PEN');\n}\n")
-				//.append("macro 'Align Tool-C000L50f0L4141Lf1f1L3232Le2e2L3333Le3e3L2424Ld4d4L2525Ld5d5L1616Lc6c6L0707Lb7f7L08b8Lf8f8L4949Le9e9L3a3aLeaeaL2b2bLdbdbL2c2cLdcdcL1d1dLcdcdL0e0eLbebeL0fbf' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'ALIGN');\n}\n")
+				.append("macro 'Brush Tool - C037La077Ld098L6859L4a2fL2f4fL3f99L5e9bL9b98L6888L5e8dL888c' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'BRUSH');\n}\n")
 			;
 
 			installer.install(sb_tools.toString()); // another call to install erases the previous, so it needs all at the same time
@@ -266,9 +266,20 @@ public class ProjectToolbar implements MouseListener {
 			case KeyEvent.VK_F11:
 				setTool(PEN);
 				break;
-			//case KeyEvent.VK_F12:
-			//	setTool(ALIGN);
-			//	break;
+			case KeyEvent.VK_F12:
+				setTool(BRUSH);
+				break;
+		}
+	}
+
+	static public boolean isDataEditTool(final int tool) {
+		switch (tool) {
+			case PENCIL:
+			case BRUSH:
+			case PEN:
+				return true;
+			default:
+				return false;
 		}
 	}
 }

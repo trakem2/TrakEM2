@@ -18,10 +18,12 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Collection;
 import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.display.VectorDataTransform;
 
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
@@ -314,6 +316,76 @@ public final class M {
 		return pols;
 	}
 
+	/** Return a new Area resulting from applying @param ict to @param a;
+	 *  converts the newly transformed points to ints (TrakEM2 operates with ints in its areas). */
+	static public final Area transform(final mpicbg.models.CoordinateTransform ict, final Area a) {
+		final Area a2 = new Area();
+		final float[] fp = new float[2];
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					fp[0] = coords[0];
+					fp[1] = coords[1];
+					ict.applyInPlace(fp);
+					pol.addPoint((int)fp[0], (int)fp[1]); // as ints!
+					break;
+				case PathIterator.SEG_CLOSE:
+					a2.add(new Area(pol));
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return a2;
+	}
+
+	/** Apply in place the @param ict to the Area @param a, but only for the part that intersects the roi. */
+	static final public void apply(final mpicbg.models.CoordinateTransform ict, final Area roi, final Area a) {
+		final Area intersection = new Area(a);
+		intersection.intersect(roi);
+		a.subtract(intersection);
+		a.add(M.transform(ict, intersection));
+	}
+
+	static final public void apply(final VectorDataTransform vdt, final Area a) {
+		apply(vdt, a, false);
+	}
+
+	/** Parts of @param a not intersected by any of @pram vdt rois will be left untouched if @param remove_outside is true. */
+	static final public void apply(final VectorDataTransform vdt, final Area a, final boolean remove_outside) {
+		final Area b = new Area();
+		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+			// Cut the intersecting part from a:
+			final Area intersection = new Area(a);
+			intersection.intersect(rt.roi);
+			a.subtract(intersection);
+			// .. and add it to b, transformed:
+			b.add(M.transform(rt.ct, intersection));
+		}
+
+		if (!M.isEmpty(a)) {
+			if (remove_outside) {
+				// Clear areas not affected any ROITransform
+				Utils.log("WARNING: parts of an area in layer " + vdt.layer + "\n    did not intersect any transformation target\n    and where removed.");
+				a.reset();
+			} else Utils.log("WARNING: parts of an area in layer " + vdt.layer + "\n    remain untransformed.");
+		}
+
+		// Add b (the transformed parts) to what remains of a
+		a.add(b);
+	}
+
 	static private Field shape_field = null;
 
 	static public final Shape getShape(final ShapeRoi roi) {
@@ -399,5 +471,131 @@ public final class M {
 		} while (i <= j);
 		if (left < j) quicksort(data, sortAlso, left, j);
 		if (i < right) quicksort(data, sortAlso, i, right);
+	}
+
+	static private Polygon arrowhead = null;
+
+	/** Create an arrowhead at the end of the line segment defined by x1,y1 and x2,y2. */
+	static public final Shape createArrowhead(final double x1, final double y1, final double x2, final double y2) {
+		return createArrowhead(x1, y1, x2, y2, 1.0);
+	}
+	static public final Shape createArrowhead(final double x1, final double y1, final double x2, final double y2, final double magnification) {
+		if (null == arrowhead) arrowhead = new Polygon(new int[]{-14, -13, 0, -13, -14, -9}, new int[]{-5, -5, 0, 5, 5, 0}, 6);
+		final AffineTransform aff = new AffineTransform();
+		aff.translate(x2, y2);
+		aff.rotate(M.getAngle(x2 - x1, y2 - y1));
+		if (magnification < 1.0) aff.scale(magnification, magnification);
+		return aff.createTransformedShape(arrowhead);
+	}
+
+	static final private float phi = (1 + (float)Math.sqrt(5)) / 2;
+	static final private float[][] icosahedron = { { phi, 1, 0 },
+					{ -phi, 1, 0 },
+					{ phi, -1, 0 },
+					{ -phi, -1, 0 },
+					{ 1, 0, phi },
+					{ 1, 0, -phi },
+					{-1, 0, phi },
+					{-1, 0, -phi },
+					{0, phi, 1 },
+					{0, -phi, 1},
+					{0, phi, -1 },
+					{0, -phi, -1} };
+	static final private int[][] icosfaces =    { { 0, 8, 4 },
+					{ 0, 5, 10 },
+					{ 2, 4, 9 },
+					{ 2, 11, 5 },
+					{ 1, 6, 8 },
+					{ 1, 10, 7 },
+					{ 3, 9, 6 },
+					{ 3, 7, 11 },
+					{ 0, 10, 8 },
+					{ 1, 8, 10 },
+					{ 2, 9, 11 },
+					{ 3, 11, 9 },
+					{ 4, 2, 0 },
+					{ 5, 0, 2 },
+					{ 6, 1, 3 },
+					{ 7, 3, 1 },
+					{ 8, 6, 4 },
+					{ 9, 4, 6 },
+					{ 10, 5, 7 },
+					{ 11, 7, 5 } };
+
+	/** Returns a "3D Viewer"-ready list mesh, centered at 0,0,0 and with radius as the radius of the enclosing sphere. */
+	static public final List<Point3f> createIcosahedron(int subdivisions, float radius) {
+		List<Point3f> ps = new ArrayList<Point3f>();
+		for (int i=0; i<icosfaces.length; i++) {
+			for (int k=0; k<3; k++) {
+				ps.add(new Point3f(icosahedron[icosfaces[i][k]]));
+			}
+		}
+		while (subdivisions-- > 0) {
+			final List<Point3f> sub = new ArrayList<Point3f>();
+			// Take three consecutive points, which define a face, and create 4 faces out of them.
+			for (int i=0; i<ps.size(); i+=3) {
+				Point3f p0 = ps.get(i);
+				Point3f p1 = ps.get(i+1);
+				Point3f p2 = ps.get(i+2);
+
+				Point3f p01 = new Point3f((p0.x + p1.x)/2, (p0.y + p1.y)/2, (p0.z + p1.z)/2);
+				Point3f p02 = new Point3f((p0.x + p2.x)/2, (p0.y + p2.y)/2, (p0.z + p2.z)/2);
+				Point3f p12 = new Point3f((p1.x + p2.x)/2, (p1.y + p2.y)/2, (p1.z + p2.z)/2);
+				// lower left:
+				sub.add(p0);
+				sub.add(p01);
+				sub.add(p02);
+				// upper:
+				sub.add(new Point3f(p01)); // as copies
+				sub.add(p1);
+				sub.add(p12);
+				// lower right:
+				sub.add(new Point3f(p12));
+				sub.add(p2);
+				sub.add(new Point3f(p02));
+				// center:
+				sub.add(new Point3f(p01));
+				sub.add(new Point3f(p12));
+				sub.add(new Point3f(p02));
+			}
+			ps = sub;
+		}
+
+		// Project all vertices to the surface of a sphere of radius 1
+		final Vector3f v = new Vector3f();
+		for (final Point3f p : ps) {
+			v.set(p);
+			v.normalize();
+			v.scale(radius);
+			p.set(v);
+		}
+
+		return ps;
+	}
+
+	/** Reuses the @param fp to apply in place. */
+	static public final void apply(final mpicbg.models.CoordinateTransform ict, final double[][] p, final int i, final float[] fp) {
+		fp[0] = (float)p[0][i];
+		fp[1] = (float)p[1][i];
+		ict.applyInPlace(fp);
+		p[0][i] = fp[0];
+		p[1][i] = fp[1];
+	}
+
+	/** The @param ict is expected to transform this data as if this data was expressed in world coordinates,
+	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
+	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
+		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
+		// 1 - Prepend to world
+		final mpicbg.models.AffineModel2D toworld = new mpicbg.models.AffineModel2D();
+		toworld.set(to_world);
+		chain.add(toworld);
+		// 2 - Perform the transform in world coordinates
+		chain.add(ict);
+		// 3 - back to local
+		final mpicbg.models.AffineModel2D tolocal = new mpicbg.models.AffineModel2D();
+		tolocal.set(to_local);
+		chain.add(tolocal);
+		return chain;
 	}
 }

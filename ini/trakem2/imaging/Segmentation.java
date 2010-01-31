@@ -7,15 +7,17 @@ import ij.gui.GenericDialog;
 import ij.gui.PointRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
-import ini.trakem2.display.AreaList;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.AreaWrapper;
 import ini.trakem2.display.Patch;
+import ini.trakem2.display.AreaContainer;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.OptionPanel;
+import ini.trakem2.utils.M;
 
 import java.awt.Rectangle;
 import java.awt.Polygon;
@@ -27,6 +29,8 @@ import java.awt.Checkbox;
 import java.awt.Component;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Arrays;
 
 import levelsets.ij.ImageContainer;
 import levelsets.ij.ImageProgressContainer;
@@ -61,7 +65,7 @@ public class Segmentation {
 		public int high_frequency_threshold = 5;
 		public boolean autoscale_after_filtering = true;
 		public boolean saturate_when_autoscaling = true;
-		/** In pixels, of the the underlying image to copy around the mouse. May be enlarged by shift+scrollwheel with PENCIL tool on a selected AreaList. */
+		/** In pixels, of the the underlying image to copy around the mouse. May be enlarged by shift+scrollwheel with PENCIL tool on a selected Displayable. */
 		public int width = 100,
 		           height = 100;
 
@@ -139,14 +143,36 @@ public class Segmentation {
 			this.height += inc;
 			Utils.log2("fmp w,h: " + width + ", " + height);
 		}
+
+		/** Return bounds relative to the given mouse position. */
+		public Rectangle getBounds(final int x_p, final int y_p) {
+			return new Rectangle(x_p - width/2, y_p - height/2, width, height);
+		}
 	}
 
 	static public final FastMarchingParam fmp = new FastMarchingParam();
 
-	static public Thread fastMarching(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+	static class EndTask<T,D> {
+		T target;
+		Runnable after;
+		EndTask(T target, Runnable after) {
+			this.target = target;
+			this.after = after;
+		}
+		void run() {
+		}
+	}
+
+	static public Bureaucrat fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		return fastMarching(aw, layer, srcRect, x_p_w, y_p_w, Arrays.asList(new Runnable[]{post_task}));
+	}
+	static public Bureaucrat fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) {
+		// Capture pointers before they are set to null
+		final AreaContainer ac = (AreaContainer)aw.getSource();
+		final AffineTransform source_aff = aw.getSource().getAffineTransform();
+		final Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
-			Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 			Utils.log2("fmp box is " + box);
 			ImagePlus imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
 			// Bandpass filter
@@ -250,20 +276,23 @@ public class Segmentation {
 			}
 			*/
 
-			// Bring Area to World coordinates...
-			AffineTransform at = new AffineTransform();
-			at.translate(box.x, box.y);
-			// ... and then to AreaList coordinates:
+			/// FAILS because by now AreaWrapper's source is null
+			//aw.add(area, new AffineTransform(1, 0, 0, 1, box.x, box.y));
+
+			// Instead, compose an Area that is local to the AreaWrapper's area
+			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, box.x, box.y);
 			try {
-				at.preConcatenate(ali.getAffineTransform().createInverse());
-			} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
-			// Add Area to AreaList at Layer layer:
-			ali.addArea(layer.getId(), area.createTransformedArea(at));
-			ali.calculateBoundingBox();
+				aff.preConcatenate(source_aff.createInverse());
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return;
+			}
+			aw.getArea().add(area.createTransformedArea(aff));
+			ac.calculateBoundingBox();
 
 			Display.repaint(layer);
 		}}, layer.getProject());
-		if (null != post_task) burro.addPostTask(post_task);
+		if (null != post_tasks) for (Runnable task : post_tasks) burro.addPostTask(task);
 		burro.goHaveBreakfast();
 		return burro;
 	}
@@ -271,15 +300,20 @@ public class Segmentation {
 	static public class BlowCommander {
 		BlowRunner br = null;
 		final ExecutorService dispatcher = Executors.newFixedThreadPool(1);
-		final Runnable post_task;
+		final List<Runnable> post_tasks;
+		final AffineTransform source_aff;
+		final AreaContainer ac;
 
-		public BlowCommander(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
-			this.post_task = post_task;
+		public BlowCommander(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) throws Exception {
+			this.post_tasks = post_tasks;
+			this.ac = (AreaContainer)aw.getSource();
+			this.source_aff = aw.getSource().getAffineTransform();
+
 			dispatcher.submit(new Runnable() {
 				public void run() {
-					// Creation in the contex of the ExecutorService thread, so 'imp' will be local to it
+					// Creation in the context of the ExecutorService thread, so 'imp' will be local to it
 					try {
-						br = new BlowRunner(ali, layer, srcRect, x_p_w, y_p_w);
+						br = new BlowRunner(aw, layer, srcRect, x_p_w, y_p_w);
 					} catch (Throwable t) {
 						IJError.print(t);
 						dispatcher.shutdownNow();
@@ -305,16 +339,16 @@ public class Segmentation {
 		public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 			dispatcher.submit(new Runnable() {
 				public void run() {
-					// Add the roi to the AreaList
+					// Add the roi to the Area
 					try {
-						br.finish();
+						br.finish(ac, source_aff);
 					} catch (Throwable t) {
 						IJError.print(t);
 					}
 					// Execute post task if any
-					if (null != post_task) {
+					if (null != post_tasks) {
 						try {
-							post_task.run();
+							for (Runnable task : post_tasks) task.run();
 						} catch (Throwable t) {
 							IJError.print(t);
 						}
@@ -331,10 +365,10 @@ public class Segmentation {
 		final ImagePlus imp;
 		final Lasso lasso;
 		final Layer layer;
-		final AreaList ali;
+		final AreaWrapper aw;
 
-		public BlowRunner(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) throws Exception {
-			this.ali = ali;
+		public BlowRunner(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w) throws Exception {
+			this.aw = aw;
 			this.layer = layer;
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
 			this.box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
@@ -367,18 +401,28 @@ public class Segmentation {
 				Display.getFront().getCanvas().getFakeImagePlus().setRoi(sroi);
 			}
 		}
-		public void finish() throws Exception {
+		public void finish(final AreaContainer ac, final AffineTransform source_aff) throws Exception {
 			Roi roi = imp.getRoi();
+			Utils.log2("roi is " + roi);
 			if (null == roi) return;
 			ShapeRoi sroi = new ShapeRoi(roi);
 			Rectangle b = sroi.getBounds();
 			sroi.setLocation(box.x + b.x, box.y + b.y);
-			ali.add(layer.getId(), sroi);
+
+			try {
+				aw.getArea().add(M.getArea(sroi).createTransformedArea(source_aff.createInverse()));
+				ac.calculateBoundingBox();
+				Display.getFront().getCanvas().getFakeImagePlus().killRoi();
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+			}
 		}
 	}
 
-	static public BlowCommander blowRoi(final AreaList ali, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
-		return new BlowCommander(ali, layer, srcRect, x_p_w, y_p_w, post_task);
+	static public BlowCommander blowRoi(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) throws Exception {
+		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, Arrays.asList(new Runnable[]{post_task}));
 	}
-
+	static public BlowCommander blowRoi(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) throws Exception {
+		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, post_tasks);
+	}
 }

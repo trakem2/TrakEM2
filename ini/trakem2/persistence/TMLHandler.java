@@ -24,12 +24,21 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 
+import java.awt.event.KeyEvent;
+
 import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Set;
+import java.util.HashSet;
 import java.io.File;
 import java.util.regex.Pattern;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import ini.trakem2.tree.*;
 import ini.trakem2.display.*;
@@ -68,9 +77,9 @@ public class TMLHandler extends DefaultHandler {
 
 	private Thing current_thing = null;
 	private ArrayList al_open = new ArrayList();
-	private ArrayList al_layers = new ArrayList();
-	private ArrayList al_layer_sets = new ArrayList();
-	private ArrayList al_displays = new ArrayList(); // contains HashMap instances with display data.
+	private ArrayList<Layer> al_layers = new ArrayList<Layer>();
+	private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
+	private ArrayList<HashMap> al_displays = new ArrayList<HashMap>(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
 	private HashMap ht_displayables = new HashMap();
 	private HashMap ht_zdispl = new HashMap();
@@ -78,10 +87,18 @@ public class TMLHandler extends DefaultHandler {
 	private HashMap ht_pt_expanded = new HashMap();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
+	private long last_area_list_layer_id = -1;
 	private Dissector last_dissector = null;
 	private Stack last_stack = null;
 	private Patch last_patch = null;
 	private Treeline last_treeline = null;
+	private AreaTree last_areatree = null;
+	private LinkedList<Taggable> taggables = new LinkedList<Taggable>();
+	private ReconstructArea reca = null;
+	private Node last_root_node = null;
+	private LinkedList<Node> nodes = new LinkedList<Node>();
+	private Map<Long,List<Node>> node_layer_table = new HashMap<Long,List<Node>>();
+	private Map<Tree,Node> tree_root_nodes = new HashMap<Tree,Node>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
@@ -220,21 +237,112 @@ public class TMLHandler extends DefaultHandler {
 			zd.setLayer(zd.getLayerSet().getLayer(0));
 		}
 
-		// 3 - Create displays for later
-		HashMap ht_lid = new HashMap();
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
-			ht_lid.put(new Long(layer.getId()), layer);
+		// 4 - Assign layers to Treeline nodes
+		for (final Layer la : al_layers) {
+			final List<Node> list = node_layer_table.remove(la.getId());
+			if (null == list) continue;
+			for (final Node nd : list) nd.setLayer(la);
 		}
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ){
-			HashMap ht_attributes = (HashMap)it.next();
-			Object ob = ht_attributes.get("layer_id");
-			if (null != ob) {
-				Object lob = ht_lid.get(new Long((String)ob));
-				if (null != lob)  {
-					new Display(project, Long.parseLong((String)ht_attributes.get("id")), (Layer)lob, ht_attributes);
-				}
+		if (!node_layer_table.isEmpty()) {
+			Utils.log("ERROR: node_layer_table is not empty!");
+		}
+		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
+		for (final Map.Entry<Tree,Node> e : tree_root_nodes.entrySet()) {
+			if (null == e.getValue()) {
+				//Utils.log2("Ignoring, applies to new Treeline format only.");
+				continue;
 			}
+			e.getKey().setRoot(e.getValue()); // will generate node caches of each Treeline
+		}
+		tree_root_nodes.clear();
+
+		try {
+
+			// Create a table with all layer ids vs layer instances:
+			final HashMap<Long,Layer> ht_lids = new HashMap<Long,Layer>();
+			for (final Layer layer : al_layers) {
+				ht_lids.put(new Long(layer.getId()), layer);
+			}
+
+			// Spawn threads to recreate buckets, starting from the subset of displays to open
+			int n = Runtime.getRuntime().availableProcessors();
+			if (n > 1) n /= 2;
+			final ExecutorService exec = Utils.newFixedThreadPool(n, "TMLHandler-recreateBuckets");
+
+			final Set<Long> dlids = new HashSet();
+			final LayerSet layer_set = (LayerSet) root_lt.getObject();
+
+			final List<Future> fus = new ArrayList<Future>();
+			final List<Future> fus2 = new ArrayList<Future>();
+
+			for (final HashMap ht_attributes : al_displays) {
+				Object ob = ht_attributes.get("layer_id");
+				if (null == ob) continue;
+				final Long lid = new Long((String)ob);
+				dlids.add(lid);
+				final Layer la = ht_lids.get(lid);
+				if (null == la) {
+					ht_lids.remove(lid);
+					continue;
+				}
+				// to open later:
+				new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
+				fus.add(exec.submit(new Runnable() { public void run() {
+					la.recreateBuckets();
+				}}));
+			}
+
+			fus.add(exec.submit(new Runnable() { public void run() {
+				layer_set.recreateBuckets(false); // only for ZDisplayable
+			}}));
+
+			// Ensure launching:
+			if (dlids.isEmpty() && layer_set.size() > 0) {
+				dlids.add(layer_set.getLayer(0).getId());
+			}
+
+			final List<Layer> layers = layer_set.getLayers();
+			for (final Long lid : new HashSet<Long>(dlids)) {
+				fus.add(exec.submit(new Runnable() { public void run() {
+					int start = layers.indexOf(layer_set.getLayer(lid.longValue()));
+					int next = start + 1;
+					int prev = start -1;
+					while (next < layer_set.size() || prev > -1) {
+						if (prev > -1) {
+							final Layer lprev = layers.get(prev);
+							synchronized (dlids) {
+								if (dlids.add(lprev.getId())) { // returns true if not there already
+									fus2.add(exec.submit(new Runnable() { public void run() {
+										lprev.recreateBuckets();
+									}}));
+								}
+							}
+							prev--;
+						}
+						if (next < layers.size()) {
+							final Layer lnext = layers.get(next);
+							synchronized (dlids) {
+								if (dlids.add(lnext.getId())) { // returns true if not there already
+									fus2.add(exec.submit(new Runnable() { public void run() {
+										lnext.recreateBuckets();
+									}}));
+								}
+							}
+							next++;
+						}
+					}
+					Utils.log2("done recreateBuckets chunk");
+				}}));
+			}
+			Utils.wait(fus);
+			exec.submit(new Runnable() { public void run() {
+				Utils.log2("waiting for TMLHandler fus...");
+				Utils.wait(fus2);
+				Utils.log2("done waiting TMLHandler fus.");
+				exec.shutdown();
+			}});
+		} catch (Throwable t) {
+			IJError.print(t);
 		}
 
 		// debug:
@@ -344,9 +452,21 @@ public class TMLHandler extends DefaultHandler {
 		}
 		// terminate non-single clause objects
 		if (orig_qualified_name.equals("t2_area_list")) {
-			last_area_list.__endReconstructing();
 			last_area_list = null;
 			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_node")) {
+			// Remove one node from the stack
+			nodes.removeLast();
+			taggables.removeLast();
+		} else if (orig_qualified_name.equals("t2_area")) {
+			if (null != reca) {
+				if (null != last_area_list) {
+					last_area_list.addArea(last_area_list_layer_id, reca.getArea()); // it's local
+				} else {
+					((AreaTree.AreaNode)nodes.getLast()).setData(reca.getArea());
+				}
+				reca = null;
+			}
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
 			ct_list_stack.remove( ct_list_stack.size() - 1 );
 		} else if (orig_qualified_name.equals("t2_patch")) {
@@ -363,9 +483,24 @@ public class TMLHandler extends DefaultHandler {
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_treeline")) {
 			if (null != last_treeline) {
-				last_treeline.parse(last_treeline_data);
-				last_treeline_data = null;
+				// old format:
+				if (null == last_root_node && null != last_treeline_data && last_treeline_data.length() > 0) {
+					last_root_node = parseBranch(Utils.trim(last_treeline_data));
+					last_treeline_data = null;
+				}
+				// new
+				tree_root_nodes.put(last_treeline, last_root_node);
+				last_root_node = null;
+				// always:
 				last_treeline = null;
+				nodes.clear();
+			}
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_areatree")) {
+			if (null != last_areatree) {
+				tree_root_nodes.put(last_areatree, last_root_node);
+				last_root_node = null;
+				last_areatree = null;
 			}
 			last_displayable = null;
 		} else if (in(orig_qualified_name, all_displayables)) {
@@ -384,6 +519,7 @@ public class TMLHandler extends DefaultHandler {
 
 	public void characters(char[] c, int start, int length) {
 		if (null != last_treeline) {
+			// for old format:
 			last_treeline_data.append(c, start, length);
 		}
 	}
@@ -523,7 +659,33 @@ public class TMLHandler extends DefaultHandler {
 			Object soid = ht_attributes.get("oid");
 			if (null != soid) oid = Long.parseLong((String)soid);
 
-			if (type.equals("profile")) {
+			if (type.equals("node")) {
+				Node node;
+				Tree last_tree = (null != last_treeline ? last_treeline
+									: (null != last_areatree ? last_areatree : null));
+				if (null == last_tree) {
+					throw new NullPointerException("Can't create a node for null last_treeline or null last_areatree!");
+				}
+				node = last_tree.newNode(ht_attributes);
+				taggables.add(node);
+				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
+				long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
+				List<Node> list = node_layer_table.get(ndlid);
+				if (null == list) {
+					list = new ArrayList<Node>();
+					node_layer_table.put(ndlid, list);
+				}
+				list.add(node);
+				// Set node as root node or add as child to last node in the stack
+				if (null == last_root_node) {
+					last_root_node = node;
+				} else {
+					Node last = nodes.getLast();
+					last.add(node, Byte.parseByte((String)ht_attributes.get("c")));
+				}
+				// Put node into stack of nodes (to be removed on closing the tag)
+				nodes.add(node);
+			} else if (type.equals("profile")) {
 				Profile profile = new Profile(this.project, oid, ht_attributes, ht_links);
 				profile.addToDatabase();
 				ht_displayables.put(new Long(oid), profile);
@@ -555,11 +717,16 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet(con);
 				return null;
 			} else if (type.equals("path")) {
-				last_area_list.__addPath((String)ht_attributes.get("d"));
+				if (null != reca) {
+					reca.add((String)ht_attributes.get("d"));
+					return null;
+				}
 				return null;
 			} else if (type.equals("area")) {
-				last_area_list.__endReconstructing();
-				last_area_list.__startReconstructing(new Long((String)ht_attributes.get("layer_id")).longValue());
+				reca = new ReconstructArea();
+				if (null != last_area_list) {
+					last_area_list_layer_id = Long.parseLong((String)ht_attributes.get("layer_id"));
+				}
 				return null;
 			} else if (type.equals("area_list")) {
 				AreaList area = new AreaList(this.project, oid, ht_attributes, ht_links);
@@ -570,6 +737,16 @@ public class TMLHandler extends DefaultHandler {
 				ht_zdispl.put(new Long(oid), area);
 				addToLastOpenLayerSet(area);
 				return null;
+			} else if (type.equals("tag")) {
+				Taggable t = taggables.getLast();
+				if (null != t) {
+					Object ob = ht_attributes.get("key");
+					int keyCode = KeyEvent.VK_T; // defaults to 't'
+					if (null != ob) keyCode = (int)((String)ob).toUpperCase().charAt(0); // KeyEvent.VK_U is char U, not u
+					Tag tag = new Tag(ht_attributes.get("name"), keyCode);
+					al_layer_sets.get(al_layer_sets.size()-1).putTag(tag, keyCode);
+					t.addTag(tag);
+				}
 			} else if (type.equals("ball_ob")) {
 				// add a ball to the last open Ball
 				if (null != last_ball) {
@@ -605,6 +782,14 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(oid, tline);
 				ht_zdispl.put(oid, tline);
 				addToLastOpenLayerSet(tline);
+			} else if (type.equals("areatree")) {
+				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
+				art.addToDatabase();
+				last_areatree = art;
+				last_displayable = art;
+				ht_displayables.put(oid, art);
+				ht_zdispl.put(oid, art);
+				addToLastOpenLayerSet(art);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
 					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),
@@ -745,5 +930,57 @@ public class TMLHandler extends DefaultHandler {
 			}
 		}
 		catch ( Exception e ) { IJError.print(e); }
+	}
+
+	private final Node parseBranch(String s) {
+		// 1 - Parse the slab
+		final int first = s.indexOf('(');
+		final int last = s.indexOf(')', first+1);
+		final String[] coords = s.substring(first+1, last).split(" ");
+		Node prev = null;
+		final List<Node> nodes = new ArrayList<Node>();
+		for (int i=0; i<coords.length; i+=3) {
+			long lid = Long.parseLong(coords[i+2]);
+			Node nd = new Treeline.RadiusNode(Float.parseFloat(coords[i]), Float.parseFloat(coords[i+1]), null);
+			nd.setData(0f);
+			nodes.add(nd);
+			// Add to node_layer_table for later assignment of a Layer object to the node
+			List<Node> list = node_layer_table.get(lid);
+			if (null == list) {
+				list = new ArrayList<Node>();
+				node_layer_table.put(lid, list);
+			}
+			list.add(nd);
+			//
+			if (null == prev) prev = nd;
+			else {
+				prev.add(nd, Node.MAX_EDGE_CONFIDENCE);
+				prev = nd; // new parent
+			}
+		}
+		// 2 - Parse the branches
+		final int ibranches = s.indexOf(":branches", last+1);
+		if (-1 != ibranches) {
+			final int len = s.length();
+			int open = s.indexOf('{', ibranches + 9);
+			while (-1 != open) {
+				int end = open + 1; // don't read the first curly bracket
+				int level = 1;
+				for(; end < len; end++) {
+					switch (s.charAt(end)) {
+						case '{': level++; break;
+						case '}': level--; break;
+					}
+					if (0 == level) break;
+				}
+				// Add the root node of the new branch to the node at branch index
+				int openbranch = s.indexOf('{', open+1);
+				int branchindex = Integer.parseInt(s.substring(open+1, openbranch-1));
+				nodes.get(branchindex).add(parseBranch(s.substring(open, end)),
+							   Node.MAX_EDGE_CONFIDENCE);
+				open = s.indexOf('{', end+1);
+			}
+		}
+		return nodes.get(0);
 	}
 }

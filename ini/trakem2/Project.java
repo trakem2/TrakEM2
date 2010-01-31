@@ -86,7 +86,6 @@ public class Project extends DBObject {
 	}
 
 
-
 	static final private Vector<PlugInSource> PLUGIN_SOURCES = new Vector<PlugInSource>();
 
 	static private class PlugInSource implements Comparable {
@@ -768,11 +767,14 @@ public class Project extends DBObject {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Polyline(this, "polyline");
 		} else if (type.equals("area_list")) {
-			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			ProjectToolbar.setTool(ProjectToolbar.BRUSH);
 			return new AreaList(this, "area_list", 0, 0);
 		} else if (type.equals("treeline")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Treeline(this, "treeline");
+		} else if (type.equals("areatree")) {
+			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			return new AreaTree(this, "areatree");
 		} else if (type.equals("ball")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Ball(this, "ball", 0, 0);
@@ -812,6 +814,7 @@ public class Project extends DBObject {
 		    || type.equals("dissector")
 		    || type.equals("stack")
 		    || type.equals("treeline")
+		    || type.equals("areatree")
 		    || type.equals("connector")
 		;
 	}
@@ -1009,6 +1012,7 @@ public class Project extends DBObject {
 		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
 		if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
 		if (!ht_unique_tt.containsKey("treeline")) ht_unique_tt.put("treeline", new TemplateThing("treeline"));
+		if (!ht_unique_tt.containsKey("areatree")) ht_unique_tt.put("areatree", new TemplateThing("areatree"));
 		if (!ht_unique_tt.containsKey("connector")) ht_unique_tt.put("connector", new TemplateThing("connector"));
 		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
 		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
@@ -1130,6 +1134,7 @@ public class Project extends DBObject {
 		Dissector.exportDTD(sb_header, hs, indent);
 		Stack.exportDTD( sb_header, hs, indent );
 		Treeline.exportDTD(sb_header, hs, indent);
+		AreaTree.exportDTD(sb_header, hs, indent);
 		Connector.exportDTD(sb_header, hs, indent);
 		Displayable.exportDTD(sb_header, hs, indent); // the subtypes of all Displayable types
 		// 4 - export Display
@@ -1322,16 +1327,11 @@ public class Project extends DBObject {
 		GenericDialog gd = new GenericDialog("Properties");
 		gd.addMessage("Ignore image linking for:");
 		boolean link_labels = addBox(gd, DLabel.class);
-		boolean link_arealist = addBox(gd, AreaList.class);
-		boolean link_pipes = addBox(gd, Pipe.class);
-		boolean link_polylines = addBox(gd, Polyline.class);
-		boolean link_balls = addBox(gd, Ball.class);
-		boolean link_dissectors = addBox(gd, Dissector.class);
+		boolean nolink_segmentations = "true".equals(ht_props.get("segmentations_nolinks"));
+		gd.addCheckbox("Segmentations", nolink_segmentations);
+		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
-		boolean no_color_cues = "true".equals(ht_props.get("no_color_cues"));
-		gd.addCheckbox("Paint_color_cues", !no_color_cues);
-		gd.addMessage("Currently linked objects\nwill remain so unless\nexplicitly unlinked.");
 		String current_mode = ht_props.get("image_resizing_mode");
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
@@ -1364,16 +1364,14 @@ public class Project extends DBObject {
 		//
 		if (gd.wasCanceled()) return;
 		setLinkProp(link_labels, gd.getNextBoolean(), DLabel.class);
-		setLinkProp(link_arealist, gd.getNextBoolean(), AreaList.class);
-		setLinkProp(link_pipes, gd.getNextBoolean(), Pipe.class);
-		setLinkProp(link_polylines, gd.getNextBoolean(), Polyline.class);
-		setLinkProp(link_balls, gd.getNextBoolean(), Ball.class);
-		setLinkProp(link_dissectors, gd.getNextBoolean(), Dissector.class);
+
+		boolean nolink_segmentations2 = gd.getNextBoolean();
+		if (nolink_segmentations) {
+			if (!nolink_segmentations2) ht_props.remove("segmentations_nolinks");
+		} else if (nolink_segmentations2) ht_props.put("segmentations_nolinks", "true");
+
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
-		}
-		if (adjustProp("no_color_cues", no_color_cues, !gd.getNextBoolean())) {
-			Display.repaint(layer_set);
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
 		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());

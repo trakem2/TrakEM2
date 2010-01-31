@@ -56,7 +56,7 @@ import java.awt.Stroke;
  *  labels are grouped; each member label of the group has the same number.
  *
  */
-public class Dissector extends ZDisplayable {
+public class Dissector extends ZDisplayable implements VectorData {
 
 	/** The list of items to count. */
 	private ArrayList<Item> al_items = new ArrayList<Item>();
@@ -336,6 +336,15 @@ public class Dissector extends ZDisplayable {
 			n_points--;
 		}
 
+		final void layerRemoved(long lid) {
+			for (int i=0; i<n_points; i++) {
+				if (lid == p_layer[i]) {
+					remove(i);
+					i--;
+				}
+			}
+		}
+
 		final Rectangle getBoundingBox() {
 			int x1=Integer.MAX_VALUE;
 			int y1=x1,
@@ -391,7 +400,7 @@ public class Dissector extends ZDisplayable {
 		// individual items will be added as soon as parsed
 	}
 
-	public void paint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		AffineTransform gt = null;
 		Stroke stroke = null;
 		AffineTransform aff = this.at;
@@ -659,7 +668,8 @@ public class Dissector extends ZDisplayable {
 	}
 
 	/** Always paint as box. TODO paint as the area of an associated ROI. */
-	public void paintSnapshot(final Graphics2D g, final double mag) {
+	@Override
+	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
 		paintAsBox(g);
 	}
 
@@ -727,6 +737,61 @@ public class Dissector extends ZDisplayable {
 				if (!lids.contains(item.p_layer[i])) {
 					item.remove(i);
 					i--;
+				}
+			}
+		}
+		calculateBoundingBox();
+		return true;
+	}
+
+	protected boolean layerRemoved(Layer la) {
+		super.layerRemoved(la);
+		for (Item item : al_items) item.layerRemoved(la.getId());
+		return true;
+	}
+
+	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		float[] fp = null;
+		mpicbg.models.CoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (final Item item : al_items) {
+			long[] p_layer = item.p_layer;
+			double[][] p = item.p;
+			for (int i=0; i<item.n_points; i++) {
+				if (p_layer[i] == la.getId()) {
+					if (null == localroi) {
+						inverse = this.at.createInverse();
+						localroi = roi.createTransformedArea(inverse);
+					}
+					if (localroi.contains(p[0][i], p[1][i])) {
+						if (null == chain) {
+							chain = M.wrap(this.at, ict, inverse);
+							fp = new float[2];
+						}
+						// Transform the point
+						M.apply(chain, p, i, fp);
+					}
+				}
+			}
+		}
+		if (null != chain) calculateBoundingBox();
+		return true;
+	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (final Item item : al_items) {
+			for (int i=0; i<item.n_points; i++) {
+				if (vdt.layer.getId() == item.p_layer[i]) {
+					for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+						if (rt.roi.contains(item.p[0][i], item.p[1][i])) {
+							// Transform the point
+							M.apply(rt.ct, item.p, i, fp);
+							break;
+						}
+					}
 				}
 			}
 		}

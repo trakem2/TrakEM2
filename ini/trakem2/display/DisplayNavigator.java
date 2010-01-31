@@ -142,11 +142,13 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		final Rectangle clipRect;
 		final int snapshots_mode;
 		final Layer layer;
+		final Rectangle srcRect;
 
-		RepaintProperties(final Rectangle clipRect, final Layer layer, final int snapshots_mode) {
+		RepaintProperties(final Rectangle clipRect, final Layer layer, final int snapshots_mode, final Rectangle srcRect) {
 			this.clipRect = clipRect;
 			this.layer = layer;
 			this.snapshots_mode = snapshots_mode;
+			this.srcRect = srcRect;
 		}
 	}
 
@@ -162,12 +164,14 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			final Layer layer;
 			final int snapshots_mode;
 			final Rectangle clipRect;
+			final Rectangle srcRect;
 
 			synchronized (this) {
 				DisplayNavigator.RepaintProperties rp = (DisplayNavigator.RepaintProperties) this.rp;
 				layer = rp.layer;
 				snapshots_mode = rp.snapshots_mode;
 				clipRect = rp.clipRect;
+				srcRect = rp.srcRect;
 			}
 
 			if (null != DisplayNavigator.this.image && 2 == snapshots_mode && DisplayNavigator.this.snapshots_mode == snapshots_mode) {
@@ -220,17 +224,17 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 							while (itz.hasNext()) {
 								ZDisplayable zd = (ZDisplayable)itz.next();
 								if (!zd.isVisible()) continue;
-								zd.paintSnapshot(g, scale);
+								zd.paintSnapshot(g, srcRect, scale);
 							}
 							// paint the label too!
-							d.paint(g, scale, false, 1, DisplayNavigator.this.layer);
+							d.paint(g, srcRect, scale, false, 1, DisplayNavigator.this.layer);
 						} else if (Patch.class == c) {
 							if (0 == snapshots_mode) {
 								// paint fully
 								final Patch p = (Patch)d;
 								final Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
 								if (null != img) {
-									if (d.isVisible()) d.paint(g, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
+									if (d.isVisible()) d.paint(g, srcRect, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
 									hs_painted.add(d);
 								} else  {
 									d.paintAsBox(g);
@@ -240,7 +244,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 								d.paintAsBox(g);
 							}
 						} else {
-							if (d.isVisible()) d.paint(g, scale, false, 1, DisplayNavigator.this.layer);
+							if (d.isVisible()) d.paint(g, srcRect, scale, false, 1, DisplayNavigator.this.layer);
 						}
 					}
 					if (!zd_done) { // if no labels, ZDisplayables haven't been painted
@@ -250,7 +254,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 						while (itz.hasNext()) {
 							ZDisplayable zd = (ZDisplayable)itz.next();
 							if (!zd.isVisible()) continue;
-							zd.paintSnapshot(g, scale);
+							zd.paintSnapshot(g, srcRect, scale);
 						}
 					}
 				}
@@ -338,7 +342,10 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Navigator-Repainter", new UpdateGraphicsThread()) {
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
-			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getSnapshotsMode()));
+			Rectangle srcRect = DisplayNavigator.this.srcRect;
+			if (null == srcRect) srcRect = DisplayNavigator.this.display.getCanvas().getSrcRect();
+			else srcRect = (Rectangle)srcRect.clone();
+			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getSnapshotsMode(), srcRect));
 		}
 	};
 
