@@ -6,8 +6,11 @@ public class StopWatch {
 	private long start2;
 
 	public StopWatch() {
+		this("");
+	}
+	public StopWatch(String start_msg) {
 		start = start2 = System.currentTimeMillis();
-		System.out.println("StopWatch started.");
+		Utils.log("StopWatch started: " + start_msg);
 	}
 	/** Time elapsed since last call to this method or the start. */
 	public void elapsed(String msg) {
