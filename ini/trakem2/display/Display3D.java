@@ -96,10 +96,10 @@ public final class Display3D {
 	private String selected = null;
 
 	// To fork away from the EventDispatchThread
-	static private ExecutorService launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	static private ExecutorService launchers = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-launchers");
 
 	// To build meshes, or edit them
-	private ExecutorService executors = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	private ExecutorService executors = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-executors");
 
 	/*
 	static private KeyAdapter ka = new KeyAdapter() {
@@ -1050,7 +1050,7 @@ public final class Display3D {
 
 	static public void init() {
 		if (launchers.isShutdown()) {
-			launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			launchers = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-launchers");
 		}
 	}
 

@@ -2288,7 +2288,7 @@ abstract public class Loader {
 							np = np / 2;
 							break;
 					}
-					final ExecutorService ex = Executors.newFixedThreadPool(np);
+					final ExecutorService ex = Utils.newFixedThreadPool(np, "import-images");
 					final List<Future> imported = new ArrayList<Future>();
 					final Worker wo = this;
 
@@ -4229,7 +4229,7 @@ abstract public class Loader {
 		if (null == preloader) {
 			int n = Runtime.getRuntime().availableProcessors()-1;
 			if (0 == n) n = 1; // !@#$%^
-			preloader = Executors.newFixedThreadPool(n);
+			preloader = Utils.newFixedThreadPool(n, "preloader");
 		}
 	}
  
@@ -4455,7 +4455,7 @@ abstract public class Loader {
 	public String getParentFolder() { return null; }
 	
 	// Will be shut down by Loader.destroy()
-	private final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+	private final ExecutorService exec = Utils.newFixedThreadPool( Runtime.getRuntime().availableProcessors(), "loader-do-later");
 	
 	public < T > Future< T > doLater( final Callable< T > fn ) {
 		return exec.submit( fn );
@@ -4507,7 +4507,7 @@ abstract public class Loader {
 
 	/** Returns an ImageStack, one slice per region. */
 	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
-		ExecutorService ex = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
 		for (final Region r : regions) {
 			fus.add(ex.submit(new Callable<ImagePlus>() {

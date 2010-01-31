@@ -270,7 +270,7 @@ public class TMLHandler extends DefaultHandler {
 				if (n > 4) n -= 2;
 				else n = 3;
 			}
-			final ExecutorService exec = Executors.newFixedThreadPool(n);
+			final ExecutorService exec = Utils.newFixedThreadPool(n, "TMLHandler-recreateBuckets");
 
 			final Set<Long> dlids = new HashSet();
 			final LayerSet layer_set = (LayerSet) root_lt.getObject();

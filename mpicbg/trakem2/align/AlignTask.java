@@ -279,7 +279,7 @@ final public class AlignTask
 			sp.put(patch.getLayer().indexOf(patch), patch);
 		}
 		// 2 - for each layer, transform the part of each segmentation on top of the Patch, but only the area that has not been used already:
-		final ExecutorService exec = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		final ExecutorService exec = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "AlignTask-transformPatchesAndVectorData");
 		final Collection<Future> fuslayer = new ArrayList<Future>();
 		final Collection<Future> fus = new ArrayList<Future>();
 		try {

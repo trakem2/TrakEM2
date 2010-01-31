@@ -355,7 +355,7 @@ final public class AlignLayersTask
 		final List< PointMatch > inliers = new ArrayList< PointMatch >();
 
 		final int n_proc = Runtime.getRuntime().availableProcessors() > 1 ? 2 : 1;
-		final ExecutorService exec = Utils.newFixedThreadPool(n_proc);
+		final ExecutorService exec = Utils.newFixedThreadPool(n_proc, "alignLayersNonLinearly");
 		
 		int s = 0;
 		for ( int i = 1; i < layerRange.size(); ++i )

@@ -333,10 +333,10 @@ public final class FSLoader extends Loader {
 		// 3+ cores = cores-1 threads
 		if (np > 2) np -= 1;
 		if (null == regenerator || regenerator.isShutdown()) {
-			regenerator = Executors.newFixedThreadPool(np);
+			regenerator = Utils.newFixedThreadPool(np, "regenerator");
 		}
 		if (null == repainter || repainter.isShutdown()) {
-			repainter = Executors.newFixedThreadPool(np); // for SnapshotPanel
+			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
 		}
 	}
 

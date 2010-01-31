@@ -170,7 +170,7 @@ public class AreaWrapper {
 			brush = makeBrush(brush_size, mag);
 			if (null == brush) throw new RuntimeException("Can't paint with brush of size 0.");
 			start();
-			accumulator = Executors.newFixedThreadPool(1);
+			accumulator = Utils.newFixedThreadPool(1, "AreaWrapper-accumulator");
 			composer = Executors.newScheduledThreadPool(1);
 			this.interpolator = new Runnable() {
 				public void run() {
