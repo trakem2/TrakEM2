@@ -1032,17 +1032,15 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
 	public Image fetchImage(final Patch p, double mag) {
-		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
-
+			
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-		int level = Loader.getMipMapLevel(mag, maxDim(p));
-		int max_level = Loader.getHighestMipMapLevel(p);
-		//Utils.log2("level=" + level + "  max_level=" + max_level);
-		if (level > max_level) level = max_level;
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
+		final int max_level = Loader.getHighestMipMapLevel(p);
+		return fetchAWTImage(p, level > max_level ? max_level : level);
+	}
 
-		// testing:
-		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
-		// SLOW, very slow ...
+	final public Image fetchAWTImage(final Patch p, int level) {
+		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		// find an equal or larger existing pyramid awt
 		final long id = p.getId();
