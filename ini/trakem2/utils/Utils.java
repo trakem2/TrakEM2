@@ -87,6 +87,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -1403,10 +1404,15 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Creates a new fixed thread pool whose threads are in the same ThreadGroup as the Thread that calls this method.
 	 *  This allows for the threads to be interrupted when the caller thread's group is interrupted. */
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc) {
+		return newFixedThreadPool(n_proc, null);
+	}
+	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc, final String namePrefix) {
 		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
+		final AtomicInteger ai = new AtomicInteger(0);
 		exec.setThreadFactory(new ThreadFactory() {
 			public Thread newThread(final Runnable r) {
-				final Thread t = new Thread(Thread.currentThread().getThreadGroup(), r, "AlignLayersTask executor");
+				final ThreadGroup tg = Thread.currentThread().getThreadGroup();
+				final Thread t = new Thread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
 				t.setDaemon(true);
 				t.setPriority(Thread.NORM_PRIORITY);
 				return t;

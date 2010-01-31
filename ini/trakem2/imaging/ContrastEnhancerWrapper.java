@@ -38,7 +38,7 @@ public class ContrastEnhancerWrapper {
 	private boolean from_existing_min_and_max = false;
 	private boolean visible_only = true;
 
-	final ExecutorService waiter = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	final ExecutorService waiter = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "contrast-enhancer-waiter");
 
 	public ContrastEnhancerWrapper() {
 		this(null);

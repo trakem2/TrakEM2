@@ -318,6 +318,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			area = (Area)ob;
 		}
 
+		// help ease the transition from PEN to BRUSH:
+		if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) ProjectToolbar.setTool(ProjectToolbar.BRUSH);
+
 		aw = new AreaWrapper(area);
 		aw.setSource(this);
 		final Area a = aw.getArea();
@@ -1429,14 +1432,21 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return true;
 	}
 
-	public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ct) throws Exception {
 		final Area a = getArea(la);
 		if (null == a) return true;
-		AffineTransform inverse = this.at.createInverse();
+		final AffineTransform inverse = this.at.createInverse();
 		if (M.intersects(a, roi.createTransformedArea(inverse))) {
-			M.apply(M.wrap(this.at, ict, inverse), a);
+			M.apply(M.wrap(this.at, ct, inverse), roi, a);
 			calculateBoundingBox();
 		}
+		return true;
+	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final Area a = getArea(vdt.layer);
+		if (null == a) return true;
+		M.apply(vdt.makeLocalTo(this), a);
 		return true;
 	}
 }

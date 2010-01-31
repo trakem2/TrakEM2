@@ -683,10 +683,10 @@ public class Connector extends ZDisplayable implements VectorData {
 		return false;
 	}
 
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		if (null == p || 0 == lids.length) return true; // empty
 		float[] fp = null;
-		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (int i=0; i<lids.length; i++) {
@@ -717,6 +717,37 @@ public class Connector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
+		calculateBoundingBox();
+		return true;
+	}
+	synchronized public boolean apply(final VectorDataTransform vdt) throws Exception {
+		if (null == p || 0 == lids.length) return true; // empty
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<lids.length; i++) {
+			if (vdt.layer.getId() == lids[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[i+i], p[i+i+1])) {
+						// Keep point copy
+						float ox = p[i+i],
+						      oy = p[i+i+1];
+						// Transform the point
+						fp[0] = p[i+i];
+						fp[1] = p[i+i+1];
+						rt.ct.applyInPlace(fp);
+						p[i+i] = fp[0];
+						p[i+i+1] = fp[1];
+						// Transform radius by considering it a point to the right of the untransformed point
+						fp[0] = ox + radius[i];
+						fp[1] = oy;
+						rt.ct.applyInPlace(fp);
+						radius[i] = Math.abs(p[i+i] - fp[0]);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox();
 		return true;
 	}
 }

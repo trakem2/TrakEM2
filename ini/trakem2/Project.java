@@ -767,7 +767,7 @@ public class Project extends DBObject {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);
 			return new Polyline(this, "polyline");
 		} else if (type.equals("area_list")) {
-			ProjectToolbar.setTool(ProjectToolbar.PEN);
+			ProjectToolbar.setTool(ProjectToolbar.BRUSH);
 			return new AreaList(this, "area_list", 0, 0);
 		} else if (type.equals("treeline")) {
 			ProjectToolbar.setTool(ProjectToolbar.PEN);

@@ -1732,10 +1732,10 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	// It's such a pitty that this code is almost identical to that of the Pipe, and it can't be abstracted effectively any further.
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		if (this.layer != la) return true;
 		float[] fp = null;
-		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (int i=0; i<n_points; i++) {
@@ -1758,6 +1758,25 @@ public class Profile extends Displayable implements VectorData {
 			generateInterpolatedPoints(0.05);
 			calculateBoundingBox(true);
 		}
+		return true;
+	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		if (vdt.layer != this.layer) return false;
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+				if (rt.roi.contains(p[0][i], p[1][i])) {
+					// The point and its two associated control points:
+					M.apply(rt.ct, p, i, fp);
+					M.apply(rt.ct, p_l, i, fp);
+					M.apply(rt.ct, p_r, i, fp);
+					break;
+				}
+			}
+		}
+		generateInterpolatedPoints(0.05);
+		calculateBoundingBox(true);
 		return true;
 	}
 }

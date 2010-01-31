@@ -931,7 +931,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		for (int i=0; i<n_points; i++)  {
 			final Rectangle[] rec = getSubPerimeters(layer_set.getLayer(p_layer[i]));
 			for (int k=0; k<rec.length; k++) {
-				Area a = new Area(rec[k]).createTransformedArea(this.at);
+				Area a = new Area(rec[k]); // subperimeters already in world coords
 				a.intersect(area);
 				Rectangle r = a.getBounds();
 				if (0 != r.width && 0 != r.height) return true;
@@ -1027,9 +1027,9 @@ public class Ball extends ZDisplayable implements VectorData {
 		return true;
 	}
 
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		float[] fp = null;
-		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (int i=0; i<n_points; i++) {
@@ -1057,6 +1057,31 @@ public class Ball extends ZDisplayable implements VectorData {
 			}
 		}
 		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
+		return true;
+	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			if (vdt.layer.getId() == p_layer[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[0][i], p[1][i])) {
+						// Keep point copy
+						double ox = p[0][i],
+						       oy = p[1][i];
+						// Transform the point
+						M.apply(rt.ct, p, i, fp);
+						// For radius, assume it's a point to the right of the center point
+						fp[0] = (float)(ox + p_width[i]);
+						fp[1] = (float)oy;
+						rt.ct.applyInPlace(fp);
+						p_width[i] = Math.abs(fp[0] - p[0][i]);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox(true);
 		return true;
 	}
 }

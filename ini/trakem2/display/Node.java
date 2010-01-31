@@ -608,10 +608,22 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 
-	public void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) {
+	public void apply(final mpicbg.models.CoordinateTransform ct, final Area roi) {
 		final float[] fp = new float[]{x, y};
-		ict.applyInPlace(fp);
+		ct.applyInPlace(fp);
 		this.x = fp[0];
 		this.y = fp[1];
+	}
+	public void apply(final VectorDataTransform vdt) {
+		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+			// Apply only the first one that contains the point
+			if (rt.roi.contains(x, y)) {
+				final float[] fp = new float[]{x, y};
+				rt.ct.applyInPlace(fp);
+				x = fp[0];
+				y = fp[1];
+				break;
+			}
+		}
 	}
 }

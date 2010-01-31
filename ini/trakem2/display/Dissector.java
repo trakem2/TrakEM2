@@ -750,9 +750,9 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return true;
 	}
 
-	public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		float[] fp = null;
-		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (final Item item : al_items) {
@@ -776,6 +776,26 @@ public class Dissector extends ZDisplayable implements VectorData {
 			}
 		}
 		if (null != chain) calculateBoundingBox();
+		return true;
+	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (final Item item : al_items) {
+			for (int i=0; i<item.n_points; i++) {
+				if (vdt.layer.getId() == item.p_layer[i]) {
+					for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+						if (rt.roi.contains(item.p[0][i], item.p[1][i])) {
+							// Transform the point
+							M.apply(rt.ct, item.p, i, fp);
+							break;
+						}
+					}
+				}
+			}
+		}
+		calculateBoundingBox();
 		return true;
 	}
 }

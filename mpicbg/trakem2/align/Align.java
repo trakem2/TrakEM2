@@ -77,8 +77,11 @@ public class Align
 		public int expectedModelIndex = 1;
 		public int desiredModelIndex = 1;
 		
+		public float correspondenceWeight = 1;
+		
 		public Param()
 		{
+			sift.maxOctaveSize = 600;
 			sift.fdSize = 8;
 		}
 		
@@ -95,6 +98,7 @@ public class Align
 			
 			gd.addMessage( "Alignment:" );
 			gd.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
+			gd.addNumericField( "correspondence weight :", correspondenceWeight, 2 );
 		}
 		
 		public boolean readFields( final GenericDialog gd )
@@ -107,6 +111,8 @@ public class Align
 			minInlierRatio = ( float )gd.getNextNumber();
 			expectedModelIndex = gd.getNextChoiceIndex();
 			desiredModelIndex = gd.getNextChoiceIndex();
+			
+			correspondenceWeight = ( float )gd.getNextNumber();
 			
 			return !gd.invalidNumber();
 		}
@@ -144,6 +150,8 @@ public class Align
 			p.expectedModelIndex = expectedModelIndex;
 			p.desiredModelIndex = desiredModelIndex;
 			
+			p.correspondenceWeight = correspondenceWeight;
+			
 			return p;
 		}
 		
@@ -152,7 +160,7 @@ public class Align
 		 * the parameter {@link #desiredModelIndex} which defines the
 		 * transformation class to be used for {@link Tile} alignment.  This
 		 * makes sense for the current use in {@link PointMatch} serialization
-		 * but might be missleading for other applications.
+		 * but might be misleading for other applications.
 		 * 
 		 * TODO Think about this.
 		 * 
@@ -322,6 +330,7 @@ public class Align
 
 			for ( int i = ai.getAndIncrement(); i < tiles.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
+				if (isInterrupted()) return;
 				AbstractAffineTile2D< ? > tile = tiles.get( i );
 				Collection< Feature > features = deserializeFeatures( p, tile );
 				if ( features == null )
@@ -392,6 +401,7 @@ public class Align
 				
 			for ( int i = ai.getAndIncrement(); i < tilePairs.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
+				if (isInterrupted()) return;
 				candidates.clear();
 				final AbstractAffineTile2D< ? >[] tilePair = tilePairs.get( i );
 				
@@ -408,7 +418,8 @@ public class Align
 						fetchFeatures( p, tilePair[ 1 ] ),
 						candidates,
 						p.rod );
-	
+					
+					/* find the model */
 					final AbstractAffineModel2D< ? > model;
 					switch ( p.expectedModelIndex )
 					{
@@ -458,6 +469,10 @@ public class Align
 				
 				if ( inliers != null && inliers.size() > 0 )
 				{
+					/* weight the inliers */
+					for ( final PointMatch pm : inliers )
+						pm.setWeights( new float[]{ p.correspondenceWeight } );
+					
 					synchronized ( tilePair[ 0 ] )
 					{
 						synchronized ( tilePair[ 1 ] ) { tilePair[ 0 ].connect( tilePair[ 1 ], inliers ); }

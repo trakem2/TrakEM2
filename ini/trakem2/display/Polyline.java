@@ -1442,9 +1442,9 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		return true;
 	}
 
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) throws Exception {
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		float[] fp = null;
-		mpicbg.trakem2.transform.InvertibleCoordinateTransform chain = null;
+		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (int i=0; i<n_points; i++) {
@@ -1463,6 +1463,23 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			}
 		}
 		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
+		return true;
+	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<n_points; i++) {
+			if (vdt.layer.getId() == p_layer[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[0][i], p[1][i])) {
+						// Transform the point
+						M.apply(rt.ct, p, i, fp);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox(true);
 		return true;
 	}
 }

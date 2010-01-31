@@ -270,17 +270,42 @@ public class Treeline extends Tree {
 			return M.intersects(a, new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r)));
 		}
 
-		public void apply(final mpicbg.trakem2.transform.InvertibleCoordinateTransform ict) {
+		@Override
+		public void apply(final mpicbg.models.CoordinateTransform ct, final Area roi) {
 			// store the point
 			float ox = x,
 			      oy = y;
 			// transform the point itself
-			super.apply(ict);
+			super.apply(ct, roi);
 			// transform the radius: assume it's a point to its right
 			if (0 != r) {
 				float[] fp = new float[]{ox + r, oy};
-				ict.applyInPlace(fp);
+				ct.applyInPlace(fp);
 				r = Math.abs(fp[0] - this.x);
+			}
+		}
+		@Override
+		public void apply(final VectorDataTransform vdt) {
+			for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+				// Apply only the first one that contains the point
+				if (rt.roi.contains(x, y)) {
+					// Store point
+					float ox = x,
+					      oy = y;
+					// Transform point
+					float[] fp = new float[]{x, y};
+					rt.ct.applyInPlace(fp);
+					x = fp[0];
+					y = fp[1];
+					// Transform the radius: assume it's a point to the right of the untransformed point
+					if (0 != r) {
+						fp[0] = ox + r;
+						fp[1] = oy;
+						rt.ct.applyInPlace(fp);
+						r = Math.abs(fp[0] - this.x);
+					}
+					break;
+				}
 			}
 		}
 	}
