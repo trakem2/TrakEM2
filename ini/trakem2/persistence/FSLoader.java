@@ -2461,6 +2461,7 @@ public final class FSLoader extends Loader {
 	/** Does the actual fetching of the file. Returns null if the file does not exist. */
 	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
 		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+		// TODO the x8 is overly exaggerated
 
 		final int max_level = getHighestMipMapLevel(patch);
 
