@@ -464,11 +464,12 @@ public final class Patch extends Displayable implements ImageData {
 		paint(g, fetchImage(magnification, channels, true));
 	}
 
+	@Override
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		paint(g, fetchImage(magnification, channels, false));
 	}
 
-	private Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
+	private final Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
 		checkChannels(channels, magnification);
 
 		// Consider all possible scaling components: m00, m01
@@ -478,16 +479,9 @@ public final class Patch extends Displayable implements ImageData {
 							      Math.max(Math.abs(at.getShearX()),
 								       Math.abs(at.getShearY()))));
 		if (sc < 0) sc = magnification;
-		Image image = wait_for_image ?
+		return wait_for_image ?
 			  project.getLoader().fetchDataImage(this, sc)
 			: project.getLoader().fetchImage(this, sc);
-
-		if (null == image) {
-			//Utils.log2("Patch.paint: null image, returning");
-			return null; // TEMPORARY from lazy repaints after closing a Project
-		}
-
-		return image;
 	}
 
 	private void paint(final Graphics2D g, final Image image) {
@@ -515,7 +509,10 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
-	public void prePaint(final Graphics2D g, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+
+		Utils.log2("prePaint");
 
 		AffineTransform atp = this.at;
 
@@ -534,21 +531,11 @@ public final class Patch extends Displayable implements ImageData {
 			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
 			boolean thread = false;
 			if (null == image) {
-				// fetch the proper image, nothing is cached
-				if (sc <= 0.5001) {
-					// load the mipmap
-					image = project.getLoader().fetchImage(this, sc);
-				} else {
-					// load a smaller mipmap, and then load the larger one and repaint on load.
-					image = project.getLoader().fetchImage(this, 0.25);
-					thread = true;
-				}
-				// TODO to be non-blocking, this should paint a black square with a "loading..." legend in it or something, then fire a later repaint thread like below. So don't wait!
-			} else {
-				// painting a smaller image, will need to repaint with the proper one
-				thread = true;
+				// fetch the smallest image possible
+				image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
 			}
-			if (thread && !Loader.NOT_FOUND.equals(image)) {
+			// painting a smaller image, will need to repaint with the proper one
+			if (!Loader.NOT_FOUND.equals(image)) {
 				// use the lower resolution image, but ask to repaint it on load
 				Loader.preload(this, sc, true);
 			}
