@@ -334,6 +334,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		private final Lock lock = new Lock();
 
 		SetLayerThread() {
+			super("SetLayerThread");
 			setPriority(Thread.NORM_PRIORITY);
 			setDaemon(true);
 			start();
