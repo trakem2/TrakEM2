@@ -3691,12 +3691,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 					final LayerSet ls = slice.getLayerSet();
 					final HashSet<Displayable> linked = slice.getLinkedGroup(null);
-					ls.addTransformStep(linked);
+					ls.addTransformStepWithData(linked);
 					Bureaucrat burro = AlignTask.registerStackSlices((Patch)getActive()); // will repaint
 					burro.addPostTask(new Runnable() { public void run() {
 						ls.enlargeToFit(linked);
 						// The current state when done
-						ls.addTransformStep(linked);
+						ls.addTransformStepWithData(linked);
 					}});
 				} else {
 					Utils.log("Align stack slices: selected image is not part of a stack.");
@@ -3988,18 +3988,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				IJ.log("Please select more than one overlapping image.");
 			}
 		} else if (command.equals("Montage")) {
-			if (!(active instanceof Patch)) {
-				Utils.showMessage("Please select only images.");
-				return;
-			}
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
 			// make an undo step!
 			final LayerSet ls = layer.getParent();
-			ls.addTransformStep(affected);
+			ls.addTransformStepWithData(affected);
 			Bureaucrat burro = AlignTask.alignSelectionTask( selection );
 			burro.addPostTask(new Runnable() { public void run() {
 				ls.enlargeToFit(affected);
-				ls.addTransformStep(affected);
+				ls.addTransformStepWithData(affected);
 			}});
 		} else if (command.equals("Lens correction")) {
 			final Layer la = layer;
@@ -4670,6 +4666,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (this != front || null == active || !project.isInputEnabled()) return;
 			selection.setColor(Toolbar.getForegroundColor());
 			Display.repaint(front.layer, selection.getBox(), 0);
+		} else if (IJEventListener.TOOL_CHANGED == eventID) {
+			Display.repaintToolbar();
 		}
 	}
 
