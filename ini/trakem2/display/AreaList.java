@@ -318,6 +318,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			area = (Area)ob;
 		}
 
+		// help ease the transition from PEN to BRUSH:
+		if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) ProjectToolbar.setTool(ProjectToolbar.BRUSH);
+
 		aw = new AreaWrapper(area);
 		aw.setSource(this);
 		final Area a = aw.getArea();
