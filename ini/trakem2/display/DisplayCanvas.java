@@ -2398,7 +2398,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		try {
 			// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
-			StopWatch timer = new StopWatch();
+			//StopWatch timer = new StopWatch();
 
 			// prepare the canvas for the srcRect and magnification
 			final AffineTransform atc = new AffineTransform();
@@ -2434,12 +2434,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			//Utils.log2("offscreen painting: " + al_paint.size());
 
-			timer.elapsed("offscreen set up");
+			//timer.elapsed("offscreen set up");
 
 			// filter paintables
 			final Collection<? extends Paintable> paintables = graphics_source.asPaintable(al_paint);
 
-			timer.elapsed("grabbed paintables");
+			//timer.elapsed("grabbed paintables");
 
 			// Determine painting mode
 			if (Display.REPAINT_SINGLE_LAYER == mode) {
@@ -2447,11 +2447,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (prepaint) {
 					for (final Paintable d : paintables)
 						d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
-					timer.elapsed("painted paintables with prePaint");
+					//timer.elapsed("painted paintables with prePaint");
 				} else {
 					for (final Paintable d : paintables)
 						d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
-					timer.elapsed("painted paintables directly");
+					//timer.elapsed("painted paintables directly");
 				}
 			} else if (Display.REPAINT_MULTI_LAYER == mode) {
 				// TODO rewrite to avoid calling the list twice
@@ -2570,9 +2570,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.fill(r2);
 			}
 
-			timer.elapsed("painted outsides");
+			//timer.elapsed("painted outsides");
 
-			timer.cumulative();
+			//timer.cumulative();
 
 			return target;
 		} catch (OutOfMemoryError oome) {
