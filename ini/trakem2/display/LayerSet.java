@@ -1483,22 +1483,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Find, in this LayerSet and contained layers and their nested LayerSets if any, all Displayable instances of Class c, which are stored in the given ArrayList; returns the same ArrayList, or a new one if its null. Includes the ZDisplayables. */
-	public ArrayList get(ArrayList all, final Class c) {
-		if (null == all) all = new ArrayList();
+	public ArrayList<Displayable> get(ArrayList<Displayable> all, final Class c) {
+		if (null == all) all = new ArrayList<Displayable>();
 		// check whether to include all the ZDisplayable objects
 		if (Displayable.class == c || ZDisplayable.class == c) all.addAll(al_zdispl);
 		else {
-			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ){
-				Object ob = it.next();
-				if (ob.getClass() == c) all.add(ob);
+			for (final ZDisplayable zd : al_zdispl) {
+				if (zd.getClass() == c) all.add(zd);
 			}
 		}
-		for (Layer layer : al_layers) {
+		for (final Layer layer : al_layers) {
 			all.addAll(layer.getDisplayables(c));
-			ArrayList al_ls = layer.getDisplayables(LayerSet.class);
-			for (Iterator i2 = al_ls.iterator(); i2.hasNext(); ) {
-				LayerSet ls = (LayerSet)i2.next();
-				ls.get(all, c);
+			for (final Displayable ls : layer.getDisplayables(LayerSet.class)) {
+				((LayerSet)ls).get(all, c);
 			}
 		}
 		return all;
