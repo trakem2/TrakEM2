@@ -4249,7 +4249,7 @@ abstract public class Loader {
 		final FutureTask[] fu = new FutureTask[1];
 		fu[0] = new FutureTask<Image>(new Callable<Image>() {
 			public Image call() {
-				Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
+				//Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
 				try {
 					if (p.getProject().getLoader().hs_unloadable.contains(p)) return null;
 					if (repaint) {

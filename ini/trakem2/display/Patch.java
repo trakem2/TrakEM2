@@ -512,8 +512,6 @@ public final class Patch extends Displayable implements ImageData {
 	@Override
 	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 
-		Utils.log2("prePaint");
-
 		AffineTransform atp = this.at;
 
 		checkChannels(channels, magnification);
