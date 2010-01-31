@@ -138,6 +138,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.lang.reflect.Field;
@@ -4222,76 +4223,57 @@ abstract public class Loader {
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 
 	static private ExecutorService preloader = null;
-	static private final LinkedList<Runnable> preloads = new LinkedList<Runnable>();
-	static private final Object PL = new Object();
+	static private Collection<FutureTask> preloads = new Vector<FutureTask>();
 
 	static public final void setupPreloader(final ControlWindow master) {
 		if (null == preloader) {
 			int n = Runtime.getRuntime().availableProcessors()-1;
 			if (0 == n) n = 1; // !@#$%^
 			preloader = Executors.newFixedThreadPool(n);
-			for (int i=0; i<n; i++) {
-				preloader.submit(new Callable() {
-					public Object call() {
-						Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
-						while (!Thread.currentThread().isInterrupted()) {
-							try {
-								synchronized (PL) {
-									if (preloads.isEmpty()) try {
-										PL.wait();
-									} catch (InterruptedException ie) {
-										// Thread was terminated
-										return null;
-									}
-								}
-								Runnable r;
-								synchronized (preloads) {
-									try {
-										r = preloads.removeLast();
-									} catch (NoSuchElementException nsee) {
-										// Empty list!
-										return null;
-									}
-								}
-								if (null != r) r.run();
-							} catch (Throwable t) {
-								t.printStackTrace();
-							}
-						}
-						return null;
-					}
-				});
-			}
 		}
 	}
+ 
 	static public final void destroyPreloader(final ControlWindow master) {
 		preloads.clear();
 		if (null != preloader) { preloader.shutdownNow(); preloader = null; }
 	}
 
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
-		for (final Patch p : patches) {
-			preload(p, mag, repaint);
-		}
-	}
-	static public void preload(final Patch p, final double mag, final boolean repaint) {
 		synchronized (preloads) {
-			preloads.add(new Runnable() {
-				public void run() {
-					try {
-						if (p.getProject().getLoader().hs_unloadable.contains(p)) return;
-						if (repaint) {
-							if (Display.willPaint(p, mag)) {
-								Object ob = p.getProject().getLoader().fetchImage(p, mag);
-								if (null != ob) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
-							}
-						} else {
-							// just load it into the cache if possible
-							p.getProject().getLoader().fetchImage(p, mag);
-						}
-					} catch (Throwable e) { e.printStackTrace(); }}});
+			for (final FutureTask fu : preloads) fu.cancel(false);
 		}
-		synchronized (PL) { PL.notify(); }
+		preloads.clear();
+		preloader.submit(new Runnable() { public void run() {
+			for (final Patch p : patches) preload(p, mag, repaint);
+		}});
+	}
+	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
+		final FutureTask[] fu = new FutureTask[1];
+		fu[0] = new FutureTask<Image>(new Callable<Image>() {
+			public Image call() {
+				try {
+					if (p.getProject().getLoader().hs_unloadable.contains(p)) return null;
+					if (repaint) {
+						if (Display.willPaint(p, mag)) {
+							final Image awt = p.getProject().getLoader().fetchImage(p, mag);
+							if (null != awt) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+							return awt;
+						}
+					} else {
+						// just load it into the cache if possible
+						return p.getProject().getLoader().fetchImage(p, mag);
+					}
+				} catch (Throwable t) {
+					IJError.print(t);
+				} finally {
+					preloads.remove(fu[0]);
+				}
+				return null;
+			}
+		});
+		preloads.add(fu[0]);
+		preloader.submit(fu[0]);
+		return fu[0];
 	}
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
