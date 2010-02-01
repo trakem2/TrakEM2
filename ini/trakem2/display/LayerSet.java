@@ -1716,11 +1716,27 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		//Utils.log2("Added transform step for col");
 		addEditStep(new Displayable.DoTransforms().addAll(col));
 	}
-	/** Add an undo step for the transformations of all Displayable in hs, with data as well (for Patch, data includes the CoordinateTransform). */
+	/** Add an undo step for the transformations of all Displayable in col, with data as well (for Patch, data includes the CoordinateTransform). */
 	public void addTransformStepWithData(final Collection<? extends Displayable> col) {
 		if (col.isEmpty()) return;
 		final Set<? extends Displayable> hs = col instanceof Set ? (Set<? extends Displayable>)col : new HashSet<Displayable>(col);
 		addEditStep(new Displayable.DoEdits(hs).init(new String[]{"data", "at", "width", "height"}));
+	}
+	/** Includes all ZDisplayable that paint at any of the given layers. */
+	public Collection<Displayable> addTransformStepWithData(final Collection<Layer> layers) {
+		if (layers.isEmpty()) return Collections.emptyList();
+		final Set<Displayable> hs = new HashSet<Displayable>();
+		for (final Layer layer : layers) hs.addAll(layer.getDisplayables());
+		for (final ZDisplayable zd : al_zdispl) {
+			for (final Layer layer : layers) {
+				if (zd.paintsAt(layer)) {
+					hs.add((Displayable)zd);
+					break;
+				}
+			}
+		}
+		addTransformStepWithData(hs);
+		return hs;
 	}
 	/** Add an undo step for the transformations of all Displayable in all layers. */
 	public void addTransformStep() {
