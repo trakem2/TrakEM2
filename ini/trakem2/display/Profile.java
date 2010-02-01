@@ -1455,6 +1455,10 @@ public class Profile extends Displayable implements VectorData {
 				hidden = false;
 				break;
 			}
+			if (null == p[i] || 0 == p[i].n_points) {
+				Utils.log("Cannot generate triangle mesh: empty profile " + p[i] + (null != p[i] ? " at layer " + p[i].getLayer() : ""));
+				return null;
+			}
 		}
 		if (hidden) return null;
 		// collect starts and ends
@@ -1638,6 +1642,12 @@ public class Profile extends Displayable implements VectorData {
 		if (1 == profiles.length) {
 			// don't measure if there is only one
 			return rt;
+		}
+		for (final Profile p : profiles) {
+			if (null == p || 0 == p.n_points) {
+				Utils.log("Cannot measure: empty profile " + p + (null != p ? " at layer " + p.getLayer() : ""));
+				return rt;
+			}
 		}
 		if (null == rt) rt = Utils.createResultsTable("Profile list results", new String[]{"id", "interpolated surface", "surface: sum of length x thickness", "volume", "name-id"});
 		Calibration cal = profiles[0].getLayerSet().getCalibration();
