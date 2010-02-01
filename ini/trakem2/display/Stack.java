@@ -438,6 +438,7 @@ public class Stack extends ZDisplayable implements ImageData
 	@Override
 	public void prePaint(
 			final Graphics2D g,
+			final Rectangle srcRect,
 			final double magnification,
 			final boolean active,
 			final int channels,

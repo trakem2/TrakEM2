@@ -138,6 +138,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.lang.reflect.Field;
@@ -588,7 +589,7 @@ abstract public class Loader {
 	// non-locking version
 	protected final boolean releaseToFit2(long n_bytes) {
 		//if (enoughFreeMemory(n_bytes)) return true;
-		if (releaseMemory2(n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
+		if (releaseMemory2(n_bytes, true) >= n_bytes) return true; // Java will free on its own if it has to
 		// else, wait for GC
 		int iterations = 30;
 
@@ -719,7 +720,7 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				lock();
-				return releaseMemory2(min_free_bytes);
+				return releaseMemory2(min_free_bytes, true);
 			} catch (Throwable e) {
 				IJError.print(e);
 				return 0;
@@ -731,7 +732,7 @@ abstract public class Loader {
 
 	/** Free up to MIN_FREE_BYTES. */
 	protected final long releaseMemory2() {
-		return releaseMemory2(MIN_FREE_BYTES);
+		return releaseMemory2(MIN_FREE_BYTES, true);
 	}
 
 	private final long releaseOthers(final long min_free_bytes) {
@@ -739,7 +740,7 @@ abstract public class Loader {
 		long released = 0;
 		for (final Loader lo : new Vector<Loader>(v_loaders)) {
 			if (lo == this) continue;
-			released += lo.releaseMemory(min_free_bytes); // locking on the other Loader's db_lock
+			released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
 			if (released >= min_free_bytes) return released;
 		}
 		return released;
@@ -750,7 +751,7 @@ abstract public class Loader {
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
 	*/
-	protected final long releaseMemory2(long min_free_bytes) {
+	protected final long releaseMemory2(long min_free_bytes, final boolean release_others) {
 		if (min_free_bytes < MIN_FREE_BYTES) min_free_bytes = MIN_FREE_BYTES;
 		long released = 0;
 		int BATCH_SIZE = 5 * Runtime.getRuntime().availableProcessors();
@@ -763,8 +764,10 @@ abstract public class Loader {
 				iterations++;
 
 				// First from other loaders, if any
-				released += releaseOthers(min_free_bytes);
-				if (released >= min_free_bytes) return released;
+				if (release_others) {
+					released += releaseOthers(min_free_bytes);
+					if (released >= min_free_bytes) return released;
+				}
 
 				// Second some ImagePlus
 				if (0 != imps.size()) {
@@ -1031,17 +1034,15 @@ abstract public class Loader {
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
 	public Image fetchImage(final Patch p, double mag) {
-		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
-
+			
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-		int level = Loader.getMipMapLevel(mag, maxDim(p));
-		int max_level = Loader.getHighestMipMapLevel(p);
-		//Utils.log2("level=" + level + "  max_level=" + max_level);
-		if (level > max_level) level = max_level;
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
+		final int max_level = Loader.getHighestMipMapLevel(p);
+		return fetchAWTImage(p, level > max_level ? max_level : level);
+	}
 
-		// testing:
-		// if (level > 0) level--; // passing an image double the size, so it's like interpolating when doing nearest neighbor since the images are blurred with sigma 0.5
-		// SLOW, very slow ...
+	final public Image fetchAWTImage(final Patch p, int level) {
+		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		// find an equal or larger existing pyramid awt
 		final long id = p.getId();
@@ -2287,7 +2288,7 @@ abstract public class Loader {
 							np = np / 2;
 							break;
 					}
-					final ExecutorService ex = Executors.newFixedThreadPool(np);
+					final ExecutorService ex = Utils.newFixedThreadPool(np, "import-images");
 					final List<Future> imported = new ArrayList<Future>();
 					final Worker wo = this;
 
@@ -4222,76 +4223,58 @@ abstract public class Loader {
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 
 	static private ExecutorService preloader = null;
-	static private final LinkedList<Runnable> preloads = new LinkedList<Runnable>();
-	static private final Object PL = new Object();
+	static private Collection<FutureTask> preloads = new Vector<FutureTask>();
 
 	static public final void setupPreloader(final ControlWindow master) {
 		if (null == preloader) {
 			int n = Runtime.getRuntime().availableProcessors()-1;
 			if (0 == n) n = 1; // !@#$%^
-			preloader = Executors.newFixedThreadPool(n);
-			for (int i=0; i<n; i++) {
-				preloader.submit(new Callable() {
-					public Object call() {
-						Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
-						while (!Thread.currentThread().isInterrupted()) {
-							try {
-								synchronized (PL) {
-									if (preloads.isEmpty()) try {
-										PL.wait();
-									} catch (InterruptedException ie) {
-										// Thread was terminated
-										return null;
-									}
-								}
-								Runnable r;
-								synchronized (preloads) {
-									try {
-										r = preloads.removeLast();
-									} catch (NoSuchElementException nsee) {
-										// Empty list!
-										return null;
-									}
-								}
-								if (null != r) r.run();
-							} catch (Throwable t) {
-								t.printStackTrace();
-							}
-						}
-						return null;
-					}
-				});
-			}
+			preloader = Utils.newFixedThreadPool(n, "preloader");
 		}
 	}
+ 
 	static public final void destroyPreloader(final ControlWindow master) {
 		preloads.clear();
 		if (null != preloader) { preloader.shutdownNow(); preloader = null; }
 	}
 
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
-		for (final Patch p : patches) {
-			preload(p, mag, repaint);
-		}
-	}
-	static public void preload(final Patch p, final double mag, final boolean repaint) {
 		synchronized (preloads) {
-			preloads.add(new Runnable() {
-				public void run() {
-					try {
-						if (p.getProject().getLoader().hs_unloadable.contains(p)) return;
-						if (repaint) {
-							if (Display.willPaint(p, mag)) {
-								Object ob = p.getProject().getLoader().fetchImage(p, mag);
-								if (null != ob) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
-							}
-						} else {
-							// just load it into the cache if possible
-							p.getProject().getLoader().fetchImage(p, mag);
-						}
-					} catch (Throwable e) { e.printStackTrace(); }}});
+			for (final FutureTask fu : preloads) fu.cancel(false);
 		}
-		synchronized (PL) { PL.notify(); }
+		preloads.clear();
+		preloader.submit(new Runnable() { public void run() {
+			for (final Patch p : patches) preload(p, mag, repaint);
+		}});
+	}
+	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
+		final FutureTask[] fu = new FutureTask[1];
+		fu[0] = new FutureTask<Image>(new Callable<Image>() {
+			public Image call() {
+				//Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
+				try {
+					if (p.getProject().getLoader().hs_unloadable.contains(p)) return null;
+					if (repaint) {
+						if (Display.willPaint(p, mag)) {
+							final Image awt = p.getProject().getLoader().fetchImage(p, mag);
+							if (null != awt) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+							return awt;
+						}
+					} else {
+						// just load it into the cache if possible
+						return p.getProject().getLoader().fetchImage(p, mag);
+					}
+				} catch (Throwable t) {
+					IJError.print(t);
+				} finally {
+					preloads.remove(fu[0]);
+				}
+				return null;
+			}
+		});
+		preloads.add(fu[0]);
+		preloader.submit(fu[0]);
+		return fu[0];
 	}
 
 	/** Returns the highest mipmap level for which a mipmap image may have been generated given the dimensions of the Patch. The minimum that this method may return is zero. */
@@ -4473,7 +4456,7 @@ abstract public class Loader {
 	public String getParentFolder() { return null; }
 	
 	// Will be shut down by Loader.destroy()
-	private final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+	private final ExecutorService exec = Utils.newFixedThreadPool( Runtime.getRuntime().availableProcessors(), "loader-do-later");
 	
 	public < T > Future< T > doLater( final Callable< T > fn ) {
 		return exec.submit( fn );
@@ -4525,7 +4508,7 @@ abstract public class Loader {
 
 	/** Returns an ImageStack, one slice per region. */
 	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
-		ExecutorService ex = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
 		for (final Region r : regions) {
 			fus.add(ex.submit(new Callable<ImagePlus>() {

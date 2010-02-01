@@ -266,16 +266,14 @@ public class TMLHandler extends DefaultHandler {
 
 			// Spawn threads to recreate buckets, starting from the subset of displays to open
 			int n = Runtime.getRuntime().availableProcessors();
-			if (n > 1) {
-				if (n > 4) n -= 2;
-				else n = 3;
-			}
-			final ExecutorService exec = Executors.newFixedThreadPool(n);
+			if (n > 1) n /= 2;
+			final ExecutorService exec = Utils.newFixedThreadPool(n, "TMLHandler-recreateBuckets");
 
 			final Set<Long> dlids = new HashSet();
 			final LayerSet layer_set = (LayerSet) root_lt.getObject();
 
 			final List<Future> fus = new ArrayList<Future>();
+			final List<Future> fus2 = new ArrayList<Future>();
 
 			for (final HashMap ht_attributes : al_displays) {
 				Object ob = ht_attributes.get("layer_id");
@@ -314,7 +312,7 @@ public class TMLHandler extends DefaultHandler {
 							final Layer lprev = layers.get(prev);
 							synchronized (dlids) {
 								if (dlids.add(lprev.getId())) { // returns true if not there already
-									fus.add(exec.submit(new Runnable() { public void run() {
+									fus2.add(exec.submit(new Runnable() { public void run() {
 										lprev.recreateBuckets();
 									}}));
 								}
@@ -325,7 +323,7 @@ public class TMLHandler extends DefaultHandler {
 							final Layer lnext = layers.get(next);
 							synchronized (dlids) {
 								if (dlids.add(lnext.getId())) { // returns true if not there already
-									fus.add(exec.submit(new Runnable() { public void run() {
+									fus2.add(exec.submit(new Runnable() { public void run() {
 										lnext.recreateBuckets();
 									}}));
 								}
@@ -333,11 +331,15 @@ public class TMLHandler extends DefaultHandler {
 							next++;
 						}
 					}
+					Utils.log2("done recreateBuckets chunk");
 				}}));
 			}
+			Utils.wait(fus);
 			exec.submit(new Runnable() { public void run() {
-				Utils.wait(fus);
-				exec.shutdownNow();
+				Utils.log2("waiting for TMLHandler fus...");
+				Utils.wait(fus2);
+				Utils.log2("done waiting TMLHandler fus.");
+				exec.shutdown();
 			}});
 		} catch (Throwable t) {
 			IJError.print(t);

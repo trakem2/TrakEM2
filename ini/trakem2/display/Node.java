@@ -607,6 +607,23 @@ public abstract class Node<T> implements Taggable {
 			oy += dim.height + 3;
 		}
 	}
+
+	public void apply(final mpicbg.models.CoordinateTransform ct, final Area roi) {
+		final float[] fp = new float[]{x, y};
+		ct.applyInPlace(fp);
+		this.x = fp[0];
+		this.y = fp[1];
+	}
+	public void apply(final VectorDataTransform vdt) {
+		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+			// Apply only the first one that contains the point
+			if (rt.roi.contains(x, y)) {
+				final float[] fp = new float[]{x, y};
+				rt.ct.applyInPlace(fp);
+				x = fp[0];
+				y = fp[1];
+				break;
+			}
+		}
+	}
 }
-
-

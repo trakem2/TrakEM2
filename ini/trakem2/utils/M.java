@@ -23,6 +23,7 @@ import java.util.Collection;
 import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.display.VectorDataTransform;
 
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
@@ -315,6 +316,76 @@ public final class M {
 		return pols;
 	}
 
+	/** Return a new Area resulting from applying @param ict to @param a;
+	 *  converts the newly transformed points to ints (TrakEM2 operates with ints in its areas). */
+	static public final Area transform(final mpicbg.models.CoordinateTransform ict, final Area a) {
+		final Area a2 = new Area();
+		final float[] fp = new float[2];
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					fp[0] = coords[0];
+					fp[1] = coords[1];
+					ict.applyInPlace(fp);
+					pol.addPoint((int)fp[0], (int)fp[1]); // as ints!
+					break;
+				case PathIterator.SEG_CLOSE:
+					a2.add(new Area(pol));
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return a2;
+	}
+
+	/** Apply in place the @param ict to the Area @param a, but only for the part that intersects the roi. */
+	static final public void apply(final mpicbg.models.CoordinateTransform ict, final Area roi, final Area a) {
+		final Area intersection = new Area(a);
+		intersection.intersect(roi);
+		a.subtract(intersection);
+		a.add(M.transform(ict, intersection));
+	}
+
+	static final public void apply(final VectorDataTransform vdt, final Area a) {
+		apply(vdt, a, false);
+	}
+
+	/** Parts of @param a not intersected by any of @pram vdt rois will be left untouched if @param remove_outside is true. */
+	static final public void apply(final VectorDataTransform vdt, final Area a, final boolean remove_outside) {
+		final Area b = new Area();
+		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+			// Cut the intersecting part from a:
+			final Area intersection = new Area(a);
+			intersection.intersect(rt.roi);
+			a.subtract(intersection);
+			// .. and add it to b, transformed:
+			b.add(M.transform(rt.ct, intersection));
+		}
+
+		if (!M.isEmpty(a)) {
+			if (remove_outside) {
+				// Clear areas not affected any ROITransform
+				Utils.log("WARNING: parts of an area in layer " + vdt.layer + "\n    did not intersect any transformation target\n    and where removed.");
+				a.reset();
+			} else Utils.log("WARNING: parts of an area in layer " + vdt.layer + "\n    remain untransformed.");
+		}
+
+		// Add b (the transformed parts) to what remains of a
+		a.add(b);
+	}
+
 	static private Field shape_field = null;
 
 	static public final Shape getShape(final ShapeRoi roi) {
@@ -500,5 +571,31 @@ public final class M {
 		}
 
 		return ps;
+	}
+
+	/** Reuses the @param fp to apply in place. */
+	static public final void apply(final mpicbg.models.CoordinateTransform ict, final double[][] p, final int i, final float[] fp) {
+		fp[0] = (float)p[0][i];
+		fp[1] = (float)p[1][i];
+		ict.applyInPlace(fp);
+		p[0][i] = fp[0];
+		p[1][i] = fp[1];
+	}
+
+	/** The @param ict is expected to transform this data as if this data was expressed in world coordinates,
+	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
+	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
+		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
+		// 1 - Prepend to world
+		final mpicbg.models.AffineModel2D toworld = new mpicbg.models.AffineModel2D();
+		toworld.set(to_world);
+		chain.add(toworld);
+		// 2 - Perform the transform in world coordinates
+		chain.add(ict);
+		// 3 - back to local
+		final mpicbg.models.AffineModel2D tolocal = new mpicbg.models.AffineModel2D();
+		tolocal.set(to_local);
+		chain.add(tolocal);
+		return chain;
 	}
 }

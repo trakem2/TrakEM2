@@ -96,10 +96,10 @@ public final class Display3D {
 	private String selected = null;
 
 	// To fork away from the EventDispatchThread
-	static private ExecutorService launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	static private ExecutorService launchers = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-launchers");
 
 	// To build meshes, or edit them
-	private ExecutorService executors = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+	private ExecutorService executors = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-executors");
 
 	/*
 	static private KeyAdapter ka = new KeyAdapter() {
@@ -368,6 +368,7 @@ public final class Display3D {
 						synchronized (ht_layer_sets) {
 							d3ds.addAll(ht_layer_sets.values());
 						}
+						/* // Disabled, it's annoying
 						for (Display3D d3d : d3ds) {
 							synchronized (d3d) {
 								if (d3d.universe.getContents().contains(c)) {
@@ -375,7 +376,8 @@ public final class Display3D {
 									d3d.universe.adjustView(); // zoom out to bring all elements in universe within view
 								}
 							}
-						}
+						}*/
+						Utils.logAll("Reset 3D view if not within field of view!");
 					} catch (Exception e) {
 						IJError.print(e);
 					}
@@ -1048,7 +1050,7 @@ public final class Display3D {
 
 	static public void init() {
 		if (launchers.isShutdown()) {
-			launchers = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			launchers = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-launchers");
 		}
 	}
 

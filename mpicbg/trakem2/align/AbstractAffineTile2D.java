@@ -340,7 +340,7 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 	{
 		for ( int a = 0; a < tilesA.size(); ++a )
 		{
-			for ( int b = a + 1; b < tilesB.size(); ++b )
+			for ( int b = 0; b < tilesB.size(); ++b )
 			{
 				final AbstractAffineTile2D< ? > ta = tilesA.get( a );
 				final AbstractAffineTile2D< ? > tb = tilesB.get( b );

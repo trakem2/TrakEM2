@@ -148,6 +148,24 @@ public class AreaTree extends Tree implements AreaContainer {
 			}
 			return this.la.getDisplayables(Patch.class, a, true);
 		}
+
+		@Override
+		public void apply(final mpicbg.models.CoordinateTransform ct, final Area roi) {
+			// transform the point itself
+			super.apply(ct, roi);
+			// ... and the area
+			if (null == aw) return;
+			M.apply(ct, roi, aw.getArea());
+		}
+
+		@Override
+		public void apply(final VectorDataTransform vdt) {
+			// transform the point itself
+			super.apply(vdt);
+			// ... and the area
+			if (null == aw) return;
+			M.apply(vdt, aw.getArea());
+		}
 	}
 
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {

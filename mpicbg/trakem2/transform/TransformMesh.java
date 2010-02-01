@@ -43,8 +43,8 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 		float xMin = Float.MAX_VALUE;
 		float yMin = Float.MAX_VALUE;
 		
-		float xMax = Float.MIN_VALUE;
-		float yMax = Float.MIN_VALUE;
+		float xMax = -Float.MAX_VALUE;
+		float yMax = -Float.MAX_VALUE;
 		
 		final Set< PointMatch > vertices = va.keySet();
 		for ( final PointMatch vertex : vertices )

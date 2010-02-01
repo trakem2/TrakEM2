@@ -102,7 +102,7 @@ import fiji.geom.AreaCalculations;
 // In practice, I want to reuse Polyline's semiautomatic tracing and thus I am using Polylines for each slab.
 
 /** A sequence of points ordered in a set of connected branches. */
-public abstract class Tree extends ZDisplayable {
+public abstract class Tree extends ZDisplayable implements VectorData {
 
 	static private final Comparator<Layer> COMP_LAYERS = new Comparator<Layer>() {
 		public final int compare(final Layer l1, final Layer l2) {
@@ -978,7 +978,7 @@ public abstract class Tree extends ZDisplayable {
 	}
 
 	public boolean addNode(final Node parent, final Node child, final byte confidence) {
-		try {
+		//try {
 
 		synchronized (node_layer_map) {
 			Set<Node> nodes = node_layer_map.get(child.la);
@@ -1013,7 +1013,7 @@ public abstract class Tree extends ZDisplayable {
 			return false;
 		}
 
-		} finally {
+		/*} finally {
 			//Utils.log2("new node: " + child + " with parent: " + parent);
 			//Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
 			if (null == parent) {
@@ -1021,7 +1021,7 @@ public abstract class Tree extends ZDisplayable {
 				Utils.log2(" nodes to paint: " + Utils.toString(getNodesToPaint(Display.getFrontLayer())));
 				Utils.log2(" nodes in node_layer_map: " + Utils.toString(node_layer_map));
 			}
-		}
+		}*/
 	}
 
 	/** Remove a node only (not its subtree).
@@ -2213,6 +2213,40 @@ public abstract class Tree extends ZDisplayable {
 			}
 		}
 		this.calculateBoundingBox();
+		return true;
+	}
+
+	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		synchronized (node_layer_map) {
+			if (null == root) return true;
+			final Set<Node> nodes = node_layer_map.get(la);
+			if (null == nodes || nodes.isEmpty()) return true;
+			AffineTransform inverse = this.at.createInverse();
+			final Area localroi = roi.createTransformedArea(inverse);
+			mpicbg.models.CoordinateTransform chain = null;
+			for (final Node nd : nodes) {
+				if (nd.intersects(localroi)) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+					}
+				}
+				nd.apply(chain, roi);
+			}
+			if (null != chain) calculateBoundingBox();
+		}
+		return true;
+	}
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		synchronized (node_layer_map) {
+			if (null == root) return true;
+			final Set<Node> nodes = node_layer_map.get(vdt.layer);
+			if (null == nodes || nodes.isEmpty()) return true;
+			final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+			for (final Node nd : nodes) {
+				nd.apply(vlocal);
+			}
+			calculateBoundingBox();
+		}
 		return true;
 	}
 }

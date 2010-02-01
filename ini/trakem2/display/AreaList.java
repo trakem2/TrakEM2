@@ -95,7 +95,7 @@ import fiji.geom.AreaCalculations;
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
  * All Area objects are local to this AreaList's AffineTransform.
  */
-public class AreaList extends ZDisplayable implements AreaContainer {
+public class AreaList extends ZDisplayable implements AreaContainer, VectorData {
 
 	/** Contains the table of layer ids and their associated Area object.*/
 	private HashMap ht_areas = new HashMap();
@@ -317,6 +317,9 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 			}
 			area = (Area)ob;
 		}
+
+		// help ease the transition from PEN to BRUSH:
+		if (ProjectToolbar.getToolId() == ProjectToolbar.PEN) ProjectToolbar.setTool(ProjectToolbar.BRUSH);
 
 		aw = new AreaWrapper(area);
 		aw.setSource(this);
@@ -1125,7 +1128,12 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 		final TreeMap<Integer,Area> ias = new TreeMap<Integer,Area>();
 		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
-			ias.put(layer_set.indexOf(layer_set.getLayer((Long)entry.getKey())), (Area)entry.getValue());
+			int ilayer = layer_set.indexOf(layer_set.getLayer((Long)entry.getKey()));
+			if (-1 == ilayer) {
+				Utils.log("Could not find a layer with id " + entry.getKey());
+				continue;
+			}
+			ias.put(ilayer, (Area)entry.getValue());
 		}
 
 		ArrayList<Layer> layers = layer_set.getLayers();
@@ -1142,7 +1150,12 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 
 			// fetch Layer
 			int layer_index = e.getKey();
-			Layer layer = layers.get(layer_index);
+			try {
+				Layer layer = layers.get(layer_index);
+			} catch (IndexOutOfBoundsException iobe) {
+				Utils.log("Could not find a layer at index " + layer_index);
+				continue;
+			}
 
 			// fetch Area
 			Area area = e.getValue();
@@ -1416,6 +1429,24 @@ public class AreaList extends ZDisplayable implements AreaContainer {
 	protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
 		ht_areas.remove(la.getId());
+		return true;
+	}
+
+	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ct) throws Exception {
+		final Area a = getArea(la);
+		if (null == a) return true;
+		final AffineTransform inverse = this.at.createInverse();
+		if (M.intersects(a, roi.createTransformedArea(inverse))) {
+			M.apply(M.wrap(this.at, ct, inverse), roi, a);
+			calculateBoundingBox();
+		}
+		return true;
+	}
+
+	public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final Area a = getArea(vdt.layer);
+		if (null == a) return true;
+		M.apply(vdt.makeLocalTo(this), a);
 		return true;
 	}
 }

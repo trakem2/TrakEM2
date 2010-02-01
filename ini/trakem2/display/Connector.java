@@ -27,7 +27,7 @@ import ij.measure.ResultsTable;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
-public class Connector extends ZDisplayable {
+public class Connector extends ZDisplayable implements VectorData {
 
 	/** Represents points as X1,Y1,X2,Y2,... */
 	private float[] p = null;
@@ -681,5 +681,73 @@ public class Connector extends ZDisplayable {
 			if ((float)(Math.pow(p[j] - x_p, 2) + Math.pow(p[j+1] - y_p, 2)) < radius[i]*radius[i]) return true;
 		}
 		return false;
+	}
+
+	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		if (null == p || 0 == lids.length) return true; // empty
+		float[] fp = null;
+		mpicbg.models.CoordinateTransform chain = null;
+		Area localroi = null;
+		AffineTransform inverse = null;
+		for (int i=0; i<lids.length; i++) {
+			if (la.getId() == lids[i]) {
+				if (null == localroi) {
+					inverse = this.at.createInverse();
+					localroi = roi.createTransformedArea(inverse);
+				}
+				if (localroi.contains(p[i+i], p[i+i+1])) {
+					if (null == chain) {
+						chain = M.wrap(this.at, ict, inverse);
+						fp = new float[2];
+					}
+					// Keep point copy
+					float ox = p[i+i],
+					      oy = p[i+i+1];
+					// Do the point
+					fp[0] = p[i+i];
+					fp[1] = p[i+i+1];
+					chain.applyInPlace(fp);
+					p[i+i] = fp[0];
+					p[i+i+1] = fp[1];
+					// Transform radius by considering it a point to the right of the actual point
+					fp[0] = ox + radius[i];
+					fp[1] = oy;
+					chain.applyInPlace(fp);
+					radius[i] = Math.abs(p[i+i] - fp[0]);
+				}
+			}
+		}
+		calculateBoundingBox();
+		return true;
+	}
+	synchronized public boolean apply(final VectorDataTransform vdt) throws Exception {
+		if (null == p || 0 == lids.length) return true; // empty
+		final float[] fp = new float[2];
+		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
+		for (int i=0; i<lids.length; i++) {
+			if (vdt.layer.getId() == lids[i]) {
+				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
+					if (rt.roi.contains(p[i+i], p[i+i+1])) {
+						// Keep point copy
+						float ox = p[i+i],
+						      oy = p[i+i+1];
+						// Transform the point
+						fp[0] = p[i+i];
+						fp[1] = p[i+i+1];
+						rt.ct.applyInPlace(fp);
+						p[i+i] = fp[0];
+						p[i+i+1] = fp[1];
+						// Transform radius by considering it a point to the right of the untransformed point
+						fp[0] = ox + radius[i];
+						fp[1] = oy;
+						rt.ct.applyInPlace(fp);
+						radius[i] = Math.abs(p[i+i] - fp[0]);
+						break;
+					}
+				}
+			}
+		}
+		calculateBoundingBox();
+		return true;
 	}
 }
