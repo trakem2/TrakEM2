@@ -196,6 +196,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	};
 
+	static public final Vector<Display> getDisplays() {
+		return (Vector<Display>)al_displays.clone();
+	}
+
 	static private MouseListener frame_mouse_listener = new MouseAdapter() {
 		public void mouseReleased(MouseEvent me) {
 			Object source = me.getSource();
