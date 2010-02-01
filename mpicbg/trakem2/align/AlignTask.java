@@ -266,14 +266,14 @@ final public class AlignTask
 		}
 	}
 
-	final static protected void transformPatchesAndVectorData(final Layer layer, final AffineTransform a) {
+	final static public void transformPatchesAndVectorData(final Layer layer, final AffineTransform a) {
 		AlignTask.transformPatchesAndVectorData((Collection<Patch>)(Collection)layer.getDisplayables(Patch.class),
 			new Runnable() { public void run() {
 				layer.apply( Patch.class, a );
 			}});
 	}
 
-	final static protected void transformPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
+	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
 		// Store transformation data for each Patch
 		final Map<Patch,Patch.TransformProperties> tp = new HashMap<Patch,Patch.TransformProperties>();
 		for (final Patch patch : patches) tp.put(patch, patch.getTransformPropertiesCopy()); 
