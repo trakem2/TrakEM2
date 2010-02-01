@@ -4239,6 +4239,7 @@ abstract public class Loader {
 	}
 
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
+		if (null == preloader) setupPreloader(null);
 		synchronized (preloads) {
 			for (final FutureTask fu : preloads) fu.cancel(false);
 		}
