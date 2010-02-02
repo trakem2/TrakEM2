@@ -131,6 +131,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private int scroll_step = 1;
 
+	private boolean prepaint = true;
+	public boolean getPrepaint() { return prepaint; };
+	
 	/** Keep track of all existing Display objects. */
 	static private Vector<Display> al_displays = new Vector<Display>();
 	/** The currently focused Display, if any. */
@@ -3858,6 +3861,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
 			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
 			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
+			gd.addCheckbox("Prepaint with lower resolution images", prepaint);
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -3888,6 +3892,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
 			layer.getParent().color_cues = gd.getNextBoolean();
 			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
+			prepaint = gd.getNextBoolean();
 			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
