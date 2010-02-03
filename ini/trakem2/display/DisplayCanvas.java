@@ -1680,6 +1680,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		tagging = false;
 
+		if (ke.isConsumed()) return;
+
 		/*
 		 * TODO screen editor ... TEMPORARY if (active instanceof DLabel) {
 		 * active.keyPressed(ke); ke.consume(); return; }
