@@ -525,6 +525,8 @@ abstract public class Loader {
 	static private long max_memory = MAX_MEMORY;
 	static private final Object MAXMEMLOCK = new Object();
 
+	static public final int CPUs = Runtime.getRuntime().availableProcessors();
+
 	/** Use this method to reserve a chunk of memory (With a negative value) or to return it to the pool (with a positive value.) */
 	static protected void alterMaxMem(final long n_bytes) {
 		synchronized (MAXMEMLOCK) {
@@ -754,9 +756,14 @@ abstract public class Loader {
 	protected final long releaseMemory2(long min_free_bytes, final boolean release_others) {
 		if (min_free_bytes < MIN_FREE_BYTES) min_free_bytes = MIN_FREE_BYTES;
 		long released = 0;
-		int BATCH_SIZE = 5 * Runtime.getRuntime().availableProcessors();
+		int BATCH_SIZE = 5 * CPUs;
 		if (BATCH_SIZE < 10) BATCH_SIZE = 10;
 		try {
+
+			Utils.log2("####### RELEASE MEMORY from thread : " + Thread.currentThread() + ", calling from:");
+			Utils.printCaller(this, 3);
+
+
 			int iterations = 0;
 			while (released < min_free_bytes) {
 				if (enoughFreeMemory(min_free_bytes)) return released;
@@ -790,6 +797,7 @@ abstract public class Loader {
 						released += measureSize(mawt);
 						if (null != mawt) mawt.flush();
 					}
+					Utils.log2("     removed " + BATCH_SIZE + " awts,  released = " + released);
 					if (released >= min_free_bytes) return released;
 				}
 
