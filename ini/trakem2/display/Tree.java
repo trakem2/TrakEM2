@@ -2040,15 +2040,16 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	private final class NodeData {
-		final String x, y, z, data, tags, conf;
+		final double x, y, z;
+		final String data, tags, conf;
 		NodeData(final Node nd) {
 			final float[] fp = new float[]{nd.x, nd.y};
 			Tree.this.at.transform(fp, 0, fp, 0, 1);
 			final Calibration cal = Tree.this.layer_set.getCalibration();
-			this.x = Utils.cutNumber(fp[0] * cal.pixelHeight, 1);
-			this.y = Utils.cutNumber(fp[1] * cal.pixelWidth, 1);
-			this.z = Utils.cutNumber(nd.la.getZ() * cal.pixelWidth, 1);
-			//
+			this.x = fp[0] * cal.pixelHeight;
+			this.y = fp[1] * cal.pixelWidth;
+			this.z = nd.la.getZ() * cal.pixelWidth;
+			// Assumes only RadiusNode and AreaNode exist
 			if (nd.getClass() == AreaTree.AreaNode.class) {
 				this.data = new StringBuilder
 					(Utils.cutNumber
@@ -2105,7 +2106,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		public int getRowCount() { return nodes.size(); }
 		public int getColumnCount() { return 8; }
-		public Object getValueAt(int row, int col) {
+		public Object getRawValueAt(int row, int col) {
 			if (0 == nodes.size()) return null;
 			final Node nd = nodes.get(row);
 			switch (col) {
@@ -2119,6 +2120,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				case 7: return getNodeData(nd).tags;
 				default: return null;
 			}
+		}
+		public Object getValueAt(int row, int col) {
+			final Object o = getRawValueAt(row, col);
+			return o instanceof Double ? Utils.cutNumber(((Double)o).doubleValue(), 1) : o;
 		}
 		private NodeData getNodeData(final Node nd) {
 			synchronized (nodedata) {
@@ -2143,8 +2148,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						nd1 = nd2;
 						nd2 = tmp;
 					}
-					Object val1 = fixStrings(getValueAt(nodes.indexOf(nd1), col));
-					Object val2 = fixStrings(getValueAt(nodes.indexOf(nd2), col));
+					Object val1 = getRawValueAt(nodes.indexOf(nd1), col);
+					Object val2 = getRawValueAt(nodes.indexOf(nd2), col);
+					if (7 == col) {
+						// Replace empty strings with a row of z
+						val1 = fixStrings(val1);
+						val2 = fixStrings(val2);
+					}
 					return ((Comparable)val1).compareTo((Comparable)val2);
 				}
 			});
