@@ -1442,11 +1442,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				Utils.showStatus("Canceled tagging");
 				to_tag = null;
 				to_untag = null;
+				ke.consume();
 				return;
 			}
 			if (KeyEvent.VK_0 == keyCode) {
 				// force dialogs for next key
 				show_tag_dialogs = true;
+				ke.consume();
 				return;
 			}
 
@@ -1537,6 +1539,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				updateViewData(untag ? to_untag : to_tag);
 				to_tag = null;
 				to_untag = null;
+				ke.consume();
 			}
 		}
 
