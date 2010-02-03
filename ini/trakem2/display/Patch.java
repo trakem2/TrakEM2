@@ -530,7 +530,9 @@ public final class Patch extends Displayable implements ImageData {
 			boolean thread = false;
 			if (null == image) {
 				// fetch the smallest image possible
-				image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
+				//image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
+				// fetch an image 1/4 of the necessary size
+				image = project.getLoader().fetchImage(this, sc/4);
 			}
 			// painting a smaller image, will need to repaint with the proper one
 			if (!Loader.NOT_FOUND.equals(image)) {
