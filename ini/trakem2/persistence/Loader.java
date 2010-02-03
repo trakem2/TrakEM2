@@ -655,9 +655,7 @@ abstract public class Loader {
 			Utils.logAll("WARNING you are operating with low memory\n  considering the number of CPU cores.\n  Please restart with a higher -Xmx value.");
 			return max_memory / 2;
 		}
-		return f > max_memory / 2 ?
-			max_memory / 2
-		      : f;
+		return f;
 	}
 
 	/** If the number of minimally free memory bytes (100 Mb times the number of CPU cores) is too low for your (giant) images, set it to a larger value here. */
