@@ -52,6 +52,7 @@ import mpicbg.models.PointMatch;
 import mpicbg.trakem2.align.Align;
 import mpicbg.trakem2.align.AbstractAffineTile2D;
 import mpicbg.trakem2.align.TranslationTile2D;
+import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.Rectangle;
 import java.awt.Image;
@@ -604,11 +605,13 @@ public class StitchingTEM {
 		if (null == col || col.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage with phase-correlation") {
 			public void exec() {
-				PhaseCorrelationParam param = new PhaseCorrelationParam();
+				final PhaseCorrelationParam param = new PhaseCorrelationParam();
 				if (!param.setup(col.iterator().next())) {
 					return;
 				}
-				montageWithPhaseCorrelation(col, param);
+				AlignTask.transformPatchesAndVectorData(col, new Runnable() { public void run() {
+					montageWithPhaseCorrelation(col, param);
+				}});
 			}
 		}, col.iterator().next().getProject());
 	}
@@ -617,8 +620,8 @@ public class StitchingTEM {
 		if (null == layers || layers.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage layer 1/" + layers.size()) {
 			public void exec() {
-				PhaseCorrelationParam param = new PhaseCorrelationParam();
-				Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
+				final PhaseCorrelationParam param = new PhaseCorrelationParam();
+				final Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
 				if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
 					return;
 				}
@@ -626,7 +629,10 @@ public class StitchingTEM {
 				for (Layer la : layers) {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
 					setTaskName("Montage layer " + i + "/" + layers.size());
-					montageWithPhaseCorrelation((Collection<Patch>) (Collection) la.getDisplayables(Patch.class), param);
+					final Collection<Patch> patches = (Collection<Patch>) (Collection) la.getDisplayables(Patch.class);
+					AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
+						montageWithPhaseCorrelation(patches, param);
+					}});
 				}
 			}
 		}, layers.get(0).getProject());

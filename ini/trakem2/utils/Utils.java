@@ -1247,28 +1247,29 @@ public class Utils implements ij.plugin.PlugIn {
 				Utils.log2("Examining folder for deletion: " + fdir.getName());
 				boolean remove = true;
 				File[] files = fdir.listFiles();
-				if (null == files) continue; // can be null if the directory doesn't contain any files. Why not just return an empty array!?
-				for (final File file : files) {
-					String name = file.getName();
-					if (name.equals(".") || name.equals("..")) continue;
-					if (file.isDirectory()) {
-						remove = false;
-						dirs.add(file);
-					} else if (file.isHidden()) {
-						if (!file.delete()) {
-							Utils.log("Failed to delete hidden file " + file.getAbsolutePath());
+				if (null != files) { // can be null if the directory doesn't contain any files. Why not just return an empty array!?
+					for (final File file : files) {
+						String name = file.getName();
+						if (name.equals(".") || name.equals("..")) continue;
+						if (file.isDirectory()) {
+							remove = false;
+							dirs.add(file);
+						} else if (file.isHidden()) {
+							if (!file.delete()) {
+								Utils.log("Failed to delete hidden file " + file.getAbsolutePath());
+								return false;
+							}
+							if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
+						} else if (stop_if_dir_not_empty) {
+							//Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
 							return false;
+						} else {
+							if (!file.delete()) {
+								Utils.log("Failed to delete visible file " + file.getAbsolutePath());
+								return false;
+							}
+							if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
 						}
-						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
-					} else if (stop_if_dir_not_empty) {
-						//Utils.log("Not empty: cannot remove dir " + fdir.getAbsolutePath());
-						return false;
-					} else {
-						if (!file.delete()) {
-							Utils.log("Failed to delete visible file " + file.getAbsolutePath());
-							return false;
-						}
-						if (null != removed_paths) removed_paths.add(file.getAbsolutePath());
 					}
 				}
 				if (remove) {

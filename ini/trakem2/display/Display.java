@@ -202,6 +202,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	};
 
+	static public final Vector<Display> getDisplays() {
+		return (Vector<Display>)al_displays.clone();
+	}
+
 	static private MouseListener frame_mouse_listener = new MouseAdapter() {
 		public void mouseReleased(MouseEvent me) {
 			Object source = me.getSource();
@@ -3806,11 +3810,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Utils.showMessage("Montage needs 2 or more images selected");
 				return;
 			}
-			la.getParent().addTransformStep(la);
+			final Collection<Displayable> col = la.getParent().addTransformStepWithData(Arrays.asList(new Layer[]{la}));
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, Arrays.asList(new Patch[]{patches.get(0)}));
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().enlargeToFit(patches);
-				la.getParent().addTransformStep();
+				la.getParent().addTransformStepWithData(col);
 			}});
 		} else if (command.equals("Montage selected images (SIFT)")) {
 			montage(0);
@@ -3822,14 +3826,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
-			getLayerSet().addLayerEditedStep(layers);
+			final Collection<Displayable> col = getLayerSet().addTransformStepWithData(layers);
 			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
 			if (null == burro) return;
 			burro.addPostTask(new Runnable() { public void run() {
 				Collection<Displayable> ds = new ArrayList<Displayable>();
 				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
 				getLayerSet().enlargeToFit(ds);
-				getLayerSet().addLayerEditedStep(layers);
+				getLayerSet().addTransformStepWithData(col);
 			}});
 		} else if (command.equals("Montage multiple layers (SIFT)")) {
 			final GenericDialog gd = new GenericDialog("Choose range");
@@ -3837,13 +3841,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
-			getLayerSet().addLayerEditedStep(layers);
+			final Collection<Displayable> col = getLayerSet().addTransformStepWithData(layers);
 			Bureaucrat burro = AlignTask.montageLayersTask(layers);
 			burro.addPostTask(new Runnable() { public void run() {
 				Collection<Displayable> ds = new ArrayList<Displayable>();
 				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
 				getLayerSet().enlargeToFit(ds);
-				getLayerSet().addLayerEditedStep(layers);
+				getLayerSet().addTransformStepWithData(col);
 			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
 			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
@@ -5343,7 +5347,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.showMessage("Montage needs 2 or more images selected");
 			return;
 		}
-		la.getParent().addTransformStep(la);
+		final Collection<Displayable> col = la.getParent().addTransformStepWithData(Arrays.asList(new Layer[]{la}));
 		Bureaucrat burro;
 		switch (type) {
 			case 0:
@@ -5359,7 +5363,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null == burro) return;
 		burro.addPostTask(new Runnable() { public void run() {
 			la.getParent().enlargeToFit(selection.getAffected());
-			la.getParent().addTransformStep(la);
+			la.getParent().addTransformStepWithData(col);
 		}});
 	}
 	
