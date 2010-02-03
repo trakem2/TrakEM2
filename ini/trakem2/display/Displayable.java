@@ -1830,6 +1830,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 				if ("data".equals(fields[k])) {
 					content.put(fields[k], d.getDataPackage());
 				} else {
+					// Search for the field in the entire parent chain specified in c
 					boolean got_it = false;
 					for (int i=0; i<c.length; i++) {
 						try {
@@ -1838,10 +1839,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 							Object ob = f.get(d);
 							content.put(fields[k], null != ob ? duplicate(ob, fields[k]) : null);
 							got_it = true;
+							break;
 						} catch (NoSuchFieldException nsfe) {
-							IJError.print(nsfe);
 						} catch (IllegalAccessException iae) {
-							IJError.print(iae);
 						}
 					}
 					if (!got_it) {
@@ -1880,6 +1880,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					if (!d.setDataPackage((DataPackage)e.getValue())) {
 						return false;
 					}
+				} else if ("at".equals(field)) {
+					// Otherwise, I would have to assign a clone of it
+					d.at.setTransform((AffineTransform)e.getValue());
 				} else {
 					try {
 						for (int i=0; i<c.length; i++) {

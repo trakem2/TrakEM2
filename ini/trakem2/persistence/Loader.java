@@ -589,7 +589,7 @@ abstract public class Loader {
 	// non-locking version
 	protected final boolean releaseToFit2(long n_bytes) {
 		//if (enoughFreeMemory(n_bytes)) return true;
-		if (releaseMemory2(n_bytes) >= n_bytes) return true; // Java will free on its own if it has to
+		if (releaseMemory2(n_bytes, true) >= n_bytes) return true; // Java will free on its own if it has to
 		// else, wait for GC
 		int iterations = 30;
 
@@ -720,7 +720,7 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				lock();
-				return releaseMemory2(min_free_bytes);
+				return releaseMemory2(min_free_bytes, true);
 			} catch (Throwable e) {
 				IJError.print(e);
 				return 0;
@@ -732,7 +732,7 @@ abstract public class Loader {
 
 	/** Free up to MIN_FREE_BYTES. */
 	protected final long releaseMemory2() {
-		return releaseMemory2(MIN_FREE_BYTES);
+		return releaseMemory2(MIN_FREE_BYTES, true);
 	}
 
 	private final long releaseOthers(final long min_free_bytes) {
@@ -740,7 +740,7 @@ abstract public class Loader {
 		long released = 0;
 		for (final Loader lo : new Vector<Loader>(v_loaders)) {
 			if (lo == this) continue;
-			released += lo.releaseMemory(min_free_bytes); // locking on the other Loader's db_lock
+			released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
 			if (released >= min_free_bytes) return released;
 		}
 		return released;
@@ -751,7 +751,7 @@ abstract public class Loader {
 	*  Removes one ImagePlus at a time if a == 0, else up to 0 &lt; a &lt;= 1.0 .<br />
 	*  NOT locked, however calls must take care of that.<br />
 	*/
-	protected final long releaseMemory2(long min_free_bytes) {
+	protected final long releaseMemory2(long min_free_bytes, final boolean release_others) {
 		if (min_free_bytes < MIN_FREE_BYTES) min_free_bytes = MIN_FREE_BYTES;
 		long released = 0;
 		int BATCH_SIZE = 5 * Runtime.getRuntime().availableProcessors();
@@ -764,8 +764,10 @@ abstract public class Loader {
 				iterations++;
 
 				// First from other loaders, if any
-				released += releaseOthers(min_free_bytes);
-				if (released >= min_free_bytes) return released;
+				if (release_others) {
+					released += releaseOthers(min_free_bytes);
+					if (released >= min_free_bytes) return released;
+				}
 
 				// Second some ImagePlus
 				if (0 != imps.size()) {
@@ -4237,6 +4239,7 @@ abstract public class Loader {
 	}
 
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
+		if (null == preloader) setupPreloader(null);
 		synchronized (preloads) {
 			for (final FutureTask fu : preloads) fu.cancel(false);
 		}
