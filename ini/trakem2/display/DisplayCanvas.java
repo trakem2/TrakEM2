@@ -1918,10 +1918,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				ProjectToolbar.keyPressed(ke);
 				ke.consume();
 				break;
-			case KeyEvent.VK_SEMICOLON:
-				// TODO is this the right place in the method to handle this event?
-				if (display.getProject().getProjectTree().hasRepeatable()) {
-					relayCreateRepeatable();
+			case KeyEvent.VK_SEMICOLON: // TODO is this the right place in the method to handle this event?
+				if (ke.isShiftDown()) {
+					display.getProject().getProjectTree().reboundFromRepeated();
+				} else {
+					if (display.getProject().getProjectTree().hasRepeatable()) {
+						relayCreateRepeatable();
+					}
 				}
 				ke.consume();
 				break;

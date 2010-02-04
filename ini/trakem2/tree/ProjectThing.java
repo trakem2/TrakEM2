@@ -53,6 +53,9 @@ import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+
+import org.jfree.chart.title.Title;
+
 import java.util.concurrent.Callable;
 
 
@@ -546,8 +549,24 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 	/** Creates a sibling node whose graph is identical but whose leaves are empty (i.e. segmentation content is not copied)*/ 
 	public ArrayList<ProjectThing> createSibling(ArrayList<ProjectThing> al, ProjectThing pt_parent) {
-		if (null == al) al = new ArrayList<ProjectThing>(); // top-level invocation
 		final ProjectThing sibling = pt_parent.createChild(this.getType()); if (null == sibling) return null; // TODO warning
+		if (null == al) { // we are in the top-level invocation of this recursive function
+			al = new ArrayList<ProjectThing>(); 
+			String title = this.getTitle();
+			if (!title.contains("#")) { // TODO handle basic type numbering -- this doesn't do it
+				// trim trailing numerals TODO better way?
+				StringBuffer title_buffer = new StringBuffer(title);
+				for (int i = title.length(); i >= 0; i--) {
+					if (Character.isDigit(title.charAt(i-1))) { 
+						
+						// || (Character.toString(title.charAt(i-1)).equals("#"))) { 
+						title_buffer.deleteCharAt(i-1); 
+					} else break;
+				}
+				// give it a unique name based on its progenitor
+				sibling.setTitle(title_buffer.toString() + Integer.toString(this.getRootParent().findChildren(title_buffer.toString(), null, false).size()));
+			}
+		}
 		al.add(sibling);
 		final ArrayList children = this.getChildren();
 		if (null != children) {

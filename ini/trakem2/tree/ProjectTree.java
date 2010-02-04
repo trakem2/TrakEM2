@@ -73,6 +73,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 	private DefaultMutableTreeNode selected_node = null;
 	private DefaultMutableTreeNode repeatable_node = null;
+	private DefaultMutableTreeNode selected_before_repeated_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
 		super(project, DNDTree.makeNode(project_thing), new Color(240,230,255)); // new Color(185,156,255));
@@ -580,19 +581,38 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		final ProjectThing thing = (ProjectThing)ob;
 		if (thing.getRootParent() == thing) { Utils.log("Warning: ProjectTree.createRepeatable was invoked on the root node"); return; } // TODO dunno if this is possible; dunno what to do if it is.
 		
+		selected_before_repeated_node = selected_node;
+		
 		project.getRootLayerSet().addChangeTreesStep();
 		ArrayList nc = thing.createSibling(null, (ProjectThing)thing.getParent());
 		addLeafs((ArrayList<Thing>)nc, new Runnable() {
 			public void run() {
 				project.getRootLayerSet().addChangeTreesStep();
 			}});
-		// Utils.log("caught repeat item create request");
+		// This approach is not working -- other nodes added as part of createRepeatable are confusing the issue?
+		// The Restore Selection command is also confused by this. Haven't figured out how to overcome it, so kludge a "selected_before_repeated_node" class variable onto it
+		/*if (null != old_selected_node) {
+			final TreePath old_tree_path = new TreePath(old_selected_node.getPath());
+			// bounce back & forth so that "restore selection" command selects what was selected before createRepeatable was called
+			this.setSelectionPath(old_tree_path);
+			this.scrollPathToVisible(old_tree_path);
+			this.updateUILater();
+		}*/
 	}
 	
 	public boolean hasRepeatable() {
 		return (null != repeatable_node);
 	}
 
+	public void reboundFromRepeated() {
+		Utils.log2("ProjectTree.reboundFromRepeated called");
+		if (null != selected_before_repeated_node) {
+			final TreePath trp = new TreePath(selected_before_repeated_node.getPath());
+			this.scrollPathToVisible(trp);
+			this.setSelectionPath(trp);
+			this.updateUILater();
+		}
+	}
 	/** If the given node is null, it will be searched for. */
 	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
 		Object obd = thing.getObject();
