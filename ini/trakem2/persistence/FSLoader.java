@@ -1765,12 +1765,12 @@ public final class FSLoader extends Loader {
 				FloatProcessorT2 alpha;
 				final FloatProcessorT2 outside;
 				if (null != alpha_mask) {
-					alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+					alpha = new FloatProcessorT2(alpha_mask);
 				} else {
 					alpha = null;
 				}
 				if (null != outside_mask) {
-					outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+					outside = new FloatProcessorT2(outside_mask);
 					if ( null == alpha ) {
 						alpha = outside;
 						alpha_mask = outside_mask;
@@ -1867,18 +1867,26 @@ public final class FSLoader extends Loader {
 				if (Thread.currentThread().isInterrupted()) return false;
 
 				if (Loader.GAUSSIAN == resizing_mode) {
-					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
+					final FloatProcessorT2 fp = new FloatProcessorT2((FloatProcessor) ip.convertToFloat());
+					if (ImagePlus.GRAY8 == type) {
+						// for 8-bit, the min,max has been applied when going to FloatProcessor
+						fp.setMinMax(0, 255); // just set it
+					} else {
+						fp.setMinAndMax(patch.getMin(), patch.getMax());
+					}
+					//fp.debugMinMax(patch.toString());
+
 					int sw=w, sh=h;
 
-					FloatProcessor alpha;
-					FloatProcessor outside;
+					FloatProcessorT2 alpha,
+						         outside;
 					if (null != alpha_mask) {
-						alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+						alpha = new FloatProcessorT2(alpha_mask);
 					} else {
 						alpha = null;
 					}
 					if (null != outside_mask) {
-						outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+						outside = new FloatProcessorT2(outside_mask);
 						if (null == alpha) {
 							alpha = outside;
 							alpha_mask = outside_mask;
@@ -1895,11 +1903,11 @@ public final class FSLoader extends Loader {
 
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
-							fp = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data, cm);
+							fp.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data);
 							if (null != alpha) {
-								alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])alpha.getPixels(), sw, sh), 0.75f).data, null);
+								alpha.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])alpha.getPixels(), sw, sh), 0.75f).data);
 								if (alpha != outside && outside != null) {
-									outside = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])outside.getPixels(), sw, sh), 0.75f).data, null);
+									outside.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])outside.getPixels(), sw, sh), 0.75f).data);
 								}
 							}
 						}
@@ -1908,41 +1916,21 @@ public final class FSLoader extends Loader {
 						if (null == target_dir) continue;
 						// 2 - generate scaled image
 						if (0 != k) {
-							fp = (FloatProcessor)fp.resize(w, h);
-							if (ImagePlus.GRAY8 == type) {
-								fp.setMinAndMax(0, 255); // the min and max was expanded into 0,255 range at convertToFloat for 8-bit images, so the only limit to be added now to the FloatProcessor is that of the 8-bit range. The latter is done automatically for FloatProcessor class, but FloatProcessorT2 doesn't, to avoid the expensive (and here superfluous) operation of looping through all pixels in the findMinAndMax method.
-							} else {
-								fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
-							}
+							fp.resizeInPlace(w, h); // min and max stay the same
 							if (null != alpha) {
-								alpha = (FloatProcessor)alpha.resize(w, h);
+								alpha.resizeInPlace(w, h);
 								if (alpha != outside && null != outside) {
-									outside = (FloatProcessor)outside.resize(w, h);
+									outside.resizeInPlace(w, h);
 								}
 							}
 						}
+
 						if (null != alpha) {
 							// 3 - save as jpeg with alpha
-							final byte[] a = (byte[])alpha.convertToByte(false).getPixels();
-							if (null != outside) {
-								final byte[] o;
-								if (alpha != outside) {
-									o = (byte[])outside.convertToByte(false).getPixels();
-								} else {
-									o = a;
-								}
-								// Remove all not completely inside pixels from the alpha mask
-								// If there was no alpha mask, alpha is the outside itself
-								for (int i=0; i<o.length; i++) {
-									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
-								}
-							}
-							if (ImagePlus.GRAY8 != type) { // for 8-bit, the min,max has been applied when going to FloatProcessor
-								fp.setMinAndMax(patch.getMin(), patch.getMax());
-							}
-							final int[] pix = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
+							// Remove all not completely inside pixels from the alpha mask
+							// If there was no alpha mask, alpha is the outside itself
 
-							final BufferedImage bi_save = createARGBImage(w, h, pix);
+							final BufferedImage bi_save = createARGBImage(w, h, null == outside ? fp.getARGBPixels((float[])alpha.getPixels()) : fp.getARGBPixels((float[])alpha.getPixels(), (float[])outside.getPixels()));
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
 								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
