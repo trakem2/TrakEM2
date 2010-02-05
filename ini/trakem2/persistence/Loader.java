@@ -4507,7 +4507,7 @@ abstract public class Loader {
 
 	/** Returns an ImageStack, one slice per region. */
 	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
-		ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
+		final ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
 		for (final Region r : regions) {
 			fus.add(ex.submit(new Callable<ImagePlus>() {
@@ -4520,7 +4520,10 @@ abstract public class Loader {
 		ImageStack stack = new ImageStack((int)(r.r.width * magnification), (int)(r.r.height * magnification));
 		for (int i=0; i<regions.size(); i++) {
 			try {
-				if (Thread.currentThread().isInterrupted()) break;
+				if (Thread.currentThread().isInterrupted()) {
+					ex.shutdownNow();
+					return null;
+				}
 				stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
 			} catch (Throwable t) {
 				IJError.print(t);
