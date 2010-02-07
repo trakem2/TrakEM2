@@ -602,7 +602,7 @@ final public class AlignTask
 		/* make sure that, despite rounding issues from scale, it is >= image size */
 		final float scale = ( float )( cp.sift.maxOctaveSize - 1 ) / maxLength;
 		
-		cp.maxEpsilon *= scale;
+		//cp.maxEpsilon *= scale;
 		
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( cp.sift );
 		final SIFT ijSIFT = new SIFT( sift );
