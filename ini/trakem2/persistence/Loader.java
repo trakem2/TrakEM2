@@ -296,6 +296,7 @@ abstract public class Loader {
 		
 		exec.shutdownNow();
 		guiExec.quit();
+		gcrunner.interrupt();
 	}
 
 	/**Retrieve next id from a sequence for a new DBObject to be added.*/
@@ -605,6 +606,64 @@ abstract public class Loader {
 		return true;
 	}
 
+	final private class GCRunner extends Thread {
+		boolean run = false;
+		GCRunner() {
+			super("GCRunner");
+			setPriority(Thread.NORM_PRIORITY);
+			setDaemon(true);
+			start();
+		}
+		final void trigger() {
+			synchronized (this) {
+				run = true;
+				notify();
+			}
+		}
+		public final void run() {
+			while (true) {
+				synchronized (this) {
+					try { wait(); } catch (InterruptedException ie) { return; }
+				}
+				worker: while (run) {
+					synchronized (this) {
+						run = false;
+					}
+
+					final long initial = IJ.currentMemory();
+					long now = initial;
+					final int max = 7;
+					long sleep = 50; // initial value
+					int iterations = 0;
+					Utils.showStatus("Clearing memory...");
+					do {
+						System.gc();
+						Thread.yield();
+						// 'run' should be false. If true, re-read initial values and iterations, for a new request came in:
+						if (run) {
+							Utils.log2("reinit GC after iter " + (iterations + 1));
+							continue worker;
+						}
+						try { Thread.sleep(sleep); } catch (InterruptedException ie) { return; }
+						sleep += sleep; // incremental
+						now = IJ.currentMemory();
+						Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+						Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
+						iterations++;
+					} while (now >= initial && iterations < max);
+					Utils.showStatus("Memory cleared.");
+				}
+			}
+		}
+	}
+
+	private final GCRunner gcrunner = new GCRunner();
+
+	/** Trigger garbage collection in a separate thread. */
+	public final void triggerGC() {
+		gcrunner.trigger();
+	}
+
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
 	public final int runGC() {
 		//Utils.printCaller("runGC", 4);
@@ -793,19 +852,26 @@ abstract public class Loader {
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
-					if (0 == clonks.incrementAndGet() % 20) runGC();
 					Utils.log2("Loader.releaseMemory: empty cache.");
 					// Remove any autotraces
 					Polyline.flushTraceCache(Project.findProject(this));
 					// in any case, can't release more:
 					mawts.gc();
+					if (0 == clonks.incrementAndGet() % 20) {
+						triggerGC();
+					}
 					return released;
 				} else if (iterations > 50) {
-					runGC();
+					triggerGC();
 				}
 			}
 		} catch (Throwable e) {
 			IJError.print(e);
+		} finally {
+			// if released more than min_free_bytes but there isn't enough free memory, it's time to trigger GC:
+			if (!enoughFreeMemory(min_free_bytes)) {
+				triggerGC();
+			}
 		}
 		return released;
 	}
