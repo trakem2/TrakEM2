@@ -27,6 +27,7 @@ import ini.trakem2.utils.IJError;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.VirtualStack;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
@@ -708,7 +709,7 @@ abstract public class Loader {
 	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
 
 	/** 100 Mb per processor, which is a bit more than 67 Mb, the size of a 32-bit 4096x4096 image. */
-	private static long computeDesirableMinFreeBytes() {
+	public static long computeDesirableMinFreeBytes() {
 		long f = 150000000 * Runtime.getRuntime().availableProcessors();
 		if (f > max_memory / 2) {
 			Utils.logAll("WARNING you are operating with low memory\n  considering the number of CPU cores.\n  Please restart with a higher -Xmx value.");
@@ -4572,7 +4573,7 @@ abstract public class Loader {
 	}
 
 	/** Returns an ImageStack, one slice per region. */
-	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
+	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type, final String dir) {
 		final ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
 		for (final Region r : regions) {
@@ -4583,14 +4584,28 @@ abstract public class Loader {
 			}));
 		}
 		Region r = regions.get(0);
-		ImageStack stack = new ImageStack((int)(r.r.width * magnification), (int)(r.r.height * magnification));
-		for (int i=0; i<regions.size(); i++) {
+		int w = (int)(r.r.width * magnification),
+		    h = (int)(r.r.height * magnification),
+		    size = regions.size();
+		ImageStack stack = null == dir ? new ImageStack(w, h)
+					       : new VirtualStack(w, h, null, dir);
+		int digits = Integer.toString(size).length();
+		for (int i=0; i<size; i++) {
 			try {
 				if (Thread.currentThread().isInterrupted()) {
 					ex.shutdownNow();
 					return null;
 				}
-				stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
+				if (null == dir) {
+					stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
+				} else {
+					StringBuilder name = new StringBuilder().append(i);
+					while (name.length() < digits) name.insert(0, '0');
+					name.append(".png");
+					String filename = name.toString();
+					new FileSaver(fus.get(i).get()).saveAsPng(dir + filename);
+					((VirtualStack)stack).addSlice(filename);
+				}
 			} catch (Throwable t) {
 				IJError.print(t);
 			}

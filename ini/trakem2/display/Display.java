@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.*;
 import ij.gui.*;
 import ij.io.OpenDialog;
+import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -4287,6 +4288,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					String[] types = new String[]{"8-bit gray", "Color RGB"};
 					gd.addChoice("Image type", types, types[0]);
 					gd.addSlider("scale", 0, 100, 100);
+					gd.addCheckbox("save to file", false);
 					gd.showDialog();
 					if (gd.wasCanceled()) return;
 					int w = (int)gd.getNextNumber();
@@ -4301,7 +4303,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						Utils.log("Invalid scale: " + scale);
 						return;
 					}
-					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type);
+					String dir = null;
+					if (gd.getNextBoolean()) {
+						DirectoryChooser dc = new DirectoryChooser("Target directory");
+						dir = dc.getDirectory();
+						if (null == dir) return; // canceled
+						dir = Utils.fixDir(dir);
+					}
+					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type, dir);
 					if (null == imp) {
 						Utils.log("Mark a node first!");
 						return;

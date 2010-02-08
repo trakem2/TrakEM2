@@ -1678,14 +1678,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	/** Fly-through image stack from source node to mark node.
 	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
-	public ImagePlus flyThroughMarked(final int width, final int height, final double magnification, final int type) {
+	public ImagePlus flyThroughMarked(final int width, final int height, final double magnification, final int type, final String dir) {
 		if (null == marked) return null;
-		return flyThrough(root, marked, width, height, magnification, type);
+		return flyThrough(root, marked, width, height, magnification, type, dir);
 	}
 
 	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
 	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
-	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type) {
+	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type, final String dir) {
 		// Create regions
 		final LinkedList<Region> regions = new LinkedList<Region>();
 		Node node = last;
@@ -1702,7 +1702,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			if (first == node) break;
 			node = node.parent;
 		}
-		return project.getLoader().createFlyThrough(regions, magnification, type);
+		return project.getLoader().createFlyThrough(regions, magnification, type, dir);
 	}
 
 	/** Measures number of branch points and end points, and total cable length.
