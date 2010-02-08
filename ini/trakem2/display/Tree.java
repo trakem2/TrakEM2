@@ -1445,7 +1445,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				ke.consume();
 				return;
 			}
-			if (KeyEvent.VK_0 == keyCode) {
+			if (!show_tag_dialogs && KeyEvent.VK_0 == keyCode) {
 				// force dialogs for next key
 				show_tag_dialogs = true;
 				ke.consume();
@@ -1512,8 +1512,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							if (untag) {
 								layer_set.askToRemoveTag(keyCode);
 							} else {
-								if (null == layer_set.askForNewTag(keyCode)) return;
-								target.addTag(layer_set.getTags(keyCode).last());
+								Tag t = layer_set.askForNewTag(keyCode);
+								if (null == t) return;
+								target.addTag(t);
 								Display.repaint(layer_set);
 							}
 							layer_set.addDataEditStep(Tree.this);
