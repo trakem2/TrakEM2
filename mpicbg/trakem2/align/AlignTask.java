@@ -583,6 +583,8 @@ final public class AlignTask
 			final Set< Tile< ? > > graph1,
 			final Set< Tile< ? > > graph2 )
 	{
+		final Align.Param cp = p.clone();
+		
 		final Selection selection1 = new Selection( null );
 		for ( final Tile< ? > tile : graph1 )
 			selection1.add( ( ( AbstractAffineTile2D< ? > )tile ).getPatch() );
@@ -594,9 +596,15 @@ final public class AlignTask
 		final Rectangle graph2Box = selection2.getBox();
 		
 		final int maxLength = Math.max( Math.max( Math.max( graph1Box.width, graph1Box.height ), graph2Box.width ), graph2Box.height );
-		final float scale = ( float )p.sift.maxOctaveSize / maxLength;
+		//final float scale = ( float )cp.sift.maxOctaveSize / maxLength;
+		/* rather ad hoc but we cannot just scale this to maxOctaveSize */
+		cp.sift.maxOctaveSize = Math.min( maxLength, 2 * p.sift.maxOctaveSize );
+		/* make sure that, despite rounding issues from scale, it is >= image size */
+		final float scale = ( float )( cp.sift.maxOctaveSize - 1 ) / maxLength;
 		
-		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
+		//cp.maxEpsilon *= scale;
+		
+		final FloatArray2DSIFT sift = new FloatArray2DSIFT( cp.sift );
 		final SIFT ijSIFT = new SIFT( sift );
 		final ArrayList< Feature > features1 = new ArrayList< Feature >();
 		final ArrayList< Feature > features2 = new ArrayList< Feature >();
@@ -624,10 +632,10 @@ final public class AlignTask
 				features1,
 				features2,
 				candidates,
-				p.rod );
+				cp.rod );
 
 			final AbstractAffineModel2D< ? > model;
-			switch ( p.expectedModelIndex )
+			switch ( cp.expectedModelIndex )
 			{
 			case 0:
 				model = new TranslationModel2D();
@@ -651,8 +659,8 @@ final public class AlignTask
 						candidates,
 						inliers,
 						1000,
-						p.maxEpsilon,
-						p.minInlierRatio,
+						cp.maxEpsilon,
+						cp.minInlierRatio,
 						3 * model.getMinNumMatches(),
 						3 );
 			}
@@ -756,7 +764,7 @@ final public class AlignTask
 			/* graphs in the current layer */
 			final List< Set< Tile< ? > > > currentLayerGraphs = AbstractAffineTile2D.identifyConnectedGraphs( csCurrentLayerTiles );
 			
-//			/* TODO just for visualisation */
+//			/* TODO just for visualization */
 //			for ( final Set< Tile< ? > > graph : currentLayerGraphs )
 //			{
 //				Display.getFront().getSelection().clear();
