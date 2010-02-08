@@ -3993,7 +3993,7 @@ abstract public class Loader {
 	protected boolean generateMipMaps(final Patch patch) { return false; }
 
 	/** Does nothing unless overriden. */
-	public void removeMipMaps(final Patch patch) {}
+	public Future<Boolean> removeMipMaps(final Patch patch) { return null; }
 
 	/** Returns generateMipMaps(al, false). */
 	public Bureaucrat generateMipMaps(final ArrayList al) {
