@@ -101,7 +101,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7o 2010-01-27";
+	static public String version = "0.7p 2010-02-08";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
