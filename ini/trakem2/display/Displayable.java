@@ -1511,10 +1511,25 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Sets the matrix values of this Displayable's AffineTransform to those of the given AffineTransform. */
-	public void setAffineTransform(AffineTransform at) {
-		this.at.setTransform(at);
+	public void setAffineTransform(final AffineTransform affine) {
+		this.at.setTransform(affine);
 		updateInDatabase("transform");
 		updateBucket();
+	}
+
+	/** Set the given affine transform only for the parts of this object that show within the given Layer. */
+	public void setAffineTransform(final Layer layer, final AffineTransform affine) {
+		if (this instanceof VectorData) {
+			// Apply only to the data that shows within this layer
+			AffineTransform aff = new AffineTransform();
+			try {
+				aff.concatenate(this.at.createInverse());
+				aff.concatenate(affine);
+				mpicbg.models.AffineModel2D am = new mpicbg.models.AffineModel2D();
+				am.set(aff);
+				((VectorData)this).apply(layer, new Area(layer.getParent().get2DBounds()), am);
+			} catch (Exception e) { IJError.print(e); }
+		} else setAffineTransform(affine);
 	}
 
 	/** Translate this Displayable and its linked ones if linked=true. */
@@ -1651,8 +1666,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** preConcatenate the given affine transform to this Displayable's affine. */
 	public void preTransform(final AffineTransform affine, final boolean linked) {
 		if (linked) {
-			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
-				final Displayable d = (Displayable)it.next();
+			for (final Displayable d : getLinkedGroup(null)) {
 				d.at.preConcatenate(affine);
 				d.updateInDatabase("transform");
 				d.updateBucket();
@@ -1662,6 +1676,27 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			this.updateInDatabase("transform");
 			this.updateBucket();
 		}
+	}
+
+	/** preConcatenate the given affine transform to this Displayable's affine, for the parts of itself and its linked ones that show within the given Layer. */
+	public void preTransform(final Layer layer, final AffineTransform affine, final boolean linked) {
+		try {
+			final AffineTransform aff = new AffineTransform();
+			aff.concatenate(this.at.createInverse());
+			aff.concatenate(affine);
+			final mpicbg.models.AffineModel2D am = new mpicbg.models.AffineModel2D();
+			am.set(aff);
+			final Area bounds = new Area(layer.getParent().get2DBounds());
+			if (linked) {
+				for (final Displayable d : getLinkedGroup(null)) {
+					if (d instanceof VectorData) ((VectorData)d).apply(layer, bounds, am);
+					else d.preTransform(affine, false);
+				}
+			} else {
+				if (this instanceof VectorData) ((VectorData)this).apply(layer, bounds, am);
+				else preTransform(affine, false);
+			}
+		} catch (Exception e) { IJError.print(e); }
 	}
 
 	public void paintAsBox(final Graphics2D g) {

@@ -360,7 +360,7 @@ public class AffineTransformMode implements Mode {
 			if (null != accum_affine) accum_affine.preConcatenate(at);
 
 			for (final Displayable d : display.getSelection().getAffected()) {
-				d.preTransform(at, false);
+				d.preTransform(display.getLayer(), at, false);
 			}
 			fixAffinePoints(at);
 
@@ -571,7 +571,7 @@ public class AffineTransformMode implements Mode {
 		// Notify each Displayable that any set of temporary transformations are over.
 		// The transform is the same, has not changed. This is just sending an event.
 		for (final Displayable d : display.getSelection().getAffected()) {
-			d.setAffineTransform( d.getAffineTransform() );
+			d.setAffineTransform(display.getLayer(), d.getAffineTransform());
 		}
 		return true;
 	}
@@ -684,7 +684,7 @@ public class AffineTransformMode implements Mode {
 			final AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
 			at.preConcatenate(free_affine);
 			at.preConcatenate(model_affine);
-			d.setAffineTransform(at);
+			d.setAffineTransform(display.getLayer(), at);
 		}
 	}
 
@@ -850,7 +850,7 @@ public class AffineTransformMode implements Mode {
 		if (null != accum_affine) accum_affine.preConcatenate(at);
 
 		for (final Displayable d : display.getSelection().getAffected()) {
-			d.preTransform(at, false); // all linked ones included in the hashset
+			d.preTransform(display.getLayer(), at, false); // all linked ones included in the hashset
 		}
 		fixAffinePoints(at);
 		resetBox();
@@ -866,7 +866,7 @@ public class AffineTransformMode implements Mode {
 		if (null != accum_affine) accum_affine.preConcatenate(at);
 
 		for (final Displayable d : display.getSelection().getAffected()) {
-			d.preTransform(at, false); // all linked ones already included in the hashset
+			d.preTransform(display.getLayer(), at, false); // all linked ones already included in the hashset
 		}
 		fixAffinePoints(at);
 		resetBox();
@@ -889,7 +889,7 @@ public class AffineTransformMode implements Mode {
 		if (null != accum_affine) accum_affine.preConcatenate(at);
 
 		for (final Displayable d : display.getSelection().getAffected()) {
-			d.preTransform(at, false); // all linked ones already included in the hashset
+			d.preTransform(display.getLayer(), at, false); // all linked ones already included in the hashset
 		}
 		fixAffinePoints(at);
 		resetBox();
