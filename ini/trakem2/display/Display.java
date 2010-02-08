@@ -5150,7 +5150,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		this.mode = mode;
 		canvas.repaint(true);
-		scroller.setEnabled(mode.getClass() == DefaultMode.class);
+		scroller.setEnabled(mode.canChangeLayer());
 	}
 
 	public Mode getMode() {
