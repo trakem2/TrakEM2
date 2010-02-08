@@ -69,6 +69,9 @@ public class Segmentation {
 		public int width = 100,
 		           height = 100;
 
+		// Hack: options for semiautomatic neurite tracer
+		public boolean SNT_invert_image = false;
+
 		public OptionPanel asOptionPanel() {
 			OptionPanel op = new OptionPanel();
 			op.addMessage("Fast Marching:");
@@ -84,6 +87,8 @@ public class Segmentation {
 			op.addNumericField("Filter down to:", low_frequency_threshold, new OptionPanel.IntSetter(this, "low_frequency_threshold"));
 			op.addNumericField("Filter up to:", high_frequency_threshold, new OptionPanel.IntSetter(this, "high_frequency_threshold"));
 			op.addCheckbox("Saturate when autoscaling:", saturate_when_autoscaling, new OptionPanel.BooleanSetter(this, "saturate_when_autoscaling"));
+			op.addMessage("Semiautomatic neurite tracer:");
+			op.addCheckbox("Invert image", SNT_invert_image, new OptionPanel.BooleanSetter(this, "SNT_invert_image"));
 			return op;
 		}
 
@@ -101,8 +106,6 @@ public class Segmentation {
 			gd.addCheckbox("Enable bandpass filter", apply_bandpass_filter);
 	                gd.addNumericField("Filter_Large Structures Down to", low_frequency_threshold, 0, 4, "pixels");
 	                gd.addNumericField("Filter_Small Structures Up to", high_frequency_threshold, 0, 4, "pixels");
-	                gd.addCheckbox("Autoscale After Filtering", autoscale_after_filtering);
-	                gd.addCheckbox("Saturate Image when Autoscaling", saturate_when_autoscaling);
 			final Component[] c = {
 				(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
 				(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
@@ -113,6 +116,10 @@ public class Segmentation {
 			if (!apply_bandpass_filter) {
 				for (Component comp : c) comp.setEnabled(false);
 			}
+	                gd.addCheckbox("Autoscale After Filtering", autoscale_after_filtering);
+	                gd.addCheckbox("Saturate Image when Autoscaling", saturate_when_autoscaling);
+			gd.addMessage("Semiautomatic neurite tracer:");
+			gd.addCheckbox("Invert image", SNT_invert_image);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 
@@ -133,6 +140,9 @@ public class Segmentation {
 			high_frequency_threshold = (int) gd.getNextNumber();
 			autoscale_after_filtering = gd.getNextBoolean();
 			saturate_when_autoscaling = gd.getNextBoolean();
+
+			// Semiautomatic neurite tracer:
+			SNT_invert_image = gd.getNextBoolean();
 
 			return true;
 		}

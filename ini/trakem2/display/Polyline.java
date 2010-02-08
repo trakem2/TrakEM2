@@ -36,6 +36,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.vector.VectorString3D;
+import ini.trakem2.imaging.Segmentation;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -589,7 +590,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 					startedWorking();
 					try {
 				Utils.log("Push ESCAPE key to cancel autotrace anytime.");
-				ImagePlus virtual = new LayerStack(layer_set, scale, ImagePlus.GRAY8, Patch.class, display.getDisplayChannelAlphas()).getImagePlus();
+				ImagePlus virtual = new LayerStack(layer_set, scale, ImagePlus.GRAY8, Patch.class, display.getDisplayChannelAlphas(), Segmentation.fmp.SNT_invert_image).getImagePlus();
 				//virtual.show();
 				Calibration cal = virtual.getCalibration();
 				double minimumSeparation = 1;

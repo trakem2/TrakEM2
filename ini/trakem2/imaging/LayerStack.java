@@ -25,16 +25,22 @@ public class LayerStack extends ImageStack {
 	/** The class of the objects included. */
 	final private Class clazz;
 	final private int c_alphas;
+	final private boolean invert;
 
 	private ImagePlus layer_imp = null;
 
-	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz, final int c_alphas) {
+	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz, final int c_alphas, final boolean invert) {
 		super((int)(layer_set.getLayerWidth() * (scale > 1 ? 1 : scale)), (int)(layer_set.getLayerHeight() * (scale > 1 ? 1 : scale)), Patch.DCM);
 		this.layer_set = layer_set;
 		this.type = type;
 		this.scale = scale > 1 ? 1 : scale;
 		this.clazz = clazz;
 		this.c_alphas = c_alphas;
+		this.invert = invert;
+	}
+
+	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz, final int c_alphas) {
+		this(layer_set, scale, type, clazz, c_alphas, false);
 	}
 
 	/*
@@ -90,7 +96,9 @@ public class LayerStack extends ImageStack {
 		if (n < 1 || n > layer_set.size()) return null;
 		// Create a flat image on the fly with everything on it, and return its processor.
 		final Layer layer = layer_set.getLayer(n-1);
-		return layer.getProject().getLoader().getFlatImage(layer, layer_set.get2DBounds(), this.scale, this.c_alphas, this.type, this.clazz, null).getProcessor();
+		final ImageProcessor ip = layer.getProject().getLoader().getFlatImage(layer, layer_set.get2DBounds(), this.scale, this.c_alphas, this.type, this.clazz, null).getProcessor();
+		if (invert) ip.invert();
+		return ip;
 	}
  
 	 /** Returns the number of slices in this stack. */
