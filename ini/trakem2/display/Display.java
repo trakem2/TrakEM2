@@ -2730,8 +2730,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (null == active) return;
 			String command = ae.getActionCommand();
 			if (command.equals("Transform (affine)")) {
+				getLayerSet().addTransformStepWithData(selection.getAffected());
 				setMode(new AffineTransformMode(Display.this));
 			} else if (command.equals("Transform (non-linear)")) {
+				getLayerSet().addTransformStepWithData(selection.getAffected());
 				List<Displayable> col = selection.getSelected(Patch.class);
 				for (final Displayable d : col) {
 					if (d.isLinked()) {
