@@ -103,9 +103,6 @@ public final class FSLoader extends Loader {
 	/** Path to dir_storage + "trakem2.images/" */
 	private String dir_image_storage = null;
 
-	/** Queue and execute Runnable tasks. */
-	static private Dispatcher dispatcher = new Dispatcher();
-
 	private Set<Patch> touched_mipmaps = Collections.synchronizedSet(new HashSet<Patch>());
 
 	private Set<Patch> mipmaps_to_remove = Collections.synchronizedSet(new HashSet<Patch>());
@@ -326,7 +323,6 @@ public final class FSLoader extends Loader {
 	}
 
 	static private void startStaticServices() {
-		if (null == dispatcher || dispatcher.isQuit()) dispatcher = new Dispatcher();
 		int np = Runtime.getRuntime().availableProcessors();
 		// 1 core = 1 thread
 		// 2 cores = 2 threads
@@ -334,6 +330,9 @@ public final class FSLoader extends Loader {
 		if (np > 2) np -= 1;
 		if (null == regenerator || regenerator.isShutdown()) {
 			regenerator = Utils.newFixedThreadPool(np, "regenerator");
+		}
+		if (null == remover || remover.isShutdown()) {
+			remover = Utils.newFixedThreadPool(2, "mipmap remover");
 		}
 		if (null == repainter || repainter.isShutdown()) {
 			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
@@ -343,7 +342,7 @@ public final class FSLoader extends Loader {
 	/** Shutdown the various thread pools and disactivate services in general. */
 	static private void destroyStaticServices() {
 		if (null != regenerator) regenerator.shutdownNow();
-		if (null != dispatcher) dispatcher.quit();
+		if (null != remover) remover.shutdownNow();
 		if (null != repainter) repainter.shutdownNow();
 	}
 
@@ -360,7 +359,7 @@ public final class FSLoader extends Loader {
 			File f = new File(getAbsolutePath(p)); // with slice info appended
 			//Utils.log2("File f is " + f);
 			Utils.log2("Removing mipmaps for " + p);
-			// Cannot run in the dispatcher: is a daemon, and would be interrupted.
+			// Cannot run in the remover: is a daemon, and would be interrupted.
 			removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight());
 		}
 		//
@@ -2349,21 +2348,29 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
-	public void removeMipMaps(final Patch p) {
-		if (null == dir_mipmaps) return;
-		try {
-			final int width = (int)p.getWidth();
-			final int height = (int)p.getHeight();
-			final String path = getAbsolutePath(p);
-			if (null == path) return; // missing file
-			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
-			// cue the task in a dispatcher:
-			dispatcher.exec(new Runnable() { public void run() { // copy-paste as a replacement for (defmacro ... we luv java
-				removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
-			}});
-		} catch (Exception e) {
-			IJError.print(e);
-		}
+	public Future<Boolean> removeMipMaps(final Patch p) {
+		if (null == dir_mipmaps) return null;
+		return remover.submit(new Callable<Boolean>() {
+			public Boolean call() {
+				try {
+					final String path = getAbsolutePath(p);
+					if (null == path) {
+						// missing file
+						Utils.log2("Remover: null path for Patch " + p);
+						return false;
+					}
+					final int width = (int)p.getWidth();
+					final int height = (int)p.getHeight();
+					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(".jpg").toString();
+					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
+					flushMipMaps(p.getId());
+					return true;
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+				return false;
+			}
+		});
 	}
 
 	private void removeMipMaps(final String filename, final int width, final int height) {
@@ -2526,10 +2533,12 @@ public final class FSLoader extends Loader {
 
 	static private AtomicInteger n_regenerating = new AtomicInteger(0);
 	static private ExecutorService regenerator = null;
+	static private ExecutorService remover = null;
 	static public ExecutorService repainter = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns a Future if the task was submitted, null if not. */
+	@Override
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
@@ -2542,10 +2551,16 @@ public final class FSLoader extends Loader {
 				Utils.log2("SUBMITTING to regen " + patch);
 				Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 
+				// Eliminate the jpg files in a separate thread:
+				Utils.log2("calling removeMipMaps from regenerateMipMaps");
+				final Future<Boolean> removing = removeMipMaps(patch);
+
 				fu = regenerator.submit(new Callable<Boolean>() {
 					public Boolean call() {
 						boolean b = false;
 						try {
+							// synchronize with the removal:
+							if (null != removing) removing.get();
 							Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 							b = generateMipMaps(patch); // will remove the Future from the regenerating_mipmaps table, under proper gm_lock synchronization
 							Display.repaint(patch.getLayer());
