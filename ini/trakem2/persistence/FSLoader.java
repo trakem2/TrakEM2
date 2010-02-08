@@ -2378,7 +2378,7 @@ public final class FSLoader extends Loader {
 		int h = height;
 		int k = 0; // the level
 		do {
-			final File f = new File(dir_mipmaps + k + "/" + filename);
+			final File f = new File(new StringBuilder(dir_mipmaps).append(k).append('/').append(filename).toString());
 			if (f.exists()) {
 				try {
 					if (!f.delete()) {
