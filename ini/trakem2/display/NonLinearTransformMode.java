@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Future;
 import java.awt.BasicStroke;
@@ -220,8 +221,34 @@ public class NonLinearTransformMode extends GroupingMode {
 	private final void setUndoState() {
 		layer.getParent().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
 	}
-
+	
+	final private Future< Boolean > applyToPatch( final Patch patch ) throws Exception
+	{
+		final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
+		final AffineTransform pat = new AffineTransform();
+		pat.translate( -pbox.x, -pbox.y );
+		pat.preConcatenate( patch.getAffineTransform() );
+		
+		final AffineModel2D toWorld = new AffineModel2D();
+		toWorld.set( pat );
+		
+		final CoordinateTransform mlst = createCT();
+		
+		final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
+		ctl.add( toWorld );
+		ctl.add( mlst );
+		ctl.add( toWorld.createInverse() );
+		
+		patch.appendCoordinateTransform( ctl );
+		return patch.updateMipMaps();
+	}
+	
 	public boolean apply()
+	{
+		return apply( null );
+	}
+
+	public boolean apply( final Set< Layer > sublist )
 	{
 
 		/* Set undo step to reflect initial state before any transformations */
@@ -231,38 +258,40 @@ public class NonLinearTransformMode extends GroupingMode {
 		{
 			public void exec()
 			{
-				final ArrayList< Future > futures = new ArrayList< Future >();
+				final ArrayList< Future< Boolean > > futures = new ArrayList< Future< Boolean > >();
 
 				synchronized ( updater )
 				{
+					/* apply to selected patches */
 					for ( final Paintable p : screenPatchRanges.keySet() )
 					{
 						if ( p instanceof Patch )
 						{
 							try
 							{
-								final Patch patch = ( Patch ) p;
-								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
-								final AffineTransform pat = new AffineTransform();
-								pat.translate( -pbox.x, -pbox.y );
-								pat.preConcatenate( patch.getAffineTransform() );
-								
-								final AffineModel2D toWorld = new AffineModel2D();
-								toWorld.set( pat );
-								
-								final CoordinateTransform mlst = createCT();
-								
-								final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
-								ctl.add( toWorld );
-								ctl.add( mlst );
-								ctl.add( toWorld.createInverse() );
-								
-								patch.appendCoordinateTransform( ctl );
-								futures.add( patch.getProject().getLoader().regenerateMipMaps( patch ) );
+								futures.add( applyToPatch( ( Patch )p ) );
 							}
 							catch ( Exception e )
 							{
 								e.printStackTrace();
+							}
+						}
+					}
+					/* apply to other layers if there are any */
+					if ( !( sublist == null || sublist.isEmpty() ) )
+					{
+						for ( final Layer layer : sublist )
+						{
+							for ( final Displayable p : layer.getDisplayables( Patch.class ) )
+							{
+								try
+								{
+									futures.add( applyToPatch( ( Patch )p ) );
+								}
+								catch ( Exception e )
+								{
+									e.printStackTrace();
+								}
 							}
 						}
 					}
