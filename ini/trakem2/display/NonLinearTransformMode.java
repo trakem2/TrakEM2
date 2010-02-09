@@ -66,9 +66,12 @@ public class NonLinearTransformMode extends GroupingMode {
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping;
 			mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
 			
-			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
+			synchronized ( screenPatchRanges )
 			{
-				spr.update( mapping );
+				for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
+				{
+					spr.update( mapping );
+				}
 			}
 		}
 		catch ( NotEnoughDataPointsException e ) {}
