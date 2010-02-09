@@ -51,8 +51,6 @@ import Jama.Matrix;
 
 import java.io.*;
 
-import mpicbg.trakem2.transform.TranslationModel2D;
-
 
 public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTransform{
 

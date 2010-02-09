@@ -58,9 +58,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.awt.Color;
 import java.awt.geom.AffineTransform;
@@ -821,9 +819,10 @@ public class Distortion_Correction implements PlugIn{
 			newImg.setProcessor( newImg.getTitle(), newImg.getProcessor().convertToShort( false ) );
 
 			newImg.setProcessor( sp.names[ i + sp.firstImageIndex ], applyTransformToImageInverse( models[ index * ( sp.numberOfImages - 1 ) + count ], newImg.getProcessor() ) );
-			ImageProcessor testIp = im1.getProcessor().duplicate();
-
+			
 			// If you want to see the stitching improvement run this
+			// ImageProcessor testIp = im1.getProcessor().duplicate();
+
 			// for ( int x=0; x < testIp.getWidth(); x++){
 			// for (int y=0; y < testIp.getHeight(); y++){
 			// testIp.set(x, y, Math.abs(im1.getProcessor().get(x,y) -
@@ -846,7 +845,7 @@ public class Distortion_Correction implements PlugIn{
 		Collections.sort( xcorrVals );
 		Collections.sort( xcorrValsGrad );
 
-		double[] medians = { xcorrVals.get( xcorrVals.size() / 2 ), xcorrValsGrad.get( xcorrValsGrad.size() / 2 ) };
+//		double[] medians = { xcorrVals.get( xcorrVals.size() / 2 ), xcorrValsGrad.get( xcorrValsGrad.size() / 2 ) };
 
 		double m1 = 0.0, m2 = 0.0;
 		for ( int i = 0; i < xcorrVals.size(); i++ )
