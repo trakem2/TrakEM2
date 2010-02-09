@@ -556,15 +556,19 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			if (!title.contains("#")) { // TODO handle basic type numbering -- this doesn't do it
 				// trim trailing numerals TODO better way?
 				StringBuffer title_buffer = new StringBuffer(title);
-				for (int i = title.length(); i >= 0; i--) {
-					if (Character.isDigit(title.charAt(i-1))) { 
-						
+				int title_length = title.length(); // lots of intermediate variables for debugging
+				for (int i = title_length; i >= 0; i--) {
+					char cur_char = title.charAt(i-1);
+					if (Character.isDigit(cur_char)) {
 						// || (Character.toString(title.charAt(i-1)).equals("#"))) { 
 						title_buffer.deleteCharAt(i-1); 
 					} else break;
 				}
 				// give it a unique name based on its progenitor
-				sibling.setTitle(title_buffer.toString() + Integer.toString(this.getRootParent().findChildren(title_buffer.toString(), null, false).size()));
+				String new_title = title_buffer.toString();
+				ArrayList<ProjectThing> like_titled = this.getRootParent().findChildren(new_title, null, false);
+				int number_of_like_titled = like_titled.size();
+				sibling.setTitle(title_buffer.toString() + Integer.toString(number_of_like_titled+1));
 			}
 		}
 		al.add(sibling);
