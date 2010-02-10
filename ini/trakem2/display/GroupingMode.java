@@ -57,7 +57,7 @@ public abstract class GroupingMode implements Mode {
 
 	protected final List<Patch> originalPatches;
 	protected final List<PatchRange> ranges;
-	protected final HashMap<Paintable, ScreenPatchRange> screenPatchRanges;
+	protected HashMap<Paintable, ScreenPatchRange> screenPatchRanges;
 
 	public GroupingMode(final Display display, final List<Displayable> selected) {
 		this.display = display;
@@ -101,18 +101,18 @@ public abstract class GroupingMode implements Mode {
 			final HashSet<ScreenPatchRange> used = new HashSet<ScreenPatchRange>();
 
 			/* fill it */
-			synchronized ( screenPatchRanges )
+
+			final HashMap<Paintable, ScreenPatchRange> screenPatchRanges = GroupingMode.this.screenPatchRanges; // keep a pointer to the current list
+
+			for ( final Paintable p : ds )
 			{
-				for ( final Paintable p : ds )
+				final ScreenPatchRange spr = screenPatchRanges.get( p );
+				if ( spr == null )
+					newList.add(p);
+				else if (!used.contains(spr))
 				{
-					final ScreenPatchRange spr = screenPatchRanges.get( p );
-					if ( spr == null )
-						newList.add(p);
-					else if (!used.contains(spr))
-					{
-						used.add(spr);
-						newList.add( spr );
-					}
+					used.add(spr);
+					newList.add( spr );
 				}
 			}
 			return newList;
@@ -270,18 +270,19 @@ public abstract class GroupingMode implements Mode {
 			}
 
 			// 2 - Create the list of ScreenPatchRange, which are Paintable
-			synchronized ( screenPatchRanges )
-			{
-				screenPatchRanges.clear();
-	
-				for (final PatchRange range : ranges) {
-					if (0 == range.list.size()) continue;
-					final ScreenPatchRange spr = createScreenPathRange(range, r, m);
-					for (Patch p : range.list) {
-						screenPatchRanges.put(p, spr);
-					}
+			
+			final HashMap<Paintable, ScreenPatchRange> screenPatchRanges = new HashMap<Paintable, ScreenPatchRange>( originalPatches.size() );
+
+			for (final PatchRange range : ranges) {
+				if (0 == range.list.size()) continue;
+				final ScreenPatchRange spr = createScreenPathRange(range, r, m);
+				for (Patch p : range.list) {
+					screenPatchRanges.put(p, spr);
 				}
 			}
+
+			// swap old for new:
+			GroupingMode.this.screenPatchRanges = screenPatchRanges;
 
 			painter.update();
 		}

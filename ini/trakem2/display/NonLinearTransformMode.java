@@ -66,12 +66,15 @@ public class NonLinearTransformMode extends GroupingMode {
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping;
 			mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
 			
-			synchronized ( screenPatchRanges )
+			final HashMap<Paintable, GroupingMode.ScreenPatchRange> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
+			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
 			{
-				for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
-				{
-					spr.update( mapping );
+				if (screenPatchRanges != this.screenPatchRanges) {
+					// List has been updated; restart painting
+					// TODO should it call itself:  doPainterUpdate( r, m );
+					break;
 				}
+				spr.update( mapping );
 			}
 		}
 		catch ( NotEnoughDataPointsException e ) {}
