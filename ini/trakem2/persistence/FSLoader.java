@@ -103,9 +103,6 @@ public final class FSLoader extends Loader {
 	/** Path to dir_storage + "trakem2.images/" */
 	private String dir_image_storage = null;
 
-	/** Queue and execute Runnable tasks. */
-	static private Dispatcher dispatcher = new Dispatcher();
-
 	private Set<Patch> touched_mipmaps = Collections.synchronizedSet(new HashSet<Patch>());
 
 	private Set<Patch> mipmaps_to_remove = Collections.synchronizedSet(new HashSet<Patch>());
@@ -326,7 +323,6 @@ public final class FSLoader extends Loader {
 	}
 
 	static private void startStaticServices() {
-		if (null == dispatcher || dispatcher.isQuit()) dispatcher = new Dispatcher();
 		int np = Runtime.getRuntime().availableProcessors();
 		// 1 core = 1 thread
 		// 2 cores = 2 threads
@@ -334,6 +330,9 @@ public final class FSLoader extends Loader {
 		if (np > 2) np -= 1;
 		if (null == regenerator || regenerator.isShutdown()) {
 			regenerator = Utils.newFixedThreadPool(np, "regenerator");
+		}
+		if (null == remover || remover.isShutdown()) {
+			remover = Utils.newFixedThreadPool(2, "mipmap remover");
 		}
 		if (null == repainter || repainter.isShutdown()) {
 			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
@@ -343,7 +342,7 @@ public final class FSLoader extends Loader {
 	/** Shutdown the various thread pools and disactivate services in general. */
 	static private void destroyStaticServices() {
 		if (null != regenerator) regenerator.shutdownNow();
-		if (null != dispatcher) dispatcher.quit();
+		if (null != remover) remover.shutdownNow();
 		if (null != repainter) repainter.shutdownNow();
 	}
 
@@ -360,7 +359,7 @@ public final class FSLoader extends Loader {
 			File f = new File(getAbsolutePath(p)); // with slice info appended
 			//Utils.log2("File f is " + f);
 			Utils.log2("Removing mipmaps for " + p);
-			// Cannot run in the dispatcher: is a daemon, and would be interrupted.
+			// Cannot run in the remover: is a daemon, and would be interrupted.
 			removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight());
 		}
 		//
@@ -1765,12 +1764,12 @@ public final class FSLoader extends Loader {
 				FloatProcessorT2 alpha;
 				final FloatProcessorT2 outside;
 				if (null != alpha_mask) {
-					alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+					alpha = new FloatProcessorT2(alpha_mask);
 				} else {
 					alpha = null;
 				}
 				if (null != outside_mask) {
-					outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+					outside = new FloatProcessorT2(outside_mask);
 					if ( null == alpha ) {
 						alpha = outside;
 						alpha_mask = outside_mask;
@@ -1867,18 +1866,26 @@ public final class FSLoader extends Loader {
 				if (Thread.currentThread().isInterrupted()) return false;
 
 				if (Loader.GAUSSIAN == resizing_mode) {
-					FloatProcessor fp = (FloatProcessor) ip.convertToFloat();
+					final FloatProcessorT2 fp = new FloatProcessorT2((FloatProcessor) ip.convertToFloat());
+					if (ImagePlus.GRAY8 == type) {
+						// for 8-bit, the min,max has been applied when going to FloatProcessor
+						fp.setMinMax(0, 255); // just set it
+					} else {
+						fp.setMinAndMax(patch.getMin(), patch.getMax());
+					}
+					//fp.debugMinMax(patch.toString());
+
 					int sw=w, sh=h;
 
-					FloatProcessor alpha;
-					FloatProcessor outside;
+					FloatProcessorT2 alpha,
+						         outside;
 					if (null != alpha_mask) {
-						alpha = new FloatProcessorT2((FloatProcessor)alpha_mask.convertToFloat());
+						alpha = new FloatProcessorT2(alpha_mask);
 					} else {
 						alpha = null;
 					}
 					if (null != outside_mask) {
-						outside = new FloatProcessorT2((FloatProcessor)outside_mask.convertToFloat());
+						outside = new FloatProcessorT2(outside_mask);
 						if (null == alpha) {
 							alpha = outside;
 							alpha_mask = outside_mask;
@@ -1895,11 +1902,11 @@ public final class FSLoader extends Loader {
 
 						// 0 - blur the previous image to 0.75 sigma
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
-							fp = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data, cm);
+							fp.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data);
 							if (null != alpha) {
-								alpha = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])alpha.getPixels(), sw, sh), 0.75f).data, null);
+								alpha.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])alpha.getPixels(), sw, sh), 0.75f).data);
 								if (alpha != outside && outside != null) {
-									outside = new FloatProcessorT2(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])outside.getPixels(), sw, sh), 0.75f).data, null);
+									outside.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])outside.getPixels(), sw, sh), 0.75f).data);
 								}
 							}
 						}
@@ -1908,41 +1915,21 @@ public final class FSLoader extends Loader {
 						if (null == target_dir) continue;
 						// 2 - generate scaled image
 						if (0 != k) {
-							fp = (FloatProcessor)fp.resize(w, h);
-							if (ImagePlus.GRAY8 == type) {
-								fp.setMinAndMax(0, 255); // the min and max was expanded into 0,255 range at convertToFloat for 8-bit images, so the only limit to be added now to the FloatProcessor is that of the 8-bit range. The latter is done automatically for FloatProcessor class, but FloatProcessorT2 doesn't, to avoid the expensive (and here superfluous) operation of looping through all pixels in the findMinAndMax method.
-							} else {
-								fp.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done: the resize doesn't preserve the min and max!
-							}
+							fp.resizeInPlace(w, h); // min and max stay the same
 							if (null != alpha) {
-								alpha = (FloatProcessor)alpha.resize(w, h);
+								alpha.resizeInPlace(w, h);
 								if (alpha != outside && null != outside) {
-									outside = (FloatProcessor)outside.resize(w, h);
+									outside.resizeInPlace(w, h);
 								}
 							}
 						}
+
 						if (null != alpha) {
 							// 3 - save as jpeg with alpha
-							final byte[] a = (byte[])alpha.convertToByte(false).getPixels();
-							if (null != outside) {
-								final byte[] o;
-								if (alpha != outside) {
-									o = (byte[])outside.convertToByte(false).getPixels();
-								} else {
-									o = a;
-								}
-								// Remove all not completely inside pixels from the alpha mask
-								// If there was no alpha mask, alpha is the outside itself
-								for (int i=0; i<o.length; i++) {
-									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
-								}
-							}
-							if (ImagePlus.GRAY8 != type) { // for 8-bit, the min,max has been applied when going to FloatProcessor
-								fp.setMinAndMax(patch.getMin(), patch.getMax());
-							}
-							final int[] pix = embedAlpha((int[])fp.convertToRGB().getPixels(), a);
+							// Remove all not completely inside pixels from the alpha mask
+							// If there was no alpha mask, alpha is the outside itself
 
-							final BufferedImage bi_save = createARGBImage(w, h, pix);
+							final BufferedImage bi_save = createARGBImage(w, h, null == outside ? fp.getARGBPixels((float[])alpha.getPixels()) : fp.getARGBPixels((float[])alpha.getPixels(), (float[])outside.getPixels()));
 							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
 								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
@@ -2361,21 +2348,29 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
-	public void removeMipMaps(final Patch p) {
-		if (null == dir_mipmaps) return;
-		try {
-			final int width = (int)p.getWidth();
-			final int height = (int)p.getHeight();
-			final String path = getAbsolutePath(p);
-			if (null == path) return; // missing file
-			final String filename = new File(path).getName() + "." + p.getId() + ".jpg";
-			// cue the task in a dispatcher:
-			dispatcher.exec(new Runnable() { public void run() { // copy-paste as a replacement for (defmacro ... we luv java
-				removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
-			}});
-		} catch (Exception e) {
-			IJError.print(e);
-		}
+	public Future<Boolean> removeMipMaps(final Patch p) {
+		if (null == dir_mipmaps) return null;
+		return remover.submit(new Callable<Boolean>() {
+			public Boolean call() {
+				try {
+					final String path = getAbsolutePath(p);
+					if (null == path) {
+						// missing file
+						Utils.log2("Remover: null path for Patch " + p);
+						return false;
+					}
+					final int width = (int)p.getWidth();
+					final int height = (int)p.getHeight();
+					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(".jpg").toString();
+					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
+					flushMipMaps(p.getId());
+					return true;
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+				return false;
+			}
+		});
 	}
 
 	private void removeMipMaps(final String filename, final int width, final int height) {
@@ -2383,7 +2378,7 @@ public final class FSLoader extends Loader {
 		int h = height;
 		int k = 0; // the level
 		do {
-			final File f = new File(dir_mipmaps + k + "/" + filename);
+			final File f = new File(new StringBuilder(dir_mipmaps).append(k).append('/').append(filename).toString());
 			if (f.exists()) {
 				try {
 					if (!f.delete()) {
@@ -2538,10 +2533,12 @@ public final class FSLoader extends Loader {
 
 	static private AtomicInteger n_regenerating = new AtomicInteger(0);
 	static private ExecutorService regenerator = null;
+	static private ExecutorService remover = null;
 	static public ExecutorService repainter = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns a Future if the task was submitted, null if not. */
+	@Override
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
 		synchronized (gm_lock) {
 			try {
@@ -2554,10 +2551,16 @@ public final class FSLoader extends Loader {
 				Utils.log2("SUBMITTING to regen " + patch);
 				Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 
+				// Eliminate the jpg files in a separate thread:
+				Utils.log2("calling removeMipMaps from regenerateMipMaps");
+				final Future<Boolean> removing = removeMipMaps(patch);
+
 				fu = regenerator.submit(new Callable<Boolean>() {
 					public Boolean call() {
 						boolean b = false;
 						try {
+							// synchronize with the removal:
+							if (null != removing) removing.get();
 							Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 							b = generateMipMaps(patch); // will remove the Future from the regenerating_mipmaps table, under proper gm_lock synchronization
 							Display.repaint(patch.getLayer());

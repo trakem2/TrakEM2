@@ -27,6 +27,7 @@ import ini.trakem2.utils.IJError;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.VirtualStack;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
@@ -296,6 +297,7 @@ abstract public class Loader {
 		
 		exec.shutdownNow();
 		guiExec.quit();
+		gcrunner.interrupt();
 	}
 
 	/**Retrieve next id from a sequence for a new DBObject to be added.*/
@@ -605,6 +607,64 @@ abstract public class Loader {
 		return true;
 	}
 
+	final private class GCRunner extends Thread {
+		boolean run = false;
+		GCRunner() {
+			super("GCRunner");
+			setPriority(Thread.NORM_PRIORITY);
+			setDaemon(true);
+			start();
+		}
+		final void trigger() {
+			synchronized (this) {
+				run = true;
+				notify();
+			}
+		}
+		public final void run() {
+			while (true) {
+				synchronized (this) {
+					try { wait(); } catch (InterruptedException ie) { return; }
+				}
+				worker: while (run) {
+					synchronized (this) {
+						run = false;
+					}
+
+					final long initial = IJ.currentMemory();
+					long now = initial;
+					final int max = 7;
+					long sleep = 50; // initial value
+					int iterations = 0;
+					Utils.showStatus("Clearing memory...");
+					do {
+						System.gc();
+						Thread.yield();
+						// 'run' should be false. If true, re-read initial values and iterations, for a new request came in:
+						if (run) {
+							Utils.log2("reinit GC after iter " + (iterations + 1));
+							continue worker;
+						}
+						try { Thread.sleep(sleep); } catch (InterruptedException ie) { return; }
+						sleep += sleep; // incremental
+						now = IJ.currentMemory();
+						Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+						Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
+						iterations++;
+					} while (now >= initial && iterations < max);
+					Utils.showStatus("Memory cleared.");
+				}
+			}
+		}
+	}
+
+	private final GCRunner gcrunner = new GCRunner();
+
+	/** Trigger garbage collection in a separate thread. */
+	public final void triggerGC() {
+		gcrunner.trigger();
+	}
+
 	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
 	public final int runGC() {
 		//Utils.printCaller("runGC", 4);
@@ -649,7 +709,7 @@ abstract public class Loader {
 	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
 
 	/** 100 Mb per processor, which is a bit more than 67 Mb, the size of a 32-bit 4096x4096 image. */
-	private static long computeDesirableMinFreeBytes() {
+	public static long computeDesirableMinFreeBytes() {
 		long f = 150000000 * Runtime.getRuntime().availableProcessors();
 		if (f > max_memory / 2) {
 			Utils.logAll("WARNING you are operating with low memory\n  considering the number of CPU cores.\n  Please restart with a higher -Xmx value.");
@@ -793,19 +853,26 @@ abstract public class Loader {
 
 				// sanity check:
 				if (0 == imps.size() && 0 == mawts.size()) {
-					if (0 == clonks.incrementAndGet() % 20) runGC();
 					Utils.log2("Loader.releaseMemory: empty cache.");
 					// Remove any autotraces
 					Polyline.flushTraceCache(Project.findProject(this));
 					// in any case, can't release more:
 					mawts.gc();
+					if (0 == clonks.incrementAndGet() % 20) {
+						triggerGC();
+					}
 					return released;
 				} else if (iterations > 50) {
-					runGC();
+					triggerGC();
 				}
 			}
 		} catch (Throwable e) {
 			IJError.print(e);
+		} finally {
+			// if released more than min_free_bytes but there isn't enough free memory, it's time to trigger GC:
+			if (!enoughFreeMemory(min_free_bytes)) {
+				triggerGC();
+			}
 		}
 		return released;
 	}
@@ -3926,7 +3993,7 @@ abstract public class Loader {
 	protected boolean generateMipMaps(final Patch patch) { return false; }
 
 	/** Does nothing unless overriden. */
-	public void removeMipMaps(final Patch patch) {}
+	public Future<Boolean> removeMipMaps(final Patch patch) { return null; }
 
 	/** Returns generateMipMaps(al, false). */
 	public Bureaucrat generateMipMaps(final ArrayList al) {
@@ -4506,8 +4573,8 @@ abstract public class Loader {
 	}
 
 	/** Returns an ImageStack, one slice per region. */
-	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type) {
-		ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
+	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type, final String dir) {
+		final ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
 		for (final Region r : regions) {
 			fus.add(ex.submit(new Callable<ImagePlus>() {
@@ -4517,11 +4584,28 @@ abstract public class Loader {
 			}));
 		}
 		Region r = regions.get(0);
-		ImageStack stack = new ImageStack((int)(r.r.width * magnification), (int)(r.r.height * magnification));
-		for (int i=0; i<regions.size(); i++) {
+		int w = (int)(r.r.width * magnification),
+		    h = (int)(r.r.height * magnification),
+		    size = regions.size();
+		ImageStack stack = null == dir ? new ImageStack(w, h)
+					       : new VirtualStack(w, h, null, dir);
+		int digits = Integer.toString(size).length();
+		for (int i=0; i<size; i++) {
 			try {
-				if (Thread.currentThread().isInterrupted()) break;
-				stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
+				if (Thread.currentThread().isInterrupted()) {
+					ex.shutdownNow();
+					return null;
+				}
+				if (null == dir) {
+					stack.addSlice(regions.get(i).layer.toString(), fus.get(i).get().getProcessor());
+				} else {
+					StringBuilder name = new StringBuilder().append(i);
+					while (name.length() < digits) name.insert(0, '0');
+					name.append(".png");
+					String filename = name.toString();
+					new FileSaver(fus.get(i).get()).saveAsPng(dir + filename);
+					((VirtualStack)stack).addSlice(filename);
+				}
 			} catch (Throwable t) {
 				IJError.print(t);
 			}

@@ -717,6 +717,7 @@ public final class Display3D {
 			} else if (displ instanceof AreaTree) {
 				extra_triangles = ((AreaTree)displ).generateMesh(scale, rs);
 			}
+			if (null != extra_triangles && extra_triangles.isEmpty()) extra_triangles = null; // avoid issues with MultiMesh
 		} else if (Connector.class == c) {
 			triangles = ((Connector)displ).generateTriangles(scale, 1);
 		} else if (null == displ && pt.getType().equals("profile_list")) {

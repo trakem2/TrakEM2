@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.*;
 import ij.gui.*;
 import ij.io.OpenDialog;
+import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -2800,8 +2801,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (null == active) return;
 			String command = ae.getActionCommand();
 			if (command.equals("Transform (affine)")) {
+				getLayerSet().addTransformStepWithData(selection.getAffected());
 				setMode(new AffineTransformMode(Display.this));
 			} else if (command.equals("Transform (non-linear)")) {
+				getLayerSet().addTransformStepWithData(selection.getAffected());
 				List<Displayable> col = selection.getSelected(Patch.class);
 				for (final Displayable d : col) {
 					if (d.isLinked()) {
@@ -2868,13 +2871,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private class MenuScriptListener implements ActionListener {
 		public void actionPerformed(ActionEvent ae) {
-			String command = ae.getActionCommand();
+			final String command = ae.getActionCommand();
+			Bureaucrat.createAndStart(new Worker.Task("Setting preprocessor script") { public void exec() {
 			if (command.equals("Set preprocessor script layer-wise...")) {
 				Collection<Layer> ls = getLayerList("Set preprocessor script");
 				if (null == ls) return;
 				String path = getScriptPath();
 				if (null == path) return;
-				for (final Layer la : ls) setScriptPath(la.getDisplayables(Patch.class), path);
+				setScriptPathToLayers(ls, path);
 			} else if (command.equals("Set preprocessor script (selected images)...")) {
 				if (selection.isEmpty()) return;
 				String path = getScriptPath();
@@ -2883,15 +2887,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			} else if (command.equals("Remove preprocessor script layer-wise...")) {
 				Collection<Layer> ls = getLayerList("Remove preprocessor script");
 				if (null == ls) return;
-				for (final Layer la : ls) setScriptPath(la.getDisplayables(Patch.class), null);
+				setScriptPathToLayers(ls, null);
 			} else if (command.equals("Remove preprocessor script (selected images)...")) {
 				if (selection.isEmpty()) return;
 				setScriptPath(selection.getSelected(Patch.class), null);
+			}
+			}}, Display.this.project);
+		}
+		private void setScriptPathToLayers(final Collection<Layer> ls, final String script) {
+			for (final Layer la : ls) {
+				if (Thread.currentThread().isInterrupted()) return;
+				setScriptPath(la.getDisplayables(Patch.class), script);
 			}
 		}
 		/** Accepts null script, to remove it if there. */
 		private void setScriptPath(final Collection<Displayable> list, final String script) {
 			for (final Displayable d : list) {
+				if (Thread.currentThread().isInterrupted()) return;
 				Patch p = (Patch) d;
 				p.setPreprocessorScriptPath(script);
 			}
@@ -4358,6 +4370,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					String[] types = new String[]{"8-bit gray", "Color RGB"};
 					gd.addChoice("Image type", types, types[0]);
 					gd.addSlider("scale", 0, 100, 100);
+					gd.addCheckbox("save to file", false);
 					gd.showDialog();
 					if (gd.wasCanceled()) return;
 					int w = (int)gd.getNextNumber();
@@ -4372,7 +4385,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						Utils.log("Invalid scale: " + scale);
 						return;
 					}
-					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type);
+					String dir = null;
+					if (gd.getNextBoolean()) {
+						DirectoryChooser dc = new DirectoryChooser("Target directory");
+						dir = dc.getDirectory();
+						if (null == dir) return; // canceled
+						dir = Utils.fixDir(dir);
+					}
+					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type, dir);
 					if (null == imp) {
 						Utils.log("Mark a node first!");
 						return;
@@ -5214,7 +5234,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		this.mode = mode;
 		canvas.repaint(true);
-		scroller.setEnabled(mode.getClass() == DefaultMode.class);
+		scroller.setEnabled(mode.canChangeLayer());
 	}
 
 	public Mode getMode() {

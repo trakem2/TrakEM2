@@ -140,7 +140,7 @@
   (let [vs1 (resample query-vs delta)   ; query-vs is already registered into FRT42-fids
         matches (sort
                   #(int (- (%1 :med) (%2 :med)))
-                  (pmap
+                  (doall (pmap
                     (fn [e]
                       (let [vs2 (let [copy (.clone (val e))]
                                   (.resample copy delta)
@@ -154,7 +154,7 @@
                          :stats stats
                          :med (get stats 0)
                          :correct (LineageClassifier/classify stats)}))
-                    SATs))]
+                    SATs)))]
 
     [matches
      (map (fn [match]
