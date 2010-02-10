@@ -70,7 +70,13 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	protected void doPainterUpdate( final Rectangle r, final double m ) {
 		try {
 			MinMaxData md = min_max.clone();
+			final HashMap<Paintable, GroupingMode.ScreenPatchRange> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
 			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values()) {
+				if (screenPatchRanges != this.screenPatchRanges) {
+					// List has been updated; restart painting
+					// TODO should it call itself:  doPainterUpdate( r, m );
+					break;
+				}
 				spr.update( md );
 			}
 		} catch (Exception e) {}
