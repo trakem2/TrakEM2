@@ -1395,6 +1395,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			if (d != max_dimension) {
 				max_dimension = d;
 				Polyline.flushTraceCache(project); // depends on the scale value
+				Utils.log("3D Viewer NOT updated:\n  close it and recreate meshes for any objects you had in it.");
 			}
 		} else Utils.log("Can't set virtualization max pixels dimension to smaller than 2!");
 	}
