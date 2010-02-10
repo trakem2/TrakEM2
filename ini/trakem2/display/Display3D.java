@@ -91,7 +91,6 @@ public final class Display3D {
 	static private final int DEFAULT_RESAMPLE = 4;
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
 	private double scale = 1.0;
-	static private final int MAX_DIMENSION = 1024; // TODO change to LayerSet virtualization size
 
 	private String selected = null;
 
@@ -250,19 +249,20 @@ public final class Display3D {
 		return null;
 	}
 
-	/** If the layer set is too large in width and height, then set a scale that makes it maximum MAX_DIMENSION in any of the two dimensions. */
+	/** If the layer set is too large in width and height, then set a scale that makes it maximum max_dimension in any of the two dimensions. */
 	private void computeScale(LayerSet ls) {
 		this.width = ls.getLayerWidth();
 		this.height = ls.getLayerHeight();
-		if (width > MAX_DIMENSION) {
-			scale = MAX_DIMENSION / width;
+		int max_dimension = ls.getPixelsMaxDimension();
+		if (width > max_dimension) {
+			scale = max_dimension / width;
 			height *= scale;
-			width = MAX_DIMENSION;
+			width = max_dimension;
 		}
-		if (height > MAX_DIMENSION) {
-			scale = MAX_DIMENSION / height;
+		if (height > max_dimension) {
+			scale = max_dimension / height;
 			width *= scale;
-			height = MAX_DIMENSION;
+			height = max_dimension;
 		}
 		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
 	}
