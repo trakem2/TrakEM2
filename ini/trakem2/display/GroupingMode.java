@@ -172,7 +172,7 @@ public abstract class GroupingMode implements Mode {
 			}
 
 			ip = new ImagePlus( "", image ).getProcessor();
-			ipTransformed = ip.duplicate();
+			ipTransformed = ip.createProcessor( ip.getWidth(), ip.getHeight() );
 			ipTransformed.snapshot();
 			
 			if (!range.starts_at_bottom) {
