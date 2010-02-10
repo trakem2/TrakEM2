@@ -83,6 +83,7 @@ import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.TransformMeshMapping;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
 public final class Patch extends Displayable implements ImageData {
 
@@ -1150,27 +1151,17 @@ public final class Patch extends Displayable implements ImageData {
 
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
-		ImageProcessor target = mapping.createMappedImageInterpolated( source );
+		final ImageProcessorWithMasks target = mapping.createMappedMaskedImageInterpolated( source, project.getLoader().fetchImageMask(this) );
 		
-		ByteProcessor outside = new ByteProcessor( source.getWidth(), source.getHeight() );
-		outside.setValue(255);
-		outside.fill();
-		
-		outside = (ByteProcessor) mapping.createMappedImageInterpolated( outside );
-		
-		ByteProcessor mask = project.getLoader().fetchImageMask(this);
-		if (null != mask)
-			mask = (ByteProcessor) mapping.createMappedImageInterpolated( mask );
-		
-		// Set all non-white pixels to zero
-		final byte[] pix = (byte[])outside.getPixels();
-		for (int i=0; i<pix.length; i++)
-			if ((pix[i]&0xff) != 255) pix[i] = 0;
+//		// Set all non-white pixels to zero
+//		final byte[] pix = (byte[])target.outside.getPixels();
+//		for (int i=0; i<pix.length; i++)
+//			if ((pix[i]&0xff) != 255) pix[i] = 0;
 
 		//Utils.log2("New image dimensions: " + target.getWidth() + ", " + target.getHeight());
 		//Utils.log2("box: " + box);
 
-		return new PatchImage( target, mask, outside, box, true );
+		return new PatchImage( target.ip, ( ByteProcessor )target.mask, target.outside, box, true );
 	}
 
 	public final class PatchImage {

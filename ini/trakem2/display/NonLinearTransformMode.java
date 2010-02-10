@@ -16,6 +16,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.Future;
 import java.awt.BasicStroke;
@@ -33,9 +34,14 @@ import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.AffineModel2D;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
+import mpicbg.models.IllDefinedDataPointsException;
+import mpicbg.models.NoninvertibleModelException;
+import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
@@ -57,15 +63,21 @@ public class NonLinearTransformMode extends GroupingMode {
 			ctl.add( toWorld.createInverse() );
 			
 			final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
-			final TransformMeshMapping mapping;
-			mapping = new TransformMeshMapping( ctm );
+			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping;
+			mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
 			
-			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
+			synchronized ( screenPatchRanges )
 			{
-				spr.update( mapping );
+				for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
+				{
+					spr.update( mapping );
+				}
 			}
 		}
-		catch ( Exception e ) {}
+		catch ( NotEnoughDataPointsException e ) {}
+		catch ( NoninvertibleModelException e ) {}
+		catch ( IllDefinedDataPointsException e ) {}
+		catch ( Exception e ) { e.printStackTrace(); }
 	}
 
 	private class NonLinearTransformSource extends GroupingMode.GroupedGraphicsSource {
@@ -87,23 +99,27 @@ public class NonLinearTransformMode extends GroupingMode {
 	}
 
 	protected ScreenPatchRange createScreenPathRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
-		return new ScreenPatchRange(range, srcRect, magnification);
+		return new NonLinearTransformMode.ScreenPatchRange(range, srcRect, magnification);
 	}
 
-	private class ScreenPatchRange extends GroupingMode.ScreenPatchRange<Mapping<?>> {
+	private static class ScreenPatchRange extends GroupingMode.ScreenPatchRange<TransformMeshMappingWithMasks<?>> {
 		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification ) {
 			super(range, srcRect, magnification);
 		}
-		public void update( final Mapping< ? > mapping )
+		public void update( final TransformMeshMappingWithMasks< ? > mapping )
 		{
 			ipTransformed.reset();
-			mapping.map( ip, ipTransformed );
-			
-			if (null != mask) {
-				mask.reset();
-				mapping.map( mask, maskTransformed );
+			if ( mask == null )
+			{
+				mapping.map( ip, ipTransformed );
 			}
-			
+			else
+			{
+				maskTransformed.reset();
+				final ImageProcessorWithMasks ipm = new ImageProcessorWithMasks( ip, mask, null );
+				final ImageProcessorWithMasks tpm = new ImageProcessorWithMasks( ipTransformed, maskTransformed, null );
+				mapping.map( ipm, tpm );
+			}
 			if (null != transformedImage) transformedImage.flush();
 			transformedImage = super.makeImage( ipTransformed, maskTransformed );
 		}
@@ -220,8 +236,34 @@ public class NonLinearTransformMode extends GroupingMode {
 	private final void setUndoState() {
 		layer.getParent().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
 	}
-
+	
+	final private Future< Boolean > applyToPatch( final Patch patch ) throws Exception
+	{
+		final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
+		final AffineTransform pat = new AffineTransform();
+		pat.translate( -pbox.x, -pbox.y );
+		pat.preConcatenate( patch.getAffineTransform() );
+		
+		final AffineModel2D toWorld = new AffineModel2D();
+		toWorld.set( pat );
+		
+		final CoordinateTransform mlst = createCT();
+		
+		final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
+		ctl.add( toWorld );
+		ctl.add( mlst );
+		ctl.add( toWorld.createInverse() );
+		
+		patch.appendCoordinateTransform( ctl );
+		return patch.updateMipMaps();
+	}
+	
 	public boolean apply()
+	{
+		return apply( null );
+	}
+
+	public boolean apply( final Set< Layer > sublist )
 	{
 
 		/* Set undo step to reflect initial state before any transformations */
@@ -231,38 +273,40 @@ public class NonLinearTransformMode extends GroupingMode {
 		{
 			public void exec()
 			{
-				final ArrayList< Future > futures = new ArrayList< Future >();
+				final ArrayList< Future< Boolean > > futures = new ArrayList< Future< Boolean > >();
 
 				synchronized ( updater )
 				{
+					/* apply to selected patches */
 					for ( final Paintable p : screenPatchRanges.keySet() )
 					{
 						if ( p instanceof Patch )
 						{
 							try
 							{
-								final Patch patch = ( Patch ) p;
-								final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
-								final AffineTransform pat = new AffineTransform();
-								pat.translate( -pbox.x, -pbox.y );
-								pat.preConcatenate( patch.getAffineTransform() );
-								
-								final AffineModel2D toWorld = new AffineModel2D();
-								toWorld.set( pat );
-								
-								final CoordinateTransform mlst = createCT();
-								
-								final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
-								ctl.add( toWorld );
-								ctl.add( mlst );
-								ctl.add( toWorld.createInverse() );
-								
-								patch.appendCoordinateTransform( ctl );
-								futures.add( patch.getProject().getLoader().regenerateMipMaps( patch ) );
+								futures.add( applyToPatch( ( Patch )p ) );
 							}
 							catch ( Exception e )
 							{
 								e.printStackTrace();
+							}
+						}
+					}
+					/* apply to other layers if there are any */
+					if ( !( sublist == null || sublist.isEmpty() ) )
+					{
+						for ( final Layer layer : sublist )
+						{
+							for ( final Displayable p : layer.getDisplayables( Patch.class ) )
+							{
+								try
+								{
+									futures.add( applyToPatch( ( Patch )p ) );
+								}
+								catch ( Exception e )
+								{
+									e.printStackTrace();
+								}
 							}
 						}
 					}

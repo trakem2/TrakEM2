@@ -20,7 +20,6 @@ import mpicbg.models.Tile;
 import mpicbg.trakem2.align.AbstractAffineTile2D;
 import mpicbg.trakem2.align.Align;
 import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.transform.CoordinateTransformList;
 
 import ij.IJ;
 import ij.gui.GenericDialog;

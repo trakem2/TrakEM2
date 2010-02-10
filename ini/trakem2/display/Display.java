@@ -2272,10 +2272,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
 			item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
 			if (layer.getParent().indexOf(layer) == layer.getParent().size() -1) item.setEnabled(false);
-			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
+			if (!(getMode().getClass() == AffineTransformMode.class || getMode().getClass() == NonLinearTransformMode.class)) item.setEnabled(false);
 			item = new JMenuItem("Apply transform propagating to first layer"); item.addActionListener(this); popup.add(item);
 			if (0 == layer.getParent().indexOf(layer)) item.setEnabled(false);
-			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
+			if (!(getMode().getClass() == AffineTransformMode.class || getMode().getClass() == NonLinearTransformMode.class)) item.setEnabled(false);
 			item = new JMenuItem("Cancel transform"); item.addActionListener(this); popup.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
 			item = new JMenuItem("Specify transform..."); item.addActionListener(this); popup.add(item);
@@ -3480,15 +3480,19 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Apply transform")) {
 			canvas.applyTransform();
 		} else if (command.equals("Apply transform propagating to last layer")) {
-			if (mode.getClass() == AffineTransformMode.class) {
+			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				((AffineTransformMode)mode).applyAndPropagate(new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size()))); // +1 to exclude current layer
+				final HashSet<Layer> subset = new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size())); // +1 to exclude current layer
+				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
+				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Apply transform propagating to first layer")) {
-			if (mode.getClass() == AffineTransformMode.class) {
+			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
 				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				((AffineTransformMode)mode).applyAndPropagate(new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer))));
+				final HashSet<Layer> subset = new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer)));
+				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
+				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Cancel transform")) {

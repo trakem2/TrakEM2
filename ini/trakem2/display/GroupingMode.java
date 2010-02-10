@@ -101,15 +101,18 @@ public abstract class GroupingMode implements Mode {
 			final HashSet<ScreenPatchRange> used = new HashSet<ScreenPatchRange>();
 
 			/* fill it */
-			for ( final Paintable p : ds )
+			synchronized ( screenPatchRanges )
 			{
-				final ScreenPatchRange spr = screenPatchRanges.get( p );
-				if ( spr == null )
-					newList.add(p);
-				else if (!used.contains(spr))
+				for ( final Paintable p : ds )
 				{
-					used.add(spr);
-					newList.add( spr );
+					final ScreenPatchRange spr = screenPatchRanges.get( p );
+					if ( spr == null )
+						newList.add(p);
+					else if (!used.contains(spr))
+					{
+						used.add(spr);
+						newList.add( spr );
+					}
 				}
 			}
 			return newList;
@@ -267,14 +270,16 @@ public abstract class GroupingMode implements Mode {
 			}
 
 			// 2 - Create the list of ScreenPatchRange, which are Paintable
-
-			screenPatchRanges.clear();
-
-			for (final PatchRange range : ranges) {
-				if (0 == range.list.size()) continue;
-				final ScreenPatchRange spr = createScreenPathRange(range, r, m);
-				for (Patch p : range.list) {
-					screenPatchRanges.put(p, spr);
+			synchronized ( screenPatchRanges )
+			{
+				screenPatchRanges.clear();
+	
+				for (final PatchRange range : ranges) {
+					if (0 == range.list.size()) continue;
+					final ScreenPatchRange spr = createScreenPathRange(range, r, m);
+					for (Patch p : range.list) {
+						screenPatchRanges.put(p, spr);
+					}
 				}
 			}
 
