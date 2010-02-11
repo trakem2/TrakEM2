@@ -564,11 +564,30 @@ public final class ProjectThing extends DBObject implements TitledThing {
 						title_buffer.deleteCharAt(i-1); 
 					} else break;
 				}
-				// give it a unique name based on its progenitor
+				// give it a unique name based on its progenitor -- the maximum of like-titled objects' numeric suffixes + 1
 				String new_title = title_buffer.toString();
 				ArrayList<ProjectThing> like_titled = this.getRootParent().findChildren(new_title, null, false);
-				int number_of_like_titled = like_titled.size();
-				sibling.setTitle(title_buffer.toString() + Integer.toString(number_of_like_titled+1));
+				int new_title_suffix = 0;
+				if (null != like_titled) {
+					for (Iterator it = like_titled.iterator(); it.hasNext(); ) {
+						ProjectThing pt_like_titled = (ProjectThing) it.next();
+						String pt_title = pt_like_titled.getTitle();
+						int pt_title_length = pt_title.length(); // lots of intermediate variables for debugging
+						StringBuffer sb_like_titled_suffix = new StringBuffer();
+						for (int i = pt_title_length; i >= 0; i--) {
+							char cur_char = pt_title.charAt(i-1);
+							if (Character.isDigit(cur_char)) {
+								// || (Character.toString(title.charAt(i-1)).equals("#"))) { 
+								sb_like_titled_suffix.insert(0, cur_char); 
+							} else break;
+						}
+						if (0 != sb_like_titled_suffix.length()) {
+							int cur_numeric_suffix = Integer.parseInt(sb_like_titled_suffix.toString());
+							if (cur_numeric_suffix > new_title_suffix) new_title_suffix = cur_numeric_suffix;
+						}
+					}
+				}
+				sibling.setTitle(title_buffer.toString() + Integer.toString(new_title_suffix + 1));
 			}
 		}
 		al.add(sibling);
