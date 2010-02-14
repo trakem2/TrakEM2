@@ -213,7 +213,7 @@ public class TMLHandler extends DefaultHandler {
 			Long lid = (Long)entry.getKey();
 			ProjectThing pt = (ProjectThing)entry.getValue();
 			Object od = ht_displayables.get(lid);
-			Utils.log2("==== processing: Displayable [" + od + "]  vs. ProjectThing [" + pt + "], lid [" + Long.toString(lid) + "]");
+			//Utils.log("==== processing: Displayable [" + od + "]  vs. ProjectThing [" + pt + "]");
 			if (null != od) {
 				ht_displayables.remove(lid);
 				pt.setObject(od);
@@ -653,35 +653,11 @@ public class TMLHandler extends DefaultHandler {
 				type = type.substring(3);
 			}
 			long id = -1;
-
-			/*		Utils.log2("TMLHandler.makeLayerThing type == '" + type + "'"); // davi-experimenting debug
-			
-			// davi-experimenting debug:
-			if (!type.equals("path") && !type.equals("patch")) {
-			Set ht_attributes_set = ht_attributes.keySet();
-				for (Iterator it = ht_attributes_set.iterator(); it.hasNext(); ) {
-					String cur_key = (String) it.next();
-					String suffix;
-		//			if (cur_key.equals("d") || cur_key.equals("patch")) {
-		//				suffix = "[omitted]'";
-		//			} else {
-						suffix = ht_attributes.get(cur_key) + "'";
-		//			}
-					Utils.log2("    ht_attributes has key: '" + cur_key + "', value: '" + suffix);
-					// end davi-experimenting debug
-				}
-			} else { Utils.log2("   omitted ht_attributes log"); }
-		*/	Object sid = ht_attributes.get("id");
-			if (null != sid) {
-				id = Long.parseLong((String)sid);
-	//			Utils.log2("TMLHandler.makeLayerThing sid == '" + sid + "'"); // davi-experimenting debug
-			}
+			Object sid = ht_attributes.get("id");
+			if (null != sid) id = Long.parseLong((String)sid);
 			long oid = -1;
 			Object soid = ht_attributes.get("oid");
-			if (null != soid) {
-				oid = Long.parseLong((String)soid);
-	//			Utils.log2("TMLHandler.makeLayerThing soid == '" + (String)soid + "', oid == '" + Long.toString(oid) + "'"); // davi-experimenting debug
-			}
+			if (null != soid) oid = Long.parseLong((String)soid);
 
 			if (type.equals("node")) {
 				Node node;
@@ -799,21 +775,20 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet( stack );
 			} else if (type.equals("treeline")) {
 				Treeline tline = new Treeline(this.project, oid, ht_attributes, ht_links);
-				Utils.log2("TMLHandler.makeLayerThing type == treeline, oid == '" + oid + '"'); // davi-experimenting
 				tline.addToDatabase();
 				last_treeline = tline;
 				last_treeline_data = new StringBuilder();
 				last_displayable = tline;
-				ht_displayables.put(new Long(oid), tline);
-				ht_zdispl.put(new Long(oid), tline);
+				ht_displayables.put(oid, tline);
+				ht_zdispl.put(oid, tline);
 				addToLastOpenLayerSet(tline);
 			} else if (type.equals("areatree")) {
 				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
 				art.addToDatabase();
 				last_areatree = art;
 				last_displayable = art;
-				ht_displayables.put(new Long(oid), art);
-				ht_zdispl.put(new Long(oid), art);
+				ht_displayables.put(oid, art);
+				ht_zdispl.put(oid, art);
 				addToLastOpenLayerSet(art);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
