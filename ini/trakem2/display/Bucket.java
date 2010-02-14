@@ -497,7 +497,7 @@ public class Bucket {
 		} else {
 			// estimate median
 			final ArrayList<Displayable> col = (ArrayList<Displayable>)container.getDisplayableList();
-			if (0 == col.size()) return 2048;
+			if (0 == col.size()) return (2048 > Bucket.MIN_BUCKET_SIZE ? 2048 : Bucket.MIN_BUCKET_SIZE);
 			final int[] sizes = new int[col.size()];
 			final Rectangle r = new Rectangle();
 			int i = 0;
@@ -507,7 +507,7 @@ public class Bucket {
 			}
 			Arrays.sort(sizes);
 			int size = 2 * sizes[sizes.length/2];
-			return size > 128 ? size : 128;
+			return size > Bucket.MIN_BUCKET_SIZE ? size : Bucket.MIN_BUCKET_SIZE;
 		}
 	}
 }
