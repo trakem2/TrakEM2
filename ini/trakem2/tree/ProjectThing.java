@@ -548,7 +548,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Creates a sibling node whose graph is identical but whose leaves are empty (i.e. segmentation content is not copied)*/ 
-	public ArrayList<ProjectThing> createSibling(ArrayList<ProjectThing> al, ProjectThing pt_parent) {
+	synchronized public ArrayList<ProjectThing> createSibling(ArrayList<ProjectThing> al, ProjectThing pt_parent) {
 		final ProjectThing sibling = pt_parent.createChild(this.getType()); if (null == sibling) return null; // TODO warning
 		if (null == al) { // we are in the top-level invocation of this recursive function
 			al = new ArrayList<ProjectThing>(); 
