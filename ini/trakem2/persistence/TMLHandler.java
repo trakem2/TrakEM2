@@ -779,16 +779,16 @@ public class TMLHandler extends DefaultHandler {
 				last_treeline = tline;
 				last_treeline_data = new StringBuilder();
 				last_displayable = tline;
-				ht_displayables.put(oid, tline);
-				ht_zdispl.put(oid, tline);
+				ht_displayables.put(new Long(oid), tline);
+				ht_zdispl.put(new Long(oid), tline);
 				addToLastOpenLayerSet(tline);
 			} else if (type.equals("areatree")) {
 				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
 				art.addToDatabase();
 				last_areatree = art;
 				last_displayable = art;
-				ht_displayables.put(oid, art);
-				ht_zdispl.put(oid, art);
+				ht_displayables.put(new Long(oid), art);
+				ht_zdispl.put(new Long(oid), art);
 				addToLastOpenLayerSet(art);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
