@@ -50,7 +50,7 @@ import ini.trakem2.utils.Utils;
  */
 public class Bucket {
 
-	static public final int MIN_BUCKET_SIZE = 256;
+	static public final int MIN_BUCKET_SIZE = 4096;
 
 	private int bucket_side;
 
