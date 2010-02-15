@@ -212,10 +212,9 @@ public class TMLHandler extends DefaultHandler {
 			Map.Entry entry = (Map.Entry)it.next();
 			Long lid = (Long)entry.getKey();
 			ProjectThing pt = (ProjectThing)entry.getValue();
-			Object od = ht_displayables.get(lid);
+			Object od = ht_displayables.remove(lid);
 			//Utils.log("==== processing: Displayable [" + od + "]  vs. ProjectThing [" + pt + "]");
 			if (null != od) {
-				ht_displayables.remove(lid);
 				pt.setObject(od);
 			} else {
 				Utils.log("#### Failed to find a Displayable for ProjectThing " + pt + " #####");
@@ -545,22 +544,19 @@ public class TMLHandler extends DefaultHandler {
 			//Utils.log2("TMLHander.makeProjectThing for type=" + type);
 
 			long id = -1;
-			Object sid = ht_attributes.get("id");
+			Object sid = ht_attributes.remove("id");
 			if (null != sid) {
 				id = Long.parseLong((String)sid);
-				ht_attributes.remove("id");
 			}
 			long oid = -1;
-			Object soid = ht_attributes.get("oid");
+			Object soid = ht_attributes.remove("oid");
 			if (null != soid) {
 				oid = Long.parseLong((String)soid);
-				ht_attributes.remove("oid");
 			}
 			Boolean expanded = new Boolean(false); // default: collapsed
-			Object eob = ht_attributes.get("expanded");
+			Object eob = ht_attributes.remove("expanded");
 			if (null != eob) {
 				expanded = new Boolean((String)eob);
-				ht_attributes.remove("expanded");
 			}
 			// abstract object, including profile_list
 			HashMap ht_attr = new HashMap();
