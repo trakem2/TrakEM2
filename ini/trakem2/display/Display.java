@@ -4759,8 +4759,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		displ.setVisible(true);
 		Rectangle box = displ.getBoundingBox();
 		if (0 == box.width || 0 == box.height) {
-			box.width = (int)layer.getLayerWidth();
-			box.height = (int)layer.getLayerHeight();
+			box.width = 1; // old: (int)layer.getLayerWidth();
+			box.height = 1; // old: (int)layer.getLayerHeight();
 		}
 		canvas.showCentered(box);
 		scrollToShow(displ);
