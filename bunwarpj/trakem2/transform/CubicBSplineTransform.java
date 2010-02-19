@@ -327,11 +327,11 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 		init( m.toDataString() );
 	}
 
-	@Override
-	public void shake(float amount) {
-		// TODO If you really need, implement it ...
-		
-	}
+//	@Override
+//	public void shake(float amount) {
+//		// TODO If you really need, implement it ...
+//		
+//	}
 
 	@Override
 	public String toString() {
