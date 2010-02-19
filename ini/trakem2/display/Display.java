@@ -4695,10 +4695,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		displ.setVisible(true);
 		Rectangle box = displ.getBoundingBox();
-		if (0 == box.width || 0 == box.height) {
-			box.width = (int)layer.getLayerWidth();
-			box.height = (int)layer.getLayerHeight();
+
+		if (0 == box.width && 0 == box.height) {
+			box.width = 100; // old: (int)layer.getLayerWidth();
+			box.height = 100; // old: (int)layer.getLayerHeight();
+		} else if (0 == box.width) {
+			box.width = box.height;
+		} else if (0 == box.height) {
+			box.height = box.width;
 		}
+	
 		canvas.showCentered(box);
 		scrollToShow(displ);
 		if (displ instanceof ZDisplayable) {
