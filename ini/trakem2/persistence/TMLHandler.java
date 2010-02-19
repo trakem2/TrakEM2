@@ -218,7 +218,7 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.remove(lid);
 				pt.setObject(od);
 			} else {
-				Utils.log("#### Failed to find a Displayable for ProjectThing " + pt + " #####");
+				Utils.log("#### Failed to find a Displayable for ProjectThing " + pt + " with id " + Long.toString(pt.getId()) + " #####");
 			}
 		}
 

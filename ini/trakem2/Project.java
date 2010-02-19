@@ -931,7 +931,12 @@ public class Project extends DBObject {
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
-		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		if (null == thing) {
+//			if (d.getTitle().equals("treeline")) {
+				Utils.log2(d.getTitle() + " missing associated ProjectThing, id='" + Long.toString(d.getId()) + "'"); // davi-experimenting
+//			}
+			return d.getTitle(); // happens if there is no associated node
+		}
 		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
 		if (!thing.getType().equals(d.getTitle())) {
