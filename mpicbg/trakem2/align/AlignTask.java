@@ -934,7 +934,7 @@ final public class AlignTask
 				/* add a fixed tile only if there was a Patch selected */
 				allFixedTiles.addAll( fixedTiles );
 				
-				alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false );
+				alignTiles( p, currentLayerTiles, fixedTiles, true, false );
 				
 				/* for each independent graph do an independent transform */
 				final List< Set< Tile< ? > > > currentLayerGraphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
