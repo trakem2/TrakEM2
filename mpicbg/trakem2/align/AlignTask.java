@@ -408,7 +408,7 @@ final public class AlignTask
 
 		transformPatchesAndVectorData(patches, new Runnable() {
 			public void run() {
-				alignTiles( p, tiles, fixedTiles, largestGraphOnly );
+				alignTiles( p, tiles, fixedTiles, tilesAreInPlace, largestGraphOnly );
 			}
 		});
 	}
@@ -417,6 +417,7 @@ final public class AlignTask
 			final Align.ParamOptimize p,
 			final List< AbstractAffineTile2D< ? > > tiles,
 			final List< AbstractAffineTile2D< ? > > fixedTiles,
+			final boolean tilesAreInPlace,
 			final boolean largestGraphOnly )
 	{
 		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
@@ -728,7 +729,7 @@ final public class AlignTask
 			final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 			Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 			
-			alignTiles( p, currentLayerTiles, fixedTiles, false );
+			alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false );
 			
 			/* connect to the previous layer */
 			
@@ -933,7 +934,7 @@ final public class AlignTask
 				/* add a fixed tile only if there was a Patch selected */
 				allFixedTiles.addAll( fixedTiles );
 				
-				alignTiles( p, currentLayerTiles, fixedTiles, false );
+				alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false );
 				
 				/* for each independent graph do an independent transform */
 				final List< Set< Tile< ? > > > currentLayerGraphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
