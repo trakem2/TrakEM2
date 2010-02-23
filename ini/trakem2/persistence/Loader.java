@@ -2703,7 +2703,10 @@ abstract public class Loader {
 				}
 				if (null != stack) {
 					imp = new ImagePlus("z=" + layer[0].getZ() + " to z=" + layer[layer.length-1].getZ(), stack);
-					imp.setCalibration(layer[0].getParent().getCalibrationCopy());
+					final Calibration impCalibration = layer[0].getParent().getCalibrationCopy();
+					impCalibration.pixelWidth /= scale;
+					impCalibration.pixelHeight /= scale;
+					imp.setCalibration(impCalibration);
 				}
 			} else {
 				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
