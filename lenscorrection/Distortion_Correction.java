@@ -50,10 +50,20 @@ import ij.io.Opener;
 import ij.io.FileSaver;
 
 import mpi.fruitfly.general.MultiThreading;
-import mpicbg.models.*;
+
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
-import mpicbg.imagefeatures.*;
+import mpicbg.imagefeatures.Feature;
+import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.NoninvertibleModelException;
+import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.PointMatch;
+import mpicbg.models.RigidModel2D;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.trakem2.transform.TranslationModel2D;
+
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,9 +73,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.awt.Color;
 import java.awt.geom.AffineTransform;
-import java.io.*;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.FilenameFilter;
 
-import org.jfree.chart.*;
+
+
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.category.DefaultCategoryDataset;
 
@@ -105,7 +121,7 @@ public class Distortion_Correction implements PlugIn{
 		public float minInlierRatio = 0.2f;
 
 		/**
-		 * Implemeted transformation models for choice
+		 * Implemented transformation models for choice
 		 */
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
 		public int expectedModelIndex = 1;
@@ -313,21 +329,24 @@ public class Distortion_Correction implements PlugIn{
 	NonLinearTransform nlt = new NonLinearTransform();
 	AbstractAffineModel2D< ? >[] models;
 
+	/**
+	 * Plugin run method
+	 */
 	public void run(String arg)
 	{
-		if ( !sp.setup( "Lens Correction" ) ) return;
+		if ( !sp.setup( "Lens Correction" ) ) 
+			return;
 
 		List< List< PointMatch > > inliers = null;
-		if (sp.saveOrLoad == 0) {
-
+		
+		if (sp.saveOrLoad == 0) 
+		{
 			//IJ.log( sp.source_dir + sp.names[ 0 ] );
 			final ImagePlus imgTmp = new Opener().openImage( sp.source_dir + sp.names[ 0 ] );
 			final int imageWidth = imgTmp.getWidth(), imageHeight=imgTmp.getHeight();
 			/** imgTmp was just needed to get width and height of the images */
 			imgTmp.flush();
-				
-			
-			
+										
 			List< Feature >[] siftFeatures = extractSIFTFeaturesThreaded( sp.numberOfImages, sp.source_dir, sp.names );
 
 			List< PointMatch >[] inliersTmp = new ArrayList[ sp.numberOfImages * ( sp.numberOfImages - 1 ) ];
@@ -386,8 +405,7 @@ public class Distortion_Correction implements PlugIn{
 				}
 			}	
 
-			//if ( sp.saveOrLoad == 0 )
-				//{
+			
 			nlt = distortionCorrection( h1, h2, tp, sp.dimension, sp.lambda, imageWidth, imageHeight );
 			nlt.visualizeSmall( sp.lambda );
 
@@ -398,7 +416,8 @@ public class Distortion_Correction implements PlugIn{
 				gdl.addMessage( "If the distortion field shows a clear translation, \n it is likely that you need to increase lambda." );
 				gdl.addNumericField( "lambda :", sp.lambda, 6 );
 				gdl.showDialog();	
-				if ( gdl.wasCanceled() ) break;
+				if ( gdl.wasCanceled() ) 
+					break;
 				sp.lambda = gdl.getNextNumber();
 				nlt = distortionCorrection( h1, h2, tp, sp.dimension, sp.lambda, imageWidth, imageHeight );
 				nlt.visualizeSmall( sp.lambda );					
@@ -421,14 +440,22 @@ public class Distortion_Correction implements PlugIn{
 
 		if ( sp.visualizeResults && (sp.saveOrLoad == 0))
 		{
-			IJ.log( "call nlt.visualize()" );
+			IJ.log( "Visualizing results..." );
 			nlt.visualize();
-			IJ.log( "call evaluateCorrection(inliers)" );
-			evaluateCorrection( inliers );
+			if(null != sp.target_dir)
+			{
+				IJ.log( "Evaluating distortion correction..." );
+				evaluateCorrection( inliers );
+			}
 		}
-		//System.out.println("FINISHED");
+		IJ.log( " Done " );
 	}
 
+	/**
+	 * Evaluate the correction and display charts
+	 * 
+	 * @param inliers resulting SIFT inliers
+	 */
 	public void evaluateCorrection( List< List< PointMatch > > inliers)
 	{
 		IJ.showStatus("Evaluating Distortion Correction");
@@ -464,7 +491,7 @@ public class Distortion_Correction implements PlugIn{
 				PlotOrientation.VERTICAL,
 				false,
 				true, false);
-		final ImagePlus imp = new ImagePlus( "Plot", chart.createBufferedImage( 500, 300 ) );
+		final ImagePlus imp = new ImagePlus( "Xcorr before and after correction Plot", chart.createBufferedImage( 500, 300 ) );
 		imp.show();
 
 		final JFreeChart chartGrad = ChartFactory.createBarChart(
@@ -475,7 +502,7 @@ public class Distortion_Correction implements PlugIn{
 				PlotOrientation.VERTICAL,
 				false,
 				true, false);
-		final ImagePlus impGrad = new ImagePlus( "Plot", chartGrad.createBufferedImage( 500, 300 ) );
+		final ImagePlus impGrad = new ImagePlus( "XcorrGradient before and after correction Plot", chartGrad.createBufferedImage( 500, 300 ) );
 		impGrad.show();
 
 		final JFreeChart chartGain = ChartFactory.createBarChart(
@@ -486,7 +513,7 @@ public class Distortion_Correction implements PlugIn{
 				PlotOrientation.VERTICAL,
 				false,
 				true, false);
-		final ImagePlus impGain = new ImagePlus( "Plot", chartGain.createBufferedImage( 500, 300 ) );
+		final ImagePlus impGain = new ImagePlus( "Gain in Xcorr Plot", chartGain.createBufferedImage( 500, 300 ) );
 		impGain.show();
 
 		visualizePoints( inliers );
@@ -592,9 +619,8 @@ public class Distortion_Correction implements PlugIn{
 	 * this model which then may be used to undo the distortion.
 	 * 
 	 * @param matches
-	 * @param affines
-	 *   a list of affines in the same order as matches that transfer a match
-	 *   collection into a common image frame
+	 * @param affines a list of affines in the same order as matches 
+	 * 				  that transfer a match collection into a common image frame
 	 * @param dimension the order of the polynomial model
 	 * @param lambda regularization factor
 	 * @param imageWidth
@@ -653,7 +679,26 @@ public class Distortion_Correction implements PlugIn{
 		return nlt;
 	}
 
-	static protected NonLinearTransform distortionCorrection(double hack1[][], double hack2[][], double transformParams[][], int dimension, double lambda, int w, int h){
+	/**
+	 * 
+	 * @param hack1
+	 * @param hack2
+	 * @param transformParams
+	 * @param dimension
+	 * @param lambda
+	 * @param w
+	 * @param h
+	 * @return
+	 */
+	static protected NonLinearTransform distortionCorrection(
+			double hack1[][], 
+			double hack2[][], 
+			double transformParams[][], 
+			int dimension, 
+			double lambda, 
+			int w, 
+			int h)
+	{
 		IJ.showStatus("Getting the Distortion Field");
 		NonLinearTransform nlt = new NonLinearTransform(dimension, w, h);
 
@@ -712,6 +757,11 @@ public class Distortion_Correction implements PlugIn{
 		return nlt;
 	}
 
+	/**
+	 * Apply resulting transformation to all images in the list
+	 * 
+	 * @return target directory
+	 */
 	protected String correctImages()
 	{
 		if ( !sp.applyCorrection )
@@ -743,13 +793,15 @@ public class Distortion_Correction implements PlugIn{
 				IJ.showMessage( "Error! Could not create temporary directory. " + e.getMessage() );
 			}
 		}
-		if ( sp.target_dir == "" )
+		if ( sp.target_dir == "" || null == sp.target_dir )
 		{
 			final DirectoryChooser dc = new DirectoryChooser( "Target Directory" );
 			sp.target_dir = dc.getDirectory();
-			if ( null == sp.target_dir ) return "";
+			if ( null == sp.target_dir ) 
+				return null;
 			sp.target_dir = sp.target_dir.replace( '\\', '/' );
-			if ( !sp.target_dir.endsWith( "/" ) ) sp.target_dir += "/";
+			if ( !sp.target_dir.endsWith( "/" ) ) 
+				sp.target_dir += "/";
 		}
 
 		final String[] namesTarget = new File( sp.target_dir ).list( new FilenameFilter()
@@ -762,7 +814,8 @@ public class Distortion_Correction implements PlugIn{
 			}
 		} );
 
-		if ( namesTarget.length > 0 ) IJ.showMessage( "Overwrite Message", "There  are already images in that directory. These will be used for evaluation." );
+		if ( namesTarget.length > 0 ) 
+			IJ.showMessage( "Overwrite Message", "There  are already images in that directory. These will be used for evaluation." );
 		else
 		{
 
@@ -786,7 +839,8 @@ public class Distortion_Correction implements PlugIn{
 							imps.setProcessor( imps.getTitle(), imps.getProcessor().convertToShort( false ) );
 							ImageProcessor[] transErg = nlt.transform( imps.getProcessor() );
 							imps.setProcessor( imps.getTitle(), transErg[ 0 ] );
-							if ( !sp.applyCorrection ) new File( sp.target_dir + sp.names[ i ] ).deleteOnExit();
+							if ( !sp.applyCorrection ) 
+								new File( sp.target_dir + sp.names[ i ] ).deleteOnExit();
 							new FileSaver( imps ).saveAsTiff( sp.target_dir + sp.names[ i ] );
 						}
 					}
@@ -797,6 +851,12 @@ public class Distortion_Correction implements PlugIn{
 		return sp.target_dir;
 	}
 
+	/**
+	 * 
+	 * @param index
+	 * @param directory
+	 * @return
+	 */
 	protected double[] evaluateCorrectionXcorr( int index, String directory )
 	{
 		ImagePlus im1 = new Opener().openImage( directory + sp.names[ index ] );
@@ -824,21 +884,23 @@ public class Distortion_Correction implements PlugIn{
 			newImg.setProcessor( sp.names[ i + sp.firstImageIndex ], applyTransformToImageInverse( models[ index * ( sp.numberOfImages - 1 ) + count ], newImg.getProcessor() ) );
 
 			// If you want to see the stitching improvement run this
-			// ImageProcessor testIp = im1.getProcessor().duplicate();
+			/*
+			ImageProcessor testIp = im1.getProcessor().duplicate();
 
-			// for ( int x=0; x < testIp.getWidth(); x++){
-			// for (int y=0; y < testIp.getHeight(); y++){
-			// testIp.set(x, y, Math.abs(im1.getProcessor().get(x,y) -
-			// newImg.getProcessor().get(x,y)));
-			// }
-			// }
+			for ( int x=0; x < testIp.getWidth(); x++){
+				for (int y=0; y < testIp.getHeight(); y++){
+					testIp.set(x, y, Math.abs(im1.getProcessor().get(x,y) -
+							newImg.getProcessor().get(x,y)));
+				}
+			}
 
-			// ImagePlus testImg = new ImagePlus(sp.names[index] + " minus " +
-			// sp.names[i], testIp);
-			// testImg.show();
-			// im1.show();
-			// newImg.show();
-
+			ImagePlus testImg = new ImagePlus(sp.names[index] + " minus " +
+					sp.names[i], testIp);
+			testImg.show();
+			im1.show();
+			newImg.show();
+			*/
+			
 			xcorrVals.add( getXcorrBlackOut( im1.getProcessor(), newImg.getProcessor() ) );
 
 			xcorrValsGrad.add( getXcorrBlackOutGradient( im1.getProcessor(), newImg.getProcessor() ) );
@@ -865,9 +927,17 @@ public class Distortion_Correction implements PlugIn{
 		return means;
 		//return medians;
 	}
-
+	
+	/**
+	 * 
+	 * @param a
+	 * @param ip
+	 * @return
+	 */
 	ImageProcessor applyTransformToImageInverse(
-			AbstractAffineModel2D< ? > a, ImageProcessor ip){
+			AbstractAffineModel2D< ? > a, 
+			ImageProcessor ip)
+	{
 		ImageProcessor newIp = ip.duplicate();
 		newIp.max(0.0);
 
@@ -893,7 +963,14 @@ public class Distortion_Correction implements PlugIn{
 		return newIp;
 	}
 
-	double getXcorrBlackOutGradient(ImageProcessor ip1, ImageProcessor ip2){
+	/**
+	 * 
+	 * @param ip1
+	 * @param ip2
+	 * @return
+	 */
+	double getXcorrBlackOutGradient(ImageProcessor ip1, ImageProcessor ip2)
+	{
 		ImageProcessor ip1g = getGradientSobel(ip1);
 		ImageProcessor ip2g = getGradientSobel(ip2);
 
@@ -903,7 +980,8 @@ public class Distortion_Correction implements PlugIn{
 	//this blends out gradients that include black pixels to make the sharp border caused 
 	//by the nonlinear transformation not disturb the gradient comparison
 	//FIXME: this should be handled by a mask image!
-	ImageProcessor getGradientSobel(ImageProcessor ip){
+	ImageProcessor getGradientSobel(ImageProcessor ip)
+	{
 		ImageProcessor ipGrad = ip.duplicate();
 		ipGrad.max(0.0);
 
@@ -929,7 +1007,11 @@ public class Distortion_Correction implements PlugIn{
 
 
 	//tested the result against matlab routine, this worked fine
-	static	double getXcorrBlackOut(ImageProcessor ip1, ImageProcessor ip2){		
+	/**
+	 * 
+	 */
+	static double getXcorrBlackOut(ImageProcessor ip1, ImageProcessor ip2)
+	{		
 
 		ip1 = ip1.convertToFloat();
 		ip2 = ip2.convertToFloat();
@@ -989,29 +1071,50 @@ public class Distortion_Correction implements PlugIn{
 		return xcorr;
 	}
 
-
+	/**
+	 * Display points after transformation
+	 * 
+	 * @param inliers resulting SIFT inliers
+	 */
 	void visualizePoints( List< List< PointMatch > > inliers)
 	{
 		ColorProcessor ip = new ColorProcessor(nlt.getWidth(), nlt.getHeight());
 		ip.setColor(Color.red);
-
+		
+		// Display points after transformation: transformed P1 (world = W)
+		// and non-transformed P2 (local = L)
 		ip.setLineWidth(5);
-		for (int i=0; i < inliers.size(); i++){
-			for (int j=0; j < inliers.get(i).size(); j++){
+		for (int i=0; i < inliers.size(); i++)
+		{
+			for (int j=0; j < inliers.get(i).size(); j++)
+			{
 				float[] tmp1 = inliers.get(i).get(j).getP1().getW();
 				float[] tmp2 = inliers.get(i).get(j).getP2().getL();
+											
 				ip.setColor(Color.red);
-				ip.drawDot((int) tmp2[0], (int) tmp2[1]); 
-				ip.setColor(Color.blue);
 				ip.drawDot((int) tmp1[0], (int) tmp1[1]);
+								
+				ip.setColor(Color.blue);
+				ip.drawDot((int) tmp2[0], (int) tmp2[1]); 
 			}
 		}
 
-		ImagePlus points = new ImagePlus("", ip);
-		points.show();
+		ImagePlus points = new ImagePlus("Corresponding Points after correction", ip);
+		points.show();		
+		
 	}
 
-	public void getTransform(double[][] points1, double[][] points2, double[][] transformParams){
+	/**
+	 * 
+	 * @param points1
+	 * @param points2
+	 * @param transformParams
+	 */
+	public void getTransform(
+			double[][] points1, 
+			double[][] points2, 
+			double[][] transformParams)
+	{
 		double[][] p1 = new double[points1.length][3];
 		double[][] p2 = new double[points2.length][3];
 
@@ -1095,6 +1198,14 @@ public class Distortion_Correction implements PlugIn{
 		return  siftFeatures;
 	}
 
+	/**
+	 * Match SIFT features (multi-thread)
+	 * 
+	 * @param index
+	 * @param siftFeatures
+	 * @param inliers
+	 * @param models
+	 */
 	static protected void extractSIFTPointsThreaded(
 			final int index,
 			final List< Feature >[] siftFeatures,
