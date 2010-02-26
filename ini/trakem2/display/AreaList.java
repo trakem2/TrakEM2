@@ -1042,7 +1042,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
 				Area aroi = area.createTransformedArea(aff);
 				Rectangle b = aroi.getBounds();
-				if (b.x < 0 || b.y < 0) {
+				if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
 					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
 				}
 				ShapeRoi sroi = new ShapeRoi(aroi);
