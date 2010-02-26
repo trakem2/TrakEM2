@@ -4860,7 +4860,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			d.updateToolTab();
 		}
 		if (null != front) {
-			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
+			try {
+				WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
+			} catch (Exception e) {} // may fail when changing tools while opening a Display
 		}
 	}
 
