@@ -943,7 +943,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			if (last_layer >= layer_set.size()) last_layer = layer_set.size()-1;
 		}
 		// Create image according to roi and scale
-		int width, height;
+		final int width, height;
 		Rectangle broi = null;
 		if (null == roi) {
 			width = (int)(layer_set.getLayerWidth() * scale);
@@ -998,7 +998,6 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			amira_params = sb.toString();
 		}
 
-		int count = 1;
 		final float len = last_layer - first_layer + 1;
 
 		// Assign labels
@@ -1017,7 +1016,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 		final Area world = new Area(new Rectangle(0, 0, width, height));
 
-		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
+		int count = 0;
+		for (final Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
 			ImageProcessor ip = Utils.createProcessor(type, width, height);
@@ -1042,7 +1042,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
 				Area aroi = area.createTransformedArea(aff);
 				Rectangle b = aroi.getBounds();
-				if (b.x < 0 || b.y < 0) {
+				if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
 					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
 				}
 				ShapeRoi sroi = new ShapeRoi(aroi);
