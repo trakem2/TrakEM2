@@ -619,20 +619,12 @@ public class Distortion_Correction implements PlugIn{
 	    {
 	    	if ( pma.pointMatches.size() > 10 )
 			{
-			    final double[][] points1 = new double[ pma.pointMatches.size() ][ 2 ];
-			    final double[][] points2 = new double[ pma.pointMatches.size() ][ 2 ];
-				
 			    int i = 0;
 			    for ( final PointMatch match : pma.pointMatches )
 			    {	
 			    	final float[] tmp1 = match.getP1().getL();
 			    	final float[] tmp2 = match.getP2().getL();
 				    
-					points1[ i ][ 0 ] = ( double )tmp1[ 0 ];
-					points1[ i ][ 1 ] = ( double )tmp1[ 1 ];
-					points2[ i ][ 0 ] = ( double )tmp2[ 0 ];
-					points2[ i ][ 1 ] = ( double )tmp2[ 1 ];
-						    
 					h1[ count ] = new double[]{ ( double ) tmp1[ 0 ], ( double ) tmp1[ 1 ] };
 					h2[ count ] = new double[]{ ( double ) tmp2[ 0 ], ( double ) tmp2[ 1 ] };
 						  
@@ -650,64 +642,15 @@ public class Distortion_Correction implements PlugIn{
 	    return nlt;
     }
 	
-    static protected NonLinearTransform distortionCorrection(double hack1[][], double hack2[][], double transformParams[][], int dimension, double lambda, int w, int h){
-	IJ.showStatus("Getting the Distortion Field");
-	NonLinearTransform nlt = new NonLinearTransform(dimension, w, h);
-		
-	double expandedX[][] = nlt.kernelExpandMatrixNormalize(hack1);
-	double expandedY[][] = nlt.kernelExpandMatrix(hack2);
-		
-	int s = expandedX[0].length;
-	Matrix S1 = new Matrix(2*s, 2*s);
-	Matrix S2 = new Matrix(2*s,1);
-		
-	for (int i=0; i < expandedX.length; i++){
-	    Matrix xk_ij = new Matrix(expandedX[i],1);
-	    Matrix xk_ji = new Matrix(expandedY[i],1);
-			
-	    Matrix yk1a = xk_ij.minus(xk_ji.times(transformParams[i][0]));
-	    Matrix yk1b = xk_ij.times(0.0).minus(xk_ji.times(-transformParams[i][2]));
-	    Matrix yk2a = xk_ij.times(0.0).minus(xk_ji.times(-transformParams[i][1]));
-	    Matrix yk2b = xk_ij.minus(xk_ji.times(transformParams[i][3]));
-						
-	    Matrix y = new Matrix(2,2*s);
-	    y.setMatrix(0, 0, 0, s-1, yk1a);
-	    y.setMatrix(0, 0, s, 2*s-1, yk1b);
-	    y.setMatrix(1, 1, 0, s-1, yk2a);
-	    y.setMatrix(1, 1, s, 2*s-1, yk2b);
-			
-	    Matrix xk = new Matrix(2,2*expandedX[0].length);
-	    xk.setMatrix(0, 0, 0, s-1, xk_ij);
-	    xk.setMatrix(1, 1, s, 2*s-1, xk_ij);
-			
-	    double[] vals = {hack1[i][0], hack1[i][1]};
-	    Matrix c = new Matrix(vals, 2);
+	static protected NonLinearTransform distortionCorrection( double hack1[][], double hack2[][], double transformParams[][], int dimension, double lambda, int w, int h )
+	{
+		IJ.showStatus( "Getting the Distortion Field" );
+		NonLinearTransform nlt = new NonLinearTransform( dimension, w, h );
+		nlt.fit( hack1, hack2, transformParams, lambda, w, h );
 
-	    Matrix X = xk.transpose().times(xk).times(lambda);
-	    Matrix Y = y.transpose().times(y);
-						
-	    S1 = S1.plus(Y.plus(X));
-			
-	    double trans1 = (transformParams[i][2]* transformParams[i][5] - transformParams[i][0]*transformParams[i][4]);
-	    double trans2 = (transformParams[i][1]* transformParams[i][4] - transformParams[i][3]*transformParams[i][5]);
-	    double[] trans = {trans1, trans2};
-
-			
-	    Matrix translation = new Matrix(trans, 2);
-	    Matrix YT = y.transpose().times(translation);
-	    Matrix XC = xk.transpose().times(c).times(lambda);
-			
-	    S2 = S2.plus(YT.plus(XC));
+		nlt.inverseTransform( hack1 );
+		return nlt;
 	}
-		
-
-	Matrix regularize = Matrix.identity(S1.getRowDimension(), S1.getColumnDimension());
-	Matrix beta = new Matrix(S1.plus(regularize.times(0.001)).inverse().times(S2).getColumnPackedCopy(),s);
-		
-	nlt.setBeta(beta.getArray());
-	nlt.inverseTransform(hack1);
-	return nlt;
-    }
 	
     protected String correctImages()
 	{
