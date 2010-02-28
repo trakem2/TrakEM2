@@ -493,7 +493,12 @@ public class Bucket {
 
 	static public int getBucketSide(final Bucketable container) {
 		if (null != container.getProject().getProperty("bucket_side")) {
-			return (int)container.getProject().getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
+			final int size = (int)container.getProject().getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
+			if (size < Bucket.MIN_BUCKET_SIZE) {
+				Utils.logAll("WARNING: bucket side (" + size + ") is smaller than the recommended minimum of " + Bucket.MIN_BUCKET_SIZE
+						+ "\nYou may adjust the bucket side in the 'Project - Properties' popup menu.");
+			}
+			return size;
 		} else {
 			// estimate median
 			final ArrayList<Displayable> col = (ArrayList<Displayable>)container.getDisplayableList();
