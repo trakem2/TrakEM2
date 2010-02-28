@@ -42,13 +42,31 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 	//@Override
 	final public String toXML( final String indent )
 	{
-		return indent + "<iict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\" />";
+		final StringBuilder xml = new StringBuilder( 128 );
+		xml.append( indent )
+		   .append( "<iict_transform class=\"" )
+		   .append( this.getClass().getCanonicalName() )
+		   .append( "\" data=\"" );
+		toDataString( xml );
+		return xml.append( "\" />" ).toString();
 	}
-	
+
 	//@Override
 	final public String toDataString()
 	{
-		return m00 + " " + m10 + " " + m01 + " " + m11 + " " + m02 + " " + m12;
+		final StringBuilder data = new StringBuilder();
+		toDataString( data );
+		return data.toString();
+	}
+
+	final private void toDataString( final StringBuilder data )
+	{
+		data.append( m00 ).append(' ')
+		    .append( m10 ).append(' ')
+		    .append( m01 ).append(' ')
+		    .append( m11 ).append(' ')
+		    .append( m02 ).append(' ')
+		    .append( m12 );
 	}
 	
 	@Override

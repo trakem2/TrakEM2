@@ -82,33 +82,43 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 
 	public String toDataString()
 	{
-		String data = "";
+		final StringBuilder data = new StringBuilder();
+		toDataString( data );
+		return data.toString();
+	}
+
+	private final void toDataString( final StringBuilder data )
+	{
+		if ( TranslationModel2D.class.isInstance( model ) ) data.append("translation 2");
+		else if ( RigidModel2D.class.isInstance( model ) ) data.append("rigid 2");
+		else if ( SimilarityModel2D.class.isInstance( model ) ) data.append("similarity 2");
+		else if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
+		else if ( AffineModel3D.class.isInstance( model ) ) data.append("affine 3");
+		else data.append("unknown");
 		
-		if ( TranslationModel2D.class.isInstance( model ) ) data += "translation 2";
-		else if ( RigidModel2D.class.isInstance( model ) ) data += "rigid 2";
-		else if ( SimilarityModel2D.class.isInstance( model ) ) data += "similarity 2";
-		else if ( AffineModel2D.class.isInstance( model ) ) data += "affine 2";
-		else if ( AffineModel3D.class.isInstance( model ) ) data += "affine 3";
-		else data += "unknown";
-		
-		data += " " + alpha;
+		data.append(' ').append(alpha);
 		
 		for ( PointMatch m : matches )
 		{
 			final float[] p1 = m.getP1().getL();
 			final float[] p2 = m.getP2().getW();
 			for ( int k = 0; k < p1.length; ++k )
-				data += " " + p1[ k ];
+				data.append(' ').append(p1[ k ]);
 			for ( int k = 0; k < p2.length; ++k )
-				data += " " + p2[ k ];
-			data += " " + m.getWeight();
+				data.append(' ').append(p2[ k ]);
+			data.append(' ').append(m.getWeight());
 		}
-		return data;
 	}
 
 	final public String toXML( final String indent )
 	{
-		return indent + "<ict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\"/>";
+		final StringBuilder xml = new StringBuilder( 128 );
+		xml.append( indent )
+		   .append( "<ict_transform class=\"" )
+		   .append( this.getClass().getCanonicalName() )
+		   .append( "\" data=\"" );
+		toDataString( xml );
+		return xml.append( "\"/>" ).toString();
 	}
 	
 	@Override
