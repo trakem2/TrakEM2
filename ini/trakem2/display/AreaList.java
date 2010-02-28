@@ -326,11 +326,13 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Area a = aw.getArea();
 		final Long lid = this.lid;
 		aw.mousePressed(me, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { public void run() {
+			// To be run on mouse released:
 			// check if empty. If so, remove
 			Rectangle bounds = a.getBounds();
 			if (0 == bounds.width && 0 == bounds.height) {
 				ht_areas.remove(lid);
 			}
+			calculateBoundingBox();
 		}}}));
 		aw.setSource(null);
 	}
