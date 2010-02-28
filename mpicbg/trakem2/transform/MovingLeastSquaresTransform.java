@@ -89,10 +89,10 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 
 	private final void toDataString( final StringBuilder data )
 	{
-		if ( TranslationModel2D.class.isInstance( model ) ) data.append("translation 2");
+		if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
+		else if ( TranslationModel2D.class.isInstance( model ) ) data.append("translation 2");
 		else if ( RigidModel2D.class.isInstance( model ) ) data.append("rigid 2");
 		else if ( SimilarityModel2D.class.isInstance( model ) ) data.append("similarity 2");
-		else if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
 		else if ( AffineModel3D.class.isInstance( model ) ) data.append("affine 3");
 		else data.append("unknown");
 		
