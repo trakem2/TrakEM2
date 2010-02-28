@@ -265,7 +265,7 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 		return transf;		
 	}
 
-	@Override
+	//@Override
 	public void fit(Collection<PointMatch> matches)
 			throws NotEnoughDataPointsException, IllDefinedDataPointsException 
 	{
@@ -316,16 +316,18 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 		this.height = targetHeight;
 	}
 	
-	@Override
+	//@Override
 	public int getMinNumMatches() {
 		// TODO Auto-generated method stub
 		return 0;
 	}
 
-	@Override
+	//@Override
 	public void set(CubicBSplineTransform m) {
 		init( m.toDataString() );
 	}
+
+
 
 //	@Override
 //	public void shake(float amount) {
@@ -333,7 +335,8 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 //		
 //	}
 
-	@Override
+
+	//@Override
 	public String toString() {
 		return toDataString();
 	}
