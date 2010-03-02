@@ -3026,17 +3026,18 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Update the Display's title in all Displays showing the given Layer. */
 	static public void updateTitle(final Layer layer) {
 		for (final Display d : al_displays) {
-			if (d.layer == layer) {
-				d.updateFrameTitle();
-			}
+			if (d.layer == layer) d.updateFrameTitle();
+		}
+	}
+	static public void updateTitle(final Project project) {
+		for (final Display d : al_displays) {
+			if (d.project == project) d.updateFrameTitle();
 		}
 	}
 	/** Update the Display's title in all Displays showing a Layer of the given LayerSet. */
 	static public void updateTitle(final LayerSet ls) {
 		for (final Display d : al_displays) {
-			if (d.layer.getParent() == ls) {
-				d.updateFrameTitle();
-			}
+			if (d.layer.getParent() == ls) d.updateFrameTitle(d.layer);
 		}
 	}
 

@@ -1055,6 +1055,7 @@ public final class FSLoader extends Loader {
 			touched_mipmaps.clear();
 		}
 		ControlWindow.updateTitle(project);
+		Display.updateTitle(project);
 		return path;
 	}
 
