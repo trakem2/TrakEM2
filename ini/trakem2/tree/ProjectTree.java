@@ -34,6 +34,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
+import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -803,7 +804,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}
 
-			// deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
+			// Deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
 			ProjectThing copy = pt.deepClone(target_project, false); // new ids, taken from target_project
 			if (null == landing_parent.getChildTemplate(copy.getTemplate().getType())) {
 				landing_parent.getTemplate().addChild(copy.getTemplate().shallowCopy()); // ensure a copy is there
@@ -823,8 +824,19 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 			target_project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
 
+			// Now that all have been copied, transform if so asked for:
+
 			if (transfer_mode.equals(trmode[1])) {
+				// Collect vdata
+				final Collection<Displayable> vdata = new ArrayList<Displayable>();
+				for (final ProjectThing t : copy.findChildrenOfTypeR(Displayable.class)) {
+					final Displayable d = (Displayable) t.getObject();
+					if (d instanceof VectorData) vdata.add(d); // all should be, this is just future-proof code.
+				}
 				// Transform with images
+				final Collection<Patch> patches = (Collection<Patch>)(Collection) this.project.getRootLayerSet().getDisplayables(Patch.class);
+				final Collection<Patch> target_patches = (Collection<Patch>)(Collection) target_project.getRootLayerSet().getDisplayables(Patch.class);
+				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(patches), vdata, target_patches);
 			} // else if trmodep[0], leave as is.
 			
 			return true;
