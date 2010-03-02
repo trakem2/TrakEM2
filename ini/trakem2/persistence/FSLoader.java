@@ -2351,6 +2351,9 @@ public final class FSLoader extends Loader {
 	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
 	public Future<Boolean> removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return null;
+		// cache values before they are changed:
+		final int width = (int)p.getWidth();
+		final int height = (int)p.getHeight();
 		return remover.submit(new Callable<Boolean>() {
 			public Boolean call() {
 				try {
@@ -2360,8 +2363,6 @@ public final class FSLoader extends Loader {
 						Utils.log2("Remover: null path for Patch " + p);
 						return false;
 					}
-					final int width = (int)p.getWidth();
-					final int height = (int)p.getHeight();
 					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(".jpg").toString();
 					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
 					flushMipMaps(p.getId());
