@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.LinkedList;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -277,11 +278,39 @@ final public class AlignTask
 
 	final static public Map<Long,Patch.TransformProperties> createTransformPropertiesTable(final Collection<Patch> patches) {
 		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
-		int count = 0;
+		// Parallelize! This operation can be insanely expensive
+		final int nproc = Runtime.getRuntime().availableProcessors();
+		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "AlignTask-createTransformPropertiesTable");
+		final LinkedList<Future> tasks = new LinkedList<Future>();
+		final Thread current = Thread.currentThread();
+		try {
 		for (final Patch patch : patches) {
-			if (0 == (count++) % 64 && Thread.currentThread().isInterrupted()) return null;
-			tp.put(patch.getId(), patch.getTransformPropertiesCopy());
+			tasks.add(exec.submit(new Runnable() {
+				public void run() {
+					Patch.TransformProperties props = patch.getTransformPropertiesCopy();
+					synchronized (tp) {
+						tp.put(patch.getId(), props);
+					}
+				}
+			}));
+			// When reaching 2*nproc, wait for nproc to complete
+			if (0 == tasks.size() % (nproc+nproc)) {
+				if (current.isInterrupted()) return tp;
+				int i = 0;
+				while (i < nproc) {
+					try { tasks.removeFirst().get(); } catch (Exception e) { IJError.print(e); }
+					i++;
+				}
+			}
 		}
+		// Wait for remaining tasks
+		Utils.wait(tasks);
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			exec.shutdownNow();
+		}
+
 		return tp;
 	}
 
@@ -324,7 +353,7 @@ final public class AlignTask
 			sp.put(patch.getLayer().indexOf(patch), patch);
 		}
 		// 2 - for each layer, transform the part of each segmentation on top of the Patch, but only the area that has not been used already:
-		final ExecutorService exec = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "AlignTask-transformPatchesAndVectorData");
+		final ExecutorService exec = Utils.newFixedThreadPool("AlignTask-transformVectorData");
 		final Collection<Future> fuslayer = new ArrayList<Future>();
 		final Collection<Future> fus = new ArrayList<Future>();
 		final Thread current = Thread.currentThread();
@@ -332,7 +361,7 @@ final public class AlignTask
 		for (final Map.Entry<Layer,TreeMap<Integer,Patch>> e : lm.entrySet()) {
 			fuslayer.add(exec.submit(new Runnable() { public void run() {
 				if (current.isInterrupted()) {
-					exec.shutdownNow(); // may be called more than once, but without any ill effect.
+					exec.shutdownNow(); // may be called multiple times, but without ill effect
 					return;
 				}
 				final Layer layer = e.getKey();
@@ -381,10 +410,15 @@ final public class AlignTask
 							// 3 - the AffineTransform of the Patch
 							tlist = new CoordinateTransformList();
 
+							// TODO could reuse old and new, just store them in maps of Patch vs old or new
+
 							final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
 							if (null != props.ct) {
-								final mpicbg.models.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, patch.getOWidth(), patch.getOHeight());
-								old.add(mesh);
+								synchronized (props) {
+									// Create the mesh just once, and reuse it
+									if (null == props.mesh) props.mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
+								}
+								old.add(props.mesh);
 							}
 							final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
 							old_aff.set(props.at);
