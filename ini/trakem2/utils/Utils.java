@@ -77,6 +77,7 @@ import javax.swing.JMenu;
 import java.lang.reflect.Field;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
@@ -1562,5 +1563,15 @@ public class Utils implements ij.plugin.PlugIn {
 		return 0 == path_or_url.indexOf("http://") ?
 			  new java.net.URL(path_or_url).openStream()
 			: new java.io.BufferedInputStream(new java.io.FileInputStream(path_or_url));
+	}
+
+	static public final List<Long> asList(final long[] ids) {
+		return asList(ids, 0, ids.length);
+	}
+	static public final List<Long> asList(final long[] ids, final int first, final int length) {
+		final ArrayList<Long> l = new ArrayList<Long>();
+		if (null == ids) return l;
+		for (int i=first; i<length; i++) l.add(ids[i]);
+		return l;
 	}
 }
