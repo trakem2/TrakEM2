@@ -342,7 +342,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			Thing child = (Thing)it.next();
 			DefaultMutableTreeNode childnode = new DefaultMutableTreeNode(child);
 			node.add(childnode);
-			rebuild(childnode, repaint);
+			rebuild(childnode, false);
 		}
 		if (repaint) updateUILater();
 	}
