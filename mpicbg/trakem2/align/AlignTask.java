@@ -275,8 +275,22 @@ final public class AlignTask
 
 	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
 		// Store transformation data for each Patch
-		final Map<Patch,Patch.TransformProperties> tp = new HashMap<Patch,Patch.TransformProperties>();
-		for (final Patch patch : patches) tp.put(patch, patch.getTransformPropertiesCopy()); 
+		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
+		int count = 0;
+		for (final Patch patch : patches) {
+			if (0 == (count++) % 64 && Thread.currentThread().isInterrupted()) return;
+			tp.put(patch.getId(), patch.getTransformPropertiesCopy()); 
+		}
+
+		transformPatchesAndVectorData(tp, alignment, patches, false);
+	}
+
+	final static public void transformPatchesAndVectorData
+		(final Map<Long,Patch.TransformProperties> tp,		/* The id of the source patch vs. its original transform properties before the alignment. */
+		 final Runnable alignment, 				/* The alignment procedure to run. */
+		 final Collection<Patch> target_patches, 		/* The patches over which the vector data will finally sit, which must have the same ids as the source patches, but does not need to be the same collection. The common id approach allows for two variations of the same project to exchange vector data. */
+		 final boolean ignore_links)				/* Whether to not constrain the transforming to linked objects only, but to any that overlap with a Patch. */
+	{
 
 		// Align:
 		alignment.run();
@@ -284,9 +298,9 @@ final public class AlignTask
 		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
 
 		// Apply transforms to all non-image objects that overlapped with each Patch
-		// 1 - Sort patches by layer, and patches by stack index within the layer
+		// 1 - Sort source patches by layer, and patches by stack index within the layer
 		final Map<Layer,TreeMap<Integer,Patch>> lm = new HashMap<Layer,TreeMap<Integer,Patch>>();
-		for (final Patch patch : patches) {
+		for (final Patch patch : target_patches) {
 			TreeMap<Integer,Patch> sp = lm.get(patch.getLayer());
 			if (null == sp) {
 				sp = new TreeMap<Integer,Patch>();
@@ -298,9 +312,14 @@ final public class AlignTask
 		final ExecutorService exec = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "AlignTask-transformPatchesAndVectorData");
 		final Collection<Future> fuslayer = new ArrayList<Future>();
 		final Collection<Future> fus = new ArrayList<Future>();
+		final Thread current = Thread.currentThread();
 		try {
 		for (final Map.Entry<Layer,TreeMap<Integer,Patch>> e : lm.entrySet()) {
 			fuslayer.add(exec.submit(new Runnable() { public void run() {
+				if (current.isInterrupted()) {
+					exec.shutdownNow(); // may be called more than once, but without any ill effect.
+					return;
+				}
 				final Layer layer = e.getKey();
 				// The area already processed
 				final Area used_area = new Area();
@@ -310,7 +329,7 @@ final public class AlignTask
 				final List<Patch> sorted = new ArrayList<Patch>(e.getValue().values());
 				Collections.reverse(sorted); // so now it's from top to bottom
 				for (final Patch patch : sorted) {
-					final Patch.TransformProperties props = tp.remove(patch);
+					final Patch.TransformProperties props = tp.remove(patch.getId());
 					if (null == props) {
 						Utils.log("ERROR: could not find any Patch.TransformProperties for patch " + patch);
 						continue;
@@ -333,7 +352,7 @@ final public class AlignTask
 					//Utils.log2("Found under area: " + Utils.toString(ds));
 					for (final Displayable d : ds) {
 						if (d instanceof VectorData) {
-							if (null != linked && !linked.contains(d)) {
+							if (!ignore_links && null != linked && !linked.contains(d)) {
 								Utils.log("Not transforming non-linked object " + d);
 								continue;
 							}
