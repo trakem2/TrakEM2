@@ -561,9 +561,9 @@ public class Connector extends ZDisplayable implements VectorData {
 	public Connector clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		Connector copy = new Connector(pr, nid, title, this.alpha, true, this.color, this.locked, this.at);
-		copy.lids = this.lids.clone();
-		copy.p = this.p.clone();
-		copy.radius = this.radius.clone();
+		copy.lids = null == this.lids ? null : this.lids.clone();
+		copy.p = null == this.p ? null : this.p.clone();
+		copy.radius = null == this.radius ? null : this.radius.clone();
 		return copy;
 	}
 
