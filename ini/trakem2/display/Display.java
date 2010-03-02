@@ -2592,15 +2592,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		JMenu bytype = new JMenu("Select all by type");
 		item = new JMenuItem("AreaList"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Ball"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Connector"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Dissector"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Image"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 
 		item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
@@ -2882,6 +2883,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			try {
 				String type = command;
 				if (type.equals("Image")) type = "Patch";
+				else if (type.equals("Text")) type = "DLabel";
 				Class c = Class.forName("ini.trakem2.display." + type);
 
 				java.util.List<Displayable> a = new ArrayList<Displayable>();
