@@ -77,8 +77,9 @@ public class AreaTree extends Tree implements AreaContainer {
 	public AreaTree clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		AreaTree art =  new AreaTree(pr, nid, title, width, height, alpha, visible, color, locked, at);
-		art.root = this.root.clone();
+		art.root = null == this.root ? null : this.root.clone(pr);
 		art.addToDatabase();
+		if (null != art.root) art.cacheSubtree(art.root.getSubtreeNodes());
 		return art;
 	}
 
