@@ -164,6 +164,7 @@ public final class TemplateThing extends DBObject implements Thing {
 				}
 			}
 			// TODO should change to use a Map<String,TemplateThing>.
+			// but then there wouldn't be a sequential order.
 		}
 		//Utils.log2("Added child of type " + ((TemplateThing)child).type);
 		al_children.add(child);
