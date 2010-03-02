@@ -44,6 +44,7 @@ import java.awt.Event;
 import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -116,6 +117,29 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		this.object = ob;
 		// now, ready:
 		addToDatabase();
+	}
+
+	/** Clone this ProjectThing with its template and all its children and objects cloned, and return it.
+	 *  The templates are added to the project as unique types when not there yet.
+	 *  WARNING there isn't any conflict resolution between potentially different kinds of TemplateThing parent/child chains. */
+	public ProjectThing deepClone(final Project project, final boolean copy_id) throws Exception {
+		// Find a template for this in project, otherwise create it
+		TemplateThing tt = project.getTemplateThing(this.template.getType()); // WARNING: not checking if parent/child chain is identical. Just the name.
+		if (null == tt) {
+			tt = this.template.clone(project, copy_id); // deep copy, with children
+			for (TemplateThing tn : (Collection<TemplateThing>)tt.collectAllChildren(new ArrayList())) {
+				project.addUniqueType(tn);
+			}
+			project.addUniqueType(tt);
+		}
+		// Make a deep copy of this
+		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);
+		if (null != this.al_children) {
+			for (final ProjectThing child : this.al_children) {
+				copy.addChild(child.deepClone(project, copy_id));
+			}
+		}
+		return copy;
 	}
 
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
@@ -790,7 +814,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Recursive into children. */
-	public HashSet findChildrenOfTypeR(final Class c) {
+	public HashSet<ProjectThing> findChildrenOfTypeR(final Class c) {
 		return findChildrenOfTypeR(new HashSet<ProjectThing>(), c);
 	}
 	/** Recursive into children. */
