@@ -8,6 +8,7 @@ import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,6 +45,7 @@ import ini.trakem2.Project;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.VectorData;
@@ -273,30 +275,43 @@ final public class AlignTask
 			}});
 	}
 
-	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
-		// Store transformation data for each Patch
+	final static public Map<Long,Patch.TransformProperties> createTransformPropertiesTable(final Collection<Patch> patches) {
 		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
 		int count = 0;
 		for (final Patch patch : patches) {
-			if (0 == (count++) % 64 && Thread.currentThread().isInterrupted()) return;
-			tp.put(patch.getId(), patch.getTransformPropertiesCopy()); 
+			if (0 == (count++) % 64 && Thread.currentThread().isInterrupted()) return null;
+			tp.put(patch.getId(), patch.getTransformPropertiesCopy());
 		}
-
-		transformPatchesAndVectorData(tp, alignment, patches, false);
+		return tp;
 	}
 
-	final static public void transformPatchesAndVectorData
-		(final Map<Long,Patch.TransformProperties> tp,		/* The id of the source patch vs. its original transform properties before the alignment. */
-		 final Runnable alignment, 				/* The alignment procedure to run. */
-		 final Collection<Patch> target_patches, 		/* The patches over which the vector data will finally sit, which must have the same ids as the source patches, but does not need to be the same collection. The common id approach allows for two variations of the same project to exchange vector data. */
-		 final boolean ignore_links)				/* Whether to not constrain the transforming to linked objects only, but to any that overlap with a Patch. */
-	{
-
-		// Align:
+	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
+		if (patches.isEmpty()) {
+			Utils.log("No patches to align!");
+			return;
+		}
+		// 1 - Store current transformation of each Patch
+		final Map<Long,Patch.TransformProperties> tp = createTransformPropertiesTable(patches);
+		// 2 - Align:
 		alignment.run();
-
 		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
+		// 3 - Collect all VectorData to transform
+		final LayerSet ls = patches.iterator().next().getLayerSet();
+		final List<Displayable> vdata = ls.getDisplayables(); // from all layers
+		vdata.addAll(ls.getZDisplayables()); // no lazy seqs, no filter functions ... ole!
+		for (final Iterator<Displayable> it = vdata.iterator(); it.hasNext(); ) {
+			if (it.next() instanceof VectorData) continue;
+			it.remove();
+		}
+		// 4 - Transform VectorData instances to match the position of the Patch instances over which they were defined
+		transformVectorData(tp, vdata, patches);
+	}
 
+	final static public void transformVectorData
+		(final Map<Long,Patch.TransformProperties> tp,		/* The id of the source patch vs. its original transform properties before the alignment. */
+		 final Collection<Displayable> vdata,			/* The VectorData instances to transform along with the images. */
+		 final Collection<Patch> target_patches) 		/* The patches over which the vector data will finally sit, which must have the same ids as the source patches, but does not need to be the same collection. The common id approach allows for two variations of the same project to exchange vector data. */
+	{
 		// Apply transforms to all non-image objects that overlapped with each Patch
 		// 1 - Sort source patches by layer, and patches by stack index within the layer
 		final Map<Layer,TreeMap<Integer,Patch>> lm = new HashMap<Layer,TreeMap<Integer,Patch>>();
@@ -345,52 +360,54 @@ final public class AlignTask
 					//
 					mpicbg.trakem2.transform.CoordinateTransformList tlist = null;
 					// For the remaining area, see who intersects it
-					final Set<Displayable> linked = patch.getLinked();
-					//Utils.log("Found linked: " + Utils.toString(linked));
-					final List<Displayable> ds = layer.getDisplayables(Displayable.class, a, false);
-					ds.addAll(layer.getParent().getZDisplayables(ZDisplayable.class, layer, a, false));
-					//Utils.log2("Found under area: " + Utils.toString(ds));
-					for (final Displayable d : ds) {
-						if (d instanceof VectorData) {
-							if (!ignore_links && null != linked && !linked.contains(d)) {
-								Utils.log("Not transforming non-linked object " + d);
-								continue;
-							}
-							if (null == tlist) {
-								// Generate a CoordinateTransformList that includes:
-								// 1 - an inverted transform from Patch coords to world coords
-								// 2 - the CoordinateTransform of the Patch, if any
-								// 3 - the AffineTransform of the Patch
-								tlist = new CoordinateTransformList();
-
-								final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
-								if (null != props.ct) {
-									final mpicbg.models.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, patch.getOWidth(), patch.getOHeight());
-									old.add(mesh);
-								}
-								final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
-								old_aff.set(props.at);
-								old.add(old_aff);
-
-								tlist.add(new InverseICT(old));
-
-								// The new part:
-								final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
-								if (null != ct) tlist.add(ct);
-								final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
-								new_aff.set(patch.getAffineTransform());
-								tlist.add(new_aff);
-							}
-
-							//Utils.log("Transforming " + d + " with Patch " + patch);
-
-							VectorDataTransform vdt = transforms.get((VectorData)d);
-							if (null == vdt) {
-								vdt = new VectorDataTransform(layer);
-								transforms.put((VectorData)d, vdt);
-							}
-							vdt.add(a, tlist);
+					for (final Displayable d : vdata) {
+						// Must implement VectorData
+						if (!(d instanceof VectorData)) continue;
+						// Intersects Area 'a' at this layer?
+						if (d instanceof ZDisplayable) {
+							if (!((ZDisplayable)d).intersects(a, layer.getZ(), layer.getZ())) continue; // does NOT intersect 'a'
+						} else {
+							if (d.getLayer() != layer) continue; // not in the Layer of interest
+							Area da = new Area(d.getPerimeter());
+							da.intersect(a);
+							Rectangle b = da.getBounds();
+							if (0 == b.width || 0 == b.height) continue; // does NOT intersect 'a'
 						}
+
+						if (null == tlist) {
+							// Generate a CoordinateTransformList that includes:
+							// 1 - an inverted transform from Patch coords to world coords
+							// 2 - the CoordinateTransform of the Patch, if any
+							// 3 - the AffineTransform of the Patch
+							tlist = new CoordinateTransformList();
+
+							final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
+							if (null != props.ct) {
+								final mpicbg.models.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, patch.getOWidth(), patch.getOHeight());
+								old.add(mesh);
+							}
+							final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
+							old_aff.set(props.at);
+							old.add(old_aff);
+
+							tlist.add(new InverseICT(old));
+
+							// The new part:
+							final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
+							if (null != ct) tlist.add(ct);
+							final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
+							new_aff.set(patch.getAffineTransform());
+							tlist.add(new_aff);
+						}
+
+						//Utils.log("Transforming " + d + " with Patch " + patch);
+
+						VectorDataTransform vdt = transforms.get((VectorData)d);
+						if (null == vdt) {
+							vdt = new VectorDataTransform(layer);
+							transforms.put((VectorData)d, vdt);
+						}
+						vdt.add(a, tlist);
 					}
 				}
 
