@@ -1451,6 +1451,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Area a = getArea(vdt.layer);
 		if (null == a) return true;
 		M.apply(vdt.makeLocalTo(this), a);
+		calculateBoundingBox();
 		return true;
 	}
 
