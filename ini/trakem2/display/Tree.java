@@ -2263,4 +2263,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		return true;
 	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		final ArrayList<Long> ids = new ArrayList<Long>();
+		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
+		return ids;
+	}
 }

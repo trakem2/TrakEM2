@@ -41,6 +41,7 @@ import java.awt.Polygon;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.HashMap;
@@ -2251,5 +2252,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		generateInterpolatedPoints(0.05);
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return Utils.asList(p_layer, 0, n_points);
 	}
 }

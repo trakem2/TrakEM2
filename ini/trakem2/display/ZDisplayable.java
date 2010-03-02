@@ -28,6 +28,8 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Rectangle;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.awt.geom.AffineTransform;
@@ -119,6 +121,15 @@ public abstract class ZDisplayable extends Displayable {
 	public boolean paintsAt(Layer layer) {
 		if (null == layer || !layer_set.contains(layer)) return false;
 		return true;
+	}
+
+	/** Get the list of Layer ids on which this ZDisplayable has data on.*/
+	@Override
+	public Collection<Long> getLayerIds() {
+		// Unless overriden, return all
+		final ArrayList<Long> l = new ArrayList<Long>();
+		for (final Layer la : layer_set.getLayers()) l.add(la.getId());
+		return l;
 	}
 
 	public void setColor(Color color) {

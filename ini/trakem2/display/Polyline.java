@@ -51,6 +51,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1482,5 +1483,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return Utils.asList(p_layer, 0, n_points);
 	}
 }

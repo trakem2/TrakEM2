@@ -750,4 +750,9 @@ public class Connector extends ZDisplayable implements VectorData {
 		calculateBoundingBox();
 		return true;
 	}
+
+	@Override
+	public Collection<Long> getLayerIds() {
+		return Utils.asList(lids);
+	}
 }

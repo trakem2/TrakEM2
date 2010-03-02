@@ -35,6 +35,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Iterator;
 import java.util.HashMap;
@@ -797,5 +798,12 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 		calculateBoundingBox();
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		final HashSet<Long> lids = new HashSet<Long>();
+		for (final Item item : al_items) lids.addAll(Utils.asList(item.p_layer, 0, item.n_points));
+		return lids;
 	}
 }

@@ -2052,4 +2052,8 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	// private to the package
 	void removeTag(Tag tag) {}
+
+	public Collection<Long> getLayerIds() {
+		return Arrays.asList(this.layer.getId());
+	}
 }

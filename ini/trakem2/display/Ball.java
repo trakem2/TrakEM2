@@ -37,6 +37,7 @@ import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Iterator;
 import java.util.HashMap;
@@ -1083,5 +1084,10 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return Utils.asList(p_layer, 0, n_points);
 	}
 }
