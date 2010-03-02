@@ -568,14 +568,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		final Node root;
 		DPTree(final Tree t) {
 			super(t);
-			this.root = null == t.root ? null : t.root.clone();
+			this.root = null == t.root ? null : t.root.clone(t.project);
 		}
 		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Tree t = (Tree)d;
 			if (null != this.root) {
-				t.root = this.root.clone();
+				t.root = this.root.clone(t.project);
 				t.clearCache();
 				t.cacheSubtree(t.root.getSubtreeNodes());
 				t.updateView();
@@ -667,10 +667,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return null;
 	}
 
-	private void cacheSubtree(final Collection<Node> nodes) {
+	protected void cacheSubtree(final Collection<Node> nodes) {
 		cache(nodes, end_nodes, node_layer_map);
 	}
-	private void clearCache() {
+	protected void clearCache() {
 		end_nodes.clear();
 		node_layer_map.clear();
 		setLastAdded(null);
