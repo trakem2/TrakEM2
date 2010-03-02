@@ -1408,6 +1408,10 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc) {
 		return newFixedThreadPool(n_proc, null);
 	}
+	/** Creates a new fixed thread pool with as many threads as CPUs, and whose threads are in the same ThreadGroup as the Thread that calls this method. */
+	static public final ThreadPoolExecutor newFixedThreadPool(final String namePrefix) {
+		return newFixedThreadPool(Runtime.getRuntime().availableProcessors(), namePrefix);
+	}
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc, final String namePrefix) {
 		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
 		final AtomicInteger ai = new AtomicInteger(0);
