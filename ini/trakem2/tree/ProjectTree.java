@@ -39,6 +39,9 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Event;
 import java.awt.event.KeyEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.ItemEvent;
+import java.awt.Choice;
 import javax.swing.KeyStroke;
 import javax.swing.JPopupMenu;
 import javax.swing.JMenuItem;
@@ -60,7 +63,8 @@ import java.util.Enumeration;
 import java.util.Set;
 import java.util.Hashtable;
 import java.util.Collections;
-import java.io.File;
+import java.util.Vector;
+import java.util.Comparator;
 
 /** A class to hold a tree of Thing nodes */
 public final class ProjectTree extends DNDTree implements MouseListener, ActionListener {
@@ -99,8 +103,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		JMenu node_menu = new JMenu("Node");
 		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
 		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
-
 		popup.add(node_menu);
+
+		JMenu send_menu = new JMenu("Send to");
+		item = new JMenuItem("Sibling project"); item.addActionListener(this); send_menu.add(item);
+		popup.add(send_menu);
+
 		return popup;
 	}
 
@@ -292,6 +300,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				move(selected_node, -1);
 			} else if (command.equals("Move down")) {
 				move(selected_node, 1);
+			} else if (command.equals("Sibling project")) {
+				sendToSiblingProject(selected_node);
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -694,5 +704,135 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 			return label;
 		}
+	}
+
+	/** When two or more people work on the same XML file, images may be the same but segmentations and the transformations of the images may diverge.
+	 *  This function provides the means to send VectorData instances, wrapped in tree nodes, from one project to another,
+	 *  transforming the VectorData as appropriate to fall onto the same locations on the images.
+	 *  The ids of the copied objects will be new and unique for the target project.
+	 *  A dialog opens asking for options. */
+	public boolean sendToSiblingProject(final DefaultMutableTreeNode node) {
+		ArrayList<Project> ps = Project.getProjects();
+		if (1 == ps.size()) {
+			Utils.log("There aren't any other projects open!");
+			return false;
+		}
+		final ProjectThing pt = (ProjectThing) node.getUserObject();
+		if (pt.getTemplate().getType().equals("project")) {
+			Utils.log("Cannot transfer the project node.");
+			return false;
+		}
+		final ArrayList<Project> psother = new ArrayList<Project>(ps);
+		psother.remove(this.project);
+		ps = null;
+		// Find all potential landing nodes for this node: those with a TemplateThing type like the parent of node:
+		final String parent_type = ((ProjectThing)pt.getParent()).getTemplate().getType();
+		final List<ProjectThing> landing_pt = new ArrayList<ProjectThing>(psother.get(0).getRootProjectThing().findChildrenOfTypeR(parent_type));
+		final Comparator comparator = new Comparator<ProjectThing>() {
+			public int compare(ProjectThing t1, ProjectThing t2) {
+				return t1.toString().compareTo(t2.toString());
+			}
+			public boolean equals(Object o) { return this == o; }
+		};
+		Collections.sort(landing_pt, comparator);
+		String[] landing = new String[landing_pt.size()];
+		int next = 0;
+		if (landing_pt.isEmpty()) {
+			landing = new String[]{"-- NONE --"};
+		} else for (ProjectThing t : landing_pt) landing[next++] = t.toString();
+
+		// Ask:
+		GenericDialog gd = new GenericDialog("Send to sibling project");
+		gd.addMessage("Transfering node: " + pt);
+		final String[] trmode = new String[]{"As is", "Transformed as the images"};
+		gd.addChoice("Transfer:", trmode, trmode[0]);
+		String[] ptitles = new String[psother.size()];
+		for (int i=0; i<ptitles.length; i++) ptitles[i] = psother.get(i).toString();
+		gd.addChoice("Target project:", ptitles, ptitles[0]);
+		gd.addChoice("Landing node:", landing, landing[0]);
+		final Vector<Choice> vc = (Vector<Choice>) gd.getChoices();
+		final Choice choice_project = vc.get(vc.size()-2);
+		final Choice choice_landing = vc.get(vc.size()-1);
+		choice_project.addItemListener(new ItemListener() {
+			public void itemStateChanged(ItemEvent ie) {
+				landing_pt.clear();
+				landing_pt.addAll(psother.get(choice_project.getSelectedIndex()).getRootProjectThing().findChildrenOfTypeR(parent_type));
+				Collections.sort(landing_pt, comparator);
+				choice_landing.removeAll();
+				if (landing_pt.isEmpty()) {
+					choice_landing.add("-- NONE --");
+				} else for (ProjectThing t : landing_pt) choice_landing.add(t.toString());
+			}
+		});
+
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+
+		if (choice_landing.getSelectedItem().equals("-- NONE --")) {
+			Utils.log("No valid landing nodes!");
+			return false;
+		}
+
+		final String transfer_mode = gd.getNextChoice();
+		final Project target_project = psother.get(gd.getNextChoiceIndex());
+		final ProjectThing landing_parent = landing_pt.get(gd.getNextChoiceIndex());
+
+
+		try {
+			// Check that all the Layers used by the objects to transfer also exist in the target project!
+			// 1 - Cheap way: check if all layers in the target project exist in the source project, by id
+			HashSet<Long> lids = new HashSet<Long>();
+			for (final Layer layer : this.project.getRootLayerSet().getLayers()) {
+				lids.add(layer.getId());
+			}
+			HashSet<Long> tgt_lids = new HashSet<Long>(lids);
+			for (final Layer layer : target_project.getRootLayerSet().getLayers()) {
+				lids.remove(layer.getId());
+				tgt_lids.add(layer.getId());
+			}
+			if (0 != lids.size()) {
+				// Further checking needed (there could just simply be more layers in the target than in the source project):
+				// 2 - Expensive way: check the layers in which each Displayable to clone from this project has data.
+				//                    All their layers MUST be in the target project.
+				for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
+					final Displayable d = (Displayable) child.getObject();
+					if (!tgt_lids.containsAll(d.getLayerIds())) {
+						Utils.log("CANNOT transfer: not all required layers are present in the target project!\n  First object that couldn't be transfered: \n    " + d);
+						return false;
+					}
+				}
+			}
+
+			// deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
+			ProjectThing copy = pt.deepClone(target_project, false); // new ids, taken from target_project
+			if (null == landing_parent.getChildTemplate(copy.getTemplate().getType())) {
+				landing_parent.getTemplate().addChild(copy.getTemplate().shallowCopy()); // ensure a copy is there
+			}
+			if (!landing_parent.addChild(copy)) {
+				Utils.log("Could NOT transfer the node!");
+				return false;
+			}
+			for (final ProjectThing child : copy.findChildrenOfTypeR(Displayable.class)) {
+				final Displayable d = (Displayable) child.getObject();
+				if (d instanceof ZDisplayable) {
+					target_project.getRootLayerSet().add((ZDisplayable)d);
+				} else {
+					// profile: always special
+					Utils.log2("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
+				}
+			}
+			target_project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
+
+			if (transfer_mode.equals(trmode[1])) {
+				// Transform with images
+			} // else if trmodep[0], leave as is.
+			
+			return true;
+
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+
+		return false;
 	}
 }
