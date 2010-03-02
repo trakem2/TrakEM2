@@ -851,6 +851,7 @@ public final class Patch extends Displayable implements ImageData {
 		final public CoordinateTransform ct;
 		final public int o_width, o_height;
 		final public Area area;
+		public mpicbg.models.TransformMesh mesh = null;
 
 		public TransformProperties(final Patch p) {
 			this.at = new AffineTransform(p.at);
@@ -1538,7 +1539,7 @@ public final class Patch extends Displayable implements ImageData {
 				// Threshold all non-zero areas of the mask:
 				alpha_mask.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
 				ImagePlus imp = new ImagePlus("", alpha_mask);
-				ThresholdToSelection tts = new ThresholdToSelection();
+				ThresholdToSelection tts = new ThresholdToSelection(); // TODO replace by our much faster method that scans by line, in AmiraImporter
 				tts.setup("", imp);
 				tts.run(alpha_mask);
 				Roi roi = imp.getRoi();
