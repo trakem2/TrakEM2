@@ -4092,7 +4092,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Calibration...")) {
 			try {
 				IJ.run(canvas.getFakeImagePlus(), "Properties...", "");
-				Display.repaint(getLayerSet());
+				Display.updateTitle(getLayerSet());
 			} catch (RuntimeException re) {
 				Utils.log2("Calibration dialog canceled.");
 			}
