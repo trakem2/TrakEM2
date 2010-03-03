@@ -282,6 +282,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		// TODO
 	}
 
+	@Override
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		if (null == root) return false;
 		synchronized (node_layer_map) {
@@ -293,7 +294,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					final double z = e.getKey().getZ();
 					if (z >= z_first && z <= z_last) {
 						for (final Node nd : e.getValue()) {
-							if (a.contains(nd.x, nd.y)) return true;
+							if (nd.intersects(a)) return true;
 						}
 					}
 				}
