@@ -348,7 +348,7 @@ public abstract class Node<T> implements Taggable {
 
 	/** Returns a recursive copy of this Node subtree, where the copy of this Node is the root.
 	 * Non-recursive to avoid stack overflow. */
-	final public Node clone(final Project project) {
+	final public Node clone(final Project pr) {
 		// todo list containing packets of a copied node and the lists of original children and confidence to clone into it
 		final LinkedList<Object[]> todo = new LinkedList<Object[]>();
 		final Node root = newInstance(x, y, la);
@@ -359,18 +359,19 @@ public abstract class Node<T> implements Taggable {
 		}
 		
 		final HashMap<Long,Layer> ml;
-		if (project != la.getProject()) {
+		if (pr != la.getProject()) {
 			// Layers must be replaced by their corresponding clones
 			ml = new HashMap<Long,Layer>();
-			for (final Layer layer : project.getRootLayerSet().getLayers()) {
+			for (final Layer layer : pr.getRootLayerSet().getLayers()) {
 				ml.put(layer.getId(), layer);
 			}
 		} else ml = null;
 
+		if (null != ml) root.la = ml.get(root.la.getId()); // replace Layer pointer in the copy
+
 		while (!todo.isEmpty()) {
 			final Object[] o = todo.removeFirst();
 			final Node copy = (Node)o[0];
-			if (null != ml) copy.la = ml.get(copy.la.getId()); // replace Layer pointer in the copy
 			final Node[] original_children = (Node[])o[1];
 			copy.confidence = (byte[])((byte[])o[2]).clone();
 			copy.children = new Node[original_children.length];
@@ -380,6 +381,7 @@ public abstract class Node<T> implements Taggable {
 				copy.children[i].setData(ochild.getDataCopy());
 				copy.children[i].parent = copy;
 				copy.children[i].tags = null == ochild.tags ? null : new TreeSet<Tag>(ochild.tags);
+				if (null != ml) copy.children[i].la = ml.get(copy.children[i].la.getId()); // replace Layer pointer in the copy
 				if (null != ochild.children) {
 					todo.add(new Object[]{copy.children[i], ochild.children, ochild.confidence});
 				}
