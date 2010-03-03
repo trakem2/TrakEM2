@@ -396,7 +396,7 @@ final public class AlignTask
 						if (d instanceof ZDisplayable) {
 							if (!((ZDisplayable)d).intersects(a, layer.getZ(), layer.getZ())) continue; // does NOT intersect 'a'
 						} else {
-							if (d.getLayer() != layer) continue; // not in the Layer of interest
+							if (d.getLayer().getId() != layer.getId()) continue; // not in the Layer of interest
 							Area da = new Area(d.getPerimeter());
 							da.intersect(a);
 							Rectangle b = da.getBounds();
