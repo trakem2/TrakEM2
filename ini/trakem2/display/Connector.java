@@ -755,4 +755,16 @@ public class Connector extends ZDisplayable implements VectorData {
 	public Collection<Long> getLayerIds() {
 		return Utils.asList(lids);
 	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		if (null == lids) return a;
+		for (int i=0; i<lids.length; i++) {
+			if (lids[i] != layer.getId()) continue;
+			a.add(new Area(new Ellipse2D.Float(p[i+i] - radius[i], p[i+i+1] - radius[i], radius[i], radius[i])));
+		}
+		a.transform(this.at);
+		return a;
+	}
 }

@@ -2258,4 +2258,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	synchronized public Collection<Long> getLayerIds() {
 		return Utils.asList(p_layer, 0, n_points);
 	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		final Polygon[] pols = getSubPerimeters(layer); // in world coords
+		if (null == pols) return a;
+		for (final Polygon pol : pols) a.add(new Area(pol));
+		return a;
+	}
 }

@@ -118,6 +118,16 @@ public class AreaTree extends Tree implements AreaContainer {
 			return new Area(this.aw.getArea());
 		}
 
+		/** Return Area in local coords. The area includes a little square for the point, always. */
+		@Override
+		public final Area getArea() {
+			if (null == this.aw) return super.getArea(); // a little square labeling this point
+			Area a = this.aw.getArea();
+			if (a.isEmpty()) return super.getArea();
+			a.add(super.getArea()); // ensure the point is part of the Area always
+			return a;
+		}
+
 		@Override
 		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
 			if (active_layer != this.la || null == aw) return;

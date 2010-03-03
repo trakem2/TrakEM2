@@ -46,6 +46,7 @@ import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 
 import javax.vecmath.Point3f;
 
@@ -939,6 +940,17 @@ public class Ball extends ZDisplayable implements VectorData {
 			}
 		}
 		return false;
+	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != layer.getId()) continue;
+			a.add(new Area(new Ellipse2D.Float((float)(p[0][i] - p_width[i]/2), (float)(p[1][i] - p_width[i]/2), (float)p_width[i], (float)p_width[i])));
+		}
+		a.transform(this.at);
+		return a;
 	}
 
 	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated.

@@ -1522,6 +1522,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
+	@Override
 	public Area getArea() {
 		if (hasAlphaMask()) {
 			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:

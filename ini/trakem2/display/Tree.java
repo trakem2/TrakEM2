@@ -2271,4 +2271,17 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
 		return ids;
 	}
+
+	/** Returns an empty area when there aren't any nodes in @param layer. */
+	@Override
+	public Area getAreaAt(final Layer layer) {
+		synchronized (node_layer_map) {
+			final Area a = new Area();
+			final Set<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes) return a; // empty
+			for (final Node nd : nodes) a.add(nd.getArea()); // all local
+			a.transform(this.at);
+			return a;
+		}
+	}
 }

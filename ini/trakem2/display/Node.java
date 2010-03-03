@@ -14,6 +14,7 @@ import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -551,6 +552,11 @@ public abstract class Node<T> implements Taggable {
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
+
+	/** Returns are in local coords. */
+	public Area getArea() {
+		return new Area(new Rectangle2D.Float(x, y, 1, 1)); // a "little square" -- sinful! xDDD
+	}
 
 	/** Returns a list of Patch to link, which lay under the node. Use the given @param aff to transform the Node data before looking up targets. */
 	public Collection<Displayable> findLinkTargets(final AffineTransform aff) {

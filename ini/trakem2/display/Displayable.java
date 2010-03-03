@@ -2056,4 +2056,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public Collection<Long> getLayerIds() {
 		return Arrays.asList(this.layer.getId());
 	}
+
+	public Area getArea() {
+		return new Area(getPerimeter());
+	}
+
+	/** This area is meant to represent the entire area where a Displayable paints to in the @param layer.
+	 *  But for some this is reduced to areas with data, not with interpolated data.
+	 *  For example, a Polyine would show a list of little 1x1 rectangles for each point in the @param layer. */
+	public Area getAreaAt(final Layer layer) {
+		return getArea();
+	}
 }
