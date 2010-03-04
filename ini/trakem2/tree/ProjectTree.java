@@ -808,9 +808,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}
 
-			// TODO the issue was with ReferenceData holding a map of cloned Displayable instances as keys, which could then not find anything with getAreaAt(Layer), because the layer was from the original project! So I made the "replace" function, which should work but it's not yet called here.
-			// I could call the function that returns the ReferenceData with a Map<Displayable,Displayable> with the original vs copy, and then return the reference directly with the copy. That should be cleaner and easier than calling a "replace". The problem is that the Displayable cannot be referenced by id, because it's copied as new.
-
 			// Deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
 			ProjectThing copy = pt.deepClone(target_project, false); // new ids, taken from target_project
 			if (null == landing_parent.getChildTemplate(copy.getTemplate().getType())) {
@@ -820,16 +817,24 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Utils.log("Could NOT transfer the node!");
 				return false;
 			}
+
 			final List<ProjectThing> copies = copy.findChildrenOfTypeR(Displayable.class);
-			for (final ProjectThing child : copies) {
-				final Displayable d = (Displayable) child.getObject();
+			Utils.log2("copies size: " + copies.size());
+			final List<Displayable> vdata = new ArrayList<Displayable>();
+			final List<ZDisplayable> zd = new ArrayList<ZDisplayable>();
+			for (final ProjectThing t : copies) {
+				final Displayable d = (Displayable) t.getObject();
+				if (d instanceof VectorData) vdata.add(d); // all should be, this is just future-proof code.
 				if (d instanceof ZDisplayable) {
-					target_project.getRootLayerSet().add((ZDisplayable)d);
+					zd.add((ZDisplayable)d);
 				} else {
 					// profile: always special
 					Utils.log2("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
 				}
 			}
+			target_project.getRootLayerSet().addAll(zd); // add them all in one shot
+
+			target_project.getTemplateTree().rebuild(); // could have changed
 			target_project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
 
 			// Now that all have been copied, transform if so asked for:
@@ -843,12 +848,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 						if (d instanceof VectorData) original_vdata.add(d);
 					}
 				}
-				// Collect vdata copies
-				final List<Displayable> vdata = new ArrayList<Displayable>();
-				for (final ProjectThing t : copy.findChildrenOfTypeR(Displayable.class)) {
-					final Displayable d = (Displayable) t.getObject();
-					if (d instanceof VectorData) vdata.add(d); // all should be, this is just future-proof code.
-				}
+				Utils.log2("original vdata:", original_vdata);
+				Utils.log2("vdata:", vdata);
 				// Transform with images
 				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(original_vdata, vdata), vdata, target_project.getRootLayerSet());
 			} // else if trmodep[0], leave as is.
