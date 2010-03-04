@@ -52,6 +52,7 @@ import ini.trakem2.display.Selection;
 import ini.trakem2.display.VectorData;
 import ini.trakem2.display.VectorDataTransform;
 import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
@@ -314,17 +315,125 @@ final public class AlignTask
 		return tp;
 	}
 
+	static public final class ReferenceData {
+		/** Patch id vs transform */
+		final Map<Long,Patch.TransformProperties> tp;
+		/** A map of Displayable vs a map of Layer id vs list of Patch ids in that Layer that lay under the Patch, sorted by stack index. */
+		final Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying;
+		ReferenceData(final Map<Long,Patch.TransformProperties> tp, Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying) {
+			this.tp = tp;
+			this.underlying = underlying;
+		}
+	}
+
+	/** Creates a map only for visible patches that intersect vdata.
+	 *  @param src_vdata represents the VectorData instances in original form, of the original project and layer set.
+	 *  @param tgt_data if not null, it must have the same size as src_data and their elements correspond one-to-one (as in, tgt element a clone of src element at the same index).
+	 *  tgt_data enables transformVectorData to apply the transforms to copies of the src_vdata in another project. */
+	final static public ReferenceData createTransformPropertiesTable(final List<Displayable> src_vdata, final List<Displayable> tgt_vdata) {
+		if (src_vdata.isEmpty()) return null;
+		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
+		// A map of Displayable vs a map of Layer id vs list of Patch ids in that Layer that lay under the Patch, sorted by stack index
+		final Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying = new HashMap<Displayable,Map<Long,TreeMap<Integer,Long>>>();
+
+		// Parallelize! This operation can be insanely expensive
+		final int nproc = Runtime.getRuntime().availableProcessors();
+		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "AlignTask-createTransformPropertiesTable");
+		final List<Future> dtasks = new ArrayList<Future>();
+		final List<Future> ltasks = new ArrayList<Future>();
+		final Thread current = Thread.currentThread();
+		final List<Layer> src_layers = src_vdata.get(0).getLayerSet().getLayers(); // a copy of the list
+		try {
+			for (int i=src_vdata.size()-1; i>-1; i--) {
+				final Displayable src_d = src_vdata.get(i);
+				if (!(src_d instanceof VectorData)) continue; // filter out
+				final Displayable tgt_d = null == tgt_vdata ? src_d : tgt_vdata.get(i); // use src_d if tgt_vdata is null
+				// Some checking
+				if (!(tgt_d instanceof VectorData)) {
+					Utils.log("WARNING ignoring provided tgt_vdata " + tgt_d + " which is NOT a VectorData instance!");
+					continue;
+				}
+				if (src_d.getClass() != tgt_d.getClass()) {
+					Utils.log("WARNING src_d and tgt_d are instances of different classes:\n  src_d :: " + src_d + "\n  tgt_d :: " + tgt_d);
+				}
+
+				dtasks.add(exec.submit(new Runnable() {
+					public void run() {
+						final Map<Long,TreeMap<Integer,Long>> under = new HashMap<Long,TreeMap<Integer,Long>>();
+						synchronized (underlying) {
+							underlying.put(tgt_d, under);
+						}
+
+						if (current.isInterrupted()) return;
+
+						for (final Layer la : src_layers) {
+							final Area a = src_d.getAreaAt(la);
+							if (null == a || a.isEmpty()) {
+								continue; // does not paint in the layer
+							}
+
+							// The list of patches that lay under VectorData d, sorted by their stack index in the layer
+							final TreeMap<Integer,Long> stacked_patch_ids = new TreeMap<Integer,Long>();
+							synchronized (under) {
+								under.put(la.getId(), stacked_patch_ids);
+							}
+
+							// Iterate source patches
+							for (final Patch patch : (Collection<Patch>)(Collection)la.getDisplayables(Patch.class, a, true)) { // pick visible patches only
+								if (current.isInterrupted()) return;
+
+								try {
+									ltasks.add(exec.submit(new Runnable() {
+										public void run() {
+											if (current.isInterrupted()) return;
+											synchronized (patch) {
+												Patch.TransformProperties props;
+												synchronized (tp) {
+													props = tp.get(patch.getId());
+												}
+												if (null == props) {
+													props = patch.getTransformPropertiesCopy();
+													// Cache the props
+													synchronized (tp) {
+														tp.put(patch.getId(), props);
+													}
+												}
+												// Cache this patch as under the VectorData d
+												synchronized (stacked_patch_ids) {
+													stacked_patch_ids.put(la.indexOf(patch), patch.getId()); // sorted by stack index
+													//Utils.log("Added patch for layer " + la + " with stack index " + la.indexOf(patch) + ", patch " + patch);
+												}
+											}
+										}
+									}));
+								} catch (Throwable t) {
+									IJError.print(t);
+									return;
+								}
+							}
+						}
+					}
+				}));
+			}
+			Utils.wait(dtasks);
+			Utils.wait(ltasks);
+
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			exec.shutdownNow();
+		}
+
+		return new ReferenceData(tp, underlying);
+	}
+
+	/** For registering within the same project instance. */
 	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final Runnable alignment) {
 		if (patches.isEmpty()) {
 			Utils.log("No patches to align!");
 			return;
 		}
-		// 1 - Store current transformation of each Patch
-		final Map<Long,Patch.TransformProperties> tp = createTransformPropertiesTable(patches);
-		// 2 - Align:
-		alignment.run();
-		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
-		// 3 - Collect all VectorData to transform
+		// 1 - Collect all VectorData to transform
 		final LayerSet ls = patches.iterator().next().getLayerSet();
 		final List<Displayable> vdata = ls.getDisplayables(); // from all layers
 		vdata.addAll(ls.getZDisplayables()); // no lazy seqs, no filter functions ... ole!
@@ -332,139 +441,110 @@ final public class AlignTask
 			if (it.next() instanceof VectorData) continue;
 			it.remove();
 		}
+		// 2 - Store current transformation of each Patch under any VectorData
+		final ReferenceData rd = createTransformPropertiesTable(vdata, null);
+		// 3 - Align:
+		alignment.run();
+		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
 		// 4 - Transform VectorData instances to match the position of the Patch instances over which they were defined
-		transformVectorData(tp, vdata, patches);
+		transformVectorData(rd, vdata, ls);
 	}
 
 	final static public void transformVectorData
-		(final Map<Long,Patch.TransformProperties> tp,		/* The id of the source patch vs. its original transform properties before the alignment. */
-		 final Collection<Displayable> vdata,			/* The VectorData instances to transform along with the images. */
-		 final Collection<Patch> target_patches) 		/* The patches over which the vector data will finally sit, which must have the same ids as the source patches, but does not need to be the same collection. The common id approach allows for two variations of the same project to exchange vector data. */
+		(final ReferenceData rd, 			/* The transformations of patches before alignment. */
+		 final Collection<Displayable> vdata, 		/* The VectorData instances to transform along with images. */
+		 final LayerSet target_layerset) 		/* The LayerSet in which the vdata and the transformed images exist. */
 	{
-		// Apply transforms to all non-image objects that overlapped with each Patch
-		// 1 - Sort source patches by layer, and patches by stack index within the layer
-		final Map<Layer,TreeMap<Integer,Patch>> lm = new HashMap<Layer,TreeMap<Integer,Patch>>();
-		for (final Patch patch : target_patches) {
-			TreeMap<Integer,Patch> sp = lm.get(patch.getLayer());
-			if (null == sp) {
-				sp = new TreeMap<Integer,Patch>();
-				lm.put(patch.getLayer(), sp);
-			}
-			sp.put(patch.getLayer().indexOf(patch), patch);
-		}
-		// 2 - for each layer, transform the part of each segmentation on top of the Patch, but only the area that has not been used already:
 		final ExecutorService exec = Utils.newFixedThreadPool("AlignTask-transformVectorData");
-		final Collection<Future> fuslayer = new ArrayList<Future>();
 		final Collection<Future> fus = new ArrayList<Future>();
 		final Thread current = Thread.currentThread();
-		try {
-		for (final Map.Entry<Layer,TreeMap<Integer,Patch>> e : lm.entrySet()) {
-			fuslayer.add(exec.submit(new Runnable() { public void run() {
-				if (current.isInterrupted()) {
-					exec.shutdownNow(); // may be called multiple times, but without ill effect
-					return;
-				}
-				final Layer layer = e.getKey();
-				// The area already processed
-				final Area used_area = new Area();
-				// The list of transforms to apply to each VectorData
-				final Map<VectorData,VectorDataTransform> transforms = new HashMap<VectorData,VectorDataTransform>();
-				// The patches, in proper stack index order:
-				final List<Patch> sorted = new ArrayList<Patch>(e.getValue().values());
-				Collections.reverse(sorted); // so now it's from top to bottom
-				for (final Patch patch : sorted) {
-					final Patch.TransformProperties props = tp.remove(patch.getId());
-					if (null == props) {
-						Utils.log("ERROR: could not find any Patch.TransformProperties for patch " + patch);
+
+		final HashMap<Long,Layer> lidm = new HashMap<Long,Layer>();
+		for (final Layer la : target_layerset.getLayers()) lidm.put(la.getId(), la);
+
+		for (final Map.Entry<Displayable,Map<Long,TreeMap<Integer,Long>>> ed : rd.underlying.entrySet()) {
+			final Displayable d = ed.getKey(); // The VectorData instance to transform
+			// Process Displayables concurrently:
+			fus.add(exec.submit(new Runnable() { public void run() {
+				for (final Map.Entry<Long,TreeMap<Integer,Long>> el : ed.getValue().entrySet()) {
+					final Layer layer = lidm.get(el.getKey());
+					if (null == layer) {
+						Utils.log("ERROR layer with id " + el.getKey() + " NOT FOUND in target layerset!");
 						continue;
 					}
-					final Area a = new Area(props.area);
-					a.subtract(used_area);
-					if (M.isEmpty(a)) {
-						Utils.log2("Skipping fully occluded Patch " + patch);
-						continue; // Patch fully occluded by other patches
-					}
-					// Accumulate:
-					used_area.add(props.area);
-					//
-					mpicbg.trakem2.transform.CoordinateTransformList tlist = null;
-					// For the remaining area, see who intersects it
-					for (final Displayable d : vdata) {
-						// Must implement VectorData
-						if (!(d instanceof VectorData)) continue;
-						// Intersects Area 'a' at this layer?
-						if (d instanceof ZDisplayable) {
-							if (!((ZDisplayable)d).intersects(a, layer.getZ(), layer.getZ())) continue; // does NOT intersect 'a'
-						} else {
-							if (d.getLayer().getId() != layer.getId()) continue; // not in the Layer of interest
-							Area da = new Area(d.getPerimeter());
-							da.intersect(a);
-							Rectangle b = da.getBounds();
-							if (0 == b.width || 0 == b.height) continue; // does NOT intersect 'a'
+					final ArrayList<Long> pids = new ArrayList<Long>(el.getValue().values());
+					Collections.reverse(pids); // so now Patch ids are sorted from top to bottom
+					// The area already processed in the layer
+					final Area used_area = new Area();
+					// The map of areas vs transforms for each area to apply to the VectorData, to its data within the layer only
+					final VectorDataTransform vdt = new VectorDataTransform(layer);
+					// The list of transforms to apply to each VectorData
+					for (final long pid : pids) {
+						// Find the Patch with id 'pid' in Layer 'la' of the target LayerSet:
+						final DBObject ob = layer.findById(pid);
+						if (null == ob || !(ob instanceof Patch)) {
+							Utils.log("ERROR layer with id " + layer.getId() + " DOES NOT CONTAIN a Patch with id " + pid);
+							continue;
 						}
-
-						if (null == tlist) {
-							// Generate a CoordinateTransformList that includes:
-							// 1 - an inverted transform from Patch coords to world coords
-							// 2 - the CoordinateTransform of the Patch, if any
-							// 3 - the AffineTransform of the Patch
-							tlist = new CoordinateTransformList();
-
-							// TODO could reuse old and new, just store them in maps of Patch vs old or new
-
-							final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
-							if (null != props.ct) {
-								synchronized (props) {
-									// Create the mesh just once, and reuse it
-									if (null == props.mesh) props.mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
-								}
-								old.add(props.mesh);
-							}
-							final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
-							old_aff.set(props.at);
-							old.add(old_aff);
-
-							tlist.add(new InverseICT(old));
-
-							// The new part:
-							final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
-							if (null != ct) tlist.add(ct);
-							final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
-							new_aff.set(patch.getAffineTransform());
-							tlist.add(new_aff);
+						final Patch patch = (Patch)ob;
+						final Patch.TransformProperties props = rd.tp.get(pid); // no need to synch, read only from now on
+						if (null == props) {
+							Utils.log("ERROR: could not find any Patch.TransformProperties for patch " + patch);
+							continue;
 						}
-
-						//Utils.log("Transforming " + d + " with Patch " + patch);
-
-						VectorDataTransform vdt = transforms.get((VectorData)d);
-						if (null == vdt) {
-							vdt = new VectorDataTransform(layer);
-							transforms.put((VectorData)d, vdt);
+						final Area a = new Area(props.area);
+						a.subtract(used_area);
+						if (M.isEmpty(a)) {
+							continue; // skipping fully occluded Patch
 						}
+						// Accumulate:
+						used_area.add(props.area);
+
+						// For the remaining area within this Layer, define a transform
+						// Generate a CoordinateTransformList that includes:
+						// 1 - an inverted transform from Patch coords to world coords
+						// 2 - the CoordinateTransform of the Patch, if any
+						// 3 - the AffineTransform of the Patch
+
+						// TODO Consider caching the tlist for each Patch, or for a few thousand of them maximum.
+						//      But it could blow up memory astronomically.
+						final CoordinateTransformList tlist = new CoordinateTransformList();
+
+						// The old part:
+						final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
+						if (null != props.ct) {
+							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
+							old.add(mesh);
+						}
+						final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
+						old_aff.set(props.at);
+						old.add(old_aff);
+
+						tlist.add(new InverseICT(old));
+
+						// The new part:
+						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
+						if (null != ct) tlist.add(ct);
+						final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
+						new_aff.set(patch.getAffineTransform());
+						tlist.add(new_aff);
+
 						vdt.add(a, tlist);
 					}
-				}
 
-				// Apply:
-				for (final Map.Entry<VectorData,VectorDataTransform> et : transforms.entrySet()) {
-					fus.add(exec.submit(new Runnable() { public void run() {
-						try {
-							et.getKey().apply(et.getValue());
-						} catch (Throwable er) {
-							Utils.log("ERROR: can't apply transforms to " + et.getKey());
-							IJError.print(er);
-						}
-					}}));
+					// Apply the map of area vs tlist for the data section of d within the layer:
+					try {
+						((VectorData)d).apply(vdt);
+					} catch (Exception t) {
+						Utils.log("ERROR transformation failed for " + d + " at layer " + layer);
+						IJError.print(t);
+					}
 				}
 			}}));
 		}
-		} catch (Throwable t) {
-			IJError.print(t);
-		} finally {
-			Utils.wait(fuslayer);
-			Utils.wait(fus);
-			exec.shutdown();
-		}
+
+		Utils.wait(fus);
+		Display.repaint();
 	}
 
 	final static public void alignPatches(

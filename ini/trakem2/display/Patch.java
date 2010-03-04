@@ -851,7 +851,6 @@ public final class Patch extends Displayable implements ImageData {
 		final public CoordinateTransform ct;
 		final public int o_width, o_height;
 		final public Area area;
-		public mpicbg.models.TransformMesh mesh = null;
 
 		public TransformProperties(final Patch p) {
 			this.at = new AffineTransform(p.at);

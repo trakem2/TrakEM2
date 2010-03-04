@@ -791,7 +791,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				lids.remove(layer.getId());
 				tgt_lids.add(layer.getId());
 			}
+
+			List<Displayable> original_vdata = null;
 			if (0 != lids.size()) {
+				original_vdata = new ArrayList<Displayable>();
 				// Further checking needed (there could just simply be more layers in the target than in the source project):
 				// 2 - Expensive way: check the layers in which each Displayable to clone from this project has data.
 				//                    All their layers MUST be in the target project.
@@ -801,8 +804,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 						Utils.log("CANNOT transfer: not all required layers are present in the target project!\n  First object that couldn't be transfered: \n    " + d);
 						return false;
 					}
+					if (d instanceof VectorData) original_vdata.add(d);
 				}
 			}
+
+			// TODO the issue was with ReferenceData holding a map of cloned Displayable instances as keys, which could then not find anything with getAreaAt(Layer), because the layer was from the original project! So I made the "replace" function, which should work but it's not yet called here.
+			// I could call the function that returns the ReferenceData with a Map<Displayable,Displayable> with the original vs copy, and then return the reference directly with the copy. That should be cleaner and easier than calling a "replace". The problem is that the Displayable cannot be referenced by id, because it's copied as new.
 
 			// Deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
 			ProjectThing copy = pt.deepClone(target_project, false); // new ids, taken from target_project
@@ -813,7 +820,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Utils.log("Could NOT transfer the node!");
 				return false;
 			}
-			for (final ProjectThing child : copy.findChildrenOfTypeR(Displayable.class)) {
+			final List<ProjectThing> copies = copy.findChildrenOfTypeR(Displayable.class);
+			for (final ProjectThing child : copies) {
 				final Displayable d = (Displayable) child.getObject();
 				if (d instanceof ZDisplayable) {
 					target_project.getRootLayerSet().add((ZDisplayable)d);
@@ -827,16 +835,22 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			// Now that all have been copied, transform if so asked for:
 
 			if (transfer_mode.equals(trmode[1])) {
-				// Collect vdata
-				final Collection<Displayable> vdata = new ArrayList<Displayable>();
+				// Collect original vdata
+				if (null == original_vdata) {
+					original_vdata = new ArrayList<Displayable>();
+					for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
+						final Displayable d = (Displayable) child.getObject();
+						if (d instanceof VectorData) original_vdata.add(d);
+					}
+				}
+				// Collect vdata copies
+				final List<Displayable> vdata = new ArrayList<Displayable>();
 				for (final ProjectThing t : copy.findChildrenOfTypeR(Displayable.class)) {
 					final Displayable d = (Displayable) t.getObject();
 					if (d instanceof VectorData) vdata.add(d); // all should be, this is just future-proof code.
 				}
 				// Transform with images
-				final Collection<Patch> patches = (Collection<Patch>)(Collection) this.project.getRootLayerSet().getDisplayables(Patch.class);
-				final Collection<Patch> target_patches = (Collection<Patch>)(Collection) target_project.getRootLayerSet().getDisplayables(Patch.class);
-				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(patches), vdata, target_patches);
+				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(original_vdata, vdata), vdata, target_project.getRootLayerSet());
 			} // else if trmodep[0], leave as is.
 			
 			return true;
