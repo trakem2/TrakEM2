@@ -44,6 +44,7 @@ import java.awt.Event;
 import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Collection;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -813,20 +814,19 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return hs;
 	}
 
-	/** Recursive into children. */
-	public HashSet<ProjectThing> findChildrenOfTypeR(final Class c) {
-		return findChildrenOfTypeR(new HashSet<ProjectThing>(), c);
+	/** Finds them in order. Recursive into children. */
+	public List<ProjectThing> findChildrenOfTypeR(final Class c) {
+		return findChildrenOfTypeR(new ArrayList<ProjectThing>(), c);
 	}
-	/** Recursive into children. */
-	public HashSet<ProjectThing> findChildrenOfTypeR(HashSet<ProjectThing> hs, final Class c) {
-		if (null == hs) hs = new HashSet<ProjectThing>();
-		else if (hs.contains(this)) return hs;
-		if (c.isInstance(object)) hs.add(this);
-		if (null == al_children) return hs;
+	/** Finds them in order. Recursive into children. */
+	public List<ProjectThing> findChildrenOfTypeR(List<ProjectThing> list, final Class c) {
+		if (null == list) list = new ArrayList<ProjectThing>();
+		if (c.isInstance(object)) list.add(this);
+		if (null == al_children) return list;
 		for (ProjectThing child : al_children) {
-			child.findChildrenOfTypeR(hs, c);
+			child.findChildrenOfTypeR(list, c);
 		}
-		return hs;
+		return list;
 	}
 
 	/** Recursive into children. */
