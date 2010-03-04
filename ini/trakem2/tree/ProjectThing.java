@@ -128,11 +128,15 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		TemplateThing tt = project.getTemplateThing(this.template.getType()); // WARNING: not checking if parent/child chain is identical. Just the name.
 		if (null == tt) {
 			tt = this.template.clone(project, copy_id); // deep copy, with children
-			for (TemplateThing tn : (Collection<TemplateThing>)tt.collectAllChildren(new ArrayList())) {
-				project.addUniqueType(tn);
-			}
 			project.addUniqueType(tt);
 		}
+		// Check that the template has the same children! If not, add them
+		for (TemplateThing tn : (Collection<TemplateThing>)tt.collectAllChildren(new ArrayList())) {
+			if (!project.typeExists(tn.getType())) {
+				project.addUniqueType(tn);
+			}
+		}
+
 		// Make a deep copy of this
 		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);
 		if (null != this.al_children) {
@@ -224,6 +228,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public boolean addChild(Thing child) {
 		// check if the child is allowed in this ProjectThing
 		if (!template.canHaveAsChild(child) || (null != al_children && -1 != al_children.indexOf((ProjectThing)child))) { // paranoid avoidance of duplicates
+			Utils.log2("Rejecting child " + child);
 			return false;
 		}
 		// proceed to add the child
