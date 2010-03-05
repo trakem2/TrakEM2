@@ -61,6 +61,7 @@ import ini.trakem2.utils.Utils;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Methods collection to be called from the GUI for alignment tasks.
@@ -284,6 +285,8 @@ final public class AlignTask
 		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "AlignTask-createTransformPropertiesTable");
 		final LinkedList<Future> tasks = new LinkedList<Future>();
 		final Thread current = Thread.currentThread();
+		final AtomicInteger counter = new AtomicInteger(0);
+		Utils.log2("0/" + patches.size());
 		try {
 		for (final Patch patch : patches) {
 			tasks.add(exec.submit(new Runnable() {
@@ -291,6 +294,13 @@ final public class AlignTask
 					Patch.TransformProperties props = patch.getTransformPropertiesCopy();
 					synchronized (tp) {
 						tp.put(patch.getId(), props);
+					}
+					// report
+					final int i = counter.incrementAndGet();
+					if (0 == i % 16) {
+						final String msg = new StringBuilder().append(i).append('/').append(patches.size()).toString();
+						Utils.log2(msg);
+						Utils.showStatus(msg);
 					}
 				}
 			}));
@@ -306,6 +316,7 @@ final public class AlignTask
 		}
 		// Wait for remaining tasks
 		Utils.wait(tasks);
+		Utils.log2(patches.size() + "/" + patches.size() + " -- done!");
 		} catch (Throwable t) {
 			IJError.print(t);
 		} finally {
