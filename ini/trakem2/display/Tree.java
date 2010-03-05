@@ -1271,6 +1271,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		removeFromLinkLater(nd);
 	}
 
+	protected void clearState() {
+		// clear:
+		marked = last_added = last_edited = last_visited = null;
+	}
+
 	/** The Node double-clicked on, for join operations. */
 	private Node marked = null;
 	/** The Node clicked on, for mouse operations. */
@@ -2283,5 +2288,56 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			a.transform(this.at);
 			return a;
 		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	@Override
+	synchronized public boolean crop(List<Layer> range) {
+		// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
+		final HashSet<Layer> keep = new HashSet<Layer>(range);
+		for (final Iterator<Map.Entry<Layer,Set<Node>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
+			final Map.Entry<Layer,Set<Node>> e = it.next();
+			if (keep.contains(e.getKey())) continue;
+			else {
+				// Else, remove the set of nodes for that layer
+				it.remove();
+				// ... and remove all nodes from their parents, merging their children
+				for (final Node nd : e.getValue()) {
+					// if end node, just remove it from its parent
+					if (null == nd.parent) {
+						// The current root:
+						if (null == nd.children) {
+							this.root = null;
+							continue; // a tree of 1 node
+						} else {
+							// First child as new root:
+							nd.children[0].parent = null; // the new root
+							this.root = nd.children[0];
+							// ... and gets any other children of the root
+							for (int i=1; i<nd.children.length; i++) {
+								nd.children[i].parent = null;
+								nd.children[0].add(nd.children[i], nd.confidence[i]);
+							}
+						}
+					} else {
+						// Remove from its parent
+						nd.parent.remove(nd);
+						// ... and handle its children:
+						if (null == nd.children) {
+							// An end point
+							continue;
+						} else {
+							// Else, add all its children to its parent
+							for (int i=0; i<nd.children.length; i++) {
+								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
+								nd.parent.add(nd.children[i], nd.confidence[i]);
+							}
+						}
+					}
+				}
+			}
+		}
+		clearState();
+		return true;
 	}
 }
