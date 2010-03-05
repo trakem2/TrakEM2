@@ -302,7 +302,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			} else if (command.equals("Move down")) {
 				move(selected_node, 1);
 			} else if (command.equals("Sibling project")) {
-				sendToSiblingProject(selected_node);
+				sendToSiblingProjectTask(selected_node);
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -705,6 +705,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 			return label;
 		}
+	}
+
+	public Bureaucrat sendToSiblingProjectTask(final DefaultMutableTreeNode node) {
+		return Bureaucrat.createAndStart(new Worker.Task("Send to sibling") {
+			public void exec() {
+				sendToSiblingProject(node);
+			}
+		}, this.project);
 	}
 
 	/** When two or more people work on the same XML file, images may be the same but segmentations and the transformations of the images may diverge.
