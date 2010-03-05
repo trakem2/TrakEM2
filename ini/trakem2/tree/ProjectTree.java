@@ -819,7 +819,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 
 			final List<ProjectThing> copies = copy.findChildrenOfTypeR(Displayable.class);
-			Utils.log2("copies size: " + copies.size());
+			//Utils.log2("copies size: " + copies.size());
 			final List<Displayable> vdata = new ArrayList<Displayable>();
 			final List<ZDisplayable> zd = new ArrayList<ZDisplayable>();
 			for (final ProjectThing t : copies) {
@@ -829,7 +829,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					zd.add((ZDisplayable)d);
 				} else {
 					// profile: always special
-					Utils.log2("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
+					Utils.log("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
 				}
 			}
 			target_project.getRootLayerSet().addAll(zd); // add them all in one shot
@@ -848,8 +848,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 						if (d instanceof VectorData) original_vdata.add(d);
 					}
 				}
-				Utils.log2("original vdata:", original_vdata);
-				Utils.log2("vdata:", vdata);
+				//Utils.log2("original vdata:", original_vdata);
+				//Utils.log2("vdata:", vdata);
 				// Transform with images
 				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(original_vdata, vdata), vdata, target_project.getRootLayerSet());
 			} // else if trmodep[0], leave as is.
