@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
@@ -337,6 +338,7 @@ public final class FSLoader extends Loader {
 		if (null == repainter || repainter.isShutdown()) {
 			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
 		}
+		if (null == autosaver || autosaver.isShutdown()) autosaver = Executors.newScheduledThreadPool(1);
 	}
 
 	/** Shutdown the various thread pools and disactivate services in general. */
@@ -344,6 +346,7 @@ public final class FSLoader extends Loader {
 		if (null != regenerator) regenerator.shutdownNow();
 		if (null != remover) remover.shutdownNow();
 		if (null != repainter) repainter.shutdownNow();
+		if (null != autosaver) autosaver.shutdownNow();
 	}
 
 	public void destroy() {
@@ -2537,6 +2540,7 @@ public final class FSLoader extends Loader {
 	static private ExecutorService regenerator = null;
 	static private ExecutorService remover = null;
 	static public ExecutorService repainter = null;
+	static public ScheduledExecutorService autosaver = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns a Future if the task was submitted, null if not. */
