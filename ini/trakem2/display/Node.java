@@ -183,7 +183,13 @@ public abstract class Node<T> implements Taggable {
 		//Which edge color?
 		Color local_edge_color = t_color;
 		if (active_layer == this.la) {} // default color
-		else if (actZ > thisZ) {
+		else if (this.la.getParent().use_alt_color_cues) { // use_alt_color_cues is from davi-experimenting
+			int delta_color = new Double(actZ - thisZ).intValue();//TODO find & use abs value function
+			int red = local_edge_color.getRed() + delta_color; red = red > 255 ? 255 : red; red = red < 0 ? 0 : red; 
+			int green = local_edge_color.getGreen() + delta_color; green = green > 255 ? 255 : green; green = green < 0 ? 0 : green;
+			int blue = local_edge_color.getBlue()+ delta_color; blue = blue > 255 ? 255 : blue; blue = blue < 0 ? 0 : blue;
+			local_edge_color = new Color(red , green , blue );
+		} else if (actZ > thisZ) {
 			local_edge_color = Color.red;
 		} else if (actZ < thisZ) local_edge_color = Color.blue;
 

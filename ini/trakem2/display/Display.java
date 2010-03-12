@@ -133,6 +133,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private int scroll_step = 1;
 
 	private boolean prepaint = true;
+	private boolean use_alt_color_cues = false;
 	public boolean getPrepaint() { return prepaint; };
 	
 	/** Keep track of all existing Display objects. */
@@ -3881,7 +3882,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
 			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
 			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
-			gd.addCheckbox("Prepaint with lower resolution images", prepaint);
+			gd.addCheckbox("Prepaint with lower resolution images", prepaint); // option added in davi-experimenting
+			gd.addCheckbox("Alternative layer color cues", layer.getParent().use_alt_color_cues); // davi-experimenting
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -3913,6 +3915,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			layer.getParent().color_cues = gd.getNextBoolean();
 			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
 			prepaint = gd.getNextBoolean();
+			layer.getParent().use_alt_color_cues = gd.getNextBoolean();
 			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
