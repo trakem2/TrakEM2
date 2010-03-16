@@ -113,6 +113,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
 	private final ArrayList<Layer> al_layers = new ArrayList<Layer>();
+	private final HashMap<Long,Layer> idlayers = new HashMap<Long,Layer>();
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
@@ -246,6 +247,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void addSilently(final Layer layer) {
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
+			idlayers.put(layer.getId(), layer);
 			double z = layer.getZ();
 			int i = 0;
 			for (Layer la : al_layers) {
@@ -282,6 +284,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			al_layers.add(layer);
 		}
 		layer.setParent(this);
+		idlayers.put(layer.getId(), layer);
 		Display.updateLayerScroller(this);
 		//debug();
 	}
@@ -675,6 +678,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void remove(Layer layer) {
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
+		idlayers.remove(layer.getId());
 		for (final ZDisplayable zd : new ArrayList<ZDisplayable>(al_zdispl)) zd.layerRemoved(layer); // may call back and add/remove ZDisplayable objects
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
@@ -737,10 +741,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find a layer with the given id, or null if none. */
 	public Layer getLayer(final long id) {
-		for (Layer layer : al_layers) {
-			if (layer.getId() == id) return layer;
-		}
-		return null;
+		return idlayers.get(id);
 	}
 
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
