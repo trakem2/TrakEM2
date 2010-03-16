@@ -486,6 +486,16 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		g.fillRect(x, y, corr1, corr1);
 	}
 
+	/** Paints a handle at x,y screen coords. */
+	static public void drawScreenHandle(final Graphics g, final int x, final int y) {
+		g.setColor(Color.orange);
+		g.drawRect(x - 2, y - 2, 5, 5);
+		g.setColor(Color.black);
+		g.drawRect(x - 1, y - 1, 3, 3);
+		g.setColor(Color.orange);
+		g.fillRect(x, y, 1, 1);
+	}
+
 	/** Paints a handle on the offscreen x,y. Adapted from ij.gui.Roi class. */
 	private void drawHandle(Graphics g, double x, double y) {
 		g.setColor(Color.black);
