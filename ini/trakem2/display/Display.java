@@ -387,6 +387,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	static final public void clearColumnScreenshots(final LayerSet ls) {
+		for (final Display d : al_displays) {
+			if (d.layer.getParent() == ls) d.clearColumnScreenshots();
+		}
+	}
+
+	final public void clearColumnScreenshots() {
+		getLayerSet().clearScreenshots();
+	}
+
 	/** Only for DefaultMode. */
 	final private void createColumnScreenshots() {
 		final int n;
@@ -4735,7 +4745,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
 			DisplayablePanel dp = d.ht_panels.get(displ);
-			if (null != dp) dp.updateCheckbox(cb, state);
+			if (null != dp) {
+				dp.updateCheckbox(cb, state);
+			}
 		}
 	}
 	/** Set the checkbox @param cb state to @param state value, for each Displayable. Assumes all Displayable objects belong to one specific project. */
@@ -4746,7 +4758,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (d.getProject() != p) continue;
 			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckbox(cb, state);
+				if (null != dp) {
+					dp.updateCheckbox(cb, state);
+				}
 			}
 		}
 	}
@@ -4758,7 +4772,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (d.getProject() != p) continue;
 			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckbox(cb);
+				if (null != dp) {
+					dp.updateCheckbox(cb);
+				}
 			}
 		}
 	}

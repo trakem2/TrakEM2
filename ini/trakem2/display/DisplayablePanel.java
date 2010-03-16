@@ -346,6 +346,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 				break;
 			case VISIBILITY_STATE:
 				c.setSelected(state);
+				d.getLayerSet().clearScreenshots();
 				break;
 			case LINK_STATE:
 				c_linked.setSelected(state);
@@ -363,6 +364,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 				break;
 			case VISIBILITY_STATE:
 				c.setSelected(d.isVisible());
+				d.getLayerSet().clearScreenshots();
 				break;
 			case LINK_STATE:
 				c_linked.setSelected(d.isLinked());

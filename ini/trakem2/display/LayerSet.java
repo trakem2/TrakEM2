@@ -2166,6 +2166,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			putO2(s.layer, s);
 		}
 	}
+	final void clearScreenshots() {
+		synchronized (offscreens) {
+			offscreens.clear();
+			offscreens2.clear();
+		}
+	}
 	final void trimScreenshots() {
 		synchronized(offscreens) {
 			if (offscreens.size() > 1000) {
