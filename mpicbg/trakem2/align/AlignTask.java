@@ -483,7 +483,7 @@ final public class AlignTask
 						Utils.log("ERROR layer with id " + el.getKey() + " NOT FOUND in target layerset!");
 						continue;
 					}
-					final ArrayList<Long> pids = new ArrayList<Long>(el.getValue().values());
+					final ArrayList<Long> pids = new ArrayList<Long>(el.getValue().values()); // list of Patch ids affecting VectorData/Displayable d
 					Collections.reverse(pids); // so now Patch ids are sorted from top to bottom
 					// The area already processed in the layer
 					final Area used_area = new Area();
@@ -534,11 +534,11 @@ final public class AlignTask
 						tlist.add(new InverseICT(old));
 
 						// The new part:
-						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
-						if (null != ct) tlist.add(ct);
 						final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
 						new_aff.set(patch.getAffineTransform());
 						tlist.add(new_aff);
+						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
+						if (null != ct) tlist.add(ct);
 
 						vdt.add(a, tlist);
 					}
