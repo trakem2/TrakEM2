@@ -120,6 +120,28 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		addToDatabase();
 	}
 
+	/** Check, recursively, that the children of tt2 are also in tt1. */
+	private void assertChildren(final TemplateThing tt1, final TemplateThing tt2) throws Exception {
+		// Check that if this type exists in the target project, it can have the same children
+		Collection<TemplateThing> c1 = (Collection<TemplateThing>)tt1.getChildren();
+		HashSet<String> keys1 = new HashSet<String>();
+		if (null != c1) for (final TemplateThing tn : c1) keys1.add(tn.getType());
+
+		Collection<TemplateThing> c2 = (Collection<TemplateThing>)tt2.getChildren();
+		HashSet<String> keys2 = new HashSet<String>();
+		if (null != c2) for (final TemplateThing tn : c2) keys2.add(tn.getType());
+
+		if (keys1.isEmpty() && keys2.isEmpty()) {
+			return; // no children to check
+		} else if (!keys1.containsAll(keys2)) {
+			throw new Exception("ERROR: receiving project has an homonimous template without all required children!");
+		}
+
+		for (final Iterator<TemplateThing> it1 = c1.iterator(), it2 = c2.iterator(); it2.hasNext(); ) {
+			assertChildren(it1.next(), it2.next());
+		}
+	}
+
 	/** Clone this ProjectThing with its template and all its children and objects cloned, and return it.
 	 *  The templates are added to the project as unique types when not there yet.
 	 *  WARNING there isn't any conflict resolution between potentially different kinds of TemplateThing parent/child chains. */
@@ -129,13 +151,21 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (null == tt) {
 			tt = this.template.clone(project, copy_id); // deep copy, with children
 			project.addUniqueType(tt);
+		} else {
+			// Check that if this type exists in the target project, it can have the same children
+			assertChildren(tt, this.template);
 		}
-		// Check that the template has the same children! If not, add them
-		for (TemplateThing tn : (Collection<TemplateThing>)tt.collectAllChildren(new ArrayList())) {
+		// Check that the entire child chain is there:
+		ArrayList<String> missing = new ArrayList<String>();
+		for (TemplateThing tn : (Collection<TemplateThing>)this.template.collectAllChildren(new ArrayList())) {
 			if (!project.typeExists(tn.getType())) {
-				project.addUniqueType(tn);
+				missing.add(tn.getType());
 			}
 		}
+		if (!missing.isEmpty()) {
+			throw new Exception("Can't transfer: missing templates " + Utils.toString(missing));
+		}
+		
 
 		// Make a deep copy of this
 		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);

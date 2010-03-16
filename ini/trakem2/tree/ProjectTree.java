@@ -817,7 +817,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 
 			// Deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
-			ProjectThing copy = pt.deepClone(target_project, false); // new ids, taken from target_project
+			ProjectThing copy;
+			try{
+				copy = pt.deepClone(target_project, false); // new ids, taken from target_project
+			} catch (Exception ee) {
+				Utils.log("Can't send: " + ee.getMessage());
+				return false;
+			}
 			if (null == landing_parent.getChildTemplate(copy.getTemplate().getType())) {
 				landing_parent.getTemplate().addChild(copy.getTemplate().shallowCopy()); // ensure a copy is there
 			}
