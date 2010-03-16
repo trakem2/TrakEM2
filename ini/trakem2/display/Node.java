@@ -306,12 +306,7 @@ public abstract class Node<T> implements Taggable {
 			g.drawString("e", (int)x -4, (int)y + 3); // TODO ensure Font is proper
 		} else if (1 == children.length) {
 			// as a slab: no branches
-			g.setColor(Color.orange);
-			g.drawRect((int)x - 2, (int)y - 2, 5, 5);
-			g.setColor(Color.black);
-			g.drawRect((int)x - 1, (int)y - 1, 3, 3);
-			g.setColor(Color.orange);
-			g.fillRect((int)x, (int)y, 1, 1);
+			DisplayCanvas.drawScreenHandle(g, (int)x, (int)y);
 		} else {
 			// As branch point
 			g.setColor(Color.yellow);
