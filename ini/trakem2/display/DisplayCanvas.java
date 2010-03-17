@@ -201,6 +201,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			g.drawImage(bufferedImage, 0, 0, null);
 
 			// 3 - Paint the active Displayable and all cached on top
+
+			//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+			g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
+			//Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
+			g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+			//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
+			g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
 			if (null != active_layer) {
 				g.setTransform(at);
 				g.setStroke(this.stroke); // AFTER setting the transform
@@ -2338,8 +2346,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	/** Looks into the layer and its LayerSet and finds out what needs to be painted, putting it into the three lists. */
-	private final void gatherDisplayables(final Layer layer, final Rectangle srcRect, final Displayable active, final ArrayList<Displayable> al_paint, final ArrayList<Displayable> al_top, final boolean preload_patches) {
+	/** Looks into the layer and its LayerSet and finds out what needs to be painted, putting it into the three lists.
+	 *  @return the index of the first non-image object. */
+	private final int gatherDisplayables(final Layer layer, final Rectangle srcRect, final Displayable active, final ArrayList<Displayable> al_paint, final ArrayList<Displayable> al_top, final boolean preload_patches) {
 		layer.getParent().checkBuckets();
 		layer.checkBuckets();
 		final Iterator<Displayable> ital = layer.find(srcRect, true).iterator();
@@ -2354,6 +2363,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		Displayable tmp = null;
 		boolean top = false;
 		final ArrayList<Patch> al_patches = preload_patches ? new ArrayList<Patch>() : null;
+
+		int first_non_patch = 0;
 
 		while (ital.hasNext()) {
 			final Displayable d = ital.next();
@@ -2370,6 +2381,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (top) al_top.add(d); // so active is added to al_top, if it's not a Patch
 				else al_paint.add(d);
 			}
+			first_non_patch += 1;
 		}
 
 		// preload concurrently as many as possible
@@ -2394,6 +2406,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (top) al_top.add(d);
 			else al_paint.add(d);
 		}
+
+		return first_non_patch;
 	}
 
 	/** This method uses data only from the arguments, and changes none.
@@ -2401,12 +2415,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	public BufferedImage paintOffscreen(final Layer layer, final int g_width, final int g_height, final Rectangle srcRect, final double magnification, final Displayable active, final int c_alphas, final Rectangle clipRect, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint, final ArrayList<Displayable> al_top) {
 
 		final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
-		gatherDisplayables(layer, srcRect, active, al_paint, al_top, true);
+		int first_non_patch = gatherDisplayables(layer, srcRect, active, al_paint, al_top, true);
 
-		return paintOffscreen(layer, al_paint, active, g_width, g_height, c_alphas, loader, hm, blending_list, mode, graphics_source, prepaint);
+		return paintOffscreen(layer, al_paint, active, g_width, g_height, c_alphas, loader, hm, blending_list, mode, graphics_source, prepaint, first_non_patch);
 	}
 
-	public BufferedImage paintOffscreen(final Layer layer, final ArrayList<Displayable> al_paint, final Displayable active, final int g_width, final int g_height, final int c_alphas, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint) {
+	public BufferedImage paintOffscreen(final Layer layer, final ArrayList<Displayable> al_paint, final Displayable active, final int g_width, final int g_height, final int c_alphas, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint, int first_non_patch) {
 		try {
 			// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
@@ -2451,19 +2465,28 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// filter paintables
 			final Collection<? extends Paintable> paintables = graphics_source.asPaintable(al_paint);
 
+			// adjust:
+			first_non_patch = paintables.size() - (al_paint.size() - first_non_patch);
+			Utils.log2("first non-patch is " + first_non_patch);
+
 			//timer.elapsed("grabbed paintables");
 
 			// Determine painting mode
 			if (Display.REPAINT_SINGLE_LAYER == mode) {
 				// Direct painting mode, with prePaint abilities
-				if (prepaint) {
-					for (final Paintable d : paintables)
-						d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
-					//timer.elapsed("painted paintables with prePaint");
-				} else {
-					for (final Paintable d : paintables)
-						d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
-					//timer.elapsed("painted paintables directly");
+				int i = 0;
+				for (final Paintable d : paintables) {
+					i++;
+					if (i == first_non_patch) {
+						//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+						g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
+						//Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
+						g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+						//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
+						g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+					}
+					if (prepaint) d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
+					else d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 				}
 			} else if (Display.REPAINT_MULTI_LAYER == mode) {
 				// TODO rewrite to avoid calling the list twice
@@ -2516,6 +2539,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.setTransform(atc);
 
 				// then paint the non-Patch objects of the current layer
+
+				//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
+				//Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
+				g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+				//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
+				g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
 				// TODO this loop should be reading from the paintable_patches and paintables, since they length/order *could* have changed
 				//      And yes this means iterating and checking the Class of each.
 				for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
@@ -2566,6 +2597,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.setTransform(atc);
 
 				// then paint the non-Image objects of the current layer
+				//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
+				//Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
+				g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+				//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
+				g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
 				for (final Displayable d : al_paint) {
 					if (ImageData.class.isInstance(d)) continue;
 					d.paint(g, srcRect, magnification, d == active, c_alphas, layer);

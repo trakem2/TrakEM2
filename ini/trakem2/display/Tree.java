@@ -181,13 +181,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			// Determine which layers to paint
 			final Set<Node> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
-				Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
-				Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
-				g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-				Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
-				g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-
 				// Clear transform and stroke
 				gt = g.getTransform();
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
@@ -209,10 +202,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					}
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
-
-				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, antialias);
-				g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, text_antialias);
-				g.setRenderingHint(RenderingHints.KEY_RENDERING, render_quality);
 			}
 		}
 
