@@ -458,7 +458,7 @@ final public class AlignTask
 		alignment.run();
 		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
 		// 4 - Transform VectorData instances to match the position of the Patch instances over which they were defined
-		transformVectorData(rd, vdata, ls);
+		if (null != rd && !vdata.isEmpty()) transformVectorData(rd, vdata, ls);
 	}
 
 	final static public void transformVectorData
