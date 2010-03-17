@@ -43,6 +43,7 @@ import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 
 import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
+import mpicbg.models.ErrorStatistic;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -821,7 +822,46 @@ public class StitchingTEM {
 		// Run optimization
 		if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
 		// with default parameters
-		Align.optimizeTileConfiguration(new Align.ParamOptimize(), tiles, fixed_tiles);
+		boolean proceed = true;
+		while ( proceed )
+		{
+			Align.optimizeTileConfiguration( new Align.ParamOptimize(), tiles, fixed_tiles );
+			
+			/* get all transfer errors */
+			final ErrorStatistic e = new ErrorStatistic( tiles.size() + 1 );
+			
+			for ( final AbstractAffineTile2D< ? > t : tiles )
+				t.update();
+			
+			for ( final AbstractAffineTile2D< ? > t : tiles )
+			{
+				for ( final PointMatch p : t.getMatches() )
+				{
+					e.add( p.getDistance() );
+				}
+			}
+			
+			/* remove the worst if there is one */
+			if ( e.max > 3 * e.mean )
+			{
+A:				for ( final AbstractAffineTile2D< ? > t : tiles )
+				{
+					for ( final PointMatch p : t.getMatches() )
+					{
+						if ( p.getDistance() >= e.max )
+						{
+							final AbstractAffineTile2D< ? > o = t.findConnectedTile( p );
+							t.removeConnectedTile( o );
+							o.removeConnectedTile( t );
+							Utils.log2( "Removing bad match from configuration, error = " + e.max );
+							break A;
+						}
+					}
+				}
+			}
+			else	
+				proceed = false;
+		}
 
 		for ( AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
