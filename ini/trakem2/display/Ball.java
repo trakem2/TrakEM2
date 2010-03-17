@@ -198,11 +198,9 @@ public class Ball extends ZDisplayable implements VectorData {
 			setupForDisplay();
 		}
 		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
+		final Composite original_composite = g.getComposite(),
+				perimeter_composite = alpha == 1.0f ? original_composite : AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha),
+				area_composite = alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite;
 
 		// Clear transform and stroke
 		final AffineTransform gt = g.getTransform();
@@ -229,9 +227,13 @@ public class Ball extends ZDisplayable implements VectorData {
 			if (active_lid == p_layer[j]) {
 				g.setColor(this.color);
 				final int radius = (int)p_width[j];
-				g.drawOval((int)((p[0][j] -radius -srcRect.x) * magnification),
-					   (int)((p[1][j] -radius -srcRect.y) * magnification),
-					   (int)(2 * radius * magnification), (int)(2 * radius * magnification));
+				final int x = (int)((p[0][j] -radius -srcRect.x) * magnification),
+				          y = (int)((p[1][j] -radius -srcRect.y) * magnification),
+					  w = (int)(2 * radius * magnification);
+				g.setComposite(area_composite);
+				g.fillOval(x, y, w, w);
+				g.setComposite(perimeter_composite);
+				g.drawOval(x, y, w, w);
 			} else if (color_cues) {
 				// does the point intersect with the layer?
 				final double z = layer_set.getLayer(p_layer[j]).getZ();
@@ -242,10 +244,13 @@ public class Ball extends ZDisplayable implements VectorData {
 					else g.setColor(Color.blue);
 					// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
 					final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
-					g.drawOval((int)((p[0][j] -slice_radius -srcRect.x) * magnification),
-						   (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
-						   (int)(2 * slice_radius * magnification),
-						   (int)(2 * slice_radius * magnification));
+					final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
+					          y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
+						  w = (int)(2 * slice_radius * magnification);
+					g.setComposite(area_composite);
+					g.fillOval(x, y, w, w);
+					g.setComposite(perimeter_composite);
+					g.drawOval(x, y, w, w);
 				}
 			}
 		}
@@ -260,9 +265,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 
 		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
-		}
+		g.setComposite(original_composite);
 
 		// Restore
 		g.setTransform(gt);
