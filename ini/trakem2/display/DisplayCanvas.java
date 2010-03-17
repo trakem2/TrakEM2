@@ -2467,7 +2467,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// adjust:
 			first_non_patch = paintables.size() - (al_paint.size() - first_non_patch);
-			Utils.log2("first non-patch is " + first_non_patch);
 
 			//timer.elapsed("grabbed paintables");
 
