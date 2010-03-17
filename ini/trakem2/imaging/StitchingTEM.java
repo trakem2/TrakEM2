@@ -24,8 +24,7 @@ package ini.trakem2.imaging;
 
 import ij.gui.Roi;
 import ij.process.ImageProcessor;
-import ij.process.ByteProcessor;
-import ij.process.FloatProcessor;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 
@@ -35,17 +34,15 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.Selection;
-import ini.trakem2.ControlWindow;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
 
-import mpi.fruitfly.registration.PhaseCorrelation2D;
 import mpi.fruitfly.registration.CrossCorrelation2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 
+import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -56,18 +53,14 @@ import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.Rectangle;
 import java.awt.Image;
-import java.awt.image.BufferedImage;
-import java.awt.geom.Point2D;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Vector;
 import java.awt.geom.AffineTransform;
 
-import mpicbg.trakem2.align.AlignTask;
 
 /** Given:
  *  - list of images
@@ -77,8 +70,8 @@ import mpicbg.trakem2.align.AlignTask;
  *  This class will attempt to find the optimal montage,
  *  by applying phase-correlation, and/or cross-correlation, and/or SIFT-based correlation) between neighboring images.
  *  
- *  The method is oriented to images acquired with Transmission Electron Miscrospy,
- *  where the acquistion of each image elastically deforms the sample, and thus
+ *  The method is oriented to images acquired with Transmission Electron Microscopy,
+ *  where the acquisition of each image elastically deforms the sample, and thus
  *  earlier images are regarded as better than later ones.
  *
  *  It is assumed that images were acquired from 0 to n, as in the grid.
@@ -358,25 +351,37 @@ public class StitchingTEM {
 		t2.addMatch(new PointMatch(p1, p2, 1.0f));
 		t1.addConnectedTile(t2);
 		t2.addConnectedTile(t1);
-	}
+	}	
+	
 
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {
 		return makeStripe(p, roi, scale, false);
 	}
 
-	static public ImageProcessor makeStripe(final Patch p, final float scale, final boolean ignore_patch_transform) {
-		return makeStripe(p, null, scale, ignore_patch_transform);
-	}
+//	static public ImageProcessor makeStripe(final Patch p, final float scale, final boolean ignore_patch_transform) {
+//		return makeStripe(p, null, scale, ignore_patch_transform);
+//	}
 
 	/** @return FloatProcessor.
-	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ // TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
+	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ 
+	// TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean ignore_patch_transform) {
+		
+		Utils.log2("in makeStripe ");
+		
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
 		Loader loader =  p.getProject().getLoader();
 		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
-		if (loader.isMipMapsEnabled() && loader.checkMipMapFileExists(p, scale)) {
-			Image image = p.getProject().getLoader().fetchImage(p, scale);
+		if (loader.isMipMapsEnabled() && loader.checkMipMapFileExists(p, scale)) 
+		{
+			
+			// Read the transform image from the patch (this way we avoid the JPEG artifacts)
+			final Patch.PatchImage pai = p.createTransformedImage();
+			pai.target.setMinAndMax( p.getMin(), p.getMax() );
+			
+			Image image = pai.target.createImage(); //p.getProject().getLoader().fetchImage(p, scale);
+			
 			// check that dimensions are correct. If anything, they'll be larger
 			//Utils.log2("patch w,h " + p.getWidth() + ", " + p.getHeight() + " fetched image w,h: " + image.getWidth(null) + ", " + image.getHeight(null));
 			if (Math.abs(p.getWidth() * scale - image.getWidth(null)) > 0.001 || Math.abs(p.getHeight() * scale - image.getHeight(null)) > 0.001) {
@@ -386,6 +391,7 @@ public class StitchingTEM {
 			try {
 				imp = new ImagePlus("s", image);
 				ip = imp.getProcessor();
+				//imp.show();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -400,10 +406,25 @@ public class StitchingTEM {
 					ip = ip.crop();
 				}
 			}
-			//Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
+			Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
 		} else {
-			imp = loader.fetchImagePlus(p);
-			ip = imp.getProcessor();
+			
+			
+			final Patch.PatchImage pai = p.createTransformedImage();
+			pai.target.setMinAndMax( p.getMin(), p.getMax() );
+			
+			ip = pai.target;
+			imp = new ImagePlus("", ip);
+			//IJ.run(imp, "Enhance Contrast", "saturated=0.1 normalize");
+			//ip = imp.getProcessor();
+			
+			//imp.show();
+			
+			//imp = loader.fetchImagePlus(p);
+			//ip = imp.getProcessor();
+			
+			
+			
 			// compare and adjust
 			if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:
 				final Rectangle b = p.getBoundingBox();
@@ -424,11 +445,11 @@ public class StitchingTEM {
 				p.getProject().getLoader().releaseToFit((long)(ip.getWidth() * ip.getHeight() * 4 * 1.2)); // floats have 4 bytes, plus some java peripherals correction factor
 				ip = ip.convertToFloat();
 				ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), (float)Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
-				ip = ip.resize((int)(ip.getWidth() * scale)); // scale mantaining aspect ratio
+				ip = ip.resize((int)(ip.getWidth() * scale)); // scale maintaining aspect ratio
 			}
 		}
 
-		//Utils.log2("makeStripe: w,h " + ip.getWidth() + ", " + ip.getHeight());
+		Utils.log2("makeStripe: w,h " + ip.getWidth() + ", " + ip.getHeight());
 
 		// return a FloatProcessor
 		if (imp.getType() != ImagePlus.GRAY32) return ip.convertToFloat();
@@ -436,6 +457,9 @@ public class StitchingTEM {
 		return ip;
 	}
 
+	
+	
+	
 	 /** @param scale For optimizing the speed of phase- and cross-correlation.<br />
 	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.<br />
 	 * @return a double[4] array containing:<br />
@@ -445,12 +469,12 @@ public class StitchingTEM {
 	 * 	- R: cross-correlation coefficient<br />
 	 */
 	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy, final float min_R) {
-		PhaseCorrelation2D pc = null;
+		//PhaseCorrelation2D pc = null;
 		double R = -2;
-		final int limit = 5; // number of peaks to check in the PhaseCorrelation results
+		//final int limit = 5; // number of peaks to check in the PhaseCorrelation results
 		//final float min_R = 0.40f; // minimum R for phase-correlation to be considered good
 					// half this min_R will be considered good for cross-correlation
-		// Iterate until PhaseCorrelation correlation coeficient R is over 0.5, or there's no more
+		// Iterate until PhaseCorrelation correlation coefficient R is over 0.5, or there's no more
 		// image overlap to feed
 		Utils.log2("min_R: " + min_R);
 		ImageProcessor ip1, ip2;
@@ -486,11 +510,23 @@ public class StitchingTEM {
 			ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1f).data);
 			ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1f).data);
 			//
-			pc = new PhaseCorrelation2D(ip1, ip2, limit, true, false, false); // with windowing
-			final java.awt.Point shift = pc.computePhaseCorrelation();
-			final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
-			Utils.log2("overlap: " + overlap + " R: " + result.R + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
-			if (result.R >= min_R) {
+			
+			final ImagePlus imp1 = new ImagePlus( "", ip1 );
+			final ImagePlus imp2 = new ImagePlus( "", ip2 );
+
+			PhaseCorrelationCalculator t = new PhaseCorrelationCalculator(imp1, imp2);
+			PhaseCorrelationPeak peak = t.getPeak();
+			
+			final double resultR = peak.getCrossCorrelationPeak();
+			final int[] peackPostion = peak.getPosition();
+			final java.awt.Point shift = new java.awt.Point(peackPostion[0], peackPostion[1]);
+			
+			//pc = new PhaseCorrelation2D(ip1, ip2, limit, true, false, false); // with windowing
+			//final java.awt.Point shift = pc.computePhaseCorrelation();
+			//final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
+			
+			Utils.log2("overlap: " + overlap + " R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
+			if (resultR >= min_R) {
 				// success
 				int success = SUCCESS;
 				switch(direction) {
@@ -507,8 +543,8 @@ public class StitchingTEM {
 						dy = shift.y/scale;
 						break;
 				}
-				Utils.log2("R: " + result.R + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
-				return new double[]{dx, dy, success, result.R};
+				Utils.log2("R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
+				return new double[]{dx, dy, success, resultR};
 			}
 			//new ImagePlus("roi1", ip1.duplicate()).show();
 			//new ImagePlus("roi2", ip2.duplicate()).show();
@@ -581,7 +617,7 @@ public class StitchingTEM {
 
 		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
 	}
-
+	
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
 	static private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
 		Rectangle x_rect = dragging_ob.getBoundingBox();
@@ -680,6 +716,7 @@ public class StitchingTEM {
 		final ArrayList<Patch> al = new ArrayList<Patch>(col);
 		final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
 		final ArrayList<AbstractAffineTile2D<?>> fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+		
 		for (final Patch p : al) {
 			// Pre-check: just a warning
 			final int aff_type = p.getAffineTransform().getType();
