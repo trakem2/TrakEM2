@@ -116,17 +116,13 @@ public class StitchingTEM {
 	static public Bureaucrat stitch(
 			final Patch[] patch, 
 			final int grid_width, 
-			final float percent_overlap, 
-			final float scale, 
 			final double default_bottom_top_overlap, 
 			final double default_left_right_overlap, 
 			final boolean optimize,
-			final float min_R,
-			final float mean_factor,
 			final int stitching_rule) 
 	{
 		// check preconditions
-		if (null == patch || grid_width < 1 || percent_overlap <= 0) {
+		if (null == patch || grid_width < 1) {
 			return null;
 		}
 		if (patch.length < 2) {
@@ -148,8 +144,7 @@ public class StitchingTEM {
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), 
-						default_bottom_top_overlap, default_left_right_overlap, min_R, mean_factor, optimize);
+				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize);
 			case StitchingTEM.FREE_RULE:
 				final HashSet<Patch> hs = new HashSet<Patch>();
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
@@ -176,134 +171,154 @@ public class StitchingTEM {
 	static private Bureaucrat stitchTopLeft(
 			final Patch[] patch, 
 			final int grid_width, 
-			final float percent_overlap, 
-			final float scale, 
 			final double default_bottom_top_overlap, 
-			final double default_left_right_overlap, 
-			final float min_R, 
-			final float mean_factor, 
+			final double default_left_right_overlap,  
 			final boolean optimize) 
 	{
 		final Worker worker = new Worker("Stitching") 
 		{
 			public void run() {
 				startedWorking();
+				
+				// Launch phase correlation dialog
+				PhaseCorrelationParam param = new PhaseCorrelationParam();
+				param.setup(patch[0]);
+				
 
-		try {
-			final int LEFT = 0, TOP = 1;
+				try {
+					final int LEFT = 0, TOP = 1;
 
-			int prev_i = 0;
-			int prev = LEFT;
+					int prev_i = 0;
+					int prev = LEFT;
 
-			double[] R1=null,
-				 R2=null;
+					double[] R1=null,
+					R2=null;
 
 
-			// for minimization:
-			ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
-			// first patch-tile:
-			TranslationModel2D first_tile_model = new TranslationModel2D();
-			//first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
-			first_tile_model.set( (float) patch[0].getAffineTransform().getTranslateX(),
-					      (float) patch[0].getAffineTransform().getTranslateY());
-			al_tiles.add(new TranslationTile2D(first_tile_model, patch[0]));
+					// for minimization:
+					ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+					// first patch-tile:
+					TranslationModel2D first_tile_model = new TranslationModel2D();
+					//first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
+					first_tile_model.set( (float) patch[0].getAffineTransform().getTranslateX(),
+							(float) patch[0].getAffineTransform().getTranslateY());
+					al_tiles.add(new TranslationTile2D(first_tile_model, patch[0]));
 
-			for (int i=1; i<patch.length; i++) {
-				if (hasQuitted()) {
-					return;
-				}
-
-				// boundary checks: don't allow displacements beyond these values
-				final double default_dx = default_left_right_overlap;
-				final double default_dy = default_bottom_top_overlap;
-
-				// for minimization:
-				AbstractAffineTile2D<?> tile_left = null;
-				AbstractAffineTile2D<?> tile_top = null;
-				TranslationModel2D tile_model = new TranslationModel2D();
-				//tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
-				tile_model.set( (float) patch[i].getAffineTransform().getTranslateX(),
-						(float) patch[i].getAffineTransform().getTranslateY());
-				AbstractAffineTile2D<?> tile = new TranslationTile2D(tile_model, patch[i]);
-				al_tiles.add(tile);
-
-				// stitch with the one above if starting row
-				if (0 == i % grid_width) {
-					prev_i = i - grid_width;
-					prev = TOP;
-				} else {
-					prev_i = i -1;
-					prev = LEFT;
-				}
-
-				if (TOP == prev) {
-					// compare with top only
-					R1 = correlate(patch[prev_i], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy, min_R);
-					R2 = null;
-					tile_top = al_tiles.get(i - grid_width);
-				} else {
-					// the one on the left
-					R2 = correlate(patch[prev_i], patch[i], percent_overlap, scale, LEFT_RIGHT, default_dx, default_dy, min_R);
-					tile_left = al_tiles.get(i - 1);
-					// the one above
-					if (i - grid_width > -1) {
-						R1 = correlate(patch[i - grid_width], patch[i], percent_overlap, scale, TOP_BOTTOM, default_dx, default_dy, min_R);
-						tile_top = al_tiles.get(i - grid_width);
-					} else {
-						R1 = null;
-					}
-				}
-
-				// boundary limits: don't move by more than the small dimension of the stripe
-				int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
-
-				final Rectangle box = new Rectangle();
-				final Rectangle box2 = new Rectangle();
-				// check and apply: falls back to default overlaps when getting bad results
-				if (TOP == prev) {
-					if (SUCCESS == R1[2]) {
-						// trust top
-						if (optimize) addMatches(tile_top, tile, R1[0], R1[1]);
-						else {
-							patch[i - grid_width].getBoundingBox(box);
-							patch[i].setLocation(box.x + R1[0], box.y + R1[1]);
+					for (int i=1; i<patch.length; i++) {
+						if (hasQuitted()) {
+							return;
 						}
-					} else {
-						final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
-						// don't move: use default overlap
-						if (optimize) addMatches(tile_top, tile, 0, b2.height - default_bottom_top_overlap);
-						else {
-							patch[i - grid_width].getBoundingBox(box);
-							patch[i].setLocation(box.x, box.y + b2.height - default_bottom_top_overlap);
+
+						// boundary checks: don't allow displacements beyond these values
+						final double default_dx = default_left_right_overlap;
+						final double default_dy = default_bottom_top_overlap;
+
+						// for minimization:
+						AbstractAffineTile2D<?> tile_left = null;
+						AbstractAffineTile2D<?> tile_top = null;
+						TranslationModel2D tile_model = new TranslationModel2D();
+						//tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
+						tile_model.set( (float) patch[i].getAffineTransform().getTranslateX(),
+								(float) patch[i].getAffineTransform().getTranslateY());
+						AbstractAffineTile2D<?> tile = new TranslationTile2D(tile_model, patch[i]);
+						al_tiles.add(tile);
+
+						// stitch with the one above if starting row
+						if (0 == i % grid_width) {
+							prev_i = i - grid_width;
+							prev = TOP;
+						} else {
+							prev_i = i -1;
+							prev = LEFT;
 						}
-					}
-				} else { // LEFT
-					// the one on top, if any
-					if (i - grid_width > -1) {
-						if (SUCCESS == R1[2]) {
-							// top is good
-							if (SUCCESS == R2[2]) {
-								// combine left and top
-								if (optimize) {
-									addMatches(tile_left, tile, R2[0], R2[1]);
-									addMatches(tile_top, tile, R1[0], R1[1]);
-								} else {
-									patch[i-1].getBoundingBox(box);
-									patch[i - grid_width].getBoundingBox(box2);
-									patch[i].setLocation((box.x + R1[0] + box2.x + R2[0]) / 2, (box.y + R1[1] + box2.y + R2[1]) / 2);
-								}
+
+						if (TOP == prev) {
+							// compare with top only
+							R1 = correlate(patch[prev_i], patch[i], param.overlap, param.cc_scale, TOP_BOTTOM, default_dx, default_dy, param.min_R);
+							R2 = null;
+							tile_top = al_tiles.get(i - grid_width);
+						} else {
+							// the one on the left
+							R2 = correlate(patch[prev_i], patch[i], param.overlap, param.cc_scale, LEFT_RIGHT, default_dx, default_dy, param.min_R);
+							tile_left = al_tiles.get(i - 1);
+							// the one above
+							if (i - grid_width > -1) {
+								R1 = correlate(patch[i - grid_width], patch[i], param.overlap, param.cc_scale, TOP_BOTTOM, default_dx, default_dy, param.min_R);
+								tile_top = al_tiles.get(i - grid_width);
 							} else {
-								// use top alone
+								R1 = null;
+							}
+						}
+
+						// boundary limits: don't move by more than the small dimension of the stripe
+						int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
+
+						final Rectangle box = new Rectangle();
+						final Rectangle box2 = new Rectangle();
+						// check and apply: falls back to default overlaps when getting bad results
+						if (TOP == prev) {
+							if (SUCCESS == R1[2]) {
+								// trust top
 								if (optimize) addMatches(tile_top, tile, R1[0], R1[1]);
 								else {
 									patch[i - grid_width].getBoundingBox(box);
 									patch[i].setLocation(box.x + R1[0], box.y + R1[1]);
 								}
+							} else {
+								final Rectangle b2 = patch[i - grid_width].getBoundingBox(null);
+								// don't move: use default overlap
+								if (optimize) addMatches(tile_top, tile, 0, b2.height - default_bottom_top_overlap);
+								else {
+									patch[i - grid_width].getBoundingBox(box);
+									patch[i].setLocation(box.x, box.y + b2.height - default_bottom_top_overlap);
+								}
 							}
-						} else {
-							// ignore top
-							if (SUCCESS == R2[2]) {
-								// use left alone
+						} else { // LEFT
+							// the one on top, if any
+							if (i - grid_width > -1) {
+								if (SUCCESS == R1[2]) {
+									// top is good
+									if (SUCCESS == R2[2]) {
+										// combine left and top
+										if (optimize) {
+											addMatches(tile_left, tile, R2[0], R2[1]);
+											addMatches(tile_top, tile, R1[0], R1[1]);
+										} else {
+											patch[i-1].getBoundingBox(box);
+											patch[i - grid_width].getBoundingBox(box2);
+											patch[i].setLocation((box.x + R1[0] + box2.x + R2[0]) / 2, (box.y + R1[1] + box2.y + R2[1]) / 2);
+										}
+									} else {
+										// use top alone
+										if (optimize) addMatches(tile_top, tile, R1[0], R1[1]);
+										else {
+											patch[i - grid_width].getBoundingBox(box);
+											patch[i].setLocation(box.x + R1[0], box.y + R1[1]);
+										}
+									}
+								} else {
+									// ignore top
+									if (SUCCESS == R2[2]) {
+										// use left alone
+										if (optimize) addMatches(tile_left, tile, R2[0], R2[1]);
+										else {
+											patch[i-1].getBoundingBox(box);
+											patch[i].setLocation(box.x + R2[0], box.y + R2[1]);
+										}
+									} else {
+										patch[prev_i].getBoundingBox(box);
+										patch[i - grid_width].getBoundingBox(box2);
+										// left not trusted, top not trusted: use a combination of defaults for both
+										if (optimize) {
+											addMatches(tile_left, tile, box.width - default_left_right_overlap, 0);
+											addMatches(tile_top, tile, 0, box2.height - default_bottom_top_overlap);
+										} else {
+											patch[i].setLocation(box.x + box.width - default_left_right_overlap, box2.y + box2.height - default_bottom_top_overlap);
+										}
+									}
+								}
+							} else if (SUCCESS == R2[2]) {
+								// use left alone (top not applicable in top row)
 								if (optimize) addMatches(tile_left, tile, R2[0], R2[1]);
 								else {
 									patch[i-1].getBoundingBox(box);
@@ -311,39 +326,20 @@ public class StitchingTEM {
 								}
 							} else {
 								patch[prev_i].getBoundingBox(box);
-								patch[i - grid_width].getBoundingBox(box2);
-								// left not trusted, top not trusted: use a combination of defaults for both
-								if (optimize) {
-									addMatches(tile_left, tile, box.width - default_left_right_overlap, 0);
-									addMatches(tile_top, tile, 0, box2.height - default_bottom_top_overlap);
-								} else {
-									patch[i].setLocation(box.x + box.width - default_left_right_overlap, box2.y + box2.height - default_bottom_top_overlap);
+								// left not trusted, and top not applicable: use default overlap with left tile
+								if (optimize) addMatches(tile_left, tile, box.width - default_left_right_overlap, 0);
+								else {
+									patch[i].setLocation(box.x + box.width - default_left_right_overlap, box.y);
 								}
 							}
 						}
-					} else if (SUCCESS == R2[2]) {
-						// use left alone (top not applicable in top row)
-						if (optimize) addMatches(tile_left, tile, R2[0], R2[1]);
-						else {
-							patch[i-1].getBoundingBox(box);
-							patch[i].setLocation(box.x + R2[0], box.y + R2[1]);
-						}
-					} else {
-						patch[prev_i].getBoundingBox(box);
-						// left not trusted, and top not applicable: use default overlap with left tile
-						if (optimize) addMatches(tile_left, tile, box.width - default_left_right_overlap, 0);
-						else {
-							patch[i].setLocation(box.x + box.width - default_left_right_overlap, box.y);
-						}
+
+						if (!optimize) Display.repaint(patch[i].getLayer(), patch[i], null, 0, false);
+						Utils.log2(i + ": Done patch " + patch[i]);
 					}
-				}
 
-				if (!optimize) Display.repaint(patch[i].getLayer(), patch[i], null, 0, false);
-				Utils.log2(i + ": Done patch " + patch[i]);
-			}
-
-			if (optimize) {
-				/*
+					if (optimize) {
+						/*
 				// run optimization
 				ArrayList<Patch> al_patches = new ArrayList<Patch>();
 				for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
@@ -352,30 +348,28 @@ public class StitchingTEM {
 
 				// ready for montage-wise minimization
 				Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
-				*/
+						 */
 
-				ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
-				al_fixed_tiles.add(al_tiles.get(0));
-				
-				//Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
-				//Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
-				PhaseCorrelationParam param = new PhaseCorrelationParam(scale, percent_overlap, 
-						false, false, mean_factor, min_R);
-				optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
-				
-				
-				for ( AbstractAffineTile2D< ? > t : al_tiles )
-					t.getPatch().setAffineTransform( t.getModel().createAffine() );
+						ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+						al_fixed_tiles.add(al_tiles.get(0));
 
-			}
-			Display.repaint(patch[0].getLayer(), null, 0, true); // all
+						//Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
+						//Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
+						optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
 
-			//
-		} catch (Exception e) {
-			IJError.print(e);
-		} finally {
-			finishedWorking();
-		}
+
+						for ( AbstractAffineTile2D< ? > t : al_tiles )
+							t.getPatch().setAffineTransform( t.getModel().createAffine() );
+
+					}
+					Display.repaint(patch[0].getLayer(), null, 0, true); // all
+
+					//
+				} catch (Exception e) {
+					IJError.print(e);
+				} finally {
+					finishedWorking();
+				}
 			}
 		};
 		return Bureaucrat.createAndStart(worker, patch[0].getProject());

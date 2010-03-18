@@ -1554,10 +1554,6 @@ abstract public class Loader {
 		gd.addCheckbox("link images", false);
 		gd.addCheckbox("montage", true);
 		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
-		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
-		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
-		gd.addNumericField("regression threshold (R):", 0.30, 2);
-		gd.addNumericField( "max/avg displacement threshold: ", 2.5, 2 );
 		gd.addCheckbox("homogenize_contrast", false);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1596,10 +1592,6 @@ abstract public class Loader {
 		double lr_overlap = gd.getNextNumber();
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
-		final float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
-		final float cc_scale = (float)gd.getNextNumber() / 100f;
-		final float min_R = (float) gd.getNextNumber(); 
-		final float mean_factor = ( float )gd.getNextNumber();
 		final boolean homogenize_contrast = gd.getNextBoolean();
 		final int stitching_rule = gd.getNextChoiceIndex();
 		//boolean apply_non_linear_def = gd.getNextBoolean();
@@ -1686,7 +1678,7 @@ abstract public class Loader {
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
 
 					Bureaucrat b = insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-							link_images, stitch_tiles, cc_percent_overlap, cc_scale, min_R, mean_factor, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+							link_images, stitch_tiles, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 					try {
 						b.join();
 					} catch (InterruptedException ie) {
@@ -1741,11 +1733,6 @@ abstract public class Loader {
 		gd.addCheckbox("link_images", false);
 		gd.addCheckbox("montage", false);
 		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
-		
-		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
-		gd.addSlider("cc_scale (%):", 1, 100, 25);
-		gd.addNumericField("regression threshold (R):", 0.30, 2);
-		gd.addNumericField( "max/avg displacement threshold: ", 2.5, 2 );
 		gd.addCheckbox("homogenize_contrast", true);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1779,10 +1766,6 @@ abstract public class Loader {
 		double lr_overlap = gd.getNextNumber();
 		boolean link_images = gd.getNextBoolean();
 		boolean stitch_tiles = gd.getNextBoolean();
-		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
-		float cc_scale = (float)gd.getNextNumber() / 100f;
-		final float min_R = (float) gd.getNextNumber(); 
-		final float mean_factor = ( float )gd.getNextNumber();
 		boolean homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
 		//boolean apply_non_linear_def = gd.getNextBoolean();
@@ -1817,8 +1800,7 @@ abstract public class Loader {
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
 		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, 
-				lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, 
-				min_R, mean_factor, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+				lr_overlap, link_images, stitch_tiles, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1857,10 +1839,6 @@ abstract public class Loader {
 			final double lr_overlap, 
 			final boolean link_images, 
 			final boolean stitch_tiles, 
-			final float cc_percent_overlap, 
-			final float cc_scale,
-			final float min_R,
-			final float mean_factor,
 			final boolean homogenize_contrast, 
 			final int stitching_rule/*, final boolean apply_non_linear_def*/) 
 	{
@@ -2208,8 +2186,8 @@ abstract public class Loader {
 						// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 						if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 						Bureaucrat task = 
-							StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, 
-								lr_overlap, true, min_R, mean_factor, stitching_rule);
+							StitchingTEM.stitch(pa, cols.size(), bt_overlap, 
+								lr_overlap, true, stitching_rule);
 						if (null != task) try { task.join(); } catch (Exception e) {}
 					}
 
