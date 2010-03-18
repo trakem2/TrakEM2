@@ -2197,7 +2197,8 @@ abstract public class Loader {
 						}
 					}
 
-					if (stitch_tiles) {
+					if (stitch_tiles) 
+					{
 						// Wait until all mipmaps for the new images have been generated before attempting to register
 						Utils.wait(fus);
 
@@ -2206,7 +2207,9 @@ abstract public class Loader {
 						layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
 						// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 						if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
-						Bureaucrat task = StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, lr_overlap, true, stitching_rule);
+						Bureaucrat task = 
+							StitchingTEM.stitch(pa, cols.size(), cc_percent_overlap, cc_scale, bt_overlap, 
+								lr_overlap, true, min_R, mean_factor, stitching_rule);
 						if (null != task) try { task.join(); } catch (Exception e) {}
 					}
 
