@@ -663,7 +663,8 @@ public class StitchingTEM {
 		}
 	}
 
-	/** For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
+	/** 
+	 * For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
 	 *  then consider all successful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
 	static public Bureaucrat montageWithPhaseCorrelation(final Collection<Patch> col) {
@@ -759,6 +760,7 @@ public class StitchingTEM {
 			else if (sc > 100) sc = 100;
 			gd.addSlider("scale (%):", 1, 100, sc);
 			gd.addNumericField( "max/avg displacement threshold: ", mean_factor, 2 );
+			gd.addNumericField("regression threshold (R):", min_R, 2);
 			gd.addCheckbox("hide disconnected", false);
 			gd.addCheckbox("remove disconnected", false);
 			gd.showDialog();
@@ -766,7 +768,8 @@ public class StitchingTEM {
 			
 			overlap = (float)gd.getNextNumber() / 100f;
 			cc_scale = (float)gd.getNextNumber() / 100f;
-			mean_factor = ( float )gd.getNextNumber();
+			mean_factor = ( float )gd.getNextNumber(); 
+			min_R = (float) gd.getNextNumber();
 			hide_disconnected = gd.getNextBoolean();
 			remove_disconnected = gd.getNextBoolean();
 
@@ -774,7 +777,13 @@ public class StitchingTEM {
 		}
 	}
 
-	static public void montageWithPhaseCorrelation(final Collection<Patch> col, final PhaseCorrelationParam param) {
+	/**
+	 * Perform montage based on phase correlation
+	 * @param col collection of patches
+	 * @param param phase correlation parameters
+	 */
+	static public void montageWithPhaseCorrelation(final Collection<Patch> col, final PhaseCorrelationParam param) 
+	{
 		if (null == col || col.size() < 1) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>(col);
 		final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
@@ -890,6 +899,13 @@ public class StitchingTEM {
 		try { Display.repaint(al.get(0).getLayer()); } catch (Exception e) {}
 	}
 	
+	/**
+	 * Optimize tile configuration by removing bad matches
+	 * 
+	 * @param tiles complete list of tiles
+	 * @param fixed_tiles list of fixed tiles
+	 * @param param phase correlation parameters
+	 */
 	public static void optimizeTileConfiguration(
 			ArrayList<AbstractAffineTile2D<?>> tiles,
 			ArrayList<AbstractAffineTile2D<?>> fixed_tiles,
