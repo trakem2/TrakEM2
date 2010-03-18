@@ -1556,9 +1556,9 @@ abstract public class Loader {
 		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
 		gd.addCheckbox("homogenize_contrast", false);
 		final Component[] c = {
-			(Component)gd.getSliders().get(gd.getSliders().size()-2),
+			//(Component)gd.getSliders().get(gd.getSliders().size()-2),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
-			(Component)gd.getSliders().get(gd.getSliders().size()-1),
+			//(Component)gd.getSliders().get(gd.getSliders().size()-1),
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
 			(Component)gd.getChoices().get(gd.getChoices().size()-1)
 		};
