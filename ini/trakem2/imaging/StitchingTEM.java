@@ -680,6 +680,7 @@ public class StitchingTEM {
 		public float overlap = 0.1f;
 		public boolean hide_disconnected = false;
 		public boolean remove_disconnected = false;
+		public float mean_factor = 2.5f;
 
 		/** Returns false when canceled.
 		 *  @param ref is an optional Patch from which to estimate an appropriate image scale at which to perform the phase correlation, for performance reasons. */
@@ -698,6 +699,7 @@ public class StitchingTEM {
 			if (sc < 0) sc = 25;
 			else if (sc > 100) sc = 100;
 			gd.addSlider("scale (%):", 1, 100, sc);
+			gd.addNumericField( "max/avg displacement threshold: ", mean_factor, 2 );
 			gd.addCheckbox("hide disconnected", false);
 			gd.addCheckbox("remove disconnected", false);
 			gd.showDialog();
@@ -705,6 +707,7 @@ public class StitchingTEM {
 			
 			overlap = (float)gd.getNextNumber() / 100f;
 			cc_scale = (float)gd.getNextNumber() / 100f;
+			mean_factor = ( float )gd.getNextNumber();
 			hide_disconnected = gd.getNextBoolean();
 			remove_disconnected = gd.getNextBoolean();
 
@@ -842,7 +845,7 @@ public class StitchingTEM {
 			}
 			
 			/* remove the worst if there is one */
-			if ( e.max > 3 * e.mean )
+			if ( e.max > param.mean_factor * e.mean )
 			{
 A:				for ( final AbstractAffineTile2D< ? > t : tiles )
 				{
