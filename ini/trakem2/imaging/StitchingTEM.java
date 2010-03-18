@@ -113,7 +113,18 @@ public class StitchingTEM {
 	 * 
 	 * @return A new Bureaucrat Thread, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
-	static public Bureaucrat stitch(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize, final int stitching_rule) {
+	static public Bureaucrat stitch(
+			final Patch[] patch, 
+			final int grid_width, 
+			final float percent_overlap, 
+			final float scale, 
+			final double default_bottom_top_overlap, 
+			final double default_left_right_overlap, 
+			final boolean optimize,
+			final float min_R,
+			final float mean_factor,
+			final int stitching_rule) 
+	{
 		// check preconditions
 		if (null == patch || grid_width < 1 || percent_overlap <= 0) {
 			return null;
@@ -137,7 +148,8 @@ public class StitchingTEM {
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), default_bottom_top_overlap, default_left_right_overlap, optimize);
+				return StitchingTEM.stitchTopLeft(patch, grid_width, percent_overlap, (scale > 1 ? 1 : scale), 
+						default_bottom_top_overlap, default_left_right_overlap, min_R, mean_factor, optimize);
 			case StitchingTEM.FREE_RULE:
 				final HashSet<Patch> hs = new HashSet<Patch>();
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
@@ -147,9 +159,33 @@ public class StitchingTEM {
 		}
 		return null;
 	}
-
-	static private Bureaucrat stitchTopLeft(final Patch[] patch, final int grid_width, final float percent_overlap, final float scale, final double default_bottom_top_overlap, final double default_left_right_overlap, final boolean optimize) {
-		final Worker worker = new Worker("Stitching") {
+	/**
+	 * Stitch array of patches with upper left rule
+	 * 
+	 * @param patch
+	 * @param grid_width
+	 * @param percent_overlap
+	 * @param scale
+	 * @param default_bottom_top_overlap
+	 * @param default_left_right_overlap
+	 * @param min_R
+	 * @param mean_factor
+	 * @param optimize
+	 * @return
+	 */
+	static private Bureaucrat stitchTopLeft(
+			final Patch[] patch, 
+			final int grid_width, 
+			final float percent_overlap, 
+			final float scale, 
+			final double default_bottom_top_overlap, 
+			final double default_left_right_overlap, 
+			final float min_R, 
+			final float mean_factor, 
+			final boolean optimize) 
+	{
+		final Worker worker = new Worker("Stitching") 
+		{
 			public void run() {
 				startedWorking();
 
@@ -162,8 +198,6 @@ public class StitchingTEM {
 			double[] R1=null,
 				 R2=null;
 
-			// for scoring phase- and cross-correlation
-			final float min_R = patch[0].getProject().getProperty("min_R", DEFAULT_MIN_R);
 
 			// for minimization:
 			ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
@@ -322,9 +356,14 @@ public class StitchingTEM {
 
 				ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
 				al_fixed_tiles.add(al_tiles.get(0));
-				Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
-				Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
-
+				
+				//Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
+				//Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
+				PhaseCorrelationParam param = new PhaseCorrelationParam(scale, percent_overlap, 
+						false, false, mean_factor, min_R);
+				optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
+				
+				
 				for ( AbstractAffineTile2D< ? > t : al_tiles )
 					t.getPatch().setAffineTransform( t.getModel().createAffine() );
 
@@ -842,6 +881,20 @@ public class StitchingTEM {
 			}
 		}
 
+		// Optimize tile configuration by removing bad matches
+		optimizeTileConfiguration(tiles, fixed_tiles, param);
+
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+
+		try { Display.repaint(al.get(0).getLayer()); } catch (Exception e) {}
+	}
+	
+	public static void optimizeTileConfiguration(
+			ArrayList<AbstractAffineTile2D<?>> tiles,
+			ArrayList<AbstractAffineTile2D<?>> fixed_tiles,
+			PhaseCorrelationParam param)
+	{
 		// Run optimization
 		if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
 		// with default parameters
@@ -885,10 +938,6 @@ A:				for ( final AbstractAffineTile2D< ? > t : tiles )
 			else	
 				proceed = false;
 		}
-
-		for ( AbstractAffineTile2D< ? > t : tiles )
-			t.getPatch().setAffineTransform( t.getModel().createAffine() );
-
-		try { Display.repaint(al.get(0).getLayer()); } catch (Exception e) {}
 	}
+	
 }
