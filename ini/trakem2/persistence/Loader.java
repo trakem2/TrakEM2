@@ -1552,10 +1552,12 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 2); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 2);
 		gd.addCheckbox("link images", false);
-		gd.addCheckbox("registration", true);
-		StitchingTEM.addStitchingRuleChoice(gd);
+		gd.addCheckbox("montage", true);
+		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, getCCScaleGuess(images_dir, all_images));
+		gd.addNumericField("regression threshold (R):", 0.30, 2);
+		gd.addNumericField( "max/avg displacement threshold: ", 2.5, 2 );
 		gd.addCheckbox("homogenize_contrast", false);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1596,6 +1598,8 @@ abstract public class Loader {
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		final float cc_scale = (float)gd.getNextNumber() / 100f;
+		final float min_R = (float) gd.getNextNumber(); 
+		final float mean_factor = ( float )gd.getNextNumber();
 		final boolean homogenize_contrast = gd.getNextBoolean();
 		final int stitching_rule = gd.getNextChoiceIndex();
 		//boolean apply_non_linear_def = gd.getNextBoolean();
@@ -1681,7 +1685,8 @@ abstract public class Loader {
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
 
-					Bureaucrat b = insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+					Bureaucrat b = insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
+							link_images, stitch_tiles, cc_percent_overlap, cc_scale, min_R, mean_factor, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 					try {
 						b.join();
 					} catch (InterruptedException ie) {
@@ -1734,10 +1739,13 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 3); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 3);
 		gd.addCheckbox("link_images", false);
-		gd.addCheckbox("registration", false);
-		StitchingTEM.addStitchingRuleChoice(gd);
+		gd.addCheckbox("montage", false);
+		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		
 		gd.addSlider("tile_overlap (%): ", 1, 100, 10);
 		gd.addSlider("cc_scale (%):", 1, 100, 25);
+		gd.addNumericField("regression threshold (R):", 0.30, 2);
+		gd.addNumericField( "max/avg displacement threshold: ", 2.5, 2 );
 		gd.addCheckbox("homogenize_contrast", true);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1773,6 +1781,8 @@ abstract public class Loader {
 		boolean stitch_tiles = gd.getNextBoolean();
 		float cc_percent_overlap = (float)gd.getNextNumber() / 100f;
 		float cc_scale = (float)gd.getNextNumber() / 100f;
+		final float min_R = (float) gd.getNextNumber(); 
+		final float mean_factor = ( float )gd.getNextNumber();
 		boolean homogenize_contrast = gd.getNextBoolean();
 		int stitching_rule = gd.getNextChoiceIndex();
 		//boolean apply_non_linear_def = gd.getNextBoolean();
@@ -1806,7 +1816,9 @@ abstract public class Loader {
 		Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
 		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, 
+				lr_overlap, link_images, stitch_tiles, cc_percent_overlap, cc_scale, 
+				min_R, mean_factor, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1815,16 +1827,43 @@ abstract public class Loader {
 	}
 
 	/**
+	 * Insert grid in layer (with optional stitching)
+	 * 
 	 * @param layer The Layer to inser the grid into
 	 * @param dir The base dir of the images to open
+	 * @param first_image_name name of the first image in the list
 	 * @param cols The list of columns, containing each an array of String file names in each column.
 	 * @param bx The top-left X coordinate of the grid to insert
 	 * @param by The top-left Y coordinate of the grid to insert
 	 * @param bt_overlap bottom-top overlap of the images
 	 * @param lr_overlap left-right overlap of the images
-	 * @param link_images Link images to their neighbors.
+	 * @param link_images Link images to their neighbors
+	 * @param stitch_tiles montage option
+	 * @param cc_percent_overlap tiles overlap
+	 * @param cc_scale tiles scaling previous to stitching (1 = no scaling)
+	 * @param min_R regression threshold (minimum acceptable R)
+	 * @param homogenize_contrast contrast homogenization option
+	 * @param stitching_rule stitching rule (upper left corner or free)
 	 */
-	private Bureaucrat insertGrid(final Layer layer, final String dir_, final String first_image_name, final int n_images, final ArrayList cols, final double bx, final double by, final double bt_overlap, final double lr_overlap, final boolean link_images, final boolean stitch_tiles, final float cc_percent_overlap, final float cc_scale, final boolean homogenize_contrast, final int stitching_rule/*, final boolean apply_non_linear_def*/) {
+	private Bureaucrat insertGrid(
+			final Layer layer, 
+			final String dir_, 
+			final String first_image_name, 
+			final int n_images, 
+			final ArrayList<String[]> cols, 
+			final double bx, 
+			final double by, 
+			final double bt_overlap, 
+			final double lr_overlap, 
+			final boolean link_images, 
+			final boolean stitch_tiles, 
+			final float cc_percent_overlap, 
+			final float cc_scale,
+			final float min_R,
+			final float mean_factor,
+			final boolean homogenize_contrast, 
+			final int stitching_rule/*, final boolean apply_non_linear_def*/) 
+	{
 
 		// create a Worker, then give it to the Bureaucrat
 
