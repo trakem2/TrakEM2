@@ -24,7 +24,6 @@ package ini.trakem2.imaging;
 
 import ij.gui.Roi;
 import ij.process.ImageProcessor;
-import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 
@@ -94,10 +93,9 @@ public class StitchingTEM {
 
 	static public final float DEFAULT_MIN_R = 0.4f;
 
-	static public void addStitchingRuleChoice(GenericDialog gd) {
-		final String[] rules = new String[]{"Top left", "Free"};
-		gd.addChoice("stitching_rule: ", rules, rules[0]);
-	}
+	/** available stitching rules */
+	public static final String[] rules = new String[]{"Top left", "Free"};
+		
 
 	/** Returns the same Patch instances with their coordinates modified; the top-left image is assumed to be the first one, and thus serves as reference; so, after the first image, coordinates are ignored for each specific Patch.
 	 *
@@ -368,7 +366,6 @@ public class StitchingTEM {
 	// TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
 	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean ignore_patch_transform) {
 		
-		Utils.log2("in makeStripe ");
 		
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
@@ -407,7 +404,7 @@ public class StitchingTEM {
 					ip = ip.crop();
 				}
 			}
-			Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
+			//Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
 		} else {
 			
 			
@@ -416,14 +413,6 @@ public class StitchingTEM {
 			
 			ip = pai.target;
 			imp = new ImagePlus("", ip);
-			//IJ.run(imp, "Enhance Contrast", "saturated=0.1 normalize");
-			//ip = imp.getProcessor();
-			
-			//imp.show();
-			
-			//imp = loader.fetchImagePlus(p);
-			//ip = imp.getProcessor();
-			
 			
 			
 			// compare and adjust
@@ -450,7 +439,7 @@ public class StitchingTEM {
 			}
 		}
 
-		Utils.log2("makeStripe: w,h " + ip.getWidth() + ", " + ip.getHeight());
+		//Utils.log2("makeStripe: w,h " + ip.getWidth() + ", " + ip.getHeight());
 
 		// return a FloatProcessor
 		if (imp.getType() != ImagePlus.GRAY32) return ip.convertToFloat();
@@ -636,7 +625,7 @@ public class StitchingTEM {
 	}
 
 	/** For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
-	 *  then consider all succesful correlations as links and run the optimizer on it all.
+	 *  then consider all successful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
 	static public Bureaucrat montageWithPhaseCorrelation(final Collection<Patch> col) {
 		if (null == col || col.size() < 1) return null;
@@ -675,16 +664,47 @@ public class StitchingTEM {
 		}, layers.get(0).getProject());
 	}
 
-	static public class PhaseCorrelationParam {
+	/**
+	 * Phase correlation parameters class
+	 * 
+	 */
+	static public class PhaseCorrelationParam 
+	{
 		public float cc_scale = 0.25f;
 		public float overlap = 0.1f;
 		public boolean hide_disconnected = false;
 		public boolean remove_disconnected = false;
 		public float mean_factor = 2.5f;
+		public float min_R = 0.3f;
 
-		/** Returns false when canceled.
-		 *  @param ref is an optional Patch from which to estimate an appropriate image scale at which to perform the phase correlation, for performance reasons. */
-		public boolean setup(Patch ref) {
+		public PhaseCorrelationParam(
+				float cc_scale,
+				float overlap,
+				boolean hide_disconnected,
+				boolean remove_disconnected,
+				float mean_factor,
+				float min_R)
+		{
+			this.cc_scale = cc_scale;
+			this.overlap = overlap;
+			this.hide_disconnected = hide_disconnected;
+			this.remove_disconnected = remove_disconnected;
+			this.mean_factor = mean_factor;
+			this.min_R = min_R;
+		}
+		
+		/** 
+		 * Empty constructor
+		 */
+		public PhaseCorrelationParam() {}
+
+		/** 
+		 * Returns false when canceled.
+		 * @param ref is an optional Patch from which to estimate an appropriate image scale 
+		 * 			at which to perform the phase correlation, for performance reasons. 
+		 * */
+		public boolean setup(Patch ref) 
+		{
 			GenericDialog gd = new GenericDialog("Montage with phase correlation");
 			if (overlap < 0) overlap = 0.1f;
 			else if (overlap > 1) overlap = 1;
@@ -748,7 +768,7 @@ public class StitchingTEM {
 			overlap = 1;
 		}
 
-		final float min_R = al.get(0).getProject().getProperty("min_R", DEFAULT_MIN_R);
+		
 
 		for (int i=0; i<al.size(); i++) {
 			final Patch p1 = al.get(i);
@@ -772,32 +792,32 @@ public class StitchingTEM {
 
 					final double[] R;
 					if (1 == overlap) {
-						R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+						R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, param.min_R );
 						if (SUCCESS == R[2]) {
 							addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
 						}
 					} else {
 						switch (getClosestOverlapLocation(p1, p2)) {
 							case 0: // p1 overlaps p2 from the left
-								R = correlate(p1, p2, overlap, cc_scale, LEFT_RIGHT, 0, 0, min_R);
+								R = correlate(p1, p2, overlap, cc_scale, LEFT_RIGHT, 0, 0, param.min_R);
 								if (SUCCESS == R[2]) {
 									addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
 								}
 								break;
 							case 1: // p1 overlaps p2 from the top
-								R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+								R = correlate(p1, p2, overlap, cc_scale, TOP_BOTTOM, 0, 0, param.min_R);
 								if (SUCCESS == R[2]) {
 									addMatches(tiles.get(i), tiles.get(j), R[0], R[1]);
 								}
 								break;
 							case 2: // p1 overlaps p2 from the right
-								R = correlate(p2, p1, overlap, cc_scale, LEFT_RIGHT, 0, 0, min_R);
+								R = correlate(p2, p1, overlap, cc_scale, LEFT_RIGHT, 0, 0, param.min_R);
 								if (SUCCESS == R[2]) {
 									addMatches(tiles.get(j), tiles.get(i), R[0], R[1]);
 								}
 								break;
 							case 3: // p1 overlaps p2 from the bottom
-								R = correlate(p2, p1, overlap, cc_scale, TOP_BOTTOM, 0, 0, min_R);
+								R = correlate(p2, p1, overlap, cc_scale, TOP_BOTTOM, 0, 0, param.min_R);
 								if (SUCCESS == R[2]) {
 									addMatches(tiles.get(j), tiles.get(i), R[0], R[1]);
 								}
