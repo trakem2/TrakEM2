@@ -181,13 +181,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			// Determine which layers to paint
 			final Set<Node> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
-				Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
-				Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
-				g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-				Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
-				g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-
 				// Clear transform and stroke
 				gt = g.getTransform();
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
@@ -209,10 +202,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					}
 					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
-
-				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, antialias);
-				g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, text_antialias);
-				g.setRenderingHint(RenderingHints.KEY_RENDERING, render_quality);
 			}
 		}
 
@@ -282,6 +271,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		// TODO
 	}
 
+	@Override
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		if (null == root) return false;
 		synchronized (node_layer_map) {
@@ -293,7 +283,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					final double z = e.getKey().getZ();
 					if (z >= z_first && z <= z_last) {
 						for (final Node nd : e.getValue()) {
-							if (a.contains(nd.x, nd.y)) return true;
+							if (nd.intersects(a)) return true;
 						}
 					}
 				}
@@ -568,14 +558,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		final Node root;
 		DPTree(final Tree t) {
 			super(t);
-			this.root = null == t.root ? null : t.root.clone();
+			this.root = null == t.root ? null : t.root.clone(t.project);
 		}
 		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Tree t = (Tree)d;
 			if (null != this.root) {
-				t.root = this.root.clone();
+				t.root = this.root.clone(t.project);
 				t.clearCache();
 				t.cacheSubtree(t.root.getSubtreeNodes());
 				t.updateView();
@@ -667,10 +657,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return null;
 	}
 
-	private void cacheSubtree(final Collection<Node> nodes) {
+	protected void cacheSubtree(final Collection<Node> nodes) {
 		cache(nodes, end_nodes, node_layer_map);
 	}
-	private void clearCache() {
+	protected void clearCache() {
 		end_nodes.clear();
 		node_layer_map.clear();
 		setLastAdded(null);
@@ -1268,6 +1258,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		if (nd == last_edited) last_edited = null;
 		if (nd == last_visited) last_visited = null;
 		removeFromLinkLater(nd);
+	}
+
+	protected void clearState() {
+		// clear:
+		marked = last_added = last_edited = last_visited = null;
 	}
 
 	/** The Node double-clicked on, for join operations. */
@@ -2261,6 +2256,77 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 			calculateBoundingBox();
 		}
+		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		final ArrayList<Long> ids = new ArrayList<Long>();
+		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
+		return ids;
+	}
+
+	/** Returns an empty area when there aren't any nodes in @param layer. */
+	@Override
+	public Area getAreaAt(final Layer layer) {
+		synchronized (node_layer_map) {
+			final Area a = new Area();
+			final Set<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes) return a; // empty
+			for (final Node nd : nodes) a.add(nd.getArea()); // all local
+			a.transform(this.at);
+			return a;
+		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest. */
+	@Override
+	synchronized public boolean crop(List<Layer> range) {
+		// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
+		final HashSet<Layer> keep = new HashSet<Layer>(range);
+		for (final Iterator<Map.Entry<Layer,Set<Node>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
+			final Map.Entry<Layer,Set<Node>> e = it.next();
+			if (keep.contains(e.getKey())) continue;
+			else {
+				// Else, remove the set of nodes for that layer
+				it.remove();
+				// ... and remove all nodes from their parents, merging their children
+				for (final Node nd : e.getValue()) {
+					// if end node, just remove it from its parent
+					if (null == nd.parent) {
+						// The current root:
+						if (null == nd.children) {
+							this.root = null;
+							continue; // a tree of 1 node
+						} else {
+							// First child as new root:
+							nd.children[0].parent = null; // the new root
+							this.root = nd.children[0];
+							// ... and gets any other children of the root
+							for (int i=1; i<nd.children.length; i++) {
+								nd.children[i].parent = null;
+								nd.children[0].add(nd.children[i], nd.confidence[i]);
+							}
+						}
+					} else {
+						// Remove from its parent
+						nd.parent.remove(nd);
+						// ... and handle its children:
+						if (null == nd.children) {
+							// An end point
+							continue;
+						} else {
+							// Else, add all its children to its parent
+							for (int i=0; i<nd.children.length; i++) {
+								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
+								nd.parent.add(nd.children[i], nd.confidence[i]);
+							}
+						}
+					}
+				}
+			}
+		}
+		clearState();
 		return true;
 	}
 }

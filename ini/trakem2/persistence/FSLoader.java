@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
@@ -337,6 +338,7 @@ public final class FSLoader extends Loader {
 		if (null == repainter || repainter.isShutdown()) {
 			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
 		}
+		if (null == autosaver || autosaver.isShutdown()) autosaver = Executors.newScheduledThreadPool(1);
 	}
 
 	/** Shutdown the various thread pools and disactivate services in general. */
@@ -344,6 +346,7 @@ public final class FSLoader extends Loader {
 		if (null != regenerator) regenerator.shutdownNow();
 		if (null != remover) remover.shutdownNow();
 		if (null != repainter) repainter.shutdownNow();
+		if (null != autosaver) autosaver.shutdownNow();
 	}
 
 	public void destroy() {
@@ -1055,6 +1058,7 @@ public final class FSLoader extends Loader {
 			touched_mipmaps.clear();
 		}
 		ControlWindow.updateTitle(project);
+		Display.updateTitle(project);
 		return path;
 	}
 
@@ -2350,6 +2354,9 @@ public final class FSLoader extends Loader {
 	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
 	public Future<Boolean> removeMipMaps(final Patch p) {
 		if (null == dir_mipmaps) return null;
+		// cache values before they are changed:
+		final int width = (int)p.getWidth();
+		final int height = (int)p.getHeight();
 		return remover.submit(new Callable<Boolean>() {
 			public Boolean call() {
 				try {
@@ -2359,8 +2366,6 @@ public final class FSLoader extends Loader {
 						Utils.log2("Remover: null path for Patch " + p);
 						return false;
 					}
-					final int width = (int)p.getWidth();
-					final int height = (int)p.getHeight();
 					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(".jpg").toString();
 					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
 					flushMipMaps(p.getId());
@@ -2535,6 +2540,7 @@ public final class FSLoader extends Loader {
 	static private ExecutorService regenerator = null;
 	static private ExecutorService remover = null;
 	static public ExecutorService repainter = null;
+	static public ScheduledExecutorService autosaver = null;
 
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns a Future if the task was submitted, null if not. */

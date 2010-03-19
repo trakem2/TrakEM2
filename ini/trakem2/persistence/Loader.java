@@ -3552,12 +3552,30 @@ while (it.hasNext()) {
 			if (export_images) {
 				patches_dir = makePatchesDir(fxml);
 			}
-			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(fxml)), "8859_1");
+			// Write first to a tmp file, then remove the existing XML and move the tmp to that name
+			// In this way, if there is an error while writing, the existing XML is not destroyed.
+			final File ftmp = new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
+			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(ftmp)), "8859_1");
 			try {
 				writer.write(sb_header.toString());
 				sb_header = null;
 				project.exportXML(writer, "", patches_dir);
 				writer.flush(); // make sure all buffered chars are written
+				// On success, rename .xml.tmp to .xml
+				if (fxml.exists()) {
+					if (!fxml.delete()) {
+						Utils.logAll("ERROR: could not delete existing XML file!");
+						return null;
+					}
+					if (!ftmp.renameTo(fxml)) {
+						Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+						return null;
+					}
+				} else if (!ftmp.renameTo(fxml)) {
+					Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+					return null;
+				}
+				// On successful renaming, then:
 				setChanged(false);
 				path = fxml.getAbsolutePath().replace('\\', '/');
 			} catch (Exception e) {

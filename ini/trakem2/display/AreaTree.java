@@ -77,8 +77,9 @@ public class AreaTree extends Tree implements AreaContainer {
 	public AreaTree clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		AreaTree art =  new AreaTree(pr, nid, title, width, height, alpha, visible, color, locked, at);
-		art.root = this.root.clone();
+		art.root = null == this.root ? null : this.root.clone(pr);
 		art.addToDatabase();
+		if (null != art.root) art.cacheSubtree(art.root.getSubtreeNodes());
 		return art;
 	}
 
@@ -115,6 +116,16 @@ public class AreaTree extends Tree implements AreaContainer {
 		public final synchronized Area getDataCopy() {
 			if (null == this.aw) return null;
 			return new Area(this.aw.getArea());
+		}
+
+		/** Return Area in local coords. The area includes a little square for the point, always. */
+		@Override
+		public final Area getArea() {
+			if (null == this.aw) return super.getArea(); // a little square labeling this point
+			Area a = this.aw.getArea();
+			if (a.isEmpty()) return super.getArea();
+			a.add(super.getArea()); // ensure the point is part of the Area always
+			return a;
 		}
 
 		@Override

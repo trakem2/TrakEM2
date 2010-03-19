@@ -164,6 +164,7 @@ public final class TemplateThing extends DBObject implements Thing {
 				}
 			}
 			// TODO should change to use a Map<String,TemplateThing>.
+			// but then there wouldn't be a sequential order.
 		}
 		//Utils.log2("Added child of type " + ((TemplateThing)child).type);
 		al_children.add(child);
@@ -314,7 +315,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children. */
-	public ArrayList collectAllChildren(ArrayList al) {
+	public ArrayList collectAllChildren(final ArrayList al) {
 		if (null == al_children) return al;
 		al.addAll(al_children);
 		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
@@ -559,14 +560,14 @@ public final class TemplateThing extends DBObject implements Thing {
 		// clone attributes
 		if (null != ht_attributes) {
 			copy.ht_attributes = new HashMap();
-			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = it.next();
+			for (final Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry entry = it.next();
 				copy.ht_attributes.put(entry.getKey(), ((TemplateAttribute)entry.getValue()).clone(pr, copy_id)); // String is a final class ... again, not turtles all the way down.
 			}
 		}
 		// clone children
 		if (null == al_children) return copy;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+		for (final Iterator it = al_children.iterator(); it.hasNext(); ) {
 			copy.addChild(((TemplateThing)it.next()).clone(pr, copy_id));
 		}
 		return copy;

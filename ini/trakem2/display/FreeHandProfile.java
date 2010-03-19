@@ -228,6 +228,7 @@ public class FreeHandProfile {
 		}
 		// update x,y,width,height
 		profile.calculateBoundingBox(true);
+		profile.repaint(false);
 	}
 
 	private void smoothBezierPoint(int i) {

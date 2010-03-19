@@ -143,25 +143,27 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		if (null != aw) {
-			aw.paint(g, this.at, fill_paint, this.color);
-		} else {
-			Object ob = ht_areas.get(new Long(active_layer.getId()));
-			if (null == ob) return;
-			if (AreaList.UNLOADED == ob) {
-				ob = loadLayer(active_layer.getId());
+		try {
+			if (null != aw) {
+				aw.paint(g, this.at, fill_paint, this.color);
+			} else {
+				Object ob = ht_areas.get(new Long(active_layer.getId()));
 				if (null == ob) return;
+				if (AreaList.UNLOADED == ob) {
+					ob = loadLayer(active_layer.getId());
+					if (null == ob) return;
+				}
+				final Area area = (Area)ob;
+				g.setColor(this.color);
+
+				if (fill_paint) g.fill(area.createTransformedArea(this.at));
+				else 		g.draw(area.createTransformedArea(this.at));  // the contour only
 			}
-			final Area area = (Area)ob;
-			g.setColor(this.color);
-
-			if (fill_paint) g.fill(area.createTransformedArea(this.at));
-			else 		g.draw(area.createTransformedArea(this.at));  // the contour only
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
+		} finally {
+			//Transparency: fix alpha composite back to original.
+			if (null != original_composite) {
+				g.setComposite(original_composite);
+			}
 		}
 	}
 
@@ -1449,6 +1451,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Area a = getArea(vdt.layer);
 		if (null == a) return true;
 		M.apply(vdt.makeLocalTo(this), a);
+		calculateBoundingBox();
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return new ArrayList<Long>((Collection<Long>)ht_areas.keySet());
 	}
 }

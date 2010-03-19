@@ -46,11 +46,13 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Shape;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -922,7 +924,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		*/
 	}
 
-	/** The exact perimeter of this pipe, in integer precision. */
+	/** The exact perimeter of this polyline, in integer precision. */
 	synchronized public Polygon getPerimeter() {
 		if (null == p || p[0].length < 2) return new Polygon();
 
@@ -941,6 +943,18 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			y[i] = (int)p[1][i];
 		}
 		return new Polygon(x, y, n_points);
+	}
+
+	/** A little square for each pixel in @param layer.*/
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != layer.getId()) continue;
+			a.add(new Area(new Rectangle2D.Float((float)p[0][i], (float)p[1][i], 1, 1)));
+		}
+		a.transform(this.at);
+		return a;
 	}
 
 	public boolean isDeletable() {
@@ -1482,5 +1496,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return Utils.asList(p_layer, 0, n_points);
 	}
 }

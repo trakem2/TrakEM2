@@ -66,6 +66,8 @@ import java.awt.Rectangle;
 import javax.swing.UIManager;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ScheduledFuture;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 
@@ -259,6 +261,25 @@ public class Project extends DBObject {
 		super(null, id);
 		this.title = title;
 		this.project = this;
+	}
+
+	private ScheduledFuture autosaving = null;
+
+	private void restartAutosaving() {
+		// cancel current autosaving if it's running
+		if (null != autosaving) try {
+			autosaving.cancel(true);
+		} catch (Throwable t) { IJError.print(t); }
+		//
+		final int interval_in_minutes = getProperty("autosaving_interval", 0);
+		final int interval_in_seconds = interval_in_minutes * 60;
+		if (0 == interval_in_minutes) return;
+		// else, relaunch
+		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
+			public void run() {
+				save();
+			}
+		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
 	}
 
 	static public Project getProject(final String title) {
@@ -470,6 +491,8 @@ public class Project extends DBObject {
 				loader.importStack(project.layer_set.getLayer(0), null, true);
 			}
 
+			project.restartAutosaving();
+
 			return project;
 		} catch (Exception e) {
 			IJError.print(e);
@@ -582,6 +605,9 @@ public class Project extends DBObject {
 				Display.createDisplay(project, project.layer_set.getLayer(0));
 			}
 		}
+		
+		project.restartAutosaving();
+
 		return project;
 	}
 
@@ -687,6 +713,9 @@ public class Project extends DBObject {
 				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
 			}
 		}
+		try {
+			if (null != autosaving) autosaving.cancel(true);
+		} catch (Throwable t) {}
 		al_open_projects.remove(this);
 		// flush all memory
 		if (null != loader) { // the last project is destroyed twice for some reason, if several are open. This is a PATCH
@@ -1245,6 +1274,8 @@ public class Project extends DBObject {
 			// Regenerate mipmaps (blocks GUI from interaction other than navigation)
 			pr.loader.regenerateMipMaps(pr.layer_set.getDisplayables(Patch.class));
 
+			pr.restartAutosaving();
+
 			return pr;
 
 		} catch (Exception e) { e.printStackTrace(); }
@@ -1341,7 +1372,7 @@ public class Project extends DBObject {
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
 		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
 		int bucket_side = (int)getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
-		gd.addNumericField("Bucket side length: ", bucket_side, 0);
+		gd.addNumericField("Bucket side length: ", bucket_side, 0, 6, "pixels");
 		boolean no_shutdown_hook = "true".equals(ht_props.get("no_shutdown_hook"));
 		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
 		int n_undo_steps = getProperty("n_undo_steps", 32);
@@ -1349,7 +1380,9 @@ public class Project extends DBObject {
 		boolean flood_fill_to_image_edge = "true".equals(ht_props.get("flood_fill_to_image_edge"));
 		gd.addCheckbox("AreaList_flood_fill_to_image_edges", flood_fill_to_image_edge);
 		int look_ahead_cache = (int)getProperty("look_ahead_cache", 0);
-		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0);
+		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0, 6, "layers");
+		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
+		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
 		//
 		gd.showDialog();
 		//
@@ -1396,6 +1429,15 @@ public class Project extends DBObject {
 			Utils.logAll("WARNING: look-ahead cache is incomplete.\n  Expect issues when editing objects, adding new ones, and the like.\n  Use \"Project - Flush image cache\" to fix any lack of refreshing issues you encounter.");
 		} else {
 			Utils.log2("Ignoring invalid 'look ahead cache' value " + d_look_ahead_cache);
+		}
+		double autosaving_interval2 = gd.getNextNumber();
+		if (((int)(autosaving_interval2)) == autosaving_interval) {
+			// do nothing
+		} else if (autosaving_interval2 < 0 || Double.isNaN(autosaving_interval)) {
+			Utils.log("IGNORING invalid autosaving interval: " + autosaving_interval2);
+		} else {
+			setProperty("autosaving_interval", Integer.toString((int)autosaving_interval2));
+			restartAutosaving();
 		}
 	}
 

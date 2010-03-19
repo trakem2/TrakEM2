@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.HashSet;
+import java.util.HashMap;
 
 import marchingcubes.MCTriangulator;
 import isosurface.Triangulator;
@@ -286,4 +287,139 @@ public final class AreaUtils {
 		return st;
 	}
 
+	/** Extracts all non-background areas. */
+	static public final Map<Float,Area> extractAreas(final ImageProcessor ip) {
+		return extractAreas(ip, null, false, null, Thread.currentThread(), false);
+	}
+
+	/** Scan line-wise for all areas, returning a Map of area pixel values in @param ip vs. Area instances.
+	 *  If @param map_ is not null, it puts the areas there and returns it.
+	 *  If @param box_ is not null, it uses it as the unit pixel area. To make any sense, it must be setup as Rectangle(0,0,1,1).
+	 *  If @param report is true, it will report progress every 100 lines. */
+	static public final Map<Float,Area> extractAreas(final ImageProcessor ip, final HashMap<Float,Area> map_, final boolean add_background, final Rectangle box_, final Thread parent, final boolean report) {
+		final int height = ip.getHeight();
+		final int width = ip.getWidth();
+		int inc = height / 100;
+		if (inc < 10) inc = 10;
+
+		final Map<Float,Area> map = null == map_ ? new HashMap<Float,Area>() : map_;
+		final Rectangle box = null == box_ ? new Rectangle(0, 0, 1, 1) : box_;
+
+		for (int y=0; y<height; y++) {
+			if (0 == y % inc) {
+				if (parent.isInterrupted()) return map;
+				if (report) Utils.showStatus(new StringBuilder().append("line: ").append(y).append('/').append(height).toString());
+			}
+
+			float prev = ip.getPixelValue(0, y);
+			box.x = 0;
+			box.y = y;
+			box.width = 0;
+
+			for (int x=1; x<width; x++) {
+
+				float pix = ip.getPixelValue(x, y);
+
+				if (pix == prev) {
+					box.width++;
+					continue;
+				} else {
+					// add previous one
+					if (!Float.isNaN(prev) && (add_background || 0 != prev)) {
+						box.width++;
+						Area area = map.get(new Float(prev));
+						if (null == area) {
+							area = new Area(box);
+							map.put(new Float(prev), area);
+						} else {
+							area.add(new Area(box));
+						}
+					}
+					// start new box
+					box.x = x;
+					box.y = y;
+					box.width = 0;
+					prev = pix;
+				}
+			}
+
+			// At end of line, add the last
+			if (!Float.isNaN(prev) && (add_background || 0 != prev)) {
+				Area area = map.get(new Float(prev));
+				if (null == area) {
+					area = new Area(box);
+					map.put(new Float(prev), area);
+				} else {
+					area.add(new Area(box));
+				}
+			}
+		}
+
+		return map;
+	}
+
+	/** Extract the Area of the image for the given pixel value.
+	 *  ThresholdToSelection is way faster than this, just use it. */
+	static public final Area extractArea(final ImageProcessor ip, final float val) {
+		final int height = ip.getHeight();
+		final int width = ip.getWidth();
+
+		final Area area = new Area();
+		final ArrayList<Area> segments = new ArrayList<Area>();
+		final Rectangle box = new Rectangle(0, 0, 1, 1);
+		int inc = 50;
+
+		for (int y=0; y<height; y++) {
+			float prev = ip.getPixelValue(0, y);
+			box.x = 0;
+			box.y = y;
+			box.width = val == prev ? 1 : 0;
+
+			if (0 == y % 50) Utils.log("Done up to " + y);
+
+			for (int x=1; x<width; x++) {
+
+				float pix = ip.getPixelValue(x, y);
+
+				if (pix == val) {
+					if (prev == val) {
+						box.width++;
+						continue;
+					} else {
+						// start box
+						box.x = x;
+						prev = pix;
+						box.width = 1;
+						continue;
+					}
+				} else if (box.width > 0) {
+					// break current box and add it
+					segments.add(new Area(box));
+					// Reset
+					box.x = x;
+					box.width = 0;
+				}
+			}
+
+			// At end of line, add the last
+			if (box.width > 0) segments.add(new Area(box));
+
+			if (segments.size() > 32) {
+				final Area a = new Area(segments.get(0));
+				for (int i=segments.size()-1; i>0; i--) a.add(segments.get(i));
+				area.add(a);
+				segments.clear();
+			}
+		}
+
+		if (segments.size() > 0) {
+			final Area a = new Area(segments.get(0));
+			for (int i=segments.size()-1; i>0; i--) a.add(segments.get(i));
+			area.add(a);
+		}
+
+		Utils.log2("Done!");
+
+		return area;
+	}
 }

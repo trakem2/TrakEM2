@@ -561,9 +561,9 @@ public class Connector extends ZDisplayable implements VectorData {
 	public Connector clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		Connector copy = new Connector(pr, nid, title, this.alpha, true, this.color, this.locked, this.at);
-		copy.lids = this.lids.clone();
-		copy.p = this.p.clone();
-		copy.radius = this.radius.clone();
+		copy.lids = null == this.lids ? null : this.lids.clone();
+		copy.p = null == this.p ? null : this.p.clone();
+		copy.radius = null == this.radius ? null : this.radius.clone();
 		return copy;
 	}
 
@@ -749,5 +749,22 @@ public class Connector extends ZDisplayable implements VectorData {
 		}
 		calculateBoundingBox();
 		return true;
+	}
+
+	@Override
+	public Collection<Long> getLayerIds() {
+		return Utils.asList(lids);
+	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		if (null == lids) return a;
+		for (int i=0; i<lids.length; i++) {
+			if (lids[i] != layer.getId()) continue;
+			a.add(new Area(new Ellipse2D.Float(p[i+i] - radius[i], p[i+i+1] - radius[i], radius[i], radius[i])));
+		}
+		a.transform(this.at);
+		return a;
 	}
 }

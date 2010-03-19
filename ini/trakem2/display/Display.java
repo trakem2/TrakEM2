@@ -387,6 +387,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	static final public void clearColumnScreenshots(final LayerSet ls) {
+		for (final Display d : al_displays) {
+			if (d.layer.getParent() == ls) d.clearColumnScreenshots();
+		}
+	}
+
+	final public void clearColumnScreenshots() {
+		getLayerSet().clearScreenshots();
+	}
+
 	/** Only for DefaultMode. */
 	final private void createColumnScreenshots() {
 		final int n;
@@ -2592,15 +2602,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		JMenu bytype = new JMenu("Select all by type");
 		item = new JMenuItem("AreaList"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Ball"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Connector"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Dissector"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Image"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 
 		item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
@@ -2882,6 +2893,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			try {
 				String type = command;
 				if (type.equals("Image")) type = "Patch";
+				else if (type.equals("Text")) type = "DLabel";
 				Class c = Class.forName("ini.trakem2.display." + type);
 
 				java.util.List<Displayable> a = new ArrayList<Displayable>();
@@ -3024,17 +3036,18 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Update the Display's title in all Displays showing the given Layer. */
 	static public void updateTitle(final Layer layer) {
 		for (final Display d : al_displays) {
-			if (d.layer == layer) {
-				d.updateFrameTitle();
-			}
+			if (d.layer == layer) d.updateFrameTitle();
+		}
+	}
+	static public void updateTitle(final Project project) {
+		for (final Display d : al_displays) {
+			if (d.project == project) d.updateFrameTitle();
 		}
 	}
 	/** Update the Display's title in all Displays showing a Layer of the given LayerSet. */
 	static public void updateTitle(final LayerSet ls) {
 		for (final Display d : al_displays) {
-			if (d.layer.getParent() == ls) {
-				d.updateFrameTitle();
-			}
+			if (d.layer.getParent() == ls) d.updateFrameTitle(d.layer);
 		}
 	}
 
@@ -4089,6 +4102,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Calibration...")) {
 			try {
 				IJ.run(canvas.getFakeImagePlus(), "Properties...", "");
+				Display.updateTitle(getLayerSet());
 			} catch (RuntimeException re) {
 				Utils.log2("Calibration dialog canceled.");
 			}
@@ -4731,7 +4745,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
 			DisplayablePanel dp = d.ht_panels.get(displ);
-			if (null != dp) dp.updateCheckbox(cb, state);
+			if (null != dp) {
+				dp.updateCheckbox(cb, state);
+			}
 		}
 	}
 	/** Set the checkbox @param cb state to @param state value, for each Displayable. Assumes all Displayable objects belong to one specific project. */
@@ -4742,7 +4758,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (d.getProject() != p) continue;
 			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckbox(cb, state);
+				if (null != dp) {
+					dp.updateCheckbox(cb, state);
+				}
 			}
 		}
 	}
@@ -4754,7 +4772,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (d.getProject() != p) continue;
 			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckbox(cb);
+				if (null != dp) {
+					dp.updateCheckbox(cb);
+				}
 			}
 		}
 	}

@@ -1521,6 +1521,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
+	@Override
 	public Area getArea() {
 		if (hasAlphaMask()) {
 			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:
@@ -1538,7 +1539,7 @@ public final class Patch extends Displayable implements ImageData {
 				// Threshold all non-zero areas of the mask:
 				alpha_mask.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
 				ImagePlus imp = new ImagePlus("", alpha_mask);
-				ThresholdToSelection tts = new ThresholdToSelection();
+				ThresholdToSelection tts = new ThresholdToSelection(); // TODO replace by our much faster method that scans by line, in AmiraImporter
 				tts.setup("", imp);
 				tts.run(alpha_mask);
 				Roi roi = imp.getRoi();
