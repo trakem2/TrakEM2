@@ -1669,9 +1669,6 @@ public class Profile extends Displayable implements VectorData {
 		if (profiles[0].closed) surface += area_first;
 		if (profiles[profiles.length-1].closed) surface += area_last;
 
-		// calibrate surface measurement
-		surface *= Math.pow(cal.pixelWidth, 3);
-
 		// Surface flat: sum of the perimeter lengths times the layer thickness
 		double surface_flat = 0;
 		for (int i=0; i<profiles.length; i++) {
