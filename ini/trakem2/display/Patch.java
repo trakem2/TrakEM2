@@ -1300,11 +1300,11 @@ public final class Patch extends Displayable implements ImageData {
 						//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
 						//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
-						final Area a = M.getArea(roi).createTransformedArea(Patch.this.at.createInverse());
+						final Area a = M.areaInInts(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
 
-						// Fix problems with ShapeRoi: cannot accept negative boundaries; if so, ImageProcessor could not fill(getMask())
+						// Fix problems with ShapeRoi: cannot accept negative boundaries, or sometimes boundaries beyond the image border; if so, ImageProcessor could not fill(getMask())
 						Rectangle ab = a.getBounds();
-						if (ab.x < 0 || ab.y < 0) {
+						if (ab.x < 0 || ab.y < 0 || ab.x + ab.width >= o_width || ab.y + ab.height >= o_height) {
 							// Restrict ROI to within the Patch local bounds:
 							a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
 							ab = a.getBounds();
@@ -1398,7 +1398,7 @@ public final class Patch extends Displayable implements ImageData {
 						}
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 					setAlphaMask(mask);
-					updateMipMaps();
+					updateMipMaps().get(); // wait
 					Display.repaint();
 					} catch (Exception e) {
 						IJError.print(e);
@@ -1521,6 +1521,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
+	@Override
 	public Area getArea() {
 		if (hasAlphaMask()) {
 			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:
@@ -1538,7 +1539,7 @@ public final class Patch extends Displayable implements ImageData {
 				// Threshold all non-zero areas of the mask:
 				alpha_mask.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
 				ImagePlus imp = new ImagePlus("", alpha_mask);
-				ThresholdToSelection tts = new ThresholdToSelection();
+				ThresholdToSelection tts = new ThresholdToSelection(); // TODO replace by our much faster method that scans by line, in AmiraImporter
 				tts.setup("", imp);
 				tts.run(alpha_mask);
 				Roi roi = imp.getRoi();

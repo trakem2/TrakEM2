@@ -801,8 +801,11 @@ public class Selection {
 			}
 			unlock();
 		}
-		Display.repaint(display.getLayer(), box, 10);
-		Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE, b);
+		if (null != display) {
+			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE, b);
+			// after updating checkboxes and clearing screenshots:
+			Display.repaint(display.getLayer(), box, 10);
+		}
 		return col;
 	}
 

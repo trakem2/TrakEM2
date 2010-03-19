@@ -1602,12 +1602,25 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** Returns the argument if this Displayable's AffineTransform is the identity; otherwise returns a new double[][] with all points from @param p transformed according to the AffineTransform. The  double[][] array provided as argument is expected to be of type [2][length], i.e. two arrays describing x and y, and it is left intact.
 	*/
 	public double[][] transformPoints(final double[][] p) {
-		return transformPoints(p, p[0].length);
+		return transformPoints(this.at, p, p[0].length);
+	}
+	protected double[][] transformPoints(final double[][] p, final int length) {
+		return transformPoints(this.at, p, length);
+	}
+	public double[][] transformPoints(final double[][] p, final AffineTransform additional) {
+		return transformPoints(p, p[0].length, additional);
+	}
+	/** Will crop second dimension of the given array at the given length. */
+	final protected double[][] transformPoints(final double[][] p, final int length, final AffineTransform additional) {
+		if (null == additional) return transformPoints(this.at, p, length);
+		final AffineTransform aff = new AffineTransform(this.at);
+		aff.preConcatenate(additional);
+		return transformPoints(aff, p, length);
 	}
 
 	/** Will crop second dimension of the given array at the given length. */
-	protected double[][] transformPoints(final double[][] p, final int length) {
-		if (this.at.isIdentity()) return p;
+	static final protected double[][] transformPoints(final AffineTransform aff, final double[][] p, final int length) {
+		if (aff.isIdentity()) return p;
 		//final int length = p[0].length;
 		final double[] p2a = new double[length * 2];
 		for (int i=0, j=0; i<length; i++, j+=2) {
@@ -1615,7 +1628,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			p2a[j+1] = p[1][i];
 		}
 		final double[] p2b = new double[length * 2];
-		this.at.transform(p2a, 0, p2b, 0, length);
+		aff.transform(p2a, 0, p2b, 0, length);
 		final double[][] p3 = new double[2][length];
 		for (int i=0, j=0; i<length; i++, j+=2) {
 			p3[0][i] = p2b[j];
@@ -1624,12 +1637,24 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return p3;
 	}
 
-	/** Transforms the points represented as X1,Y1,X2,Y2...*/
-	protected double[] transformPoints(final double[] p) {
+	protected double[] transformPoints(final double[] p, final AffineTransform additional) {
+		if (null == additional) return transformPoints(this.at, p);
+		final AffineTransform aff = new AffineTransform(this.at);
+		aff.preConcatenate(additional);
+		return transformPoints(aff, p);
+	}
+
+	static protected double[] transformPoints(final AffineTransform aff, final double[] p) {
 		final double[] p2 = new double[p.length];
-		this.at.transform(p, 0, p2, 0, p.length/2);
+		aff.transform(p, 0, p2, 0, p.length/2);
 		return p2;
 	}
+
+	/** Transforms the points represented as X1,Y1,X2,Y2...*/
+	protected double[] transformPoints(final double[] p) {
+		return transformPoints(this.at, p);
+	}
+
 	/** Transforms the points represented as X1,Y1,X2,Y2...*/
 	protected float[] transformPoints(final float[] p) {
 		final float[] p2 = new float[p.length];
@@ -2052,4 +2077,19 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	// private to the package
 	void removeTag(Tag tag) {}
+
+	public Collection<Long> getLayerIds() {
+		return Arrays.asList(this.layer.getId());
+	}
+
+	public Area getArea() {
+		return new Area(getPerimeter());
+	}
+
+	/** This area is meant to represent the entire area where a Displayable paints to in the @param layer.
+	 *  But for some this is reduced to areas with data, not with interpolated data.
+	 *  For example, a Polyine would show a list of little 1x1 rectangles for each point in the @param layer. */
+	public Area getAreaAt(final Layer layer) {
+		return getArea();
+	}
 }

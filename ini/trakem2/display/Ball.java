@@ -37,6 +37,7 @@ import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Iterator;
 import java.util.HashMap;
@@ -45,6 +46,7 @@ import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 
 import javax.vecmath.Point3f;
 
@@ -196,11 +198,15 @@ public class Ball extends ZDisplayable implements VectorData {
 			setupForDisplay();
 		}
 		//arrange transparency
-		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
+		final Composite original_composite = g.getComposite(),
+				perimeter_composite = alpha == 1.0f ? original_composite : AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha),
+				area_composite = alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite;
+
+		// Clear transform and stroke
+		final AffineTransform gt = g.getTransform();
+		g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
+		final Stroke stroke = g.getStroke();
+		g.setStroke(DisplayCanvas.DEFAULT_STROKE);
 
 		// local pointers, since they may be transformed
 		double[][] p = this.p;
@@ -212,33 +218,58 @@ public class Ball extends ZDisplayable implements VectorData {
 			p_width = (double[])ob[1];
 		}
 
-		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+		final boolean color_cues = layer_set.color_cues;
 
-		// paint proper:
-		final int i_current = layer_set.getLayerIndex(active_layer.getId());
-		int ii;
-		int radius;
+		// Paint a sliced sphere
+		final double current_layer_z = active_layer.getZ();
+		final long active_lid = active_layer.getId();
 		for (int j=0; j<n_points; j++) {
-			ii = layer_set.getLayerIndex(p_layer[j]);
-			if (ii == i_current -1 && !no_color_cues) g.setColor(Color.red);
-			else if (ii == i_current) g.setColor(this.color);
-			else if (ii == i_current + 1 && !no_color_cues) g.setColor(Color.blue);
-			else continue; //don't paint!
-			radius = (int)p_width[j];
-			g.drawOval((int)(p[0][j]) - radius, (int)(p[1][j]) - radius, radius + radius, radius + radius);
+			if (active_lid == p_layer[j]) {
+				g.setColor(this.color);
+				final int radius = (int)p_width[j];
+				final int x = (int)((p[0][j] -radius -srcRect.x) * magnification),
+				          y = (int)((p[1][j] -radius -srcRect.y) * magnification),
+					  w = (int)(2 * radius * magnification);
+				g.setComposite(area_composite);
+				g.fillOval(x, y, w, w);
+				g.setComposite(perimeter_composite);
+				g.drawOval(x, y, w, w);
+			} else if (color_cues) {
+				// does the point intersect with the layer?
+				final double z = layer_set.getLayer(p_layer[j]).getZ();
+				final double depth = Math.abs(current_layer_z - z);
+				if (depth < this.p_width[j]) { // compare with untransformed data, in pixels!
+					// intersects!
+					if (z < current_layer_z) g.setColor(Color.red);
+					else g.setColor(Color.blue);
+					// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
+					final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
+					final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
+					          y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
+						  w = (int)(2 * slice_radius * magnification);
+					g.setComposite(area_composite);
+					g.fillOval(x, y, w, w);
+					g.setComposite(perimeter_composite);
+					g.drawOval(x, y, w, w);
+				}
+			}
 		}
+
 		if (active) {
 			final long layer_id = active_layer.getId();
 			for (int j=0; j<n_points; j++) {
 				if (layer_id != p_layer[j]) continue;
-				DisplayCanvas.drawHandle(g, (int)p[0][j], (int)p[1][j], magnification);
+				DisplayCanvas.drawScreenHandle(g, (int)((p[0][j] -srcRect.x) * magnification),
+								  (int)((p[1][j] -srcRect.y) * magnification));
 			}
 		}
 
 		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
-		}
+		g.setComposite(original_composite);
+
+		// Restore
+		g.setTransform(gt);
+		g.setStroke(stroke);
 	}
 
 	public void keyPressed(KeyEvent ke) {
@@ -897,17 +928,22 @@ public class Ball extends ZDisplayable implements VectorData {
 		return list;
 	}
 
-	/** Apply the AffineTransform to a copy of the points and return the arrays. */
+
 	private final Object[] getTransformedData() {
+		return getTransformedData(null);
+	}
+
+	/** Apply the AffineTransform to a copy of the points and return the arrays. */
+	private final Object[] getTransformedData(final AffineTransform additional) {
 		// transform points
-		final double[][] p = transformPoints(this.p);
+		final double[][] p = transformPoints(this.p, additional);
 		// create points to represent the point where the radius ends. Since these are abstract spheres, there's no need to consider a second point that would provide the shear. To capture both the X and Y axis deformations, I use a diagonal point which sits at (x,y) => (p[0][i] + p_width[i], p[1][i] + p_width[i]) 
 		double[][] pw = new double[2][n_points];
 		for (int i=0; i<n_points; i++) {
 			pw[0][i] = this.p[0][i] + p_width[i]; //built relative to the untransformed points!
 			pw[1][i] = this.p[1][i] + p_width[i];
 		}
-		pw = transformPoints(pw);
+		pw = transformPoints(pw, additional);
 		final double[] p_width = new double[n_points];
 		for (int i=0; i<n_points; i++) {
 			// plain average of differences in X and Y axis, relative to the transformed points.
@@ -938,6 +974,17 @@ public class Ball extends ZDisplayable implements VectorData {
 			}
 		}
 		return false;
+	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != layer.getId()) continue;
+			a.add(new Area(new Ellipse2D.Float((float)(p[0][i] - p_width[i]/2), (float)(p[1][i] - p_width[i]/2), (float)p_width[i], (float)p_width[i])));
+		}
+		a.transform(this.at);
+		return a;
 	}
 
 	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated.
@@ -1083,5 +1130,10 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 		calculateBoundingBox(true);
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return Utils.asList(p_layer, 0, n_points);
 	}
 }
