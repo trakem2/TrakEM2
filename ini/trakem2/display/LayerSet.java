@@ -953,7 +953,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Move all Displayable objects in the HashSet to the given target layer. */
-	public void move(final HashSet hs_d, final Layer source, final Layer target) {
+	public void move(final Set hs_d, final Layer source, final Layer target) {
 		if (0 == hs_d.size() || null == source || null == target || source == target) return;
 		Display.setRepaint(false); // disable repaints
 		for (Iterator it = hs_d.iterator(); it.hasNext(); ) {

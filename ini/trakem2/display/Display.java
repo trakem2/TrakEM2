@@ -3325,8 +3325,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (-1 == end) end = command.length();
 			double lz = Double.parseDouble(command.substring(iz, end));
 			Layer target = layer.getParent().getLayer(lz);
-			HashSet hs = active.getLinkedGroup(new HashSet());
-			layer.getParent().move(hs, active.getLayer(), target);
+			layer.getParent().move(selection.getAffected(), active.getLayer(), target); // TODO what happens when ZDisplayable are selected?
 		} else if (command.equals("Unlink")) {
 			if (null == active || active instanceof Patch) return;
 			active.unlink();
