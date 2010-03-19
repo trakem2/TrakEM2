@@ -1676,9 +1676,10 @@ abstract public class Loader {
 
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
-
+					
 					Bureaucrat b = insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
 							link_images, stitch_tiles, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+					
 					try {
 						b.join();
 					} catch (InterruptedException ie) {

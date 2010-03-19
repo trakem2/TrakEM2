@@ -159,12 +159,8 @@ public class StitchingTEM {
 	 * 
 	 * @param patch
 	 * @param grid_width
-	 * @param percent_overlap
-	 * @param scale
 	 * @param default_bottom_top_overlap
 	 * @param default_left_right_overlap
-	 * @param min_R
-	 * @param mean_factor
 	 * @param optimize
 	 * @return
 	 */
@@ -499,7 +495,7 @@ public class StitchingTEM {
 					// half this min_R will be considered good for cross-correlation
 		// Iterate until PhaseCorrelation correlation coefficient R is over 0.5, or there's no more
 		// image overlap to feed
-		Utils.log2("min_R: " + min_R);
+		//Utils.log2("min_R: " + min_R);
 		ImageProcessor ip1, ip2;
 		final Rectangle b1 = base.getBoundingBox(null);
 		final Rectangle b2 = moving.getBoundingBox(null);
@@ -548,7 +544,7 @@ public class StitchingTEM {
 			//final java.awt.Point shift = pc.computePhaseCorrelation();
 			//final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
 			
-			Utils.log2("overlap: " + overlap + " R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
+			//Utils.log2("overlap: " + overlap + " R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
 			if (resultR >= min_R) {
 				// success
 				int success = SUCCESS;
@@ -566,7 +562,7 @@ public class StitchingTEM {
 						dy = shift.y/scale;
 						break;
 				}
-				Utils.log2("R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
+				//Utils.log2("R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
 				return new double[]{dx, dy, success, resultR};
 			}
 			//new ImagePlus("roi1", ip1.duplicate()).show();
@@ -628,13 +624,13 @@ public class StitchingTEM {
 					dy = cc_result[1]/scale_cc;
 					break;
 			}
-			Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
+			//Utils.log2("CC R: " + cc_result[2] + " dx, dy: " + cc_result[0] + ", " + cc_result[1]);
 			//Utils.log2("\trois: \t" + roi1 + "\n\t\t" + roi2);
 			return new double[]{dx, dy, success, cc_result[2]};
 		}
 
 		// else both failed: return default values
-		Utils.log2("Using default");
+		//Utils.log2("Using default");
 		return new double[]{default_dx, default_dy, ERROR, 0};
 
 
@@ -939,7 +935,7 @@ A:				for ( final AbstractAffineTile2D< ? > t : tiles )
 							final AbstractAffineTile2D< ? > o = t.findConnectedTile( p );
 							t.removeConnectedTile( o );
 							o.removeConnectedTile( t );
-							Utils.log2( "Removing bad match from configuration, error = " + e.max );
+							//Utils.log2( "Removing bad match from configuration, error = " + e.max );
 							break A;
 						}
 					}
