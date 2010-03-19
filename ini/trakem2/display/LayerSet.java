@@ -958,6 +958,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		Display.setRepaint(false); // disable repaints
 		for (Iterator it = hs_d.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
+			if (d instanceof ZDisplayable) continue; // ignore
 			if (source == d.getLayer()) {
 				source.remove(d);
 				target.add(d, false, false); // these contortions to avoid repeated DB traffic
