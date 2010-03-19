@@ -43,6 +43,7 @@ import mpi.fruitfly.math.datastructures.FloatArray2D;
 
 import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
 import mpicbg.models.ErrorStatistic;
+import mpicbg.models.Tile;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -59,6 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Set;
 import java.awt.geom.AffineTransform;
 
 
@@ -336,22 +338,11 @@ public class StitchingTEM {
 					}
 
 					if (optimize) {
-						/*
-				// run optimization
-				ArrayList<Patch> al_patches = new ArrayList<Patch>();
-				for (int i=0; i<patch.length; i++) al_patches.add(patch[i]);
-				ArrayList<Tile> al_fixed_tiles = new ArrayList<Tile>();
-				al_fixed_tiles.add(al_tiles.get(0));
-
-				// ready for montage-wise minimization
-				Optimize.minimizeAll(al_tiles, al_patches, al_fixed_tiles, 50);
-						 */
 
 						ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
 						al_fixed_tiles.add(al_tiles.get(0));
 
-						//Align.ParamOptimize p = new Align.ParamOptimize(); // with default parameters
-						//Align.optimizeTileConfiguration(p, al_tiles, al_fixed_tiles);
+						// Optimize iteratively tile configuration by removing bad matches
 						optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
 
 
@@ -359,6 +350,37 @@ public class StitchingTEM {
 							t.getPatch().setAffineTransform( t.getModel().createAffine() );
 
 					}
+					
+					// Remove or hide disconnected tiles
+					if(param.hide_disconnected || param.remove_disconnected)
+					{
+						List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( al_tiles );
+						final List< AbstractAffineTile2D< ? > > interestingTiles;
+						
+						// find largest graph
+						
+						Set< Tile< ? > > largestGraph = null;
+						for ( Set< Tile< ? > > graph : graphs )
+							if ( largestGraph == null || largestGraph.size() < graph.size() )
+								largestGraph = graph;
+						
+						Utils.log("Size of largest stitching graph = " + largestGraph.size());
+						
+						interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+						for ( Tile< ? > t : largestGraph )
+							interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
+						
+						if ( param.hide_disconnected )
+							for ( AbstractAffineTile2D< ? > t : al_tiles )
+								if ( !interestingTiles.contains( t ) )
+									t.getPatch().setVisible( false );
+						if ( param.remove_disconnected )
+							for ( AbstractAffineTile2D< ? > t : al_tiles )
+								if ( !interestingTiles.contains( t ) )
+									t.getPatch().remove( false );
+					}
+					
+					
 					Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
 					//
