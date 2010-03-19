@@ -113,7 +113,7 @@ public class StitchingTEM {
 	 * 
 	 * @return A new Bureaucrat Thread, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
-	static public Bureaucrat stitch(
+	static public Runnable stitch(
 			final Patch[] patch, 
 			final int grid_width, 
 			final double default_bottom_top_overlap, 
@@ -150,7 +150,9 @@ public class StitchingTEM {
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
 				final ArrayList<Patch> fixed = new ArrayList<Patch>();
 				fixed.add(patch[0]);
-				return AlignTask.alignPatchesTask( new ArrayList<Patch>(hs), fixed );
+				return new Runnable() { public void run() { 
+					AlignTask.alignPatches( new ArrayList<Patch>(hs), fixed );
+				}};
 		}
 		return null;
 	}
@@ -164,17 +166,16 @@ public class StitchingTEM {
 	 * @param optimize
 	 * @return
 	 */
-	static private Bureaucrat stitchTopLeft(
+	static private Runnable stitchTopLeft(
 			final Patch[] patch, 
 			final int grid_width, 
 			final double default_bottom_top_overlap, 
 			final double default_left_right_overlap,  
 			final boolean optimize) 
 	{
-		final Worker worker = new Worker("Stitching") 
+		return new Runnable()
 		{
 			public void run() {
-				startedWorking();
 				
 				// Launch phase correlation dialog
 				PhaseCorrelationParam param = new PhaseCorrelationParam();
@@ -201,7 +202,7 @@ public class StitchingTEM {
 					al_tiles.add(new TranslationTile2D(first_tile_model, patch[0]));
 
 					for (int i=1; i<patch.length; i++) {
-						if (hasQuitted()) {
+						if (Thread.currentThread().isInterrupted()) {
 							return;
 						}
 
@@ -363,12 +364,9 @@ public class StitchingTEM {
 					//
 				} catch (Exception e) {
 					IJError.print(e);
-				} finally {
-					finishedWorking();
 				}
 			}
 		};
-		return Bureaucrat.createAndStart(worker, patch[0].getProject());
 	}
 
 	/** dx, dy is the position of t2 relative to the 0,0 of t1. */

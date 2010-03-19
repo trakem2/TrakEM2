@@ -409,6 +409,7 @@ final public class AlignTask
 		transformPatchesAndVectorData(patches, new Runnable() {
 			public void run() {
 				alignTiles( p, tiles, fixedTiles, tilesAreInPlace, largestGraphOnly );
+				Display.repaint();
 			}
 		});
 	}

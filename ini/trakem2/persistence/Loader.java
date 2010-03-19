@@ -1658,12 +1658,12 @@ abstract public class Loader {
 		final double bt_overlap_ = bt_overlap;
 		final double lr_overlap_ = lr_overlap;
 
-		return Bureaucrat.createAndStart(new Worker.Task("Importing 1/" + n_slices, true) {
+		return Bureaucrat.createAndStart(new Worker.Task("Importing", true) {
 			public void exec() {
 				// Slice up list:
 				for (int sl=0; sl<n_slices; sl++) {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
-					setTaskName("Importing " + (sl+1) + "/" + n_slices);
+					Utils.log("Importing " + (sl+1) + "/" + n_slices);
 					int start = sl * n_rows * n_cols;
 					ArrayList cols = new ArrayList();
 					for (int i=0; i<n_cols; i++) {
@@ -1677,14 +1677,9 @@ abstract public class Loader {
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
 					
-					Bureaucrat b = insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-							link_images, stitch_tiles, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+					insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
+						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, this);
 					
-					try {
-						b.join();
-					} catch (InterruptedException ie) {
-						b.quit();
-					}
 				}
 			}
 		}, first_layer.getProject());
@@ -1695,7 +1690,7 @@ abstract public class Loader {
 	}
 
 	/** Import a grid of images and put them in the layer. If the directory (@param dir) is null, it'll be asked for. */
-	public Bureaucrat importGrid(Layer layer, String dir) {
+	public Bureaucrat importGrid(final Layer layer, String dir) {
 		try {
 			String file = null;
 			if (null == dir) {
@@ -1751,10 +1746,10 @@ abstract public class Loader {
 			return null;
 		}
 		//collect data
-		String regex = gd.getNextString(); // filter away files not containing this tag
+		final String regex = gd.getNextString(); // filter away files not containing this tag
 		// the base x,y of the whole grid
-		double bx = gd.getNextNumber();
-		double by = gd.getNextNumber();
+		final double bx = gd.getNextNumber();
+		final double by = gd.getNextNumber();
 		//if (!ini_grid_convention) {
 			convention = gd.getNextString().toLowerCase();
 		//}
@@ -1765,10 +1760,10 @@ abstract public class Loader {
 		chars_are_columns = (0 == gd.getNextChoiceIndex());
 		double bt_overlap = gd.getNextNumber();
 		double lr_overlap = gd.getNextNumber();
-		boolean link_images = gd.getNextBoolean();
-		boolean stitch_tiles = gd.getNextBoolean();
-		boolean homogenize_contrast = gd.getNextBoolean();
-		int stitching_rule = gd.getNextChoiceIndex();
+		final boolean link_images = gd.getNextBoolean();
+		final boolean stitch_tiles = gd.getNextBoolean();
+		final boolean homogenize_contrast = gd.getNextBoolean();
+		final int stitching_rule = gd.getNextChoiceIndex();
 		//boolean apply_non_linear_def = gd.getNextBoolean();
 
 		// Ensure tiles overlap if using SIFT
@@ -1784,7 +1779,7 @@ abstract public class Loader {
 			Utils.showMessage("Something went wrong:\n\tCan't find directory " + dir);
 			return null;
 		}
-		String[] file_names = images_dir.list(new ImageFileFilter(regex, convention));
+		final String[] file_names = images_dir.list(new ImageFileFilter(regex, convention));
 		if (null == file && file_names.length > 0) {
 			// the 'selected' file
 			file = file_names[0];
@@ -1797,11 +1792,20 @@ abstract public class Loader {
 
 		// How to: select all files, and order their names in a double array as they should be placed in the Display. Then place them, displacing by offset, and resizing if necessary.
 		// gather image files:
-		Montage montage = new Montage(convention, chars_are_columns);
+		final Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
-		ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
-		return insertGrid(layer, dir, file, file_names.length, cols, bx, by, bt_overlap, 
-				lr_overlap, link_images, stitch_tiles, homogenize_contrast, stitching_rule/*, apply_non_linear_def*/);
+		final ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
+
+		// !@#$%^&*
+		final String dir_ = dir;
+		final double bt_overlap_ = bt_overlap;
+		final double lr_overlap_ = lr_overlap;
+		final String file_ = file;
+
+		return Bureaucrat.createAndStart(new Worker.Task("Insert grid", true) { public void exec() {
+			insertGrid(layer, dir_, file_, file_names.length, cols, bx, by, bt_overlap_, 
+				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, this);
+		}}, layer.getProject());
 
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1828,7 +1832,7 @@ abstract public class Loader {
 	 * @param homogenize_contrast contrast homogenization option
 	 * @param stitching_rule stitching rule (upper left corner or free)
 	 */
-	private Bureaucrat insertGrid(
+	private void insertGrid(
 			final Layer layer, 
 			final String dir_, 
 			final String first_image_name, 
@@ -1841,404 +1845,375 @@ abstract public class Loader {
 			final boolean link_images, 
 			final boolean stitch_tiles, 
 			final boolean homogenize_contrast, 
-			final int stitching_rule/*, final boolean apply_non_linear_def*/) 
+			final int stitching_rule,
+			final Worker worker)
 	{
 
 		// create a Worker, then give it to the Bureaucrat
+		try {
+			String dir = dir_;
+			ArrayList<Patch> al = new ArrayList<Patch>();
+			Utils.showProgress(0.0D);
+			opener.setSilentMode(true); // less repaints on IJ status bar
 
-		Worker worker = new Worker("Inserting grid") {
-			public void run() {
-				startedWorking();
+			int x = 0;
+			int y = 0;
+			int largest_y = 0;
+			ImagePlus img = null;
+			// open the selected image, to use as reference for width and height
+			if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory();
+			dir = dir.replace('\\', '/'); // w1nd0wz safe
+			if (!dir.endsWith("/")) dir += "/";
+			String path = dir + first_image_name;
+			IJ.redirectErrorMessages();
+			ImagePlus first_img = openImagePlus(path);
+			if (null == first_img) {
+				Utils.log("Selected image to open first is null.");
+				return;
+			}
 
-				try {
-					String dir = dir_;
-					ArrayList<Patch> al = new ArrayList<Patch>();
-					Utils.showProgress(0.0D);
-					opener.setSilentMode(true); // less repaints on IJ status bar
+			if (null == first_img) return;
+			final int first_image_width = first_img.getWidth();
+			final int first_image_height = first_img.getHeight();
+			final int first_image_type = first_img.getType();
+			// start
+			final Patch[][] pall = new Patch[cols.size()][((String[])cols.get(0)).length];
+			int width, height;
+			int k = 0; //counter
+			boolean auto_fix_all = false;
+			boolean ignore_all = false;
+			boolean resize = false;
+			if (!ControlWindow.isGUIEnabled()) {
+				// headless mode: autofix all
+				auto_fix_all = true;
+				resize = true;
+			}
 
-					/* If requested, ask for a text file containing the non-linear deformation coefficients
-					 * and obtain a NonLinearTransform object and coefficients to apply to all images. */
-					/*
-					// NOT READY YET
-					final NonLinearTransform nlt = apply_non_linear_def ? askForNonLinearTransform() : null;
-					final double[][] nlt_coeffs = null != nlt ? nlt.getCoefficients() : null;
-			
-					if (apply_non_linear_def && null == nlt) {
-						finishedWorking();
+			// Accumulate mipmap generation tasks
+			final ArrayList<Future> fus = new ArrayList<Future>();
+
+			startLargeUpdate();
+			for (int i=0; i<cols.size(); i++) {
+				String[] rows = (String[])cols.get(i);
+				if (i > 0) {
+					x -= lr_overlap;
+				}
+				for (int j=0; j<rows.length; j++) {
+					if (Thread.currentThread().isInterrupted()) {
+						Display.repaint(layer);
+						rollback();
 						return;
 					}
-					 */
-
-
-					int x = 0;
-					int y = 0;
-					int largest_y = 0;
-					ImagePlus img = null;
-					// open the selected image, to use as reference for width and height
-					if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory();
-					dir = dir.replace('\\', '/'); // w1nd0wz safe
-					if (!dir.endsWith("/")) dir += "/";
-					String path = dir + first_image_name;
-					IJ.redirectErrorMessages();
-					ImagePlus first_img = openImagePlus(path);
-					if (null == first_img) {
-						Utils.log("Selected image to open first is null.");
-						return;
+					if (j > 0) {
+						y -= bt_overlap;
 					}
-
-					if (null == first_img) return;
-					final int first_image_width = first_img.getWidth();
-					final int first_image_height = first_img.getHeight();
-					final int first_image_type = first_img.getType();
-					// start
-					final Patch[][] pall = new Patch[cols.size()][((String[])cols.get(0)).length];
-					int width, height;
-					int k = 0; //counter
-					boolean auto_fix_all = false;
-					boolean ignore_all = false;
-					boolean resize = false;
-					if (!ControlWindow.isGUIEnabled()) {
-						// headless mode: autofix all
-						auto_fix_all = true;
-						resize = true;
-					}
-
-					// Accumulate mipmap generation tasks
-					final ArrayList<Future> fus = new ArrayList<Future>();
-
-					startLargeUpdate();
-					for (int i=0; i<cols.size(); i++) {
-						String[] rows = (String[])cols.get(i);
-						if (i > 0) {
-							x -= lr_overlap;
+					// get file name
+					String file_name = (String)rows[j];
+					path = dir + file_name;
+					if (null != first_img && file_name.equals(first_image_name)) {
+						img = first_img;
+						first_img = null; // release pointer
+					} else {
+						// open image
+						//if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory(); // UNSAFE, doesn't wait for GC
+						releaseToFit(first_image_width, first_image_height, first_image_type, 1.5f);
+						try {
+							IJ.redirectErrorMessages();
+							img = openImagePlus(path);
+						} catch (OutOfMemoryError oome) {
+							printMemState();
+							throw oome;
 						}
-						for (int j=0; j<rows.length; j++) {
-							if (this.quit) {
-								Display.repaint(layer);
-								rollback();
-								return;
+					}
+					if (null == img) {
+						Utils.log("null image! skipping.");
+						pall[i][j] = null;
+						continue;
+					}
+
+					width = img.getWidth();
+					height = img.getHeight();
+					int rw = width;
+					int rh = height;
+					if (width != first_image_width || height != first_image_height) {
+						int new_width = first_image_width;
+						int new_height = first_image_height;
+						if (!auto_fix_all && !ignore_all) {
+							GenericDialog gdr = new GenericDialog("Size mismatch!");
+							gdr.addMessage("The size of " + file_name + " is " + width + " x " + height);
+							gdr.addMessage("but the selected image was " + first_image_width + " x " + first_image_height);
+							gdr.addMessage("Adjust to selected image dimensions?");
+							gdr.addNumericField("width: ", (double)first_image_width, 0);
+							gdr.addNumericField("height: ", (double)first_image_height, 0); // should not be editable ... or at least, explain in some way that the dimensions can be edited just for this image --> done below
+							gdr.addMessage("[If dimensions are changed they will apply only to this image]");
+							gdr.addMessage("");
+							String[] au = new String[]{"fix all", "ignore all"};
+							gdr.addChoice("Automate:", au, au[1]);
+							gdr.addMessage("Cancel == NO    OK = YES");
+							gdr.showDialog();
+							if (gdr.wasCanceled()) {
+								resize = false;
+								// do nothing: don't fix/resize
 							}
-							if (j > 0) {
-								y -= bt_overlap;
-							}
-							// get file name
-							String file_name = (String)rows[j];
-							path = dir + file_name;
-							if (null != first_img && file_name.equals(first_image_name)) {
-								img = first_img;
-								first_img = null; // release pointer
+							resize = true;
+							//catch values
+							new_width = (int)gdr.getNextNumber();
+							new_height = (int)gdr.getNextNumber();
+							int iau = gdr.getNextChoiceIndex();
+							if (new_width != first_image_width || new_height != first_image_height) {
+								auto_fix_all = false;
 							} else {
-								// open image
-								//if (!enoughFreeMemory(MIN_FREE_BYTES)) releaseMemory(); // UNSAFE, doesn't wait for GC
-								releaseToFit(first_image_width, first_image_height, first_image_type, 1.5f);
-								try {
-									IJ.redirectErrorMessages();
-									img = openImagePlus(path);
-								} catch (OutOfMemoryError oome) {
-									printMemState();
-									throw oome;
-								}
+								auto_fix_all = (0 == iau);
 							}
-							if (null == img) {
-								Utils.log("null image! skipping.");
-								pall[i][j] = null;
-								continue;
-							}
-
-							width = img.getWidth();
-							height = img.getHeight();
-							int rw = width;
-							int rh = height;
-							if (width != first_image_width || height != first_image_height) {
-								int new_width = first_image_width;
-								int new_height = first_image_height;
-								if (!auto_fix_all && !ignore_all) {
-									GenericDialog gdr = new GenericDialog("Size mismatch!");
-									gdr.addMessage("The size of " + file_name + " is " + width + " x " + height);
-									gdr.addMessage("but the selected image was " + first_image_width + " x " + first_image_height);
-									gdr.addMessage("Adjust to selected image dimensions?");
-									gdr.addNumericField("width: ", (double)first_image_width, 0);
-									gdr.addNumericField("height: ", (double)first_image_height, 0); // should not be editable ... or at least, explain in some way that the dimensions can be edited just for this image --> done below
-									gdr.addMessage("[If dimensions are changed they will apply only to this image]");
-									gdr.addMessage("");
-									String[] au = new String[]{"fix all", "ignore all"};
-									gdr.addChoice("Automate:", au, au[1]);
-									gdr.addMessage("Cancel == NO    OK = YES");
-									gdr.showDialog();
-									if (gdr.wasCanceled()) {
-										resize = false;
-										// do nothing: don't fix/resize
-									}
-									resize = true;
-									//catch values
-									new_width = (int)gdr.getNextNumber();
-									new_height = (int)gdr.getNextNumber();
-									int iau = gdr.getNextChoiceIndex();
-									if (new_width != first_image_width || new_height != first_image_height) {
-										auto_fix_all = false;
-									} else {
-										auto_fix_all = (0 == iau);
-									}
-									ignore_all = (1 == iau);
-									if (ignore_all) resize = false;
-								}
-								if (resize) {
-									//resize Patch dimensions
-									rw = first_image_width;
-									rh = first_image_height;
-								}
-							}
-
-							//add new Patch at base bx,by plus the x,y of the grid
-							Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
-							if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
-							//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
-							addedPatchFrom(path, patch);
-							if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
-							else fus.add(regenerateMipMaps(patch));
-							//
-							layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
-							patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
-							pall[i][j] = patch;
-
-							al.add(patch);
-							if (ControlWindow.isGUIEnabled()) {
-								layer.getParent().enlargeToFit(patch, LayerSet.NORTHWEST); // northwest to prevent screwing up Patch coordinates.
-							}
-							y += img.getHeight();
-							Utils.showProgress((double)k / n_images);
-							k++;
+							ignore_all = (1 == iau);
+							if (ignore_all) resize = false;
 						}
-						x += img.getWidth();
-						if (largest_y < y) {
-							largest_y = y;
-						}
-						y = 0; //resetting!
-					}
-
-					// build list
-					final Patch[] pa = new Patch[al.size()];
-					int f = 0;
-					// list in row-first order
-					for (int j=0; j<pall[0].length; j++) { // 'j' is row
-						for (int i=0; i<pall.length; i++) { // 'i' is column
-							pa[f++] = pall[i][j];
+						if (resize) {
+							//resize Patch dimensions
+							rw = first_image_width;
+							rh = first_image_height;
 						}
 					}
-					// optimize repaints: all to background image
-					Display.clearSelection(layer);
 
-					// make the first one be top, and the rest under it in left-right and top-bottom order
-					for (int j=0; j<pa.length; j++) {
-						layer.moveBottom(pa[j]);
+					//add new Patch at base bx,by plus the x,y of the grid
+					Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
+					if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
+					//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
+					addedPatchFrom(path, patch);
+					if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
+					else fus.add(regenerateMipMaps(patch));
+					//
+					layer.add(patch, true); // after the above two lines! Otherwise it will paint fine, but throw exceptions on the way
+					patch.updateInDatabase("tiff_snapshot"); // otherwise when reopening it has to fetch all ImagePlus and scale and zip them all! This method though creates the awt and the snap, thus filling up memory and slowing down, but it's worth it.
+					pall[i][j] = patch;
+
+					al.add(patch);
+					if (ControlWindow.isGUIEnabled()) {
+						layer.getParent().enlargeToFit(patch, LayerSet.NORTHWEST); // northwest to prevent screwing up Patch coordinates.
 					}
+					y += img.getHeight();
+					Utils.showProgress((double)k / n_images);
+					k++;
+				}
+				x += img.getWidth();
+				if (largest_y < y) {
+					largest_y = y;
+				}
+				y = 0; //resetting!
+			}
+
+			// build list
+			final Patch[] pa = new Patch[al.size()];
+			int f = 0;
+			// list in row-first order
+			for (int j=0; j<pall[0].length; j++) { // 'j' is row
+				for (int i=0; i<pall.length; i++) { // 'i' is column
+					pa[f++] = pall[i][j];
+				}
+			}
+			// optimize repaints: all to background image
+			Display.clearSelection(layer);
+
+			// make the first one be top, and the rest under it in left-right and top-bottom order
+			for (int j=0; j<pa.length; j++) {
+				layer.moveBottom(pa[j]);
+			}
+
+			// make picture
+			//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
+
+			// optimize repaints: all to background image
+			Display.clearSelection(layer);
+
+			if (homogenize_contrast) {
+				if (null != worker) worker.setTaskName("Enhancing contrast");
+				// 0 - check that all images are of the same type
+				int tmp_type = pa[0].getType();
+				for (int e=1; e<pa.length; e++) {
+					if (pa[e].getType() != tmp_type) {
+						// can't continue
+						tmp_type = Integer.MAX_VALUE;
+						Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + al.get(e));
+						break;
+					}
+				}
+				if (Integer.MAX_VALUE != tmp_type) { // checking on error flag
+					// Set min and max for all images
+					// 1 - fetch statistics for each image
+					final ArrayList al_st = new ArrayList();
+					final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
+					int type = -1;
+					releaseMemory(); // need some to operate
+					for (int i=0; i<pa.length; i++) {
+						if (Thread.currentThread().isInterrupted()) {
+							Display.repaint(layer);
+							rollback();
+							return;
+						}
+						ImagePlus imp = fetchImagePlus(pa[i]);
+						// speed-up trick: extract data from smaller image
+						if (imp.getWidth() > 1024) {
+							releaseToFit(1024, (int)((imp.getHeight() * 1024) / imp.getWidth()), imp.getType(), 1.1f);
+							// cheap and fast nearest-point resizing
+							imp = new ImagePlus(imp.getTitle(), imp.getProcessor().resize(1024));
+						}
+						if (-1 == type) type = imp.getType();
+						ImageStatistics i_st = imp.getStatistics();
+						// order by stdDev, from small to big
+						int q = 0;
+						for (Iterator it = al_st.iterator(); it.hasNext(); ) {
+							ImageStatistics st = (ImageStatistics)it.next();
+							q++;
+							if (st.stdDev > i_st.stdDev) break;
+						}
+						if (q == al.size()) {
+							al_st.add(i_st); // append at the end. WARNING if importing thousands of images, this is a potential source of out of memory errors. I could just recompute it when I needed it again below
+							al_p.add(pa[i]);
+						} else {
+							al_st.add(q, i_st);
+							al_p.add(q, pa[i]);
+						}
+					}
+					final ArrayList al_p2 = (ArrayList)al_p.clone(); // shallow copy of the ordered list
+					// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
+					if (pa.length > 3) { // under 4 images, use them all
+						int i=0;
+						while (i <= pa.length * 0.25) {
+							al_p.remove(i);
+							i++;
+						}
+						int count = i;
+						i = pa.length -1 -count;
+						while (i > (pa.length* 0.75) - count) {
+							al_p.remove(i);
+							i--;
+						}
+					}
+					// 3 - compute common histogram for the middle 50% images
+					final Patch[] p50 = new Patch[al_p.size()];
+					al_p.toArray(p50);
+					StackStatistics stats = new StackStatistics(new PatchStack(p50, 1));
+					int n = 1;
+					switch (type) {
+					case ImagePlus.GRAY16:
+					case ImagePlus.GRAY32:
+						n = 2;
+						break;
+					}
+					// 4 - compute autoAdjust min and max values
+					// extracting code from ij.plugin.frame.ContrastAdjuster, method autoAdjust
+					int autoThreshold = 0;
+					double min = 0;
+					double max = 0;
+					// once for 8-bit and color, twice for 16 and 32-bit (thus the 2501 autoThreshold value)
+					int limit = stats.pixelCount/10;
+					int[] histogram = stats.histogram;
+					//if (autoThreshold<10) autoThreshold = 5000;
+					//else autoThreshold /= 2;
+					if (ImagePlus.GRAY16 == type || ImagePlus.GRAY32 == type) autoThreshold = 2500;
+					else autoThreshold = 5000;
+					int threshold = stats.pixelCount / autoThreshold;
+					int i = -1;
+					boolean found = false;
+					int count;
+					do {
+						i++;
+						count = histogram[i];
+						if (count>limit) count = 0;
+						found = count > threshold;
+					} while (!found && i<255);
+					int hmin = i;
+					i = 256;
+					do {
+						i--;
+						count = histogram[i];
+						if (count > limit) count = 0;
+						found = count > threshold;
+					} while (!found && i>0);
+					int hmax = i;
+					if (hmax >= hmin) {
+						min = stats.histMin + hmin*stats.binSize;
+						max = stats.histMin + hmax*stats.binSize;
+						if (min == max) {
+							min = stats.min;
+							max = stats.max;
+						}
+					}
+					// 5 - compute common mean within min,max range
+					double target_mean = getMeanOfRange(stats, min, max);
+					Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean);
+					// 6 - apply to all
+					for (i=al_p2.size()-1; i>-1; i--) {
+						Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
+						double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
+						p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
+						// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
+					}
+
+					setMipMapsRegeneration(true);
+					if (isMipMapsEnabled()) {
+						// recreate files
+						for (Patch p : al) fus.add(regenerateMipMaps(p));
+					}
+					Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
 
 					// make picture
 					//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
-
-					// optimize repaints: all to background image
-					Display.clearSelection(layer);
-
-					if (homogenize_contrast) {
-						setTaskName("Enhancing contrast");
-						// 0 - check that all images are of the same type
-						int tmp_type = pa[0].getType();
-						for (int e=1; e<pa.length; e++) {
-							if (pa[e].getType() != tmp_type) {
-								// can't continue
-								tmp_type = Integer.MAX_VALUE;
-								Utils.log("Can't homogenize histograms: images are not all of the same type.\nFirst offending image is: " + al.get(e));
-								break;
-							}
-						}
-						if (Integer.MAX_VALUE != tmp_type) { // checking on error flag
-							// Set min and max for all images
-							// 1 - fetch statistics for each image
-							final ArrayList al_st = new ArrayList();
-							final ArrayList al_p = new ArrayList(); // list of Patch ordered by stdDev ASC
-							int type = -1;
-							releaseMemory(); // need some to operate
-							for (int i=0; i<pa.length; i++) {
-								if (this.quit) {
-									Display.repaint(layer);
-									rollback();
-									return;
-								}
-								ImagePlus imp = fetchImagePlus(pa[i]);
-								// speed-up trick: extract data from smaller image
-								if (imp.getWidth() > 1024) {
-									releaseToFit(1024, (int)((imp.getHeight() * 1024) / imp.getWidth()), imp.getType(), 1.1f);
-									// cheap and fast nearest-point resizing
-									imp = new ImagePlus(imp.getTitle(), imp.getProcessor().resize(1024));
-								}
-								if (-1 == type) type = imp.getType();
-								ImageStatistics i_st = imp.getStatistics();
-								// order by stdDev, from small to big
-								int q = 0;
-								for (Iterator it = al_st.iterator(); it.hasNext(); ) {
-									ImageStatistics st = (ImageStatistics)it.next();
-									q++;
-									if (st.stdDev > i_st.stdDev) break;
-								}
-								if (q == al.size()) {
-									al_st.add(i_st); // append at the end. WARNING if importing thousands of images, this is a potential source of out of memory errors. I could just recompute it when I needed it again below
-									al_p.add(pa[i]);
-								} else {
-									al_st.add(q, i_st);
-									al_p.add(q, pa[i]);
-								}
-							}
-							final ArrayList al_p2 = (ArrayList)al_p.clone(); // shallow copy of the ordered list
-							// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
-							if (pa.length > 3) { // under 4 images, use them all
-								int i=0;
-								while (i <= pa.length * 0.25) {
-									al_p.remove(i);
-									i++;
-								}
-								int count = i;
-								i = pa.length -1 -count;
-								while (i > (pa.length* 0.75) - count) {
-									al_p.remove(i);
-									i--;
-								}
-							}
-							// 3 - compute common histogram for the middle 50% images
-							final Patch[] p50 = new Patch[al_p.size()];
-							al_p.toArray(p50);
-							StackStatistics stats = new StackStatistics(new PatchStack(p50, 1));
-							int n = 1;
-							switch (type) {
-							case ImagePlus.GRAY16:
-							case ImagePlus.GRAY32:
-								n = 2;
-								break;
-							}
-							// 4 - compute autoAdjust min and max values
-							// extracting code from ij.plugin.frame.ContrastAdjuster, method autoAdjust
-							int autoThreshold = 0;
-							double min = 0;
-							double max = 0;
-							// once for 8-bit and color, twice for 16 and 32-bit (thus the 2501 autoThreshold value)
-							int limit = stats.pixelCount/10;
-							int[] histogram = stats.histogram;
-							//if (autoThreshold<10) autoThreshold = 5000;
-							//else autoThreshold /= 2;
-							if (ImagePlus.GRAY16 == type || ImagePlus.GRAY32 == type) autoThreshold = 2500;
-							else autoThreshold = 5000;
-							int threshold = stats.pixelCount / autoThreshold;
-							int i = -1;
-							boolean found = false;
-							int count;
-							do {
-								i++;
-								count = histogram[i];
-								if (count>limit) count = 0;
-								found = count > threshold;
-							} while (!found && i<255);
-							int hmin = i;
-							i = 256;
-							do {
-								i--;
-								count = histogram[i];
-								if (count > limit) count = 0;
-								found = count > threshold;
-							} while (!found && i>0);
-							int hmax = i;
-							if (hmax >= hmin) {
-								min = stats.histMin + hmin*stats.binSize;
-								max = stats.histMin + hmax*stats.binSize;
-								if (min == max) {
-									min = stats.min;
-									max = stats.max;
-								}
-							}
-							// 5 - compute common mean within min,max range
-							double target_mean = getMeanOfRange(stats, min, max);
-							Utils.log2("Loader min,max: " + min + ", " + max + ",   target mean: " + target_mean);
-							// 6 - apply to all
-							for (i=al_p2.size()-1; i>-1; i--) {
-								Patch p = (Patch)al_p2.get(i); // the order is different, thus getting it from the proper list
-								double dm = target_mean - getMeanOfRange((ImageStatistics)al_st.get(i), min, max);
-								p.setMinAndMax(min - dm, max - dm); // displacing in the opposite direction, makes sense, so that the range is drifted upwards and thus the target 256 range for an awt.Image will be closer to the ideal target_mean
-								// OBSOLETE and wrong //p.putMinAndMax(fetchImagePlus(p));
-							}
-
-							setMipMapsRegeneration(true);
-							if (isMipMapsEnabled()) {
-								// recreate files
-								for (Patch p : al) fus.add(regenerateMipMaps(p));
-							}
-							Display.repaint(layer, new Rectangle(0, 0, (int)layer.getParent().getLayerWidth(), (int)layer.getParent().getLayerHeight()), 0);
-
-							// make picture
-							//getFlatImage(layer, layer.getMinimalBoundingBox(Patch.class), 0.25, 1, ImagePlus.GRAY8, Patch.class, null, false).show();
-						}
-					}
-
-					if (stitch_tiles) 
-					{
-						// Wait until all mipmaps for the new images have been generated before attempting to register
-						Utils.wait(fus);
-
-						setTaskName("stitching tiles");
-						// create undo
-						layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
-						// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
-						if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
-						Bureaucrat task = 
-							StitchingTEM.stitch(pa, cols.size(), bt_overlap, 
-								lr_overlap, true, stitching_rule);
-						if (null != task) try { task.join(); } catch (Exception e) {}
-					}
-
-					// link with images on top, bottom, left and right.
-					if (link_images) {
-						for (int i=0; i<pall.length; i++) { // 'i' is column
-							for (int j=0; j<pall[0].length; j++) { // 'j' is row
-								Patch p = pall[i][j];
-								if (null == p) continue; // can happen if a slot is empty
-								if (i>0 && null != pall[i-1][j]) p.link(pall[i-1][j]);
-								if (i<pall.length -1 && null != pall[i+1][j]) p.link(pall[i+1][j]);
-								if (j>0 && null != pall[i][j-1]) p.link(pall[i][j-1]);
-								if (j<pall[0].length -1 && null != pall[i][j+1]) p.link(pall[i][j+1]);
-							}
-						}
-					}
-
-					commitLargeUpdate();
-
-					// resize LayerSet
-					int new_width = x;
-					int new_height = largest_y;
-					layer.getParent().setMinimumDimensions(); //Math.abs(bx) + new_width, Math.abs(by) + new_height);
-					// update indexes
-					layer.updateInDatabase("stack_index"); // so its done once only
-					// create panels in all Displays showing this layer
-					/* // not needed anymore
-		Iterator it = al.iterator();
-		while (it.hasNext()) {
-			Display.add(layer, (Displayable)it.next(), false); // don't set it active, don't want to reload the ImagePlus!
-		}
-					 */
-					// update Displays
-					Display.update(layer);
-
-					layer.recreateBuckets();
-
-					//debug:
-				} catch (Throwable t) {
-					IJError.print(t);
-					rollback();
-					setMipMapsRegeneration(true);
 				}
-				finishedWorking();
+			}
 
-			}// end of run method
-		};
+			if (stitch_tiles) {
+				// Wait until all mipmaps for the new images have been generated before attempting to register
+				Utils.wait(fus);
+				// create undo
+				layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
+				// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
+				if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
+				if (null != worker) worker.setTaskName("Stitching");
+				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule).run();
+			}
 
-		// watcher thread
-		return Bureaucrat.createAndStart(worker, layer.getProject());
+			// link with images on top, bottom, left and right.
+			if (link_images) {
+				if (null != worker) worker.setTaskName("Linking");
+				for (int i=0; i<pall.length; i++) { // 'i' is column
+					for (int j=0; j<pall[0].length; j++) { // 'j' is row
+						Patch p = pall[i][j];
+						if (null == p) continue; // can happen if a slot is empty
+						if (i>0 && null != pall[i-1][j]) p.link(pall[i-1][j]);
+						if (i<pall.length -1 && null != pall[i+1][j]) p.link(pall[i+1][j]);
+						if (j>0 && null != pall[i][j-1]) p.link(pall[i][j-1]);
+						if (j<pall[0].length -1 && null != pall[i][j+1]) p.link(pall[i][j+1]);
+					}
+				}
+			}
+
+			commitLargeUpdate();
+
+			// resize LayerSet
+			int new_width = x;
+			int new_height = largest_y;
+			layer.getParent().setMinimumDimensions(); //Math.abs(bx) + new_width, Math.abs(by) + new_height);
+			// update indexes
+			layer.updateInDatabase("stack_index"); // so its done once only
+			// create panels in all Displays showing this layer
+			/* // not needed anymore
+Iterator it = al.iterator();
+while (it.hasNext()) {
+	Display.add(layer, (Displayable)it.next(), false); // don't set it active, don't want to reload the ImagePlus!
+}
+			 */
+			// update Displays
+			Display.update(layer);
+
+			layer.recreateBuckets();
+
+			//debug:
+		} catch (Throwable t) {
+			IJError.print(t);
+			rollback();
+			setMipMapsRegeneration(true);
+		}
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
