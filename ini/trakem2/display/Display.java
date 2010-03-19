@@ -1802,6 +1802,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return frame;
 	}
 
+	/** Feel free to add more tabs. Don't remove any of the existing tabs or the sky will fall on your head. */
+	public JTabbedPane getTabbedPane() {
+		return tabs;
+	}
+
 	public void setLocation(Point p) {
 		this.frame.setLocation(p);
 	}
