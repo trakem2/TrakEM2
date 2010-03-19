@@ -2072,6 +2072,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final ArrayList al) {
+		if (null == al) return;
 		dispatcher.exec(new Runnable() { public void run() {
 			try {
 			if (0 == al.size()) {
