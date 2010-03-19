@@ -54,15 +54,129 @@ import java.io.*;
 
 public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTransform{
 
-		private double[][] beta = null;
-		private double[] normMean = null;
-		private double[] normVar = null;
-		private double[][][] transField = null;
-		private int dimension = 0;
-		private int length = 0;
-		private int width = 0;
-		private int height = 0;
-		private boolean precalculated = false;
+	private double[][] beta = null;
+	private double[] normMean = null;
+	private double[] normVar = null;
+	private double[][][] transField = null;
+	private int dimension = 0;
+	private int length = 0;
+	private int width = 0;
+	private int height = 0;
+	
+	public int getDimension(){ return dimension; }
+	/** Deletes all dimension dependent properties */
+	public void setDimension( final int dimension )
+	{
+		this.dimension = dimension;
+		length = (dimension + 1)*(dimension + 2)/2;	
+
+		beta = new double[length][2];
+		normMean = new double[length];
+		normVar = new double[length];
+
+		for (int i=0; i < length; i++){
+				normMean[i] = 0;
+				normVar[i] = 1;
+		}
+		transField = null;
+		precalculated = false;
+	}
+	
+	private boolean precalculated = false;
+
+	public int getMinNumMatches()
+	{
+		return length;
+	}
+	
+	
+	public void fit( final double x[][], final double y[][], final double lambda )
+	{
+		final double[][] expandedX = kernelExpandMatrixNormalize( x );
+		
+		final Matrix phiX = new Matrix( expandedX, expandedX.length, length );
+		final Matrix phiXTransp = phiX.transpose();
+		
+		final Matrix phiXProduct = phiXTransp.times( phiX );
+		
+		final int l = phiXProduct.getRowDimension();
+		final double lambda2 = 2 * lambda;
+		
+		for (int i = 0; i < l; ++i )
+			phiXProduct.set( i, i, phiXProduct.get( i, i ) + lambda2 );
+		
+		final Matrix phiXPseudoInverse = phiXProduct.inverse();
+		final Matrix phiXProduct2 = phiXPseudoInverse.times( phiXTransp );
+		final Matrix betaMatrix = phiXProduct2.times( new Matrix( y, y.length, 2 ) );
+		
+		setBeta( betaMatrix.getArray() );
+	}
+	
+	public void estimateDistortion( double hack1[][], double hack2[][], double transformParams[][], double lambda, int w, int h )
+	{
+		beta = new double[ length ][ 2 ];
+		normMean = new double[ length ];
+		normVar = new double[ length ];
+
+		for ( int i = 0; i < length; i++ )
+		{
+			normMean[ i ] = 0;
+			normVar[ i ] = 1;
+		}
+
+		width = w;
+		height = h;
+
+		final double expandedX[][] = kernelExpandMatrixNormalize( hack1 );
+		final double expandedY[][] = kernelExpandMatrix( hack2 );
+
+		int s = expandedX[ 0 ].length;
+		Matrix S1 = new Matrix( 2 * s, 2 * s );
+		Matrix S2 = new Matrix( 2 * s, 1 );
+
+		for ( int i = 0; i < expandedX.length; ++i )
+		{
+			Matrix xk_ij = new Matrix( expandedX[ i ], 1 );
+			Matrix xk_ji = new Matrix( expandedY[ i ], 1 );
+
+			Matrix yk1a = xk_ij.minus( xk_ji.times( transformParams[ i ][ 0 ] ) );
+			Matrix yk1b = xk_ij.times( 0.0 ).minus( xk_ji.times( -transformParams[ i ][ 2 ] ) );
+			Matrix yk2a = xk_ij.times( 0.0 ).minus( xk_ji.times( -transformParams[ i ][ 1 ] ) );
+			Matrix yk2b = xk_ij.minus( xk_ji.times( transformParams[ i ][ 3 ] ) );
+
+			Matrix y = new Matrix( 2, 2 * s );
+			y.setMatrix( 0, 0, 0, s - 1, yk1a );
+			y.setMatrix( 0, 0, s, 2 * s - 1, yk1b );
+			y.setMatrix( 1, 1, 0, s - 1, yk2a );
+			y.setMatrix( 1, 1, s, 2 * s - 1, yk2b );
+
+			Matrix xk = new Matrix( 2, 2 * expandedX[ 0 ].length );
+			xk.setMatrix( 0, 0, 0, s - 1, xk_ij );
+			xk.setMatrix( 1, 1, s, 2 * s - 1, xk_ij );
+
+			double[] vals = { hack1[ i ][ 0 ], hack1[ i ][ 1 ] };
+			Matrix c = new Matrix( vals, 2 );
+
+			Matrix X = xk.transpose().times( xk ).times( lambda );
+			Matrix Y = y.transpose().times( y );
+
+			S1 = S1.plus( Y.plus( X ) );
+
+			double trans1 = ( transformParams[ i ][ 2 ] * transformParams[ i ][ 5 ] - transformParams[ i ][ 0 ] * transformParams[ i ][ 4 ] );
+			double trans2 = ( transformParams[ i ][ 1 ] * transformParams[ i ][ 4 ] - transformParams[ i ][ 3 ] * transformParams[ i ][ 5 ] );
+			double[] trans = { trans1, trans2 };
+
+			Matrix translation = new Matrix( trans, 2 );
+			Matrix YT = y.transpose().times( translation );
+			Matrix XC = xk.transpose().times( c ).times( lambda );
+
+			S2 = S2.plus( YT.plus( XC ) );
+		}
+		Matrix regularize = Matrix.identity( S1.getRowDimension(), S1.getColumnDimension() );
+		Matrix beta = new Matrix( S1.plus( regularize.times( 0.001 ) ).inverse().times( S2 ).getColumnPackedCopy(), s );
+
+		setBeta( beta.getArray() );
+	}
 	
 		public NonLinearTransform(double[][] b, double[] nm, double[] nv, int d, int w, int h){
 				beta = b;
@@ -183,6 +297,9 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 				return data;
 
 		}
+		
+	//@Override
+	public String toString(){ return toDataString(); }
 
 		public float[] apply( float[] location ){
 
@@ -704,4 +821,29 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 			t.init( toDataString() );
 			return t;
 		}
+	
+	public void set( final NonLinearTransform nlt )
+	{
+		this.dimension = nlt.dimension;
+		this.height = nlt.height;
+		this.length = nlt.length;
+		this.precalculated = nlt.precalculated;
+		this.width = nlt.width;
+		
+		/* arrays by deep cloning */
+		this.beta = new double[ nlt.beta.length ][];
+		for ( int i = 0; i < nlt.beta.length; ++i )
+			this.beta[ i ] = nlt.beta[ i ].clone();
+		
+		this.normMean = nlt.normMean.clone();
+		this.normVar = nlt.normVar.clone();
+		this.transField = new double[ nlt.transField.length ][][];
+		
+		for ( int a = 0; a < nlt.transField.length; ++a )
+		{
+			this.transField[ a ] = new double[ nlt.transField[ a ].length ][];
+			for ( int b = 0; b < nlt.transField[ a ].length; ++b )
+				this.transField[ a ][ b ] = nlt.transField[ a ][ b ].clone();
+		}
+	}
 }
