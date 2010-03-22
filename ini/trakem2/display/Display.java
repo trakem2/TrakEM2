@@ -1802,6 +1802,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return frame;
 	}
 
+	/** Feel free to add more tabs. Don't remove any of the existing tabs or the sky will fall on your head. */
+	public JTabbedPane getTabbedPane() {
+		return tabs;
+	}
+
 	public void setLocation(Point p) {
 		this.frame.setLocation(p);
 	}
@@ -2072,6 +2077,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final ArrayList al) {
+		if (null == al) return;
 		dispatcher.exec(new Runnable() { public void run() {
 			try {
 			if (0 == al.size()) {
@@ -3325,8 +3331,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (-1 == end) end = command.length();
 			double lz = Double.parseDouble(command.substring(iz, end));
 			Layer target = layer.getParent().getLayer(lz);
-			HashSet hs = active.getLinkedGroup(new HashSet());
-			layer.getParent().move(hs, active.getLayer(), target);
+			layer.getParent().move(selection.getAffected(), active.getLayer(), target); // TODO what happens when ZDisplayable are selected?
 		} else if (command.equals("Unlink")) {
 			if (null == active || active instanceof Patch) return;
 			active.unlink();
