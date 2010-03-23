@@ -1373,15 +1373,6 @@ public class Project extends DBObject {
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
-		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
-		try {
-			String scR = ht_props.get("min_R");
-			if (null != scR) current_R = (int)(Double.parseDouble(scR) * 100);
-		} catch (Exception nfe) {
-			IJError.print(nfe);
-		}
-		gd.addSlider("min_R: ", 0, 100, current_R);
-
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
@@ -1413,7 +1404,6 @@ public class Project extends DBObject {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
-		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());
 		boolean layer_mipmaps2 = gd.getNextBoolean();
 		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
 			if (layer_mipmaps && !layer_mipmaps2) {
