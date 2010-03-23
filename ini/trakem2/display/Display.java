@@ -2325,21 +2325,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				popup.addSeparator();
 			}
 
-			JMenuItem st = new JMenu("Transform");
-			StartTransformMenuListener tml = new StartTransformMenuListener();
-			item = new JMenuItem("Transform (affine)"); item.addActionListener(tml); st.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
-			item = new JMenuItem("Transform (non-linear)"); item.addActionListener(tml); st.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, Event.SHIFT_MASK, true));
-			item = new JMenuItem("Cancel transform"); st.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
-			item.setEnabled(false); // just added as a self-documenting cue; no listener
-			item = new JMenuItem("Remove coordinate transforms (selected images)"); item.addActionListener(tml); st.add(item);
-			// TODO the next one should really be somewhere where it appears even if no images are selected!
-			item = new JMenuItem("Remove coordinate transforms layer-wise"); item.addActionListener(tml); st.add(item);
-			popup.add(st);
-
-
 			item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
 			item = new JMenuItem("Color..."); item.addActionListener(this); popup.add(item);
 			if (active instanceof LayerSet) item.setEnabled(false);
@@ -2517,6 +2502,25 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		popup.add(align_menu);
 		item = new JMenuItem("Montage multiple layers (SIFT)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
+
+		JMenuItem st = new JMenu("Transform");
+		StartTransformMenuListener tml = new StartTransformMenuListener();
+		item = new JMenuItem("Transform (affine)"); item.addActionListener(tml); st.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Transform (non-linear)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, Event.SHIFT_MASK, true));
+		item = new JMenuItem("Cancel transform"); st.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+		item.setEnabled(false); // just added as a self-documenting cue; no listener
+		item = new JMenuItem("Remove rotation, scaling and shear (selected images)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Remove rotation, scaling and shear layer-wise"); item.addActionListener(tml); st.add(item);
+		item = new JMenuItem("Remove coordinate transforms (selected images)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Remove coordinate transforms layer-wise"); item.addActionListener(tml); st.add(item);
+		popup.add(st);
 
 		JMenu link_menu = new JMenu("Link");
 		item = new JMenuItem("Link images..."); item.addActionListener(this); link_menu.add(item);
@@ -2775,9 +2779,36 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					patches.addAll(layer.getDisplayables(Patch.class));
 				}
 				removeCoordinateTransforms( (List<Patch>) (List) patches);
+			} else if (command.equals("Remove rotation, scaling and shear (selected images)")) {
+				final List<Displayable> col = selection.getSelected(Patch.class);
+				if (col.isEmpty()) return;
+				removeScalingRotationShear( (List<Patch>) (List) col);
+			} else if (command.equals("Remove rotation, scaling and shear layer-wise")) {
+				// Because we love copy-paste
+				GenericDialog gd = new GenericDialog("Remove Scaling/Rotation/Shear");
+				gd.addMessage("Remove scaling, translation");
+				gd.addMessage("and shear for all images in:");
+				Utils.addLayerRangeChoices(Display.this.layer, gd);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				final ArrayList<Displayable> patches = new ArrayList<Displayable>();
+				for (final Layer layer : getLayerSet().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1)) {
+					patches.addAll(layer.getDisplayables(Patch.class));
+				}
+				removeScalingRotationShear( (List<Patch>) (List) patches);
 			}
 		}
+	}
 
+	public Bureaucrat removeScalingRotationShear(final List<Patch> patches) {
+		return Bureaucrat.createAndStart(new Worker.Task("Removing coordinate transforms") { public void exec() {
+			for (final Patch p : patches) {
+				Rectangle box = p.getBoundingBox();
+				final AffineTransform aff = new AffineTransform();
+				aff.setToTranslation(box.x + box.width/2, box.y + box.height/2);
+				p.setAffineTransform(aff);
+			}
+		}}, this.project);
 	}
 
 	public Bureaucrat removeCoordinateTransforms(final List<Patch> patches) {
