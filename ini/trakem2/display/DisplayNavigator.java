@@ -142,13 +142,11 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		final Rectangle clipRect;
 		final int snapshots_mode;
 		final Layer layer;
-		final Rectangle srcRect;
 
-		RepaintProperties(final Rectangle clipRect, final Layer layer, final int snapshots_mode, final Rectangle srcRect) {
+		RepaintProperties(final Rectangle clipRect, final Layer layer, final int snapshots_mode) {
 			this.clipRect = clipRect;
 			this.layer = layer;
 			this.snapshots_mode = snapshots_mode;
-			this.srcRect = srcRect;
 		}
 	}
 
@@ -171,7 +169,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 				layer = rp.layer;
 				snapshots_mode = rp.snapshots_mode;
 				clipRect = rp.clipRect;
-				srcRect = rp.srcRect;
+				srcRect = layer.getParent().get2DBounds(); // The whole canvas!
 			}
 
 			if (null != DisplayNavigator.this.image && 2 == snapshots_mode && DisplayNavigator.this.snapshots_mode == snapshots_mode) {
@@ -342,10 +340,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Navigator-Repainter", new UpdateGraphicsThread()) {
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
-			Rectangle srcRect = DisplayNavigator.this.srcRect;
-			if (null == srcRect) srcRect = DisplayNavigator.this.display.getCanvas().getSrcRect();
-			else srcRect = (Rectangle)srcRect.clone();
-			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getSnapshotsMode(), srcRect));
+			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getSnapshotsMode()));
 		}
 	};
 
