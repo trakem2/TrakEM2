@@ -1666,7 +1666,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			// Check if the last added entry contains the exact same elements and data
 			DoStep step = edit_history.get(edit_history.lastKey());
 			boolean b = step.isIdenticalTo(ob);
-			Utils.log2(b + " == prepareStep for " + ob);
+			//Utils.log2(b + " == prepareStep for " + ob);
 			// If identical, don't prepare one!
 			return !b;
 		}
@@ -1798,7 +1798,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized (edit_history) {
 			// Check if it's identical to current step
 			if (step.isIdenticalTo(current_edit_step)) {
-				Utils.log2("Skipping identical undo step of class " + step.getClass() + ": " + step);
+				//Utils.log2("Skipping identical undo step of class " + step.getClass() + ": " + step);
 				return false;
 			}
 
