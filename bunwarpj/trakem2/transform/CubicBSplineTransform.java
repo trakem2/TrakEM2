@@ -16,13 +16,10 @@
  */
 package bunwarpj.trakem2.transform;
 
-//import ij.IJ;
-import java.awt.geom.AffineTransform;
 import java.util.Collection;
 import java.util.Stack;
 
 import bunwarpj.BSplineModel;
-import bunwarpj.MiscTools;
 import bunwarpj.Param;
 import bunwarpj.Transformation;
 import bunwarpj.bUnwarpJ_;
