@@ -1707,7 +1707,7 @@ public final class Patch extends Displayable implements ImageData {
 		return maskBorder(size, size, size, size);
 	}
 	/** Make the border have an alpha of zero. */
-	public boolean maskBorder(final int top, final int right, final int bottom, final int left) {
+	public boolean maskBorder(final int left, final int top, final int right, final int bottom) {
 		int w = o_width - right - left;
 		int h = o_height - top - bottom;
 		if (w < 0 || h < 0 || left > o_width || top > o_height) {
