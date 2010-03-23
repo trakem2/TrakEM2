@@ -1659,7 +1659,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows
-				paint(g, Display.getFront().getCanvas().getSrcRect(), mag, false, 0xffffffff, layer, false);
+				paint(g, srcRect, mag, false, 0xffffffff, layer, false);
 				return;
 			case 1:
 				paintAsBox(g);
