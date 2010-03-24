@@ -16,7 +16,6 @@
  */
 package bunwarpj.trakem2.transform;
 
-//import ij.IJ;
 import java.util.Collection;
 import java.util.Stack;
 

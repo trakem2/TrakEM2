@@ -4530,12 +4530,12 @@ while (it.hasNext()) {
 	}
 
 	/** Make the border have an alpha of zero. */
-	public Bureaucrat maskBordersLayerWise(final Collection<Layer> layers, final int top, final int right, final int bottom, final int left) {
+	public Bureaucrat maskBordersLayerWise(final Collection<Layer> layers, final int left, final int top, final int right, final int bottom) {
 		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
 			public void exec() {
 				ArrayList<Future> fus = new ArrayList<Future>();
 				for (final Layer layer : layers) {
-					fus.addAll(maskBorders(top, right, bottom, left, layer.getDisplayables(Patch.class)));
+					fus.addAll(maskBorders(left, top, right, bottom, layer.getDisplayables(Patch.class)));
 				}
 				Utils.wait(fus);
 			}
@@ -4543,22 +4543,22 @@ while (it.hasNext()) {
 	}
 
 	/** Make the border have an alpha of zero. */
-	public Bureaucrat maskBorders(final Collection<Displayable> patches, final int top, final int right, final int bottom, final int left) {
+	public Bureaucrat maskBorders(final Collection<Displayable> patches, final int left, final int top, final int right, final int bottom) {
 		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
 			public void exec() {
-				Utils.wait(maskBorders(top, right, bottom, left, patches));
+				Utils.wait(maskBorders(left, top, right, bottom, patches));
 			}
 		}, patches.iterator().next().getProject());
 	}
 
 	/** Make the border have an alpha of zero.
 	 *  @return the list of Future that represent the regeneration of the mipmaps of each Patch. */
-	public ArrayList<Future> maskBorders(final int top, final int right, final int bottom, final int left, final Collection<Displayable> patches) {
+	public ArrayList<Future> maskBorders(final int left, final int top, final int right, final int bottom, final Collection<Displayable> patches) {
 		ArrayList<Future> fus = new ArrayList<Future>();
 		for (final Displayable d : patches) {
 			if (d.getClass() != Patch.class) continue;
 			Patch p = (Patch) d;
-			if (p.maskBorder(top, right, bottom, left)) {
+			if (p.maskBorder(left, top, right, bottom)) {
 				fus.add(regenerateMipMaps(p));
 			}
 		}

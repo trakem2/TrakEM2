@@ -1459,7 +1459,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		r.width += r.width;
 		r.height += r.height;
 		// compute target magnification
-		double magn = getWidth() / (double)r.width;
+		double magn = getWidth() / (double)(r.width > r.height ? r.width : r.height);
 		center(r, magn);
 	}
 
