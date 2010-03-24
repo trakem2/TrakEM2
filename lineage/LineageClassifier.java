@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 
 import weka.classifiers.Classifier;
+import weka.core.DenseInstance;
 import weka.core.Instance;
 import weka.core.Instances;
 import weka.core.Attribute;
@@ -71,14 +72,14 @@ public class LineageClassifier
 		final Classifier c = getClassifier();
 		final Instances data;
 		Operator() {
-			FastVector a = new FastVector(12);
+			ArrayList<Attribute> a = new ArrayList<Attribute>();
 			for (int i=0; i<attrs.length-1; i++) {
-				a.addElement(new Attribute(attrs[i])); // numeric
+				a.add(new Attribute(attrs[i])); // numeric
 			}
-			FastVector d = new FastVector();
-			d.addElement("false");
-			d.addElement("true");
-			a.addElement(new Attribute(attrs[attrs.length-1], d)); // nominal attribute
+			ArrayList<String> d = new ArrayList<String>();
+			d.add("false");
+			d.add("true");
+			a.add(new Attribute(attrs[attrs.length-1], d)); // nominal attribute
 			data = new Instances("Buh", a, 0);
 			data.setClassIndex(attrs.length-1); // the CLASS
 		}
@@ -95,7 +96,7 @@ public class LineageClassifier
 		}
 
 		// Future weka versions will use new DenseInstance(1, vector) instead
-		Instance ins = new Instance(1, vector);
+		Instance ins = new DenseInstance(1, vector);
 		ins.setDataset(op.data);
 		// Was trained to return true or false, represented in weka as 0 or 1
 		return 1 == ((int) Math.round(op.c.classifyInstance(ins)));
