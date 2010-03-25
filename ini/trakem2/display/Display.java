@@ -2323,6 +2323,48 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
 				popup.add(go);
 				popup.addSeparator();
+			} else if (Connector.class == aclass) {
+				item = new JMenuItem("Merge"); item.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						if (null == getActive() || getActive().getClass() != Connector.class) {
+							Utils.log("Active object must be a Connector!");
+							return;
+						}
+						final List<Connector> col = (List<Connector>) (List) selection.getSelected(Connector.class);
+						if (col.size() < 2) {
+							Utils.log("Select more than one Connector!");
+							return;
+						}
+						if (col.get(0) != getActive()) {
+							if (col.remove(getActive())) {
+								col.add(0, (Connector)getActive());
+							} else {
+								Utils.log("ERROR: cannot find active object in selection list!");
+								return;
+							}
+						}
+						Bureaucrat.createAndStart(new Worker.Task("Merging connectors") {
+							public void exec() {
+								getLayerSet().addChangeTreesStep();
+								Connector base = null;
+								try {
+									base = Connector.merge(col);
+								} catch (Exception e) {
+									IJError.print(e);
+								}
+								if (null == base) {
+									Utils.log("ERROR: could not merge connectors!");
+									getLayerSet().undoOneStep();
+								} else {
+									getLayerSet().addChangeTreesStep();
+								}
+								Display.repaint();
+							}
+						}, getProject());
+					}
+				});
+				popup.add(item);
+				item.setEnabled(selection.getSelected(Connector.class).size() > 1);
 			}
 
 			item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);

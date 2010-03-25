@@ -69,6 +69,7 @@ public class Connector extends ZDisplayable implements VectorData {
 			this.p = new float[len + len];
 			this.lids = new long[len];
 			this.radius = new float[len];
+
 			// Origin:
 			/* X  */ p[0] = Float.parseFloat(o[0]);
 			/* Y  */ p[1] = Float.parseFloat(o[1]);
@@ -130,6 +131,29 @@ public class Connector extends ZDisplayable implements VectorData {
 
 	public int addTarget(final double x, final double y, final long layer_id, final double r) {
 		return addTarget((float)x, (float)y, layer_id, (float)r);
+	}
+
+	protected void mergeTargets(final Connector c) throws NoninvertibleTransformException {
+		if (null == c || null == c.lids) return;
+		if (null == this.lids) {
+			// use target root as root
+			addTarget(c.p[0], c.p[1], c.lids[0], c.radius[0]);
+		}
+		final int next = lids.length;
+		resizeArray(c.lids.length-1);
+		// Add all targets (not the first one, which is the root)
+		final float[] fp = new float[2];
+		AffineTransform aff = new AffineTransform(c.at);
+		aff.preConcatenate(this.at.createInverse());
+		for (int i=next, k=1; k<c.lids.length; i++, k++) {
+			fp[0] = c.p[k+k];
+			fp[1] = c.p[k+k+1];
+			aff.transform(fp, 0, fp, 0, 1);
+			p[i+i] = fp[0];
+			p[i+i+1] = fp[1];
+			lids[i] = c.lids[k];
+			radius[i] = c.radius[k]; // ignoring affine
+		}
 	}
 
 	/** To remove a target point of index larger than zero. */
@@ -766,5 +790,21 @@ public class Connector extends ZDisplayable implements VectorData {
 		}
 		a.transform(this.at);
 		return a;
+	}
+
+	/** Takes the List of Connector instances and adds the targets of all to the first one.
+	 *  Removes the others from the LayerSet and from the Project.
+	 *  If any of the Connector instances cannot be removed, returns null. */
+	static public Connector merge(final List<Connector> col) throws NoninvertibleTransformException {
+		if (null == col || 0 == col.size()) return null;
+		final Connector base = col.get(0);
+		for (final Connector con : col.subList(1, col.size())) {
+			base.mergeTargets(con);
+			if (!con.remove2(false)) {
+				Utils.log("FAILED to merge Connector " + con + " into " + base);
+				return null;
+			}
+		}
+		return base;
 	}
 }
