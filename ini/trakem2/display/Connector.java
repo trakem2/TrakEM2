@@ -371,7 +371,12 @@ public class Connector extends ZDisplayable implements VectorData {
 			return false;
 		}
 		for (int i=0,j=0; i<lids.length; i++,j+=2) {
-			double laz = layer_set.getLayer(lids[i]).getZ();
+			Layer la = layer_set.getLayer(lids[i]);
+			if (null == la) {
+				Utils.log("WARNING could not find layer with id " + lids[i]);
+				continue;
+			}
+			double laz = la.getZ();
 			if (laz < z_first || laz > z_last) continue;
 			float r = radius[i];
 			if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
