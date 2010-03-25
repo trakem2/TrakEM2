@@ -463,7 +463,9 @@ public class Connector extends ZDisplayable implements VectorData {
 		this.at.transform(po, 0, po, 0, 1);
 		r = r * sc;
 		if (r <= 0) r = 1; // r is in pixels, so the minimal search when 0==r is for a circle of diameter 2 pixels.
-		return new HashSet<Displayable>(layer_set.find(c, la, new Area(new Ellipse2D.Float(po[0]-r, po[1]-r, r+r, r+r)), true));
+		HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, la, new Area(new Ellipse2D.Float(po[0]-r, po[1]-r, r+r, r+r)), true));
+		targets.remove(this);
+		return targets;
 	}
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
