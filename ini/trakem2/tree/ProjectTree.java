@@ -159,7 +159,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		else old_title = ob.toString();
 		GenericDialog gd = ControlWindow.makeGenericDialog("New name");
 		gd.addMessage("Old name: " + old_title);
-		gd.addStringField("New name: ", old_title);
+		gd.addStringField("New name: ", old_title, 40);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
