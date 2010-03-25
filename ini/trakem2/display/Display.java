@@ -2669,6 +2669,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
 		if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
+		JMenu graph = new JMenu("Graph");
+		GraphMenuListener gl = new GraphMenuListener();
+		item = new JMenuItem("Select outgoing Connectors"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select incomming Connectors"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
+		graph.setEnabled(!selection.isEmpty());
+		menu.add(graph);
 		popup.add(menu);
 
 		menu = new JMenu("Tool");
@@ -2698,6 +2706,54 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private final class GraphMenuListener implements ActionListener {
+		public void actionPerformed(ActionEvent ae) {
+			final String command = ae.getActionCommand();
+			final Collection<Displayable> sel = selection.getSelected();
+			if (null == sel || sel.isEmpty()) return;
+			final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
+			final HashSet<Displayable> to_select = new HashSet<Displayable>();
+
+			if (command.equals("Select outgoing Connectors")) {
+				for (final Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins();
+					origins.retainAll(sel);
+					if (origins.isEmpty()) continue;
+					to_select.add(con);
+				}
+			} else if (command.equals("Select incomming Connectors")) {
+				for (final Connector con : connectors) {
+					for (final Set<Displayable> targets : con.getTargets()) {
+						targets.retainAll(sel);
+						if (targets.isEmpty()) continue;
+						to_select.add(con);
+					}
+				}
+			} else if (command.equals("Select downstream targets")) {
+				for (final Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins();
+					origins.retainAll(sel);
+					if (origins.isEmpty()) continue;
+					// else, add all targets
+					for (final Set<Displayable> targets : con.getTargets()) {
+						to_select.addAll(targets);
+					}
+				}
+			} else if (command.equals("Select upstream targets")) {
+				for (final Connector con : connectors) {
+					for (final Set<Displayable> targets : con.getTargets()) {
+						targets.retainAll(sel);
+						if (targets.isEmpty()) continue;
+						to_select.addAll(con.getOrigins());
+						break; // origins will be the same for all targets of 'con'
+					}
+				}
+			}
+
+			selection.selectAll(new ArrayList<Displayable>(to_select));
+		}
 	}
 
 	protected class GridOverlay {
