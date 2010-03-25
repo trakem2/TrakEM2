@@ -3915,7 +3915,9 @@ while (it.hasNext()) {
 	private final ImagePlus openImagePlus(final String path, int retries) {
 		while (retries < MAX_RETRIES) try {
 				IJ.redirectErrorMessages();
-				return opener.openImage(path);
+				final ImagePlus imp = opener.openImage(path);
+				imp.killRoi(); // newer ImageJ may store ROI in the file!
+				return imp;
 
 				// TODO: Use windowless LOCI to bypass Opener class completely
 			} catch (OutOfMemoryError oome) {
