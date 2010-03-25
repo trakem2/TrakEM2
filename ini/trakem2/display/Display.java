@@ -2802,12 +2802,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	public Bureaucrat removeScalingRotationShear(final List<Patch> patches) {
 		return Bureaucrat.createAndStart(new Worker.Task("Removing coordinate transforms") { public void exec() {
+			getLayerSet().addTransformStep(patches);
 			for (final Patch p : patches) {
 				Rectangle box = p.getBoundingBox();
 				final AffineTransform aff = new AffineTransform();
-				aff.setToTranslation(box.x + box.width/2, box.y + box.height/2);
+				// translate so that the center remains where it is
+				aff.setToTranslation(box.x + (box.width - p.getWidth())/2, box.y + (box.height - p.getHeight())/2);
 				p.setAffineTransform(aff);
 			}
+			getLayerSet().addTransformStep(patches);
+			Display.repaint();
 		}}, this.project);
 	}
 
