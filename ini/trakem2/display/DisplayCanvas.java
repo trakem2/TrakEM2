@@ -1637,7 +1637,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		boolean b = display.getMode().apply();
 		if (b) {
 			display.setMode(new DefaultMode(display));
-			repaint(true);
+			Display.repaint();
 		}
 		return b;
 	}
