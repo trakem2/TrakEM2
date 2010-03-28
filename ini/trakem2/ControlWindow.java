@@ -28,7 +28,6 @@ import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Display3D;
-import ini.trakem2.display.Display;
 import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
@@ -46,7 +45,6 @@ import java.lang.reflect.Field;
 import java.net.URL;
 import java.util.Enumeration;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.util.Set;
 import java.util.Map;
 import java.awt.event.*;
@@ -62,7 +60,7 @@ public class ControlWindow {
 	static private JFrame frame = null;
 	static private JTabbedPane tabs = null;
 	/** Project instances are keys, JSplitPane are the objects. */
-	static private Hashtable ht_projects = null;
+	static private Hashtable<Project,JSplitPane> ht_projects = null;
 	static private ControlWindow instance = null;
 
 	static private boolean gui_enabled = true;
@@ -112,7 +110,7 @@ public class ControlWindow {
 	}
 
 	/** Returns null if there are no projects */
-	synchronized static public Set getProjects() {
+	synchronized static public Set<Project> getProjects() {
 		if (null == ht_projects) return null;
 		return ht_projects.keySet();
 	}
@@ -135,11 +133,11 @@ public class ControlWindow {
 			Display3D.destroy();
 			if (null != ht_projects) {
 				// destroy open projects, release memory
-				Enumeration e = ht_projects.keys();
+				Enumeration<Project> e = ht_projects.keys();
 				Project[] project = new Project[ht_projects.size()]; //concurrent modifications ..
 				int next = 0;
 				while (e.hasMoreElements()) {
-					project[next++] = (Project)e.nextElement();
+					project[next++] = e.nextElement();
 				}
 				for (int i=0; i<next; i++) {
 					ht_projects.remove(project[i]);
@@ -231,7 +229,7 @@ public class ControlWindow {
 			final JSplitPane tab = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
 			tab.setBackground(Color.white);
 			// store the tab linked to the project (before setting the trees, so that they won't get repainted and get in trouble not being able to get a project title if the project has no name)
-			if (null == ht_projects) ht_projects = new Hashtable();
+			if (null == ht_projects) ht_projects = new Hashtable<Project,JSplitPane>();
 			ht_projects.put(project, tab);
 
 			// create a scrolling pane for the template_tree
@@ -329,9 +327,8 @@ public class ControlWindow {
 		if (1 == ht_projects.size()) return (Project)ht_projects.keySet().iterator().next();
 		else {
 			Component c = tabs.getSelectedComponent();
-			for (Iterator it = ht_projects.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				if (entry.getValue().equals(c)) return (Project)entry.getKey();
+			for (final Map.Entry<Project,JSplitPane> e : ht_projects.entrySet()) {
+				if (e.getValue().equals(c)) return e.getKey();
 			}
 		}
 		return null;
@@ -388,12 +385,9 @@ public class ControlWindow {
 				// find the project
 				Project project = null;
 				synchronized (instance) {
-					Enumeration e = ht_projects.keys();
-					while (e.hasMoreElements()) {
-						project = (Project)e.nextElement();
-						if (comp.equals(ht_projects.get(project))) {
-							break;
-						}
+					for (final Map.Entry<Project,JSplitPane> e: ht_projects.entrySet()) {
+						project = e.getKey();
+						if (e.getValue().equals(comp)) break;
 					}
 				}
 				if (ci.contains(me.getX(), me.getY())) {

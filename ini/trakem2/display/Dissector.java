@@ -35,6 +35,7 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Iterator;
 import java.util.HashMap;
@@ -43,6 +44,7 @@ import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Rectangle2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
@@ -797,5 +799,25 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 		calculateBoundingBox();
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		final HashSet<Long> lids = new HashSet<Long>();
+		for (final Item item : al_items) lids.addAll(Utils.asList(item.p_layer, 0, item.n_points));
+		return lids;
+	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		for (final Item item : al_items) {
+			for (int i=0; i<item.n_points; i++) {
+				if (item.p_layer[i] != layer.getId()) continue;
+				a.add(new Area(new Rectangle2D.Float((float)(item.p[0][i] - item.radius), (float)(item.p[1][i] - item.radius), item.radius, item.radius)));
+			}
+		}
+		a.transform(this.at);
+		return a;
 	}
 }

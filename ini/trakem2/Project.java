@@ -24,16 +24,32 @@ package ini.trakem2;
 
 
 import ij.IJ;
-import ij.Macro;
 import ij.gui.GenericDialog;
-import ij.gui.YesNoCancelDialog;
 import ij.io.DirectoryChooser;
-import ini.trakem2.display.*;
-import ini.trakem2.persistence.DBObject;
+import ini.trakem2.display.AreaList;
+import ini.trakem2.display.AreaTree;
+import ini.trakem2.display.Ball;
+import ini.trakem2.display.Bucket;
+import ini.trakem2.display.Connector;
+import ini.trakem2.display.DLabel;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Dissector;
+import ini.trakem2.display.ImageJCommandListener;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Polyline;
+import ini.trakem2.display.Profile;
+import ini.trakem2.display.Stack;
+import ini.trakem2.display.Treeline;
+import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.persistence.DBLoader;
+import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
-import ini.trakem2.tree.DTDParser;
+import ini.trakem2.plugin.TPlugIn;
 import ini.trakem2.tree.DNDTree;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.LayerTree;
@@ -42,32 +58,35 @@ import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.tree.Thing;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.plugin.TPlugIn;
 
+import java.awt.Rectangle;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.Vector;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.Collections;
-import java.util.TreeMap;
-import java.util.Hashtable;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Map;
-import javax.swing.tree.*;
-import javax.swing.JTree;
-import java.awt.Rectangle;
-import javax.swing.UIManager;
+import java.util.TreeMap;
+import java.util.Vector;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
+
+import javax.swing.JTree;
+import javax.swing.UIManager;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreePath;
 
 /** The top-level class in control. */
 public class Project extends DBObject {
@@ -88,7 +107,7 @@ public class Project extends DBObject {
 
 	static final private Vector<PlugInSource> PLUGIN_SOURCES = new Vector<PlugInSource>();
 
-	static private class PlugInSource implements Comparable {
+	static private class PlugInSource implements Comparable<PlugInSource> {
 		String menu;
 		Class c;
 		String title;
@@ -97,8 +116,8 @@ public class Project extends DBObject {
 			this.c = c;
 			this.title = title;
 		}
-		public int compareTo(Object ob) {
-			return ((PlugInSource)ob).title.compareTo(this.title);
+		public int compareTo(PlugInSource ob) {
+			return ob.title.compareTo(this.title);
 		}
 	}
 
@@ -242,10 +261,6 @@ public class Project extends DBObject {
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
-	/** Universal near-unique id for this project, consisting of:
-	 *  <creation-time>.<storage-folder-hashcode>.<username-hashcode> */
-	private String unuid = null;
-
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
@@ -261,6 +276,25 @@ public class Project extends DBObject {
 		this.project = this;
 	}
 
+	private ScheduledFuture autosaving = null;
+
+	private void restartAutosaving() {
+		// cancel current autosaving if it's running
+		if (null != autosaving) try {
+			autosaving.cancel(true);
+		} catch (Throwable t) { IJError.print(t); }
+		//
+		final int interval_in_minutes = getProperty("autosaving_interval", 0);
+		final int interval_in_seconds = interval_in_minutes * 60;
+		if (0 == interval_in_minutes) return;
+		// else, relaunch
+		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
+			public void run() {
+				save();
+			}
+		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
+	}
+
 	static public Project getProject(final String title) {
 		for (final Project pr : al_open_projects) {
 			if (pr.title.equals(title)) return pr;
@@ -270,7 +304,7 @@ public class Project extends DBObject {
 
 	/** Return a copy of the list of all open projects. */
 	static public ArrayList<Project> getProjects() {
-		return (ArrayList<Project>)al_open_projects.clone();
+		return new ArrayList<Project>(al_open_projects);
 	}
 
 	/** Create a new PostgreSQL-based TrakEM2 project. */
@@ -334,9 +368,7 @@ public class Project extends DBObject {
 			project = projects[gd.getNextChoiceIndex()];
 		}
 		// check if the selected project is open already
-		Iterator it = al_open_projects.iterator();
-		while (it.hasNext()) {
-			Project p = (Project)it.next();
+		for (final Project p : al_open_projects) {
 			if (loader.isIdenticalProjectSource(p.loader) && p.id == project.id && p.title.equals(project.title)) {
 				Utils.showMessage("A project with title " + p.title + " and id " + p.id + " from the same database is already open.");
 				loader.destroy();
@@ -470,6 +502,8 @@ public class Project extends DBObject {
 				loader.importStack(project.layer_set.getLayer(0), null, true);
 			}
 
+			project.restartAutosaving();
+
 			return project;
 		} catch (Exception e) {
 			IJError.print(e);
@@ -491,7 +525,6 @@ public class Project extends DBObject {
 		if (null == data) {
 			return null;
 		}
-		//Macro.setOptions("xml_path=" + loader.getProjectXMLPath()); // TODO gets overwritten by the file dialog, but still, the value is the same. Only the key is different.
 		final TemplateThing root_tt = (TemplateThing)data[0];
 		final ProjectThing root_pt = (ProjectThing)data[1];
 		final LayerThing root_lt = (LayerThing)data[2];
@@ -582,6 +615,9 @@ public class Project extends DBObject {
 				Display.createDisplay(project, project.layer_set.getLayer(0));
 			}
 		}
+		
+		project.restartAutosaving();
+
 		return project;
 	}
 
@@ -632,7 +668,7 @@ public class Project extends DBObject {
 		project.createLayerTemplates();
 		project.layer_set = new LayerSet(project, "Top Level", 0, 0, null, 2048, 2048); // initialized with default values, and null parent to signal 'root'
 		try {
-			project.root_lt = new LayerThing(project.layer_set_template, project, project.layer_set);
+			project.root_lt = new LayerThing(Project.layer_set_template, project, project.layer_set);
 			project.layer_tree = new LayerTree(project, project.root_lt);
 		} catch (Exception e) {
 			project.remove();
@@ -665,7 +701,7 @@ public class Project extends DBObject {
 
 	public String save() {
 		Thread.yield(); // let it repaint the log window
-		String path = loader.save(this); // TODO: put in a bkgd task, and show a progress bar
+		String path = loader.save(this);
 		return path;
 	}
 
@@ -687,6 +723,9 @@ public class Project extends DBObject {
 				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
 			}
 		}
+		try {
+			if (null != autosaving) autosaving.cancel(true);
+		} catch (Throwable t) {}
 		al_open_projects.remove(this);
 		// flush all memory
 		if (null != loader) { // the last project is destroyed twice for some reason, if several are open. This is a PATCH
@@ -1048,7 +1087,7 @@ public class Project extends DBObject {
 
 	/** Returns false if the type exists already. */
 	public boolean addUniqueType(TemplateThing tt) {
-		if (null == ht_unique_tt) this.ht_unique_tt = new HashMap();
+		if (null == ht_unique_tt) this.ht_unique_tt = new HashMap<String,TemplateThing>();
 		if (ht_unique_tt.containsKey(tt.getType())) return false;
 		ht_unique_tt.put(tt.getType(), tt);
 		return true;
@@ -1084,16 +1123,15 @@ public class Project extends DBObject {
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
 		       .append(in).append("\ttitle=\"").append(title).append("\"\n");
 		loader.insertXMLOptions(sb_body, in + "\t");
-		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry prop = (Map.Entry)it.next();
-			sb_body.append(in).append('\t').append((String)prop.getKey()).append("=\"").append((String)prop.getValue()).append("\"\n");
+		for (final Map.Entry<String, String> e : ht_props.entrySet()) {
+			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
 		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
 		if (null != root_pt.getChildren()) {
 			String in2 = in + "\t";
-			for (Iterator it = root_pt.getChildren().iterator(); it.hasNext(); ) {
-				((ProjectThing)it.next()).exportXML(sb_body, in2, any);
+			for (final ProjectThing pt : root_pt.getChildren()) {
+				pt.exportXML(sb_body, in2, any);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
@@ -1121,9 +1159,8 @@ public class Project extends DBObject {
 		sb_header.append(indent).append("<!ATTLIST project preprocessor NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project mipmaps_folder NMTOKEN #REQUIRED>\n");
 		sb_header.append(indent).append("<!ATTLIST project storage_folder NMTOKEN #REQUIRED>\n");
-		for (Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry prop = (Map.Entry)it.next();
-			sb_header.append(indent).append("<!ATTLIST project ").append((String)prop.getKey()).append(" NMTOKEN #REQUIRED>\n");
+		for (String key : ht_props.keySet()) {
+			sb_header.append(indent).append("<!ATTLIST project ").append(key).append(" NMTOKEN #REQUIRED>\n");
 		}
 		root_tt.exportDTD(sb_header, hs, indent);
 		// 3 - export all project objects DTD in the Top Level LayerSet
@@ -1157,8 +1194,7 @@ public class Project extends DBObject {
 
 	/** Find an instance containing the given tree. */
 	static public Project getInstance(final DNDTree ob) {
-		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
-			Project project = (Project)it.next();
+		for (final Project project : al_open_projects) {
 			if (project.layer_tree.equals(ob)) return project;
 			if (project.project_tree.equals(ob)) return project;
 			if (project.template_tree.equals(ob)) return project;
@@ -1188,8 +1224,7 @@ public class Project extends DBObject {
 	}
 
 	static public Project findProject(Loader loader) {
-		for (Iterator it = al_open_projects.iterator(); it.hasNext(); ) {
-			Project pro = (Project)it.next();
+		for (final Project pro : al_open_projects) {
 			if (pro.getLoader() == loader) return pro;
 		}
 		return null;
@@ -1229,7 +1264,7 @@ public class Project extends DBObject {
 			// copy LayerSet and all involved Displayable objects
 			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
 			// create layer tree
-			pr.root_lt = new LayerThing(pr.layer_set_template, pr, pr.layer_set);
+			pr.root_lt = new LayerThing(Project.layer_set_template, pr, pr.layer_set);
 			pr.layer_tree = new LayerTree(pr, pr.root_lt);
 			// add layer nodes to the layer tree (solving chicken-and-egg problem)
 			pr.layer_set.updateLayerTree();
@@ -1250,6 +1285,8 @@ public class Project extends DBObject {
 			// Regenerate mipmaps (blocks GUI from interaction other than navigation)
 			pr.loader.regenerateMipMaps(pr.layer_set.getDisplayables(Patch.class));
 
+			pr.restartAutosaving();
+
 			return pr;
 
 		} catch (Exception e) { e.printStackTrace(); }
@@ -1266,7 +1303,7 @@ public class Project extends DBObject {
 		}
 	}
 	public HashMap<String,String> getPropertiesCopy() {
-		return (HashMap<String,String>)ht_props.clone();
+		return new HashMap<String,String>(ht_props);
 	}
 	/** Returns null if not defined. */
 	public String getProperty(final String key) {
@@ -1341,21 +1378,12 @@ public class Project extends DBObject {
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
-		int current_R = (int)(100 * ini.trakem2.imaging.StitchingTEM.DEFAULT_MIN_R); // make the float a percent
-		try {
-			String scR = ht_props.get("min_R");
-			if (null != scR) current_R = (int)(Double.parseDouble(scR) * 100);
-		} catch (Exception nfe) {
-			IJError.print(nfe);
-		}
-		gd.addSlider("min_R: ", 0, 100, current_R);
-
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
 		gd.addCheckbox("Keep_mipmaps_when_deleting_images", keep_mipmaps); // coping with the fact that thee is no Action context ... there should be one in the Worker thread.
 		int bucket_side = (int)getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
-		gd.addNumericField("Bucket side length: ", bucket_side, 0);
+		gd.addNumericField("Bucket side length: ", bucket_side, 0, 6, "pixels");
 		boolean no_shutdown_hook = "true".equals(ht_props.get("no_shutdown_hook"));
 		gd.addCheckbox("No_shutdown_hook to save the project", no_shutdown_hook);
 		int n_undo_steps = getProperty("n_undo_steps", 32);
@@ -1363,7 +1391,9 @@ public class Project extends DBObject {
 		boolean flood_fill_to_image_edge = "true".equals(ht_props.get("flood_fill_to_image_edge"));
 		gd.addCheckbox("AreaList_flood_fill_to_image_edges", flood_fill_to_image_edge);
 		int look_ahead_cache = (int)getProperty("look_ahead_cache", 0);
-		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0);
+		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0, 6, "layers");
+		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
+		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
 		//
 		gd.showDialog();
 		//
@@ -1379,7 +1409,6 @@ public class Project extends DBObject {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
-		setProperty("min_R", new Float((float)gd.getNextNumber() / 100).toString());
 		boolean layer_mipmaps2 = gd.getNextBoolean();
 		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
 			if (layer_mipmaps && !layer_mipmaps2) {
@@ -1411,6 +1440,15 @@ public class Project extends DBObject {
 			Utils.logAll("WARNING: look-ahead cache is incomplete.\n  Expect issues when editing objects, adding new ones, and the like.\n  Use \"Project - Flush image cache\" to fix any lack of refreshing issues you encounter.");
 		} else {
 			Utils.log2("Ignoring invalid 'look ahead cache' value " + d_look_ahead_cache);
+		}
+		double autosaving_interval2 = gd.getNextNumber();
+		if (((int)(autosaving_interval2)) == autosaving_interval) {
+			// do nothing
+		} else if (autosaving_interval2 < 0 || Double.isNaN(autosaving_interval)) {
+			Utils.log("IGNORING invalid autosaving interval: " + autosaving_interval2);
+		} else {
+			setProperty("autosaving_interval", Integer.toString((int)autosaving_interval2));
+			restartAutosaving();
 		}
 	}
 

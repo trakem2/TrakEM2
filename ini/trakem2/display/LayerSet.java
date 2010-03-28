@@ -113,6 +113,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
 	private final ArrayList<Layer> al_layers = new ArrayList<Layer>();
+	private final HashMap<Long,Layer> idlayers = new HashMap<Long,Layer>();
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
@@ -247,6 +248,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void addSilently(final Layer layer) {
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
+			idlayers.put(layer.getId(), layer);
 			double z = layer.getZ();
 			int i = 0;
 			for (Layer la : al_layers) {
@@ -283,6 +285,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			al_layers.add(layer);
 		}
 		layer.setParent(this);
+		idlayers.put(layer.getId(), layer);
 		Display.updateLayerScroller(this);
 		//debug();
 	}
@@ -676,6 +679,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void remove(Layer layer) {
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
+		idlayers.remove(layer.getId());
 		for (final ZDisplayable zd : new ArrayList<ZDisplayable>(al_zdispl)) zd.layerRemoved(layer); // may call back and add/remove ZDisplayable objects
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
@@ -738,10 +742,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find a layer with the given id, or null if none. */
 	public Layer getLayer(final long id) {
-		for (Layer layer : al_layers) {
-			if (layer.getId() == id) return layer;
-		}
-		return null;
+		return idlayers.get(id);
 	}
 
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
@@ -953,11 +954,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Move all Displayable objects in the HashSet to the given target layer. */
-	public void move(final HashSet hs_d, final Layer source, final Layer target) {
+	public void move(final Set hs_d, final Layer source, final Layer target) {
 		if (0 == hs_d.size() || null == source || null == target || source == target) return;
 		Display.setRepaint(false); // disable repaints
 		for (Iterator it = hs_d.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable)it.next();
+			if (d instanceof ZDisplayable) continue; // ignore
 			if (source == d.getLayer()) {
 				source.remove(d);
 				target.add(d, false, false); // these contortions to avoid repeated DB traffic
@@ -1665,7 +1667,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			// Check if the last added entry contains the exact same elements and data
 			DoStep step = edit_history.get(edit_history.lastKey());
 			boolean b = step.isIdenticalTo(ob);
-			Utils.log2(b + " == prepareStep for " + ob);
+			//Utils.log2(b + " == prepareStep for " + ob);
 			// If identical, don't prepare one!
 			return !b;
 		}
@@ -1797,7 +1799,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized (edit_history) {
 			// Check if it's identical to current step
 			if (step.isIdenticalTo(current_edit_step)) {
-				Utils.log2("Skipping identical undo step of class " + step.getClass() + ": " + step);
+				//Utils.log2("Skipping identical undo step of class " + step.getClass() + ": " + step);
 				return false;
 			}
 
@@ -2165,6 +2167,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		synchronized(offscreens) {
 			offscreens.put(s.props, s);
 			putO2(s.layer, s);
+		}
+	}
+	final void clearScreenshots() {
+		synchronized (offscreens) {
+			offscreens.clear();
+			offscreens2.clear();
 		}
 	}
 	final void trimScreenshots() {

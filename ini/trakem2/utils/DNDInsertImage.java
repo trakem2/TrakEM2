@@ -152,14 +152,6 @@ public class DNDInsertImage implements DropTargetListener {
 				case 0: // as stack
 					// if importing image sequence as a stack:
 					String[] names = f.list(new ImageFileFilter()); // don't filter by name  "^[^\\.].*[\\.][a-zA-Z1-9_]{3,4}$"
-					int max_len = 0;
-					// fake natural sorting: pre-pad short names with zeros
-					for (int i=0; i<names.length; i++) {
-						if (names[i].length() > max_len) max_len = names[i].length();
-					}
-					for (int i=0; i<names.length; i++) {
-						while (names[i].length() < max_len) names[i] = "0" + names[i];
-					}
 					Utils.log2("stack size: " + names.length);
 					for (int i=0; i<names.length; i++) {
 						Utils.log2(names[i]);

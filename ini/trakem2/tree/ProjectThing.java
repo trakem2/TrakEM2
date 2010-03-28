@@ -44,6 +44,8 @@ import java.awt.Event;
 import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Collection;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
@@ -119,6 +121,63 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		this.object = ob;
 		// now, ready:
 		addToDatabase();
+	}
+
+	/** Check, recursively, that the children of tt2 are also in tt1. */
+	private void assertChildren(final TemplateThing tt1, final TemplateThing tt2) throws Exception {
+		// Check that if this type exists in the target project, it can have the same children
+		Collection<TemplateThing> c1 = (Collection<TemplateThing>)tt1.getChildren();
+		HashSet<String> keys1 = new HashSet<String>();
+		if (null != c1) for (final TemplateThing tn : c1) keys1.add(tn.getType());
+
+		Collection<TemplateThing> c2 = (Collection<TemplateThing>)tt2.getChildren();
+		HashSet<String> keys2 = new HashSet<String>();
+		if (null != c2) for (final TemplateThing tn : c2) keys2.add(tn.getType());
+
+		if (keys1.isEmpty() && keys2.isEmpty()) {
+			return; // no children to check
+		} else if (!keys1.containsAll(keys2)) {
+			throw new Exception("ERROR: receiving project has an homonimous template without all required children!");
+		}
+
+		for (final Iterator<TemplateThing> it1 = c1.iterator(), it2 = c2.iterator(); it2.hasNext(); ) {
+			assertChildren(it1.next(), it2.next());
+		}
+	}
+
+	/** Clone this ProjectThing with its template and all its children and objects cloned, and return it.
+	 *  The templates are added to the project as unique types when not there yet.
+	 *  WARNING there isn't any conflict resolution between potentially different kinds of TemplateThing parent/child chains. */
+	public ProjectThing deepClone(final Project project, final boolean copy_id) throws Exception {
+		// Find a template for this in project, otherwise create it
+		TemplateThing tt = project.getTemplateThing(this.template.getType()); // WARNING: not checking if parent/child chain is identical. Just the name.
+		if (null == tt) {
+			tt = this.template.clone(project, copy_id); // deep copy, with children
+			project.addUniqueType(tt);
+		} else {
+			// Check that if this type exists in the target project, it can have the same children
+			assertChildren(tt, this.template);
+		}
+		// Check that the entire child chain is there:
+		ArrayList<String> missing = new ArrayList<String>();
+		for (TemplateThing tn : (Collection<TemplateThing>)this.template.collectAllChildren(new ArrayList())) {
+			if (!project.typeExists(tn.getType())) {
+				missing.add(tn.getType());
+			}
+		}
+		if (!missing.isEmpty()) {
+			throw new Exception("Can't transfer: missing templates " + Utils.toString(missing));
+		}
+		
+
+		// Make a deep copy of this
+		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);
+		if (null != this.al_children) {
+			for (final ProjectThing child : this.al_children) {
+				copy.addChild(child.deepClone(project, copy_id));
+			}
+		}
+		return copy;
 	}
 
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
@@ -202,6 +261,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public boolean addChild(Thing child) {
 		// check if the child is allowed in this ProjectThing
 		if (!template.canHaveAsChild(child) || (null != al_children && -1 != al_children.indexOf((ProjectThing)child))) { // paranoid avoidance of duplicates
+			Utils.log2("Rejecting child " + child);
 			return false;
 		}
 		// proceed to add the child
@@ -846,20 +906,19 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return hs;
 	}
 
-	/** Recursive into children. */
-	public HashSet findChildrenOfTypeR(final Class c) {
-		return findChildrenOfTypeR(new HashSet<ProjectThing>(), c);
+	/** Finds them in order. Recursive into children. */
+	public List<ProjectThing> findChildrenOfTypeR(final Class c) {
+		return findChildrenOfTypeR(new ArrayList<ProjectThing>(), c);
 	}
-	/** Recursive into children. */
-	public HashSet<ProjectThing> findChildrenOfTypeR(HashSet<ProjectThing> hs, final Class c) {
-		if (null == hs) hs = new HashSet<ProjectThing>();
-		else if (hs.contains(this)) return hs;
-		if (c.isInstance(object)) hs.add(this);
-		if (null == al_children) return hs;
+	/** Finds them in order. Recursive into children. */
+	public List<ProjectThing> findChildrenOfTypeR(List<ProjectThing> list, final Class c) {
+		if (null == list) list = new ArrayList<ProjectThing>();
+		if (c.isInstance(object)) list.add(this);
+		if (null == al_children) return list;
 		for (ProjectThing child : al_children) {
-			child.findChildrenOfTypeR(hs, c);
+			child.findChildrenOfTypeR(list, c);
 		}
-		return hs;
+		return list;
 	}
 
 	/** Recursive into children. */

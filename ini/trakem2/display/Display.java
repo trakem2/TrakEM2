@@ -394,6 +394,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	static final public void clearColumnScreenshots(final LayerSet ls) {
+		for (final Display d : al_displays) {
+			if (d.layer.getParent() == ls) d.clearColumnScreenshots();
+		}
+	}
+
+	final public void clearColumnScreenshots() {
+		getLayerSet().clearScreenshots();
+	}
+
 	/** Only for DefaultMode. */
 	final private void createColumnScreenshots() {
 		final int n;
@@ -1860,6 +1870,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return frame;
 	}
 
+	/** Feel free to add more tabs. Don't remove any of the existing tabs or the sky will fall on your head. */
+	public JTabbedPane getTabbedPane() {
+		return tabs;
+	}
+
 	public void setLocation(Point p) {
 		this.frame.setLocation(p);
 	}
@@ -2130,6 +2145,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final ArrayList al) {
+		if (null == al) return;
 		dispatcher.exec(new Runnable() { public void run() {
 			try {
 			if (0 == al.size()) {
@@ -2375,22 +2391,49 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
 				popup.add(go);
 				popup.addSeparator();
+			} else if (Connector.class == aclass) {
+				item = new JMenuItem("Merge"); item.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						if (null == getActive() || getActive().getClass() != Connector.class) {
+							Utils.log("Active object must be a Connector!");
+							return;
+						}
+						final List<Connector> col = (List<Connector>) (List) selection.getSelected(Connector.class);
+						if (col.size() < 2) {
+							Utils.log("Select more than one Connector!");
+							return;
+						}
+						if (col.get(0) != getActive()) {
+							if (col.remove(getActive())) {
+								col.add(0, (Connector)getActive());
+							} else {
+								Utils.log("ERROR: cannot find active object in selection list!");
+								return;
+							}
+						}
+						Bureaucrat.createAndStart(new Worker.Task("Merging connectors") {
+							public void exec() {
+								getLayerSet().addChangeTreesStep();
+								Connector base = null;
+								try {
+									base = Connector.merge(col);
+								} catch (Exception e) {
+									IJError.print(e);
+								}
+								if (null == base) {
+									Utils.log("ERROR: could not merge connectors!");
+									getLayerSet().undoOneStep();
+								} else {
+									getLayerSet().addChangeTreesStep();
+								}
+								Display.repaint();
+							}
+						}, getProject());
+					}
+				});
+				popup.add(item);
+				item.setEnabled(selection.getSelected(Connector.class).size() > 1);
 			}
-
-			JMenuItem st = new JMenu("Transform");
-			StartTransformMenuListener tml = new StartTransformMenuListener();
-			item = new JMenuItem("Transform (affine)"); item.addActionListener(tml); st.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
-			item = new JMenuItem("Transform (non-linear)"); item.addActionListener(tml); st.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, Event.SHIFT_MASK, true));
-			item = new JMenuItem("Cancel transform"); st.add(item);
-			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
-			item.setEnabled(false); // just added as a self-documenting cue; no listener
-			item = new JMenuItem("Remove coordinate transforms (selected images)"); item.addActionListener(tml); st.add(item);
-			// TODO the next one should really be somewhere where it appears even if no images are selected!
-			item = new JMenuItem("Remove coordinate transforms layer-wise"); item.addActionListener(tml); st.add(item);
-			popup.add(st);
-
 
 			item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
 			item = new JMenuItem("Color..."); item.addActionListener(this); popup.add(item);
@@ -2570,6 +2613,25 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Montage multiple layers (SIFT)"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
 
+		JMenuItem st = new JMenu("Transform");
+		StartTransformMenuListener tml = new StartTransformMenuListener();
+		item = new JMenuItem("Transform (affine)"); item.addActionListener(tml); st.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, 0, true));
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Transform (non-linear)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_T, Event.SHIFT_MASK, true));
+		item = new JMenuItem("Cancel transform"); st.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+		item.setEnabled(false); // just added as a self-documenting cue; no listener
+		item = new JMenuItem("Remove rotation, scaling and shear (selected images)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Remove rotation, scaling and shear layer-wise"); item.addActionListener(tml); st.add(item);
+		item = new JMenuItem("Remove coordinate transforms (selected images)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Remove coordinate transforms layer-wise"); item.addActionListener(tml); st.add(item);
+		popup.add(st);
+
 		JMenu link_menu = new JMenu("Link");
 		item = new JMenuItem("Link images..."); item.addActionListener(this); link_menu.add(item);
 		item = new JMenuItem("Unlink all selected images"); item.addActionListener(this); link_menu.add(item);
@@ -2664,20 +2726,29 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		JMenu bytype = new JMenu("Select all by type");
 		item = new JMenuItem("AreaList"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Ball"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Connector"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Dissector"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Image"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Pipe"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Polyline"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
-		item = new JMenuItem("AreaTree"); item.addActionListener(bytypelistener); bytype.add(item);
 		item = new JMenuItem("Profile"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Text"); item.addActionListener(bytypelistener); bytype.add(item);
+		item = new JMenuItem("Treeline"); item.addActionListener(bytypelistener); bytype.add(item);
 		menu.add(bytype);
 
 		item = new JMenuItem("Restore selection"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Select under ROI"); item.addActionListener(this); menu.add(item);
 		if (canvas.getFakeImagePlus().getRoi() == null) item.setEnabled(false);
+		JMenu graph = new JMenu("Graph");
+		GraphMenuListener gl = new GraphMenuListener();
+		item = new JMenuItem("Select outgoing Connectors"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select incomming Connectors"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
+		graph.setEnabled(!selection.isEmpty());
+		menu.add(graph);
 		popup.add(menu);
 
 		menu = new JMenu("Tool");
@@ -2707,6 +2778,54 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private final class GraphMenuListener implements ActionListener {
+		public void actionPerformed(ActionEvent ae) {
+			final String command = ae.getActionCommand();
+			final Collection<Displayable> sel = selection.getSelected();
+			if (null == sel || sel.isEmpty()) return;
+			final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
+			final HashSet<Displayable> to_select = new HashSet<Displayable>();
+
+			if (command.equals("Select outgoing Connectors")) {
+				for (final Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins();
+					origins.retainAll(sel);
+					if (origins.isEmpty()) continue;
+					to_select.add(con);
+				}
+			} else if (command.equals("Select incomming Connectors")) {
+				for (final Connector con : connectors) {
+					for (final Set<Displayable> targets : con.getTargets()) {
+						targets.retainAll(sel);
+						if (targets.isEmpty()) continue;
+						to_select.add(con);
+					}
+				}
+			} else if (command.equals("Select downstream targets")) {
+				for (final Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins();
+					origins.retainAll(sel);
+					if (origins.isEmpty()) continue;
+					// else, add all targets
+					for (final Set<Displayable> targets : con.getTargets()) {
+						to_select.addAll(targets);
+					}
+				}
+			} else if (command.equals("Select upstream targets")) {
+				for (final Connector con : connectors) {
+					for (final Set<Displayable> targets : con.getTargets()) {
+						targets.retainAll(sel);
+						if (targets.isEmpty()) continue;
+						to_select.addAll(con.getOrigins());
+						break; // origins will be the same for all targets of 'con'
+					}
+				}
+			}
+
+			selection.selectAll(new ArrayList<Displayable>(to_select));
+		}
 	}
 
 	protected class GridOverlay {
@@ -2830,9 +2949,40 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					patches.addAll(layer.getDisplayables(Patch.class));
 				}
 				removeCoordinateTransforms( (List<Patch>) (List) patches);
+			} else if (command.equals("Remove rotation, scaling and shear (selected images)")) {
+				final List<Displayable> col = selection.getSelected(Patch.class);
+				if (col.isEmpty()) return;
+				removeScalingRotationShear( (List<Patch>) (List) col);
+			} else if (command.equals("Remove rotation, scaling and shear layer-wise")) {
+				// Because we love copy-paste
+				GenericDialog gd = new GenericDialog("Remove Scaling/Rotation/Shear");
+				gd.addMessage("Remove scaling, translation");
+				gd.addMessage("and shear for all images in:");
+				Utils.addLayerRangeChoices(Display.this.layer, gd);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				final ArrayList<Displayable> patches = new ArrayList<Displayable>();
+				for (final Layer layer : getLayerSet().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1)) {
+					patches.addAll(layer.getDisplayables(Patch.class));
+				}
+				removeScalingRotationShear( (List<Patch>) (List) patches);
 			}
 		}
+	}
 
+	public Bureaucrat removeScalingRotationShear(final List<Patch> patches) {
+		return Bureaucrat.createAndStart(new Worker.Task("Removing coordinate transforms") { public void exec() {
+			getLayerSet().addTransformStep(patches);
+			for (final Patch p : patches) {
+				Rectangle box = p.getBoundingBox();
+				final AffineTransform aff = new AffineTransform();
+				// translate so that the center remains where it is
+				aff.setToTranslation(box.x + (box.width - p.getWidth())/2, box.y + (box.height - p.getHeight())/2);
+				p.setAffineTransform(aff);
+			}
+			getLayerSet().addTransformStep(patches);
+			Display.repaint();
+		}}, this.project);
 	}
 
 	public Bureaucrat removeCoordinateTransforms(final List<Patch> patches) {
@@ -2954,6 +3104,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			try {
 				String type = command;
 				if (type.equals("Image")) type = "Patch";
+				else if (type.equals("Text")) type = "DLabel";
 				Class c = Class.forName("ini.trakem2.display." + type);
 
 				java.util.List<Displayable> a = new ArrayList<Displayable>();
@@ -3096,17 +3247,18 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Update the Display's title in all Displays showing the given Layer. */
 	static public void updateTitle(final Layer layer) {
 		for (final Display d : al_displays) {
-			if (d.layer == layer) {
-				d.updateFrameTitle();
-			}
+			if (d.layer == layer) d.updateFrameTitle();
+		}
+	}
+	static public void updateTitle(final Project project) {
+		for (final Display d : al_displays) {
+			if (d.project == project) d.updateFrameTitle();
 		}
 	}
 	/** Update the Display's title in all Displays showing a Layer of the given LayerSet. */
 	static public void updateTitle(final LayerSet ls) {
 		for (final Display d : al_displays) {
-			if (d.layer.getParent() == ls) {
-				d.updateFrameTitle();
-			}
+			if (d.layer.getParent() == ls) d.updateFrameTitle(d.layer);
 		}
 	}
 
@@ -3384,8 +3536,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (-1 == end) end = command.length();
 			double lz = Double.parseDouble(command.substring(iz, end));
 			Layer target = layer.getParent().getLayer(lz);
-			HashSet hs = active.getLinkedGroup(new HashSet());
-			layer.getParent().move(hs, active.getLayer(), target);
+			layer.getParent().move(selection.getAffected(), active.getLayer(), target); // TODO what happens when ZDisplayable are selected?
 		} else if (command.equals("Unlink")) {
 			if (null == active || active instanceof Patch) return;
 			active.unlink();
@@ -4172,6 +4323,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Calibration...")) {
 			try {
 				IJ.run(canvas.getFakeImagePlus(), "Properties...", "");
+				Display.updateTitle(getLayerSet());
 			} catch (RuntimeException re) {
 				Utils.log2("Calibration dialog canceled.");
 			}
@@ -4761,7 +4913,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 		displ.setVisible(true);
 		Rectangle box = displ.getBoundingBox();
-		
+
 		if (0 == box.width && 0 == box.height) {
 			box.width = 100; // old: (int)layer.getLayerWidth();
 			box.height = 100; // old: (int)layer.getLayerHeight();
@@ -4822,7 +4974,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
 			DisplayablePanel dp = d.ht_panels.get(displ);
-			if (null != dp) dp.updateCheckbox(cb, state);
+			if (null != dp) {
+				dp.updateCheckbox(cb, state);
+			}
 		}
 	}
 	/** Set the checkbox @param cb state to @param state value, for each Displayable. Assumes all Displayable objects belong to one specific project. */
@@ -4833,7 +4987,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (d.getProject() != p) continue;
 			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckbox(cb, state);
+				if (null != dp) {
+					dp.updateCheckbox(cb, state);
+				}
 			}
 		}
 	}
@@ -4845,7 +5001,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (d.getProject() != p) continue;
 			for (final Displayable displ : displs) {
 				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) dp.updateCheckbox(cb);
+				if (null != dp) {
+					dp.updateCheckbox(cb);
+				}
 			}
 		}
 	}
@@ -4951,7 +5109,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			d.updateToolTab();
 		}
 		if (null != front) {
-			WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
+			try {
+				WindowManager.setTempCurrentImage(front.canvas.getFakeImagePlus());
+			} catch (Exception e) {} // may fail when changing tools while opening a Display
 		}
 	}
 

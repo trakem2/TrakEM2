@@ -77,6 +77,7 @@ import javax.swing.JMenu;
 import java.lang.reflect.Field;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
@@ -1407,6 +1408,10 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc) {
 		return newFixedThreadPool(n_proc, null);
 	}
+	/** Creates a new fixed thread pool with as many threads as CPUs, and whose threads are in the same ThreadGroup as the Thread that calls this method. */
+	static public final ThreadPoolExecutor newFixedThreadPool(final String namePrefix) {
+		return newFixedThreadPool(Runtime.getRuntime().availableProcessors(), namePrefix);
+	}
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc, final String namePrefix) {
 		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -1562,5 +1567,15 @@ public class Utils implements ij.plugin.PlugIn {
 		return 0 == path_or_url.indexOf("http://") ?
 			  new java.net.URL(path_or_url).openStream()
 			: new java.io.BufferedInputStream(new java.io.FileInputStream(path_or_url));
+	}
+
+	static public final List<Long> asList(final long[] ids) {
+		return asList(ids, 0, ids.length);
+	}
+	static public final List<Long> asList(final long[] ids, final int first, final int length) {
+		final ArrayList<Long> l = new ArrayList<Long>();
+		if (null == ids) return l;
+		for (int i=first; i<length; i++) l.add(ids[i]);
+		return l;
 	}
 }

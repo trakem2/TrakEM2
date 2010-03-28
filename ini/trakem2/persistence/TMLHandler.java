@@ -84,7 +84,7 @@ public class TMLHandler extends DefaultHandler {
 	private HashMap ht_displayables = new HashMap();
 	private HashMap ht_zdispl = new HashMap();
 	private HashMap ht_oid_pt = new HashMap();
-	private HashMap ht_pt_expanded = new HashMap();
+	private HashMap<ProjectThing,Boolean> ht_pt_expanded = new HashMap<ProjectThing,Boolean>();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private long last_area_list_layer_id = -1;

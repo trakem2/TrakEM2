@@ -25,6 +25,7 @@ package ini.trakem2.io;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.AreaList;
@@ -150,74 +151,8 @@ public class AmiraImporter {
 								map.put(i, layer_map);
 							}
 
-							final int height = ip.getHeight();
-							final int width = ip.getWidth();
-							int inc = height / 100;
-							if (inc < 10) inc = 10;
+							AreaUtils.extractAreas(ip, layer_map, add_background, box, parent, true);
 
-							for (int y=0; y<height; y++) {
-								if (0 == y % inc) {
-									if (parent.isInterrupted()) return;
-									Utils.showStatus(new StringBuilder().append("line: ").append(y).append('/').append(height).toString());
-								}
-
-								float prev = ip.getPixelValue(0, y);
-								box.x = 0;
-								box.y = y;
-								box.width = 0;
-
-								for (int x=1; x<width; x++) {
-
-									float pix = ip.getPixelValue(x, y);
-
-
-									/*
-									if (!add_background && 0 == pix) continue;
-									// x,y
-									box.x = x;
-									box.y = y;
-									Area area = layer_map.get(new Float(pix));
-									if (null == area) {
-										area = new Area();
-										layer_map.put(new Float(pix), area);
-									}
-									area.add(new Area(box));
-									*/
-
-									if (pix == prev) {
-										box.width++;
-										continue;
-									} else {
-										// add previous one
-										if (!Float.isNaN(prev) && (add_background || 0 != prev)) {
-											box.width++;
-											Area area = layer_map.get(new Float(prev));
-											if (null == area) {
-												area = new Area(box);
-												layer_map.put(new Float(prev), area);
-											} else {
-												area.add(new Area(box));
-											}
-										}
-										// start new box
-										box.x = x;
-										box.y = y;
-										box.width = 0;
-										prev = pix;
-									}
-								}
-
-								// At end of line, add the last
-								if (!Float.isNaN(prev) && (add_background || 0 != prev)) {
-									Area area = layer_map.get(new Float(prev));
-									if (null == area) {
-										area = new Area(box);
-										layer_map.put(new Float(prev), area);
-									} else {
-										area.add(new Area(box));
-									}
-								}
-							}
 							Utils.showProgress(completed_slices.incrementAndGet() / (float)n_slices);
 						}
 					}

@@ -69,6 +69,7 @@ public class Connector extends ZDisplayable implements VectorData {
 			this.p = new float[len + len];
 			this.lids = new long[len];
 			this.radius = new float[len];
+
 			// Origin:
 			/* X  */ p[0] = Float.parseFloat(o[0]);
 			/* Y  */ p[1] = Float.parseFloat(o[1]);
@@ -130,6 +131,29 @@ public class Connector extends ZDisplayable implements VectorData {
 
 	public int addTarget(final double x, final double y, final long layer_id, final double r) {
 		return addTarget((float)x, (float)y, layer_id, (float)r);
+	}
+
+	protected void mergeTargets(final Connector c) throws NoninvertibleTransformException {
+		if (null == c || null == c.lids) return;
+		if (null == this.lids) {
+			// use target root as root
+			addTarget(c.p[0], c.p[1], c.lids[0], c.radius[0]);
+		}
+		final int next = lids.length;
+		resizeArray(c.lids.length-1);
+		// Add all targets (not the first one, which is the root)
+		final float[] fp = new float[2];
+		AffineTransform aff = new AffineTransform(c.at);
+		aff.preConcatenate(this.at.createInverse());
+		for (int i=next, k=1; k<c.lids.length; i++, k++) {
+			fp[0] = c.p[k+k];
+			fp[1] = c.p[k+k+1];
+			aff.transform(fp, 0, fp, 0, 1);
+			p[i+i] = fp[0];
+			p[i+i+1] = fp[1];
+			lids[i] = c.lids[k];
+			radius[i] = c.radius[k]; // ignoring affine
+		}
 	}
 
 	/** To remove a target point of index larger than zero. */
@@ -347,7 +371,12 @@ public class Connector extends ZDisplayable implements VectorData {
 			return false;
 		}
 		for (int i=0,j=0; i<lids.length; i++,j+=2) {
-			double laz = layer_set.getLayer(lids[i]).getZ();
+			Layer la = layer_set.getLayer(lids[i]);
+			if (null == la) {
+				Utils.log("WARNING could not find layer with id " + lids[i]);
+				continue;
+			}
+			double laz = la.getZ();
 			if (laz < z_first || laz > z_last) continue;
 			float r = radius[i];
 			if (M.intersects(new Area(new Ellipse2D.Float(p[j] - r, p[j+1] - r, r+r, r+r)), area)) return true;
@@ -434,7 +463,9 @@ public class Connector extends ZDisplayable implements VectorData {
 		this.at.transform(po, 0, po, 0, 1);
 		r = r * sc;
 		if (r <= 0) r = 1; // r is in pixels, so the minimal search when 0==r is for a circle of diameter 2 pixels.
-		return new HashSet<Displayable>(layer_set.find(c, la, new Area(new Ellipse2D.Float(po[0]-r, po[1]-r, r+r, r+r)), true));
+		HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, la, new Area(new Ellipse2D.Float(po[0]-r, po[1]-r, r+r, r+r)), true));
+		targets.remove(this);
+		return targets;
 	}
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
@@ -561,9 +592,9 @@ public class Connector extends ZDisplayable implements VectorData {
 	public Connector clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		Connector copy = new Connector(pr, nid, title, this.alpha, true, this.color, this.locked, this.at);
-		copy.lids = this.lids.clone();
-		copy.p = this.p.clone();
-		copy.radius = this.radius.clone();
+		copy.lids = null == this.lids ? null : this.lids.clone();
+		copy.p = null == this.p ? null : this.p.clone();
+		copy.radius = null == this.radius ? null : this.radius.clone();
 		return copy;
 	}
 
@@ -749,5 +780,38 @@ public class Connector extends ZDisplayable implements VectorData {
 		}
 		calculateBoundingBox();
 		return true;
+	}
+
+	@Override
+	public Collection<Long> getLayerIds() {
+		return Utils.asList(lids);
+	}
+
+	@Override
+	synchronized public Area getAreaAt(final Layer layer) {
+		final Area a = new Area();
+		if (null == lids) return a;
+		for (int i=0; i<lids.length; i++) {
+			if (lids[i] != layer.getId()) continue;
+			a.add(new Area(new Ellipse2D.Float(p[i+i] - radius[i], p[i+i+1] - radius[i], radius[i], radius[i])));
+		}
+		a.transform(this.at);
+		return a;
+	}
+
+	/** Takes the List of Connector instances and adds the targets of all to the first one.
+	 *  Removes the others from the LayerSet and from the Project.
+	 *  If any of the Connector instances cannot be removed, returns null. */
+	static public Connector merge(final List<Connector> col) throws NoninvertibleTransformException {
+		if (null == col || 0 == col.size()) return null;
+		final Connector base = col.get(0);
+		for (final Connector con : col.subList(1, col.size())) {
+			base.mergeTargets(con);
+			if (!con.remove2(false)) {
+				Utils.log("FAILED to merge Connector " + con + " into " + base);
+				return null;
+			}
+		}
+		return base;
 	}
 }

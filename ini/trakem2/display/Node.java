@@ -14,6 +14,7 @@ import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.geom.Rectangle2D;
 import java.awt.Rectangle;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -21,6 +22,7 @@ import java.awt.geom.Point2D;
 
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.Project;
 
 /** Can only have one parent, so there aren't cyclic graphs. */
 public abstract class Node<T> implements Taggable {
@@ -310,12 +312,7 @@ public abstract class Node<T> implements Taggable {
 			g.drawString("e", (int)x -4, (int)y + 3); // TODO ensure Font is proper
 		} else if (1 == children.length) {
 			// as a slab: no branches
-			g.setColor(Color.orange);
-			g.drawRect((int)x - 2, (int)y - 2, 5, 5);
-			g.setColor(Color.black);
-			g.drawRect((int)x - 1, (int)y - 1, 3, 3);
-			g.setColor(Color.orange);
-			g.fillRect((int)x, (int)y, 1, 1);
+			DisplayCanvas.drawScreenHandle(g, (int)x, (int)y);
 		} else {
 			// As branch point
 			g.setColor(Color.yellow);
@@ -353,7 +350,7 @@ public abstract class Node<T> implements Taggable {
 
 	/** Returns a recursive copy of this Node subtree, where the copy of this Node is the root.
 	 * Non-recursive to avoid stack overflow. */
-	final public Node clone() {
+	final public Node clone(final Project pr) {
 		// todo list containing packets of a copied node and the lists of original children and confidence to clone into it
 		final LinkedList<Object[]> todo = new LinkedList<Object[]>();
 		final Node root = newInstance(x, y, la);
@@ -362,6 +359,18 @@ public abstract class Node<T> implements Taggable {
 		if (null != this.children) {
 			todo.add(new Object[]{root, this.children, this.confidence});
 		}
+		
+		final HashMap<Long,Layer> ml;
+		if (pr != la.getProject()) {
+			// Layers must be replaced by their corresponding clones
+			ml = new HashMap<Long,Layer>();
+			for (final Layer layer : pr.getRootLayerSet().getLayers()) {
+				ml.put(layer.getId(), layer);
+			}
+		} else ml = null;
+
+		if (null != ml) root.la = ml.get(root.la.getId()); // replace Layer pointer in the copy
+
 		while (!todo.isEmpty()) {
 			final Object[] o = todo.removeFirst();
 			final Node copy = (Node)o[0];
@@ -374,6 +383,7 @@ public abstract class Node<T> implements Taggable {
 				copy.children[i].setData(ochild.getDataCopy());
 				copy.children[i].parent = copy;
 				copy.children[i].tags = null == ochild.tags ? null : new TreeSet<Tag>(ochild.tags);
+				if (null != ml) copy.children[i].la = ml.get(copy.children[i].la.getId()); // replace Layer pointer in the copy
 				if (null != ochild.children) {
 					todo.add(new Object[]{copy.children[i], ochild.children, ochild.confidence});
 				}
@@ -543,6 +553,11 @@ public abstract class Node<T> implements Taggable {
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
+
+	/** Returns are in local coords. */
+	public Area getArea() {
+		return new Area(new Rectangle2D.Float(x, y, 1, 1)); // a "little square" -- sinful! xDDD
+	}
 
 	/** Returns a list of Patch to link, which lay under the node. Use the given @param aff to transform the Node data before looking up targets. */
 	public Collection<Displayable> findLinkTargets(final AffineTransform aff) {

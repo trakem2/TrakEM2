@@ -126,6 +126,16 @@ public final class M {
 		      + Math.pow(z1 - z2, 2);
 	}
 
+	/** In 3D */
+	static public double distancePointToLine(final double px, final double py, final double pz, final double lx1, final double ly1, final double lz1, final double lx2, final double ly2, final double lz2 ) {
+		final double segment_length = new Vector3d(lx2 - lx1, ly2 - ly1, lz2 - lz1).length();
+		if (0 == segment_length) return 0;
+		final Vector3d cross = new Vector3d();
+		cross.cross(new Vector3d(px - lx1, py - ly1, pz - lz1),
+			    new Vector3d(px - lx2, py - ly2, pz - lz2));
+		return cross.length() / segment_length;
+	}
+
 
 	/*==============  2D =============*/
 
@@ -134,6 +144,7 @@ public final class M {
 		        return Math.abs( (lx2 - lx1) * (ly1 - py) - (lx1 - px) * (ly2 - ly1) )
 			     / Math.sqrt( Math.pow(lx2 - lx1, 2) + Math.pow(ly2 - ly1, 2) );
 	}
+
 
 	/** For a point px,py return its distance to a line SEGMENT defined by points lx1,ly1 and lx2,ly2. */
 	static public double distancePointToSegment(final double px, final double py, final double lx1, final double ly1, final double lx2, final double ly2) {
@@ -270,10 +281,11 @@ public final class M {
 
 	/** Compute the area of the triangle defined by 3 points in 3D space, returning half of the length of the vector resulting from the cross product of vectors p1p2 and p1p3. */
 	static public final double measureArea(final Point3f p1, final Point3f p2, final Point3f p3) {
-		final Vector3f v = new Vector3f();
-		v.cross(new Vector3f(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z),
-			new Vector3f(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z));
-		return 0.5 * Math.abs(v.x * v.x + v.y * v.y + v.z * v.z);
+		// Distance from p1 to line p2-p3, times length of line p2-p3, divided by 2:
+		return 0.5 * M.distancePointToLine(p1.x, p1.y, p1.z,
+						   p2.x, p2.y, p2.z,
+						   p3.x, p3.y, p3.z)
+			   * p2.distance(p3);
 	}
 
 	/** Returns true if the roi is of closed shape type like an OvalRoi, ShapeRoi, a Roi rectangle, etc. */

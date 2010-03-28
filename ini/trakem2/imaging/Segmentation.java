@@ -106,6 +106,8 @@ public class Segmentation {
 			gd.addCheckbox("Enable bandpass filter", apply_bandpass_filter);
 	                gd.addNumericField("Filter_Large Structures Down to", low_frequency_threshold, 0, 4, "pixels");
 	                gd.addNumericField("Filter_Small Structures Up to", high_frequency_threshold, 0, 4, "pixels");
+	                gd.addCheckbox("Autoscale After Filtering", autoscale_after_filtering);
+	                gd.addCheckbox("Saturate Image when Autoscaling", saturate_when_autoscaling);
 			final Component[] c = {
 				(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
 				(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
@@ -116,8 +118,6 @@ public class Segmentation {
 			if (!apply_bandpass_filter) {
 				for (Component comp : c) comp.setEnabled(false);
 			}
-	                gd.addCheckbox("Autoscale After Filtering", autoscale_after_filtering);
-	                gd.addCheckbox("Saturate Image when Autoscaling", saturate_when_autoscaling);
 			gd.addMessage("Semiautomatic neurite tracer:");
 			gd.addCheckbox("Invert image", SNT_invert_image);
 			gd.showDialog();

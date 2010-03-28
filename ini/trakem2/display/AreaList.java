@@ -143,25 +143,27 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
-		if (null != aw) {
-			aw.paint(g, this.at, fill_paint, this.color);
-		} else {
-			Object ob = ht_areas.get(new Long(active_layer.getId()));
-			if (null == ob) return;
-			if (AreaList.UNLOADED == ob) {
-				ob = loadLayer(active_layer.getId());
+		try {
+			if (null != aw) {
+				aw.paint(g, this.at, fill_paint, this.color);
+			} else {
+				Object ob = ht_areas.get(new Long(active_layer.getId()));
 				if (null == ob) return;
+				if (AreaList.UNLOADED == ob) {
+					ob = loadLayer(active_layer.getId());
+					if (null == ob) return;
+				}
+				final Area area = (Area)ob;
+				g.setColor(this.color);
+
+				if (fill_paint) g.fill(area.createTransformedArea(this.at));
+				else 		g.draw(area.createTransformedArea(this.at));  // the contour only
 			}
-			final Area area = (Area)ob;
-			g.setColor(this.color);
-
-			if (fill_paint) g.fill(area.createTransformedArea(this.at));
-			else 		g.draw(area.createTransformedArea(this.at));  // the contour only
-		}
-
-		//Transparency: fix alpha composite back to original.
-		if (null != original_composite) {
-			g.setComposite(original_composite);
+		} finally {
+			//Transparency: fix alpha composite back to original.
+			if (null != original_composite) {
+				g.setComposite(original_composite);
+			}
 		}
 	}
 
@@ -326,11 +328,13 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Area a = aw.getArea();
 		final Long lid = this.lid;
 		aw.mousePressed(me, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { public void run() {
+			// To be run on mouse released:
 			// check if empty. If so, remove
 			Rectangle bounds = a.getBounds();
 			if (0 == bounds.width && 0 == bounds.height) {
 				ht_areas.remove(lid);
 			}
+			calculateBoundingBox();
 		}}}));
 		aw.setSource(null);
 	}
@@ -943,7 +947,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			if (last_layer >= layer_set.size()) last_layer = layer_set.size()-1;
 		}
 		// Create image according to roi and scale
-		int width, height;
+		final int width, height;
 		Rectangle broi = null;
 		if (null == roi) {
 			width = (int)(layer_set.getLayerWidth() * scale);
@@ -998,7 +1002,6 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			amira_params = sb.toString();
 		}
 
-		int count = 1;
 		final float len = last_layer - first_layer + 1;
 
 		// Assign labels
@@ -1017,7 +1020,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 		final Area world = new Area(new Rectangle(0, 0, width, height));
 
-		for (Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
+		int count = 0;
+		for (final Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
 			Utils.showProgress(count/len);
 			count++;
 			ImageProcessor ip = Utils.createProcessor(type, width, height);
@@ -1042,7 +1046,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
 				Area aroi = area.createTransformedArea(aff);
 				Rectangle b = aroi.getBounds();
-				if (b.x < 0 || b.y < 0) {
+				if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
 					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
 				}
 				ShapeRoi sroi = new ShapeRoi(aroi);
@@ -1447,6 +1451,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Area a = getArea(vdt.layer);
 		if (null == a) return true;
 		M.apply(vdt.makeLocalTo(this), a);
+		calculateBoundingBox();
 		return true;
+	}
+
+	@Override
+	synchronized public Collection<Long> getLayerIds() {
+		return new ArrayList<Long>((Collection<Long>)ht_areas.keySet());
 	}
 }

@@ -22,67 +22,78 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.analysis;
 
-import ini.trakem2.Project;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.display.*;
-import ini.trakem2.utils.*;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.tree.Thing;
-import mpi.fruitfly.general.MultiThreading;
-import mpicbg.models.MovingLeastSquaresTransform;
-import mpicbg.models.PointMatch;
-import mpicbg.models.AffineModel3D;
-import mpicbg.models.TranslationModel3D;
-
-import ini.trakem2.vector.*;
-
 import ij.IJ;
+import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ij.measure.Calibration;
-import ij.io.SaveDialog;
-import ij.io.OpenDialog;
-import ij.io.FileSaver;
 import ij.gui.Plot;
 import ij.io.DirectoryChooser;
-import ij.ImagePlus;
+import ij.io.FileSaver;
+import ij.io.OpenDialog;
+import ij.io.SaveDialog;
+import ij.measure.Calibration;
 import ij.process.ByteProcessor;
+import ij3d.Content;
+import ini.trakem2.Project;
+import ini.trakem2.display.Ball;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Display3D;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Line3D;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.Thing;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
+import ini.trakem2.vector.Editions;
+import ini.trakem2.vector.VectorString3D;
 
+import java.awt.Checkbox;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Checkbox;
-import java.awt.Dimension;
-import java.awt.event.*;
-import java.awt.Container;
-import java.awt.Choice;
-import javax.swing.*;
-import javax.swing.border.LineBorder;
-import javax.swing.event.*;
-import javax.swing.table.*;
-import java.util.regex.Pattern;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.Future;
-import java.util.concurrent.Callable;
-import java.util.*;
-import java.awt.geom.AffineTransform;
 import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
 import java.awt.image.IndexColorModel;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
+import javax.media.j3d.Transform3D;
 import javax.vecmath.Color3f;
-import javax.vecmath.Tuple3d;
-import javax.vecmath.Point3d;
-import javax.vecmath.Vector3d;
 import javax.vecmath.Matrix3d;
 import javax.vecmath.Matrix4d;
-import javax.media.j3d.Transform3D;
+import javax.vecmath.Point3d;
+import javax.vecmath.Tuple3d;
+import javax.vecmath.Vector3d;
 
-import ij3d.Content;
-
-import java.lang.reflect.Method;
-
-import java.io.*;
+import mpi.fruitfly.general.MultiThreading;
+import mpicbg.models.AffineModel3D;
+import mpicbg.models.MovingLeastSquaresTransform;
+import mpicbg.models.PointMatch;
 
 public class Compare {
 
@@ -402,13 +413,12 @@ public class Compare {
 			return;
 		}
 
-		final ArrayList children = parent.getChildren();
+		final ArrayList<ProjectThing> children = parent.getChildren();
 		if (null == children) return;
 
 		if (null == hs_c_done) hs_c_done = new HashSet<ProjectThing>();
 
-		for (Iterator it = children.iterator(); it.hasNext(); ) {
-			ProjectThing child = (ProjectThing)it.next();
+		for (final ProjectThing child : children) {
 			if (hs_c_done.contains(child)) continue;
 			if (null != exclude && exclude.matcher(child.getTitle()).matches()) {
 				Utils.log2("Excluding child " + child + " with title " + child.getTitle());
@@ -428,8 +438,7 @@ public class Compare {
 				// find other children in the parent who contain children with child pipes
 				boolean first = true;
 				final Chain base = chain.duplicate();
-				for (Iterator cc = children.iterator(); cc.hasNext(); ) {
-					ProjectThing c = (ProjectThing)cc.next();
+				for (final ProjectThing c : children) {
 					if (hs_c_done.contains(c)) continue; // already visited
 					// c is at the same tree level as child (which contains a pipe directly)
 					ArrayList child_pipes = c.findChildrenOfType(Line3D.class);
@@ -1607,7 +1616,7 @@ public class Compare {
 
 
 		// Store a series of results, depending on options
-		final HashMap results = new HashMap();
+		final HashMap<String, Display3D> results = new HashMap<String, Display3D>();
 
 
 		String plot_dir = plot_dir_;
@@ -1995,7 +2004,7 @@ public class Compare {
 		// Input the half matrix only into the table, since it's mirrored. And without the diagonal of zeros:
 		for (int i=1; i<scores.length; i++) {
 			for (int j=0; j<i; j++) {
-				table.put(new Cell(vs[i], vs[j]), scores[i][j]);
+				table.put(new Cell<VectorString3D>(vs[i], vs[j]), scores[i][j]);
 			}
 		}
 
@@ -2070,7 +2079,7 @@ public class Compare {
 				Object[] ob = findBestMatch(vs_merged, v, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
 				Editions ed = (Editions)ob[0];
 				float score = (float)getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
-				table.put(new Cell(vs_merged, v), score);
+				table.put(new Cell<VectorString3D>(vs_merged, v), score);
 			}
 
 			// add the new VectorString3D
@@ -2089,7 +2098,7 @@ public class Compare {
 
 	/** Transform all points of all VectorString3D in vs using a Moving Least Squares Transform defined by the pairing of points in source to those in target.
 	 *  In short, bring source into target. */
-	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target, final Class model_class) throws Exception {
+	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final List<Tuple3d> source, final List<Tuple3d> target, final Class<AffineModel3D> model_class) throws Exception {
 		if (source.size() != target.size()) {
 			Utils.log2("Could not generate a MovingLeastSquaresTransform: different number of source and target points.");
 			return null;

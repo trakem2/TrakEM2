@@ -79,8 +79,9 @@ public class Treeline extends Tree {
 	public Treeline clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		Treeline tline =  new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at);
-		tline.root = this.root.clone();
+		tline.root = null == this.root ? null : this.root.clone(pr);
 		tline.addToDatabase();
+		if (null != tline.root) tline.cacheSubtree(tline.root.getSubtreeNodes());
 		return tline;
 	}
 
