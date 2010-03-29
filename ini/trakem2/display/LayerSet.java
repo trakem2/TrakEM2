@@ -346,6 +346,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
 
+		// Translate graphics context accordingly
+		AffineTransform gt = g.getTransform();
+		AffineTransform aff = new AffineTransform(this.at);
+		aff.preConcatenate(gt);
+		g.setTransform(aff);
+
 		//set color
 		g.setColor(this.color);
 		// fill a background box
@@ -369,6 +375,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (alpha != 1.0f) {
 			g.setComposite(original_composite);
 		}
+		g.setTransform(gt);
 	}
 
 	public double getLayerWidth() { return layer_width; }
