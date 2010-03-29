@@ -545,6 +545,15 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 			TreePath treePath = new TreePath(new_node.getPath());
 			this.scrollPathToVisible(treePath);
 			this.setSelectionPath(treePath);
+
+			if (new_thing.getType().equals("layer set")) {
+				// add the first layer to it, and open it in a Display
+				LayerSet newls = (LayerSet)new_thing.getObject();
+				Layer la = new Layer(newls.getProject(), 0, 1, newls);
+				addLayer(newls, la);
+				new Display(newls.getProject(), la);
+			}
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}
