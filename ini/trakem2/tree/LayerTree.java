@@ -304,7 +304,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					if (null == new_set) return;
 					layer.add(new_set);
 					// add it at the end of the list
-					tt = thing.getChildTemplate("layer_set");
+					tt = thing.getChildTemplate("layer set"); // with space, not underscore
 					ob = new_set;
 					i_position = selected_node.getChildCount();
 					Display.update(layer);
