@@ -3593,7 +3593,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Display.update(layer.getParent(), false);
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
-			type = type.substring(0, 1).toUpperCase() + type.substring(1);
 			Collection<Displayable> col = layer.getParent().setVisible(type, false, true);
 			selection.removeAll(col);
 			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);
