@@ -423,6 +423,7 @@ public class Connector extends ZDisplayable implements VectorData {
 
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
+		if (null == p) return false; // empty!
 		boolean must_lock = false;
 		for (int i=0; i<lids.length; i++) {
 			Layer la = layer_set.getLayer(lids[i]);
