@@ -292,7 +292,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Paint in the context of offscreen space, without transformations. */
-	final void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
+	void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
 		Point2D.Double po = t.transformPoint(this.x, this.y);
 		float x = (float)((po.x - srcRect.x) * magnification);
 		float y = (float)((po.y - srcRect.y) * magnification);

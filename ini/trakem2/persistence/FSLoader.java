@@ -2546,6 +2546,7 @@ public final class FSLoader extends Loader {
 	 *  returns a Future if the task was submitted, null if not. */
 	@Override
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
+		return (Future<Boolean>) null; /* davi quick messing around
 		synchronized (gm_lock) {
 			try {
 				Future<Boolean> fu = regenerating_mipmaps.get(patch);
@@ -2588,7 +2589,7 @@ public final class FSLoader extends Loader {
 				IJError.print(e);
 				return null;
 			}
-		}
+		} */
 	}
 
 	/** Compute the number of bytes that the ImagePlus of a Patch will take. Assumes a large header of 1024 bytes. If the image is saved as a grayscale jpeg the returned bytes will be 5 times as expected, because jpeg images are opened as int[] and then copied to a byte[] if all channels have the same values for all pixels. */ // The header is unnecessary because it's read, but not stored except for some of its variables; it works here as a safety buffer space.
