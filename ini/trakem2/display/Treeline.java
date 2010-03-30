@@ -7,7 +7,6 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.tree.ProjectThing; // davi-experimenting TODO get rid of this import, just using it for debugging below
 
 import java.util.HashMap;
 import java.util.Map;
@@ -44,11 +43,8 @@ import java.awt.AlphaComposite;
 
 public class Treeline extends Tree {
 
-	static private float last_radius = -1; // this looks like cruft? (DB)
-	static private double last_mag = -1; // davi-experimenting
-	static private RadiusNode active_synapse_candidate = null; // davi-experimenting
-	static private RadiusNode passive_synapse_candidate = null; // davi-experimenting
-	
+	static private float last_radius = -1;
+
 	public Treeline(Project project, String title) {
 		super(project, title);
 		addToDatabase();
@@ -91,10 +87,10 @@ public class Treeline extends Tree {
 
 	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
-		if (-1 == last_radius) { // only use of this static variable is here, and it does nothing? (DB)
+		if (-1 == last_radius) {
 			last_radius = 10 / (float)mag;
 		}
-		last_mag = mag; // davi-experimenting
+
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
 			final Layer layer = Display.getFrontLayer(this.project);
 			Node nd = findNodeNear(x_p, y_p, layer, mag);
@@ -123,18 +119,7 @@ public class Treeline extends Tree {
 
 		super.mousePressed(me, x_p, y_p, mag);
 	}
-	
-	static void setSynapseCandidates(RadiusNode active_candidate, RadiusNode passive_candidate) { // davi-experimenting
-		if (null != active_synapse_candidate || null != passive_synapse_candidate) { // either both of these should be true, or both should be false; TODO detect if this is not the case
-			Treeline.active_synapse_candidate.setIsSynapseCandidate(false);
-			Treeline.passive_synapse_candidate.setIsSynapseCandidate(false);
-		}
-		Treeline.active_synapse_candidate = active_candidate;
-		Treeline.passive_synapse_candidate = passive_candidate;
-		if (null != active_candidate) {	active_candidate.setIsSynapseCandidate(true); }
-		if (null != passive_candidate) {	active_candidate.setIsSynapseCandidate(true); }
-	}
-	
+
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == getActive()) return;
@@ -152,56 +137,9 @@ public class Treeline extends Tree {
 			nd.setData((float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2)));
 			repaint(true);
 			return;
-		} else if (me.isShiftDown() && getActive().getChildrenCount() == 0 && getActive().getParent() != null) {
-			// this condition, davi-experimenting
-			// this code redundant with (and lifted from) DisplayCanvas.browseToNodeLayer() and Treeline.mouseWheelMoved()
-			RadiusNode active_node = (RadiusNode) getActive();
-			Object source = me.getSource();
-			if (! (source instanceof DisplayCanvas)) return; // this should never happen, TODO log it if it does
-			DisplayCanvas dc = (DisplayCanvas)source;
-			Display display = dc.getDisplay();		
-			final Collection<ZDisplayable> col = display.getLayerSet().getZDisplayables(Treeline.class);
-			// don't do AreaTree
-			// col.addAll(display.getLayerSet().getZDisplayables(AreaTree.class));
-			if (col.isEmpty()) return; // this should never happen, TODO log it if it does
-			final Layer active_layer = display.getLayer();
-			final Point po = dc.getCursorLoc(); // in offscreen coords
-			for (final Treeline t : (Collection<Treeline>) (Collection) col) {
-				if (t != this) {
-					final RadiusNode closest_node = (RadiusNode) t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, last_mag);
-					if (null != closest_node) {
-						// just print the tags as a way of testing that we're doing something right
-						// go up a 2 levels to get a meaningful (i.e. user-derived) ProjectThing title
-						String my_pt_title = project.findProjectThing(this).getTitle();
-						String my_gp_title = project.findProjectThing(this).getParent() != null ? project.findProjectThing(this).getParent().getTitle() : "(none)";
-						String other_pt_title = project.findProjectThing(t).getTitle();
-						String other_gp_title = project.findProjectThing(t).getParent() != null ? project.findProjectThing(t).getParent().getTitle() : "(none)";
-						
-						Utils.log2(my_pt_title + ", child of " + my_gp_title + ", is near a node of " + other_pt_title + ", child of " + other_gp_title);
-						final Collection<Tag> tags = (Collection<Tag>) closest_node.getTags();
-						if (null != tags) {
-							for (final Tag tag : tags) {
-								Utils.log2("    with tag(s): " + tag.toString());
-							}
-						}
-						Treeline.setSynapseCandidates(active_node, closest_node);
-						Utils.log2("setSynapseCandidates(active_node, closest_node) called");
-						break; // TODO does this prevent finding still closer nodes?
-					} else {
-						if (null != Treeline.active_synapse_candidate || null != Treeline.passive_synapse_candidate) {
-							Utils.log2("about to revert synapse_candidates to (null, null)");
-						}
-						Treeline.setSynapseCandidates(null, null);
-					}
-				}
-			}
-		} else {
-			Treeline.setSynapseCandidates(null, null);
 		}
 
 		super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
-		
-		
 	}
 
 	@Override
@@ -251,7 +189,6 @@ public class Treeline extends Tree {
 
 	static public final class RadiusNode extends Node<Float> {
 		private float r;
-		private boolean is_synapse_candidate = false; // davi-experimenting TODO access to it needs to be synchronized?
 
 		public RadiusNode(final float lx, final float ly, final Layer la) {
 			this(lx, ly, la, 0);
@@ -279,9 +216,6 @@ public class Treeline extends Tree {
 		public final Float getData() { return this.r; }
 
 		public final Float getDataCopy() { return this.r; }
-		
-		public final boolean isSynapseCandidate() { return this.is_synapse_candidate; }
-		public final void setIsSynapseCandidate(boolean is_candidate) { this.is_synapse_candidate = is_candidate; }
 
 		private Polygon getSegment() {
 			final RadiusNode parent = (RadiusNode) this.parent;
@@ -340,22 +274,6 @@ public class Treeline extends Tree {
 			g.fill(shape);
 			g.setComposite(c);
 			g.draw(shape); // in Tree's composite mode (such as an alpha)
-		}
-		
-		@Override
-		void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) { // davi-experimenting
-			if (this.is_synapse_candidate && null == this.children) {
-				Point2D.Double po = t.transformPoint(this.x, this.y);
-				float x = (float)((po.x - srcRect.x) * magnification);
-				float y = (float)((po.y - srcRect.y) * magnification);
-				g.setColor(Color.magenta);
-				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
-				g.setColor(Color.black);
-				g.drawString("e", (int)x -4, (int)y + 3); // TODO ensure Font is proper
-				Utils.log2("drawing magenta RadiusNode");
-			} else {
-				super.paintHandle(g, srcRect, magnification, t);
-			}
 		}
 
 		/** Expects @param a in local coords. */
