@@ -304,7 +304,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					if (null == new_set) return;
 					layer.add(new_set);
 					// add it at the end of the list
-					tt = thing.getChildTemplate("layer_set");
+					tt = thing.getChildTemplate("layer set"); // with space, not underscore
 					ob = new_set;
 					i_position = selected_node.getChildCount();
 					Display.update(layer);
@@ -545,6 +545,15 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 			TreePath treePath = new TreePath(new_node.getPath());
 			this.scrollPathToVisible(treePath);
 			this.setSelectionPath(treePath);
+
+			if (new_thing.getType().equals("layer set")) {
+				// add the first layer to it, and open it in a Display
+				LayerSet newls = (LayerSet)new_thing.getObject();
+				Layer la = new Layer(newls.getProject(), 0, 1, newls);
+				addLayer(newls, la);
+				new Display(newls.getProject(), la);
+			}
+
 		} catch (Exception e) {
 			IJError.print(e);
 		}

@@ -423,6 +423,7 @@ public class Connector extends ZDisplayable implements VectorData {
 
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
+		if (null == p) return false; // empty!
 		boolean must_lock = false;
 		for (int i=0; i<lids.length; i++) {
 			Layer la = layer_set.getLayer(lids[i]);
@@ -574,7 +575,7 @@ public class Connector extends ZDisplayable implements VectorData {
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		if (null != p) {
 			sb_body.append(in).append("origin=\"").append(p[0]).append(',').append(p[1]).append(',').append(lids[0]).append(',').append(radius[0]).append("\"\n");
-			if (lids.length > 0) {
+			if (lids.length > 1) {
 				sb_body.append(in).append("targets=\"");
 				for (int i=1; i<lids.length; i++) {
 					sb_body.append(p[i+i]).append(',').append(p[i+i+1]).append(',').append(lids[i]).append(',').append(radius[i]).append(',');

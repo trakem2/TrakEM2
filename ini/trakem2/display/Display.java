@@ -2639,7 +2639,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Unlink all"); item.addActionListener(this); link_menu.add(item);
 		popup.add(link_menu);
 
-		JMenu adjust_menu = new JMenu("Adjust");
+		JMenu adjust_menu = new JMenu("Adjust images");
 		item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
@@ -3665,7 +3665,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Display.update(layer.getParent(), false);
 		} else if (command.startsWith("Hide all ")) {
 			String type = command.substring(9, command.length() -1); // skip the ending plural 's'
-			type = type.substring(0, 1).toUpperCase() + type.substring(1);
 			Collection<Displayable> col = layer.getParent().setVisible(type, false, true);
 			selection.removeAll(col);
 			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE);

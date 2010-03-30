@@ -339,13 +339,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return this.title;
 	}
 
-	public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
 			original_composite = g.getComposite();
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 		}
+
+		// Translate graphics context accordingly
+		AffineTransform gt = g.getTransform();
+		AffineTransform aff = new AffineTransform(this.at);
+		aff.preConcatenate(gt);
+		g.setTransform(aff);
 
 		//set color
 		g.setColor(this.color);
@@ -370,6 +376,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (alpha != 1.0f) {
 			g.setComposite(original_composite);
 		}
+		g.setTransform(gt);
 	}
 
 	public double getLayerWidth() { return layer_width; }
@@ -1009,7 +1016,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		try {
 			project.getLoader().startLargeUpdate();
-			if (type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline") || type.equals("stack") || type.equals("dissector")) {
+			if (type.equals("connector") || type.equals("treeline") || type.equals("areatree") || type.equals("pipe") || type.equals("ball") || type.equals("arealist") || type.equals("polyline") || type.equals("stack") || type.equals("dissector")) {
 				for (ZDisplayable zd : al_zdispl) {
 					if (visible != zd.isVisible() && zd.getClass().getName().toLowerCase().endsWith(type)) { // endsWith, because DLabel is called as Label
 						zd.setVisible(visible, false); // don't repaint

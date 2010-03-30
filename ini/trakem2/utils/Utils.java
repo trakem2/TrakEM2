@@ -102,7 +102,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7p 2010-02-08";
+	static public String version = "0.7q 2010-03-26";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -662,7 +662,14 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
-		IJ.showMessage("TrakEM2", "TrakEM2 " + Utils.version + "\nCopyright Albert Cardona & Rodney Douglas\nInstitute for Neuroinformatics, Univ/ETH Zurich.\n \nRegistration library copyright Stephan Saalfeld, MPI-CBG.\nLens correction copyright Verena Kaynig, ETH Zurich.\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.");
+		IJ.showMessage("TrakEM2",
+				new StringBuilder("TrakEM2 ").append(Utils.version)
+				.append("\nCopyright Albert Cardona & Rodney Douglas\n")
+				.append("Institute for Neuroinformatics, Univ/ETH Zurich.\n")
+				.append("\nRegistration library copyright Stephan Saalfeld, MPI-CBG.\n")
+				.append("\nLens correction copyright Verena Kaynig, ETH Zurich.\n")
+				.append("\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.")
+				.toString());
 	}
 
 	static public final File chooseFile(String name, String extension) {
