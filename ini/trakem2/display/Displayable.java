@@ -108,6 +108,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	protected boolean locked = false;
 	protected String title;
+	protected String annotation = null;
 	static protected Color last_color = Color.yellow;
 	protected Color color = Displayable.last_color;
 	protected float alpha = 1.0f; // from 0 to 1 (0 is full transparency)
@@ -1297,11 +1298,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			         .append(indent).append(TAG_ATTR1).append("t2_linked_prop value").append(TAG_ATTR2)
 			;
 		}
+		if (!hs.contains("t2_annot")) {
+			sb_header.append(indent).append("<!ELEMENT t2_annot EMPTY>\n");
+		}
 	}
 
 	static protected String commonDTDChildren() {
-		return "t2_prop,t2_linked_prop"; // never commas at beginning or end, only in between
-					  // never returns empty
+		return "t2_prop,t2_linked_prop,t2_annot"; // never commas at beginning or end, only in between
+							  // never returns empty
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
@@ -1363,6 +1367,11 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					sb_body.append(in).append("<t2_linked_prop target_id=\"").append(target.id).append("\" key=\"").append(e.getKey()).append("\" value=\"").append(getXMLSafeValue(e, value)).append("\" />\n");
 				}
 			}
+		}
+		if (null != annotation && annotation.length() > 0) {
+			sb_body.append(in).append("<t2_annot>\n")
+					  .append(annotation.replace("<", "&lt;")).append('\n')    // break potentially embedded XML tags
+			       .append(in).append("</t2_annot>\n");
 		}
 	}
 	/** Make sure the value is valid for an XML attribute content inside double quotes. This means double quotes and newline characters are not allowed and are replaced by a single quote and a space, respectively. */
@@ -2092,4 +2101,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public Area getAreaAt(final Layer layer) {
 		return getArea();
 	}
+
+	public void setAnnotation(final String annotation) { this.annotation = annotation; }
+
+	/** Returns null if none. */
+	public String getAnnotation() { return this.annotation; }
 }
