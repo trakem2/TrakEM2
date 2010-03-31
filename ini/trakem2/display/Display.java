@@ -1051,6 +1051,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		c.ipadx = 0;
 		c.ipady = 0;
 		JScrollPane sp = new JScrollPane(ep, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		sp.setPreferredSize(new Dimension(250, 300));
+		sp.setMinimumSize(new Dimension(250, 300));
 		gb.setConstraints(sp, c);
 		p.add(sp);
 		return p;
