@@ -1222,15 +1222,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 
 		public void mousePressed(MouseEvent me) {
-			JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-			if (scroll != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
+			if (tabs.getSelectedComponent() != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
 		}
 
 		public void mouseReleased(MouseEvent me) {
 			// update navigator window
 			navigator.repaint(true);
-			JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-			if (scroll != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
+			if (tabs.getSelectedComponent() != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
 		}
 	}
 
@@ -3168,6 +3166,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Check if a panel for the given Displayable is completely visible in the JScrollPane */
 	public boolean isWithinViewport(final Displayable d) {
+		Component comp = tabs.getSelectedComponent();
+		if (!(comp instanceof JScrollPane)) return false;
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (ht_tabs.get(d.getClass()) == scroll) return isWithinViewport(scroll, ht_panels.get(d));
 		return false;
@@ -3213,6 +3213,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
 	private void scrollToShow(final Displayable d) {
+		if (!(tabs.getSelectedComponent() instanceof JScrollPane)) return;
 		dispatcher.execSwing(new Runnable() { public void run() {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
