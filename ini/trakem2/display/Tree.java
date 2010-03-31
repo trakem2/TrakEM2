@@ -385,8 +385,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		super.exportXML(sb_body, in, any);
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
-		super.restXML(sb_body, in, any);
 		sb_body.append(indent).append(">\n");
+		super.restXML(sb_body, in, any);
 		if (null != root) exportXML(this, in, sb_body, root);
 		sb_body.append(indent).append("</").append(type).append(">\n");
 	}
