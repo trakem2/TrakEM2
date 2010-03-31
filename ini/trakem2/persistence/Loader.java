@@ -3661,7 +3661,7 @@ while (it.hasNext()) {
 		if (null == fxml) return null;
 		else {
 			copy = getPathsCopy();
-			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'));
+			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
 		}
 		String path = export(project, fxml, export_images);
 		if (null != path) setChanged(false);
@@ -3673,7 +3673,7 @@ while (it.hasNext()) {
 		return path;
 	}
 
-	protected void makeAllPathsRelativeTo(final String xml_path) {}
+	protected void makeAllPathsRelativeTo(final String xml_path, final Project project) {}
 	protected Hashtable<Long,String> getPathsCopy() { return null; }
 	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 

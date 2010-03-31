@@ -958,21 +958,30 @@ public final class FSLoader extends Loader {
 				slice = path.substring(i_sl);
 				path = path.substring(0, i_sl);
 			}
-			if (isRelativePath(path)) {
-				// path is relative: preprend the parent folder of the xml file
-				path = getParentFolder() + path;
-				if (!isURL(path) && !new File(path).exists()) {
-					Utils.log("Path for patch " + patch + " does not exist: " + path);
-					return null;
-				}
-				// else assume that it exists
+			path = getAbsolutePath(path);
+			if (null == path) {
+				Utils.log("Path for patch " + patch + " does not exist: " + path);
+				return null;
 			}
+			// Else assume that it exists.
 			// reappend slice info if existent
 			if (null != slice) path += slice;
 			// set it
 			patch.cacheCurrentPath(path);
 			return path;
 		}
+	}
+	
+	/** Return an absolute path made from path: if it's already absolute, retursn itself; otherwise, the parent folder of all relative paths of this Loader is prepended. */
+	public String getAbsolutePath(String path) {
+		if (isRelativePath(path)) {
+			// path is relative: preprend the parent folder of the xml file
+			path = getParentFolder() + path;
+			if (!isURL(path) && !new File(path).exists()) {
+				return null;
+			}
+		}
+		return path;
 	}
 
 	public final String getImageFilePath(final Patch p) {
@@ -1112,7 +1121,7 @@ public final class FSLoader extends Loader {
 
 	/** Try to make all paths in ht_paths be relative to the given xml_path.
 	 *  This is intended for making all paths relative when saving to XML for the first time. */
-	protected void makeAllPathsRelativeTo(final String xml_path) {
+	protected void makeAllPathsRelativeTo(final String xml_path, final Project project) {
 		synchronized (db_lock) {
 			try {
 				lock();
@@ -1120,6 +1129,14 @@ public final class FSLoader extends Loader {
 				this.dir_mipmaps = FSLoader.makeRelativePath(xml_path, this.dir_mipmaps);
 				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
 					e.setValue(FSLoader.makeRelativePath(xml_path, e.getValue()));
+				}
+				for (final Stack st : (Collection<Stack>) (Collection) project.getRootLayerSet().getZDisplayables(Stack.class)) {
+					String path = st.getFilePath();
+					if (!isRelativePath(path)) {
+						String path2 = makeRelativePath(st.getFilePath());
+						if (path.equals(path2)) continue; // could not be made relative
+						else st.setFilePath(path2); // will also flush the cache, so use only if necessary
+					}
 				}
 			} catch (Throwable t) {
 				IJError.print(t);
@@ -2844,10 +2861,10 @@ public final class FSLoader extends Loader {
 			lock();
 			try {
 				imp = imps.get(stack.getId());
-				path = stack.getFilePath();
 				if (null != imp) {
 					return imp;
 				}
+				path = stack.getFilePath();
 				/* not cached */
 				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
@@ -2879,7 +2896,7 @@ public final class FSLoader extends Loader {
 				alterMaxMem(-n_bytes);
 
 				releaseToFit(n_bytes);
-				imp = openImage(path);
+				imp = openImage(getAbsolutePath(path));
 
 				//preProcess(p, imp);
 			} finally {

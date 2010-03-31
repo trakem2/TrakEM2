@@ -165,7 +165,7 @@ public class Stack extends ZDisplayable implements ImageData
 			} else if (key.equals("max")) {
 				this.max = Double.parseDouble(data);
 			} else if (key.equals("file_path")) {
-				this.file_path = data;
+				this.file_path = project.getLoader().makeRelativePath(data);
 			} else if (key.equals("depth")) {
 				this.depth = Double.parseDouble(data);
 			}
@@ -245,7 +245,16 @@ public class Stack extends ZDisplayable implements ImageData
 	public String getFilePath(){
 		return this.file_path;
 	}
-	
+
+	/** Will decache the ImagePlus if loaded. */
+	public void setFilePath(final String path) {
+		this.file_path = path;
+		// The source ImagePlus
+		project.getLoader().decacheImagePlus(this.id);
+		// The generated AWT images
+		invalidateCache();
+	}
+
 	public long estimateImageFileSize()
 	{
 		if ( -1 == depth )
