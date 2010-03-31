@@ -224,12 +224,21 @@ public class Search {
 			final DBObject dbo = (DBObject)it.next();
 			boolean matched = false;
 			// Search in its title
-			String txt =  dbo instanceof Displayable ?
-				  dbo.getProject().getMeaningfulTitle((Displayable)dbo)
+			Displayable d = null;
+			if (dbo instanceof Displayable) {
+				d = (Displayable)dbo;
+			}
+			String txt = null != d ?
+				  dbo.getProject().getMeaningfulTitle(d)
 				: dbo.getTitle();
 			if (null == txt || 0 == txt.trim().length()) continue;
 			matched = pat.matcher(txt).matches();
 			long id = dbo.getId();
+			if (!matched && null != d) {
+				// Search also in its annotation
+				txt = d.getAnnotation();
+				if (null != txt) matched = pat.matcher(txt).matches();
+			}
 			if (!matched) {
 				// Search also in its toString()
 				txt = dbo.toString();
@@ -241,15 +250,16 @@ public class Search {
 				matched = pat.matcher(txt).matches();
 				if (matched) txt = "id: #" + txt;
 			}
-			if (!matched && dbo instanceof Displayable) {
+			if (!matched && null != d) {
 				// Search also in its properties
-				Map<String,String> props = ((Displayable)dbo).getProperties();
+				Map<String,String> props = d.getProperties();
 				if (null != props) {
 					for (final Map.Entry<String,String> e : props.entrySet()) {
 						if (pat.matcher(e.getKey()).matches()
 						 || pat.matcher(e.getValue()).matches()) {
 							matched = true;
 							txt = e.getKey() + " => " + e.getValue() + " [property]";
+							break;
 						}
 					}
 				}
@@ -257,12 +267,12 @@ public class Search {
 					Map<Displayable,Map<String,String>> linked_props = ((Displayable)dbo).getLinkedProperties();
 					if (null != linked_props) {
 						for (final Map.Entry<Displayable,Map<String,String>> e : linked_props.entrySet()) {
-							Displayable d = e.getKey();
 							for (final Map.Entry<String,String> ee : e.getValue().entrySet()) {
 								if (pat.matcher(ee.getKey()).matches()
 								 || pat.matcher(ee.getValue()).matches()) {
 									matched = true;
 									txt = ee.getKey() + " => " + e.getValue() + " [linked property]";
+									break;
 								}
 							}
 						}
