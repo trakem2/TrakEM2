@@ -3927,7 +3927,9 @@ while (it.hasNext()) {
 		while (retries < MAX_RETRIES) try {
 				IJ.redirectErrorMessages();
 				final ImagePlus imp = opener.openImage(path);
-				imp.killRoi(); // newer ImageJ may store ROI in the file!
+				if (null != imp) {
+					imp.killRoi(); // newer ImageJ may store ROI in the file!
+				}
 				return imp;
 
 				// TODO: Use windowless LOCI to bypass Opener class completely
