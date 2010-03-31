@@ -2083,6 +2083,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
 			Utils.updateComponent(tabs.getSelectedComponent());
 			annot_label.setText("(No selected object)");
+			annot_editor.setDocument(annot_editor.getEditorKit().createDefaultDocument()); // a clear, empty one
 			annot_editor.setEnabled(false);
 		}
 		}});
