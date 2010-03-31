@@ -2055,7 +2055,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			updateInDatabase("active_displayable_id");
 			if (displ.getClass() != Patch.class) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
-			selectTab(displ);
+			if (tabs.getSelectedComponent() != annot_panel) { // don't swap tab if its the annotation one
+				selectTab(displ);
+			}
 			boolean update_graphics = null == prev_active || paintsBelow(prev_active, displ); // or if it's an image, but that's by default in the repaint method
 			repaint(displ, null, 5, false, update_graphics); // to show the border, and to repaint out of the background image
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
@@ -2065,15 +2067,25 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Document doc = annot_docs.get(displ); // could be open in another Display
 				if (null == doc) {
 					doc = annot_editor.getEditorKit().createDefaultDocument();
+					doc.addDocumentListener(new DocumentListener() {
+						public void changedUpdate(DocumentEvent e) {}
+						public void insertUpdate(DocumentEvent e) { push(); }
+						public void removeUpdate(DocumentEvent e) { push(); }
+						private void push() {
+							displ.setAnnotation(annot_editor.getText());
+						}
+					});
 					annot_docs.put(displ, doc);
 				}
 				annot_editor.setDocument(doc);
 				if (null != displ.getAnnotation()) annot_editor.setText(displ.getAnnotation());
 			}
+			annot_editor.setEnabled(true);
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
 			Utils.updateComponent(tabs.getSelectedComponent());
 			annot_label.setText("(No selected object)");
+			annot_editor.setEnabled(false);
 		}
 		}});
 	}
