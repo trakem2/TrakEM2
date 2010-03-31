@@ -50,6 +50,7 @@ import ini.trakem2.display.graphics.*;
 import ini.trakem2.imaging.StitchingTEM;
 
 import javax.swing.*;
+import javax.swing.text.Document;
 import javax.swing.event.*;
 
 import mpicbg.trakem2.align.AlignLayersTask;
@@ -103,6 +104,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private OptionPanel tool_options;
 	private JScrollPane scroll_options;
+
+	static protected int scrollbar_width = 0;
+
+	private JEditorPane annot_editor;
+	private JLabel annot_label;
+	private JPanel annot_panel;
+	static private HashMap<Displayable,Document> annot_docs = new HashMap<Displayable,Document>();
 
 	private JSlider transp_slider;
 	private DisplayNavigator navigator;
@@ -690,6 +698,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.scroll_options = makeScrollPane(this.tool_options);
 		this.tabs.add("Tool options", this.scroll_options);
 
+		// Tab 8: annotations
+		this.annot_editor = new JEditorPane();
+		this.annot_editor.setMinimumSize(new Dimension(200, 50));
+		this.annot_label = new JLabel("(No selected object)");
+		this.annot_panel = makeAnnotationsPanel(this.annot_editor, this.annot_label);
+		this.tabs.add("Annotations", this.annot_panel);
+
+
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
 		this.ht_tabs.put(Profile.class, scroll_profiles);
@@ -706,6 +722,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.ht_tabs.put(Stack.class, scroll_zdispl);
 		// channels not included
 		// layers not included
+		// tools not included
+		// annotations not included
 
 		// Navigator
 		this.navigator = new DisplayNavigator(this, layer.getLayerWidth(), layer.getLayerHeight());
@@ -1006,7 +1024,35 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return jsp;
 	}
 
-	static protected int scrollbar_width = 0;
+	private JPanel makeAnnotationsPanel(JEditorPane ep, JLabel label) {
+		JPanel p = new JPanel();
+		GridBagLayout gb = new GridBagLayout();
+		GridBagConstraints c = new GridBagConstraints();
+		p.setLayout(gb);
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.ipadx = 5;
+		c.ipady = 5;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.weightx = 0;
+		c.weighty = 0;
+		JLabel title = new JLabel("Annotate:");
+		gb.setConstraints(title, c);
+		p.add(title);
+		c.gridy++;
+		gb.setConstraints(label, c);
+		p.add(label);
+		c.weighty = 1;
+		c.gridy++;
+		c.fill = GridBagConstraints.BOTH;
+		c.ipadx = 0;
+		c.ipady = 0;
+		JScrollPane sp = new JScrollPane(ep, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		gb.setConstraints(sp, c);
+		p.add(sp);
+		return p;
+	}
 
 	public JPanel getCanvasPanel() {
 		return canvas_panel;
@@ -1969,7 +2015,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.active = displ;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 
-		if (null != displ && displ == prev_active) {
+		if (null != displ && displ == prev_active && tabs.getSelectedComponent() != annot_panel) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
 			return; // the same
@@ -1980,6 +2026,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (null != ob) ob.setActive(false);
 			// erase "decorations" of the previously active
 			canvas.repaint(selection.getBox(), 4);
+			// Adjust annotation doc
+			synchronized (annot_docs) {
+				boolean remove_doc = true;
+				for (final Display d : al_displays) {
+					if (prev_active == d.active) {
+						remove_doc = false;
+						break;
+					}
+				}
+				if (remove_doc) annot_docs.remove(prev_active);
+			}
 		}
 		// activate the new active
 		if (null != displ) {
@@ -1992,9 +2049,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			boolean update_graphics = null == prev_active || paintsBelow(prev_active, displ); // or if it's an image, but that's by default in the repaint method
 			repaint(displ, null, 5, false, update_graphics); // to show the border, and to repaint out of the background image
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
+			// Adjust annotation tab:
+			synchronized (annot_docs) {
+				annot_label.setText(displ.toString());
+				Document doc = annot_docs.get(displ); // could be open in another Display
+				if (null == doc) {
+					doc = annot_editor.getEditorKit().createDefaultDocument();
+					annot_docs.put(displ, doc);
+				}
+				annot_editor.setDocument(doc);
+				if (null != displ.getAnnotation()) annot_editor.setText(displ.getAnnotation());
+			}
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
 			Utils.updateComponent(tabs.getSelectedComponent());
+			annot_label.setText("(No selected object)");
 		}
 		}});
 	}
