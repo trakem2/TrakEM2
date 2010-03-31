@@ -86,6 +86,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private JFrame frame;
 	private JTabbedPane tabs;
+
 	private Hashtable<Class,JScrollPane> ht_tabs;
 	private JScrollPane scroll_patches;
 	private JPanel panel_patches;
@@ -655,17 +656,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// Tab 1: Patches
 		this.panel_patches = makeTabPanel();
 		this.scroll_patches = makeScrollPane(panel_patches);
-		this.tabs.add("Patches", scroll_patches);
+		this.addTab("Patches", scroll_patches);
 
 		// Tab 2: Profiles
 		this.panel_profiles = makeTabPanel();
 		this.scroll_profiles = makeScrollPane(panel_profiles);
-		this.tabs.add("Profiles", scroll_profiles);
+		this.addTab("Profiles", scroll_profiles);
 
 		// Tab 3: pipes
 		this.panel_zdispl = makeTabPanel();
 		this.scroll_zdispl = makeScrollPane(panel_zdispl);
-		this.tabs.add("Z space", scroll_zdispl);
+		this.addTab("Z space", scroll_zdispl);
 
 		// Tab 4: channels
 		this.panel_channels = makeTabPanel();
@@ -679,31 +680,32 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.panel_channels.add(this.channels[1]);
 		this.panel_channels.add(this.channels[2]);
 		this.panel_channels.add(this.channels[3]);
-		this.tabs.add("Opacity", scroll_channels);
+		this.addTab("Opacity", scroll_channels);
 
 		// Tab 5: labels
 		this.panel_labels = makeTabPanel();
 		this.scroll_labels = makeScrollPane(panel_labels);
-		this.tabs.add("Labels", scroll_labels);
+		this.addTab("Labels", scroll_labels);
 
 		// Tab 6: layers
 		this.panel_layers = makeTabPanel();
 		this.scroll_layers = makeScrollPane(panel_layers);
 		recreateLayerPanels(layer);
 		this.scroll_layers.addMouseWheelListener(canvas);
-		this.tabs.add("Layers", scroll_layers);
+		this.addTab("Layers", scroll_layers);
 
 		// Tab 7: tool options
 		this.tool_options = new OptionPanel(); // empty
 		this.scroll_options = makeScrollPane(this.tool_options);
-		this.tabs.add("Tool options", this.scroll_options);
+		this.addTab("Tool options", this.scroll_options);
 
 		// Tab 8: annotations
 		this.annot_editor = new JEditorPane();
+		this.annot_editor.setEnabled(false); // by default, nothing is selected
 		this.annot_editor.setMinimumSize(new Dimension(200, 50));
 		this.annot_label = new JLabel("(No selected object)");
 		this.annot_panel = makeAnnotationsPanel(this.annot_editor, this.annot_label);
-		this.tabs.add("Annotations", this.annot_panel);
+		this.addTab("Annotations", this.annot_panel);
 
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
@@ -1851,6 +1853,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Feel free to add more tabs. Don't remove any of the existing tabs or the sky will fall on your head. */
 	public JTabbedPane getTabbedPane() {
 		return tabs;
+	}
+
+	/** Returns the tab index in this Display's JTabbedPane. */
+	public int addTab(final String title, final Component comp) {
+		this.tabs.add(title, comp);
+		return this.tabs.getTabCount() -1;
 	}
 
 	public void setLocation(Point p) {
