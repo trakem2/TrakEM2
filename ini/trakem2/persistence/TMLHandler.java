@@ -367,8 +367,9 @@ public class TMLHandler extends DefaultHandler {
 
 		//Utils.log2("startElement: " + qualified_name);
 		this.counter++;
-		Utils.showStatus("Loading " + counter, false);
-
+		if (0 == counter % 100) { // davi-experimenting: don't talk so much when you have > 600,000 patches to load!
+			Utils.showStatus("Loading " + counter, false);
+		}
 		try {
 			// failsafe:
 			qualified_name = qualified_name.toLowerCase();
