@@ -3560,7 +3560,10 @@ while (it.hasNext()) {
 			}
 			// Write first to a tmp file, then remove the existing XML and move the tmp to that name
 			// In this way, if there is an error while writing, the existing XML is not destroyed.
-			final File ftmp = new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
+			// EXCEPT for Windows, because java cannot rename the file in any of the ways I've tried (directly, deleting it first, deleting and waiting and then renaming).
+			// See this amazingly old bug (1998): http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4017593
+
+			final File ftmp = IJ.isWindows() ? fxml : new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
 			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(ftmp)), "8859_1");
 			try {
 				writer.write(sb_header.toString());
@@ -3568,18 +3571,20 @@ while (it.hasNext()) {
 				project.exportXML(writer, "", patches_dir);
 				writer.flush(); // make sure all buffered chars are written
 				// On success, rename .xml.tmp to .xml
-				if (fxml.exists()) {
-					if (!fxml.delete()) {
-						Utils.logAll("ERROR: could not delete existing XML file!");
-						return null;
-					}
-					if (!ftmp.renameTo(fxml)) {
+				if (!IJ.isWindows()) {
+					if (fxml.exists()) {
+						if (!fxml.delete()) {
+							Utils.logAll("ERROR: could not delete existing XML file!");
+							return null;
+						}
+						if (!ftmp.renameTo(fxml)) {
+							Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+							return null;
+						}
+					} else if (!ftmp.renameTo(fxml)) {
 						Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
 						return null;
 					}
-				} else if (!ftmp.renameTo(fxml)) {
-					Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
-					return null;
 				}
 				// On successful renaming, then:
 				setChanged(false);
