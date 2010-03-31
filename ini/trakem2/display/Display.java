@@ -1236,7 +1236,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Context-sensitive: to a Displayable, or to a channel. */
 	private void setTransparency(final float value) {
-		JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
+		Component scroll = tabs.getSelectedComponent();
 		if (scroll == scroll_channels) {
 			for (int i=0; i<4; i++) {
 				if (channels[i].getBackground() == Color.cyan) {
