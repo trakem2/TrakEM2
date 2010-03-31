@@ -13,14 +13,14 @@ public class DTDParser {
 	private DTDParser() {}
 
 	/** Extracts the template by reading the ELEMENT and ATTLIST tags from a .dtd file or the DOCTYPE of an .xml file. */
-	static public TemplateThing[] extractTemplate(String path) {
+	static public TemplateThing[] extractTemplate(String path) throws Exception {
 		if (path.length() -4 == path.lastIndexOf(".xml")) return parseXMLFile(path);
 		if (path.length() -4 == path.lastIndexOf(".dtd")) return parseDTDFile(path);
 		return null;
 	}
 
 	/** Parses the tags of a .dtd file. Returns the TemplateThing roots. */
-	static public TemplateThing[] parseDTDFile(String dtd_path) {
+	static public TemplateThing[] parseDTDFile(String dtd_path) throws Exception {
 		// fetch file
 		BufferedReader dis = null;
 		StringBuffer data = new StringBuffer();
@@ -50,7 +50,7 @@ public class DTDParser {
 	}
 
 	/** Parses a !DOCTYPE chunk from an .xml file, if any. Returns the TemplateThing roots. Assumes there is only one continuous DOCTYPE clause and the root template thing, the layer_set and the display are part of the project tag. */
-	static public TemplateThing[] parseXMLFile(String xml_path) {
+	static public TemplateThing[] parseXMLFile(String xml_path) throws Exception {
 		// fetch file
 		BufferedReader dis = null;
 		StringBuffer data = new StringBuffer();
@@ -173,7 +173,7 @@ public class DTDParser {
 			return false;
 		}
 		/** Recursive, but avoids adding children to nested types. The table ht_attributes contains type names as keys, and hashtables of attributes as values. */
-		void createAttributesAndChildren(TemplateThing parent, Hashtable ht_attributes, Hashtable ht_types) {
+		void createAttributesAndChildren(final TemplateThing parent, final Map<String,Object> ht_attributes, final Map<String,DTDParser.Type> ht_types) {
 			// create attributes if any
 			Object ob = ht_attributes.get(name);
 			if (null != ob) {
@@ -252,19 +252,21 @@ public class DTDParser {
 	}
 
 	/** Parses a chunk of text into a hierarchy of TemplateThing instances, the roots of which are in the returned array. */
-	static public TemplateThing[] parseDTD(final StringBuffer data) {
+	static public TemplateThing[] parseDTD(final StringBuffer data) throws Exception {
 		// debug:
 		// Utils.log(data.toString());
 
 		// extract all tags into a hashtable of type names
-		Hashtable ht_types = new Hashtable();
-		Hashtable ht_attributes = new Hashtable();
+		final HashMap<String,DTDParser.Type> ht_types = new HashMap<String,DTDParser.Type>();
+		final HashMap<String,Object> ht_attributes = new HashMap<String,Object>();
 		int i = -1;
 		final String text = data.toString();
 		int len = text.length();
 		int i_first = text.indexOf('<');
 		int i_last = text.indexOf('>');
 		int i_space;
+		String root_type_name = null;
+
 		while (-1 != i_first && -1 != i_last) {
 			// sanity check:
 			if (i_last < i_first) {
@@ -277,6 +279,21 @@ public class DTDParser {
 				DTDParser.Type type = new DTDParser.Type(chunk.substring(i_space +1));
 				if (isAllowed(type.name)) {
 					ht_types.put(type.name, type);
+				} else if (type.name.equals("project")) {
+					if (null != root_type_name) {
+						throw new Exception("ERROR in XML file: more than one project template element defined:\n   At least: " + root_type_name + " and " + type.name);
+					}
+					// the root is what the project has in parentheses, which must only be one element
+					// (given that the TemplateTree has a single root)
+					int openp = chunk.indexOf('(');
+					if (-1 == openp) {
+						throw new Exception("ERROR in XML file: project template doesn't have a child element!");
+					}
+					int closep = chunk.indexOf(')', openp +1);
+					root_type_name = chunk.substring(openp+1, closep).trim();
+					if (-1 != root_type_name.indexOf(',')) {
+						throw new Exception("ERROR in XML file: project template has more than one child element!");
+					}
 				}
 			} else if (chunk.startsWith("!ATTLIST")) {
 				DTDParser.Attribute attr = new DTDParser.Attribute(chunk.substring(i_space +1));
@@ -302,72 +319,31 @@ public class DTDParser {
 		}
 		// Now traverse the hash tables and reconstruct the hierarchy of TemplateThing.
 
-		// Find the roots (insane, but can't assign children first because nested ones get their parent overwritten)
-		DTDParser.Type[] type = new DTDParser.Type[ht_types.size()];
-		boolean[] is_root = new boolean[type.length];
-		Arrays.fill(is_root, true);
-		ht_types.values().toArray(type);
-		for (int k=0; k<type.length; k++) {
-			for (int j=0; j<type.length; j++) {
-				if (type[j].containsChild(type[k].name)) {
-					is_root[k] = false;
-				}
-			}
+		if (null == root_type_name) {
+			throw new Exception("ERROR in XML file: could not find the root element!");
 		}
-		ArrayList al_roots = new ArrayList();
-		for (int k=0; k<type.length; k++) {
-			if (is_root[k]) {
-				if (-1 != type[k].name.indexOf("ict_transform_list")) {
-					continue; // false root!
-				}
-				// replace prepended tag if any
-				String tyn = type[k].name;
-				if (0 == type[k].name.indexOf("t2_")) {
-					tyn = type[k].name.substring(3);
-				}
-				TemplateThing root = new TemplateThing(tyn);
-				//Utils.log2("DTDParser: created root TT " + tyn);
-				type[k].createAttributesAndChildren(root, ht_attributes, ht_types); // avoids nested
-				al_roots.add(root);
-			}
-		}
-		TemplateThing[] tt_roots = new TemplateThing[al_roots.size()];
-		al_roots.toArray(tt_roots);
 
-		//debug: print root
-		/*
-		for (int k=0; k<tt_roots.length; k++) {
-			tt_roots[k].debug("");
+		// find root_type as a Type instance
+		DTDParser.Type root_type = ht_types.get(root_type_name);
+		if (null == root_type) {
+			throw new Exception("ERROR in XML file: could not find the root element DTDParser.Type instance!");
 		}
-		*/
-		/*
-		Utils.log2("tt_roots: " + tt_roots.length);
-		// debug: print number of attributes per type
-		for (Enumeration e = ht_attributes.keys(); e.hasMoreElements(); ) {
-			String ty = (String)e.nextElement();
-			Hashtable ht = (Hashtable)ht_attributes.get(ty);
-			Utils.log("n attributes for  " + ty + " : " + ht.size());
-		}
-		*/
 
-		/*
-		//debug:
-		javax.swing.JFrame jf = new javax.swing.JFrame("debug");
-		jf.setDefaultCloseOperation(javax.swing.JFrame.EXIT_ON_CLOSE);
-		jf.getContentPane().add(new javax.swing.JScrollPane(new ini.trakem2.tree.TemplateTree(null, tt_roots[0])));
-		jf.pack();
-		jf.setVisible(true);
-		*/
+		// The root is the one and only element of the project node
+		TemplateThing root = new TemplateThing(root_type_name);
+		root_type.createAttributesAndChildren(root, ht_attributes, ht_types); // avoids nested
 
-		return tt_roots;
+		return new TemplateThing[]{root};
 	}
 
 	static public void main(String[] args) {
-		if (args[0].length() -4 == args[0].indexOf(".xml")) {
-			DTDParser.parseXMLFile(args[0]);
-		} else {
-			DTDParser.parseDTDFile(args[0]);
-		}
+		try {
+			if (args[0].length() -4 == args[0].indexOf(".xml")) {
+				DTDParser.parseXMLFile(args[0]);
+			} else {
+				DTDParser.parseDTDFile(args[0]);
+			}
+		} catch (Exception e) { IJError.print(e); }
 	}
 }
 

@@ -114,10 +114,17 @@ public class TMLHandler extends DefaultHandler {
 		this.loader = loader;
 		this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
 		this.xml_path = path;
-		final TemplateThing[] tt = DTDParser.extractTemplate(path);
-		if (null == tt) {
-			Utils.log("TMLHandler: can't read DTD in file " + path);
+		final TemplateThing[] tt;
+		try {
+			tt = DTDParser.extractTemplate(path);
+			if (null == tt) {
+				Utils.log("TMLHandler: can't read DTD in file " + path);
+				loader = null;
+				return;
+			}
+		} catch (Exception e) {
 			loader = null;
+			IJError.print(e);
 			return;
 		}
 		/*

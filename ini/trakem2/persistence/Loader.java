@@ -297,7 +297,13 @@ abstract public class Loader {
 		if (null == dir) return null;
 		if (IJ.isWindows()) dir = dir.replace('\\', '/');
 		if (!dir.endsWith("/")) dir += "/";
-		TemplateThing[] roots = DTDParser.extractTemplate(dir + filename);
+		TemplateThing[] roots;
+		try {
+			roots = DTDParser.extractTemplate(dir + filename);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
 		if (null == roots || roots.length < 1) return null;
 		if (roots.length > 1) {
 			Utils.showMessage("Found more than one root.\nUsing first root only.");
