@@ -101,6 +101,7 @@ public class TMLHandler extends DefaultHandler {
 	private Map<Tree,Node> tree_root_nodes = new HashMap<Tree,Node>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
+	private StringBuilder last_annotation = null;
 	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
 	private boolean open_displays = true;
 
@@ -113,10 +114,17 @@ public class TMLHandler extends DefaultHandler {
 		this.loader = loader;
 		this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
 		this.xml_path = path;
-		final TemplateThing[] tt = DTDParser.extractTemplate(path);
-		if (null == tt) {
-			Utils.log("TMLHandler: can't read DTD in file " + path);
+		final TemplateThing[] tt;
+		try {
+			tt = DTDParser.extractTemplate(path);
+			if (null == tt) {
+				Utils.log("TMLHandler: can't read DTD in file " + path);
+				loader = null;
+				return;
+			}
+		} catch (Exception e) {
 			loader = null;
+			IJError.print(e);
 			return;
 		}
 		/*
@@ -450,6 +458,12 @@ public class TMLHandler extends DefaultHandler {
 				break;
 			}
 		}
+
+		if (null != last_annotation && null != last_displayable) {
+			last_displayable.setAnnotation(last_annotation.toString().trim().replaceAll("&lt;", "<"));
+			last_annotation = null;
+		}
+
 		// terminate non-single clause objects
 		if (orig_qualified_name.equals("t2_area_list")) {
 			last_area_list = null;
@@ -508,7 +522,7 @@ public class TMLHandler extends DefaultHandler {
 		}
 	}
 
-	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile", "t2_stack", "t2_treeline"};
+	static private final String[] all_displayables = new String[]{"t2_area_list", "t2_patch", "t2_pipe", "t2_polyline", "t2_ball", "t2_label", "t2_dissector", "t2_profile", "t2_stack", "t2_treeline", "t2_areatree", "t2_connector"};
 
 	private final boolean in(final String s, final String[] all) {
 		for (int i=all.length-1; i>-1; i--) {
@@ -521,6 +535,9 @@ public class TMLHandler extends DefaultHandler {
 		if (null != last_treeline) {
 			// for old format:
 			last_treeline_data.append(c, start, length);
+		}
+		if (null != last_annotation) {
+			last_annotation.append(c, start, length);
 		}
 	}
 
@@ -799,6 +816,9 @@ public class TMLHandler extends DefaultHandler {
 				ht_displayables.put(new Long(oid), label);
 				addToLastOpenLayer(label);
 				last_displayable = label;
+				return null;
+			} else if (type.equals("annot")) {
+				last_annotation = new StringBuilder();
 				return null;
 			} else if (type.equals("patch")) {
 				Patch patch = new Patch(project, oid, ht_attributes, ht_links);

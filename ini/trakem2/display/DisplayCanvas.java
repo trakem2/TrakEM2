@@ -2451,7 +2451,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final Rectangle r2 = new Rectangle(srcRect.x, srcRect.y + srcRect.height, srcRect.width, (int)(g_height / magnification) - srcRect.height);
 
 			// create new graphics
-			display.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+			try {
+				display.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+			} catch (Exception e) {} // when closing, asynch state may throw for a null loader.
+
 			final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT); // creates a BufferedImage.TYPE_INT_ARGB image in my T60p ATI FireGL laptop
 			final Graphics2D g = target.createGraphics();
 

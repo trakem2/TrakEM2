@@ -50,6 +50,7 @@ import ini.trakem2.display.graphics.*;
 import ini.trakem2.imaging.StitchingTEM;
 
 import javax.swing.*;
+import javax.swing.text.Document;
 import javax.swing.event.*;
 
 import mpicbg.trakem2.align.AlignLayersTask;
@@ -88,6 +89,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private JFrame frame;
 	private JTabbedPane tabs;
+
 	private Hashtable<Class,JScrollPane> ht_tabs;
 	private JScrollPane scroll_patches;
 	private JPanel panel_patches;
@@ -106,6 +108,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private OptionPanel tool_options;
 	private JScrollPane scroll_options;
+
+	static protected int scrollbar_width = 0;
+
+	private JEditorPane annot_editor;
+	private JLabel annot_label;
+	private JPanel annot_panel;
+	static private HashMap<Displayable,Document> annot_docs = new HashMap<Displayable,Document>();
 
 	private JSlider transp_slider;
 	private DisplayNavigator navigator;
@@ -715,17 +724,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// Tab 1: Patches
 		this.panel_patches = makeTabPanel();
 		this.scroll_patches = makeScrollPane(panel_patches);
-		this.tabs.add("Patches", scroll_patches);
+		this.addTab("Patches", scroll_patches);
 
 		// Tab 2: Profiles
 		this.panel_profiles = makeTabPanel();
 		this.scroll_profiles = makeScrollPane(panel_profiles);
-		this.tabs.add("Profiles", scroll_profiles);
+		this.addTab("Profiles", scroll_profiles);
 
 		// Tab 3: pipes
 		this.panel_zdispl = makeTabPanel();
 		this.scroll_zdispl = makeScrollPane(panel_zdispl);
-		this.tabs.add("Z space", scroll_zdispl);
+		this.addTab("Z space", scroll_zdispl);
 
 		// Tab 4: channels
 		this.panel_channels = makeTabPanel();
@@ -739,24 +748,33 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.panel_channels.add(this.channels[1]);
 		this.panel_channels.add(this.channels[2]);
 		this.panel_channels.add(this.channels[3]);
-		this.tabs.add("Opacity", scroll_channels);
+		this.addTab("Opacity", scroll_channels);
 
 		// Tab 5: labels
 		this.panel_labels = makeTabPanel();
 		this.scroll_labels = makeScrollPane(panel_labels);
-		this.tabs.add("Labels", scroll_labels);
+		this.addTab("Labels", scroll_labels);
 
 		// Tab 6: layers
 		this.panel_layers = makeTabPanel();
 		this.scroll_layers = makeScrollPane(panel_layers);
 		recreateLayerPanels(layer);
 		this.scroll_layers.addMouseWheelListener(canvas);
-		this.tabs.add("Layers", scroll_layers);
+		this.addTab("Layers", scroll_layers);
 
 		// Tab 7: tool options
 		this.tool_options = new OptionPanel(); // empty
 		this.scroll_options = makeScrollPane(this.tool_options);
-		this.tabs.add("Tool options", this.scroll_options);
+		this.addTab("Tool options", this.scroll_options);
+
+		// Tab 8: annotations
+		this.annot_editor = new JEditorPane();
+		this.annot_editor.setEnabled(false); // by default, nothing is selected
+		this.annot_editor.setMinimumSize(new Dimension(200, 50));
+		this.annot_label = new JLabel("(No selected object)");
+		this.annot_panel = makeAnnotationsPanel(this.annot_editor, this.annot_label);
+		this.addTab("Annotations", this.annot_panel);
+
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
@@ -774,6 +792,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.ht_tabs.put(Stack.class, scroll_zdispl);
 		// channels not included
 		// layers not included
+		// tools not included
+		// annotations not included
 
 		// Navigator
 		this.navigator = new DisplayNavigator(this, layer.getLayerWidth(), layer.getLayerHeight());
@@ -1074,7 +1094,37 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return jsp;
 	}
 
-	static protected int scrollbar_width = 0;
+	private JPanel makeAnnotationsPanel(JEditorPane ep, JLabel label) {
+		JPanel p = new JPanel();
+		GridBagLayout gb = new GridBagLayout();
+		GridBagConstraints c = new GridBagConstraints();
+		p.setLayout(gb);
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.ipadx = 5;
+		c.ipady = 5;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.weightx = 0;
+		c.weighty = 0;
+		JLabel title = new JLabel("Annotate:");
+		gb.setConstraints(title, c);
+		p.add(title);
+		c.gridy++;
+		gb.setConstraints(label, c);
+		p.add(label);
+		c.weighty = 1;
+		c.gridy++;
+		c.fill = GridBagConstraints.BOTH;
+		c.ipadx = 0;
+		c.ipady = 0;
+		JScrollPane sp = new JScrollPane(ep, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		sp.setPreferredSize(new Dimension(250, 300));
+		sp.setMinimumSize(new Dimension(250, 300));
+		gb.setConstraints(sp, c);
+		p.add(sp);
+		return p;
+	}
 
 	public JPanel getCanvasPanel() {
 		return canvas_panel;
@@ -1240,21 +1290,19 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 
 		public void mousePressed(MouseEvent me) {
-			JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-			if (scroll != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
+			if (tabs.getSelectedComponent() != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
 		}
 
 		public void mouseReleased(MouseEvent me) {
 			// update navigator window
 			navigator.repaint(true);
-			JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-			if (scroll != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
+			if (tabs.getSelectedComponent() != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
 		}
 	}
 
 	/** Context-sensitive: to a Displayable, or to a channel. */
 	private void setTransparency(final float value) {
-		JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
+		Component scroll = tabs.getSelectedComponent();
 		if (scroll == scroll_channels) {
 			for (int i=0; i<4; i++) {
 				if (channels[i].getBackground() == Color.cyan) {
@@ -1875,6 +1923,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return tabs;
 	}
 
+	/** Returns the tab index in this Display's JTabbedPane. */
+	public int addTab(final String title, final Component comp) {
+		this.tabs.add(title, comp);
+		return this.tabs.getTabCount() -1;
+	}
+
 	public void setLocation(Point p) {
 		this.frame.setLocation(p);
 	}
@@ -2037,7 +2091,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.active = displ;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 
-		if (null != displ && displ == prev_active) {
+		if (null != displ && displ == prev_active && tabs.getSelectedComponent() != annot_panel) {
 			// make sure the proper tab is selected.
 			selectTab(displ);
 			return; // the same
@@ -2048,6 +2102,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (null != ob) ob.setActive(false);
 			// erase "decorations" of the previously active
 			canvas.repaint(selection.getBox(), 4);
+			// Adjust annotation doc
+			synchronized (annot_docs) {
+				boolean remove_doc = true;
+				for (final Display d : al_displays) {
+					if (prev_active == d.active) {
+						remove_doc = false;
+						break;
+					}
+				}
+				if (remove_doc) annot_docs.remove(prev_active);
+			}
 		}
 		// activate the new active
 		if (null != displ) {
@@ -2056,13 +2121,38 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			updateInDatabase("active_displayable_id");
 			if (displ.getClass() != Patch.class) project.select(displ); // select the node in the corresponding tree, if any.
 			// select the proper tab, and scroll to visible
-			selectTab(displ);
+			if (tabs.getSelectedComponent() != annot_panel) { // don't swap tab if its the annotation one
+				selectTab(displ);
+			}
 			boolean update_graphics = null == prev_active || paintsBelow(prev_active, displ); // or if it's an image, but that's by default in the repaint method
 			repaint(displ, null, 5, false, update_graphics); // to show the border, and to repaint out of the background image
 			transp_slider.setValue((int)(displ.getAlpha() * 100));
+			// Adjust annotation tab:
+			synchronized (annot_docs) {
+				annot_label.setText(displ.toString());
+				Document doc = annot_docs.get(displ); // could be open in another Display
+				if (null == doc) {
+					doc = annot_editor.getEditorKit().createDefaultDocument();
+					doc.addDocumentListener(new DocumentListener() {
+						public void changedUpdate(DocumentEvent e) {}
+						public void insertUpdate(DocumentEvent e) { push(); }
+						public void removeUpdate(DocumentEvent e) { push(); }
+						private void push() {
+							displ.setAnnotation(annot_editor.getText());
+						}
+					});
+					annot_docs.put(displ, doc);
+				}
+				annot_editor.setDocument(doc);
+				if (null != displ.getAnnotation()) annot_editor.setText(displ.getAnnotation());
+			}
+			annot_editor.setEnabled(true);
 		} else {
 			//ensure decorations are removed from the panels, for Displayables in a selection besides the active one
 			Utils.updateComponent(tabs.getSelectedComponent());
+			annot_label.setText("(No selected object)");
+			annot_editor.setDocument(annot_editor.getEditorKit().createDefaultDocument()); // a clear, empty one
+			annot_editor.setEnabled(false);
 		}
 		}});
 	}
@@ -3149,6 +3239,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Check if a panel for the given Displayable is completely visible in the JScrollPane */
 	public boolean isWithinViewport(final Displayable d) {
+		Component comp = tabs.getSelectedComponent();
+		if (!(comp instanceof JScrollPane)) return false;
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (ht_tabs.get(d.getClass()) == scroll) return isWithinViewport(scroll, ht_panels.get(d));
 		return false;
@@ -3194,6 +3286,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
 	private void scrollToShow(final Displayable d) {
+		if (!(tabs.getSelectedComponent() instanceof JScrollPane)) return;
 		dispatcher.execSwing(new Runnable() { public void run() {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
