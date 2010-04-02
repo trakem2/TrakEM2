@@ -583,8 +583,8 @@ public class AreaWrapper {
 				}
 				// Also try to merge all visible areas in current layer and find a hole there
 				final Area all = new Area(); // in world coords
-				for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
-					for (Area ar : e.getValue()) {
+				for (final Map.Entry<Displayable,List<Area>> e : la.getParent().findAreas(la, la.getParent().get2DBounds(), true).entrySet()) {
+					for (final Area ar : e.getValue()) {
 						all.add(ar.createTransformedArea(e.getKey().at));
 					}
 				}
