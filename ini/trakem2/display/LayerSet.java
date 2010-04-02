@@ -2235,7 +2235,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
-	/** Find all java.awt.geom.Area in layer that intersect with box, if visible. */
+	/** Find all java.awt.geom.Area in layer that intersect with box, if visible.
+	 *  Areas are returned as they are, with coords local to the Displayable they come from.
+	 *  Modifying the Area instances will modify the actual data in the AreaContainer Displayable. */
 	protected Map<Displayable,List<Area>> findAreas(final Layer layer, final Rectangle box, final boolean visible) {
 		final Map<Displayable,List<Area>> m = new HashMap<Displayable,List<Area>>();
 		for (final Displayable zd : findZDisplayables(layer, box, visible)) {
