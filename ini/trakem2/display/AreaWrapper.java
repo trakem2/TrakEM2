@@ -303,42 +303,32 @@ public class AreaWrapper {
 						for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
 							final Displayable d = e.getKey();
 							if (source == d) continue;
-							List<Area> l = e.getValue();
-							final Area a;
-							switch (l.size()) {
-								case 0:
-									continue;
-								default:
-									Utils.log("WARNING ignoring all other areas from " + d);
-									// bleed through to get first area:
-								case 1:
-									a = l.get(0);
-									break;
-							}
-							if (this.area == a) continue;
-							AffineTransform aff;
-							switch (PP.paint_mode) {
-								case PAINT_ERODE:
-									// subtract this target_area from any other Area that overlaps with it
-									aff = new AffineTransform(this.at);
-									aff.preConcatenate(d.at.createInverse());
-									final Area ta = target_area.createTransformedArea(aff);
-									if (a.getBounds().intersects(ta.getBounds())) {
-										ops.put(d, new Runnable() { public void run() { a.subtract(ta); }});
-									}
-									break;
-								case PAINT_EXCLUDE:
-									// subtract all other overlapping Area from the target_area
-									aff = new AffineTransform(d.at);
-									aff.preConcatenate(this.at.createInverse());
-									final Area q = a.createTransformedArea(aff);
-									if (q.getBounds().intersects(target_area.getBounds())) {
-										target_area.subtract(q);
-									}
-									break;
-								default:
-									Utils.log2("Can't handle paint mode " + PP.paint_mode);
-									break;
+							for (final Area a : e.getValue()) {
+								if (this.area == a) continue;
+								AffineTransform aff;
+								switch (PP.paint_mode) {
+									case PAINT_ERODE:
+										// subtract this target_area from any other Area that overlaps with it
+										aff = new AffineTransform(this.at);
+										aff.preConcatenate(d.at.createInverse());
+										final Area ta = target_area.createTransformedArea(aff);
+										if (a.getBounds().intersects(ta.getBounds())) {
+											ops.put(d, new Runnable() { public void run() { a.subtract(ta); }});
+										}
+										break;
+									case PAINT_EXCLUDE:
+										// subtract all other overlapping Area from the target_area
+										aff = new AffineTransform(d.at);
+										aff.preConcatenate(this.at.createInverse());
+										final Area q = a.createTransformedArea(aff);
+										if (q.getBounds().intersects(target_area.getBounds())) {
+											target_area.subtract(q);
+										}
+										break;
+									default:
+										Utils.log2("Can't handle paint mode " + PP.paint_mode);
+										break;
+								}
 							}
 						}
 
@@ -550,34 +540,24 @@ public class AreaWrapper {
 				final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, new Rectangle(x_p_w, y_p_w, 1, 1), true);
 				for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
 					final Displayable d = e.getKey();
-					final List<Area> l = e.getValue();
-					final Area a;
-					switch (l.size()) {
-						case 0:
-							continue;
-						default:
-							Utils.log("WARNING ignoring all other areas from " + d);
-							// bleed through to get first area:
-						case 1:
-							a = l.get(0);
-							break;
-					}
-					// bring point to zd space
-					final Point2D.Double p = d.inverseTransformPoint(x_p_w, y_p_w);
-					final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
-					if (null != polygon) {
-						Area bw = new Area(polygon).createTransformedArea(d.at);
-						Rectangle bounds = bw.getBounds();
-						int pol_area = bounds.width * bounds.height;
-						if (pol_area < min_area) {
-							bmin = bw;
-							min_area = pol_area;
+					for (final Area a : e.getValue()) {
+						// bring point to zd space
+						final Point2D.Double p = d.inverseTransformPoint(x_p_w, y_p_w);
+						final Polygon polygon = M.findPath(a, (int)p.x, (int)p.y);
+						if (null != polygon) {
+							Area bw = new Area(polygon).createTransformedArea(d.at);
+							Rectangle bounds = bw.getBounds();
+							int pol_area = bounds.width * bounds.height;
+							if (pol_area < min_area) {
+								bmin = bw;
+								min_area = pol_area;
+							}
+							if (pol_area > max_area) {
+								bmax = bw;
+								max_area = pol_area;
+							}
+							intersecting.add(bw);
 						}
-						if (pol_area > max_area) {
-							bmax = bw;
-							max_area = pol_area;
-						}
-						intersecting.add(bw);
 					}
 				}
 
