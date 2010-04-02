@@ -1478,7 +1478,29 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					ts = layer_set.getTags(keyCode);
 				}
 				// Ask to chose one, if more than one
+				final Set<Tag> target_tags = target.getTags();
+				if (untag && (null == target_tags || target_tags.isEmpty())) {
+					// nothing to untag
+					return;
+				}
 				if (ts.size() > 1) {
+					// if the target_tags has only one tag for the given keycode, just remove it
+					if (untag && null != target_tags) {
+						int count = 0;
+						Tag t = null;
+						for (final Tag tag : target_tags) {
+							if (tag.getKeyCode() == keyCode) {
+								count++;
+								t = tag;
+							}
+						}
+						if (1 == count) {
+							// just remove it
+							target.removeTag(t);
+							Display.repaint(layer_set);
+							return;
+						}
+					}
 					final JPopupMenu popup = new JPopupMenu();
 					popup.add(new JLabel(untag ? "Untag:" : "Tag:"));
 					int i = 1;
@@ -1489,6 +1511,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0 + i, 0, true));
 						}
 						i++;
+						if (null != target_tags) {
+							item.setEnabled(target_tags.contains(tag));
+						}
 						item.addActionListener(new ActionListener() {
 							public void actionPerformed(ActionEvent ae) {
 								if (untag) target.removeTag(tag);
