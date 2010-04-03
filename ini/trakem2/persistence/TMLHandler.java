@@ -367,7 +367,7 @@ public class TMLHandler extends DefaultHandler {
 
 		//Utils.log2("startElement: " + qualified_name);
 		this.counter++;
-		if (0 == counter % 100) { // davi-experimenting: don't talk so much when you have > 600,000 patches to load!
+		if (counter < 50000 || 0 == counter % 100) { // davi-experimenting: don't talk so much when you have > 600,000 patches to load!
 			Utils.showStatus("Loading " + counter, false);
 		}
 		try {
