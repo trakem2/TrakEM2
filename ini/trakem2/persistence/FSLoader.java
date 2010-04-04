@@ -475,8 +475,8 @@ public final class FSLoader extends Loader {
 						Utils.log2("FSLoader.getNext() returning first id in range of current UserIDRange, user_name='" + which_user_id_range.user_name + "', nid=" + Long.toString(nid)); 
 					} else {
 						nid = ++which_user_id_range.max_id_in_range;
-						Utils.log2("FSLoader.getNext() returning id in range of current UserIDRange, user_name='" + which_user_id_range.user_name + "', nid=" + Long.toString(nid));
 					}
+					Utils.log2("FSLoader.getNext() returning id=" + Long.toString(nid) + " in UserIDRange.user_name='" + which_user_id_range.user_name + "'; this range has " + Long.toString(which_user_id_range.upper_limit - which_user_id_range.max_id_in_range) + " ids left.");
 					if (nid > max_id) { max_id = nid; }
 				} else {
 					Utils.log("ERROR: current user has no additional ids left in range; using anonymous id (user name=" + which_user_id_range.user_name + "')");
