@@ -772,7 +772,10 @@ public class Project extends DBObject {
 		if (null == title || title.equals("Project")) {
 			try {
 				return loader.makeProjectName(); // can't use this.id, because the id system is project-centric and thus all FSLoader projects would have the same id.
-			} catch (Exception e) { Utils.log2("Swing again."); }
+			} catch (Exception e) { 
+				e.printStackTrace(); // davi-experimenting: I want to see what is going on here...
+				Utils.log2("Swing again."); 
+			}
 		}
 		return title;
 	}

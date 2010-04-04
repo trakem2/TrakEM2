@@ -133,7 +133,53 @@ public final class FSLoader extends Loader {
 			crashDetector();
 		}
 	}
+	
+	// davi-experimenting
+	// TODO encapsulate all this chunk of user id range stuff into e.g. a UserIDRanges class?
+	private static class UserIDRange {
+		String user_name;
+		long lower_limit = -1;
+		long upper_limit = Long.MAX_VALUE;
+		long max_id_in_range = Long.MIN_VALUE;
+		public UserIDRange(final String new_user_name, final long new_lower_limit, final long new_upper_limit) {
+			this.user_name = new_user_name;
+			this.lower_limit = new_lower_limit;
+			this.upper_limit = new_upper_limit;
+		}
+		public boolean hasRoom() { return max_id_in_range < upper_limit; }
+	}
+	private UserIDRange which_user_id_range = null;
+	private Hashtable<String, UserIDRange> ht_user_id_ranges = new Hashtable<String, UserIDRange>(); 
+	public void setCurrentUser(String user_name) {
+		// TODO this is not at all crash resistant to the case where the user_name is not a key of ht_user_id_ranges; for now, just crash, since this should never happen.
+		UserIDRange found_user_id_range = ht_user_id_ranges.get(user_name);
+		which_user_id_range = found_user_id_range;
+		Utils.log2("set current user to '" + user_name + "', id lower_limit=" + Long.toString(found_user_id_range.lower_limit) + ", id upper_limit=" + Long.toString(found_user_id_range.upper_limit) +", max_id_in_range=" + Long.toString(found_user_id_range.max_id_in_range));
+	}
+	public void addUserIDRange(final String user_name, final long lower_lim, final long upper_lim) {
+		// TODO compare to existing ranges and check for conflict
+		UserIDRange new_user_id_range = new UserIDRange(user_name, lower_lim, upper_lim);
+		ht_user_id_ranges.put(user_name, new_user_id_range);
+		if (null == which_user_id_range) { 
+			setCurrentUser(new_user_id_range.user_name); 
+		}
+		Utils.log2("added new user id range for user_name='" + user_name + "', lower_lim='" + Long.toString(new_user_id_range.lower_limit) + ", upper_lim=" + Long.toString(new_user_id_range.upper_limit));
+	}
+	// TODO how is threading going to work, for this? It is called exclusively from inside the synchronized (db_lock) block in FSLoader.addToDatabase()
+	private void checkAddedIDAgainstRanges(long id) {
+		if (null != ht_user_id_ranges) {
+			for (Iterator<Map.Entry<String, UserIDRange>> it = ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<String, UserIDRange> entry = it.next();
+				UserIDRange user_id_range = entry.getValue();
+				if (id >= user_id_range.lower_limit && id <= user_id_range.upper_limit && id > user_id_range.max_id_in_range) {
+					user_id_range.max_id_in_range = id;
+					Utils.log2("incremented max_id_in_range to " + Long.toString(id) + ", for UserIDRange with name='" + user_id_range.user_name + "', lower_limit=" + Long.toString(user_id_range.lower_limit) + ", upper_limit=" + Long.toString(user_id_range.upper_limit));
+				}
+			}
+		}
+	}
 
+	
 	private String createUNUId(String dir_storage) {
 		synchronized (db_lock) {
 			lock();
@@ -418,7 +464,26 @@ public final class FSLoader extends Loader {
 		long nid = -1;
 		synchronized (db_lock) {
 			lock();
-			nid = ++max_id;
+			// davi-experimenting
+			// TODO does this interact correctly with the threading model? Will this work? Probably yes, so long as this remains the only point where these values in which_user_id_range are changed
+			if (null != which_user_id_range) {
+				if (which_user_id_range.hasRoom()) {
+					if (which_user_id_range.max_id_in_range < which_user_id_range.lower_limit) {
+						which_user_id_range.max_id_in_range = which_user_id_range.lower_limit;
+						nid = which_user_id_range.max_id_in_range;
+						// this is the first item created in this range
+						Utils.log2("FSLoader.getNext() returning first id in range of current UserIDRange, user_name='" + which_user_id_range.user_name + "', nid=" + Long.toString(nid)); 
+					} else {
+						nid = ++which_user_id_range.max_id_in_range;
+						Utils.log2("FSLoader.getNext() returning id in range of current UserIDRange, user_name='" + which_user_id_range.user_name + "', nid=" + Long.toString(nid));
+					}
+					if (nid > max_id) { max_id = nid; }
+				} else {
+					Utils.log("ERROR: current user has no additional ids left in range; using anonymous id (user name=" + which_user_id_range.user_name + "')");
+				}
+			} else if (-1 == nid) {
+				nid = ++max_id;
+			}
 			unlock();
 		}
 		return nid;
@@ -741,6 +806,9 @@ public final class FSLoader extends Loader {
 			if (id > max_id) {
 				max_id = id;
 			}
+			
+			this.checkAddedIDAgainstRanges(id); // davi-experimenting
+			
 			unlock();
 		}
 		return true;

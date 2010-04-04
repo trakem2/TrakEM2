@@ -373,7 +373,7 @@ public class TMLHandler extends DefaultHandler {
 		try {
 			// failsafe:
 			qualified_name = qualified_name.toLowerCase();
-
+			
 			HashMap ht_attributes = new HashMap();
 			for (int i=attributes.getLength() -1; i>-1; i--) {
 				ht_attributes.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
@@ -415,6 +415,17 @@ public class TMLHandler extends DefaultHandler {
 				thing = root_pt;
 			} else if (qualified_name.startsWith("ict_transform")||qualified_name.startsWith("iict_transform")) {
 				makeCoordinateTransform(qualified_name, ht_attributes);
+			} else if (qualified_name.startsWith("user_id")) { // davi-experimenting
+				if (qualified_name.equals("user_id_ranges")) {
+					// TODO need to do anything here?
+				} else if (qualified_name.equals("user_id_range")) {
+					this.loader.addUserIDRange((String) ht_attributes.get("user_name"), 
+							Long.parseLong((String) ht_attributes.get("lower_lim")), 
+							Long.parseLong((String) ht_attributes.get("upper_lim")));
+					
+				} else {
+					Utils.log("WARNING: unknown XML element \"" + qualified_name + "\"");
+				}
 			} else if (!qualified_name.equals("trakem2")) {
 				// Any abstract object
 				thing = makeProjectThing(qualified_name, ht_attributes);
