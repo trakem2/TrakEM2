@@ -1122,6 +1122,12 @@ public class Project extends DBObject {
 		// 1 - opening tag
 		sb_body.append(indent).append("<trakem2>\n");
 		String in = indent + "\t";
+		
+		// davi-experimenting; TODO maybe should make a virtual exportXML method in Loader.java?
+		writer.write(sb_body.toString());
+		((FSLoader)this.project.getLoader()).exportXML(writer, in, any);
+		sb_body = new StringBuffer();
+		
 		// 2 - the project itself
 		sb_body.append(in).append("<project \n")
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
@@ -1153,7 +1159,11 @@ public class Project extends DBObject {
 	/** Export a complete DTD listing to export the project as XML. */
 	public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
-		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
+		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display, user_id_ranges)>\n");
+		
+		// davi-experimenting; TODO maybe should make a virtual exportDTD method in Loader.java?
+		((FSLoader)this.project.getLoader()).exportDTD(sb_header, hs, indent); 
+		
 		// 2 - export user-defined templates
 		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
