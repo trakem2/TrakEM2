@@ -773,7 +773,8 @@ public class Project extends DBObject {
 			try {
 				return loader.makeProjectName(); // can't use this.id, because the id system is project-centric and thus all FSLoader projects would have the same id.
 			} catch (Exception e) { 
-				e.printStackTrace(); // davi-experimenting: I want to see what is going on here...
+				// davi-experimenting: it looks like these exceptions get raised when a project is closed & reopened; this occurs on master as well as branches I have twiddled with.
+				// e.printStackTrace(); 
 				Utils.log2("Swing again."); 
 			}
 		}
