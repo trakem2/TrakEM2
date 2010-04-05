@@ -443,49 +443,50 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return sb;
 	}
 	static private final void dataNodeXML(final Tree tree, final StringBuffer indent, final StringBuffer sb, final Node node) {
-		// davi-experimenting: play with removing all newlines and indents, to see if git will avoid swapping chunks of the treeline arbor during merges
-		sb.append("<t2_node x=\"").append(node.x)
+		sb.append(indent)
+		  .append("<t2_node x=\"").append(node.x)
 		  .append("\" y=\"").append(node.y)
 		  .append("\" lid=\"").append(node.la.getId()).append('\"');
 		;
 		if (null != node.parent) sb.append(" c=\"").append(node.parent.getConfidence(node)).append('\"');
 		tree.exportXMLNodeAttributes(indent, sb, node); // may not add anything
-		sb.append(">");
+		sb.append(">\n");
 		// ... so accumulated potentially extra chars are 3: \">\n
 
-		// indent.append(' ');
+		indent.append(' ');
 		boolean data = tree.exportXMLNodeData(indent, sb, node);
 		if (data) {
 			if (null != node.tags) exportTags(node, sb, indent);
 			if (null == node.children) {
-				sb.append("</t2_node>");
+				indent.setLength(indent.length() -1);
+				sb.append(indent).append("</t2_node>\n");
 				return;
 			}
 		} else if (null == node.children) {
 			if (null != node.tags) {
 				exportTags(node, sb, indent);
-				sb.append("</t2_node>");
+				sb.append(indent).append("</t2_node>\n");
 			} else {
 				sb.setLength(sb.length() -3); // remove "\">\n"
-				sb.append("\" />");
+				sb.append("\" />\n");
 			}
 		} else if (null != node.tags) {
 			exportTags(node, sb, indent);
 		}
-		// indent.setLength(indent.length() -1);
+		indent.setLength(indent.length() -1);
 	}
 	abstract protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node);
 	abstract protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node);
 
 	static private void exportTags(final Node node, final StringBuffer sb, final StringBuffer indent) {
 		for (final Tag tag : (Collection<Tag>) node.getTags()) {
-			sb.append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(tag.toString()))
+			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(tag.toString()))
 					 .append("\" key=\"").append((char)tag.getKeyCode()).append("\" />\n");
 		}
 	}
 
 	static private final void closeNodeXML(final StringBuffer indent, final StringBuffer sb) {
-		sb.append("</t2_node>");
+		sb.append(indent).append("</t2_node>\n");
 	}
 
 	/** @return a CustomLineMesh.PAIRWISE list for a LineMesh. */
