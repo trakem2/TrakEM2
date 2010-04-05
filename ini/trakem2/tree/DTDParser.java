@@ -278,7 +278,6 @@ public class DTDParser {
 			i_space = chunk.indexOf(' ');
 			if (chunk.startsWith("!ELEMENT")) {
 				DTDParser.Type type = new DTDParser.Type(chunk.substring(i_space +1));
-				Utils.log2("davi-experimenting found: " + type.name);
 				if (isAllowed(type.name)) {
 					ht_types.put(type.name, type);
 				} else if (type.name.equals("project")) {
