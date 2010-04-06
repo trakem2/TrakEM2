@@ -4143,7 +4143,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			getLayerSet().addChangeTreesStep();
 			List<Tree> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
 			if (null == ts) return;
 			Displayable elder = Display.this.active;
@@ -4176,14 +4175,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(Treeline.class);
 			if (((Tree)active).canJoin(tlines)) {
-				getLayerSet().addChangeTreesStep();
+				// Record current state
+				class State {{
+					Set<DoStep> dataedits = new HashSet<DoStep>();
+					for (final Tree tl : tlines) {
+						dataedits.add(new Displayable.DoEdit(tl).init(tl, new String[]{"data"}));
+					}
+					getLayerSet().addChangeTreesStep(dataedits);
+				}};
+				new State();
+				//
 				((Tree)active).join(tlines);
 				for (final Tree tl : tlines) {
 					if (tl == active) continue;
 					tl.remove2(false);
 				}
 				Display.repaint(getLayerSet());
-				getLayerSet().addChangeTreesStep();
+				// Again, to record current state
+				new State();
 			}
 		} else if (command.equals("Previous branch point or start")) {
 			if (!(active instanceof Tree)) return;
