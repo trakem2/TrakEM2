@@ -340,7 +340,14 @@ public class StitchingTEM {
 					if (optimize) {
 
 						ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
-						al_fixed_tiles.add(al_tiles.get(0));
+						// Add locked tiles as fixed tiles, if any:
+                                                for (int i=0; i<patch.length; i++) {
+                                                        if (patch[i].isLocked2()) al_fixed_tiles.add(al_tiles.get(i));
+                                                }
+                                                if (al_fixed_tiles.isEmpty()) {
+							// When none, add the first one as fixed
+                                                        al_fixed_tiles.add(al_tiles.get(0));
+                                                }
 
 						// Optimize iteratively tile configuration by removing bad matches
 						optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
