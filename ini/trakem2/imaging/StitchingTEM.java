@@ -116,12 +116,12 @@ public class StitchingTEM {
 	 * @return A new Runnable task, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
 	static public Runnable stitch(
-			final Patch[] patch, 
-			final int grid_width, 
-			final double default_bottom_top_overlap, 
-			final double default_left_right_overlap, 
+			final Patch[] patch,
+			final int grid_width,
+			final double default_bottom_top_overlap,
+			final double default_left_right_overlap,
 			final boolean optimize,
-			final int stitching_rule) 
+			final int stitching_rule)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
