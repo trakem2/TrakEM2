@@ -113,7 +113,7 @@ public class StitchingTEM {
 	 * Rotation of the images is NOT considered by the TOP_LEFT_RULE (phase- and cross-correlation),
 	 * but it can be for the FREE_RULE (SIFT).
 	 * 
-	 * @return A new Bureaucrat Thread, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
+	 * @return A new Runnable task, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
 	static public Runnable stitch(
 			final Patch[] patch, 
