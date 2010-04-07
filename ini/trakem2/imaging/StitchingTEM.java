@@ -809,9 +809,14 @@ public class StitchingTEM {
 		for (final Patch p : al) {
 			// Pre-check: just a warning
 			final int aff_type = p.getAffineTransform().getType();
-			if (AffineTransform.TYPE_IDENTITY != aff_type
-			  || 0 != (AffineTransform.TYPE_TRANSLATION ^ aff_type)) {
-				Utils.log2("WARNING: patch with a non-translation transform: " + p);
+			switch (p.getAffineTransform().getType()) {
+				case AffineTransform.TYPE_IDENTITY:
+				case AffineTransform.TYPE_TRANSLATION:
+					// ok
+					break;
+				default:
+					Utils.log2("WARNING: patch with a non-translation transform: " + p);
+					break;
 			}
 			// create tiles
 			TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
