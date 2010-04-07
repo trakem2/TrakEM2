@@ -1281,6 +1281,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" title").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" links").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" composite").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" edited_yn").append(" NMTOKEN #IMPLIED>\n"); // davi-experimenting
 		;
 	}
 
