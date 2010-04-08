@@ -152,6 +152,9 @@ public final class FSLoader extends Loader {
 			this.upper_limit = new_upper_limit;
 		}
 		public boolean hasRoom() { return max_id_in_range < upper_limit; }
+		public boolean rangesLimitsAreSame(UserIDRange other) {
+			return (this.lower_limit == other.lower_limit && this.upper_limit == other.upper_limit);
+		}
 	}
 	private UserIDRange which_user_id_range = null;
 	private Hashtable<String, UserIDRange> ht_user_id_ranges = null; // if no user_id_range elements are found in project XML, this will be left null 
@@ -243,6 +246,26 @@ public final class FSLoader extends Loader {
 	}
 	public boolean userIDRangesPresent() {
 		return (null != ht_user_id_ranges);
+	}
+	/** For each UserIDRange in this loader, see if the other loader has a range with the same name and same upper & lower limits.
+	 */
+	public boolean userIDRangesAreCompatible(FSLoader otherLoader) {
+		if (this == otherLoader) return true; // for convenience during iteration
+		if (!(this.userIDRangesPresent() && otherLoader.userIDRangesPresent())) {
+			return false;
+		} else {
+			Hashtable<String,UserIDRange> other_ranges = otherLoader.ht_user_id_ranges;
+			for (Iterator<Map.Entry<String, UserIDRange>> it = this.ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<String, UserIDRange> entry = it.next();
+				UserIDRange this_user_id_range = entry.getValue();
+				if (!other_ranges.containsKey(this_user_id_range.user_name)) return false;
+				UserIDRange other_user_id_range = other_ranges.get(this_user_id_range.user_name);
+				if (this_user_id_range.lower_limit == other_user_id_range.lower_limit && this_user_id_range.upper_limit == other_user_id_range.upper_limit) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 	// end block of davi-experimenting stuff
 	

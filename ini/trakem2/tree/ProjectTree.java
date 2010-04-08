@@ -947,19 +947,33 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return false;
 	}
 	
-	// davi-experimenting
-	/** TODO some documentation here
-	 * 
+	// begin davi-experimenting block
+	/** Detect the following categories of event by comparing other open projects to this one:
+	 * 1. creation: IDs present in sources (other open projects) not present in dest (current project)
+	 * 2. deletion: IDs present in dest not present in sources
+	 * 3. ProjectThing title changes: same ID in source and dest, name different
+	 * 4. Displayable edits: edited_yn = true, overwrite dest displayable with source
+	 * In cases of (1) and (3), IDs are preserved.
 	 */
+	// Much of this will be derived from sendToSiblingProject, above, and there will be some code in common, but I am not going to touch that method at this time for ease of future merging.
+	// If Albert wants to roll this functionality out more broadly, I will need to remove the 'davi-experimenting' tags in source, and maybe at that time, code-in-common can be factored
+	// out and put in methods.
 	public boolean mergeMany() {
-		if (!((FSLoader) project.getLoader()).userIDRangesPresent()) {
-			Utils.log2("ProjectTree.mergeMany() called when userIdRangesPresent == false");
-			return false;
-		} else if (Project.getProjects().size() < 2) {
+		ArrayList<Project> ps = Project.getProjects();
+		FSLoader loader = (FSLoader) project.getLoader(); // incompatible cast should never happen since ProjectThing context menu item is only added if type is FSLoader, and that is the only entry point to this code
+		// start off with some sanity checking TODO test these cases
+		if (ps.size() < 2) {
 			Utils.log2("ProjectTree.mergeMany() called when less than two projects are open");
 			return false;
 		}
-		
+		for (final Project p : ps) {
+			if (!loader.userIDRangesAreCompatible(loader)) {
+				Utils.log("WARNING: mergeMany failed due to incompatible user ID ranges between the projects (failed on project: '" + p.getTitle() + "')");
+				return false; // TODO check Java syntax, does this break from for loop correctly?
+			}
+		}
+		Utils.log2("ProjectTree.mergeMany: all open projects have compatible user ID ranges");
 		return true;
 	}
+	// end davi-experimenting block
 }
