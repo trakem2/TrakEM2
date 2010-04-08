@@ -229,7 +229,7 @@ public final class FSLoader extends Loader {
 	}
 	private void userIDRangePicker() {
 		if (null != ht_user_id_ranges && ht_user_id_ranges.size() > 1) { // maybe have to change to 2 if implement a dummy user to absorb template-driven getNextID calls
-			Set<String> user_names = ht_user_id_ranges.keySet();
+			Set<String> user_names = ((Hashtable<String,UserIDRange>) ht_user_id_ranges.clone()).keySet();
 			if (!user_names.remove("_system")) {
 				Utils.log("WARNING: userIDRangePicker() detected missing _system user");
 			}

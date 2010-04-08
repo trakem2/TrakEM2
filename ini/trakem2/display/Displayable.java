@@ -126,6 +126,10 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** The call back hooks to remove any linked properties in other Displayable instances when this Displayable is removed. */
 	protected Set<Displayable> linked_props_origins = null;
 
+	// begin davi-experimenting block
+	protected boolean edited_yn = false; // if reconstructed from XMl, edited_yn="true" will override
+	//end davi-experimenting block
+	
 	/** Set a key/valye property pair; to remove a property, set the value to null. */
 	synchronized public boolean setProperty(final String key, final String value) {
 		if (null == key) return false;
@@ -335,6 +339,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		super(project);
 		this.title = title;
 		this.at.translate(x, y);
+		this.edited_yn = true; // davi-experimenting
 	}
 
 	/** Reconstruct a Displayable from the database. */
@@ -345,6 +350,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (null != at) this.at.setTransform(at);
 		this.width = width;
 		this.height = height;
+		// davi-experimenting TODO need to add edited_yn stuff here? I am generally not dealing with database-backed TrakEM2...
 	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
@@ -420,7 +426,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					rot = Double.parseDouble(data);
 				} else if (key.equals("composite")) {
 					compositeMode = Byte.parseByte(data);
-				}
+				} else if (key.equals("edited_yn")) edited_yn = data.trim().toLowerCase().equals("true"); // davi-experimenting
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
@@ -1344,9 +1350,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			Arrays.sort(ids);
 			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
 			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
-		}
-		
+		}		
 		sb_body.append("\"\n");
+		if (edited_yn) sb_body.append(in).append("edited_yn=\"true\"\n"); // davi-experimenting
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
@@ -1843,7 +1849,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		synchronized public Displayable getD() { return d; }
 		synchronized DoEdit fullCopy() {
-			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props"});
+			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props", "edited_yn"}); // davi-experimenting
 		}
 		/** With the same keys as 'de'. */
 		synchronized DoEdit init(final DoEdit de) {

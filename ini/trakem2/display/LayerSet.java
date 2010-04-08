@@ -150,6 +150,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.parent = parent;
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
+		this.edited_yn = false; // davi-experimenting -- override Displayable constructor's default behavior; TODO need to do for database-backed, someday?
 		addToDatabase();
 	}
 
