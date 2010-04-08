@@ -2030,12 +2030,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	static abstract protected class DataPackage {
 		protected final double width, height;
+		protected final boolean edited_yn; // davi-experimenting
 		protected final AffineTransform at;
 		protected HashMap<Displayable,HashSet<Displayable>> links = null;
 
 		DataPackage(final Displayable d) {
 			this.width = d.width;
 			this.height = d.height;
+			this.edited_yn = d.edited_yn; // davi-experimenting
 			this.at = new AffineTransform(d.at);
 			if (null != d.hs_linked) {
 				this.links = new HashMap<Displayable,HashSet<Displayable>>();
@@ -2051,6 +2053,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		final boolean to1(final Displayable d) {
 			d.width = width;
 			d.height = height;
+			d.edited_yn = edited_yn; // davi-experimenting
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
 				HashSet<Displayable> all_links = new HashSet<Displayable>();

@@ -1823,6 +1823,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 						dedits.put(d, edits);
 					}
 					edits.put(current_edit_time, current_edit_step);
+					// davi-experimenting
+					// after the current state of the Displayable has been added to the edit_history, set edited_yn to true. It will only be reset to false after a merge-many operation (to be implemented) or if the user undoes the edit
+					// TODO explore addChangeTreesStep case -- how will this work?
+					d.edited_yn = true; 
 				}
 
 				// prune if too large
