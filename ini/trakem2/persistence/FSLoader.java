@@ -141,7 +141,7 @@ public final class FSLoader extends Loader {
 	
 	// begin block of davi-experimenting stuff
 	// TODO encapsulate all this chunk of user id range stuff into e.g. a UserIDRanges class?
-	private static class UserIDRange {
+	private static class UserIDRange { // TODO want class to be static?
 		String user_name;
 		long lower_limit = -1;
 		long upper_limit = Long.MAX_VALUE;
@@ -156,7 +156,7 @@ public final class FSLoader extends Loader {
 	private UserIDRange which_user_id_range = null;
 	private Hashtable<String, UserIDRange> ht_user_id_ranges = null; // if no user_id_range elements are found in project XML, this will be left null 
 	public void setCurrentUser(String user_name) {
-		if (null != ht_user_id_ranges) {
+		if (userIDRangesPresent()) {
 			UserIDRange found_user_id_range = ht_user_id_ranges.get(user_name);
 			if (null != found_user_id_range) {
 				which_user_id_range = found_user_id_range;
@@ -170,7 +170,7 @@ public final class FSLoader extends Loader {
 	}
 	// for now, only called at XML load time
 	public void addUserIDRange(final String user_name, final long lower_lim, final long upper_lim) {
-		if (null == ht_user_id_ranges) {
+		if (!userIDRangesPresent()) {
 			ht_user_id_ranges = new Hashtable<String, UserIDRange>();
 		}
 		// TODO compare to existing ranges and check for conflict
@@ -183,7 +183,7 @@ public final class FSLoader extends Loader {
 	}
 	// TODO how is threading going to work, for this? It is called exclusively from inside the synchronized (db_lock) block in FSLoader.addToDatabase()
 	private void bumpMaxIdInRangesAsNeeded(long id) {
-		if (null != ht_user_id_ranges) {
+		if (userIDRangesPresent()) {
 			int count = 0;
 			for (Iterator<Map.Entry<String, UserIDRange>> it = ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
 				final Map.Entry<String, UserIDRange> entry = it.next();
@@ -211,7 +211,7 @@ public final class FSLoader extends Loader {
 		// }
 	}
 	public void exportXML(final java.io.Writer writer, String indent, Object any) throws Exception {
-		if (null != ht_user_id_ranges) {
+		if (userIDRangesPresent()) {
 			final StringBuffer sb_body = new StringBuffer();
 			sb_body.append(indent).append("<user_id_ranges>\n");
 			final String in = indent + "\t";
@@ -228,7 +228,7 @@ public final class FSLoader extends Loader {
 		}
 	}
 	private void userIDRangePicker() {
-		if (null != ht_user_id_ranges && ht_user_id_ranges.size() > 1) { // maybe have to change to 2 if implement a dummy user to absorb template-driven getNextID calls
+		if (userIDRangesPresent() && ht_user_id_ranges.size() > 1) { // > 1, not >0, because "_system" should always be present
 			Set<String> user_names = ((Hashtable<String,UserIDRange>) ht_user_id_ranges.clone()).keySet();
 			if (!user_names.remove("_system")) {
 				Utils.log("WARNING: userIDRangePicker() detected missing _system user");
@@ -240,6 +240,9 @@ public final class FSLoader extends Loader {
 			final String choice = (String) JOptionPane.showInputDialog(null, "Your name:", "Who are you?", JOptionPane.QUESTION_MESSAGE, null, choices, choices[cur_choice]);
 			setCurrentUser(choice);
 		}
+	}
+	public boolean userIDRangesPresent() {
+		return (null != ht_user_id_ranges);
 	}
 	// end block of davi-experimenting stuff
 	
