@@ -448,7 +448,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				if (gd.wasCanceled()) return;
 				project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 				thing.setTitle(gd.getNextString());
-				project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
+				// project.getRootLayerSet().addUndoStep(new RenameThingStep(thing)); // davi-experimenting -- I commented this out as I think it is the reason that it takes two Undos to undo a name change -- time will tell if this is a mistake or not
 			} else if (command.equals("Translate layers in Z...")) {
 				/// TODO: this method should use multiple selections directly on the tree
 				if (thing.getObject() instanceof LayerSet) {
