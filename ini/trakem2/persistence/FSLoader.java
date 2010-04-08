@@ -141,7 +141,7 @@ public final class FSLoader extends Loader {
 	
 	// begin block of davi-experimenting stuff
 	// TODO encapsulate all this chunk of user id range stuff into e.g. a UserIDRanges class?
-	private static class UserIDRange { // TODO want class to be static?
+	private static class UserIDRange { // "a nested static class has no access to instance-specific data" (per teh interwebs) -- that's what we want here, just a little utility doodad
 		String user_name;
 		long lower_limit = -1;
 		long upper_limit = Long.MAX_VALUE;
@@ -260,12 +260,12 @@ public final class FSLoader extends Loader {
 				UserIDRange this_user_id_range = entry.getValue();
 				if (!other_ranges.containsKey(this_user_id_range.user_name)) return false;
 				UserIDRange other_user_id_range = other_ranges.get(this_user_id_range.user_name);
-				if (this_user_id_range.lower_limit == other_user_id_range.lower_limit && this_user_id_range.upper_limit == other_user_id_range.upper_limit) {
-					return true;
+				if (!(this_user_id_range.lower_limit == other_user_id_range.lower_limit && this_user_id_range.upper_limit == other_user_id_range.upper_limit)) {
+					return false;
 				}
 			}
 		}
-		return false;
+		return true;
 	}
 	// end block of davi-experimenting stuff
 	

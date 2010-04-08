@@ -967,13 +967,24 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			return false;
 		}
 		for (final Project p : ps) {
-			if (!loader.userIDRangesAreCompatible(loader)) {
-				Utils.log("WARNING: mergeMany failed due to incompatible user ID ranges between the projects (failed on project: '" + p.getTitle() + "')");
+			if (!(p.getLoader() instanceof FSLoader)) {
+				Utils.log("WARNING: mergeMany failed due to incompatible loader type in project '" + ProjectTree.getHumanFacingNameFromProject(p) + "')"); // TODO better way exists, since conceivable FSLoader could be subclassed someday?
+				return false;
+			}
+			FSLoader other_loader = (FSLoader) p.getLoader();
+			if (!loader.userIDRangesAreCompatible(other_loader)) {
+				Utils.log("WARNING: mergeMany failed due to incompatible user ID ranges between the projects (failed on project: '" + ProjectTree.getHumanFacingNameFromProject(p) + "')");
 				return false; // TODO check Java syntax, does this break from for loop correctly?
 			}
 		}
 		Utils.log2("ProjectTree.mergeMany: all open projects have compatible user ID ranges");
+		
+		Hashtable<Project,ProjectThing> createdThings, deletedThings, titleChangedThings, displayableChangedThings;
+		
 		return true;
+	}
+	private static String getHumanFacingNameFromProject(Project p) { // a 'real' way to do this, elsewhere?
+		return ((ProjectThing) p.getProjectTree().getRootNode().getUserObject()).getTitle();
 	}
 	// end davi-experimenting block
 }
