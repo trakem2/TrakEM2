@@ -25,6 +25,7 @@ package ini.trakem2.tree;
 
 import ij.gui.GenericDialog;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
@@ -300,6 +301,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// overwrite the xml file of a FSProject
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
 				thing.getProject().getLoader().save(thing.getProject());
+			} else if (command.equals("Merge many...")) { // davi-experimenting
+				mergeManyTask();
 			} else if (command.equals("Info")) {
 				showInfo(thing);
 				return;
@@ -765,6 +768,15 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 	}
 
+	// davi-experimenting
+	public Bureaucrat mergeManyTask() {
+		return Bureaucrat.createAndStart(new Worker.Task("Merge many") {
+			public void exec() {
+				mergeMany();
+			}
+		}, this.project);
+	}
+	
 	public Bureaucrat sendToSiblingProjectTask(final DefaultMutableTreeNode node) {
 		return Bureaucrat.createAndStart(new Worker.Task("Send to sibling") {
 			public void exec() {
@@ -933,5 +945,21 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 
 		return false;
+	}
+	
+	// davi-experimenting
+	/** TODO some documentation here
+	 * 
+	 */
+	public boolean mergeMany() {
+		if (!((FSLoader) project.getLoader()).userIDRangesPresent()) {
+			Utils.log2("ProjectTree.mergeMany() called when userIdRangesPresent == false");
+			return false;
+		} else if (Project.getProjects().size() < 2) {
+			Utils.log2("ProjectTree.mergeMany() called when less than two projects are open");
+			return false;
+		}
+		
+		return true;
 	}
 }

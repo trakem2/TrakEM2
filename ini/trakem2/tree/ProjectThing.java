@@ -542,6 +542,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			} else if (project.getLoader() instanceof FSLoader) {
 				addPopupItem("Save", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 				addPopupItem("Save as...", listener, al_items);
+				if (((FSLoader) project.getLoader()).userIDRangesPresent() && Project.getProjects().size() > 1) addPopupItem("Merge many...", listener, al_items); // davi-experimenting
 			}
 		}
 
