@@ -62,6 +62,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Set;
 import java.util.Hashtable;
 import java.util.Collections;
@@ -1074,12 +1075,71 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 		}
 		
+		// ---------------------------
+		// All the events have been detected. Now for each event, check for conflicts and if all is clear, propagate the change back here
+		
+		// TODO this code is going to be common between created & deleted events, make methods for them both to use
+		ArrayList<Long> transferred_ids = new ArrayList<Long>();
+		for (Iterator it = created_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long created_pt_id = (Long) entry.getKey();
+			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_created_ps.size() > 1) {
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(created_pt_id) + " seems to have been created in multiple projects."); // shouldn't happen if UserIDRanges are setup & used properly
+				continue;
+			}
+			if (!transferred_ids.contains(created_pt_id)) {
+				Project source_p = al_created_ps.get(0);
+				long topmost_pt_id = ProjectTree.getTopMostParentR(created_pt_id, source_p, created_pt_ids);
+				// now recursively add Projects from there to here
+				this.transferProjectThingR(topmost_pt_id, source_p, transferred_ids);
+			}
+		}	
+		// and finally remove all the added entries from created_pt_ids?
 		return true;
 	}
+	private void transferProjectThingR(long topmost_pt_id, Project source_p, ArrayList<Long> transferred_pt_ids) {
+		if (null == transferred_pt_ids) transferred_pt_ids = new ArrayList<Long>();
+		ProjectThing source_pt = source_p.find(topmost_pt_id);
+		if (source_pt.getObject() instanceof Displayable) {
+			Displayable source_d = (Displayable) source_pt.getObject();
+			// TODO transfer the Displayable
+			// project.addToDatabase
+			Utils.log2("transferring Displayable '" + source_d.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
+		}
+		// TODO transfer the ProjectThing
+		Utils.log2("transferring ProjectThing '" + source_pt.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
+		// project.addToDatabase(
+		transferred_pt_ids.add(topmost_pt_id);
+		if (null != source_pt.getChildren()) {
+			ArrayList<ProjectThing> source_pt_children = source_pt.getChildren();
+			for (ProjectThing source_pt_child : source_pt_children) {
+				this.transferProjectThingR(source_pt_child.getId(), source_p, transferred_pt_ids);
+			}
+		}
+	}
+	/** recursively look in the passed-in IDsInProjects structure for parent of passed-in pt_id in Project p */
+	private static long getTopMostParentR(long pt_id, Project p, IDsInProjects ids_in_ps) {
+		// if pt_id's parent is in the list, call getTopMostFromR on the parent; otherwise, return pt_id
+		ProjectThing pt = p.find(pt_id);
+		if (null != pt || !ids_in_ps.entryExists(pt_id, p)) { // only the entry into the function actually needs the second check
+			Thing t = pt.getParent();
+			if (null != t && (t instanceof ProjectThing)) {
+				ProjectThing parent_pt = (ProjectThing) t;
+				long parent_id = parent_pt.getId();
+				if (ids_in_ps.entryExists(parent_id, p)) {
+					return ProjectTree.getTopMostParentR(parent_id, p, ids_in_ps);
+				}
+			}
+			return pt_id;
+		}
+		return -1; // this is an error condition TODO warning
+	}
+	
 	private static String getHumanFacingNameFromProject(Project p) { // a 'real' way to do this, elsewhere?
 		return ((ProjectThing) p.getProjectTree().getRootNode().getUserObject()).getTitle();
 	}
-	/** recursively get all child ProjectThing's ids	 */
+	/** recursively get all child ProjectThing's ids	 */ // TODO put in ProjectThing?
 	private static void getChildrenIDsR(ProjectThing pt, ArrayList<Long> al_ptids) {
 		if (null != pt) {
 			if (null == al_ptids) al_ptids = new ArrayList<Long>();
@@ -1103,12 +1163,31 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 			al_p = ht_ids_in_projects.get(id);
 			if (al_p.contains(p)) {
-				Utils.log2("WARNING: ProjectTree.IDsInProjects already contains key='" + Long.toString(id) + "', project='" + p.toString() + "'");
+				Utils.log2("WARNING: during call to ProjectTree.IDsInProjects.addEntry, duplicate key='" + Long.toString(id) + "', project='" + (null != p ? p.toString() : "null") + "'");
 				return false;
 			} else {
 				al_p.add(p);
 				return true;
 			}
+		}
+		/**side effect: if this would leave the ArrayList empty, also remove the ht_ids_in_projects <id,ArrayList<project> Hashtable entry */
+		public boolean removeEntry(long id, Project p) {
+			if (!ht_ids_in_projects.containsKey(id)) {
+				Utils.log2("WARNING: during call to ProjectTree.IDsInProjects.removeEntry, missing key='" + Long.toString(id) + "', project='" + (null != p ? p.toString() : "null") + "'");
+				return false;
+			}
+			ArrayList<Project> al_p = ht_ids_in_projects.get(id);
+			if (!al_p.remove(p)) {
+				Utils.log2("WARNING: during call to ProjectTree.IDsInProjects.removeEntry, key'" + Long.toString(id) + "', missing project='" + (null != p ? p.toString() : "null") + "'");
+				return false;
+			}
+			if (al_p.size() == 0) {
+				ht_ids_in_projects.remove(id);
+			}
+			return true;
+		}
+		public boolean entryExists(long id, Project p) {
+			return (ht_ids_in_projects.containsKey(id) && ht_ids_in_projects.get(id).contains(p));
 		}
 	}
 	// end davi-experimenting block
