@@ -127,7 +127,8 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	protected Set<Displayable> linked_props_origins = null;
 
 	// begin davi-experimenting block
-	protected boolean edited_yn = false; // if reconstructed from XMl, edited_yn="true" will override
+	protected boolean edited_yn = false; // if reconstructed from XML, edited_yn="true" will override
+	public boolean getEditedYN() { return this.edited_yn; }
 	//end davi-experimenting block
 	
 	/** Set a key/valye property pair; to remove a property, set the value to null. */

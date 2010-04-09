@@ -984,11 +984,17 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		// TODO check compatibility of (1) templates, when createdThings exist; (2) layers; (3) transformations
 		
 	
-		// let's start out with detecting ProjectThings in source projects not in the dest project
-		// first, build lists of ids present in each project
+		// there is a probably a nice way to abstract all this out, but it is late and I am not particularly clever
 		Hashtable<Project, ArrayList<Long>> ps_pt_ids = new Hashtable<Project, ArrayList<Long>>(); // ProjectThing ids for each project
 		Hashtable<Project, ArrayList<Long>> ps_dlabel_ids = new Hashtable<Project,ArrayList<Long>>(); // DLabel oids for each project (I *think* these are the only Displayable type I care about that does not have a containing ProjectThing)
-
+		// lists of creation, edit, and deletion events -- so we can see if the same id occurs in multiple projects and/or event types
+		IDsInProjects created_pt_ids = new IDsInProjects();
+		IDsInProjects created_dlabel_ids = new IDsInProjects();
+		IDsInProjects edited_pt_ids = new IDsInProjects();
+		IDsInProjects edited_dlabel_ids = new IDsInProjects();
+		IDsInProjects deleted_pt_ids = new IDsInProjects();
+		IDsInProjects deleted_dlabel_ids = new IDsInProjects();
+		
 		for (final Project p : ps) {
 			ProjectThing pt = p.getRootProjectThing(); // can be null?
 			ArrayList<Long> al_pt_ids = new ArrayList<Long>();
@@ -1003,50 +1009,71 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			ps_dlabel_ids.put(p, al_dlabel_ids);
 		}
 		
-		// detect creation events
 		ArrayList<Long> this_pt_ids = ps_pt_ids.get(this.project);
 		ArrayList<Long> this_dlabel_ids = ps_dlabel_ids.get(this.project);
 		for (final Project other_p : other_ps) {
+			// detect ProjectThing creation and edit events
 			ArrayList<Long> other_pt_ids = ps_pt_ids.get(other_p);
 			for (final long other_pt_id : other_pt_ids) {
 				if (!this_pt_ids.contains(other_pt_id)) {
 					// a ProjectThing was created in the other project
+					created_pt_ids.addEntry(other_pt_id, other_p);
 					Utils.log2("found newly created ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				} else {
+					// check for title changes
+					if (!other_p.findById(other_pt_id).getTitle().equals(this.project.findById(other_pt_id).getTitle()) && other_pt_id != 1) { // WARNING "other_pt_id !=1" is a heinous kludge to avoid detecting 'renaming' of the root ProjectThing, which gets its name from the XML file. In other words, filter out differences in project name.
+						edited_pt_ids.addEntry(other_pt_id, other_p);
+						Utils.log2("found retitled ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					}
+					// check to see if the corresponding Displayable (if any) has changed
+					Object other_p_o = ((ProjectThing) other_p.findById(other_pt_id)).getObject();
+					if (other_p_o instanceof Displayable) {
+						Displayable other_d = (Displayable) other_p_o;
+						if (other_d.getEditedYN()) {
+							edited_pt_ids.addEntry(other_pt_id, other_p);
+							Utils.log2("found edited Displayable in ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+						}
+					}
 				}
 			}
 			
+			// detect DLabel creation and edit events
 			ArrayList<Long> other_dlabel_ids = ps_dlabel_ids.get(other_p);
 			for (final long other_dlabel_id : other_dlabel_ids) {
 				if (!this_dlabel_ids.contains(other_dlabel_id)) {
-					// a ProjectThing was created in the other project
+					created_dlabel_ids.addEntry(other_dlabel_id, other_p);
 					Utils.log2("found newly created DLabel '" + other_p.getRootLayerSet().findDisplayable(other_dlabel_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				} else {
+					// check for editing
+					Displayable d = other_p.getRootLayerSet().findDisplayable(other_dlabel_id);
+					if (null == d) {
+						Utils.log2("WARNING: can't find displayable for DLabel oid='" + Long.toString(other_dlabel_id) + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					} else if (d.getEditedYN()) {
+						edited_dlabel_ids.addEntry(other_dlabel_id, other_p);
+						Utils.log2("found edited DLabel '" + other_p.getRootLayerSet().findDisplayable(other_dlabel_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					}
 				}
 			}
-		}
-		
-		
-		/* detect deletion events
-		 * 	// TODO bug: if mergeMany, then user deletes the most recently created object they created, then creates a new one, the deletion will not be detected; rather, the type, parent, and content may/may not "change".
-		// 			 To deal with this, an 'all time high' attribute in UserIDRange class, DTD, and XML needs to be stored.
-		// StringBuffer sb = new StringBuffer();
-		for (final long this_pt_id : this_pt_ids) {
-			// sb.append(Long.toString(pt_id) + " " );
-			for (final Project other_p : other_ps) {
-				ArrayList<Long> other_pt_ids = ps_ids.get(other_p);
+			
+			// detect deletion events
+			// TODO bug: if mergeMany, then user deletes the most recently created object they created, then creates a new one, the deletion will not be detected; rather, the type, parent, and content may/may not "change".
+			// 			 To deal with this, an 'all time high' attribute in UserIDRange class, DTD, and XML needs to be stored.
+			for (final long this_pt_id : this_pt_ids) {
 				if (!other_pt_ids.contains(this_pt_id)) {
 					// a ProjectThing was deleted in the other project
-					// Utils.log2("a deleted ProjectThing '" + other_p.findById(this_pt_id);
+					deleted_pt_ids.addEntry(this_pt_id, other_p);
+					Utils.log2("found ProjectThing '" + this.project.findById(this_pt_id).getTitle() + "' was deleted from project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				}
+			}
+			for (final long this_dlabel_id : this_dlabel_ids) {
+				if (!other_dlabel_ids.contains(this_dlabel_id)) {
+					// a ProjectThing was deleted in the other project
+					deleted_dlabel_ids.addEntry(this_dlabel_id, other_p);
+					Utils.log2("found DLabel '" + this.project.findById(this_dlabel_id).getTitle() + "' was deleted from project " + ProjectTree.getHumanFacingNameFromProject(other_p));
 				}
 			}
 		}
-		*/
-		// Utils.log2("This project has ProjectThing ids = " + sb.toString());
 		
-		// store results in a hash table with key: ProjectThing id; value: array of project objects
-		Hashtable<Long,ArrayList<Project>> createdThings, deletedThings, titleChangedThings, displayableChangedThings;
-		for (final Project p : ps) {
-			
-		}
 		return true;
 	}
 	private static String getHumanFacingNameFromProject(Project p) { // a 'real' way to do this, elsewhere?
@@ -1064,6 +1091,25 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}
 		}		
+	}
+	// this hash of arrays could be abstracted for general use...
+	private static class IDsInProjects {
+		Hashtable<Long, ArrayList<Project>> ht_ids_in_projects = new Hashtable<Long, ArrayList<Project>>();
+		public boolean addEntry(long id, Project p) {
+			ArrayList<Project> al_p = null;
+			if (!ht_ids_in_projects.containsKey(id)) {
+				al_p = new ArrayList<Project>();
+				ht_ids_in_projects.put(id, al_p);
+			}
+			al_p = ht_ids_in_projects.get(id);
+			if (al_p.contains(p)) {
+				Utils.log2("WARNING: ProjectTree.IDsInProjects already contains key='" + Long.toString(id) + "', project='" + p.toString() + "'");
+				return false;
+			} else {
+				al_p.add(p);
+				return true;
+			}
+		}
 	}
 	// end davi-experimenting block
 }
