@@ -250,7 +250,7 @@ public final class FSLoader extends Loader {
 	/** For each UserIDRange in this loader, see if the other loader has a range with the same name and same upper & lower limits.
 	 */
 	public boolean userIDRangesAreCompatible(FSLoader otherLoader) {
-		if (this == otherLoader) return true; // for convenience during iteration
+		if (this == otherLoader) return true; // needed?
 		if (!(this.userIDRangesPresent() && otherLoader.userIDRangesPresent())) {
 			return false;
 		} else {

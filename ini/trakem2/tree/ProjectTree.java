@@ -949,11 +949,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	
 	// begin davi-experimenting block
 	/** Detect the following categories of event by comparing other open projects to this one:
-	 * 1. creation: IDs present in sources (other open projects) not present in dest (current project)
-	 * 2. deletion: IDs present in dest not present in sources
+	 * 1. creation of: (a) ProjectThings, i.e. ids present in source ProjectTree(s) not present in dest (current project); and (b) DLabels, i.e. oids present in source Displayable(s) not present in dest
+	 * 2. deletion: ids or oids (see above) present in dest and not present in source(s)
 	 * 3. ProjectThing title changes: same ID in source and dest, name different
 	 * 4. Displayable edits: edited_yn = true, overwrite dest displayable with source
-	 * In cases of (1) and (3), IDs are preserved.
+	 * In cases of (1) and (3), IDs are preserved. In no case are links transferred or preserved.
 	 */
 	// Much of this will be derived from sendToSiblingProject, above, and there will be some code in common, but I am not going to touch that method at this time for ease of future merging.
 	// If Albert wants to roll this functionality out more broadly, I will need to remove the 'davi-experimenting' tags in source, and maybe at that time, code-in-common can be factored
@@ -961,14 +961,16 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public boolean mergeMany() {
 		ArrayList<Project> ps = Project.getProjects();
 		FSLoader loader = (FSLoader) project.getLoader(); // incompatible cast should never happen since ProjectThing context menu item is only added if type is FSLoader, and that is the only entry point to this code
-		// start off with some sanity checking TODO test these cases
+		// start off with some sanity checking
 		if (ps.size() < 2) {
 			Utils.log2("ProjectTree.mergeMany() called when less than two projects are open");
 			return false;
 		}
-		for (final Project p : ps) {
+		ArrayList<Project> other_ps = new ArrayList<Project>(ps);
+		other_ps.remove(this.project);
+		for (final Project p : other_ps) {
 			if (!(p.getLoader() instanceof FSLoader)) {
-				Utils.log("WARNING: mergeMany failed due to incompatible loader type in project '" + ProjectTree.getHumanFacingNameFromProject(p) + "')"); // TODO better way exists, since conceivable FSLoader could be subclassed someday?
+				Utils.log("WARNING: mergeMany failed due to incompatible loader type in project '" + ProjectTree.getHumanFacingNameFromProject(p) + "')");
 				return false;
 			}
 			FSLoader other_loader = (FSLoader) p.getLoader();
@@ -979,12 +981,89 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 		Utils.log2("ProjectTree.mergeMany: all open projects have compatible user ID ranges");
 		
-		Hashtable<Project,ProjectThing> createdThings, deletedThings, titleChangedThings, displayableChangedThings;
+		// TODO check compatibility of (1) templates, when createdThings exist; (2) layers; (3) transformations
 		
+	
+		// let's start out with detecting ProjectThings in source projects not in the dest project
+		// first, build lists of ids present in each project
+		Hashtable<Project, ArrayList<Long>> ps_pt_ids = new Hashtable<Project, ArrayList<Long>>(); // ProjectThing ids for each project
+		Hashtable<Project, ArrayList<Long>> ps_dlabel_ids = new Hashtable<Project,ArrayList<Long>>(); // DLabel oids for each project (I *think* these are the only Displayable type I care about that does not have a containing ProjectThing)
+
+		for (final Project p : ps) {
+			ProjectThing pt = p.getRootProjectThing(); // can be null?
+			ArrayList<Long> al_pt_ids = new ArrayList<Long>();
+			ProjectTree.getChildrenIDsR(pt, al_pt_ids);
+			ps_pt_ids.put(p, al_pt_ids);
+			
+			ArrayList<Long> al_dlabel_ids = new ArrayList<Long>();
+			ArrayList<Displayable> al_dlabels = p.getRootLayerSet().getDisplayables(DLabel.class);
+			for (final Displayable d : al_dlabels) {
+				al_dlabel_ids.add(d.getId());
+			}
+			ps_dlabel_ids.put(p, al_dlabel_ids);
+		}
+		
+		// detect creation events
+		ArrayList<Long> this_pt_ids = ps_pt_ids.get(this.project);
+		ArrayList<Long> this_dlabel_ids = ps_dlabel_ids.get(this.project);
+		for (final Project other_p : other_ps) {
+			ArrayList<Long> other_pt_ids = ps_pt_ids.get(other_p);
+			for (final long other_pt_id : other_pt_ids) {
+				if (!this_pt_ids.contains(other_pt_id)) {
+					// a ProjectThing was created in the other project
+					Utils.log2("found newly created ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				}
+			}
+			
+			ArrayList<Long> other_dlabel_ids = ps_dlabel_ids.get(other_p);
+			for (final long other_dlabel_id : other_dlabel_ids) {
+				if (!this_dlabel_ids.contains(other_dlabel_id)) {
+					// a ProjectThing was created in the other project
+					Utils.log2("found newly created DLabel '" + other_p.getRootLayerSet().findDisplayable(other_dlabel_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				}
+			}
+		}
+		
+		
+		/* detect deletion events
+		 * 	// TODO bug: if mergeMany, then user deletes the most recently created object they created, then creates a new one, the deletion will not be detected; rather, the type, parent, and content may/may not "change".
+		// 			 To deal with this, an 'all time high' attribute in UserIDRange class, DTD, and XML needs to be stored.
+		// StringBuffer sb = new StringBuffer();
+		for (final long this_pt_id : this_pt_ids) {
+			// sb.append(Long.toString(pt_id) + " " );
+			for (final Project other_p : other_ps) {
+				ArrayList<Long> other_pt_ids = ps_ids.get(other_p);
+				if (!other_pt_ids.contains(this_pt_id)) {
+					// a ProjectThing was deleted in the other project
+					// Utils.log2("a deleted ProjectThing '" + other_p.findById(this_pt_id);
+				}
+			}
+		}
+		*/
+		// Utils.log2("This project has ProjectThing ids = " + sb.toString());
+		
+		// store results in a hash table with key: ProjectThing id; value: array of project objects
+		Hashtable<Long,ArrayList<Project>> createdThings, deletedThings, titleChangedThings, displayableChangedThings;
+		for (final Project p : ps) {
+			
+		}
 		return true;
 	}
 	private static String getHumanFacingNameFromProject(Project p) { // a 'real' way to do this, elsewhere?
 		return ((ProjectThing) p.getProjectTree().getRootNode().getUserObject()).getTitle();
+	}
+	/** recursively get all child ProjectThing's ids	 */
+	private static void getChildrenIDsR(ProjectThing pt, ArrayList<Long> al_ptids) {
+		if (null != pt) {
+			if (null == al_ptids) al_ptids = new ArrayList<Long>();
+			al_ptids.add(pt.getId()); // why not a type mismatch here, getId() returns long, add expects Long? Some implicit type conversion?
+			ArrayList<ProjectThing> pt_children = pt.getChildren();
+			if (null != pt_children) {
+				for (final ProjectThing child_pt : pt_children) {
+					getChildrenIDsR(child_pt, al_ptids);
+				}
+			}
+		}		
 	}
 	// end davi-experimenting block
 }
