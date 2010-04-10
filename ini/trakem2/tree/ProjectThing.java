@@ -179,7 +179,40 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		return copy;
 	}
+/*
+	public ProjectThing deepCloneAllSameIDs(final Project project) throws Exception { // davi-experimenting 
+		boolean copy_id = true;
+		// Find a template for this in project, otherwise create it
+		TemplateThing tt = project.getTemplateThing(this.template.getType()); // WARNING: not checking if parent/child chain is identical. Just the name.
+		if (null == tt) {
+			tt = this.template.clone(project, copy_id); // deep copy, with children
+			project.addUniqueType(tt);
+		} else {
+			// Check that if this type exists in the target project, it can have the same children
+			assertChildren(tt, this.template);
+		}
+		// Check that the entire child chain is there:
+		ArrayList<String> missing = new ArrayList<String>();
+		for (TemplateThing tn : (Collection<TemplateThing>)this.template.collectAllChildren(new ArrayList())) {
+			if (!project.typeExists(tn.getType())) {
+				missing.add(tn.getType());
+			}
+		}
+		if (!missing.isEmpty()) {
+			throw new Exception("Can't transfer: missing templates " + Utils.toString(missing));
+		}
+		
 
+		// Make a deep copy of this
+		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);
+		if (null != this.al_children) {
+			for (final ProjectThing child : this.al_children) {
+				copy.addChild(child.deepClone(project, copy_id));
+			}
+		}
+		return copy;
+	}
+	*/
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
 	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList<ProjectThing> al_children, HashMap ht_attributes) {
 		// call super constructor

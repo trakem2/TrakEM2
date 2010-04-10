@@ -1078,38 +1078,109 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		// ---------------------------
 		// All the events have been detected. Now for each event, check for conflicts and if all is clear, propagate the change back here
 		
-		// TODO this code is going to be common between created & deleted events, make methods for them both to use
+		// TODO this code is going to be common between created & deleted events, factor out methods for them both to use?
 		ArrayList<Long> transferred_ids = new ArrayList<Long>();
 		for (Iterator it = created_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			long created_pt_id = (Long) entry.getKey();
 			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
 			if (al_created_ps.size() > 1) {
-				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(created_pt_id) + " seems to have been created in multiple projects."); // shouldn't happen if UserIDRanges are setup & used properly
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(created_pt_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
 				continue;
 			}
 			if (!transferred_ids.contains(created_pt_id)) {
 				Project source_p = al_created_ps.get(0);
+				// The idea here is that all of a newly created object's children must also be newly created. So, starting from an arbitrary newly created leaf, find the topmost newly created branch node
+				// above it, and add recursively from there. This way the child will always find its parent in the new project. Keep track of who has been added in the transferred_ids ArrayList, so as to avoid
+				// modifying the created_pt_ids.ht_ids_in_projects data structure during iteration.
 				long topmost_pt_id = ProjectTree.getTopMostParentR(created_pt_id, source_p, created_pt_ids);
-				// now recursively add Projects from there to here
-				this.transferProjectThingR(topmost_pt_id, source_p, transferred_ids);
+				if (!transferProjectThing(topmost_pt_id, source_p)){
+					Utils.log2("Problem during ProjectThing creation, halting merge.");
+					return false;
+				}
+				// add ids to transferred array
+				ProjectTree.getChildrenIDsR(this.project.find(topmost_pt_id), transferred_ids);
 			}
 		}	
 		// and finally remove all the added entries from created_pt_ids?
+		this.project.getTemplateTree().rebuild(); // could have changed
+		this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
+
+		// TODO transfer the DLabels and Profiles
 		return true;
 	}
+	/** steals liberally from sendToSiblingProject(), but assumes target project has same transformations as source and various other simplifying brittlenesses */
+	private boolean transferProjectThing(long pt_id, Project source_p) {
+		ProjectThing pt = source_p.find(pt_id); 
+		if (null == pt) { 
+			Utils.log2("WARNING: can't find ProjectThing with id=" + Long.toString(pt_id) + "' in project '" +  ProjectTree.getHumanFacingNameFromProject(source_p) + "'"); 
+			return false; 
+		}
+		// now recursively add Projects from there to here
+		ProjectThing new_pt;
+		try{
+			new_pt = pt.deepClone(this.project, true); // new ids, taken from target_project
+		} catch (Exception ee) {
+			Utils.log2("WARNING: deepClone() failed for ProjectThing with id=" + Long.toString(pt_id) + "' in project '" +  ProjectTree.getHumanFacingNameFromProject(source_p) + "'. Error:  " + ee.getMessage());
+			return false;
+		}
+		ProjectThing parent_pt = (ProjectThing) pt.getParent();
+		if (!parent_pt.addChild(new_pt)) {
+			Utils.log2("WARNING: addChild() failed for ProjectThing with id=" + Long.toString(pt_id) + "' in project '" +  ProjectTree.getHumanFacingNameFromProject(source_p) + "'");
+			return false;
+		}
+		
+		final List<ProjectThing> copies = new_pt.findChildrenOfTypeR(Displayable.class);
+		//Utils.log2("copies size: " + copies.size());
+		final List<ZDisplayable> zd = new ArrayList<ZDisplayable>();
+		for (final ProjectThing t : copies) {
+			final Displayable d = (Displayable) t.getObject();
+			if (d instanceof ZDisplayable) {
+				zd.add((ZDisplayable)d);
+			} else {
+				// profile: always special
+				Utils.log("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
+			}
+		}
+		this.project.getRootLayerSet().addAll(zd); // add them all in one shot
+		 
+		return true;
+	}
+	/*
+	private boolean transferProjectThing(ProjectThing source_pt, Project source_p) {
+		ProjectThing source_pt_parent, this_pt_parent;
+		source_pt_parent = (ProjectThing) source_pt.getParent();	if (null == source_pt_parent) { Utils.log2("WARNING: source_pt '" + source_pt.getTitle() + "' has null parent, merge may be corrupted."); return false; }
+		long this_pt_parent_id = source_pt_parent.getId();
+		this_pt_parent = this.project.find(this_pt_parent_id); if (null == this_pt_parent) { Utils.log2("WARNING: can't find parent with id=" + Long.toString(this_pt_parent_id) + "' in current project for ProjectThing '" + source_pt.getTitle() + "', merge may be corrupted."); return false; }
+		// /motivated by the ProjectThing.sub
+		// WARNING the templates between the two projects are assumed to be the same TODO check this before running mergeMany
+		TemplateThing this_pt_template = (TemplateThing) this.project.findById(source_pt.getTemplate().getId()); if (null == this_pt_template) { Utils.log2("WARNING: can't find template for source ProjectThing with id=" + Long.toString(source_pt.getId()) + " in project '" + source_p.getTitle() + "', merge may be corrupted."); return false; }
+		Object this_pt_ob = source_pt.getObject();;
+		if (this_pt_ob instanceof Displayable) {
+			// need to clone the source_pt's displayable, exactly
+			boolean copy_id = true;
+			this_pt_ob = (Object) ((Displayable) source_ob).clone(this.project, copy_id);
+		} // if it's not a Displayable, it's a title string, and Strings are immutable, so no fear of it getting changed on us.
+			
+		ProjectThing this_pt = new ProjectThing(this_pt_template, this.project, source_pt.getId(), this_pt_ob, new ArrayList(), new HashMap());
+		return true;
+	}
+	// TODO this code is going to be common between created & deleted events, factor out methods for them both to use?
 	private void transferProjectThingR(long topmost_pt_id, Project source_p, ArrayList<Long> transferred_pt_ids) {
 		if (null == transferred_pt_ids) transferred_pt_ids = new ArrayList<Long>();
 		ProjectThing source_pt = source_p.find(topmost_pt_id);
+		// TODO transfer the ProjectThing
+		if (!this.transferProjectThing(source_pt, source_p)) {
+			// TODO handle error
+		}
+		Utils.log2("transferring ProjectThing '" + source_pt.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
+		// project.addToDatabase(
 		if (source_pt.getObject() instanceof Displayable) {
 			Displayable source_d = (Displayable) source_pt.getObject();
 			// TODO transfer the Displayable
 			// project.addToDatabase
 			Utils.log2("transferring Displayable '" + source_d.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
 		}
-		// TODO transfer the ProjectThing
-		Utils.log2("transferring ProjectThing '" + source_pt.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
-		// project.addToDatabase(
 		transferred_pt_ids.add(topmost_pt_id);
 		if (null != source_pt.getChildren()) {
 			ArrayList<ProjectThing> source_pt_children = source_pt.getChildren();
@@ -1118,6 +1189,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 		}
 	}
+	*/
 	/** recursively look in the passed-in IDsInProjects structure for parent of passed-in pt_id in Project p */
 	private static long getTopMostParentR(long pt_id, Project p, IDsInProjects ids_in_ps) {
 		// if pt_id's parent is in the list, call getTopMostFromR on the parent; otherwise, return pt_id
