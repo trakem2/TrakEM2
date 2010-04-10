@@ -1078,7 +1078,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		// ---------------------------
 		// All the events have been detected. Now for each event, check for conflicts and if all is clear, propagate the change back here
 		
+		// TODO check for conflicts -- e.g. edited in one, deleted in another
+		
 		// TODO this code is going to be common between created & deleted events, factor out methods for them both to use?
+		// transfer created ProjectThings and their associated Displayables, if any
 		ArrayList<Long> transferred_pt_ids = new ArrayList<Long>();
 		for (Iterator it = created_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
@@ -1086,7 +1089,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
 			if (al_created_ps.size() > 1) {
 				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(created_pt_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
-				continue;
+				return false;
 			}
 			if (!transferred_pt_ids.contains(created_pt_id)) {
 				Project source_p = al_created_ps.get(0);
@@ -1094,17 +1097,58 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// above it, and add recursively from there. This way the child will always find its parent in the new project. Keep track of who has been added in the transferred_ids ArrayList, so as to avoid
 				// modifying the created_pt_ids.ht_ids_in_projects data structure during iteration.
 				long topmost_pt_id = ProjectTree.getTopMostParentR(created_pt_id, source_p, created_pt_ids);
-	/*			if (!transferProjectThing(topmost_pt_id, source_p)){
-					Utils.log2("Problem during ProjectThing creation, halting merge.");
-					return false;
-				}
-				// add ids to transferred array
-				ProjectTree.getChildrenIDsR(this.project.find(topmost_pt_id), transferred_ids);
-	*/
 				if (!this.transferProjectThingR(topmost_pt_id, source_p, transferred_pt_ids)) return false;
 			}
 		}	
 		// and finally remove all the added entries from created_pt_ids?
+		
+		// transfer created DLabels
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> transferred_dlabel_ids = new ArrayList<Long>();
+		for (Iterator it = created_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long created_dlabel_id = (Long) entry.getKey();
+			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_created_ps.size() > 1) {
+				Utils.log2("WARNING: DLabel with_id=" + Long.toString(created_dlabel_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
+				return false;
+			}
+			if (!transferred_dlabel_ids.contains(created_dlabel_id)) {
+				Project source_p = al_created_ps.get(0);
+				DLabel created_dlabel = (DLabel) source_p.getRootLayerSet().findDisplayable(created_dlabel_id);
+				if (null == created_dlabel) {
+					Utils.log2("WARNING: Can't find DLabel with_id=" + Long.toString(created_dlabel_id) + " in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "'. This may corrupt the overall merge.");
+					return false;
+				}
+				if (!this.transferDisplayable(created_dlabel)) return false;
+			}
+		}
+		
+		// propagate ProjectThing edits
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> propagated_pt_ids = new ArrayList<Long>();
+		for (Iterator it = edited_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long edited_pt_id = (Long) entry.getKey();
+			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_created_ps.size() > 1) {
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(edited_pt_id) + " seems to have been edited in multiple projects, skipping it. This may corrupt the overall merge.");
+				return false;
+			}
+			if (!propagated_pt_ids.contains(edited_pt_id)) {
+				Project source_p = al_created_ps.get(0);
+				ProjectThing edited_pt = source_p.find(edited_pt_id);
+				if (null == edited_pt) {
+					Utils.log2("WARNING: can't find edited ProjectThing with_id=" + Long.toString(edited_pt_id) + " and name '" + edited_pt.getTitle() + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+					return false;
+				}
+				if (this.propagateProjectThingEdit(edited_pt)) {
+					propagated_pt_ids.add(edited_pt_id);
+				} else return false;
+			}
+		}	
+		// and finally remove all the added entries from edited_pt_ids?
+		
 		this.project.getTemplateTree().rebuild(); // could have changed
 		this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
 	 
@@ -1112,12 +1156,71 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return true;
 	}
 
+	// TODO factor out commonalities in error messages and append as suffix
+	private boolean propagateProjectThingEdit(ProjectThing edited_pt) {
+		Project source_p = edited_pt.getProject();
+		Utils.log2("propagating edits in ProjectThing '" + edited_pt.getTitle() + "' with id=" + edited_pt.getId() + " from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "'");
+		ProjectThing this_pt = this.project.find(edited_pt.getId());
+		if (null == this_pt) {
+			Utils.log2("WARNING: can't find ProjectThing with id=" + Long.toString(edited_pt.getId()) + "', title '" + edited_pt.getTitle() + "', source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted."); 
+			return false; 
+		}
+		this_pt.setTitle(edited_pt.getTitle()); // the only ProjectThing attribute that can be edited that we care about
+		Object edited_pt_ob = edited_pt.getObject();
+		if (edited_pt_ob instanceof Displayable) {
+			Displayable edited_pt_d = (Displayable) edited_pt_ob;
+			if (edited_pt_d.getEditedYN()) {
+				Object this_pt_ob = this_pt.getObject();
+				if ((this_pt_ob instanceof Displayable)) {
+					Displayable this_pt_d = (Displayable) this_pt_ob;
+					if (!this_pt_d.remove(false)) return false; // don't check with user
+					if (!this.transferDisplayable(edited_pt_d)) return false;
+				} else {
+					Utils.log2("Oddly, the source edited ProjectThing has a Displayable object, whereas the target ProjectThing does not. The merge may be corrupted");
+					return false; 
+				}
+			}
+		}
+		return true;
+	}
 	
-	private boolean transferProjectThing(ProjectThing source_pt, Project source_p) {
+	// TODO where in here does the displayable get set as the object in its containing ProjectThing, if any?
+	private boolean transferDisplayable(Displayable source_d) {
+		Utils.log2("transferring Displayable '" + source_d.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_d.getProject()) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
+		// need to clone the source_pt's displayable, exactly
+		boolean copy_id = true;
+		Displayable this_pt_d = source_d.clone(this.project, copy_id);
+		if (this_pt_d instanceof ZDisplayable) {
+			this.project.getRootLayerSet().add((ZDisplayable) this_pt_d);
+			this.rebuild();
+		} else {
+			// this case handles Profile Displayables and DLabels, which live inside Layer objects
+			long source_d_layer_id = source_d.getLayer().getId();
+			Layer this_dest_layer = this.project.getRootLayerSet().getLayer(source_d_layer_id); // ASSUME layers are the same between the projects
+			if (null == this_dest_layer) {
+				Utils.log2("WARNING: can't find local destination layer with id=" + Long.toString(source_d_layer_id) + " for source Displayable with id=" + Long.toString(source_d.getId()) + " from source project '" + ProjectTree.getHumanFacingNameFromProject(source_d.getProject()) + "', merge may be corrupted.");
+				return false;
+			}
+			this_dest_layer.add(source_d);
+			// Display.repaint(original.getLayer(), displ, 5);
+		}
+		return true;
+	}
+	private boolean transferProjectThing(ProjectThing source_pt) { 
+		Project source_p = source_pt.getProject();
+		Utils.log2("transferring ProjectThing '" + source_pt.getTitle() + "' with id=" + source_pt.getId() + " from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "'");
 		ProjectThing source_pt_parent, this_pt_parent;
-		source_pt_parent = (ProjectThing) source_pt.getParent();	if (null == source_pt_parent) { Utils.log2("WARNING: source_pt '" + source_pt.getTitle() + "' has null parent, merge may be corrupted."); return false; }
+		source_pt_parent = (ProjectThing) source_pt.getParent();	
+		if (null == source_pt_parent) { 
+			Utils.log2("WARNING: source_pt '" + source_pt.getTitle() + "' has null parent, merge may be corrupted."); 
+			return false; 
+		}
 		long this_pt_parent_id = source_pt_parent.getId();
-		this_pt_parent = this.project.find(this_pt_parent_id); if (null == this_pt_parent) { Utils.log2("WARNING: can't find parent with id=" + Long.toString(this_pt_parent_id) + "' in current project for ProjectThing '" + source_pt.getTitle() + "', merge may be corrupted."); return false; }
+		this_pt_parent = this.project.find(this_pt_parent_id); 
+		if (null == this_pt_parent) { 
+			Utils.log2("WARNING: can't find parent with id=" + Long.toString(this_pt_parent_id) + "' in current project for ProjectThing '" + source_pt.getTitle() + "', merge may be corrupted."); 
+			return false; 
+		}
 		// /motivated by the ProjectThing.sub
 		// WARNING the templates between the two projects are assumed to be the same TODO check this before running mergeMany
 		String source_pt_tt = source_pt.getTemplate().getType();
@@ -1130,22 +1233,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		Object this_pt_ob = source_pt_ob; // if it's not a Displayable, it's a title string, and Strings are immutable, so no fear of it getting changed on us.
 		if (source_pt_ob instanceof Displayable) {
 			Displayable source_pt_d = (Displayable) source_pt_ob;
-			// need to clone the source_pt's displayable, exactly
-			boolean copy_id = true;
-			Displayable this_pt_d = source_pt_d.clone(this.project, copy_id);
-			if (this_pt_d instanceof ZDisplayable) {
-				this.project.getRootLayerSet().add((ZDisplayable) this_pt_d);
-				this.rebuild();
-			} else {
-				long source_d_layer_id = source_pt_d.getLayer().getId();
-				Layer this_dest_layer = this.project.getRootLayerSet().getLayer(source_d_layer_id); // ASSUME layers are the same between the projects
-				if (null == this_dest_layer) {
-					Utils.log2("WARNING: can't find local destination layer with id=" + Long.toString(source_d_layer_id) + " for source Displayable with id=" + Long.toString(source_pt_d.getId()) + " in project '" + source_p.getTitle() + "', merge may be corrupted.");
-					return false;
-				}
-				this_dest_layer.add(source_pt_d);
-				// Display.repaint(original.getLayer(), displ, 5);
-			}
+			this.transferDisplayable(source_pt_d);
 		}
 		ProjectThing this_pt = new ProjectThing(this_pt_template, this.project, source_pt.getId(), this_pt_ob, new ArrayList(), new HashMap());
 		this_pt_parent.addChild(this_pt, null == this_pt_parent.getChildren() ? 0 : this_pt_parent.getChildren().size());
@@ -1155,18 +1243,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	private boolean transferProjectThingR(long topmost_pt_id, Project source_p, ArrayList<Long> transferred_pt_ids) {
 		if (null == transferred_pt_ids) transferred_pt_ids = new ArrayList<Long>();
 		ProjectThing source_pt = source_p.find(topmost_pt_id);
-		// TODO transfer the ProjectThing
-		if (!this.transferProjectThing(source_pt, source_p)) {
-			// TODO handle error
+		if (!this.transferProjectThing(source_pt)) {
 			return false;
-		}
-		Utils.log2("transferring ProjectThing '" + source_pt.getTitle() + "' with id=" + source_pt.getId() + " from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "'");
-		// project.addToDatabase(
-		if (source_pt.getObject() instanceof Displayable) {
-			Displayable source_d = (Displayable) source_pt.getObject();
-			// TODO transfer the Displayable
-			// project.addToDatabase
-			Utils.log2("transferring Displayable '" + source_d.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
 		}
 		transferred_pt_ids.add(topmost_pt_id);
 		if (null != source_pt.getChildren()) {
