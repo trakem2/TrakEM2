@@ -1129,15 +1129,24 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		Object source_pt_ob = source_pt.getObject();
 		Object this_pt_ob = source_pt_ob; // if it's not a Displayable, it's a title string, and Strings are immutable, so no fear of it getting changed on us.
 		if (source_pt_ob instanceof Displayable) {
+			Displayable source_pt_d = (Displayable) source_pt_ob;
 			// need to clone the source_pt's displayable, exactly
 			boolean copy_id = true;
-			Displayable this_pt_d = ((Displayable) source_pt_ob).clone(this.project, copy_id);
+			Displayable this_pt_d = source_pt_d.clone(this.project, copy_id);
 			if (this_pt_d instanceof ZDisplayable) {
 				this.project.getRootLayerSet().add((ZDisplayable) this_pt_d);
 				this.rebuild();
+			} else {
+				long source_d_layer_id = source_pt_d.getLayer().getId();
+				Layer this_dest_layer = this.project.getRootLayerSet().getLayer(source_d_layer_id); // ASSUME layers are the same between the projects
+				if (null == this_dest_layer) {
+					Utils.log2("WARNING: can't find local destination layer with id=" + Long.toString(source_d_layer_id) + " for source Displayable with id=" + Long.toString(source_pt_d.getId()) + " in project '" + source_p.getTitle() + "', merge may be corrupted.");
+					return false;
+				}
+				this_dest_layer.add(source_pt_d);
+				// Display.repaint(original.getLayer(), displ, 5);
 			}
-		} 
-			
+		}
 		ProjectThing this_pt = new ProjectThing(this_pt_template, this.project, source_pt.getId(), this_pt_ob, new ArrayList(), new HashMap());
 		this_pt_parent.addChild(this_pt, null == this_pt_parent.getChildren() ? 0 : this_pt_parent.getChildren().size());
 		return true;
