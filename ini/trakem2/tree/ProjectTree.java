@@ -1131,13 +1131,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		for (Iterator it = edited_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
 			Map.Entry entry = (Map.Entry)it.next();
 			long edited_pt_id = (Long) entry.getKey();
-			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
-			if (al_created_ps.size() > 1) {
+			ArrayList<Project> al_edited_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_edited_ps.size() > 1) {
 				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(edited_pt_id) + " seems to have been edited in multiple projects, skipping it. This may corrupt the overall merge.");
 				return false;
 			}
 			if (!propagated_pt_ids.contains(edited_pt_id)) {
-				Project source_p = al_created_ps.get(0);
+				Project source_p = al_edited_ps.get(0);
 				ProjectThing edited_pt = source_p.find(edited_pt_id);
 				if (null == edited_pt) {
 					Utils.log2("WARNING: can't find edited ProjectThing with_id=" + Long.toString(edited_pt_id) + " and name '" + edited_pt.getTitle() + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
@@ -1150,14 +1150,49 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}	
 		// and finally remove all the added entries from edited_pt_ids?
 		
+		// propagate DLabel edits
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> propagated_dlabel_ids = new ArrayList<Long>();
+		for (Iterator it = edited_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long edited_dlabel_id = (Long) entry.getKey();
+			ArrayList<Project> al_edited_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_edited_ps.size() > 1) {
+				Utils.log2("WARNING: DLabel with_id=" + Long.toString(edited_dlabel_id) + " seems to have been edited in multiple projects, skipping it. This may corrupt the overall merge.");
+				return false;
+			}
+			if (!propagated_dlabel_ids.contains(edited_dlabel_id)) {
+				Project source_p = al_edited_ps.get(0);
+				Displayable edited_dlabel = (Displayable) source_p.getRootLayerSet().findDisplayable(edited_dlabel_id);
+				if (null == edited_dlabel) {
+					Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(edited_dlabel_id) + " and name '" + edited_dlabel.getTitle() + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+					return false;
+				}
+				Displayable this_dlabel = (Displayable) this.project.getRootLayerSet().findDisplayable(edited_dlabel_id);
+				if (null == this_dlabel) {
+					Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(edited_dlabel_id) + " in dest project '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "', merge may be corrupted.");
+					return false;
+				}
+				if (!this_dlabel.remove(false)) { // don't check with user
+					// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+					Utils.log2("WARNING: removal of Displayable '" + edited_dlabel.getTitle() + "' with id=" + Long.toString(edited_dlabel.getId()) + " failed, merge may be corrupted.");
+					return false; 
+				}
+				if (!this.transferDisplayable(edited_dlabel)) return false;
+			}
+		}	
+		// and finally remove all the added entries from edited_pt_ids?
+		
 		this.project.getTemplateTree().rebuild(); // could have changed
 		this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
 	 
 		// TODO transfer the DLabels and Profiles
 		return true;
 	}
-
+	
 	// TODO factor out commonalities in error messages and append as suffix
+	
+	
 	private boolean propagateProjectThingEdit(ProjectThing edited_pt) {
 		Project source_p = edited_pt.getProject();
 		Utils.log2("propagating edits in ProjectThing '" + edited_pt.getTitle() + "' with id=" + edited_pt.getId() + " from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "'");
