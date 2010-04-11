@@ -1826,7 +1826,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					// davi-experimenting
 					// after the current state of the Displayable has been added to the edit_history, set edited_yn to true. It will only be reset to false after a merge-many operation (to be implemented) or if the user undoes the edit
 					// TODO explore addChangeTreesStep case -- how will this work?
-					d.edited_yn = true; 
+					// d.edited_yn = true; // looks like this isn't the right place to do it, rather should do it in DoEdit.init
 				}
 
 				// prune if too large

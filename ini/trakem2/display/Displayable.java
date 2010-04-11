@@ -1892,6 +1892,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					}
 				}
 			}
+			d.edited_yn = true; // davi-experimenting
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!

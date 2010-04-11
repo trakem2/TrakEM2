@@ -1025,14 +1025,15 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					if (!other_p.findById(other_pt_id).getTitle().equals(this.project.findById(other_pt_id).getTitle()) && other_pt_id != 1) { // WARNING "other_pt_id !=1" is a heinous kludge to avoid detecting 'renaming' of the root ProjectThing, which gets its name from the XML file. In other words, filter out differences in project name.
 						edited_pt_ids.addEntry(other_pt_id, other_p);
 						Utils.log2("found retitled ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
-					}
-					// check to see if the corresponding Displayable (if any) has changed
-					Object other_p_o = ((ProjectThing) other_p.findById(other_pt_id)).getObject();
-					if (other_p_o instanceof Displayable) {
-						Displayable other_d = (Displayable) other_p_o;
-						if (other_d.getEditedYN()) {
-							edited_pt_ids.addEntry(other_pt_id, other_p);
-							Utils.log2("found edited Displayable in ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					} else {
+						// no difference in title, but maybe a difference in the contained Displayable (if any)
+						Object other_p_o = ((ProjectThing) other_p.findById(other_pt_id)).getObject();
+						if (other_p_o instanceof Displayable) {
+							Displayable other_d = (Displayable) other_p_o;
+							if (other_d.getEditedYN()) {
+								edited_pt_ids.addEntry(other_pt_id, other_p);
+								Utils.log2("found edited Displayable in ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+							}
 						}
 					}
 				}
@@ -1165,7 +1166,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			Utils.log2("WARNING: can't find ProjectThing with id=" + Long.toString(edited_pt.getId()) + "', title '" + edited_pt.getTitle() + "', source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted."); 
 			return false; 
 		}
-		this_pt.setTitle(edited_pt.getTitle()); // the only ProjectThing attribute that can be edited that we care about
+		
 		Object edited_pt_ob = edited_pt.getObject();
 		if (edited_pt_ob instanceof Displayable) {
 			Displayable edited_pt_d = (Displayable) edited_pt_ob;
@@ -1173,7 +1174,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Object this_pt_ob = this_pt.getObject();
 				if ((this_pt_ob instanceof Displayable)) {
 					Displayable this_pt_d = (Displayable) this_pt_ob;
-					if (!this_pt_d.remove(false)) return false; // don't check with user
+					if (!this_pt_d.remove(false)) { // don't check with user
+						// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+						Utils.log2("WARNING: removal of Displayable '" + this_pt_d.getTitle() + "' with id=" + Long.toString(this_pt_d.getId()) + " failed, merge may be corrupted.");
+						return false; 
+					}
 					if (!this.transferDisplayable(edited_pt_d)) return false;
 				} else {
 					Utils.log2("Oddly, the source edited ProjectThing has a Displayable object, whereas the target ProjectThing does not. The merge may be corrupted");
@@ -1181,6 +1186,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}
 		}
+		// have to do this after adding the Displayable (if any), in order to get the name right
+		this_pt.setTitle(edited_pt.getTitle()); // the only ProjectThing attribute that can be edited that we care about
+		// TODO need to set the DefaultMutableNode's object as well, to prevent it from calling Displayable.toString() again and appending another number
 		return true;
 	}
 	
