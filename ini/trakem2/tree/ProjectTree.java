@@ -1183,10 +1183,36 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}	
 		// and finally remove all the added entries from edited_pt_ids?
 		
+		// propagate deletions of ProjectThings and their associated Displayables, if any
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> propagated_deleted_pt_ids = new ArrayList<Long>();
+		for (Iterator it = deleted_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long deleted_pt_id = (Long) entry.getKey();
+			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_created_ps.size() > 1) {
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(deleted_pt_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
+				return false;
+			}
+			if (!propagated_deleted_pt_ids.contains(deleted_pt_id)) {
+				Project source_p = al_created_ps.get(0);
+								
+				ProjectThing target_pt = this.project.find(deleted_pt_id);
+				if (null == target_pt) {
+					Utils.log2("WARNING: can't find to-be-deleted ProjectThing with_id=" + Long.toString(deleted_pt_id) + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+					return false;
+				}
+				ArrayList<Long> al_deleted_pt_ids = new ArrayList<Long>();
+				ProjectTree.getChildrenIDsR(target_pt, al_deleted_pt_ids);
+				this.remove(false, target_pt, null); // is this all I have to do?
+			}
+		}	
+		// and finally remove all the added entries from created_pt_ids?
+		
 		this.project.getTemplateTree().rebuild(); // could have changed
 		this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
-	 
-		// TODO transfer the DLabels and Profiles
+		// TODO also need to update all the panes in each Display -- the ZDisplayables, the Labels, etc. -- and the display itself
+		
 		return true;
 	}
 	
@@ -1221,9 +1247,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}
 		}
-		// have to do this after adding the Displayable (if any), in order to get the name right
+		// try doing this after adding the Displayable (if any), in order to get the name right --> doesn't work
 		this_pt.setTitle(edited_pt.getTitle()); // the only ProjectThing attribute that can be edited that we care about
 		// TODO need to set the DefaultMutableNode's object as well, to prevent it from calling Displayable.toString() again and appending another number
+		// --> maybe need to findNode(edited_pt, this), then set its userObject to the name String
 		return true;
 	}
 	
