@@ -1191,7 +1191,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			long deleted_pt_id = (Long) entry.getKey();
 			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
 			if (al_created_ps.size() > 1) {
-				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(deleted_pt_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(deleted_pt_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge."); // this may be a very stupid reason to bail on a merge TODO reevaluate
 				return false;
 			}
 			if (!propagated_deleted_pt_ids.contains(deleted_pt_id)) {
@@ -1208,6 +1208,28 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 		}	
 		// and finally remove all the added entries from created_pt_ids?
+		
+		// propagate deletions of DLabels
+		// this code is redundant with above TODO refactor
+		for (Iterator it = deleted_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long deleted_dlabel_id = (Long) entry.getKey();
+			ArrayList<Project> al_deleted_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_deleted_ps.size() > 1) {
+				Utils.log2("WARNING: DLabel with_id=" + Long.toString(deleted_dlabel_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge.");  // this may be a very stupid reason to bail on a merge TODO reevaluate
+				return false;
+			}
+			Displayable this_dlabel = (Displayable) this.project.getRootLayerSet().findDisplayable(deleted_dlabel_id);
+			if (null == this_dlabel) {
+				Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(deleted_dlabel_id) + " in dest project '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "', merge may be corrupted.");
+				return false;
+			}
+			if (!this_dlabel.remove(false)) { // don't check with user
+				// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+				Utils.log2("WARNING: removal of Displayable '" + this_dlabel.getTitle() + "' with id=" + Long.toString(this_dlabel.getId()) + " failed, merge may be corrupted.");
+				return false; 
+			}
+		}
 		
 		this.project.getTemplateTree().rebuild(); // could have changed
 		this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
