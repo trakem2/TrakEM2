@@ -121,7 +121,8 @@ public class StitchingTEM {
 			final double default_bottom_top_overlap,
 			final double default_left_right_overlap,
 			final boolean optimize,
-			final int stitching_rule)
+			final int stitching_rule,
+			final PhaseCorrelationParam param)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
@@ -145,8 +146,8 @@ public class StitchingTEM {
 		patch[0].getLayerSet().addTransformStep(patch[0].getLayer());
 
 		switch (stitching_rule) {
-			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize);
+			case StitchingTEM.TOP_LEFT_RULE:				
+				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
 			case StitchingTEM.FREE_RULE:
 				final HashSet<Patch> hs = new HashSet<Patch>();
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
@@ -173,16 +174,12 @@ public class StitchingTEM {
 			final int grid_width, 
 			final double default_bottom_top_overlap, 
 			final double default_left_right_overlap,  
-			final boolean optimize) 
+			final boolean optimize,
+			final PhaseCorrelationParam param) 
 	{
 		return new Runnable()
 		{
-			public void run() {
-				
-				// Launch phase correlation dialog
-				PhaseCorrelationParam param = new PhaseCorrelationParam();
-				param.setup(patch[0]);
-				
+			public void run() {												
 
 				try {
 					final int LEFT = 0, TOP = 1;

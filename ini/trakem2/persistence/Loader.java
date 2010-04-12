@@ -62,6 +62,7 @@ import ini.trakem2.tree.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
 import ini.trakem2.imaging.*;
+import ini.trakem2.imaging.StitchingTEM.PhaseCorrelationParam;
 import ini.trakem2.ControlWindow;
 
 import javax.swing.JPopupMenu;
@@ -1600,13 +1601,14 @@ abstract public class Loader {
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
 		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
+		//boolean apply_non_linear_def = gd.getNextBoolean();		
+		
 		// Ensure tiles overlap if using SIFT
 		if (StitchingTEM.FREE_RULE == stitching_rule) {
 			if (bt_overlap <= 0) bt_overlap = 1;
 			if (lr_overlap <= 0) lr_overlap = 1;
 		}
+		
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1666,6 +1668,15 @@ abstract public class Loader {
 
 		return Bureaucrat.createAndStart(new Worker.Task("Importing", true) {
 			public void exec() {
+				
+				// Launch phase correlation dialog
+				PhaseCorrelationParam param = null;	
+				
+				if (stitch_tiles && StitchingTEM.TOP_LEFT_RULE == stitching_rule){
+					param = new PhaseCorrelationParam();	
+					param.setup(null);
+				}
+				
 				// Slice up list:
 				for (int sl=0; sl<n_slices; sl++) {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
@@ -1682,9 +1693,10 @@ abstract public class Loader {
 
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
+										
 					
 					insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, this);
+						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, param, this);
 					
 				}
 			}
@@ -1808,9 +1820,19 @@ abstract public class Loader {
 		final double lr_overlap_ = lr_overlap;
 		final String file_ = file;
 
+		// Launch phase correlation dialog
+		final PhaseCorrelationParam param;	
+		
+		if (stitch_tiles && StitchingTEM.TOP_LEFT_RULE == stitching_rule){
+			param = new PhaseCorrelationParam();	
+			param.setup(null);
+		}
+		else 
+			param = null;
+		
 		return Bureaucrat.createAndStart(new Worker.Task("Insert grid", true) { public void exec() {
 			insertGrid(layer, dir_, file_, file_names.length, cols, bx, by, bt_overlap_, 
-				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, this);
+				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, param, this);
 		}}, layer.getProject());
 
 		} catch (Exception e) {
@@ -1852,6 +1874,7 @@ abstract public class Loader {
 			final boolean stitch_tiles, 
 			final boolean homogenize_contrast, 
 			final int stitching_rule,
+			final PhaseCorrelationParam param,
 			final Worker worker)
 	{
 
@@ -2175,8 +2198,9 @@ abstract public class Loader {
 				layer.getParent().addTransformStep(new HashSet<Displayable>(layer.getDisplayables(Patch.class)));
 				// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 				if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
-				if (null != worker) worker.setTaskName("Stitching");
-				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule).run();
+				if (null != worker) worker.setTaskName("Stitching");								
+				
+				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule, param).run();
 			}
 
 			// link with images on top, bottom, left and right.
