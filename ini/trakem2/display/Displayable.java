@@ -127,8 +127,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	protected Set<Displayable> linked_props_origins = null;
 
 	// begin davi-experimenting block
-	protected boolean edited_yn = false; // if reconstructed from XML, edited_yn="true" will override
+	private boolean edited_yn = false; // if reconstructed from XML, edited_yn="true" will override
 	public boolean getEditedYN() { return this.edited_yn; }
+	public void setEditedYN(boolean new_edited_yn) { edited_yn = new_edited_yn; }
 	//end davi-experimenting block
 	
 	/** Set a key/valye property pair; to remove a property, set the value to null. */
@@ -427,7 +428,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					rot = Double.parseDouble(data);
 				} else if (key.equals("composite")) {
 					compositeMode = Byte.parseByte(data);
-				} else if (key.equals("edited_yn")) edited_yn = data.trim().toLowerCase().equals("true"); // davi-experimenting
+				} else if (key.equals("edited_yn")) this.setEditedYN( data.trim().toLowerCase().equals("true") ); // davi-experimenting
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
@@ -1353,7 +1354,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
 		}		
 		sb_body.append("\"\n");
-		if (edited_yn) sb_body.append(in).append("edited_yn=\"true\"\n"); // davi-experimenting
+		if (this.getEditedYN()) sb_body.append(in).append("edited_yn=\"true\"\n"); // davi-experimenting
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
@@ -1892,7 +1893,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					}
 				}
 			}
-			d.edited_yn = true; // davi-experimenting
+			d.setEditedYN(true); // davi-experimenting
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
@@ -2039,7 +2040,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		DataPackage(final Displayable d) {
 			this.width = d.width;
 			this.height = d.height;
-			this.edited_yn = d.edited_yn; // davi-experimenting
+			this.edited_yn = d.getEditedYN(); // davi-experimenting
 			this.at = new AffineTransform(d.at);
 			if (null != d.hs_linked) {
 				this.links = new HashMap<Displayable,HashSet<Displayable>>();
@@ -2055,7 +2056,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		final boolean to1(final Displayable d) {
 			d.width = width;
 			d.height = height;
-			d.edited_yn = edited_yn; // davi-experimenting
+			d.setEditedYN(edited_yn); // davi-experimenting
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
 				HashSet<Displayable> all_links = new HashSet<Displayable>();

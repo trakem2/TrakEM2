@@ -1302,6 +1302,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Utils.log2("WARNING: can't find local destination layer with id=" + Long.toString(source_d_layer_id) + " for source Displayable with id=" + Long.toString(source_d.getId()) + " from source project '" + ProjectTree.getHumanFacingNameFromProject(source_d.getProject()) + "', merge may be corrupted.");
 				return false;
 			}
+			this_pt_d.setEditedYN(false);
 			this_dest_layer.add(this_pt_d);
 			// Display.repaint(original.getLayer(), displ, 5);
 		}
