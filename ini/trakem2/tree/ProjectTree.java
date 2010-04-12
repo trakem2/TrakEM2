@@ -982,6 +982,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 		Utils.log2("ProjectTree.mergeMany: all open projects have compatible user ID ranges");
 		
+		// Ask:
+		GenericDialog gd = new GenericDialog("Merge many (davi-experimenting)");
+		boolean propagate_deletions_yn = true;
+		gd.addCheckbox("Propagate deletions?", propagate_deletions_yn);
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		propagate_deletions_yn = gd.getNextBoolean();
+		
 		// TODO check compatibility of (1) templates, when createdThings exist; (2) layers; (3) transformations
 		
 	
@@ -1183,58 +1191,59 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}	
 		// and finally remove all the added entries from edited_pt_ids?
 		
-		// propagate deletions of ProjectThings and their associated Displayables, if any
-		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
-		ArrayList<Long> propagated_deleted_pt_ids = new ArrayList<Long>();
-		for (Iterator it = deleted_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			long deleted_pt_id = (Long) entry.getKey();
-			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
-			if (al_created_ps.size() > 1) {
-				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(deleted_pt_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge."); // this may be a very stupid reason to bail on a merge TODO reevaluate
-				return false;
-			}
-			if (!propagated_deleted_pt_ids.contains(deleted_pt_id)) {
-				Project source_p = al_created_ps.get(0);
-								
-				ProjectThing target_pt = this.project.find(deleted_pt_id);
-				if (null == target_pt) {
-					Utils.log2("WARNING: can't find to-be-deleted ProjectThing with_id=" + Long.toString(deleted_pt_id) + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+		if (propagate_deletions_yn) {
+			// propagate deletions of ProjectThings and their associated Displayables, if any
+			// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+			ArrayList<Long> propagated_deleted_pt_ids = new ArrayList<Long>();
+			for (Iterator it = deleted_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				long deleted_pt_id = (Long) entry.getKey();
+				ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+				if (al_created_ps.size() > 1) {
+					Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(deleted_pt_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge."); // this may be a very stupid reason to bail on a merge TODO reevaluate
 					return false;
 				}
-				ArrayList<Long> al_deleted_pt_ids = new ArrayList<Long>();
-				ProjectTree.getChildrenIDsR(target_pt, al_deleted_pt_ids);
-				this.remove(false, target_pt, null); // is this all I have to do?
+				if (!propagated_deleted_pt_ids.contains(deleted_pt_id)) {
+					Project source_p = al_created_ps.get(0);
+									
+					ProjectThing target_pt = this.project.find(deleted_pt_id);
+					if (null == target_pt) {
+						Utils.log2("WARNING: can't find to-be-deleted ProjectThing with_id=" + Long.toString(deleted_pt_id) + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+						return false;
+					}
+					ArrayList<Long> al_deleted_pt_ids = new ArrayList<Long>();
+					ProjectTree.getChildrenIDsR(target_pt, al_deleted_pt_ids);
+					this.remove(false, target_pt, null); // is this all I have to do?
+				}
+			}	
+			// and finally remove all the added entries from created_pt_ids?
+			
+			// propagate deletions of DLabels
+			// this code is redundant with above TODO refactor
+			for (Iterator it = deleted_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				long deleted_dlabel_id = (Long) entry.getKey();
+				ArrayList<Project> al_deleted_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+				if (al_deleted_ps.size() > 1) {
+					Utils.log2("WARNING: DLabel with_id=" + Long.toString(deleted_dlabel_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge.");  // this may be a very stupid reason to bail on a merge TODO reevaluate
+					return false;
+				}
+				Displayable this_dlabel = (Displayable) this.project.getRootLayerSet().findDisplayable(deleted_dlabel_id);
+				if (null == this_dlabel) {
+					Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(deleted_dlabel_id) + " in dest project '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "', merge may be corrupted.");
+					return false;
+				}
+				if (!this_dlabel.remove(false)) { // don't check with user
+					// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+					Utils.log2("WARNING: removal of Displayable '" + this_dlabel.getTitle() + "' with id=" + Long.toString(this_dlabel.getId()) + " failed, merge may be corrupted.");
+					return false; 
+				}
 			}
-		}	
-		// and finally remove all the added entries from created_pt_ids?
-		
-		// propagate deletions of DLabels
-		// this code is redundant with above TODO refactor
-		for (Iterator it = deleted_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			long deleted_dlabel_id = (Long) entry.getKey();
-			ArrayList<Project> al_deleted_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
-			if (al_deleted_ps.size() > 1) {
-				Utils.log2("WARNING: DLabel with_id=" + Long.toString(deleted_dlabel_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge.");  // this may be a very stupid reason to bail on a merge TODO reevaluate
-				return false;
-			}
-			Displayable this_dlabel = (Displayable) this.project.getRootLayerSet().findDisplayable(deleted_dlabel_id);
-			if (null == this_dlabel) {
-				Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(deleted_dlabel_id) + " in dest project '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "', merge may be corrupted.");
-				return false;
-			}
-			if (!this_dlabel.remove(false)) { // don't check with user
-				// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
-				Utils.log2("WARNING: removal of Displayable '" + this_dlabel.getTitle() + "' with id=" + Long.toString(this_dlabel.getId()) + " failed, merge may be corrupted.");
-				return false; 
-			}
+			
+			this.project.getTemplateTree().rebuild(); // could have changed
+			this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
+			// TODO also need to update all the panes in each Display -- the ZDisplayables, the Labels, etc. -- and the display itself
 		}
-		
-		this.project.getTemplateTree().rebuild(); // could have changed
-		this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
-		// TODO also need to update all the panes in each Display -- the ZDisplayables, the Labels, etc. -- and the display itself
-		
 		return true;
 	}
 	
