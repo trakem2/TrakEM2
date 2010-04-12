@@ -1666,6 +1666,7 @@ abstract public class Loader {
 
 		return Bureaucrat.createAndStart(new Worker.Task("Importing", true) {
 			public void exec() {
+				StitchingTEM.PhaseCorrelationParam pc_param = null;
 				// Slice up list:
 				for (int sl=0; sl<n_slices; sl++) {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
@@ -1683,8 +1684,12 @@ abstract public class Loader {
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
 					
+					if (stitch_tiles && null == pc_param) {
+						pc_param = new StitchingTEM.PhaseCorrelationParam();
+						pc_param.setup(layer);
+					}
 					insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, this);
+						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
 					
 				}
 			}
@@ -1809,8 +1814,13 @@ abstract public class Loader {
 		final String file_ = file;
 
 		return Bureaucrat.createAndStart(new Worker.Task("Insert grid", true) { public void exec() {
+			StitchingTEM.PhaseCorrelationParam pc_param = null;
+			if (stitch_tiles) {
+				pc_param = new StitchingTEM.PhaseCorrelationParam();
+				pc_param.setup(layer);
+			}
 			insertGrid(layer, dir_, file_, file_names.length, cols, bx, by, bt_overlap_, 
-				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, this);
+				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
 		}}, layer.getProject());
 
 		} catch (Exception e) {
@@ -1852,6 +1862,7 @@ abstract public class Loader {
 			final boolean stitch_tiles, 
 			final boolean homogenize_contrast, 
 			final int stitching_rule,
+			final StitchingTEM.PhaseCorrelationParam pc_param,
 			final Worker worker)
 	{
 
@@ -2176,7 +2187,7 @@ abstract public class Loader {
 				// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 				if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 				if (null != worker) worker.setTaskName("Stitching");
-				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule).run();
+				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule, pc_param).run();
 			}
 
 			// link with images on top, bottom, left and right.

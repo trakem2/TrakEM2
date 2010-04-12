@@ -121,7 +121,8 @@ public class StitchingTEM {
 			final double default_bottom_top_overlap,
 			final double default_left_right_overlap,
 			final boolean optimize,
-			final int stitching_rule)
+			final int stitching_rule,
+			final PhaseCorrelationParam param_)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
@@ -129,6 +130,16 @@ public class StitchingTEM {
 		}
 		if (patch.length < 2) {
 			return null;
+		}
+
+		final PhaseCorrelationParam param;
+
+		if (null == param_) {
+			// Launch phase correlation dialog
+			param = new PhaseCorrelationParam();
+			param.setup(patch[0]);
+		} else {
+			param = param_;
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
@@ -146,7 +157,7 @@ public class StitchingTEM {
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize);
+				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
 			case StitchingTEM.FREE_RULE:
 				final HashSet<Patch> hs = new HashSet<Patch>();
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
@@ -173,17 +184,13 @@ public class StitchingTEM {
 			final int grid_width, 
 			final double default_bottom_top_overlap, 
 			final double default_left_right_overlap,  
-			final boolean optimize) 
+			final boolean optimize,
+			final PhaseCorrelationParam param)
 	{
 		return new Runnable()
 		{
 			public void run() {
 				
-				// Launch phase correlation dialog
-				PhaseCorrelationParam param = new PhaseCorrelationParam();
-				param.setup(patch[0]);
-				
-
 				try {
 					final int LEFT = 0, TOP = 1;
 
@@ -754,6 +761,14 @@ public class StitchingTEM {
 		 * Empty constructor
 		 */
 		public PhaseCorrelationParam() {}
+
+		/** Run setup on a Patch of the layer, if any. */
+		public boolean setup(Layer layer) {
+			Collection<Displayable> p = layer.getDisplayables(Patch.class);
+			Patch patch = p.isEmpty() ? null : (Patch)p.iterator().next();
+			// !@#$%%^^
+			return setup(patch);
+		}
 
 		/** 
 		 * Returns false when canceled.
