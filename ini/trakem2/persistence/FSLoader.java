@@ -730,7 +730,7 @@ public final class FSLoader extends Loader {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 							hs_unloadable.add(p);
 						}
-						if (ControlWindow.isGUIEnabled()) {
+						if (ControlWindow.isGUIEnabled() && !p.getProject().mipmapsOnlyMode()) { // davi-experimenting added mipmapsOnlyMode test
 							FilePathRepair.add(p);
 						}
 						removeImageLoadingLock(plock);

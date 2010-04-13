@@ -3985,7 +3985,7 @@ while (it.hasNext()) {
 	}
 
 	/** If mipmaps regeneration is enabled or not. */
-	protected boolean mipmaps_regen = true;
+	protected boolean mipmaps_regen = false; // davi-experimenting turn this off
 
 	// used to prevent generating them when, for example, importing a montage
 	public void setMipMapsRegeneration(boolean b) {
