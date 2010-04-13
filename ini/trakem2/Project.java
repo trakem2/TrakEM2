@@ -258,6 +258,9 @@ public class Project extends DBObject {
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 
+	private boolean mipmaps_only_mode = true; // davi-experimenting
+	public boolean mipmapsOnlyMode() { return mipmaps_only_mode; } // davi-experimenting
+	
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
@@ -1408,6 +1411,7 @@ public class Project extends DBObject {
 		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0, 6, "layers");
 		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
+		gd.addCheckbox("Run in mipmaps-only mode (davi-experimenting)", mipmaps_only_mode);  // davi-experimenting
 		//
 		gd.showDialog();
 		//
@@ -1464,6 +1468,9 @@ public class Project extends DBObject {
 			setProperty("autosaving_interval", Integer.toString((int)autosaving_interval2));
 			restartAutosaving();
 		}
+
+		this.mipmaps_only_mode = gd.getNextBoolean(); // davi-experimenting
+
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

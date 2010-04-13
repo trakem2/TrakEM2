@@ -3666,6 +3666,7 @@ while (it.hasNext()) {
 		if (null == fxml) return null;
 		else {
 			copy = getPathsCopy();
+			if (!project.mipmapsOnlyMode()) // davi-experimenting
 			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
 		}
 		String path = export(project, fxml, export_images);
