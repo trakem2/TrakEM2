@@ -327,6 +327,33 @@ public final class M {
 		}
 		return pols;
 	}
+	static public final Collection<Polygon> getPolygonsByRounding(final Area area) {
+		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
+		Polygon pol = new Polygon();
+
+		final float[] coords = new float[6];
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+					pol.addPoint(Math.round(coords[0]), Math.round(coords[1]));
+					break;
+				case PathIterator.SEG_CLOSE:
+					pols.add(pol);
+					pol = new Polygon();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return pols;
+	}
 
 	/** Return a new Area resulting from applying @param ict to @param a;
 	 *  converts the newly transformed points to ints (TrakEM2 operates with ints in its areas). */
@@ -445,6 +472,15 @@ public final class M {
 	static public final Area areaInInts(final Area area) {
 		final Area a = new Area();
 		for (final Polygon pol : M.getPolygons(area)) {
+			a.add(new Area(pol));
+		}
+		return a;
+	}
+
+	/** Converts all points in @param area to ints by rounding. */
+	static public final Area areaInIntsByRounding(final Area area) {
+		final Area a = new Area();
+		for (final Polygon pol : M.getPolygonsByRounding(area)) {
 			a.add(new Area(pol));
 		}
 		return a;

@@ -30,6 +30,13 @@ import isosurface.Triangulator;
 
 import javax.vecmath.Point3f;
 
+import mpicbg.imglib.container.shapelist.ByteShapeList;
+import mpicbg.imglib.type.numeric.integer.ByteType;
+import mpicbg.imglib.container.shapelist.ShapeListContainerFactory;
+import mpicbg.imglib.image.Image;
+import mpicbg.imglib.image.ImageFactory;
+
+
 public final class AreaUtils {
 
 	private AreaUtils() {}
@@ -58,7 +65,7 @@ public final class AreaUtils {
 
 		// remove translation from a copy of this Displayable's AffineTransform
 		final AffineTransform at_translate = new AffineTransform();
-		at_translate.translate(-r.x, -r.y);
+		at_translate.translate(-r.x +1, -r.y +1); // +1 to zero pad!
 		aff.preConcatenate(at_translate);
 		// incorporate resampling scaling into the transform
 		final AffineTransform atK = new AffineTransform();
@@ -70,65 +77,52 @@ public final class AreaUtils {
 		final Calibration cal = layer_set.getCalibrationCopy();
 
 		//
-		ImageStack stack = null;
+		Layer first_layer = null;
 		final int w = (int)Math.ceil(r.width * K);
 		final int h = (int)Math.ceil(r.height * K);
+		int depth = 0;
 
-		// For the thresholding after painting an scaled-down area into an image:
-		final int threshold;
-		if (K > 0.8) threshold = 200;
-		else if (K > 0.5) threshold = 128;
-		else if (K > 0.3) threshold = 75; // 75 gives upper 70% of 255 range. It's better to blow up a bit, since resampling down makes marching cubes undercut the mesh.
-		else threshold = 40;
+		final Map<Integer,Area> ma = new HashMap<Integer,Area>();
 
-		Layer first_layer = null;
-
-		final HashSet<Layer> empty_layers = new HashSet<Layer>();
-
+		// Find first layer and compute depth
 		for (final Layer la : layer_set.getLayers()) { // layers sorted by Z ASC
-			if (0 == n) break; // no more areas to paint
 			final Area area = areas.get(la);
 			if (null != area) {
-				if (null == stack) {
-					stack = new ImageStack(w, h);
-					first_layer = la;
-				}
-				d.getProject().getLoader().releaseToFit(w, h, ImagePlus.GRAY8, 3);
-				// must be a new image, for pixel array is shared with BufferedImage and ByteProcessor in java 1.6
-				final BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-				final Graphics2D g = bi.createGraphics();
-				g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON);
-				g.setColor(Color.white);
-				g.fill(area.createTransformedArea(aff));
-				final ByteProcessor bp = new ByteProcessor(bi);
-				bp.threshold(threshold);
-				stack.addSlice(Double.toString(la.getZ()), bp);
-				bi.flush();
-
-				n--;
-
-			} else if (null != stack) {
-				// add a black slice
-				stack.addSlice(la.getZ() + "", new ByteProcessor(w, h));
-				empty_layers.add(la);
-			}
+				ma.put(depth, area);
+				depth++;
+				if (0 != depth) first_layer = la;
+			} else if (0 != depth) depth++; // an empty layer
+			n--;
+			if (0 == n) break; // no more areas to paint
 		}
 
-		// zero-pad stack
-		// No need anymore: MCTriangulator does it on its own now
-		stack = zeroPad(stack);
+		final ShapeListContainerFactory shapeListFactory = new ShapeListContainerFactory();
+		final ImageFactory<ByteType> shapeListImageFactory = new ImageFactory<ByteType>(new ByteType((byte)0), shapeListFactory);
+		// Dimensions +2 to zero pad the volume!
+		final Image<ByteType> shapeListImage = shapeListImageFactory.createImage(new int[]{w + 2, h + 2, depth + 2}, "ShapeListContainer");
+		final ByteShapeList<?> shapeList = (ByteShapeList<?>)shapeListImage.getContainer();
+		final ByteType intensity = new ByteType((byte)255);
 
-		// Still, the MCTriangulator does NOT zero pad properly
+		for (final Map.Entry<Integer,Area> e : ma.entrySet()) {
+			Area a = e.getValue();
+			if (!aff.isIdentity()) {
+				a = M.areaInIntsByRounding(a.createTransformedArea(aff));
+			}
+			shapeList.addShape(a, intensity, new int[]{e.getKey()});
+		}
 
-		final ImagePlus imp = new ImagePlus("", stack);
-		imp.getCalibration().pixelWidth = 1; // ensure all set to 1.
-		imp.getCalibration().pixelHeight = 1;
-		imp.getCalibration().pixelDepth = 1;
+		Utils.log2("Using Shape List Image Container from imglib");
+		Utils.log2("echo!");
+
+		// WARNING
+		// MCTriangulator should be zero-padding, but it doesn't do it properly
+		// 
+		// NOTE:
+		// I am passing an uncalibrated image to the MCTriangulator in purpose
 
 		// Now marching cubes
 		final Triangulator tri = new MCTriangulator();
-		final List list = tri.getTriangles(imp, 0, new boolean[]{true, true, true}, 1);
+		final List list = tri.getTriangles(shapeListImage, 0, new boolean[]{true, true, true}, 1);
 
 
 		// The list of triangles has coordinates:
@@ -179,7 +173,7 @@ public final class AreaUtils {
 
 		//ts.remove(new Float(0));
 
-		for (final Layer la : layer_set.getLayers().subList(i_first_layer, i_first_layer + imp.getNSlices() -2)) { // -2: it's padded
+		for (final Layer la : layer_set.getLayers().subList(i_first_layer, i_first_layer + depth -2)) { // -2: it's padded
 
 			//Utils.log2("handling slice_index: " + slice_index);
 			//debug:
