@@ -287,6 +287,11 @@ public final class LayerThing extends DBObject implements TitledThing {
 			al_items.add(item);
 			if (empty) item.setEnabled(false);
 
+			item = new JMenuItem("Reset layer Z and thickness");
+			item.addActionListener(listener);
+			al_items.add(item);
+			if (empty) item.setEnabled(false);
+
 			item = new JMenuItem("Search...");
 			item.addActionListener(listener);
 			al_items.add(item);
