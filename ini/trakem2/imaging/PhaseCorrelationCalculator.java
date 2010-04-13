@@ -4,16 +4,17 @@ import ij.ImagePlus;
 import mpicbg.imglib.algorithm.fft.PhaseCorrelation;
 import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
 import mpicbg.imglib.image.ImagePlusAdapter;
-import mpicbg.imglib.type.NumericType;
+import mpicbg.imglib.image.Image;
+import mpicbg.imglib.type.numeric.RealType;
 
 public class PhaseCorrelationCalculator
 {
 	final PhaseCorrelationPeak peak;
 	
-	public <T extends NumericType<T>, S extends NumericType<S>> PhaseCorrelationCalculator( ImagePlus imp1, ImagePlus imp2 )
+	public <T extends RealType<T>, S extends RealType<S>> PhaseCorrelationCalculator( ImagePlus imp1, ImagePlus imp2 )
 	{
-		mpicbg.imglib.image.Image<T> img1 = ImagePlusAdapter.wrap( imp1 );
-		mpicbg.imglib.image.Image<S> img2 = ImagePlusAdapter.wrap( imp2 );
+		Image<T> img1 = ImagePlusAdapter.wrap( imp1 );
+		Image<S> img2 = ImagePlusAdapter.wrap( imp2 );
 		
 		PhaseCorrelation<T, S> phase = new PhaseCorrelation<T, S>( img1, img2 );
 		
