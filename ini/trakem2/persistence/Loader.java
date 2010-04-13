@@ -1568,8 +1568,6 @@ abstract public class Loader {
 			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
 			(Component)gd.getChoices().get(gd.getChoices().size()-1)
 		};
-		// enable the checkbox to control the slider and its associated numeric field:
-		Utils.addEnablerListener((Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size()-2), c, null);
 		//gd.addCheckbox("Apply non-linear deformation", false);
 
 		gd.showDialog();
