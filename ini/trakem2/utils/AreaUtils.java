@@ -35,6 +35,7 @@ import mpicbg.imglib.type.numeric.integer.ByteType;
 import mpicbg.imglib.container.shapelist.ShapeListContainerFactory;
 import mpicbg.imglib.image.Image;
 import mpicbg.imglib.image.ImageFactory;
+//import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 
 
 public final class AreaUtils {
@@ -89,11 +90,18 @@ public final class AreaUtils {
 			final Area area = areas.get(la);
 			if (null != area) {
 				ma.put(depth, area);
+				if (0 == depth) {
+					first_layer = la;
+				}
 				depth++;
-				if (0 != depth) first_layer = la;
 			} else if (0 != depth) depth++; // an empty layer
 			n--;
 			if (0 == n) break; // no more areas to paint
+		}
+
+		if (0 == depth) {
+			Utils.log("ERROR could not find any areas for " + d);
+			return null;
 		}
 
 		final ShapeListContainerFactory shapeListFactory = new ShapeListContainerFactory();
@@ -101,18 +109,22 @@ public final class AreaUtils {
 		// Dimensions +2 to zero pad the volume!
 		final Image<ByteType> shapeListImage = shapeListImageFactory.createImage(new int[]{w + 2, h + 2, depth + 2}, "ShapeListContainer");
 		final ByteShapeList<?> shapeList = (ByteShapeList<?>)shapeListImage.getContainer();
-		final ByteType intensity = new ByteType((byte)255);
+		final ByteType intensity = new ByteType((byte)127); // 255 or -1 don't work !? So, giving the highest value (127) that is both a byte and an int.
 
 		for (final Map.Entry<Integer,Area> e : ma.entrySet()) {
 			Area a = e.getValue();
 			if (!aff.isIdentity()) {
 				a = M.areaInIntsByRounding(a.createTransformedArea(aff));
 			}
-			shapeList.addShape(a, intensity, new int[]{e.getKey()});
+			shapeList.addShape(a, intensity, new int[]{e.getKey() + 1}); // +1 because of zero padding
 		}
 
-		Utils.log2("Using Shape List Image Container from imglib");
-		Utils.log2("echo!");
+		//debug:
+		//ImagePlus imp = ImageJFunctions.displayAsVirtualStack(shapeListImage);
+		//imp.getProcessor().setMinAndMax( 0, 255 );
+		//imp.show();
+
+		Utils.log2("Using imglib Shape List Image Container");
 
 		// WARNING
 		// MCTriangulator should be zero-padding, but it doesn't do it properly
@@ -121,8 +133,7 @@ public final class AreaUtils {
 		// I am passing an uncalibrated image to the MCTriangulator in purpose
 
 		// Now marching cubes
-		final Triangulator tri = new MCTriangulator();
-		final List list = tri.getTriangles(shapeListImage, 0, new boolean[]{true, true, true}, 1);
+		final List<Point3f> list = new MCTriangulator().getTriangles(shapeListImage, 1, new float[3]); // origins at 0,0,0: uncalibrated
 
 
 		// The list of triangles has coordinates:
@@ -140,7 +151,7 @@ public final class AreaUtils {
 		final float dx = (float)(r.x * scale * cal.pixelWidth);
 		final float dy = (float)(r.y * scale * cal.pixelHeight);
 
-		// Correct x,y by resampling and calibration, but not scale (TODO this hints that calibration in 3D is wrong: should be divided by the scale! May affect all Displayable types)
+		// Correct x,y by resampling and calibration, but not scale
 		final float rsw = (float)(resample * cal.pixelWidth);  // scale is already in the pixel coordinates
 		final float rsh = (float)(resample * cal.pixelHeight);
 		final double sz = scale * cal.pixelWidth; // no resampling in Z. and Uses pixelWidth, not pixelDepth.
