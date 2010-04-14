@@ -38,6 +38,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.graphics.AddARGBComposite;
 import ini.trakem2.display.graphics.ColorYCbCrComposite;
@@ -129,7 +130,17 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	// begin davi-experimenting block
 	private boolean edited_yn = false; // if reconstructed from XML, edited_yn="true" will override
 	public boolean getEditedYN() { return this.edited_yn; }
-	public void setEditedYN(boolean new_edited_yn) { edited_yn = new_edited_yn; }
+	public void setEditedYN(boolean new_edited_yn, boolean get_conf) { 
+		// this testing & dialog will go away, but for now, need to understand why certain Project objects are getting touched during tracing
+		if (!this.getEditedYN() && new_edited_yn && get_conf) { // edited_yn was false, now it will be true, get the user to confirm this
+			final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "You are about to set edited_yn=\"true\" for " + title + " with id=" + Long.toString(this.getId()) + ". Do you want to allow this?");
+			if (yn.yesPressed()) {
+				edited_yn = new_edited_yn;
+			}
+		} else {
+			edited_yn = new_edited_yn;
+		}
+	}
 	//end davi-experimenting block
 	
 	/** Set a key/valye property pair; to remove a property, set the value to null. */
@@ -428,7 +439,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					rot = Double.parseDouble(data);
 				} else if (key.equals("composite")) {
 					compositeMode = Byte.parseByte(data);
-				} else if (key.equals("edited_yn")) this.setEditedYN( data.trim().toLowerCase().equals("true") ); // davi-experimenting
+				} else if (key.equals("edited_yn")) this.setEditedYN( data.trim().toLowerCase().equals("true"), false ); // davi-experimenting
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
@@ -1893,7 +1904,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					}
 				}
 			}
-			d.setEditedYN(true); // davi-experimenting
+			d.setEditedYN(true, true); // davi-experimenting
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
@@ -2056,7 +2067,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		final boolean to1(final Displayable d) {
 			d.width = width;
 			d.height = height;
-			d.setEditedYN(edited_yn); // davi-experimenting
+			d.setEditedYN(edited_yn, false); // davi-experimenting
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
 				HashSet<Displayable> all_links = new HashSet<Displayable>();

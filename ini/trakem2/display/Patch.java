@@ -119,7 +119,7 @@ public final class Patch extends Displayable implements ImageData {
 		this.width = (int)o_width;
 		this.height = (int)o_height;
 		project.getLoader().cache(this, imp);
-		this.setEditedYN(false); // davi-experimenting -- override Displayable constructor's default behavior; TODO need to do for database-backed, someday?
+		this.setEditedYN(false, false); // davi-experimenting -- override Displayable constructor's default behavior; TODO need to do for database-backed, someday?
 		addToDatabase();
 	}
 
