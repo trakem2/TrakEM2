@@ -34,6 +34,7 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.Random;
 import java.util.Vector;
 import java.util.regex.*;
 import java.util.Map;
@@ -99,16 +100,21 @@ public class Search {
 			search_field.addKeyListener(new VKEnterListener());
 			JButton b = new JButton("Search");
 			b.addActionListener(new ButtonListener());
+			// begin davi-experimenting
+			JButton r = new JButton("Select random");
+			r.addActionListener(new RandomButtonListener());
+			// end davi-experimenting
 			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Pipes", "Balls", "Layers", "Dissectors", "Polylines", "Treelines", "AreaTrees", "Connectors"});
 			JPanel top = new JPanel();
 			top.add(search_field);
 			top.add(b);
 			top.add(pulldown);
-			top.setMinimumSize(new Dimension(400, 30));
+			top.add(r); // davi-experimenting, add this line and bump x dimensions below from 400 --> 480
+			top.setMinimumSize(new Dimension(600, 30));
 			top.setMaximumSize(new Dimension(10000, 30));
-			top.setPreferredSize(new Dimension(400, 30));
+			top.setPreferredSize(new Dimension(600, 30));
 			JPanel all = new JPanel();
-			all.setPreferredSize(new Dimension(400, 400));
+			all.setPreferredSize(new Dimension(600, 400));
 			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
 			all.setLayout(bl);
 			all.add(top);
@@ -338,6 +344,46 @@ public class Search {
 			executeSearch();
 		}
 	}
+	
+	// davi-experimenting
+	// Pick a random result. This is useful for randomly sampling a large set of traced objects.
+	private class RandomButtonListener implements ActionListener {
+		public void actionPerformed(ActionEvent ae) {
+			Utils.log2("working button!");
+			if (null == instance) return;
+			final int n_tabs = instance.search_tabs.getTabCount();
+			if (n_tabs < 1) return;
+			final int selected = instance.search_tabs.getSelectedIndex();
+			
+			java.awt.Component c = instance.search_tabs.getComponentAt(selected);
+			if (null == c) return;
+			JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
+			DisplayableTableModel data = (DisplayableTableModel)table.getModel();
+			final int num_rows = data.getRowCount();
+			if (num_rows < 1) return;
+			Utils.log2("Randomly selecting from " + Integer.toString(num_rows) + " search results.");
+			final Random rand = new Random(System.currentTimeMillis());
+			final int which_row = rand.nextInt(num_rows-1);
+			final DBObject ob = data.getDBObjectAt(which_row);
+			final Coordinate co = data.getCoordinateAt(which_row);
+			
+			if (null != co) {
+				Display.centerAt(co);
+				return;
+			}
+			if (ob instanceof Displayable) {
+				// no zoom
+				Display.centerAt(createCoordinate((Displayable)ob), true, false);
+			} else if (ob instanceof Layer) {
+				Display.showFront((Layer)ob);
+			} else {
+				Utils.log2("Search: Unhandable table selection: " + ob);
+			}
+			
+		}
+	}
+	// end davi-experimenting
+	
 	/** Listen to the search field. */
 	private class VKEnterListener extends KeyAdapter {
 		public void keyPressed(KeyEvent ke) {
