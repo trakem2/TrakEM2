@@ -30,11 +30,13 @@ import isosurface.Triangulator;
 
 import javax.vecmath.Point3f;
 
-import mpicbg.imglib.container.shapelist.ByteShapeList;
 import mpicbg.imglib.type.numeric.integer.ByteType;
-import mpicbg.imglib.container.shapelist.ShapeListContainerFactory;
 import mpicbg.imglib.image.Image;
+import mpicbg.imglib.container.shapelist.ShapeList;
+import mpicbg.imglib.container.shapelist.ShapeListCached;
+import mpicbg.imglib.container.array.ArrayContainerFactory;
 import mpicbg.imglib.image.ImageFactory;
+import mpicbg.imglib.cursor.*;
 //import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 
 
@@ -104,11 +106,9 @@ public final class AreaUtils {
 			return null;
 		}
 
-		final ShapeListContainerFactory shapeListFactory = new ShapeListContainerFactory();
-		final ImageFactory<ByteType> shapeListImageFactory = new ImageFactory<ByteType>(new ByteType((byte)0), shapeListFactory);
 		// Dimensions +2 to zero pad the volume!
-		final Image<ByteType> shapeListImage = shapeListImageFactory.createImage(new int[]{w + 2, h + 2, depth + 2}, "ShapeListContainer");
-		final ByteShapeList<?> shapeList = (ByteShapeList<?>)shapeListImage.getContainer();
+		final ShapeList<ByteType> shapeList = new ShapeListCached<ByteType>(new int[]{w + 2, h + 2, depth +2}, new ByteType(), 32);
+		final Image<ByteType> shapeListImage = new Image<ByteType>(shapeList, shapeList.getBackground(), "ShapeListContainer");
 		final ByteType intensity = new ByteType((byte)127); // 255 or -1 don't work !? So, giving the highest value (127) that is both a byte and an int.
 
 		for (final Map.Entry<Integer,Area> e : ma.entrySet()) {
@@ -132,9 +132,28 @@ public final class AreaUtils {
 		// NOTE:
 		// I am passing an uncalibrated image to the MCTriangulator in purpose
 
+		/*
+		final ImageFactory<ByteType> imgFactory = new ImageFactory( new ByteType(), new ArrayContainerFactory() );
+		final Image<ByteType> img = imgFactory.createImage( shapeListImage.getDimensions() );
+
+		final LocalizableCursor<ByteType> c1 = shapeListImage.createLocalizableCursor();
+		final LocalizableByDimCursor<ByteType> c2 = img.createLocalizableByDimCursor();
+
+		while ( c1.hasNext() )
+		{
+			c1.fwd();
+			c2.moveTo( c1 );
+
+			c2.getType().set( c1.getType() );
+		}
+
+		c1.close();
+		c2.close();
+		*/
+
 		// Now marching cubes
 		final List<Point3f> list = new MCTriangulator().getTriangles(shapeListImage, 1, new float[3]); // origins at 0,0,0: uncalibrated
-
+		//final List<Point3f> list = new MCTriangulator().getTriangles(img, 1, new float[3]); // origins at 0,0,0: uncalibrated
 
 		// The list of triangles has coordinates:
 		// - in x,y: in pixels, scaled by K = (1 / resample) * scale, 
@@ -178,6 +197,8 @@ public final class AreaUtils {
 
 		final Point3f[] verts = new Point3f[list.size()];
 
+		Utils.log("number of verts: " + verts.length + " mod 3: " + (verts.length % 3));
+
 		final TreeMap<Integer,Point3f> output = new TreeMap<Integer,Point3f>();
 
 		fix3DPoints(list, output, verts, layer_set.previous(layer_set.getLayer(i_first_layer)), 0, dx, dy, rsw, rsh, sz);
@@ -214,9 +235,13 @@ public final class AreaUtils {
 			IJError.print(ee);
 		}
 
+		Utils.log("number of verts in output: " + output.size() + " mod 3: " + (list.size() % 3));
+
+
 		// debug:
 		//Utils.log2("Remaining p.z to process: ");
 		//for (final Float pz : ts) Utils.log2("remains:   z: " + pz);
+
 
 		// Handle potential errors:
 		if (0 != list.size() - output.size()) {
