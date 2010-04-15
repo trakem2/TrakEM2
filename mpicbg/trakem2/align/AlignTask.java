@@ -278,6 +278,7 @@ final public class AlignTask
 			}});
 	}
 
+	/*
 	final static public Map<Long,Patch.TransformProperties> createTransformPropertiesTable(final Collection<Patch> patches) {
 		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
 		// Parallelize! This operation can be insanely expensive
@@ -325,27 +326,35 @@ final public class AlignTask
 
 		return tp;
 	}
+	*/
 
 	static public final class ReferenceData {
 		/** Patch id vs transform */
 		final Map<Long,Patch.TransformProperties> tp;
 		/** A map of Displayable vs a map of Layer id vs list of Patch ids in that Layer that lay under the Patch, sorted by stack index. */
 		final Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying;
-		ReferenceData(final Map<Long,Patch.TransformProperties> tp, Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying) {
+		/** A list of the Layer ids form which at least one Patch was used to determine a transform of part of a VectorData instance. I.e. the visited layers. */
+		final Set<Long> src_layer_lids_used;
+		ReferenceData(final Map<Long,Patch.TransformProperties> tp, Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying, Set<Long> src_layer_lids_used) {
 			this.tp = tp;
 			this.underlying = underlying;
+			this.src_layer_lids_used = src_layer_lids_used;
 		}
 	}
 
 	/** Creates a map only for visible patches that intersect vdata.
 	 *  @param src_vdata represents the VectorData instances in original form, of the original project and layer set.
 	 *  @param tgt_data if not null, it must have the same size as src_data and their elements correspond one-to-one (as in, tgt element a clone of src element at the same index).
+	 *  @param lids_to_operate The id of the layers on which any operation will be done
 	 *  tgt_data enables transformVectorData to apply the transforms to copies of the src_vdata in another project. */
-	final static public ReferenceData createTransformPropertiesTable(final List<Displayable> src_vdata, final List<Displayable> tgt_vdata) {
+	final static public ReferenceData createTransformPropertiesTable(final List<Displayable> src_vdata, final List<Displayable> tgt_vdata, final Set<Long> lids_to_operate) {
 		if (src_vdata.isEmpty()) return null;
 		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
 		// A map of Displayable vs a map of Layer id vs list of Patch ids in that Layer that lay under the Patch, sorted by stack index
 		final Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying = new HashMap<Displayable,Map<Long,TreeMap<Integer,Long>>>();
+
+		// The set of layers used
+		final Set<Long> src_layer_lids_used = new HashSet<Long>();
 
 		// Parallelize! This operation can be insanely expensive
 		final int nproc = Runtime.getRuntime().availableProcessors();
@@ -353,7 +362,7 @@ final public class AlignTask
 		final List<Future> dtasks = new ArrayList<Future>();
 		final List<Future> ltasks = new ArrayList<Future>();
 		final Thread current = Thread.currentThread();
-		final List<Layer> src_layers = src_vdata.get(0).getLayerSet().getLayers(); // a copy of the list
+
 		try {
 			for (int i=src_vdata.size()-1; i>-1; i--) {
 				final Displayable src_d = src_vdata.get(i);
@@ -377,7 +386,14 @@ final public class AlignTask
 
 						if (current.isInterrupted()) return;
 
-						for (final Layer la : src_layers) {
+						// Iterate the layers in which this VectorData has any data AND which have to be transformed
+						for (final Long olid : src_d.getLayerIds()) {
+							final long lid = olid.longValue();
+
+							if (!lids_to_operate.contains(lid)) continue; // layer with id 'lid' is not affected
+
+							final Layer la = src_d.getLayerSet().getLayer(lid);
+
 							final Area a = src_d.getAreaAt(la);
 							if (null == a || a.isEmpty()) {
 								continue; // does not paint in the layer
@@ -386,8 +402,10 @@ final public class AlignTask
 							// The list of patches that lay under VectorData d, sorted by their stack index in the layer
 							final TreeMap<Integer,Long> stacked_patch_ids = new TreeMap<Integer,Long>();
 							synchronized (under) {
-								under.put(la.getId(), stacked_patch_ids);
+								under.put(lid, stacked_patch_ids);
 							}
+
+							final boolean[] layer_visited = new boolean[]{false};
 
 							// Iterate source patches
 							for (final Patch patch : (Collection<Patch>)(Collection)la.getDisplayables(Patch.class, a, true)) { // pick visible patches only
@@ -414,6 +432,15 @@ final public class AlignTask
 													stacked_patch_ids.put(la.indexOf(patch), patch.getId()); // sorted by stack index
 													//Utils.log("Added patch for layer " + la + " with stack index " + la.indexOf(patch) + ", patch " + patch);
 												}
+
+												if (!layer_visited[0]) {
+													// synch may fail to avoid adding it twice
+													// but it's ok since it's a Set anyway
+													layer_visited[0] = true;
+													synchronized (src_layer_lids_used) {
+														src_layer_lids_used.add(la.getId());
+													}
+												}
 											}
 										}
 									}));
@@ -435,7 +462,7 @@ final public class AlignTask
 			exec.shutdownNow();
 		}
 
-		return new ReferenceData(tp, underlying);
+		return new ReferenceData(tp, underlying, src_layer_lids_used);
 	}
 
 	/** For registering within the same project instance. */
@@ -453,7 +480,9 @@ final public class AlignTask
 			it.remove();
 		}
 		// 2 - Store current transformation of each Patch under any VectorData
-		final ReferenceData rd = createTransformPropertiesTable(vdata, null);
+		final Set<Long> lids = new HashSet<Long>();
+		for (final Patch p : patches) lids.add(p.getLayer().getId());
+		final ReferenceData rd = createTransformPropertiesTable(vdata, null, lids);
 		// 3 - Align:
 		alignment.run();
 		// TODO check that alignTiles doesn't change the dimensions/origin of the LayerSet! That would invalidate the table of TransformProperties
@@ -471,18 +500,27 @@ final public class AlignTask
 		final Thread current = Thread.currentThread();
 
 		final HashMap<Long,Layer> lidm = new HashMap<Long,Layer>();
-		for (final Layer la : target_layerset.getLayers()) lidm.put(la.getId(), la);
+		for (final Long lid : rd.src_layer_lids_used) {
+			Layer la = target_layerset.getLayer(lid.longValue());
+			if (null == la) {
+				Utils.log("ERROR layer with id " + lid + " NOT FOUND in target layerset!");
+				continue;
+			}
+			lidm.put(lid, la);
+		}
 
 		for (final Map.Entry<Displayable,Map<Long,TreeMap<Integer,Long>>> ed : rd.underlying.entrySet()) {
 			final Displayable d = ed.getKey(); // The VectorData instance to transform
 			// Process Displayables concurrently:
 			fus.add(exec.submit(new Runnable() { public void run() {
 				for (final Map.Entry<Long,TreeMap<Integer,Long>> el : ed.getValue().entrySet()) {
+					// The entry has the id of the layer and the stack-index-ordered list of Patch that intersect VectorData d in that Layer
 					final Layer layer = lidm.get(el.getKey());
 					if (null == layer) {
 						Utils.log("ERROR layer with id " + el.getKey() + " NOT FOUND in target layerset!");
 						continue;
 					}
+					//Utils.log("Editing Displayable " + d + " at layer " + layer);
 					final ArrayList<Long> pids = new ArrayList<Long>(el.getValue().values()); // list of Patch ids affecting VectorData/Displayable d
 					Collections.reverse(pids); // so now Patch ids are sorted from top to bottom
 					// The area already processed in the layer
