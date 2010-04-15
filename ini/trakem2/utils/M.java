@@ -11,6 +11,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
+import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.Polygon;
@@ -356,26 +357,24 @@ public final class M {
 	}
 
 	/** Return a new Area resulting from applying @param ict to @param a;
-	 *  converts the newly transformed points to ints (TrakEM2 operates with ints in its areas). */
+	 *  assumes areas consists of paths with moveTo, lineTo and close operations. */
 	static public final Area transform(final mpicbg.models.CoordinateTransform ict, final Area a) {
-		final Area a2 = new Area();
-		final float[] fp = new float[2];
-		Polygon pol = new Polygon();
-
+		final GeneralPath path = new GeneralPath();
 		final float[] coords = new float[6];
-		for (PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
-			int seg_type = pit.currentSegment(coords);
+		final float[] fp = new float[2];
+
+		for (final PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
+			final int seg_type = pit.currentSegment(coords);
+			fp[0] = coords[0];
+			fp[1] = coords[1];
+			ict.applyInPlace(fp);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
-					fp[0] = coords[0];
-					fp[1] = coords[1];
-					ict.applyInPlace(fp);
-					pol.addPoint((int)fp[0], (int)fp[1]); // as ints!
+					path.moveTo(fp[0], fp[1]);
 					break;
+				case PathIterator.SEG_LINETO:
 				case PathIterator.SEG_CLOSE:
-					a2.add(new Area(pol));
-					pol = new Polygon();
+					path.lineTo(fp[0], fp[1]);
 					break;
 				default:
 					Utils.log2("WARNING: unhandled seg type.");
@@ -386,7 +385,7 @@ public final class M {
 				break;
 			}
 		}
-		return a2;
+		return new Area(path);
 	}
 
 	/** Apply in place the @param ict to the Area @param a, but only for the part that intersects the roi. */
