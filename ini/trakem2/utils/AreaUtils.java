@@ -94,11 +94,11 @@ public final class AreaUtils {
 					if (null == first_layer) {
 						first_layer = la;
 					}
-					Utils.log("area at depth " + depth + " for layer " + la);
+					//Utils.log("area at depth " + depth + " for layer " + la);
 					depth++;
 					n--;
 				} else if (0 != depth) {
-					Utils.log("Empty area at depth " + depth);
+					//Utils.log("Empty area at depth " + depth);
 					depth++; // an empty layer
 				}
 				// else, continue iterating until finding the first layer
@@ -135,7 +135,7 @@ public final class AreaUtils {
 			//imp.getProcessor().setMinAndMax( 0, 255 );
 			//imp.show();
 
-			Utils.log2("Using imglib Shape List Image Container");
+			//Utils.log2("Using imglib Shape List Image Container");
 
 			// Now marching cubes
 			final List<Point3f> list = new MCTriangulator().getTriangles(shapeListImage, 1, new float[3]); // origins at 0,0,0: uncalibrated
@@ -174,6 +174,7 @@ public final class AreaUtils {
 
 
 			// debug: How many different Z?
+			/*
 			HashSet<Float> zs = new HashSet<Float>();
 			for (Point3f p : list) {
 				zs.add(p.z);
@@ -183,6 +184,7 @@ public final class AreaUtils {
 			for (Float f : a) {
 				Utils.log("f: " + f);
 			}
+			*/
 
 			//Utils.log2("Number of slices: " + imp.getNSlices());
 
@@ -192,7 +194,7 @@ public final class AreaUtils {
 
 			final Point3f[] verts = new Point3f[list.size()];
 
-			Utils.log("number of verts: " + verts.length + " mod 3: " + (verts.length % 3));
+			//Utils.log("number of verts: " + verts.length + " mod 3: " + (verts.length % 3));
 
 			final TreeMap<Integer,Point3f> output = new TreeMap<Integer,Point3f>();
 
@@ -229,7 +231,7 @@ public final class AreaUtils {
 				IJError.print(ee);
 			}
 
-			Utils.log("number of verts in output: " + output.size() + " mod 3: " + (output.size() % 3));
+			//Utils.log("number of verts in output: " + output.size() + " mod 3: " + (output.size() % 3));
 
 
 			// debug:
@@ -288,7 +290,7 @@ public final class AreaUtils {
 				fixed++;
 			}
 		}
-		Utils.log("fix between " + layer_index + " and " + (layer_index + n_slices) + " (" + fixed + ")");
+		//Utils.log("fix between " + layer_index + " and " + (layer_index + n_slices) + " (" + fixed + ")");
 	}
 
 	/** Extracts all non-background areas. */
