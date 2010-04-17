@@ -2177,6 +2177,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	final void clearScreenshots() {
 		synchronized (offscreens) {
+			for (final DisplayCanvas.Screenshot s : offscreens.values()) {
+				s.flush();
+			}
 			offscreens.clear();
 			offscreens2.clear();
 		}
@@ -2195,6 +2198,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					offscreens.put(sc.props, sc);
 					putO2(sc.layer, sc);
 				}
+				// not flushing: they will get thrown out eventually
 			}
 		}
 	}

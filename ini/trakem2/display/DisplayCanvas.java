@@ -2772,6 +2772,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						  props.hm, props.blending_list, props.mode, props.graphics_source, false, al_top);
 			layer.getProject().getLoader().cacheAWT(sid, img);
 		}
+		public void flush() {
+			layer.getProject().getLoader().decacheAWT(sid);
+		}
 	}
 
 	private boolean browseToNodeLayer() {
