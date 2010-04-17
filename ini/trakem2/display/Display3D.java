@@ -377,11 +377,11 @@ public final class Display3D {
 								}
 							}
 						}*/
-						Utils.logAll("Reset 3D view if not within field of view!");
 					} catch (Exception e) {
 						IJError.print(e);
 					}
 				}
+				Utils.logAll("Reset 3D view if not within field of view!");
 			}
 		});
 	}
