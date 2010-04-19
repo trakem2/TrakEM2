@@ -1899,6 +1899,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			createGUI();
 		}
 		private final class Table extends JTable {
+			private int last_sorted_column = -1;
+			private boolean last_sorting_order = true; // descending == true
 			Table() {
 				super();
 				getTableHeader().addMouseListener(new MouseAdapter() {
@@ -1908,6 +1910,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						int column = convertColumnIndexToModel(viewColumn);
 						if (-1 == column) return;
 						((NodeTableModel)getModel()).sortByColumn(column, me.isShiftDown());
+						last_sorted_column = column;
+						last_sorting_order = me.isShiftDown();
 					}
 				});
 				this.addMouseListener(new MouseAdapter() {
@@ -1943,6 +1947,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 			void go(int row) {
 				Display.centerAt(Tree.this.createCoordinate(((NodeTableModel)this.getModel()).nodes.get(row)));
+			}
+			void resort() {
+				if (-1 != last_sorted_column) {
+					((NodeTableModel)getModel()).sortByColumn(last_sorted_column, last_sorting_order);
+				}
 			}
 		}
 		void show() {
@@ -2027,6 +2036,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		void recreate(final Node root) {
 			Tree.this.project.getLoader().doLater(new Callable() { public Object call() {
 				create(root);
+				for (Table t : new Table[]{table_branchnodes, table_searchnodes, table_endnodes, table_allnodes}) {
+					t.resort();
+				}
 				Utils.revalidateComponent(frame);
 				return null;
 			}});
