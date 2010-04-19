@@ -794,7 +794,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		synchronized (node_layer_map) {
 			Node nearest = findNode(x, y, layer, magnification);
 			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) return nearest;
+			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) {
+				updateViewData(nearest);
+				return nearest;
+			}
 			return null;
 		}
 	}
