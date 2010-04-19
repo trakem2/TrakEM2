@@ -645,4 +645,20 @@ public final class M {
 		chain.add(tolocal);
 		return chain;
 	}
+
+	/** Returns the shortest possible String representation of a float number, according to the desired decimal @param precision. */
+	static public final String shortest(final float f, final float precision) {
+		return Math.abs(f - (int)f) < precision ?
+			  Integer.toString((int)f)
+			: Float.toString(f);
+	}
+
+	/** Appends to @param sb the shortest possible String representation of a float number, according to the desired decimal @param precision. */
+	static public final void appendShortest(final float f, final float precision, final StringBuffer sb) {
+		if (Math.abs(f - (int)f) < precision) {
+			sb.append((int)f);
+		} else {
+			sb.append(f);
+		}
+	}
 }
