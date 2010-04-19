@@ -36,7 +36,7 @@ public final class ReconstructArea {
 			return;
 		}
 		data[data.length-1] = 'L'; // replacing the closing z for an L, since we read backwards
-		final int[] xy = new int[2];
+		final float[] xy = new float[2];
 		int i_L = -1;
 		// find first L
 		for (int i=0; i<data.length; i++) {
@@ -55,12 +55,12 @@ public final class ReconstructArea {
 		}
 
 		// close loop
-		gp.lineTo(x0, y0); //TODO unnecessary?
+		//gp.lineTo(x0, y0); //TODO unnecessary?
 		gp.closePath();
 	}
 
 	/** Assumes all read chars will be digits except for the separator (single white space char), and won't fail (but generate ugly results) when any char is not a digit. */
-	static private final int readXY(final char[] data, int first, final int[] xy) { // final method: inline
+	static private final int readXY(final char[] data, int first, final float[] xy) { // final method: inline
 		if (first >= data.length) return -1;
 		int last = first;
 		char c = data[first];
@@ -84,6 +84,9 @@ public final class ReconstructArea {
 			if ('-' == c) {
 				xy[1] *= -1;
 				break;
+			else if ('.' == c) {
+				// divide by position to make all numbers be after the comma
+				xy[1] /= pos; // TODO check that it doesn't need a *10
 			} else {
 				xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
 				pos *= 10;
