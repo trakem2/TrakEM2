@@ -424,22 +424,25 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Exports the given area as a list of SVG path elements with integers only. Only reads SEG_MOVETO, SEG_LINETO and SEG_CLOSE elements, all others ignored (but could be just as easily saved in the SVG path). */
-	static void exportArea(StringBuffer sb, String indent, Area area) {
+	static final void exportArea(final StringBuffer sb, final String indent, final Area area) {
 		// I could add detectors for straight lines and thus avoid saving so many points.
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			float[] coords = new float[6];
-			int seg_type = pit.currentSegment(coords);
-			int x0=0, y0=0;
-			switch (seg_type) {
+		final float[] coords = new float[6];
+		final float precision = 0.0001f;
+		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			switch (pit.currentSegment(coords)) {
 				case PathIterator.SEG_MOVETO:
 					//Utils.log2("SEG_MOVETO: " + coords[0] + "," + coords[1]); // one point
-					x0 = (int)coords[0];
-					y0 = (int)coords[1];
-					sb.append(indent).append("<t2_path d=\"M ").append(x0).append(" ").append(y0);
+					sb.append(indent).append("<t2_path d=\"M ");
+					M.appendShortest(coords[0], precision, sb);
+					sb.append(' ');
+					M.appendShortest(coords[1], precision, sb);
 					break;
 				case PathIterator.SEG_LINETO:
 					//Utils.log2("SEG_LINETO: " + coords[0] + "," + coords[1]); // one point
-					sb.append(" L ").append((int)coords[0]).append(" ").append((int)coords[1]);
+					sb.append(" L ");
+					M.appendShortest(coords[0], precision, sb);
+					sb.append(' ');
+					M.appendShortest(coords[1], precision, sb);
 					break;
 				case PathIterator.SEG_CLOSE:
 					//Utils.log2("SEG_CLOSE");
