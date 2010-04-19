@@ -2035,6 +2035,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			synchronized (nodedata) {
 				nodedata.remove(node);
 			}
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				Utils.revalidateComponent(frame);
+			}});
 		}
 		private void search(final String regex) {
 			final StringBuilder sb = new StringBuilder();
