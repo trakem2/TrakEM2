@@ -2397,8 +2397,7 @@ public final class FSLoader extends Loader {
 						Utils.log2("Remover: null path for Patch " + p);
 						return false;
 					}
-					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(extension).toString();
-					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, extension), width, height);
+					removeMipMaps(createIdPath(Long.toString(p.getId()), new File(path).getName(), extension), width, height);
 					flushMipMaps(p.getId());
 					return true;
 				} catch (Exception e) {
@@ -2588,8 +2587,8 @@ public final class FSLoader extends Loader {
 				Utils.log2("SUBMITTING to regen " + patch);
 				Utils.showStatus(new StringBuilder("Regenerating mipmaps (").append(n_regenerating.get()).append(" to go)").toString());
 
-				// Eliminate the jpg files in a separate thread:
-				Utils.log2("calling removeMipMaps from regenerateMipMaps");
+				// Eliminate existing mipmaps, if any, in a separate thread:
+				//Utils.log2("calling removeMipMaps from regenerateMipMaps");
 				final Future<Boolean> removing = removeMipMaps(patch);
 
 				fu = regenerator.submit(new Callable<Boolean>() {
