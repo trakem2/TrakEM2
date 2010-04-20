@@ -1410,8 +1410,9 @@ public class Project extends DBObject {
 		if (new_mipmap_format != loader.getMipMapFormat()) {
 			YesNoDialog yn = new YesNoDialog("MipMaps format", "Changing mipmaps format to '" + FSLoader.MIPMAP_FORMATS[new_mipmap_format] + "'requires regenerating all mipmaps. Proceed?");
 			if (yn.yesPressed()) {
+				final int old_mipmap_format = loader.getMipMapFormat();
 				if (loader.setMipMapFormat(new_mipmap_format)) {
-					loader.updateMipMapsFormat(loader.getMipMapFormat(), new_mipmap_format);
+					loader.updateMipMapsFormat(old_mipmap_format, new_mipmap_format);
 				}
 			}
 		}
