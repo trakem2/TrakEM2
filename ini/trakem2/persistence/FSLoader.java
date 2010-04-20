@@ -363,7 +363,7 @@ public final class FSLoader extends Loader {
 			//Utils.log2("File f is " + f);
 			Utils.log2("Removing mipmaps for " + p);
 			// Cannot run in the remover: is a daemon, and would be interrupted.
-			removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), ".jpg"), (int)p.getWidth(), (int)p.getHeight());
+			removeMipMaps(createIdPath(Long.toString(p.getId()), f.getName(), mExt), (int)p.getWidth(), (int)p.getHeight());
 		}
 		//
 		// remove empty trakem2.mipmaps folder if any
@@ -1402,6 +1402,15 @@ public final class FSLoader extends Loader {
 			Utils.log2("Now mipmaps folder is " + this.dir_mipmaps);
 			if (null != dir_masks) Utils.log2("Now masks folder is " + this.dir_masks);
 		}
+
+		final String s_mipmaps_format = (String) ht_attributes.get("mipmaps_format");
+		if (null != s_mipmaps_format) {
+			final int mipmaps_format = Integer.parseInt(s_mipmaps_format.trim());
+			if (mipmaps_format > 0 && mipmaps_format < MIPMAP_FORMATS.length) {
+				Utils.log2("Set mipmap format to " + mipmaps_format);
+				setMipMapFormat(mipmaps_format);
+			}
+		}
 	}
 
 	private void askAndExecMipmapRegeneration(final String msg) {
@@ -1453,6 +1462,7 @@ public final class FSLoader extends Loader {
 		sb_body.append(indent).append("unuid=\"").append(unuid).append("\"\n");
 		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
 		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
+		sb_body.append(indent).append("mipmaps_format=\"").append(mipmaps_format).append("\"\n");
 	}
 
 	/** Return the path to the folder containing the project XML file. */
@@ -1660,7 +1670,7 @@ public final class FSLoader extends Loader {
 	/** Given an image and its source file name (without directory prepended), generate
 	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
 	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
-	 * The Patch id and a ".jpg" extension will be appended to the filename in all cases.<br />
+	 * The Patch id and the right extension will be appended to the filename in all cases.<br />
 	 * Any equally named files will be overwritten. */
 	protected boolean generateMipMaps(final Patch patch) {
 		Utils.log2("mipmaps for " + patch);
@@ -1724,9 +1734,9 @@ public final class FSLoader extends Loader {
 			pai = null;
 			
 			// Old style:
-			//final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(".jpg").toString();
+			//final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(mExt).toString();
 			// New style:
-			final String filename = createMipMapRelPath(patch);
+			final String filename = createMipMapRelPath(patch, mExt);
 
 			int w = ip.getWidth();
 			int h = ip.getHeight();
@@ -1812,9 +1822,9 @@ public final class FSLoader extends Loader {
 				if (Thread.currentThread().isInterrupted()) return false;
 
 				// Generate level 0 first:
-				// TODO Add alpha information into the int[] pixel array or make the image visible some ohter way
-				if (!(null == alpha ? ini.trakem2.io.ImageSaver.saveAsJpeg(cp, target_dir0 + filename, 0.85f, false)
-						   : ini.trakem2.io.ImageSaver.saveAsJpegAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
+				// TODO Add alpha information into the int[] pixel array or make the image visible some other way
+				if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
+						   : mmio.saveWithAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
 					Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
 					cannot_regenerate.add(patch);
 				} else {
@@ -1855,7 +1865,7 @@ public final class FSLoader extends Loader {
 							}
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 							// 5 - Save as jpeg
-							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(cp2, target_dir + filename, 0.85f, false)) {
+							if (!mmio.save(cp2, target_dir + filename, 0.85f, false)) {
 								Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
@@ -1866,7 +1876,7 @@ public final class FSLoader extends Loader {
 								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
 							}
 							final BufferedImage bi_save = createARGBImage(w, h, pix);
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
+							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
 								Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								bi_save.flush();
@@ -1951,7 +1961,7 @@ public final class FSLoader extends Loader {
 							// If there was no alpha mask, alpha is the outside itself
 
 							final BufferedImage bi_save = createARGBImage(w, h, null == outside ? fp.getARGBPixels((float[])alpha.getPixels()) : fp.getARGBPixels((float[])alpha.getPixels(), (float[])outside.getPixels()));
-							if (!ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi_save, target_dir + filename, 0.85f)) {
+							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
 								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								bi_save.flush();
@@ -1964,7 +1974,7 @@ public final class FSLoader extends Loader {
 							if (!coordinate_transformed) ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
 							if (null != cm) ip2.setColorModel(cm); // the LUT
 
-							if (!ini.trakem2.io.ImageSaver.saveAsJpeg(ip2, target_dir + filename, 0.85f, as_grey)) {
+							if (!mmio.save(ip2, target_dir + filename, 0.85f, as_grey)) {
 								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
@@ -2013,8 +2023,8 @@ public final class FSLoader extends Loader {
 						k++;
 						// save this iteration
 						if ( ( (null != balpha || null != boutside) &&
-						      !ini.trakem2.io.ImageSaver.saveAsJpegAlpha(bi, target_dir + filename, 0.85f))
-						   || ( null == balpha && null == boutside && !ini.trakem2.io.ImageSaver.saveAsJpeg(bi, target_dir + filename, 0.85f, as_grey))) {
+						      !mmio.saveWithAlpha(bi, target_dir + filename, 0.85f))
+						   || ( null == balpha && null == boutside && !mmio.save(bi, target_dir + filename, 0.85f, as_grey))) {
 							Utils.log("Failed to save jpeg for hardware-accelerated, GRAY8, 'alpha = " + balpha + "', level = " + k  + " for  patch " + patch);
 							cannot_regenerate.add(patch);
 							break;
@@ -2182,7 +2192,7 @@ public final class FSLoader extends Loader {
 							int w = (int)pa.getWidth();
 							int h = (int)pa.getHeight();
 							int level = 0;
-							final String filename = new File(getAbsolutePath(pa)).getName() + "." + pa.getId() + ".jpg";
+							final String filename = new File(getAbsolutePath(pa)).getName() + "." + pa.getId() + mExt;
 							do {
 								w /= 2;
 								h /= 2;
@@ -2370,6 +2380,10 @@ public final class FSLoader extends Loader {
 
 	/** Gets data from the Patch and queues a new task to do the file removal in a separate task manager thread. */
 	public Future<Boolean> removeMipMaps(final Patch p) {
+		return removeMipMaps(p, mExt);
+	}
+
+	private Future<Boolean> removeMipMaps(final Patch p, final String extension) {
 		if (null == dir_mipmaps) return null;
 		// cache values before they are changed:
 		final int width = (int)p.getWidth();
@@ -2383,8 +2397,8 @@ public final class FSLoader extends Loader {
 						Utils.log2("Remover: null path for Patch " + p);
 						return false;
 					}
-					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(".jpg").toString();
-					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, ".jpg"), width, height);
+					final String filename = new StringBuilder(new File(path).getName()).append('.').append(p.getId()).append(extension).toString();
+					removeMipMaps(createIdPath(Long.toString(p.getId()), filename, extension), width, height);
 					flushMipMaps(p.getId());
 					return true;
 				} catch (Exception e) {
@@ -2429,7 +2443,7 @@ public final class FSLoader extends Loader {
 		try {
 			final String path = getAbsolutePath(patch);
 			if (null == path) return ERROR_PATH_NOT_FOUND;
-			final String filename = new File(path).getName() + ".jpg";
+			final String filename = new File(path).getName() + mExt;
 			if (isURL(dir_mipmaps)) {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
@@ -2464,7 +2478,7 @@ public final class FSLoader extends Loader {
 		if (null == dir_mipmaps) return false;
 		final int level = getMipMapLevel(magnification, maxDim(p));
 		if (isURL(dir_mipmaps)) return true; // just assume that it does
-		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + ".jpg").exists()) return true;
+		if (new File(dir_mipmaps + level + "/" + new File(getAbsolutePath(p)).getName() + "." + p.getId() + mExt).exists()) return true;
 		return false;
 	}
 
@@ -2489,16 +2503,16 @@ public final class FSLoader extends Loader {
 		}
 
 		// New style:
-		final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, ".jpg")).toString();
+		final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
 		if (patch.hasAlphaChannel()) {
-			return ImageSaver.openJpegAlpha(path);
+			return mmio.openWithAlpha(path); // ImageSaver.openJpegAlpha(path);
 		} else {
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:
 				case ImagePlus.GRAY32:
-					return ImageSaver.openGreyJpeg(path);
+					return mmio.openGrey(path); // ImageSaver.openGreyJpeg(path);
 				default:
 					// For color images: (considers URL as well)
 					IJ.redirectErrorMessages();
@@ -2531,7 +2545,7 @@ public final class FSLoader extends Loader {
 					return null;
 				}
 
-				//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + ".jpg");
+				//Utils.log2("getMipMapAwt: imp is " + imp + " for path " +  dir_mipmaps + level + "/" + new File(getAbsolutePath(patch)).getName() + "." + patch.getId() + mExt);
 
 				// Regenerate in the case of not asking for an image under 32x32
 				double scale = 1 / Math.pow(2, level);
@@ -2632,7 +2646,7 @@ public final class FSLoader extends Loader {
 				bytes_per_pixel = 1;
 				// check jpeg, which can only encode RGB (taken care of above) and 8-bit and 8-bit color images:
 				String path = ht_paths.get(p.getId());
-				if (null != path && path.endsWith(".jpg")) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
+				if (null != path && path.endsWith(mExt)) bytes_per_pixel = 5; //4 for the int[] and 1 for the byte[]
 				break;
 			default:
 				bytes_per_pixel = 5; // conservative
@@ -2714,7 +2728,7 @@ public final class FSLoader extends Loader {
 				final File f = new File(level_dir);
 				if (!f.isDirectory() || f.isHidden()) continue;
 				for (final String mm : f.list()) {
-					if (!mm.endsWith(".jpg")) continue;
+					if (!mm.endsWith(mExt)) continue;
 					// parse the mipmap file: filename + '.' + id + '.jpg'
 					int last_dot = mm.lastIndexOf('.');
 					if (-1 == last_dot) continue;
@@ -2722,7 +2736,7 @@ public final class FSLoader extends Loader {
 					String id = mm.substring(prev_last_dot+1, last_dot);
 					String filename = mm.substring(0, prev_last_dot);
 					File oldf = new File(level_dir + mm);
-					File newf = new File(new StringBuffer(new_dir_mipmaps).append(name).append('/').append(createIdPath(id, filename, ".jpg")).toString());
+					File newf = new File(new StringBuffer(new_dir_mipmaps).append(name).append('/').append(createIdPath(id, filename, mExt)).toString());
 					File fd = newf.getParentFile();
 					fd.mkdirs();
 					if (!fd.exists()) {
@@ -2787,8 +2801,8 @@ public final class FSLoader extends Loader {
 	}
 
 	/** For Patch id=12345 creates 12/34/5.${filename}.jpg */
-	static public final String createMipMapRelPath(final Patch p) {
-		return createIdPath(Long.toString(p.getId()), new File(p.getCurrentPath()).getName(), ".jpg");
+	static public final String createMipMapRelPath(final Patch p, final String ext) {
+		return createIdPath(Long.toString(p.getId()), new File(p.getCurrentPath()).getName(), ext);
 	}
 
 	/** For sid=12345 creates 12/34/5.${filename}.jpg
@@ -2933,6 +2947,135 @@ public final class FSLoader extends Loader {
 			}
 		}
 	}
-	
 
+
+
+	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png"};
+	static public final int MIPMAP_JPEG = 0;
+	static public final int MIPMAP_PNG = 1;
+
+	static private final int MIPMAP_HIGHEST = 1; // WARNING: update this value if other formats are added
+
+	// Default: JPEG
+	private int mipmaps_format = MIPMAP_JPEG;
+	private String mExt = MIPMAP_FORMATS[mipmaps_format]; // the extension currently in use
+	private RWImage mmio = new RWImageJPG();
+
+	private RWImage newMipMapRWImage() {
+		switch (this.mipmaps_format) {
+			case MIPMAP_JPEG:
+				return new RWImageJPG();
+			case MIPMAP_PNG:
+				return new RWImagePNG();
+			// WARNING add here another one
+		}
+		return null;
+	}
+
+	/** Any of: MIPMAP_JPEG, MIPMAP_PNG */
+	@Override
+	public final int getMipMapFormat() {
+		return mipmaps_format;
+	}
+
+	@Override
+	public final boolean setMipMapFormat(final int format) {
+		switch (format) {
+			case MIPMAP_JPEG:
+			case MIPMAP_PNG:
+				this.mipmaps_format = format;
+				this.mExt = MIPMAP_FORMATS[mipmaps_format];
+				this.mmio = newMipMapRWImage();
+				return true;
+			default:
+				Utils.log("Ignoring unknown mipmap format: " + format);
+				return false;
+		}
+	}
+
+	/** Removes all mipmap files and recreates them with the currently set mipmaps format.
+	 *  @param old_format Any of MIPMAP_JPEG, MIPMAP_PNG in which files were saved before. */
+	@Override
+	public Bureaucrat updateMipMapsFormat(final int old_format, final int new_format) {
+		if (old_format < 0 || old_format > MIPMAP_HIGHEST) {
+			Utils.log("Invalid old format for mipmaps!");
+			return null;
+		}
+		if (!setMipMapFormat(new_format)) {
+			Utils.log("Invalid new format for mipmaps!");
+			return null;
+		}
+		final Project project = Project.findProject(FSLoader.this);
+		return Bureaucrat.createAndStart(new Worker.Task("Updating mipmaps format") {
+			public void exec() {
+				try {
+					final List<Future> fus = new ArrayList<Future>();
+					final String ext = MIPMAP_FORMATS[old_format];
+					for (Layer la : project.getRootLayerSet().getLayers()) {
+						for (Displayable p : la.getDisplayables(Patch.class)) {
+							fus.add(removeMipMaps((Patch)p, ext));
+						}
+					}
+					Utils.wait(fus);
+					fus.clear();
+					for (Layer la : project.getRootLayerSet().getLayers()) {
+						for (Displayable p : la.getDisplayables(Patch.class)) {
+							fus.add(regenerateMipMaps((Patch)p));
+						}
+					}
+					Utils.wait(fus);
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			}
+		}, project);
+	}
+
+	private abstract class RWImage {
+		abstract boolean save(ImageProcessor ip, String path, float quality, boolean as_grey);
+		abstract boolean save(BufferedImage ip, String path, float quality, boolean as_grey);
+		abstract boolean saveWithAlpha(Image awt, String path, float quality);
+		abstract boolean saveWithAlpha(BufferedImage bi, String path, float quality);
+		final BufferedImage open(final String path) {
+			return ImageSaver.openImage(path, false);
+		}
+		final BufferedImage openWithAlpha(String path) {
+			return ImageSaver.openImage(path, true);
+		}
+		abstract BufferedImage openGrey(String path);
+	}
+	private class RWImageJPG extends RWImage {
+		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
+			return ImageSaver.saveAsJpeg(ip, path, quality, as_grey);
+		}
+		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
+			return ImageSaver.saveAsJpeg(bi, path, quality, as_grey);
+		}
+		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
+			return ImageSaver.saveAsJpegAlpha(awt, path, quality);
+		}
+		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
+			return ImageSaver.saveAsJpegAlpha(bi, path, quality);
+		}
+		final BufferedImage openGrey(final String path) {
+			return ImageSaver.openJpeg(path, true);
+		}
+	}
+	private class RWImagePNG extends RWImage {
+		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
+			return ImageSaver.saveAsPNG(ip, path);
+		}
+		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
+			return ImageSaver.saveAsPNG(bi, path);
+		}
+		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
+			return ImageSaver.saveAsPNG(awt, path);
+		}
+		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
+			return ImageSaver.saveAsPNG(bi, path);
+		}
+		BufferedImage openGrey(final String path) {
+			return ImageSaver.openGreyImage(path);
+		}
+	}
 }

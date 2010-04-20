@@ -4630,4 +4630,13 @@ while (it.hasNext()) {
 		ex.shutdown();
 		return new ImagePlus("Fly-Through", stack);
 	}
+
+	/** Does nothing unless overriden. */
+	public boolean setMipMapFormat(int format) { return false; }
+
+	/** Does nothing unless overriden. */
+	public int getMipMapFormat() { return -1; }
+
+	/** Does nothing unless overriden. */
+	public Bureaucrat updateMipMapsFormat(int old_format, int new_format) { return null; }
 }

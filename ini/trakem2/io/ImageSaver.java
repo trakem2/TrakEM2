@@ -433,17 +433,51 @@ public class ImageSaver {
 
 	/** Open a jpeg file including the alpha channel if it has one. */
 	static public BufferedImage openJpegAlpha(final String path) {
+		return openImage(path, true);
+	}
+
+	/** Open an image file including the alpha channel if it has one; will open JPEG, PNG and BMP.
+	 *  @param ensure_premultiplied_alpha when true, ALWAYS puts the loaded image into a TYPE_INT_ARGB_PRE, which ensures for example PNG images with an alpha channel but of TYPE_CUSTOM to be premultiplied as well. */
+	static public BufferedImage openImage(final String path, final boolean ensure_premultiplied_alpha) {
 		synchronized (getPathLock(path)) {
 			try {
 				final BufferedImage img = ImageIO.read(new File(path));
-				BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
-				imgPre.createGraphics().drawImage( img, 0, 0, null );
-				img.flush();
-				return imgPre;
+				if (ensure_premultiplied_alpha || img.getType() == BufferedImage.TYPE_INT_ARGB) {
+					// Premultiply alpha, for speed (makes a huge difference)
+					final BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+					imgPre.createGraphics().drawImage( img, 0, 0, null );
+					img.flush();
+					return imgPre;
+				}
+				return img;
 			} catch (FileNotFoundException fnfe) {
-				Utils.log2("openJpegAlpha: Path not found: " + path);
+				Utils.log2("openImage: Path not found: " + path);
 			} catch (Exception e) {
-				Utils.log2("openJpegAlpha: cannot open " + path);
+				Utils.log2("openImage: cannot open " + path);
+				//IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return null;
+	}
+
+	static public BufferedImage openGreyImage(final String path) {
+		synchronized (getPathLock(path)) {
+			try {
+				final BufferedImage bi = ImageIO.read(new File(path));
+				if (bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
+					final BufferedImage grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+					grey.createGraphics().drawImage(bi, 0, 0, null);
+					bi.flush();
+					return grey;
+				}
+				return bi;
+
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("openImage: Path not found: " + path);
+			} catch (Exception e) {
+				Utils.log2("openImage: cannot open " + path);
 				//IJError.print(e, true);
 			} finally {
 				removePathLock(path);
@@ -490,5 +524,85 @@ public class ImageSaver {
 		// 1) check if 8-bit images can also be jpegs with an alpha channel: they can't
 		// 2) check if ImagePlus preserves the alpha channel as well: it doesn't
 	}
+
+	static public final boolean saveAsPNG(final ImageProcessor ip, final String path) {
+		Image awt = null;
+		try {
+			awt = ip.createImage();
+			return ImageSaver.saveAsPNG(awt, path);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		} finally {
+			if (null != awt) awt.flush();
+		}
+	}
+
+	static public final boolean saveAsPNG(final Image awt, final String path) {
+		try {
+			BufferedImage bi = null;
+			if (awt instanceof BufferedImage) {
+				bi = (BufferedImage)awt;
+			} else {
+				bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+				bi.createGraphics().drawImage(awt, 0, 0, null);
+			}
+			return saveAsPNG(bi, path);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+	}
+
+	/** Save a PNG with or without alpha channel with default compression at maximum level (9, expressed as 0 in the ImageWriter compression quality because 0 indicates "maximum compression is important").*/
+	static public final boolean saveAsPNG(final BufferedImage awt, final String path) {
+		if (!checkPath(path)) return false;
+		synchronized (getPathLock(path)) {
+			try {
+				// java.lang.UnsupportedOperationException: Compression not supported (!)
+				/*
+				// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression level for a PNG
+				ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next(); // just the first one
+				if (null != writer) {
+					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all PNG specs in it
+					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+					iwp.setCompressionQuality(0); // <---------------------------------------------------------- THIS IS ALL I WANTED
+					writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
+					writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					return true;
+				}
+				*/
+
+				// If the above doesn't find any, magically do it anyway without setting the compression quality:
+				return ImageIO.write(awt, "png", new File(path));
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("saveAsPng: Path not found: " + path);
+			} catch (Exception e) {
+				IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return false;
+	}
+
+	/** WARNING fails when there is an alpha channel: generates an empty file. */
+	/*
+	static public final boolean saveAsBMP(final BufferedImage awt, final String path) {
+		if (!checkPath(path)) return false;
+		synchronized (getPathLock(path)) {
+			try {
+				return ImageIO.write(awt, "bmp", new File(path));
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("saveAsPng: Path not found: " + path);
+			} catch (Exception e) {
+				IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return false;
+	}
+	*/
 
 }

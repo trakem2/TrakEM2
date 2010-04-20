@@ -1373,6 +1373,7 @@ public class Project extends DBObject {
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
@@ -1404,6 +1405,17 @@ public class Project extends DBObject {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+
+		final int new_mipmap_format = gd.getNextChoiceIndex();
+		if (new_mipmap_format != loader.getMipMapFormat()) {
+			YesNoDialog yn = new YesNoDialog("MipMaps format", "Changing mipmaps format to '" + FSLoader.MIPMAP_FORMATS[new_mipmap_format] + "'requires regenerating all mipmaps. Proceed?");
+			if (yn.yesPressed()) {
+				if (loader.setMipMapFormat(new_mipmap_format)) {
+					loader.updateMipMapsFormat(loader.getMipMapFormat(), new_mipmap_format);
+				}
+			}
+		}
+
 		boolean layer_mipmaps2 = gd.getNextBoolean();
 		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
 			if (layer_mipmaps && !layer_mipmaps2) {
