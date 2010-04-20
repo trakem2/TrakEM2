@@ -1407,10 +1407,10 @@ public class Project extends DBObject {
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
 
 		final int new_mipmap_format = gd.getNextChoiceIndex();
-		if (new_mipmap_format != loader.getMipMapFormat()) {
+		final int old_mipmap_format = loader.getMipMapFormat();
+		if (new_mipmap_format != old_mipmap_format) {
 			YesNoDialog yn = new YesNoDialog("MipMaps format", "Changing mipmaps format to '" + FSLoader.MIPMAP_FORMATS[new_mipmap_format] + "'requires regenerating all mipmaps. Proceed?");
 			if (yn.yesPressed()) {
-				final int old_mipmap_format = loader.getMipMapFormat();
 				if (loader.setMipMapFormat(new_mipmap_format)) {
 					loader.updateMipMapsFormat(old_mipmap_format, new_mipmap_format);
 				}
