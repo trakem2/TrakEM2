@@ -1403,7 +1403,7 @@ public final class FSLoader extends Loader {
 			if (null != dir_masks) Utils.log2("Now masks folder is " + this.dir_masks);
 		}
 
-		final String s_mipmaps_format = (String) ht_attributes.get("mipmaps_format");
+		final String s_mipmaps_format = (String) ht_attributes.remove("mipmaps_format");
 		if (null != s_mipmaps_format) {
 			final int mipmaps_format = Integer.parseInt(s_mipmaps_format.trim());
 			if (mipmaps_format > 0 && mipmaps_format < MIPMAP_FORMATS.length) {
