@@ -2950,11 +2950,12 @@ public final class FSLoader extends Loader {
 
 
 
-	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png"};
+	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif"};
 	static public final int MIPMAP_JPEG = 0;
 	static public final int MIPMAP_PNG = 1;
+	static public final int MIPMAP_TIFF = 2;
 
-	static private final int MIPMAP_HIGHEST = 1; // WARNING: update this value if other formats are added
+	static private final int MIPMAP_HIGHEST = MIPMAP_TIFF; // WARNING: update this value if other formats are added
 
 	// Default: JPEG
 	private int mipmaps_format = MIPMAP_JPEG;
@@ -2967,6 +2968,8 @@ public final class FSLoader extends Loader {
 				return new RWImageJPG();
 			case MIPMAP_PNG:
 				return new RWImagePNG();
+			case MIPMAP_TIFF:
+				return new RWImageTIFF();
 			// WARNING add here another one
 		}
 		return null;
@@ -2983,6 +2986,7 @@ public final class FSLoader extends Loader {
 		switch (format) {
 			case MIPMAP_JPEG:
 			case MIPMAP_PNG:
+			case MIPMAP_TIFF:
 				this.mipmaps_format = format;
 				this.mExt = MIPMAP_FORMATS[mipmaps_format];
 				this.mmio = newMipMapRWImage();
@@ -3036,15 +3040,11 @@ public final class FSLoader extends Loader {
 		abstract boolean save(BufferedImage ip, String path, float quality, boolean as_grey);
 		abstract boolean saveWithAlpha(Image awt, String path, float quality);
 		abstract boolean saveWithAlpha(BufferedImage bi, String path, float quality);
-		final BufferedImage open(final String path) {
-			return ImageSaver.openImage(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
-			return ImageSaver.openImage(path, true);
-		}
+		abstract BufferedImage open(final String path);
+		abstract BufferedImage openWithAlpha(String path);
 		abstract BufferedImage openGrey(String path);
 	}
-	private class RWImageJPG extends RWImage {
+	private final class RWImageJPG extends RWImage {
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsJpeg(ip, path, quality, as_grey);
 		}
@@ -3057,11 +3057,17 @@ public final class FSLoader extends Loader {
 		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
 			return ImageSaver.saveAsJpegAlpha(bi, path, quality);
 		}
+		final BufferedImage open(final String path) {
+			return ImageSaver.openImage(path, false);
+		}
+		final BufferedImage openWithAlpha(String path) {
+			return ImageSaver.openImage(path, true);
+		}
 		final BufferedImage openGrey(final String path) {
 			return ImageSaver.openJpeg(path, true);
 		}
 	}
-	private class RWImagePNG extends RWImage {
+	private final class RWImagePNG extends RWImage {
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsPNG(ip, path);
 		}
@@ -3074,8 +3080,37 @@ public final class FSLoader extends Loader {
 		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
 			return ImageSaver.saveAsPNG(bi, path);
 		}
-		BufferedImage openGrey(final String path) {
+		final BufferedImage open(final String path) {
+			return ImageSaver.openImage(path, false);
+		}
+		final BufferedImage openWithAlpha(String path) {
+			return ImageSaver.openImage(path, true);
+		}
+		final BufferedImage openGrey(final String path) {
 			return ImageSaver.openGreyImage(path);
+		}
+	}
+	private final class RWImageTIFF extends RWImage {
+		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
+			return ImageSaver.saveAsTIFF(ip, path, as_grey);
+		}
+		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
+			return ImageSaver.saveAsTIFF(bi, path, as_grey);
+		}
+		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
+			return ImageSaver.saveAsTIFF(awt, path, false);
+		}
+		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
+			return ImageSaver.saveAsTIFF(bi, path, false);
+		}
+		final BufferedImage openGrey(final String path) {
+			return ImageSaver.openGreyTIFF(path);
+		}
+		final BufferedImage open(final String path) {
+			return ImageSaver.openTIFF(path, false);
+		}
+		final BufferedImage openWithAlpha(String path) {
+			return ImageSaver.openTIFF(path, true);
 		}
 	}
 }
