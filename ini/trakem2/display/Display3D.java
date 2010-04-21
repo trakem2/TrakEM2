@@ -90,7 +90,7 @@ public final class Display3D {
 	private int resample = -1; // unset
 	static private final int DEFAULT_RESAMPLE = 4;
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
-	private double scale = 1.0; // OBSOLETE
+	private final double scale = 1.0; // OBSOLETE: meshes are now generated with imglib ShapeList images.
 
 	private String selected = null;
 
