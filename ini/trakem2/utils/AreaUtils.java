@@ -72,7 +72,7 @@ public final class AreaUtils {
 			// incorporate resampling scaling into the transform
 			final AffineTransform atK = new AffineTransform();
 			//Utils.log("resample: " + resample + "  scale: " + scale);
-			final double K = (1.0 / resample); //  NO NEED with imglib:  * scale; // 'scale' is there to limit gigantic universes
+			final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
 			atK.scale(K, K);
 			aff.preConcatenate(atK);
 
@@ -153,13 +153,13 @@ public final class AreaUtils {
 			final int i_first_layer = layer_set.indexOf(first_layer);
 
 			// The x,y translation to correct each point by:
-			final float dx = (float)(r.x * /* scale * */ cal.pixelWidth);  // no need to scale with imglib
-			final float dy = (float)(r.y * /* scale * */ cal.pixelHeight);
+			final float dx = (float)(r.x * scale * cal.pixelWidth);
+			final float dy = (float)(r.y * scale * cal.pixelHeight);
 
 			// Correct x,y by resampling and calibration, but not scale
 			final float rsw = (float)(resample * cal.pixelWidth);  // scale is already in the pixel coordinates
 			final float rsh = (float)(resample * cal.pixelHeight);
-			final double sz = /* scale * */ cal.pixelWidth; // no resampling in Z. and Uses pixelWidth, not pixelDepth.
+			final double sz = scale * cal.pixelWidth; // no resampling in Z. and Uses pixelWidth, not pixelDepth.
 
 
 			// debug:
