@@ -72,7 +72,7 @@ public final class AreaUtils {
 			// incorporate resampling scaling into the transform
 			final AffineTransform atK = new AffineTransform();
 			//Utils.log("resample: " + resample + "  scale: " + scale);
-			final double K = (1.0 / resample) * scale; // 'scale' is there to limit gigantic universes
+			final double K = (1.0 / resample); //  NO NEED with imglib:  * scale; // 'scale' is there to limit gigantic universes
 			atK.scale(K, K);
 			aff.preConcatenate(atK);
 
@@ -149,17 +149,17 @@ public final class AreaUtils {
 			// So all x,y,z must be corrected in x,y and z of the proper layer
 
 
-			final double offset = first_layer.getZ();
+			//final double offset = first_layer.getZ();
 			final int i_first_layer = layer_set.indexOf(first_layer);
 
 			// The x,y translation to correct each point by:
-			final float dx = (float)(r.x * scale * cal.pixelWidth);
-			final float dy = (float)(r.y * scale * cal.pixelHeight);
+			final float dx = (float)(r.x * /* scale * */ cal.pixelWidth);  // no need to scale with imglib
+			final float dy = (float)(r.y * /* scale * */ cal.pixelHeight);
 
 			// Correct x,y by resampling and calibration, but not scale
 			final float rsw = (float)(resample * cal.pixelWidth);  // scale is already in the pixel coordinates
 			final float rsh = (float)(resample * cal.pixelHeight);
-			final double sz = scale * cal.pixelWidth; // no resampling in Z. and Uses pixelWidth, not pixelDepth.
+			final double sz = /* scale * */ cal.pixelWidth; // no resampling in Z. and Uses pixelWidth, not pixelDepth.
 
 
 			// debug:
@@ -223,7 +223,7 @@ public final class AreaUtils {
 			}
 
 			// The last set of vertices to process:
-			// Do the last layer again, capturing from slice_index+1 to +2, since the last layer has two Z planes in which it has pixels:
+			// Do the last layer again. The last layer has two Z planes in which it has pixels:
 			try {
 				// Capture from last_section_index to last_section_index+1, inclusive
 				fix3DPoints(list, output, verts, last_layer.getZ() + last_layer.getThickness(), 0, slice_index, dx, dy, rsw, rsh, sz, 2);

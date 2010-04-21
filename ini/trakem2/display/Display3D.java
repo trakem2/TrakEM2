@@ -90,7 +90,7 @@ public final class Display3D {
 	private int resample = -1; // unset
 	static private final int DEFAULT_RESAMPLE = 4;
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
-	private double scale = 1.0;
+	private double scale = 1.0; // OBSOLETE
 
 	private String selected = null;
 
@@ -112,9 +112,10 @@ public final class Display3D {
 	/** Defaults to parallel projection. */
 	private Display3D(final LayerSet ls) {
 		this.layer_set = ls;
+		this.width = ls.getLayerWidth();
+		this.height = ls.getLayerHeight();
 		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PERSPECTIVE_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
-		computeScale(ls);
 		this.universe.show();
 		this.universe.getWindow().addWindowListener(new IW3DListener(this, ls));
 		this.universe.getWindow().setTitle(ls.getProject().toString() + " -- 3D Viewer");
@@ -248,26 +249,6 @@ public final class Display3D {
 		}
 		return null;
 	}
-
-	/** If the layer set is too large in width and height, then set a scale that makes it maximum max_dimension in any of the two dimensions. */
-	private void computeScale(LayerSet ls) {
-		this.width = ls.getLayerWidth();
-		this.height = ls.getLayerHeight();
-		int max_dimension = ls.getPixelsMaxDimension();
-		if (width > max_dimension) {
-			scale = max_dimension / width;
-			height *= scale;
-			width = max_dimension;
-		}
-		if (height > max_dimension) {
-			scale = max_dimension / height;
-			width *= scale;
-			height = max_dimension;
-		}
-		//Utils.log2("scale, width, height: " + scale + ", " + width + ", " + height);
-	}
-
-	public double getScale() { return scale; }
 
 	static private boolean check_j3d = true;
 	static private boolean has_j3d_3dviewer = false;
@@ -667,7 +648,7 @@ public final class Display3D {
 	/** Returns a function that returns a Content object.
 	 *  Does NOT add the Content to the universe; it merely creates it. */
 	private Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
-		final double scale = this.scale;
+		final double scale = 1.0; // OBSOLETE
 		return new Callable<Content>() {
 			public Content call() {
 				Thread.currentThread().setPriority(Thread.NORM_PRIORITY);
@@ -930,14 +911,23 @@ public final class Display3D {
 		return fu;
 	}
 
-	// This method has the exclusivity in adjusting the resampling value.
+	/** Estimate a scaling factor, to be used as a multiplier of the suggested default resampling. */
+	private final double estimateScale() {
+		final int max_dimension = this.layer_set.getPixelsMaxDimension();
+		return Math.max(width, height) > max_dimension ?
+			  max_dimension / Math.max(width, height)
+			: 1;
+	}
+
+	// This method has the exclusivity in adjusting the resampling value, and it also returns it.
 	synchronized private final int adjustResampling() {
 		if (resample > 0) return resample;
 		final GenericDialog gd = new GenericDialog("Resample");
-		gd.addSlider("Resample: ", 1, 20, -1 != resample ? resample : DEFAULT_RESAMPLE);
+		final int default_resample = (int)(DEFAULT_RESAMPLE * estimateScale());
+		gd.addSlider("Resample: ", 1, Math.max(default_resample, 100), -1 != resample ? resample : default_resample);
 		gd.showDialog();
 		if (gd.wasCanceled()) {
-			resample = -1 != resample ? resample : DEFAULT_RESAMPLE; // current or default value
+			resample = -1 != resample ? resample : default_resample; // current or default value
 			return resample;
 		}
 		resample = ((java.awt.Scrollbar)gd.getSliders().get(0)).getValue();
