@@ -923,7 +923,7 @@ public final class Display3D {
 	synchronized private final int adjustResampling() {
 		if (resample > 0) return resample;
 		final GenericDialog gd = new GenericDialog("Resample");
-		final int default_resample = (int)(DEFAULT_RESAMPLE * estimateScale());
+		final int default_resample = (int)(DEFAULT_RESAMPLE / estimateScale());
 		gd.addSlider("Resample: ", 1, Math.max(default_resample, 100), -1 != resample ? resample : default_resample);
 		gd.showDialog();
 		if (gd.wasCanceled()) {
