@@ -13,6 +13,9 @@ public class PhaseCorrelationCalculator
 	
 	public <T extends RealType<T>, S extends RealType<S>> PhaseCorrelationCalculator( ImagePlus imp1, ImagePlus imp2 )
 	{
+		ij.IJ.run(imp1, "Enhance Contrast", "saturated=0.4 normalize");
+		ij.IJ.run(imp2, "Enhance Contrast", "saturated=0.4 normalize");
+		
 		Image<T> img1 = ImagePlusAdapter.wrap( imp1 );
 		Image<S> img2 = ImagePlusAdapter.wrap( imp2 );
 		

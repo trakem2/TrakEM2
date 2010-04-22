@@ -738,7 +738,7 @@ public class StitchingTEM {
 		public float overlap = 0.1f;
 		public boolean hide_disconnected = false;
 		public boolean remove_disconnected = false;
-		public float mean_factor = 2.5f;
+		public float mean_factor = 3.5f;
 		public float min_R = 0.3f;
 
 		public PhaseCorrelationParam(
@@ -954,7 +954,12 @@ public class StitchingTEM {
 		boolean proceed = true;
 		while ( proceed )
 		{
-			Align.optimizeTileConfiguration( new Align.ParamOptimize(), tiles, fixed_tiles );
+			Align.ParamOptimize paramOptimize = new Align.ParamOptimize();
+			paramOptimize.maxEpsilon = 10;
+			paramOptimize.maxIterations = 2000;
+			paramOptimize.maxPlateauwidth = 200;
+			
+			Align.optimizeTileConfiguration( paramOptimize, tiles, fixed_tiles );
 			
 			/* get all transfer errors */
 			final ErrorStatistic e = new ErrorStatistic( tiles.size() + 1 );
