@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.awt.event.MouseEvent;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import javax.vecmath.Point3f;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
@@ -655,6 +656,35 @@ public class Connector extends ZDisplayable implements VectorData {
 			rt.addValue(5, radius[i] * cal.pixelWidth);
 		}
 		return rt;
+	}
+
+	public boolean isEmpty() {
+		return null == lids || 0 == lids.length;
+	}
+
+	public Point3f getOriginPoint(final boolean calibrated) {
+		if (null == lids || 0 == lids.length) return null;
+		return getPoint(0, calibrated);
+	}
+
+	private final Point3f getPoint(final int i, final boolean calibrated) {
+		final Calibration cal = layer_set.getCalibration();
+		final float[] xy = new float[]{p[i+i], p[i+i+1]};
+		this.at.transform(xy, 0, xy, 0, 1);
+		return calibrated ?
+			new Point3f(xy[0] * (float)cal.pixelWidth,
+				    xy[1] * (float)cal.pixelHeight,
+				    (float)(layer_set.getLayer(lids[i]).getZ() * cal.pixelWidth))
+			: new Point3f(xy[0], xy[1], (float)layer_set.getLayer(lids[i]).getZ());
+	}
+
+	public List<Point3f> getTargetPoints(final boolean calibrated) {
+		if (null == lids || 0 == lids.length) return null;
+		final List<Point3f> targets = new ArrayList<Point3f>(lids.length);
+		for (int i=1; i<lids.length; i++) {
+			targets.add(getPoint(i, calibrated));
+		}
+		return targets;
 	}
 
 	public String getInfo() {
