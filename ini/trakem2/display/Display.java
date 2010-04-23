@@ -4334,9 +4334,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		} else if (command.equals("Unlink all")) {
 			if (Utils.check("Really unlink all objects from all layers?")) {
-				for (final Displayable d : layer.getParent().getDisplayables()) {
+				Collection<Displayable> ds = layer.getParent().getDisplayables();
+				for (final Displayable d : ds) {
 					d.unlink();
 				}
+				Display.updateCheckboxes(ds, DisplayablePanel.LOCK_STATE);
 			}
 		} else if (command.equals("Calibration...")) {
 			try {
