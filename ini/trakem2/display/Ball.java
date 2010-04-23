@@ -1122,7 +1122,7 @@ public class Ball extends ZDisplayable implements VectorData {
 						fp[0] = (float)(ox + p_width[i]);
 						fp[1] = (float)oy;
 						rt.ct.applyInPlace(fp);
-						p_width[i] = Math.abs(fp[0] - p[0][i]);
+						p_width[i] = Math.sqrt(Math.pow(fp[0] - p[0][i], 2) + Math.pow(fp[1] - p[1][i], 2));
 						break;
 					}
 				}
