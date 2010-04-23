@@ -629,7 +629,7 @@ public final class M {
 		p[1][i] = fp[1];
 	}
 
-	/** The @param ict is expected to transform this data as if this data was expressed in world coordinates,
+	/** The @param ict is expected to transform the data as if this data was expressed in world coordinates,
 	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
 	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
 		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
