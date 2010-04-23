@@ -1581,7 +1581,9 @@ public final class Patch extends Displayable implements ImageData {
 			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
 			final AffineTransform aff = new AffineTransform(this.at);
-			// MUST correct for mesh translation
+			// For reasons beyond my understanding, must correct for mesh translation
+			// (The correction is already done in this.at affine, and yet it needs it.)
+			// (In the case with alpha mask, above, it doesn't need the correction. Doesn't make sense to me.)
 			aff.translate(-box.x, -box.y);
 			final AffineModel2D affm = new AffineModel2D();
 			affm.set(aff);
