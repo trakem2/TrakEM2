@@ -577,7 +577,8 @@ final public class AlignTask
 							// The props.ct is a CoordinateTransform, not necessarily an InvertibleCoordinateTransform
 							// So the mesh is necessary to ensure the invertibility
 							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
-							/*
+							/* // Apparently not needed; the inverse affine in step 1 took care of it.
+							 * // (the affine of step 1 includes the mesh translation)
 							Rectangle box = mesh.getBoundingBox();
 							AffineModel2D aff = new AffineModel2D();
 							aff.set(new AffineTransform(1, 0, 0, 1, box.x, box.y));
@@ -591,7 +592,7 @@ final public class AlignTask
 						if (null != ct) {
 							tlist.add(ct);
 							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, 32, patch.getOWidth(), patch.getOHeight());
-							// correct for mesh bounds -- shouldn't need to ...
+							// correct for mesh bounds -- Necessary because it comes from the other side, and the removal of the translation here is re-added by the affine in step 4!
 							Rectangle box = mesh.getBoundingBox();
 							AffineModel2D aff = new AffineModel2D();
 							aff.set(new AffineTransform(1, 0, 0, 1, -box.x, -box.y));
