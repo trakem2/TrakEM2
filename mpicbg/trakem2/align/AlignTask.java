@@ -6,6 +6,7 @@ package mpicbg.trakem2.align;
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -554,10 +555,57 @@ final public class AlignTask
 						// 1 - an inverted transform from Patch coords to world coords
 						// 2 - the CoordinateTransform of the Patch, if any
 						// 3 - the AffineTransform of the Patch
+						//
+						// The idea is to first send the data from world to pixel space of the Patch, using the old transfroms,
+						// and then from pixel space of the Patch to world, using the new transforms.
+				
 
+						final CoordinateTransformList tlist = new CoordinateTransformList();
+						// 1. Inverse of the old affine: from world into the old patch mipmap
+						final mpicbg.models.AffineModel2D aff_inv = new mpicbg.models.AffineModel2D();
+						try {
+							aff_inv.set(props.at.createInverse());
+						} catch (NoninvertibleTransformException nite) {
+							Utils.log("ERROR: could not invert the affine transform for Patch " + patch);
+							IJError.print(nite);
+							continue;
+						}
+						tlist.add(aff_inv);
+
+						// 2. Inverse of the old coordinate transform of the Patch: from old mipmap to pixels in original image
+						if (null != props.ct) {
+							// The props.ct is a CoordinateTransform, not necessarily an InvertibleCoordinateTransform
+							// So the mesh is necessary to ensure the invertibility
+							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
+							/*
+							Rectangle box = mesh.getBoundingBox();
+							AffineModel2D aff = new AffineModel2D();
+							aff.set(new AffineTransform(1, 0, 0, 1, box.x, box.y));
+							tlist.add(aff);
+							*/
+							tlist.add(new InverseICT(mesh));
+						}
+
+						// 3. New coordinate transform of the Patch: from original image to new mipmap
+						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
+						if (null != ct) {
+							tlist.add(ct);
+							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, 32, patch.getOWidth(), patch.getOHeight());
+							// correct for mesh bounds -- shouldn't need to ...
+							Rectangle box = mesh.getBoundingBox();
+							AffineModel2D aff = new AffineModel2D();
+							aff.set(new AffineTransform(1, 0, 0, 1, -box.x, -box.y));
+							tlist.add(aff);
+						}
+
+						// 4. New affine transform of the Patch: from mipmap to world
+						final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
+						new_aff.set(patch.getAffineTransform());
+						tlist.add(new_aff);
+
+						/*
 						// TODO Consider caching the tlist for each Patch, or for a few thousand of them maximum.
 						//      But it could blow up memory astronomically.
-						final CoordinateTransformList tlist = new CoordinateTransformList();
 
 						// The old part:
 						final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
@@ -577,6 +625,7 @@ final public class AlignTask
 						tlist.add(new_aff);
 						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
 						if (null != ct) tlist.add(ct);
+						*/
 
 						vdt.add(a, tlist);
 					}
@@ -1281,7 +1330,7 @@ final public class AlignTask
 				try {
 					at.concatenate(patch.getAffineTransform().createInverse());
 					patch.transform(at);
-				} catch (java.awt.geom.NoninvertibleTransformException nite) {
+				} catch (NoninvertibleTransformException nite) {
 					IJError.print(nite);
 				}
 				break;
