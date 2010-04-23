@@ -1578,9 +1578,27 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != ct) {
 			final CoordinateTransformList t = new CoordinateTransformList();
 			t.add(ct);
-			AffineModel2D aff = new AffineModel2D();
-			aff.set(this.at);
-			t.add(aff);
+			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final Rectangle box = mesh.getBoundingBox();
+			final AffineTransform aff = new AffineTransform(this.at);
+			// MUST correct for mesh translation
+			aff.translate(-box.x, -box.y);
+			final AffineModel2D affm = new AffineModel2D();
+			affm.set(aff);
+			t.add(affm);
+
+
+			/*
+			 * WORKS FINE, but for points that fall outside the mesh, they don't get transformed!
+			// Do it like Patch does it to generate the mipmap, with a mesh (and all the imprecisions of a mesh):
+			final CoordinateTransformList t = new CoordinateTransformList();
+			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final AffineTransform aff = new AffineTransform(this.at);
+			t.add(mesh);
+			final AffineModel2D affm = new AffineModel2D();
+			affm.set(aff);
+			t.add(affm);
+			*/
 
 			final float[] f = new float[]{x[0], y[0]};
 			t.applyInPlace(f);
