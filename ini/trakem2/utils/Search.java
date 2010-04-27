@@ -207,6 +207,9 @@ public class Search {
 			// Should not happen
 			return;
 		}
+		Bureaucrat.createAndStart(new Worker.Task("Searching") {
+			public void exec() {
+
 		String pattern = search_field.getText();
 		if (null == pattern || 0 == pattern.length()) {
 			return;
@@ -231,7 +234,10 @@ public class Search {
 		final Vector v_txt = new Vector();
 		final Vector v_co = new Vector();
 		Coordinate co = null;
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
+		for (final Iterator it = al.iterator(); it.hasNext(); ) {
+			if (Thread.currentThread().isInterrupted()) {
+				return;
+			}
 			final DBObject dbo = (DBObject)it.next();
 			boolean matched = false;
 			// Search in its title
@@ -324,6 +330,8 @@ public class Search {
 		search_tabs.addTab(typed_pattern, jsp);
 		search_tabs.setSelectedComponent(jsp);
 		search_frame.pack();
+
+		}}, project);
 	}
 
 	private Coordinate<Node> createCoordinate(Tree tree, Node nd) {
