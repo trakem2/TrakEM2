@@ -1943,7 +1943,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// Else:
 		switch (keyCode) {
 			case KeyEvent.VK_G:
-				if (browseToNodeLayer()) {
+				if (browseToNodeLayer(ke.isShiftDown())) {
 					ke.consume();
 				}
 				break;
@@ -2777,7 +2777,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	private boolean browseToNodeLayer() {
+	private boolean browseToNodeLayer(final boolean is_shift_down) {
 		// find visible instances of Tree that are currently painting in the canvas
 		final Collection<ZDisplayable> col = display.getLayerSet().getZDisplayables(Treeline.class);
 		col.addAll(display.getLayerSet().getZDisplayables(AreaTree.class));
@@ -2789,6 +2789,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null != nd) {
 				display.toLayer(nd.la);
 				t.setLastVisited(nd);
+				if (!is_shift_down) display.getSelection().clear();
 				display.getSelection().add(t);
 				switch (ProjectToolbar.getToolId()) {
 					case ProjectToolbar.PEN:
