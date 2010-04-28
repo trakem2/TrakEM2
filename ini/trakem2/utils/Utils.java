@@ -53,6 +53,7 @@ import java.awt.Checkbox;
 import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.Font;
@@ -78,6 +79,7 @@ import java.lang.reflect.Field;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
@@ -1597,5 +1599,16 @@ public class Utils implements ij.plugin.PlugIn {
 		if (null == ids) return l;
 		for (int i=first; i<length; i++) l.add(ids[i]);
 		return l;
+	}
+	/** Recursively enable/disable all components of the @param root Container. */
+	static public void setEnabled(final Container root, final boolean b) {
+		final LinkedList<Container> cs = new LinkedList<Container>();
+		cs.add(root);
+		while (cs.size() > 0) {
+			for (final Component c : cs.removeLast().getComponents()) {
+				if (c instanceof Container) cs.add((Container)c);
+				c.setEnabled(b);
+			}
+		}
 	}
 }

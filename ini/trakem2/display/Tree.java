@@ -1932,9 +1932,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						} else if (Utils.isPopupTrigger(me)) {
 							JPopupMenu popup = new JPopupMenu();
 							final JMenuItem go = new JMenuItem("Go"); popup.add(go);
-							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
 							final JMenuItem review = new JMenuItem("Review"); popup.add(review);
-							final JMenuItem rm_review = new JMenuItem("Remove reviews"); popup.add(rm_review);
+							final JMenuItem rm_review = new JMenuItem("Remove review stack"); popup.add(rm_review);
+							popup.addSeparator();
+							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
+							final JMenuItem rm_reviews = new JMenuItem("Remove all reviews"); popup.add(rm_reviews);
 							//
 							ActionListener listener = new ActionListener() {
 								public void actionPerformed(ActionEvent ae) {
@@ -1942,14 +1944,17 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 									if (go == src) go(row);
 									else if (generate == src) generateAllReviewStacks();
 									else if (review == src) review(row);
-									else if (rm_review == src) removeReviews();
+									else if (rm_reviews == src) removeReviews();
+									else if (rm_review == src) removeReview(row);
 								}
 							};
 							go.addActionListener(listener);
-							generate.addActionListener(listener);
 							review.addActionListener(listener);
 							review.setEnabled(hasReviewTag(row));
 							rm_review.addActionListener(listener);
+							rm_review.setEnabled(hasReviewTag(row));
+							generate.addActionListener(listener);
+							rm_reviews.addActionListener(listener);
 							popup.show(Table.this, me.getX(), me.getY());
 						}
 					}
@@ -2008,6 +2013,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
 			}
 			void generateAllReviewStacks() {
+				if (!Utils.check("Really generate all review stacks?")) {
+					return;
+				}
 				Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
 					public void exec() {
 
@@ -2016,7 +2024,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				// Generate a fly-through stack from each found node to its previous branch point or root
 				final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 				// Disable window
-				frame.setEnabled(false);
+				Utils.setEnabled(frame.getContentPane(), false);
 				try {
 					int next = 0;
 					final List<Runnable> todo = new ArrayList<Runnable>();
@@ -2064,13 +2072,48 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				} catch (Exception e) {
 					IJError.print(e);
 				} finally {
-					frame.setEnabled(true);
+					Utils.setEnabled(frame.getContentPane(), true);
 					exe.shutdown();
 					Display.repaint(getLayerSet());
 				}
 					}}, getProject());
 			}
+			void removeReview(final int row) {
+				final Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				if (null == nd) return;
+				removeReview(nd);
+			}
+			boolean removeReview(final Node nd) {
+				final Set<Tag> tags = nd.getTags();
+				if (null == tags) return true;
+				for (final Tag tag : tags) {
+					String s = tag.toString();
+					if (s.startsWith("#R-")) {
+						try {
+							String path = getReviewTagPath(tag);
+							File f = new File(path);
+							if (f.exists()) {
+								if (!f.delete()) {
+									Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
+									return false;
+								}
+							} else {
+								Utils.log("No review file exists for " + s);
+							}
+							// Remove tag:
+							nd.removeTag(tag);
+							updateViewData(nd);
+						} catch (Exception ee) {
+							IJError.print(ee);
+						}
+					}
+				}
+				return true;
+			}
 			void removeReviews() {
+				if (!Utils.check("Really remove all review tags and associated stacks?")) {
+					return;
+				}
 				Bureaucrat.createAndStart(new Worker.Task("Removing review stacks") { // .. and tags
 					public void exec() {
 
@@ -2080,31 +2123,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
 					for (final Node nd : e.getValue()) {
 						if (Thread.currentThread().isInterrupted()) return;
-						final Set<Tag> tags = nd.getTags();
-						if (null == tags) continue;
-						for (final Tag tag : tags) {
-							String s = tag.toString();
-							if (s.startsWith("#R-")) {
-								try {
-									String path = getReviewTagPath(tag);
-									File f = new File(path);
-									if (f.exists()) {
-										if (!f.delete()) {
-											Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
-											success = false;
-											continue;
-										}
-									} else {
-										Utils.log("No review file exists for " + s);
-									}
-									// Remove tag:
-									nd.removeTag(tag);
-									updateViewData(nd);
-								} catch (Exception ee) {
-									IJError.print(ee);
-								}
-							}
-						}
+						success = success && removeReview(nd);
 					}
 				}
 				File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
@@ -2562,21 +2581,22 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 								if (2 == me.getClickCount()) {
 									me.consume();
 									// Go to the node
+									// Slices are 1-based: 1<=i<=N
 									int slice = imp.getCurrentSlice();
 									if (slice == imp.getNSlices()) {
 										Display.centerAt(createCoordinate(last));
 									} else {
-										Node parent = last;
-										int count = imp.getNSlices();
-										do {
-											parent = last.getParent();
-											if (null == parent) break;
-											count--;
+										Node parent = last.getParent();
+										int count = imp.getNSlices() -1;
+										while (null != parent) {
 											if (count == slice) {
 												Display.centerAt(createCoordinate(parent));
 												break;
 											}
-										} while (slice > 0);
+											// next cycle
+											count--;
+											parent = parent.getParent();
+										};
 									}
 								}
 							}
