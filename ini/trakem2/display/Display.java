@@ -2398,7 +2398,36 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Show tabular view"); item.addActionListener(this); popup.add(item);
-				item.setSelected(selection.getSelected(Tree.class).size() > 1);
+				final Collection<Tree> trees = (Collection<Tree>)(Collection)selection.getSelected(Tree.class);
+				JMenu review = new JMenu("Review");
+				final JMenuItem tgenerate = new JMenuItem("Generate review stacks (selected Trees)"); review.add(tgenerate);
+				tgenerate.setEnabled(trees.size() > 0);
+				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
+				tremove.setEnabled(trees.size() > 0);
+				ActionListener l = new ActionListener() {
+					public void actionPerformed(final ActionEvent ae) {
+						if (!Utils.check("Really " + ae.getActionCommand())) {
+							return;
+						}
+						dispatcher.exec(new Runnable() {
+							public void run() {
+								int count = 0;
+								for (final Tree t : trees) {
+									Utils.log("Processing " + (++count) + "/" + trees.size());
+									Bureaucrat bu = null;
+									if (ae.getSource() == tgenerate) bu = t.generateAllReviewStacks();
+									else if (ae.getSource() == tremove) bu = t.removeReviews();
+									if (null != bu) try {
+										bu.getWorker().join();
+									} catch (InterruptedException ie) { return; }
+								}
+							}
+						});
+					}
+				};
+				for (JMenuItem c : new JMenuItem[]{tgenerate, tremove}) c.addActionListener(l);
+				popup.add(review);
+
 				JMenu go = new JMenu("Go");
 				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
