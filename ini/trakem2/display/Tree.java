@@ -1714,10 +1714,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return flyThrough(root, marked, width, height, magnification, type, dir);
 	}
 
-	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
-	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
-	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type, final String dir) {
-		// Create regions
+	public LinkedList<Region> generateRegions(final Node first, final Node last, final int width, final int height, final double magnification) {
 		final LinkedList<Region> regions = new LinkedList<Region>();
 		Node node = last;
 		float[] fps = new float[2];
@@ -1733,7 +1730,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			if (first == node) break;
 			node = node.parent;
 		}
-		return project.getLoader().createFlyThrough(regions, magnification, type, dir);
+		return regions;
+	}
+
+	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
+	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
+	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type, final String dir) {
+		return project.getLoader().createFlyThrough(generateRegions(first, last, width, height, magnification), magnification, type, dir);
 	}
 
 	/** Measures number of branch points and end points, and total cable length.
@@ -2011,7 +2014,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				// Find all end nodes and branch nodes
 				// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
 				// Generate a fly-through stack from each found node to its previous branch point or root
-				final ExecutorService exe = Executors.newFixedThreadPool(1); // would only work ok if it wrote to file one slice at a time: Runtime.getRuntime().availableProcessors();
+				final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 				// Disable window
 				frame.setEnabled(false);
 				try {
@@ -2031,7 +2034,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							todo.add(new Runnable() {
 								public void run() {
 									try {
-										ImagePlus imp = flyThrough(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0, ImagePlus.COLOR_RGB, null);
+										ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0), 1.0, ImagePlus.COLOR_RGB);
 										imp.setTitle(imp.getTitle() + tag.toString());
 										File fdir = new File(getReviewTagPath(tag));
 										synchronized (dirsync) {
@@ -2063,6 +2066,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				} finally {
 					frame.setEnabled(true);
 					exe.shutdown();
+					Display.repaint(getLayerSet());
 				}
 					}}, getProject());
 			}
@@ -2110,6 +2114,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				} else {
 					Utils.log("Could not delete some review stacks.\n --> Directory remains: " + f.getAbsolutePath());
 				}
+				Display.repaint(getLayerSet());
 
 					}}, getProject());
 			}

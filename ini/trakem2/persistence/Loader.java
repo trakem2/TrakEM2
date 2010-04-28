@@ -4631,6 +4631,23 @@ while (it.hasNext()) {
 		return new ImagePlus("Fly-Through", stack);
 	}
 
+	/** Each slice is generated on demand. */
+	public ImagePlus createLazyFlyThrough(final List<Region> regions, final double magnification, final int type) {
+		final Region first = regions.get(0);
+		int w = (int)(first.r.width * magnification),
+		    h = (int)(first.r.height * magnification);
+		final LazyVirtualStack stack = new LazyVirtualStack(w, h, regions.size());
+
+		for (final Region r : regions) {
+			stack.addSlice(new Callable<ImageProcessor>() {
+				public ImageProcessor call() {
+					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black).getProcessor();
+				}
+			});
+		}
+		return new ImagePlus("Fly-Through", stack);
+	}
+
 	/** Does nothing unless overriden. */
 	public boolean setMipMapFormat(int format) { return false; }
 
@@ -4639,4 +4656,6 @@ while (it.hasNext()) {
 
 	/** Does nothing unless overriden. */
 	public Bureaucrat updateMipMapsFormat(int old_format, int new_format) { return null; }
+
+
 }
