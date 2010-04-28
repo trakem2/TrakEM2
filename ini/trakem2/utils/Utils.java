@@ -1088,17 +1088,30 @@ public class Utils implements ij.plugin.PlugIn {
 		return new StringBuffer().append(getCharacter(k)).append(c).toString();
 	}
 
-	/** Get by reflection a private or protected field in the given object. */
 	static public final Object getField(final Object ob, final String field_name) {
 		if (null == ob || null == field_name) return null;
+		return getField(ob, ob.getClass(), field_name);
+	}
+
+	/** Get by reflection a private or protected field in the given object. */
+	static public final Object getField(final Object ob, final Class c, final String field_name) {
 		try {
-			Field f = ob.getClass().getDeclaredField(field_name);
+			Field f = c.getDeclaredField(field_name);
 			f.setAccessible(true);
 			return f.get(ob);
 		} catch (Exception e) {
 			IJError.print(e);
 		}
 		return null;
+	}
+	static public final void setField(final Object ob, final Class c, final String field_name, final Object value) {
+		try {
+			Field f = c.getDeclaredField(field_name);
+			f.setAccessible(true);
+			f.set(ob, value);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 
 	/** A method that circumvents the findMinAndMax when creating a float processor from an existing processor.  Ignores color calibrations and does no scaling at all. */
