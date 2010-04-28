@@ -27,6 +27,7 @@ import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.gui.StackWindow;
 import ij.io.FileSaver;
+import ij.io.Opener;
 
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
@@ -1943,6 +1944,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							};
 							go.addActionListener(listener);
 							generate.addActionListener(listener);
+							review.addActionListener(listener);
+							review.setEnabled(hasReviewTag(row));
+							rm_review.addActionListener(listener);
 							popup.show(Table.this, me.getX(), me.getY());
 						}
 					}
@@ -1965,6 +1969,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				if (-1 != last_sorted_column) {
 					((NodeTableModel)getModel()).sortByColumn(last_sorted_column, last_sorting_order);
 				}
+			}
+			private boolean hasReviewTag(final int row) {
+				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				Set<Tag> tags = nd.getTags();
+				if (null == tags) return false;
+				for (Tag tag : tags) if (tag.toString().startsWith("#R-")) return true;
+				return false;
 			}
 			void review(int row) {
 				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
@@ -1991,7 +2002,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 			private String getReviewTagPath(Tag tag) {
 				// Remove the "#" from the tag name
-				return getProject().getLoader().getStorageFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
+				return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
 			}
 			void generateAllReviewStacks() {
 				Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
@@ -2000,10 +2011,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				// Find all end nodes and branch nodes
 				// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
 				// Generate a fly-through stack from each found node to its previous branch point or root
-				final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+				final ExecutorService exe = Executors.newFixedThreadPool(1); // would only work ok if it wrote to file one slice at a time: Runtime.getRuntime().availableProcessors();
+				// Disable window
+				frame.setEnabled(false);
 				try {
 					int next = 0;
+					final List<Runnable> todo = new ArrayList<Runnable>();
 					final List<Future> fus = new ArrayList<Future>();
+					final Object dirsync = new Object();
 					for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
 						for (final Node nd : e.getValue()) {
 							if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
@@ -2011,18 +2026,42 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							final int num = ++next;
 							final Tag tag = new Tag("#R-" + next, KeyEvent.VK_R);
 							nd.addTag(tag);
-							fus.add(exe.submit(new Runnable() {
+							updateViewData(nd);
+							//
+							todo.add(new Runnable() {
 								public void run() {
-									ImagePlus imp = flyThrough(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0, ImagePlus.COLOR_RGB, null);
-									new FileSaver(imp).saveAsZip(getReviewTagPath(tag));
+									try {
+										ImagePlus imp = flyThrough(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0, ImagePlus.COLOR_RGB, null);
+										imp.setTitle(imp.getTitle() + tag.toString());
+										File fdir = new File(getReviewTagPath(tag));
+										synchronized (dirsync) {
+											File parent = fdir.getParentFile();
+											if (!parent.exists()) {
+												if (!parent.mkdirs()) {
+													Utils.log("FAILED to create directories " + parent.getAbsolutePath()
+													+ "\nNOT created review stack for " + tag.toString());
+													return;
+												}
+											}
+										}
+										ij.IJ.redirectErrorMessages();
+										new FileSaver(imp).saveAsZip(fdir.getAbsolutePath());
+									} catch (Exception e) {
+										IJError.print(e);
+										Utils.log("\nERROR: NOT created review stack for " + tag.toString());
+										return;
+									}
 								}
-							}));
+							});
 						}
 					}
+					// Now that all tags exists (and will get painted), generate the stacks
+					for (final Runnable r : todo) fus.add(exe.submit(r));
 					Utils.wait(fus);
 				} catch (Exception e) {
 					IJError.print(e);
 				} finally {
+					frame.setEnabled(true);
 					exe.shutdown();
 				}
 					}}, getProject());
@@ -2033,9 +2072,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 				// Remove all review tags
 				// Remove all .zip stacks for this Treeline
+				boolean success = true;
 				for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
 					for (final Node nd : e.getValue()) {
-						if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
 						if (Thread.currentThread().isInterrupted()) return;
 						final Set<Tag> tags = nd.getTags();
 						if (null == tags) continue;
@@ -2048,17 +2087,28 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 									if (f.exists()) {
 										if (!f.delete()) {
 											Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
-										} else {
-											// Remove tag:
-											nd.removeTag(tag);
+											success = false;
+											continue;
 										}
+									} else {
+										Utils.log("No review file exists for " + s);
 									}
+									// Remove tag:
+									nd.removeTag(tag);
+									updateViewData(nd);
 								} catch (Exception ee) {
 									IJError.print(ee);
 								}
 							}
 						}
 					}
+				}
+				File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
+				if (success) {
+					// Remove directory (even if not empty)
+					Utils.removeFile(f);
+				} else {
+					Utils.log("Could not delete some review stacks.\n --> Directory remains: " + f.getAbsolutePath());
 				}
 
 					}}, getProject());
@@ -2493,12 +2543,16 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						return null;
 					}
 					project.getLoader().releaseMemory(1000000000L); // 1 Gb
-					final ImagePlus imp = ij.IJ.openImage(path); // TODO WARNING should go via the Loader
-					if (null != imp) {
+					Opener op = new Opener();
+					op.setSilentMode(true);
+					final ImagePlus imp = op.openImage(path); // TODO WARNING should go via the Loader
+					if (null == imp) {
+						Utils.log("ERROR: could not open " + path);
+					} else {
 						StackWindow stack = new StackWindow(imp);
-						MouseListener[] ml = stack.getMouseListeners();
-						for (MouseListener m : ml) stack.removeMouseListener(m);
-						stack.addMouseListener(new MouseAdapter() {
+						MouseListener[] ml = stack.getCanvas().getMouseListeners();
+						for (MouseListener m : ml) stack.getCanvas().removeMouseListener(m);
+						stack.getCanvas().addMouseListener(new MouseAdapter() {
 							public void mousePressed(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
@@ -2532,7 +2586,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 								}
 							}
 						});
-						for (MouseListener m : ml) stack.addMouseListener(m);
+						for (MouseListener m : ml) stack.getCanvas().addMouseListener(m);
 					}
 					return imp;
 				} catch (Exception e) {
