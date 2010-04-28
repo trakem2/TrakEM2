@@ -1942,9 +1942,19 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 								public void actionPerformed(ActionEvent ae) {
 									final Object src = ae.getSource();
 									if (go == src) go(row);
-									else if (generate == src) generateAllReviewStacks();
+									else if (generate == src) {
+										if (!Utils.check("Really generate all review stacks?")) {
+											return;
+										}
+										generateAllReviewStacks();
+									}
 									else if (review == src) review(row);
-									else if (rm_reviews == src) removeReviews();
+									else if (rm_reviews == src) {
+										if (!Utils.check("Really remove all review tags and associated stacks?")) {
+											return;
+										}
+										removeReviews();
+									}
 									else if (rm_review == src) removeReview(row);
 								}
 							};
@@ -2502,10 +2512,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
 			public void exec() {
 
-		if (!Utils.check("Really generate all review stacks?")) {
-			return;
-		}
-
 		// Find all end nodes and branch nodes
 		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
 		// Generate a fly-through stack from each found node to its previous branch point or root
@@ -2601,10 +2607,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	public Bureaucrat removeReviews() {
 		return Bureaucrat.createAndStart(new Worker.Task("Removing review stacks") { // .. and tags
 			public void exec() {
-
-		if (!Utils.check("Really remove all review tags and associated stacks?")) {
-			return;
-		}
 
 		// Remove all review tags
 		// Remove all .zip stacks for this Treeline
