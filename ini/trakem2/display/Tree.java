@@ -1985,7 +1985,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				for (Tag tag : tags) if (tag.toString().startsWith("#R-")) return true;
 				return false;
 			}
-			void review(int row) {
+			private void review(int row) {
 				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				// See if there are any tags
 				Set<Tag> tags = nd.getTags();
@@ -2008,134 +2008,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				// Find a stack for the review tag, and open it
 				Tree.this.openImage(getReviewTagPath(review_tag), nd);
 			}
-			private String getReviewTagPath(Tag tag) {
-				// Remove the "#" from the tag name
-				return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
-			}
-			void generateAllReviewStacks() {
-				if (!Utils.check("Really generate all review stacks?")) {
-					return;
-				}
-				Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
-					public void exec() {
-
-				// Find all end nodes and branch nodes
-				// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
-				// Generate a fly-through stack from each found node to its previous branch point or root
-				final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-				// Disable window
-				Utils.setEnabled(frame.getContentPane(), false);
-				try {
-					int next = 0;
-					final List<Runnable> todo = new ArrayList<Runnable>();
-					final List<Future> fus = new ArrayList<Future>();
-					final Object dirsync = new Object();
-					for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-						for (final Node nd : e.getValue()) {
-							if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
-							if (Thread.currentThread().isInterrupted()) return;
-							final int num = ++next;
-							final Tag tag = new Tag("#R-" + next, KeyEvent.VK_R);
-							nd.addTag(tag);
-							updateViewData(nd);
-							//
-							todo.add(new Runnable() {
-								public void run() {
-									try {
-										ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0), 1.0, ImagePlus.COLOR_RGB);
-										imp.setTitle(imp.getTitle() + tag.toString());
-										File fdir = new File(getReviewTagPath(tag));
-										synchronized (dirsync) {
-											File parent = fdir.getParentFile();
-											if (!parent.exists()) {
-												if (!parent.mkdirs()) {
-													Utils.log("FAILED to create directories " + parent.getAbsolutePath()
-													+ "\nNOT created review stack for " + tag.toString());
-													return;
-												}
-											}
-										}
-										ij.IJ.redirectErrorMessages();
-										new FileSaver(imp).saveAsZip(fdir.getAbsolutePath());
-									} catch (Exception e) {
-										IJError.print(e);
-										Utils.log("\nERROR: NOT created review stack for " + tag.toString());
-										return;
-									}
-								}
-							});
-						}
-					}
-					// Now that all tags exists (and will get painted), generate the stacks
-					for (final Runnable r : todo) fus.add(exe.submit(r));
-					Utils.wait(fus);
-				} catch (Exception e) {
-					IJError.print(e);
-				} finally {
-					Utils.setEnabled(frame.getContentPane(), true);
-					exe.shutdown();
-					Display.repaint(getLayerSet());
-				}
-					}}, getProject());
-			}
-			void removeReview(final int row) {
+			private void removeReview(final int row) {
 				final Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				if (null == nd) return;
-				removeReview(nd);
-			}
-			boolean removeReview(final Node nd) {
-				final Set<Tag> tags = nd.getTags();
-				if (null == tags) return true;
-				for (final Tag tag : tags) {
-					String s = tag.toString();
-					if (s.startsWith("#R-")) {
-						try {
-							String path = getReviewTagPath(tag);
-							File f = new File(path);
-							if (f.exists()) {
-								if (!f.delete()) {
-									Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
-									return false;
-								}
-							} else {
-								Utils.log("No review file exists for " + s);
-							}
-							// Remove tag:
-							nd.removeTag(tag);
-							updateViewData(nd);
-						} catch (Exception ee) {
-							IJError.print(ee);
-						}
-					}
-				}
-				return true;
-			}
-			void removeReviews() {
-				if (!Utils.check("Really remove all review tags and associated stacks?")) {
-					return;
-				}
-				Bureaucrat.createAndStart(new Worker.Task("Removing review stacks") { // .. and tags
-					public void exec() {
-
-				// Remove all review tags
-				// Remove all .zip stacks for this Treeline
-				boolean success = true;
-				for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-					for (final Node nd : e.getValue()) {
-						if (Thread.currentThread().isInterrupted()) return;
-						success = success && removeReview(nd);
-					}
-				}
-				File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
-				if (success) {
-					// Remove directory (even if not empty)
-					Utils.removeFile(f);
-				} else {
-					Utils.log("Could not delete some review stacks.\n --> Directory remains: " + f.getAbsolutePath());
-				}
-				Display.repaint(getLayerSet());
-
-					}}, getProject());
+				Tree.this.removeReview(nd);
 			}
 		}
 		void show() {
@@ -2620,5 +2496,134 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				return null;
 			}
 		});
+	}
+
+	public Bureaucrat generateAllReviewStacks() {
+		return Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
+			public void exec() {
+
+		if (!Utils.check("Really generate all review stacks?")) {
+			return;
+		}
+
+		// Find all end nodes and branch nodes
+		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
+		// Generate a fly-through stack from each found node to its previous branch point or root
+		final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		// Disable window
+		final TreeNodesDataView tndv = Tree.this.tndv;
+		if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+		try {
+			int next = 0;
+			final List<Runnable> todo = new ArrayList<Runnable>();
+			final List<Future> fus = new ArrayList<Future>();
+			final Object dirsync = new Object();
+			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+				for (final Node nd : e.getValue()) {
+					if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
+					if (Thread.currentThread().isInterrupted()) return;
+					final int num = ++next;
+					final Tag tag = new Tag("#R-" + next, KeyEvent.VK_R);
+					nd.addTag(tag);
+					updateViewData(nd);
+					//
+					todo.add(new Runnable() {
+						public void run() {
+							try {
+								ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0), 1.0, ImagePlus.COLOR_RGB);
+								imp.setTitle(imp.getTitle() + tag.toString());
+								File fdir = new File(getReviewTagPath(tag));
+								synchronized (dirsync) {
+									File parent = fdir.getParentFile();
+									if (!parent.exists()) {
+										if (!parent.mkdirs()) {
+											Utils.log("FAILED to create directories " + parent.getAbsolutePath()
+											+ "\nNOT created review stack for " + tag.toString());
+											return;
+										}
+									}
+								}
+								ij.IJ.redirectErrorMessages();
+								new FileSaver(imp).saveAsZip(fdir.getAbsolutePath());
+							} catch (Exception e) {
+								IJError.print(e);
+								Utils.log("\nERROR: NOT created review stack for " + tag.toString());
+								return;
+							}
+						}
+					});
+				}
+			}
+			// Now that all tags exists (and will get painted), generate the stacks
+			for (final Runnable r : todo) fus.add(exe.submit(r));
+			Utils.wait(fus);
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+			exe.shutdown();
+			Display.repaint(getLayerSet());
+		}
+			}}, getProject());
+	}
+
+	private String getReviewTagPath(Tag tag) {
+		// Remove the "#" from the tag name
+		return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
+	}
+	boolean removeReview(final Node nd) {
+		final Set<Tag> tags = nd.getTags();
+		if (null == tags) return true;
+		for (final Tag tag : tags) {
+			String s = tag.toString();
+			if (s.startsWith("#R-")) {
+				try {
+					String path = getReviewTagPath(tag);
+					File f = new File(path);
+					if (f.exists()) {
+						if (!f.delete()) {
+							Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
+							return false;
+						}
+					} else {
+						Utils.log("No review file exists for " + s);
+					}
+					// Remove tag:
+					nd.removeTag(tag);
+					updateViewData(nd);
+				} catch (Exception ee) {
+					IJError.print(ee);
+				}
+			}
+		}
+		return true;
+	}
+	public Bureaucrat removeReviews() {
+		return Bureaucrat.createAndStart(new Worker.Task("Removing review stacks") { // .. and tags
+			public void exec() {
+
+		if (!Utils.check("Really remove all review tags and associated stacks?")) {
+			return;
+		}
+
+		// Remove all review tags
+		// Remove all .zip stacks for this Treeline
+		boolean success = true;
+		for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+			for (final Node nd : e.getValue()) {
+				if (Thread.currentThread().isInterrupted()) return;
+				success = success && removeReview(nd);
+			}
+		}
+		File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
+		if (success) {
+			// Remove directory (even if not empty)
+			Utils.removeFile(f);
+		} else {
+			Utils.log("Could not delete some review stacks.\n --> Directory remains: " + f.getAbsolutePath());
+		}
+		Display.repaint(getLayerSet());
+
+			}}, getProject());
 	}
 }
