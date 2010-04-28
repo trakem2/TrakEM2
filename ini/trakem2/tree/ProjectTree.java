@@ -247,6 +247,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Displayable displ = (Displayable)obd;
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
+			} else if (command.equals("Show tabular view")) {
+				((Tree)obd).createMultiTableView();
 			} else if (command.equals("Show in 3D")) {
 				ini.trakem2.display.Display3D.showAndResetView(thing);
 			} else if (command.equals("Hide")) {

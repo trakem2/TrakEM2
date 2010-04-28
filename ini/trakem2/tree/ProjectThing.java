@@ -33,6 +33,7 @@ import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.display.Line3D;
+import ini.trakem2.display.Tree;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -519,6 +520,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 		if (null != object && object instanceof Displayable) {
 			addPopupItem("Show centered in Display", listener, al_items);
+		}
+
+		if (null != object && object instanceof Tree) {
+			addPopupItem("Show tabular view", listener, al_items);
 		}
 
 		// plugins
