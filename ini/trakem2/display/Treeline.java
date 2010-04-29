@@ -142,7 +142,9 @@ public class Treeline extends Tree {
 				yd = (float)po.y;
 			}
 			Node nd = getActive();
-			nd.setData((float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2)));
+			float r = (float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2));
+			nd.setData(r);
+			last_radius = r;
 			repaint(true);
 			return;
 		}

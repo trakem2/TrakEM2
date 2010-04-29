@@ -40,8 +40,6 @@ import java.awt.AlphaComposite;
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
 public class Connector extends Treeline {
 
-	static private float last_radius = 0;
-
 	public Connector(Project project, String title) {
 		super(project, title);
 	}
@@ -420,6 +418,7 @@ public class Connector extends Treeline {
 				}
 				// Add new target point to root:
 				found = newNode(x_pl, y_pl, layer, root);
+				((ConnectorNode)found).setData(last_radius);
 				addNode(root, found, Node.MAX_EDGE_CONFIDENCE);
 				setActive(found);
 				repaint(true);
@@ -429,6 +428,7 @@ public class Connector extends Treeline {
 			// First point
 			root = newNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
 			addNode(null, root, (byte)0);
+			((ConnectorNode)root).setData(last_radius);
 			setActive(root);
 		}
 	}
