@@ -347,6 +347,7 @@ public class Treeline extends Tree {
 	 *
 	 * Differences are not so huge in any case.
 	 */
+	/*
 	static final public void testMeshGenerationPerformance(int n_iterations) {
 		// test 3D mesh generation
 
@@ -497,6 +498,7 @@ public class Treeline extends Tree {
 		}
 		System.out.println("C: " + (System.currentTimeMillis() - t0));
 	}
+	*/
 
 	public List generateMesh(double scale_, int parallels) {
 		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
