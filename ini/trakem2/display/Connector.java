@@ -119,21 +119,14 @@ public class Connector extends Treeline {
 		}
 	}
 
-
-	public Connector fromLegacyXML(final Project project, final long id, final LayerSet ls, final HashMap ht_attr, final HashMap ht_links) {
-		Connector con = new Connector(project, id, ht_attr, ht_links);
-
-		float[] p = null;
-		long[] lids = null;
-		float[] radius = null;
-
+	public void readLegacyXML(final LayerSet ls, final HashMap ht_attr, final HashMap ht_links) {
 		String origin = (String) ht_attr.get("origin");
 		String targets = (String) ht_attr.get("targets");
 		if (null != origin) {
-			String[] o = origin.split(",");
+			final String[] o = origin.split(",");
 			String[] t = null;
 			int len = 1;
-			boolean new_format = 0 == o.length % 4;
+			final boolean new_format = 0 == o.length % 4;
 			if (null != targets) {
 				t = targets.split(",");
 				if (new_format) {
@@ -144,9 +137,9 @@ public class Connector extends Treeline {
 					len += t.length / 3;
 				}
 			}
-			p = new float[len + len];
-			lids = new long[len];
-			radius = new float[len];
+			final float[] p = new float[len + len];
+			final long[] lids = new long[len];
+			final float[] radius = new float[len];
 
 			// Origin:
 			/* X  */ p[0] = Float.parseFloat(o[0]);
@@ -170,16 +163,14 @@ public class Connector extends Treeline {
 
 
 			// Now, into nodes:
-			root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
+			this.root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
 			addNode(null, root, (byte)0);
 			for (int i=1; i<lids.length; i++) {
 				Node nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
-				addNode(root, nd, Node.MAX_EDGE_CONFIDENCE);
+				addNode(this.root, nd, Node.MAX_EDGE_CONFIDENCE);
 			}
 			cacheSubtree(root.getSubtreeNodes());
 		}
-
-		return con;
 	}
 
 	public int addTarget(final float x, final float y, final long layer_id, final float r) {
