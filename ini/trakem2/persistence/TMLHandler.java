@@ -749,6 +749,7 @@ public class TMLHandler extends DefaultHandler {
 				}
 				con.addToDatabase();
 				last_connector = con;
+				last_tree = con;
 				last_displayable = con;
 				ht_displayables.put(new Long(oid), con);
 				ht_zdispl.put(new Long(oid), con);
