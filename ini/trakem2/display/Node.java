@@ -645,14 +645,6 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	public Point3f asPoint() {
-		return asPoint(true);
-	}
-	public Point3f asPoint(final boolean calibrated) {
-		if (calibrated) {
-			final Calibration cal = la.getParent().getCalibration();
-			return new Point3f((float)(x * cal.pixelWidth), (float)(y * cal.pixelHeight), (float)(la.getZ() * cal.pixelWidth)); // not pixelDepth!
-		} else {
-			return new Point3f(x, y, (float)la.getZ());
-		}
+		return new Point3f(x, y, (float)la.getZ());
 	}
 }

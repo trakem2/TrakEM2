@@ -278,36 +278,62 @@ public class Connector extends Treeline {
 		return copy;
 	}
 
+	private final void insert(final Node nd, final ResultsTable rt, final int i, final byte confidence, final Calibration cal, final float[] f) {
+		f[0] = nd.x;
+		f[1] = nd.y;
+		this.at.transform(f, 0, f, 0, 1);
+		//
+		rt.incrementCounter();
+		rt.addLabel("units", cal.getUnits());
+		rt.addValue(0, this.id);
+		rt.addValue(1, i);
+		rt.addValue(2, f[0] * cal.pixelWidth);
+		rt.addValue(3, f[1] * cal.pixelHeight);
+		rt.addValue(4, nd.la.getZ() * cal.pixelWidth); // NOT pixelDepth!
+		rt.addValue(5, ((ConnectorNode)nd).r);
+		rt.addValue(6, confidence);
+	}
+
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == root) return rt;
-		/* // TODO
-		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius"});
-		float[] p = transformPoints(this.p);
+		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius", "confidence"});
 		final Calibration cal = layer_set.getCalibration();
-		for (int i=0; i<lids.length; i++) {
-			rt.incrementCounter();
-			rt.addLabel("units", cal.getUnit());
-			rt.addValue(0, this.id);
-			rt.addValue(1, i); // start at 0, the origin
-			rt.addValue(2, p[i+i] * cal.pixelWidth);
-			rt.addValue(3, p[i+i+1] * cal.pixelHeight);
-			rt.addValue(4, layer_set.getLayer(lids[i]).getZ() * cal.pixelWidth);
-			rt.addValue(5, radius[i] * cal.pixelWidth);
+		final float[] f = new float[2];
+		insert(root, rt, 0, Node.MAX_EDGE_CONFIDENCE, cal, f);
+		if (null == root.children) return rt;
+		for (int i=0; i<root.children.length; i++) {
+			insert(root.children[i], rt, i+1, root.confidence[i], cal, f);
 		}
-		*/
 		return rt;
 	}
 
 	public Point3f getOriginPoint(final boolean calibrated) {
 		if (null == root) return null;
-		return root.asPoint(calibrated);
+		return fix(root.asPoint(), calibrated, new float[2]);
+	}
+
+	final private Point3f fix(final Point3f p, final boolean calibrated, final float[] f) {
+		f[0] = p.x;
+		f[1] = p.y;
+		this.at.transform(f, 0, f, 0, 1);
+		p.x = f[0];
+		p.y = f[1];
+		if (calibrated) {
+			final Calibration cal = layer_set.getCalibration();
+			p.x *= cal.pixelWidth;
+			p.y *= cal.pixelHeight;
+			p.z *= cal.pixelWidth; // not pixelDepth!
+		}
+		return p;
 	}
 
 	public List<Point3f> getTargetPoints(final boolean calibrated) {
 		if (null == root) return null;
 		final List<Point3f> targets = new ArrayList<Point3f>();
-		for (final Node nd : root.getChildrenNodes()) {
-			targets.add(nd.asPoint(calibrated));
+		if (null == root.children) return targets;
+		final float[] f = new float[2];
+		for (final Node nd : root.children) {
+			targets.add(fix(nd.asPoint(), calibrated, f));
 		}
 		return targets;
 	}
