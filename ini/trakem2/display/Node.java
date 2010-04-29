@@ -289,10 +289,10 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Paint in the context of offscreen space, without transformations. */
-	final void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
-		Point2D.Double po = t.transformPoint(this.x, this.y);
-		float x = (float)((po.x - srcRect.x) * magnification);
-		float y = (float)((po.y - srcRect.y) * magnification);
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
+		final Point2D.Double po = t.transformPoint(this.x, this.y);
+		final float x = (float)((po.x - srcRect.x) * magnification);
+		final float y = (float)((po.y - srcRect.y) * magnification);
 
 		// paint the node as a draggable point
 		if (null == parent) {
@@ -406,10 +406,10 @@ public abstract class Node<T> implements Taggable {
 									       x, y, 0, // origin of edge
 									       (x - parent.x)/2, (y - parent.y)/2, 0); // end of half-edge to parent
 	}
-	final boolean hasChildren() {
+	public final boolean hasChildren() {
 		return null != children && children.length > 0;
 	}
-	final int getChildrenCount() {
+	public final int getChildrenCount() {
 		if (null == children) return 0;
 		return children.length;
 	}
