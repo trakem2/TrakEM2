@@ -700,7 +700,7 @@ public final class Display3D {
 			}
 			if (null != extra_triangles && extra_triangles.isEmpty()) extra_triangles = null; // avoid issues with MultiMesh
 		} else if (Connector.class == c) {
-			triangles = ((Connector)displ).generateTriangles(scale, 1);
+			triangles = ((Connector)displ).generateMesh(scale, 12);
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 			no_culling_ = true;
