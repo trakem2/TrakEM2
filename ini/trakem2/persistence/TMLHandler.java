@@ -695,7 +695,7 @@ public class TMLHandler extends DefaultHandler {
 
 			if (type.equals("node")) {
 				if (null == last_tree) {
-					throw new NullPointerException("Can't create a node for null last_treeline or null last_areatree!");
+					throw new NullPointerException("Can't create a node for null last_tree!");
 				}
 				final Node node = last_tree.newNode(ht_attributes);
 				taggables.add(node);
