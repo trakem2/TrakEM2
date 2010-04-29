@@ -2335,6 +2335,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		}
 		this.calculateBoundingBox();
+		updateView();
 		return true;
 	}
 
