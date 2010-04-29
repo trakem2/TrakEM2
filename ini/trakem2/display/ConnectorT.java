@@ -2,7 +2,6 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -15,18 +14,13 @@ import java.util.HashSet;
 import java.util.Set;
 import java.awt.Point;
 import java.awt.Choice;
-import java.awt.TextField;
 import java.awt.Color;
 import java.awt.Shape;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.ItemEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -126,9 +120,8 @@ public class ConnectorT extends Treeline {
 	}
 
 
-	public ConnectorT fromLegacyXML(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public ConnectorT fromLegacyXML(final Project project, final long id, final LayerSet ls, final HashMap ht_attr, final HashMap ht_links) {
 		ConnectorT con = new ConnectorT(project, id, ht_attr, ht_links);
-		// TODO convert from legacy to new Tree-based
 
 		float[] p = null;
 		long[] lids = null;
@@ -174,9 +167,17 @@ public class ConnectorT extends Treeline {
 				}
 			}
 			if (!new_format) calculateBoundingBox();
-		}
 
-		// TODO read info into 'con'
+
+			// Now, into nodes:
+			root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
+			addNode(null, root, (byte)0);
+			for (int i=1; i<lids.length; i++) {
+				Node nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
+				addNode(root, nd, Node.MAX_EDGE_CONFIDENCE);
+			}
+			cacheSubtree(root.getSubtreeNodes());
+		}
 
 		return con;
 	}
@@ -197,7 +198,7 @@ public class ConnectorT extends Treeline {
 		final AffineTransform aff = new AffineTransform(c.at);
 		aff.preConcatenate(this.at.createInverse());
 		final float[] f = new float[4];
-		for (final Map.Entry<Node,Byte> e : c.root.getChildren().entrySet()) {
+		for (final Map.Entry<Node,Byte> e : (Collection<Map.Entry<Node,Byte>>)c.root.getChildren().entrySet()) { // TODO should not need to cast
 			final ConnectorNode nd = (ConnectorNode)e.getKey();
 			f[0] = nd.x;
 			f[1] = nd.y;
@@ -231,7 +232,7 @@ public class ConnectorT extends Treeline {
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
-		for (Node nd : root.getChildrenNodes()) {
+		for (Node nd : (Collection<Node>)root.getChildrenNodes()) { // TODO should not need to cast
 			al.add(getUnder(nd, c));
 		}
 		return al;
@@ -293,7 +294,7 @@ public class ConnectorT extends Treeline {
 	public List<Point3f> getTargetPoints(final boolean calibrated) {
 		if (null == root) return null;
 		final List<Point3f> targets = new ArrayList<Point3f>();
-		for (final Node nd : root.getChildrenNodes()) {
+		for (final Node nd : (Collection<Node>)root.getChildrenNodes()) { // TODO should not need to cast
 			targets.add(nd.asPoint(calibrated));
 		}
 		return targets;
@@ -329,5 +330,64 @@ public class ConnectorT extends Treeline {
 			}
 		}
 		return base;
+	}
+
+	/** Add a root or child nodes to root. */
+	@Override
+	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
+			return;
+		}
+		final Layer layer = Display.getFrontLayer(this.project);
+
+		if (null != root) {
+			// transform the x_p, y_p to the local coordinates
+			int x_pl = x_p;
+			int y_pl = y_p;
+			if (!this.at.isIdentity()) {
+				final Point2D.Double po = inverseTransformPoint(x_p, y_p);
+				x_pl = (int)po.x;
+				y_pl = (int)po.y;
+			}
+
+			Node found = findNode(x_pl, y_pl, layer, mag);
+			setActive(found);
+
+			if (null != found) {
+				if (2 == me.getClickCount()) {
+					setLastMarked(found);
+					setActive(null);
+					return;
+				}
+				if (me.isShiftDown() && Utils.isControlDown(me)) {
+					if (found == root) {
+						// Remove the whole Connector
+						if (remove2(true)) {
+							setActive(null);
+						}
+						return;
+					} else {
+						// Remove point
+						removeNode(found);
+					}
+				}
+			} else {
+				if (2 == me.getClickCount()) {
+					setLastMarked(null);
+					return;
+				}
+				// Add new target point to root:
+				found = newNode(x_pl, y_pl, layer, root);
+				addNode(root, found, Node.MAX_EDGE_CONFIDENCE);
+				setActive(found);
+				repaint(true);
+			}
+			return;
+		} else {
+			// First point
+			root = newNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
+			addNode(null, root, (byte)0);
+			setActive(root);
+		}
 	}
 }
