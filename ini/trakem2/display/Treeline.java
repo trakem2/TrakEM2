@@ -43,7 +43,7 @@ import java.awt.AlphaComposite;
 
 public class Treeline extends Tree {
 
-	static private float last_radius = -1;
+	static protected float last_radius = -1;
 
 	public Treeline(Project project, String title) {
 		super(project, title);
@@ -120,11 +120,19 @@ public class Treeline extends Tree {
 		super.mousePressed(me, x_p, y_p, mag);
 	}
 
+	protected boolean requireAltDownToEditRadius() {
+		return true;
+	}
+
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == getActive()) return;
 
-		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+		if (requireAltDownToEditRadius() && !me.isAltDown()) {
+			super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+			return;
+		}
+		if (me.isShiftDown() && !Utils.isControlDown(me)) {
 			// transform to the local coordinates
 			float xd = x_d,
 			      yd = y_d;

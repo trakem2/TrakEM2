@@ -378,6 +378,10 @@ public class Connector extends Treeline {
 		}
 		final Layer layer = Display.getFrontLayer(this.project);
 
+		if (-1 == last_radius) {
+			last_radius = 10 / (float)mag;
+		}
+
 		if (null != root) {
 			// transform the x_p, y_p to the local coordinates
 			int x_pl = x_p;
@@ -428,4 +432,7 @@ public class Connector extends Treeline {
 			setActive(root);
 		}
 	}
+
+	@Override
+	protected boolean requireAltDownToEditRadius() { return false; }
 }
