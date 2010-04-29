@@ -187,8 +187,8 @@ public class Treeline extends Tree {
 		return nearest;
 	}
 
-	static public final class RadiusNode extends Node<Float> {
-		private float r;
+	static public class RadiusNode extends Node<Float> {
+		protected float r;
 
 		public RadiusNode(final float lx, final float ly, final Layer la) {
 			this(lx, ly, la, 0);
@@ -204,7 +204,7 @@ public class Treeline extends Tree {
 			this.r = null == sr ? 0 : Float.parseFloat(sr);
 		}
 
-		public final Node newInstance(final float lx, final float ly, final Layer layer) {
+		public Node newInstance(final float lx, final float ly, final Layer layer) {
 			return new RadiusNode(lx, ly, layer, 0);
 		}
 
@@ -266,9 +266,11 @@ public class Treeline extends Tree {
 		}
 
 		/** Expects @param a in local coords. */
+		@Override
 		public boolean intersects(final Area a) {
 			if (0 == r) return a.contains(x, y);
 			return M.intersects(a, new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r)));
+			// TODO: not the getSegment() ?
 		}
 
 		@Override
