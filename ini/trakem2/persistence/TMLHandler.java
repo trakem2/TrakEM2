@@ -73,18 +73,18 @@ public class TMLHandler extends DefaultHandler {
 	private String base_dir;
 	private String xml_path;
 	/** Stores the object and its String with coma-separated links, to construct links when all objects exist. */
-	private HashMap ht_links = new HashMap();
+	final private HashMap ht_links = new HashMap();
 
 	private Thing current_thing = null;
-	private ArrayList al_open = new ArrayList();
-	private ArrayList<Layer> al_layers = new ArrayList<Layer>();
-	private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
-	private ArrayList<HashMap> al_displays = new ArrayList<HashMap>(); // contains HashMap instances with display data.
+	final private ArrayList al_open = new ArrayList();
+	final private ArrayList<Layer> al_layers = new ArrayList<Layer>();
+	final private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
+	final private ArrayList<HashMap> al_displays = new ArrayList<HashMap>(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
-	private HashMap ht_displayables = new HashMap();
-	private HashMap ht_zdispl = new HashMap();
-	private HashMap ht_oid_pt = new HashMap();
-	private HashMap<ProjectThing,Boolean> ht_pt_expanded = new HashMap<ProjectThing,Boolean>();
+	final private HashMap ht_displayables = new HashMap();
+	final private HashMap ht_zdispl = new HashMap();
+	final private HashMap ht_oid_pt = new HashMap();
+	final private HashMap<ProjectThing,Boolean> ht_pt_expanded = new HashMap<ProjectThing,Boolean>();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
 	private long last_area_list_layer_id = -1;
@@ -93,17 +93,20 @@ public class TMLHandler extends DefaultHandler {
 	private Patch last_patch = null;
 	private Treeline last_treeline = null;
 	private AreaTree last_areatree = null;
-	private LinkedList<Taggable> taggables = new LinkedList<Taggable>();
+	private Connector last_connector = null;
+	private Tree last_tree = null;
+	final private LinkedList<Taggable> taggables = new LinkedList<Taggable>();
 	private ReconstructArea reca = null;
 	private Node last_root_node = null;
-	private LinkedList<Node> nodes = new LinkedList<Node>();
-	private Map<Long,List<Node>> node_layer_table = new HashMap<Long,List<Node>>();
-	private Map<Tree,Node> tree_root_nodes = new HashMap<Tree,Node>();
+	final private LinkedList<Node> nodes = new LinkedList<Node>();
+	final private Map<Long,List<Node>> node_layer_table = new HashMap<Long,List<Node>>();
+	final private Map<Tree,Node> tree_root_nodes = new HashMap<Tree,Node>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private StringBuilder last_annotation = null;
-	private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
+	final private ArrayList< TransformList< Object > > ct_list_stack = new ArrayList< TransformList< Object > >();
 	private boolean open_displays = true;
+	final private LinkedList<Runnable> legacy = new LinkedList<Runnable>();
 
 
 	/** @param path The XML file that contains the project data in XML format.
@@ -262,6 +265,11 @@ public class TMLHandler extends DefaultHandler {
 			e.getKey().setRoot(e.getValue()); // will generate node caches of each Treeline
 		}
 		tree_root_nodes.clear();
+
+		// 6 - Run legacy operations
+		for (final Runnable r : legacy) {
+			r.run();
+		}
 
 		try {
 
@@ -465,13 +473,22 @@ public class TMLHandler extends DefaultHandler {
 		}
 
 		// terminate non-single clause objects
-		if (orig_qualified_name.equals("t2_area_list")) {
-			last_area_list = null;
-			last_displayable = null;
-		} else if (orig_qualified_name.equals("t2_node")) {
+		if (orig_qualified_name.equals("t2_node")) {
 			// Remove one node from the stack
 			nodes.removeLast();
 			taggables.removeLast();
+		} else if (orig_qualified_name.equals("t2_connector")) {
+			if (null != last_connector) {
+				tree_root_nodes.put(last_connector, last_root_node);
+				last_root_node = null;
+				last_connector = null;
+				last_tree = null;
+				nodes.clear();
+			}
+			last_displayable = null;
+		} else if (orig_qualified_name.equals("t2_area_list")) {
+			last_area_list = null;
+			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_area")) {
 			if (null != reca) {
 				if (null != last_area_list) {
@@ -492,9 +509,6 @@ public class TMLHandler extends DefaultHandler {
 		} else if (orig_qualified_name.equals("t2_dissector")) {
 			last_dissector = null;
 			last_displayable = null;
-		} else if (orig_qualified_name.equals( "t2_stack" )) {
-			last_stack = null;
-			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_treeline")) {
 			if (null != last_treeline) {
 				// old format:
@@ -507,6 +521,7 @@ public class TMLHandler extends DefaultHandler {
 				last_root_node = null;
 				// always:
 				last_treeline = null;
+				last_tree = null;
 				nodes.clear();
 			}
 			last_displayable = null;
@@ -515,7 +530,12 @@ public class TMLHandler extends DefaultHandler {
 				tree_root_nodes.put(last_areatree, last_root_node);
 				last_root_node = null;
 				last_areatree = null;
+				last_tree = null;
+				nodes.clear(); // the absence of this line would have made the nodes list grow with all nodes of all areatrees, which is ok but consumes memory
 			}
+			last_displayable = null;
+		} else if (orig_qualified_name.equals( "t2_stack" )) {
+			last_stack = null;
 			last_displayable = null;
 		} else if (in(orig_qualified_name, all_displayables)) {
 			last_displayable = null;
@@ -615,7 +635,7 @@ public class TMLHandler extends DefaultHandler {
 	private void addToLastOpenLayerSet(ZDisplayable zd) {
 		// find last open layer set
 		for (int i = al_layer_sets.size() -1; i>-1; i--) {
-			((LayerSet)al_layer_sets.get(i)).addSilently(zd);
+			al_layer_sets.get(i).addSilently(zd);
 			break;
 		}
 	}
@@ -660,7 +680,7 @@ public class TMLHandler extends DefaultHandler {
 		p.put(key, value);
 	}
 
-	private LayerThing makeLayerThing(String type, HashMap ht_attributes) {
+	private LayerThing makeLayerThing(String type, final HashMap ht_attributes) {
 		try {
 			type = type.toLowerCase();
 			if (0 == type.indexOf("t2_")) {
@@ -674,16 +694,13 @@ public class TMLHandler extends DefaultHandler {
 			if (null != soid) oid = Long.parseLong((String)soid);
 
 			if (type.equals("node")) {
-				Node node;
-				Tree last_tree = (null != last_treeline ? last_treeline
-									: (null != last_areatree ? last_areatree : null));
 				if (null == last_tree) {
 					throw new NullPointerException("Can't create a node for null last_treeline or null last_areatree!");
 				}
-				node = last_tree.newNode(ht_attributes);
+				final Node node = last_tree.newNode(ht_attributes);
 				taggables.add(node);
 				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
-				long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
+				final long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
 				List<Node> list = node_layer_table.get(ndlid);
 				if (null == list) {
 					list = new ArrayList<Node>();
@@ -694,8 +711,7 @@ public class TMLHandler extends DefaultHandler {
 				if (null == last_root_node) {
 					last_root_node = node;
 				} else {
-					Node last = nodes.getLast();
-					last.add(node, Byte.parseByte((String)ht_attributes.get("c")));
+					nodes.getLast().add(node, Byte.parseByte((String)ht_attributes.get("c")));
 				}
 				// Put node into stack of nodes (to be removed on closing the tag)
 				nodes.add(node);
@@ -723,8 +739,16 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet(pline);
 				return null;
 			} else if (type.equals("connector")) {
-				Connector con = new Connector(this.project, oid, ht_attributes, ht_links);
+				final Connector con = new Connector(this.project, oid, ht_attributes, ht_links);
+				if (ht_attributes.containsKey("origin")) {
+					legacy.add(new Runnable() {
+						public void run() {
+							con.readLegacyXML(al_layer_sets.get(al_layer_sets.size()-1), ht_attributes, ht_links);
+						}
+					});
+				}
 				con.addToDatabase();
+				last_connector = con;
 				last_displayable = con;
 				ht_displayables.put(new Long(oid), con);
 				ht_zdispl.put(new Long(oid), con);
@@ -791,6 +815,7 @@ public class TMLHandler extends DefaultHandler {
 				Treeline tline = new Treeline(this.project, oid, ht_attributes, ht_links);
 				tline.addToDatabase();
 				last_treeline = tline;
+				last_tree = tline;
 				last_treeline_data = new StringBuilder();
 				last_displayable = tline;
 				ht_displayables.put(oid, tline);
@@ -800,6 +825,7 @@ public class TMLHandler extends DefaultHandler {
 				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
 				art.addToDatabase();
 				last_areatree = art;
+				last_tree = art;
 				last_displayable = art;
 				ht_displayables.put(oid, art);
 				ht_zdispl.put(oid, art);
