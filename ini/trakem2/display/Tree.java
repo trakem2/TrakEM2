@@ -124,7 +124,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	protected final Set<Node> end_nodes = new HashSet<Node>();
 
-	protected Node root = null;
+	protected Node<?> root = null;
 
 	protected Tree(Project project, String title) {
 		super(project, title, 0, 0);
