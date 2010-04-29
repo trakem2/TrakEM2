@@ -117,7 +117,28 @@ public class Connector extends Treeline {
 			if (0 == r) return super.getArea(); // a little square
 			return new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r));
 		}
+
+		@Override
+		public void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
+			final Point2D.Double po = t.transformPoint(this.x, this.y);
+			final float x = (float)((po.x - srcRect.x) * magnification);
+			final float y = (float)((po.y - srcRect.y) * magnification);
+
+			if (null == parent) {
+				g.setColor(brightGreen);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("o", (int)x -4, (int)y + 3); // TODO ensure Font is proper
+			} else {
+				g.setColor(Color.white);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("x", (int)x -4, (int)y + 3); // TODO ensure Font is proper
+			}
+		}
 	}
+
+	static private final Color brightGreen = new Color(33, 255, 0);
 
 	public void readLegacyXML(final LayerSet ls, final HashMap ht_attr, final HashMap ht_links) {
 		String origin = (String) ht_attr.get("origin");
