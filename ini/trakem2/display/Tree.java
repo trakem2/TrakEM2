@@ -1522,7 +1522,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						}
 						i++;
 						if (null != target_tags) {
-							item.setEnabled(target_tags.contains(tag));
+							if (untag) item.setEnabled(target_tags.contains(tag));
+							else item.setEnabled(!target_tags.contains(tag));
 						}
 						item.addActionListener(new ActionListener() {
 							public void actionPerformed(ActionEvent ae) {
