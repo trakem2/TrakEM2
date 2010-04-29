@@ -1,5 +1,6 @@
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,6 +24,8 @@ import java.awt.geom.Point2D;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.Project;
+
+import javax.vecmath.Point3f;
 
 /** Can only have one parent, so there aren't cyclic graphs. */
 public abstract class Node<T> implements Taggable {
@@ -639,6 +642,17 @@ public abstract class Node<T> implements Taggable {
 				y = fp[1];
 				break;
 			}
+		}
+	}
+	public Point3f asPoint() {
+		return asPoint(true);
+	}
+	public Point3f asPoint(final boolean calibrated) {
+		if (calibrated) {
+			final Calibration cal = la.getParent().getCalibration();
+			return new Point3f((float)(x * cal.pixelWidth), (float)(y * cal.pixelHeight), (float)(la.getZ() * cal.pixelWidth)); // not pixelDepth!
+		} else {
+			return new Point3f(x, y, (float)la.getZ());
 		}
 	}
 }
