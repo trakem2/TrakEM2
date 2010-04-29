@@ -189,7 +189,7 @@ public class Connector extends Treeline {
 		final AffineTransform aff = new AffineTransform(c.at);
 		aff.preConcatenate(this.at.createInverse());
 		final float[] f = new float[4];
-		for (final Map.Entry<Node,Byte> e : (Collection<Map.Entry<Node,Byte>>)c.root.getChildren().entrySet()) { // TODO should not need to cast
+		for (final Map.Entry<Node,Byte> e : c.root.getChildren().entrySet()) {
 			final ConnectorNode nd = (ConnectorNode)e.getKey();
 			f[0] = nd.x;
 			f[1] = nd.y;
@@ -223,7 +223,7 @@ public class Connector extends Treeline {
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
-		for (Node nd : (Collection<Node>)root.getChildrenNodes()) { // TODO should not need to cast
+		for (Node nd : root.getChildrenNodes()) {
 			al.add(getUnder(nd, c));
 		}
 		return al;
@@ -285,7 +285,7 @@ public class Connector extends Treeline {
 	public List<Point3f> getTargetPoints(final boolean calibrated) {
 		if (null == root) return null;
 		final List<Point3f> targets = new ArrayList<Point3f>();
-		for (final Node nd : (Collection<Node>)root.getChildrenNodes()) { // TODO should not need to cast
+		for (final Node nd : root.getChildrenNodes()) {
 			targets.add(nd.asPoint(calibrated));
 		}
 		return targets;
