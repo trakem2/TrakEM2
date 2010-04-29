@@ -873,11 +873,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return al;
 		}
 		if (instance_of) {
-			for (ZDisplayable zd : al_zdispl) {
+			for (final ZDisplayable zd : al_zdispl) {
 				if (c.isInstance(zd)) al.add(zd);
 			}
 		} else {
-			for (ZDisplayable zd : al_zdispl) {
+			for (final ZDisplayable zd : al_zdispl) {
 				if (zd.getClass() == c) al.add(zd);
 			}
 		}
@@ -887,7 +887,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public ArrayList<ZDisplayable> getZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
 		final ArrayList<ZDisplayable> al = getZDisplayables(c);
 		final double z = layer.getZ();
-		for (Iterator<ZDisplayable> it = al.iterator(); it.hasNext(); ) {
+		for (final Iterator<ZDisplayable> it = al.iterator(); it.hasNext(); ) {
 			ZDisplayable zd = it.next();
 			if (visible_only && !zd.isVisible()) { it.remove(); continue; }
 			if (!zd.intersects(aroi, z, z)) it.remove();

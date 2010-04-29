@@ -2779,14 +2779,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private boolean browseToNodeLayer(final boolean is_shift_down) {
 		// find visible instances of Tree that are currently painting in the canvas
-		final Collection<ZDisplayable> col = display.getLayerSet().getZDisplayables(Treeline.class);
-		col.addAll(display.getLayerSet().getZDisplayables(AreaTree.class));
-		if (col.isEmpty()) return false;
-		final Layer active_layer = display.getLayer();
-		final Point po = getCursorLoc(); // in offscreen coords
-		for (final Tree t : (Collection<Tree>) (Collection) col) {
-			final Node nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
-			if (null != nd) {
+		try {
+			final Layer active_layer = display.getLayer();
+			final Point po = getCursorLoc(); // in offscreen coords
+			for (final ZDisplayable zd : display.getLayerSet().getDisplayableList()) {
+				if (!(zd instanceof Tree)) continue;
+				final Tree t = (Tree)zd;
+				final Node nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
+				if (null == nd) continue;
+				// Else:
 				display.toLayer(nd.la);
 				t.setLastVisited(nd);
 				if (!is_shift_down) display.getSelection().clear();
@@ -2801,6 +2802,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 				return true;
 			}
+		} catch (Exception e) {
+			Utils.log2("Oops: " + e);
 		}
 		return false;
 	}
