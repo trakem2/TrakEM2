@@ -720,10 +720,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	protected Coordinate<Node> createCoordinate(final Node nd) {
 		if (null == nd) return null;
-		double x = nd.x;
-		double y = nd.y;
+		float x = nd.x;
+		float y = nd.y;
 		if (!this.at.isIdentity()) {
-			double[] dps = new double[]{x, y};
+			float[] dps = new float[]{x, y};
 			this.at.transform(dps, 0, dps, 0, 1);
 			x = dps[0];
 			y = dps[1];
