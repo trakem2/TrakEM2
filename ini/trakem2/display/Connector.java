@@ -228,7 +228,7 @@ public class Connector extends Treeline {
 	private final Set<Displayable> getUnder(final Node node, final Class c) {
 		final Area a = node.getArea();
 		a.transform(this.at);
-		HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, true));
+		HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, true));
 		targets.remove(this);
 		return targets;
 	}
@@ -334,6 +334,17 @@ public class Connector extends Treeline {
 			targets.add(fix(nd.asPoint(), calibrated, f));
 		}
 		return targets;
+	}
+
+	public Coordinate<Node> getCoordinateAtOrigin() {
+		if (null == root) return null;
+		return createCoordinate(root);
+	}
+
+	/** Get a coordinate for target i. */
+	public Coordinate<Node> getCoordinate(final int i) {
+		if (null == root || !root.hasChildren()) return null;
+		return createCoordinate(root.children[i]);
 	}
 
 	public String getInfo() {

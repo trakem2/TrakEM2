@@ -2404,6 +2404,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				tgenerate.setEnabled(trees.size() > 0);
 				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
 				tremove.setEnabled(trees.size() > 0);
+				final JMenuItem tconnectors = new JMenuItem("View table of outgoing connectors"); review.add(tconnectors);
 				ActionListener l = new ActionListener() {
 					public void actionPerformed(final ActionEvent ae) {
 						if (!Utils.check("Really " + ae.getActionCommand())) {
@@ -2426,6 +2427,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				};
 				for (JMenuItem c : new JMenuItem[]{tgenerate, tremove}) c.addActionListener(l);
+				tconnectors.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						for (final Tree t : trees) TreeConnectorsView.create(t);
+					}
+				});
 				popup.add(review);
 
 				JMenu go = new JMenu("Go");
