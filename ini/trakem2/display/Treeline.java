@@ -255,7 +255,7 @@ public class Treeline extends Tree {
 				double actZ = active_layer.getZ();
 				double thisZ = this.la.getZ();
 				Color local_edge_color = tree.getColor(); // TODO clean this up & reuse with same code in Node.java
-				int delta_color = new Double(actZ - thisZ).intValue();//TODO find & use abs value function
+				int delta_color = new Double((actZ - thisZ) / this.la.getParent().alt_color_cue_desaturation_span).intValue();//TODO find & use abs value function
 				int red = local_edge_color.getRed() + delta_color; red = red > 255 ? 255 : red; red = red < 0 ? 0 : red; 
 				int green = local_edge_color.getGreen() + delta_color; green = green > 255 ? 255 : green; green = green < 0 ? 0 : green;
 				int blue = local_edge_color.getBlue()+ delta_color; blue = blue > 255 ? 255 : blue; blue = blue < 0 ? 0 : blue;
