@@ -1032,8 +1032,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			// the title
 			sb_body.append(" title=\"").append((String)object).append("\"");
 		}
-		boolean expanded = this.project.getProjectTree().isExpanded(this);
-		if (expanded) sb_body.append(" expanded=\"true\"");
+		if (!this.project.fasterSave()) { // davi-experimenting -- per Steve Butterfield, profiling shows that finding this out is very expensive. For 100's of thousands of profiles projectected from Reconstruct64, this results in multi-hour saves.
+			boolean expanded = this.project.getProjectTree().isExpanded(this);
+			if (expanded) sb_body.append(" expanded=\"true\"");
+		}
 		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
 			sb_body.append("\n");
 			// the rest of the attributes:

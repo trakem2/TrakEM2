@@ -260,6 +260,8 @@ public class Project extends DBObject {
 
 	private boolean mipmaps_only_mode = true; // davi-experimenting
 	public boolean mipmapsOnlyMode() { return mipmaps_only_mode; } // davi-experimenting
+	private boolean faster_save = true; // davi-experimenting
+	public boolean fasterSave() { return faster_save; } // davi-experimenting
 	
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
@@ -1412,6 +1414,7 @@ public class Project extends DBObject {
 		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
 		gd.addCheckbox("Run in mipmaps-only mode (davi-experimenting)", mipmaps_only_mode);  // davi-experimenting
+		gd.addCheckbox("Don't save expansion state (davi-experimenting)", faster_save);  // davi-experimenting
 		//
 		gd.showDialog();
 		//
@@ -1470,6 +1473,7 @@ public class Project extends DBObject {
 		}
 
 		this.mipmaps_only_mode = gd.getNextBoolean(); // davi-experimenting
+		this.faster_save = gd.getNextBoolean(); // davi-experimenting
 
 	}
 
