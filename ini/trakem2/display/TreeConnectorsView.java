@@ -171,7 +171,11 @@ public class TreeConnectorsView {
 									if (0 != (ae.getModifiers() ^ ActionEvent.SHIFT_MASK)) Display.getFront().getSelection().clear();
 									Display.getFront().getSelection().add(rows.get(row).connector);
 								} else if (src == update) {
-									TreeConnectorsView.this.update();
+									Bureaucrat.createAndStart(new Worker.Task("Updating...") {
+										public void exec() {
+											TreeConnectorsView.this.update();
+										}
+									}, TreeConnectorsView.this.tree.getProject());
 								}
 							}
 						};
