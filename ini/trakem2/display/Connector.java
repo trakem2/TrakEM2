@@ -219,6 +219,13 @@ public class Connector extends Treeline {
 		}
 	}
 
+	public boolean intersectsOrigin(final Area area) {
+		if (null == root) return false;
+		final Area a = root.getArea();
+		a.transform(this.at);
+		return M.intersects(area, a);
+	}
+
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class c) {
 		if (null == root) return new HashSet<Displayable>();
