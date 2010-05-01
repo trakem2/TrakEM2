@@ -31,6 +31,8 @@ import ij.io.Opener;
 
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -2629,5 +2631,59 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		Display.repaint(getLayerSet());
 
 			}}, getProject());
+	}
+
+	public Map<Node,Collection<Displayable>> findIntersecting(final Class c) throws Exception {
+		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
+		Process.progressive(root.getSubtreeNodes(),
+				     new TaskFactory<Node,Object>() {
+					 public Callable<Object> create(final Node nd) {
+						 return new Callable<Object>() {
+							 public Object call() {
+								final Area a = nd.getArea();
+								a.transform(Tree.this.at);
+								final Collection<Displayable> col = layer_set.find(c, nd.la, a, false, true);
+								if (col.isEmpty()) return null;
+								synchronized (m) {
+									m.put(nd, col);
+								}
+								return null;
+							 }
+						 };
+					 }});
+		return m;
+	}
+
+	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incomming connectors. */
+	public Collection<Connector>[] findConnectors() throws Exception {
+		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
+		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
+		final ArrayList<Connector> incomming = new ArrayList<Connector>();
+		Process.progressive(root.getSubtreeNodes(),
+				     new TaskFactory<Node,Object>() {
+					 public Callable<Object> create(final Node nd) {
+						 return new Callable<Object>() {
+							 public Object call() {
+								final Area a = nd.getArea();
+								a.transform(Tree.this.at);
+								final Collection<Displayable> col = layer_set.find(Connector.class, nd.la, a, false, true);
+								if (col.isEmpty()) return null;
+								// Outgoing or incomming?
+								for (final Connector c : (Collection<Connector>)(Collection)col) {
+									if (c.intersectsOrigin(a)) {
+										synchronized (outgoing) {
+											outgoing.add(c);
+										}
+									} else {
+										synchronized (incomming) {
+											incomming.add(c);
+										}
+									}
+								}
+								return null;
+							 }
+						 };
+					 }});
+		return (Collection<Connector>[]) new Collection[]{outgoing, incomming};
 	}
 }
