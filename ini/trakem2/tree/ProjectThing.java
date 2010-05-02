@@ -937,7 +937,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return hs;
 	}
 
-	public void exportXML(final StringBuffer sb_body, String indent, Object any) {
+	/** Expects a HashMap<Thing,Boolean> as @param any. */
+	public void exportXML(final StringBuffer sb_body, final String indent, final Object any) {
+		exportXML(sb_body, indent, (HashMap<Thing,Boolean>)any);
+	}
+
+	public void exportXML(final StringBuffer sb_body, final String indent, final HashMap<Thing,Boolean> expanded_states) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -950,8 +955,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			// the title
 			sb_body.append(" title=\"").append((String)object).append("\"");
 		}
-		boolean expanded = this.project.getProjectTree().isExpanded(this);
-		if (expanded) sb_body.append(" expanded=\"true\"");
+		//boolean expanded = this.project.getProjectTree().isExpanded(this);
+		if (null != al_children) {
+			final Boolean b = expanded_states.get(this);
+			if (null != b && Boolean.TRUE.equals(b)) sb_body.append(" expanded=\"true\"");
+		}
 		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
 			sb_body.append("\n");
 			// the rest of the attributes:
@@ -966,7 +974,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
 			for (ProjectThing child : al_children) {
-				child.exportXML(sb_body, in, any);
+				child.exportXML(sb_body, in, expanded_states);
 			}
 		}
 		// 3 - closing tag:
@@ -1027,7 +1035,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	public boolean isExpanded() {
-		return project.getLayerTree().isExpanded(this);
+		return project.getProjectTree().isExpanded(this);
 	}
 
 	/** Return information on this node and its object. */

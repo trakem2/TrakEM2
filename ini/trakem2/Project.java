@@ -1123,10 +1123,19 @@ public class Project extends DBObject {
 		}
 		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
+		// Create table of expanded states
+		/*
+		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
+		for (final Enumeration e = this.project_tree.getRoot().depthFirstEnumeration(); e.hasMoreElements(); ) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)e.nextElement();
+			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
+		}
+		*/
+		final HashMap<? extends Thing,Boolean> expanded_states = project_tree.getExpandedStates();
 		if (null != root_pt.getChildren()) {
 			String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
-				pt.exportXML(sb_body, in2, any);
+				pt.exportXML(sb_body, in2, expanded_states);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
