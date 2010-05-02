@@ -295,6 +295,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return al_children;
 	}
 
+	public boolean hasChildren() {
+		return !(null == al_children || 0 == al_children.size());
+	}
+
 	public boolean addAttribute(String title, Object object) {
 		if (null == title || null == object) return false;
 		if (title.equals("id")) return true; // no need to store the id as an attribute (but will exists as such in the XML file)

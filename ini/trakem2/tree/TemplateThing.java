@@ -176,6 +176,10 @@ public final class TemplateThing extends DBObject implements Thing {
 		return al_children;
 	}
 
+	public boolean hasChildren() {
+		return !(null == al_children || 0 == al_children.size());
+	}
+
 	public boolean canHaveAsChild(Thing thing) {
 		if (null == thing || null == al_children) return false;
 		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
