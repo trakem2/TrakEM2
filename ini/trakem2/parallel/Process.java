@@ -17,19 +17,23 @@ public class Process {
 	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs) throws Exception {
 		final int nproc = Runtime.getRuntime().availableProcessors();
 		final ExecutorService exec = Executors.newFixedThreadPool(nproc);
-		final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
-		final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
-		for (final I input : inputs) {
-			fus.add(exec.submit(generator.create(input)));
-			while (fus.size() > ahead) {
-				// wait
-				outputs.add(fus.removeFirst().get());
+		try {
+			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
+			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
+			for (final I input : inputs) {
+				fus.add(exec.submit(generator.create(input)));
+				while (fus.size() > ahead) {
+					// wait
+					outputs.add(fus.removeFirst().get());
+				}
 			}
-		}
-		// wait for remaining, if any
-		for (final Future<O> fu : fus) {
-			if (null != fu) outputs.add(fu.get());
-			else outputs.add(null);
+			// wait for remaining, if any
+			for (final Future<O> fu : fus) {
+				if (null != fu) outputs.add(fu.get());
+				else outputs.add(null);
+			}
+		} finally {
+			exec.shutdown();
 		}
 	}
 
@@ -37,14 +41,18 @@ public class Process {
 	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator) throws Exception {
 		final int nproc = Runtime.getRuntime().availableProcessors();
 		final ExecutorService exec = Executors.newFixedThreadPool(nproc);
-		final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
-		final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
-		for (final I input : inputs) {
-			fus.add(exec.submit(generator.create(input)));
-			while (fus.size() > ahead) {
-				fus.removeFirst().get();
+		try {
+			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
+			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
+			for (final I input : inputs) {
+				fus.add(exec.submit(generator.create(input)));
+				while (fus.size() > ahead) {
+					fus.removeFirst().get();
+				}
 			}
+			for (final Future<O> fu : fus) if (null != fu) fu.get();
+		} finally {
+			exec.shutdown();
 		}
-		for (final Future<O> fu : fus) if (null != fu) fu.get();
 	}
 }
