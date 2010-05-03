@@ -340,7 +340,7 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** Only this node, not any of its children. */
-	final void translate(final float dx, final float dy) {
+	final public void translate(final float dx, final float dy) {
 		x += dx;
 		y += dy;
 	}
@@ -479,7 +479,7 @@ public abstract class Node<T> implements Taggable {
 		this.parent = null;
 		*/
 	}
-	final boolean setConfidence(final Node child, final byte conf) {
+	synchronized public final boolean setConfidence(final Node child, final byte conf) {
 		if (null == children) return false;
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
 		for (int i=0; i<children.length; i++) {
@@ -517,7 +517,7 @@ public abstract class Node<T> implements Taggable {
 		}
 		return -1;
 	}
-	final Node findPreviousBranchOrRootPoint() {
+	synchronized public final Node findPreviousBranchOrRootPoint() {
 		if (null == this.parent) return null;
 		Node parent = this.parent;
 		while (true) {
@@ -530,7 +530,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Assumes there aren't any cycles. */
-	final Node findNextBranchOrEndPoint() {
+	synchronized public final Node findNextBranchOrEndPoint() {
 		Node child = this;
 		while (true) {
 			if (null == child.children || child.children.length > 1) return child;
