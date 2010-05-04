@@ -110,13 +110,12 @@ public class TreeConnectorsView {
 		for (final Node nd : (Collection<Node>)this.tree.getRoot().getSubtreeNodes()) {
 			final Area a = nd.getArea();
 			a.transform(this.tree.at);
-			final Collection<Connector> ds = (Collection<Connector>)(Collection)nd.la.getParent().find(Connector.class, nd.la, a, true);
-			ds.removeAll(cons_unique);
-			for (final Connector c : ds) {
-				int i = 0;
-				for (final Set<Displayable> targets : c.getTargets(ZDisplayable.class)) {
-					rows.add(new Row(c, i++, targets));
-				}
+			cons_unique.addAll((Collection<Connector>)(Collection)nd.la.getParent().find(Connector.class, nd.la, a, true));
+		}
+		for (final Connector c : cons_unique) {
+			int i = 0;
+			for (final Set<Displayable> targets : c.getTargets(ZDisplayable.class)) {
+				rows.add(new Row(c, i++, targets));
 			}
 		}
 		this.rows = rows;
