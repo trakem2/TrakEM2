@@ -941,6 +941,14 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Returns the list of layers to paint by considering the range of n_layers_color_cue around the active layer index. */
 	public List<Layer> getColorCueLayerRange(final Layer active_layer) {
+		if (n_layers_color_cue < 0) {
+			return new ArrayList<Layer>(al_layers); // a copy of all
+		} else if (0 == n_layers_color_cue) {
+			final ArrayList<Layer> list = new ArrayList<Layer>();
+			list.add(active_layer);
+			return list;
+		}
+		// Else:
 		int i = al_layers.indexOf(active_layer);
 		int first = i - n_layers_color_cue;
 		int last = i + n_layers_color_cue;
