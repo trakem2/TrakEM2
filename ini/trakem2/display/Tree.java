@@ -227,16 +227,34 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	protected Rectangle getPaintingBounds() {
-		Rectangle box = null;
+		Rectangle box = null,
+			  tmp = new Rectangle();
 		synchronized (node_layer_map) {
 			for (final Collection<Node> nodes : node_layer_map.values()) {
-				for (final Node nd : nodes) {
-					if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-					else box.add((int)nd.x, (int)nd.y);
-				}
+				tmp = getBounds(tmp, nodes);
+				if (null == box) box = tmp;
+				else if (null != tmp) box.add(tmp);
 			}
 		}
 		return box;
+	}
+
+	@Override
+	public Rectangle getBounds(Rectangle tmp, final Layer layer) {
+		final Collection<Node> nodes = node_layer_map.get(layer);
+		if (null == nodes) return null;
+		synchronized (node_layer_map) {
+			return getBounds(tmp, nodes);
+		}
+	}
+
+	// Call always from within a synchronized (node_layer_map) block.
+	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+		for (final Node nd : nodes) {
+			if (null == tmp) tmp = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
+			else tmp.add((int)nd.x, (int)nd.y);
+		}
+		return tmp;
 	}
 
 	protected boolean calculateBoundingBox(final Layer la) {

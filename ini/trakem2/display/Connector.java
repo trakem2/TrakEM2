@@ -452,4 +452,18 @@ public class Connector extends Treeline {
 
 	@Override
 	protected boolean requireAltDownToEditRadius() { return false; }
+
+	@Override
+	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+		final Rectangle nb = new Rectangle();
+		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
+			final int r = 0 == nd.r ? 1 : (int)nd.r;
+			if (null == tmp) tmp = new Rectangle((int)nd.x - r, (int)nd.y - r, r+r, r+r);
+			else {
+				nb.setBounds((int)nd.x - r, (int)nd.y - r, r+r, r+r);
+				tmp.add(nb);
+			}
+		}
+		return tmp;
+	}
 }

@@ -701,22 +701,18 @@ public class Treeline extends Tree {
 		return true;
 	}
 
-	protected Rectangle getPaintingBounds() {
-		Rectangle box = null;
-		synchronized (node_layer_map) {
-			for (final Collection<Node> nodes : node_layer_map.values()) {
-				for (final RadiusNode nd : (Collection<RadiusNode>) (Collection) nodes) {
-					if (null == nd.parent) {
-						if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-						else box.add((int)nd.x, (int)nd.y);
-						continue;
-					}
-					// Get the segment with the parent node
-					if (null == box) box = nd.getSegment().getBounds();
-					else box.add(nd.getSegment().getBounds());
-				}
+	@Override
+	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
+			if (null == nd.parent) {
+				if (null == tmp) tmp = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
+				else tmp.add((int)nd.x, (int)nd.y);
+				continue;
 			}
+			// Get the segment with the parent node
+			if (null == tmp) tmp = nd.getSegment().getBounds();
+			else tmp.add(nd.getSegment().getBounds());
 		}
-		return box;
+		return tmp;
 	}
 }
