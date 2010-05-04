@@ -397,6 +397,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return n;
 	}
 
+	/** Checks if there are any Displayable or if any ZDisplayable paints in this layer. */
 	public boolean isEmpty() {
 		return 0 == al_displayables.size() && parent.isEmptyAt(this); // check for ZDisplayable painting here as well
 	}
