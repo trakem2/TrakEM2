@@ -1757,4 +1757,10 @@ public final class Patch extends Displayable implements ImageData {
 		}
 		return true;
 	}
+
+	/** Use this instead of getAreaAt which calls getArea which is ... dog slow for something like buckets. */
+	@Override
+	protected Area getAreaForBucket(final Layer layer) {
+		return new Area(getPerimeter());
+	}
 }

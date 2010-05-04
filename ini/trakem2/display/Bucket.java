@@ -88,7 +88,7 @@ public class Bucket {
 		for (final Displayable d : container.getDisplayableList()) {
 			list.put(i, d);
 			i++;
-			final Area a = d.getAreaAt(layer); //Bucket.getBounds(d, layer);
+			final Area a = d.getAreaForBucket(layer); //Bucket.getBounds(d, layer);
 			if (null != a) areas.put(d, a);
 		}
 		populate(container, layer, db_map, w+w, h+h, w, h, list, areas);
@@ -229,7 +229,7 @@ public class Bucket {
 			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				final Area a = d.getAreaAt(layer);
+				final Area a = d.getAreaForBucket(layer);
 				if (null != a && M.intersects(asrc, a)) {
 					accum.put(entry.getKey(), d);
 				}
@@ -258,7 +258,7 @@ public class Bucket {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
 				if (d.getClass() == c) {
-					final Area a = d.getAreaAt(layer);
+					final Area a = d.getAreaForBucket(layer);
 					if (null != a && M.intersects(asrc, a)) {
 						accum.put(entry.getKey(), d);
 					}
@@ -393,7 +393,7 @@ public class Bucket {
 	/** Remove from wherever it is, then test if it's in that bucket, otherwise re-add. */
 	synchronized final void updatePosition(final Displayable d, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 		final ArrayList<Bucket> list = db_map.get(d);
-		final Area a = d.getAreaAt(layer);
+		final Area a = d.getAreaForBucket(layer);
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
 		if (null != list) {
 			for (final Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
@@ -410,7 +410,7 @@ public class Bucket {
 
 	/** Add the given Displayable to all buckets that intercept its bounding box. */
 	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
-		put(stack_index, d, layer, d.getAreaAt(layer), db_map);
+		put(stack_index, d, layer, d.getAreaForBucket(layer), db_map);
 	}
 	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final Area a, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 		if (null == a) return;
@@ -556,7 +556,7 @@ public class Bucket {
 			final int[] sizes = new int[col.size()];
 			int i = 0;
 			for (final Displayable d : col) {
-				Area a = d.getAreaAt(la);
+				Area a = d.getAreaForBucket(la);
 				if (null == a) continue;
 				Rectangle r = a.getBounds();
 				sizes[i++] = Math.max(r.width, r.height);

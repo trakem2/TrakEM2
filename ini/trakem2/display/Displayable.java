@@ -2112,6 +2112,11 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return getArea();
 	}
 
+	/** Should call getAreaAt(layer), or methods that are similar but faster. */
+	protected Area getAreaForBucket(final Layer layer) {
+		return getAreaAt(layer);
+	}
+
 	public void setAnnotation(final String annotation) { this.annotation = annotation; }
 
 	/** Returns null if none. */
