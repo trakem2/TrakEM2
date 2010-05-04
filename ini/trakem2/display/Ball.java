@@ -757,6 +757,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** */ // this may be inaccurate
+	@Override
 	public boolean paintsAt(Layer layer) {
 		if (!super.paintsAt(layer)) return false;
 		// find previous and next
