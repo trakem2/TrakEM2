@@ -222,7 +222,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 							while (itz.hasNext()) {
 								ZDisplayable zd = (ZDisplayable)itz.next();
 								if (!zd.isVisible()) continue;
-								zd.paintSnapshot(g, srcRect, scale);
+								zd.paintSnapshot(g, layer, srcRect, scale);
 							}
 							// paint the label too!
 							d.paint(g, srcRect, scale, false, 1, DisplayNavigator.this.layer);
@@ -252,7 +252,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 						while (itz.hasNext()) {
 							ZDisplayable zd = (ZDisplayable)itz.next();
 							if (!zd.isVisible()) continue;
-							zd.paintSnapshot(g, srcRect, scale);
+							zd.paintSnapshot(g, layer, srcRect, scale);
 						}
 					}
 				}

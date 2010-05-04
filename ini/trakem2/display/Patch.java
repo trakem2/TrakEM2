@@ -873,7 +873,8 @@ public final class Patch extends Displayable implements ImageData {
 		return false;
 	}
 
-	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
+	@Override
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				if (!project.getLoader().isSnapPaintable(this.id)) {

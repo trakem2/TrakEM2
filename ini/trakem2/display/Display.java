@@ -1082,10 +1082,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
+		/* // OBSOLETE
 		// update the current Layer pointer in ZDisplayable objects
 		for (Iterator it = layer.getParent().getZDisplayables().iterator(); it.hasNext(); ) {
 			((ZDisplayable)it.next()).setLayer(layer); // the active layer
 		}
+		*/
 
 		updateVisibleTab(set_zdispl);
 
@@ -1104,7 +1106,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				it.remove();
 				selection.remove(d);
 				if (d == last_active && sel.size() > 0) {
-					// select the last one of the remaining, if any
+					// set as active (by selecting it) the last one of the remaining, if any
 					sel_next = sel.size()-1;
 				}
 			}

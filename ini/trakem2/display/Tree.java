@@ -1706,7 +1706,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows

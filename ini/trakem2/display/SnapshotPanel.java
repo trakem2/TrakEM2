@@ -113,7 +113,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 				//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
 				//	d.paintAsBox(g2);
 				//} else {
-					d.paintSnapshot(g2, d.getLayerSet().get2DBounds(), scale);
+					d.paintSnapshot(g2, display.getLayer(), d.getLayerSet().get2DBounds(), scale);
 				//}
 			} catch (Exception e) {
 				d.paintAsBox(g2);
