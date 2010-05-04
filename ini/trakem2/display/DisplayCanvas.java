@@ -2352,7 +2352,18 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		layer.getParent().checkBuckets();
 		layer.checkBuckets();
 		final Iterator<Displayable> ital = layer.find(srcRect, true).iterator();
-		final Iterator<Displayable> itzd = layer.getParent().findZDisplayables(layer, srcRect, true).iterator();
+		final Collection<Displayable> zdal;
+		final LayerSet layer_set = layer.getParent();
+		// Which layers to color cue, if any?
+		if (layer_set.color_cues) {
+			zdal = layer_set.findZDisplayables(layer, srcRect, true);
+		} else {
+			zdal = new ArrayList<Displayable>();
+			for (final Layer la : layer_set.getColorCueLayerRange(layer)) {
+				zdal.addAll(layer_set.findZDisplayables(layer, srcRect, true));
+			}
+		}
+		final Iterator<Displayable> itzd = zdal.iterator();
 
 		// Assumes the Layer has its objects in order:
 		// 1 - Patches
