@@ -2666,7 +2666,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							 public Object call() {
 								final Area a = nd.getArea();
 								a.transform(Tree.this.at);
-								final Collection<Displayable> col = layer_set.find(Connector.class, nd.la, a, false, true);
+								final Collection<Displayable> col = layer_set.find(Connector.class, nd.la, a, false, false);
 								if (col.isEmpty()) return null;
 								// Outgoing or incomming?
 								for (final Connector c : (Collection<Connector>)(Collection)col) {
