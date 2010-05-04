@@ -184,8 +184,8 @@ public abstract class ZDisplayable extends Displayable {
 	@Override
 	public void updateBucket() {
 		if (null == getBucketable()) return;
-		for (final Long l : getLayerIds()) {
-			getBucketable().updateBucket(this, layer_set.getLayer(l.longValue()));
+		for (final Layer layer : getLayersWithData()) {
+			getBucketable().updateBucket(this, layer);
 		}
 	}
 }

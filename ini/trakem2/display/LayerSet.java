@@ -751,6 +751,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return idlayers.get(id);
 	}
 
+	/** Same as getLayer(long) but without box/unbox. */
+	public Layer getLayer(final Long id) {
+		return idlayers.get(id);
+	}
+
 	/** Returns the first layer found with the given Z coordinate, rounded to seventh decimal precision, or null if none found. */
 	public Layer getLayer(final double z) {
 		double error = 0.0000001; // TODO adjust to an optimal

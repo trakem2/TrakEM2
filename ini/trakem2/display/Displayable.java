@@ -2092,6 +2092,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return Arrays.asList(this.layer.getId());
 	}
 
+	/** Override it to provide Layer pointers directly. */
+	public Collection<Layer> getLayersWithData() {
+		final Collection<Long> lids = getLayerIds();
+		final Collection<Layer> layers = new ArrayList<Layer>(lids.size());
+		final LayerSet layer_set = getLayerSet();
+		for (final Long l : lids) layers.add(layer_set.getLayer(l));
+		return layers;
+	}
+
 	public Area getArea() {
 		return new Area(getPerimeter());
 	}

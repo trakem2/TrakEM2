@@ -2377,6 +2377,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
 		return ids;
 	}
+	@Override
+	synchronized public Collection<Layer> getLayersWithData() {
+		return new ArrayList<Layer>(node_layer_map.keySet());
+	}
 
 	/** Returns an empty area when there aren't any nodes in @param layer. */
 	@Override
