@@ -2356,12 +2356,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final LayerSet layer_set = layer.getParent();
 		// Which layers to color cue, if any?
 		if (layer_set.color_cues) {
-			zdal = layer_set.findZDisplayables(layer, srcRect, true);
-		} else {
 			zdal = new ArrayList<Displayable>();
 			for (final Layer la : layer_set.getColorCueLayerRange(layer)) {
-				zdal.addAll(layer_set.findZDisplayables(layer, srcRect, true));
+				zdal.addAll(layer_set.findZDisplayables(la, srcRect, true));
 			}
+		} else {
+			zdal = layer_set.findZDisplayables(layer, srcRect, true);
 		}
 		final Iterator<Displayable> itzd = zdal.iterator();
 
