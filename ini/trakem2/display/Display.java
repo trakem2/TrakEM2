@@ -2735,11 +2735,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		popup.add(menu);
 
 		menu = new JMenu("Export");
+		final boolean has_arealists = layer.getParent().contains(AreaList.class);
 		item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
-		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		if (has_arealists) item.setEnabled(false);
 		item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
-		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		if (has_arealists) item.setEnabled(false);
 		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && AreaList.class == active.getClass());
 		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
@@ -2774,7 +2775,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Select all visible"); item.addActionListener(this); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
-		if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
+		if (0 == layer.getDisplayableList().size() && 0 == layer.getParent().getDisplayableList().size()) item.setEnabled(false);
 		item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 		if (0 == selection.getNSelected()) item.setEnabled(false);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
@@ -3165,7 +3166,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				java.util.List<Displayable> a = new ArrayList<Displayable>();
 				if (null != aroi) {
 					a.addAll(d.layer.getDisplayables(c, aroi, true));
-					a.addAll(d.layer.getParent().getZDisplayables(c, d.layer, aroi, true));
+					a.addAll(d.layer.getParent().findZDisplayables(c, d.layer, aroi, true, true));
 				} else {
 					a.addAll(d.layer.getDisplayables(c));
 					a.addAll(d.layer.getParent().getZDisplayables(c));

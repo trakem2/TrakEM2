@@ -223,7 +223,7 @@ public class Selection {
 		affine.translate(bounds.x, bounds.y);
 		aroi = aroi.createTransformedArea(affine);
 		Collection al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
-		al.addAll(display.getLayer().getParent().getZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only));
+		al.addAll(display.getLayer().getParent().findZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only, true));
 		final Rectangle tmp = new Rectangle();
 		if (visible_only) {
 			for (Iterator it = al.iterator(); it.hasNext(); ) {
