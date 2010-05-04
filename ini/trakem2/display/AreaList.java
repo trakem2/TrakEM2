@@ -302,8 +302,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	private AreaWrapper aw = null;
 	private Long lid = null;
 
-	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
-		final Layer la = Display.getFrontLayer(this.project);
+	public void mousePressed(final MouseEvent me, final Layer la, final int x_p_w, final int y_p_w, final double mag) {
 		lid = la.getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
 		Area area = null;
@@ -327,27 +326,27 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		aw.setSource(this);
 		final Area a = aw.getArea();
 		final Long lid = this.lid;
-		aw.mousePressed(me, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { public void run() {
+		aw.mousePressed(me, la, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { public void run() {
 			// To be run on mouse released:
 			// check if empty. If so, remove
 			Rectangle bounds = a.getBounds();
 			if (0 == bounds.width && 0 == bounds.height) {
 				ht_areas.remove(lid);
 			}
-			calculateBoundingBox();
+			calculateBoundingBox(la);
 		}}}));
 		aw.setSource(null);
 	}
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == aw) return;
 		aw.setSource(this);
-		aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		aw.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		aw.setSource(null);
 	}
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		if (null == aw) return;
 		aw.setSource(this);
-		aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		aw.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
 		aw.setSource(null);
 
 		lid = null;
@@ -355,7 +354,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
-	public boolean calculateBoundingBox() {
+	public boolean calculateBoundingBox(final Layer la) {
 		// forget it if this has been done once already, for at the moment it would work only for translations, not any other types of transforms. TODO: need to fix this somehow, generates repainting problems.
 		//if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
 		// check preconditions
@@ -382,7 +381,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		this.width = box.width;
 		this.height = box.height;
 		updateInDatabase("transform+dimensions");
-		if (null != layer_set) layer_set.updateBucket(this);
+		updateBucket(la);
 		if (0 != box.x || 0 != box.y) {
 			return true;
 		}
@@ -628,7 +627,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			Utils.log2("Merged AreaList " + ali + " to base " + base);
 		}
 		// update
-		base.calculateBoundingBox();
+		base.calculateBoundingBox(null);
 		// relink
 		base.linkPatches();
 
@@ -728,7 +727,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			a.add(asr);
 			ht_areas.put(layer_id, a);
 		}
-		calculateBoundingBox();
+		calculateBoundingBox(null != layer_set ? layer_set.getLayer(layer_id) : null);
 		updateInDatabase("points=" + layer_id);
 	}
 	/** Subtracts the given ROI, which is expected in world/LayerSet coordinates, to the area present at Layer with id layer_id, or set it if none present yet. */
@@ -737,7 +736,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		Area a = getArea(layer_id);
 		if (null == a) return;
 		a.subtract(M.getArea(roi).createTransformedArea(this.at.createInverse()));
-		calculateBoundingBox();
+		calculateBoundingBox(null != layer_set ? layer_set.getLayer(layer_id) : null);
 		updateInDatabase("points=" + layer_id);
 	}
 
@@ -763,7 +762,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		ali.alpha = this.alpha;
 		ali.addArea(layer_id, inter);
 		this.layer_set.add(ali); // needed to call updateBucket
-		ali.calculateBoundingBox();
+		ali.calculateBoundingBox(null != layer_set ? layer_set.getLayer(layer_id) : null);
 
 		return ali;
 	}
@@ -1376,7 +1375,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			Long lid = (Long)it.next();
 			if (!lids.contains(lid)) it.remove();
 		}
-		calculateBoundingBox();
+		calculateBoundingBox(null);
 		return true;
 	}
 
@@ -1445,7 +1444,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final AffineTransform inverse = this.at.createInverse();
 		if (M.intersects(a, roi.createTransformedArea(inverse))) {
 			M.apply(M.wrap(this.at, ct, inverse), roi, a);
-			calculateBoundingBox();
+			calculateBoundingBox(la);
 		}
 		return true;
 	}
@@ -1454,7 +1453,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Area a = getArea(vdt.layer);
 		if (null == a) return true;
 		M.apply(vdt.makeLocalTo(this), a);
-		calculateBoundingBox();
+		calculateBoundingBox(vdt.layer);
 		return true;
 	}
 

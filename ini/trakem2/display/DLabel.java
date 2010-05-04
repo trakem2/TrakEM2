@@ -134,7 +134,7 @@ public class DLabel extends Displayable implements VectorData {
 		this.height = dim.height;
 		Display.updateTransform(this); // need to update the Selection with the actual width and height!
 		updateInDatabase("dimensions");
-		layer.updateBucket(this);
+		updateBucket();
 	}
 
 	private void reload() {
@@ -278,11 +278,11 @@ public class DLabel extends Displayable implements VectorData {
 				   4);
 	}
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {}
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {}
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		Display.repaint(layer, this); // the DisplayablePanel
 	}
 

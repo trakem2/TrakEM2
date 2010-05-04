@@ -239,7 +239,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return box;
 	}
 
-	protected boolean calculateBoundingBox() {
+	protected boolean calculateBoundingBox(final Layer la) {
 		if (null == root) {
 			this.at.setToIdentity();
 			this.width = 0;
@@ -258,19 +258,15 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				nd.translate(-box.x, -box.y); }}
 		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
-		if (null != layer_set) layer_set.updateBucket(this);
+		updateBucket(la);
 		return true;
 	}
 
-	public void repaint() {
-		repaint(true);
-	}
-
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
-	public void repaint(boolean repaint_navigator) {
+	public void repaint(boolean repaint_navigator, Layer la) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox();
+		calculateBoundingBox(la);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 10, repaint_navigator);
 	}
@@ -655,8 +651,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				// ... and fill its cache arrays
 				t.cacheSubtree(subtree_nodes); // includes nd itself
 				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
-				this.calculateBoundingBox();
-				t.calculateBoundingBox();
+				this.calculateBoundingBox(null);
+				t.calculateBoundingBox(null);
 				// Done!
 				return Arrays.asList(new Tree[]{this, t});
 			}
@@ -1152,7 +1148,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			tl.end_nodes.clear();
 		}
 
-		calculateBoundingBox();
+		calculateBoundingBox(null);
 
 		// Don't clear this.marked
 
@@ -1298,11 +1294,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, final Layer layer, int x_p, int y_p, double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
 			return;
 		}
-		final Layer layer = Display.getFrontLayer(this.project);
 
 		if (null != root) {
 			// transform the x_p, y_p to the local coordinates
@@ -1335,7 +1330,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							return;
 						}
 					}
-					repaint(false); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
+					repaint(false, layer); // keep larger size for repainting, will call calculateBoundingBox on mouseRelesed
 					setActive(null);
 					return;
 				}
@@ -1369,7 +1364,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					found = newNode(x_pl, y_pl, layer, nearest);
 					addNode(nearest, found, Node.MAX_EDGE_CONFIDENCE);
 					setActive(found);
-					repaint(true);
+					repaint(true, layer);
 				}
 				return;
 			}
@@ -1382,18 +1377,18 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		translateActive(me, x_d, y_d, x_d_old, y_d_old);
+	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+		translateActive(me, la, x_d, y_d, x_d_old, y_d_old);
 	}
 
 	@Override
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		final int tool = ProjectToolbar.getToolId();
 
-		translateActive(me, x_r, y_d, x_d, y_d);
+		translateActive(me, la, x_r, y_d, x_d, y_d);
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
-			repaint(true); //needed at least for the removePoint
+			repaint(true, la); //needed at least for the removePoint
 		}
 
 		updateViewData(active);
@@ -1401,7 +1396,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		setActive(null);
 	}
 
-	private final void translateActive(MouseEvent me, int x_d, int y_d, int x_d_old, int y_d_old) {
+	private final void translateActive(MouseEvent me, Layer la, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == active || me.isAltDown() || Utils.isControlDown(me)) return;
 		// shiftDown is ok: when dragging a newly branched node.
 
@@ -1416,7 +1411,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 
 		active.translate(x_d - x_d_old, y_d - y_d_old);
-		repaint(false);
+		repaint(false, la);
 		setLastEdited(active);
 	}
 
@@ -2332,12 +2327,12 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			if (null != this.root) this.cacheSubtree(root.getSubtreeNodes());
 			for (Tree t : siblings) {
 				t.cacheSubtree(t.root.getSubtreeNodes());
-				t.calculateBoundingBox();
+				t.calculateBoundingBox(la);
 				layer_set.add(t);
 				project.getProjectTree().addSibling(this, t);
 			}
 		}
-		this.calculateBoundingBox();
+		this.calculateBoundingBox(la);
 		updateView();
 		return true;
 	}
@@ -2358,7 +2353,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				}
 				nd.apply(chain, roi);
 			}
-			if (null != chain) calculateBoundingBox();
+			if (null != chain) calculateBoundingBox(la);
 		}
 		return true;
 	}
@@ -2371,7 +2366,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			for (final Node nd : nodes) {
 				nd.apply(vlocal);
 			}
-			calculateBoundingBox();
+			calculateBoundingBox(vdt.layer);
 		}
 		return true;
 	}

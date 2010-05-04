@@ -279,7 +279,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	/**Helper vars for mouse events. Safe as static since only one Ball will be edited at a time.*/
 	static int index = -1;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -290,7 +290,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
-			long layer_id = Display.getFrontLayer().getId();
+			long layer_id = layer.getId();
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
 				index = findNearestPoint(p, n_points, x_p, y_p); // should go to an AbstractProfile or something
 			} else {
@@ -301,7 +301,7 @@ public class Ball extends ZDisplayable implements VectorData {
 					if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
 						removePoint(index);
 						index = -1; // to prevent saving in the database twice
-						repaint(false);
+						repaint(false, layer);
 						return;
 					}
 				} else index = -1; // disable if not in the front layer (so a new point will be added)
@@ -312,12 +312,12 @@ public class Ball extends ZDisplayable implements VectorData {
 			}
 			if (-1 == index) {
 				index = addPoint(x_p, y_p, layer_id, (0 == n_points ? Ball.getFirstWidth() : p_width[n_points -1])); // either 10 screen pixels or the same as the last point
-				repaint(false);
+				repaint(false, layer);
 			}
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -342,12 +342,12 @@ public class Ball extends ZDisplayable implements VectorData {
 				} else {
 					dragPoint(index, x_d - x_d_old, y_d - y_d_old);
 				}
-				repaint(false);
+				repaint(false, layer);
 			}
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 
 		//update points in database if there was any change
 		if (-1 != index && index != n_points) { // don't do it when the last point is removed
@@ -361,17 +361,18 @@ public class Ball extends ZDisplayable implements VectorData {
 
 		// reset
 		index = -1;
-		repaint(true);
+		repaint(true, layer);
 	}
 
-	private void calculateBoundingBox(boolean adjust_position) {
+	/** Uses the @param layer to update a specific Bucket for that layer. */
+	private void calculateBoundingBox(boolean adjust_position, Layer la) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
 		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
-			layer_set.updateBucket(this);
+			updateBucket(la);
 			return;
 		}
 		if (0 != n_points) {
@@ -396,7 +397,7 @@ public class Ball extends ZDisplayable implements VectorData {
 			updateInDatabase("dimensions");
 		}
 
-		layer_set.updateBucket(this);
+		updateBucket(la);
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -407,16 +408,11 @@ public class Ball extends ZDisplayable implements VectorData {
 		p_width = null;
 	}
 
-
-	public void repaint() {
-		repaint(true);
-	}
-
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
-	public void repaint(boolean repaint_navigator) {
+	public void repaint(boolean repaint_navigator, Layer layer) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, layer);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 5, repaint_navigator);
 	}
@@ -1046,7 +1042,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 	}
 
-	/** Retain the data within the layer range, and through out all the rest. */
+	/** Retain the data within the layer range, and throw out all the rest. */
 	synchronized public boolean crop(List<Layer> range) {
 		if (-1 == n_points) setupForDisplay();
 		HashSet<Long> lids = new HashSet<Long>();
@@ -1059,7 +1055,7 @@ public class Ball extends ZDisplayable implements VectorData {
 				i--;
 			}
 		}
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, null);
 		return true;
 	}
 
@@ -1103,7 +1099,7 @@ public class Ball extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
+		if (null != chain) calculateBoundingBox(true, la); // may be called way too many times, but avoids lots of headaches.
 		return true;
 	}
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
@@ -1128,7 +1124,7 @@ public class Ball extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, vlocal.layer);
 		return true;
 	}
 

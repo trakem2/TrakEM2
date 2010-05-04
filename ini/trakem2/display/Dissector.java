@@ -486,11 +486,10 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	private Rectangle bbox = null;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer la, int x_p, int y_p, double mag) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
-		final Layer la = Display.getFrontLayer(this.project);
 		final long lid = la.getId(); // isn't this.layer pointing to the current layer always?
 
 		// transform the x_p, y_p to the local coordinates
@@ -556,7 +555,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
@@ -593,14 +592,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
-		bbox = calculateBoundingBox();
+		bbox = calculateBoundingBox(la);
 	}
 
 	/** Make points as local as possible, and set the width and height. */
-	private Rectangle calculateBoundingBox() {
+	private Rectangle calculateBoundingBox(Layer la) {
 		Rectangle box = null;
 		for (Item item : al_items) {
 			if (null == box) box = item.getBoundingBox();
@@ -620,7 +619,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (0 != box.x || 0 != box.y) {
 			for (Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
-		layer_set.updateBucket(this);
+		updateBucket(la);
 		return box;
 	}
 
@@ -742,7 +741,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		calculateBoundingBox();
+		calculateBoundingBox(null);
 		return true;
 	}
 
@@ -777,7 +776,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		if (null != chain) calculateBoundingBox();
+		if (null != chain) calculateBoundingBox(la);
 		return true;
 	}
 
@@ -797,7 +796,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		calculateBoundingBox();
+		calculateBoundingBox(vlocal.layer);
 		return true;
 	}
 

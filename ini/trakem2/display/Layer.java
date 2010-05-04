@@ -258,10 +258,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (null != root) {
 			if (d.length == stack_index) {
 				// append at the end
-				root.put(stack_index, displ, displ.getBoundingBox(null));
+				root.put(stack_index, displ, this, db_map);
 			} else {
 				// add as last first, then update
-				root.put(d.length, displ, displ.getBoundingBox(null));
+				root.put(d.length, displ, this, db_map);
 				// find and update the range of affected Displayable objects
 				root.update(this, displ, stack_index, d.length); // first to last indices affected
 			}
@@ -272,7 +272,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer layer) { // ignore layer
 		return db_map;
 	}
 
@@ -921,15 +921,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	synchronized public void recreateBuckets() {
-		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
+		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this, this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
-		this.root.populate(this, db_map);
+		this.root.populate(this, this, db_map);
 		//root.debug();
 	}
 
 	/** Update buckets of a position change for the given Displayable. */
-	public void updateBucket(final Displayable d) {
-		if (null != root) root.updatePosition(d, db_map);
+	public void updateBucket(final Displayable d, final Layer layer) { // ignore layer
+		if (null != root) root.updatePosition(d, this, db_map);
 	}
 
 	public void checkBuckets() {

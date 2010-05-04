@@ -687,13 +687,13 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return hs;
 	}
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		Utils.log2("mousePressed not implemented yet for " + this.getClass().getName());
 	}
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		Utils.log2("mouseDragged not implemented yet for " + this.getClass().getName());
 	}
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		Utils.log2("mouseReleased not implemented yet for " + this.getClass().getName());
 	}
 
@@ -759,6 +759,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
 	public void repaint() {
+		Utils.log("called repaint() for " + getClass().getName());
 		Display.repaint(layer, this, 5);
 	}
 
@@ -1553,7 +1554,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Commands the parent container (a Layer or a LayerSet) to update the bucket position of this Displayable. */
 	public void updateBucket() {
-		if (null != getBucketable()) getBucketable().updateBucket(this);
+		if (null != getBucketable()) getBucketable().updateBucket(this, this.layer);
 	}
 
 	/** Scale relative to an anchor point (will translate as necessary). */

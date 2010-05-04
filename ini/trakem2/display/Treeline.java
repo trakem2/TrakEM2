@@ -86,7 +86,7 @@ public class Treeline extends Tree {
 	}
 
 	@Override
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer la, int x_p, int y_p, double mag) {
 		if (-1 == last_radius) {
 			last_radius = 10 / (float)mag;
 		}
@@ -111,13 +111,13 @@ public class Treeline extends Tree {
 
 			setActive(nd);
 			nd.setData((float)Math.sqrt(Math.pow(xp - nd.x, 2) + Math.pow(yp - nd.y, 2)));
-			repaint(true);
+			repaint(true, la);
 			setLastEdited(nd);
 
 			return;
 		}
 
-		super.mousePressed(me, x_p, y_p, mag);
+		super.mousePressed(me, la, x_p, y_p, mag);
 	}
 
 	protected boolean requireAltDownToEditRadius() {
@@ -125,11 +125,11 @@ public class Treeline extends Tree {
 	}
 
 	@Override
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == getActive()) return;
 
 		if (requireAltDownToEditRadius() && !me.isAltDown()) {
-			super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+			super.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 			return;
 		}
 		if (me.isShiftDown() && !Utils.isControlDown(me)) {
@@ -145,22 +145,22 @@ public class Treeline extends Tree {
 			float r = (float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2));
 			nd.setData(r);
 			last_radius = r;
-			repaint(true);
+			repaint(true, la);
 			return;
 		}
 
-		super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		super.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 	}
 
 	@Override
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		if (null == getActive()) return;
 
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
 			updateViewData(getActive());
 			return;
 		}
-		super.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+		super.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
 	}
 
 	@Override
@@ -695,7 +695,7 @@ public class Treeline extends Tree {
 		}
 		nd.setData((float)radius);
 
-		calculateBoundingBox();
+		calculateBoundingBox(layer);
 		Display.repaint(layer_set);
 
 		return true;

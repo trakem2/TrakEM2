@@ -601,7 +601,7 @@ public class Profile extends Displayable implements VectorData {
 	static private boolean is_new_point = false;
 
 	/**Execute the mousePressed MouseEvent on this Profile.*/
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -676,7 +676,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/**Execute the mouseDragged MouseEvent on this Profile.*/
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -734,7 +734,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/**Execute the mouseReleased MouseEvent on this Profile.*/
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN == tool) {
 			//generate interpolated points
@@ -764,7 +764,7 @@ public class Profile extends Displayable implements VectorData {
 	protected void calculateBoundingBox(boolean adjust_position) {
 		if (0 == n_points) {
 			this.width = this.height = 0.0D;
-			layer.updateBucket(this);
+			updateBucket();
 			return;
 		}
 		//go over all points and control points and find the max and min
@@ -805,7 +805,7 @@ public class Profile extends Displayable implements VectorData {
 			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 			updateInDatabase("transform");
 		}
-		layer.updateBucket(this);
+		updateBucket();
 		updateInDatabase("dimensions");
 	}
 

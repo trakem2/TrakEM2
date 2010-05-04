@@ -6,8 +6,8 @@ import ini.trakem2.Project;
 
 public interface Bucketable {
 	public ArrayList<? extends Displayable> getDisplayableList();
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap();
-	public void updateBucket(Displayable d);
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(Layer layer);
+	public void updateBucket(Displayable d, Layer layer);
 	public Project getProject();
 	public double getLayerWidth();
 	public double getLayerHeight();

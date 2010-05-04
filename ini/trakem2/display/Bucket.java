@@ -77,40 +77,38 @@ public class Bucket {
 		return "Bucket: " + x + ",  " + y + ", " + w + ", " + h;
 	}
 
-	synchronized final void populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	synchronized final void populate(final Bucketable container, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 		final HashMap<Integer,Displayable> list = new HashMap<Integer,Displayable>();
 		int i = 0;
+		// cache all bounding boxes
+		final HashMap<Displayable,Rectangle> bboxes = new HashMap<Displayable,Rectangle>();
 		for (final Displayable d : container.getDisplayableList()) {
 			list.put(i, d);
 			i++;
+			bboxes.put(d, Bucket.getBounds(d, layer));
 		}
-		// cache all bounding boxes
-		final HashMap<Displayable,Rectangle> bboxes = new HashMap<Displayable,Rectangle>();
-		for (final Displayable d : list.values()) {
-			bboxes.put(d, Bucket.getBounds(d));
-		}
-		populate(container, db_map, w+w, h+h, w, h, list, bboxes);
+		populate(container, layer, db_map, w+w, h+h, w, h, list, bboxes);
 	}
 
-	static private final Rectangle getBounds(final Displayable d) {
-		return getBounds(d, new Rectangle());
+	static private final Rectangle getBounds(final Displayable d, final Layer layer) {
+		return getBounds(d, new Rectangle(), layer);
 	}
 
 	/** Get bounds of a Displayable ensuring that if it has zero dimensions, then the whole layer dimensions are assigned to it. */
-	static private final Rectangle getBounds(final Displayable d, final Rectangle tmp) {
-		final Rectangle box = d.getBoundingBox(tmp);
+	static private final Rectangle getBounds(final Displayable d, final Rectangle tmp, final Layer layer) {
+		final Rectangle box = d.getBounds(tmp, layer);
 		if (0 == box.width || 0 == box.height) {
 			// no data: then it must exist in all buckets, so when data is added anywhere, it can be found and updated.
 			box.x = 0;
 			box.y = 0;
-			box.width = (int) d.getLayer().getLayerWidth();
-			box.height = (int) d.getLayer().getLayerHeight();
+			box.width = (int) layer.getLayerWidth();
+			box.height = (int) layer.getLayerHeight();
 		}
 		return box;
 	}
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
-	final private boolean populate(final Bucketable container, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Rectangle> bboxes) {
+	final private boolean populate(final Bucketable container, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Rectangle> bboxes) {
 		if (this.w <= bucket_side || this.h <= bucket_side) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
@@ -154,7 +152,7 @@ public class Bucket {
 					int height = side_h;
 					if (this.y + y + side_h > max_height) height = max_height - this.y - y;
 					final Bucket bu = new Bucket(this.x + x, this.y + y, width, height, bucket_side);
-					if (bu.populate(container, db_map, width, height, max_width, max_height, local_list, bboxes)) {
+					if (bu.populate(container, layer, db_map, width, height, max_width, max_height, local_list, bboxes)) {
 						this.empty = false;
 					}
 					children.add(bu);
@@ -223,7 +221,7 @@ public class Bucket {
 			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (Bucket.getBounds(d, tmp).intersects(srcRect)) {
+				if (Bucket.getBounds(d, tmp, layer).intersects(srcRect)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
@@ -249,7 +247,7 @@ public class Bucket {
 			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
-				if (d.getClass() == c && Bucket.getBounds(d, tmp).intersects(srcRect)) {
+				if (d.getClass() == c && Bucket.getBounds(d, tmp, layer).intersects(srcRect)) {
 					accum.put(entry.getKey(), d);
 				}
 			}
@@ -380,10 +378,10 @@ public class Bucket {
 	}
 
 	/** Remove from wherever it is, then test if it's in that bucket, otherwise re-add. */
-	synchronized final void updatePosition(final Displayable d, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	synchronized final void updatePosition(final Displayable d, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 
 		final ArrayList<Bucket> list = db_map.get(d);
-		final Rectangle box = Bucket.getBounds(d);
+		final Rectangle box = Bucket.getBounds(d, layer);
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
 		if (null != list) {
 			for (final Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
@@ -395,27 +393,30 @@ public class Bucket {
 			}
 		}
 		// insert wherever appropriate, if not there
-		this.put(stack_index, d, box);
+		this.put(stack_index, d, layer, box, db_map);
 	}
 
 	/** Add the given Displayable to all buckets that intercept its bounding box. */
-	synchronized final void put(final int stack_index, final Displayable d, final Rectangle box) {
+	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+		put(stack_index, d, layer, d.getBounds(new Rectangle(), layer), db_map);
+	}
+	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final Rectangle box, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 		if (0 == box.width || 0 == box.height) {
 			// d doesn't contain any data: use whole 2D world
-			box.width = (int) d.getLayer().getLayerWidth();
-			box.height = (int) d.getLayer().getLayerHeight();
+			box.width = (int) layer.getLayerWidth();
+			box.height = (int) layer.getLayerHeight();
 		}
-		putIn(stack_index, d, box);
+		putIn(stack_index, d, box, db_map);
 	}
-	private final void putIn(final int stack_index, final Displayable d, final Rectangle box) {
+	private final void putIn(final int stack_index, final Displayable d, final Rectangle box, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
 		if (!intersects(box)) return;
 		// there will be at least one now
 		this.empty = false;
 		if (null != children) {
-			for (final Bucket bu : children) bu.putIn(stack_index, d, box);
+			for (final Bucket bu : children) bu.putIn(stack_index, d, box, db_map);
 		} else if (null != map) {
 			map.put(stack_index, d);
-			putToBucketMap(d, d.getBucketable().getBucketMap()); // the db_map
+			putToBucketMap(d, db_map); // the db_map
 		}
 	}
 	private void debugMap(String title) {
@@ -522,7 +523,7 @@ public class Bucket {
 		Utils.log2("total map buckets: " + getChildren(new ArrayList<Bucket>()).size());
 	}
 
-	static public int getBucketSide(final Bucketable container) {
+	static public int getBucketSide(final Bucketable container, final Layer la) {
 		if (null != container.getProject().getProperty("bucket_side")) {
 			final int size = (int)container.getProject().getProperty("bucket_side", Bucket.MIN_BUCKET_SIZE);
 			if (size < Bucket.MIN_BUCKET_SIZE) {
@@ -538,7 +539,7 @@ public class Bucket {
 			final Rectangle r = new Rectangle();
 			int i = 0;
 			for (final Displayable d : col) {
-				Bucket.getBounds(d, r);
+				Bucket.getBounds(d, r, la);
 				sizes[i++] = Math.max(r.width, r.height);
 			}
 			Arrays.sort(sizes);

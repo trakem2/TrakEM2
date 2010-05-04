@@ -521,7 +521,11 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				final int len = n_points - last_autotrace_start;
 				n_points = last_autotrace_start;
 				last_autotrace_start = -1;
-				repaint(true);
+				repaint(true, null);
+				// update buckets for layers of all points from n_points to last_autotrace_start
+				final HashSet<Long> hs = new HashSet<Long>();
+				for (int i = n_points+1; i < n_points+len; i++) hs.add(p_layer[i]);
+				for (final Long l : hs) updateBucket(layer_set.getLayer(l.longValue()));
 				Utils.log("Removed " + len + " autotraced points.");
 				return;
 			case KeyEvent.VK_R: // reset tracing
@@ -556,7 +560,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		TracerThread tracer = null; // catched thread for KeyEvent to attempt to stop it
 	}
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, final Layer layer, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		int x_pd = x_p;
 		int y_pd = y_p;
@@ -569,7 +573,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		final int tool = ProjectToolbar.getToolId();
 
 		final Display display = ((DisplayCanvas)me.getSource()).getDisplay();
-		final long layer_id = display.getLayer().getId();
+		final long layer_id = layer.getId();
 
 		index = findPoint(x_p, y_p, layer_id, mag);
 
@@ -621,7 +625,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			final int start_z = layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])); // 0-based
 			final int goal_x = (int)(x_pd * scale); // must transform into virtual space
 			final int goal_y = (int)(y_pd * scale);
-			final int goal_z = layer_set.indexOf(display.getLayer());
+			final int goal_z = layer_set.indexOf(layer);
 
 			/*
 			Utils.log2("x_pd, y_pd : " + x_pd + ", " + y_pd);
@@ -730,7 +734,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				last_autotrace_start = Polyline.this.n_points;
 				Polyline.this.appendPoints(pox, poy, p_layer_ids, len);
 
-				Polyline.this.repaint(true);
+				Polyline.this.repaint(true, null);
 				Utils.logAll("Added " + len + " new points.");
 
 				} catch (Exception e) { IJError.print(e); }
@@ -754,7 +758,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 					//delete point
 					removePoint(index);
 					index = -1;
-					repaint(false);
+					repaint(false, null);
 				}
 
 				// In any case, terminate
@@ -768,13 +772,13 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				//add a new point
 				index = addPoint(x_p, y_p, layer_id, mag);
 				is_new_point = true;
-				repaint(false);
+				repaint(false, null);
 				return;
 			}
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			//final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -794,18 +798,18 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			//if a point in the backbone is found, then:
 			if (-1 != index && !me.isAltDown() && !me.isShiftDown()) {
 				dragPoint(index, x_d - x_d_old, y_d - y_d_old);
-				repaint(false);
+				repaint(false, layer);
 				return;
 			}
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
-			repaint(); //needed at least for the removePoint
+			repaint(true, layer); //needed at least for the removePoint
 		}
 
 		//update points in database if there was any change
@@ -826,17 +830,17 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			updateInDatabase("dimensions");
 		}
 
-		repaint(true);
+		repaint(true, layer);
 
 		// reset
 		is_new_point = false;
 		index = -1;
 	}
 
-	synchronized protected void calculateBoundingBox(final boolean adjust_position) {
+	synchronized protected void calculateBoundingBox(final boolean adjust_position, final Layer la) {
 		if (0 == n_points) {
 			this.width = this.height = 0;
-			layer_set.updateBucket(this);
+			updateBucket(la);
 			return;
 		}
 		final double[] m = calculateDataBoundingBox();
@@ -855,7 +859,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 		updateInDatabase("dimensions");
 
-		layer_set.updateBucket(this);
+		updateBucket(la);
 	}
 
 	/** Returns min_x, min_y, max_x, max_y. */
@@ -888,15 +892,11 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		n_points = -1; // flag that points exist but are not loaded
 	}
 
-	public void repaint() {
-		repaint(true);
-	}
-
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
-	public void repaint(boolean repaint_navigator) {
+	public void repaint(boolean repaint_navigator, final Layer la) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, la);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 5, repaint_navigator);
 	}
@@ -1426,7 +1426,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				i--;
 			}
 		}
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, null);
 		return true;
 	}
 
@@ -1477,7 +1477,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				}
 			}
 		}
-		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
+		if (null != chain) calculateBoundingBox(true, la); // may be called way too many times, but avoids lots of headaches.
 		return true;
 	}
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
@@ -1494,7 +1494,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				}
 			}
 		}
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, vlocal.layer);
 		return true;
 	}
 

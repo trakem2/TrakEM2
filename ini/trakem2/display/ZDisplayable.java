@@ -174,4 +174,18 @@ public abstract class ZDisplayable extends Displayable {
 		}
 		return true;
 	}
+
+	public void updateBucket(final Layer la) {
+		if (null == la) updateBucket(); // for all layers
+		else if (null != getBucketable()) getBucketable().updateBucket(this, la);
+	}
+
+	/** Update buckets for all Layers. */
+	@Override
+	public void updateBucket() {
+		if (null == getBucketable()) return;
+		for (final Long l : getLayerIds()) {
+			getBucketable().updateBucket(this, layer_set.getLayer(l.longValue()));
+		}
+	}
 }

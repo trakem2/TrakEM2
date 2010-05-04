@@ -486,7 +486,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
 			this.layer_height = Math.ceil(h);
 			updateInDatabase("layer_dimensions");
-			if (null != root) recreateBuckets(true);
+			if (null != lbucks) recreateBuckets(true);
 			// and notify the Displays, if any
 			Display.update(this);
 			Display.pack(this);
@@ -538,7 +538,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			zd.updateInDatabase("transform");
 		}
 		for (Layer la : al_layers) la.apply(Displayable.class, affine);
-		if (null != root) {
+		if (null != lbucks) {
 			recreateBuckets(true);
 		}
 		Display.update(this);
@@ -639,7 +639,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 
 		updateInDatabase("layer_dimensions");
-		if (null != root) recreateBuckets(true);
+		if (null != lbucks) recreateBuckets(true);
 		// and notify the Display
 		Display.update(this);
 		Display.pack(this);
@@ -810,11 +810,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		zdispl.updateInDatabase("layer_set_id"); // TODO: update stack index? It should!
 
 		// insert into bucket
+		/*
 		if (null != root) {
 			// add as last, then update
 			root.put(al_zdispl.size()-1, zdispl, zdispl.getBoundingBox(null));
+			// Updating takes too long, just don't do it
 			//root.update(this, zdispl, 0, al_zdispl.size()-1);
 		}
+		*/
+		addToBuckets(zdispl, al_zdispl.size()-1);
 
 		Display.add(this, zdispl);
 	}
@@ -827,7 +831,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			zd.setLayer(al_layers.get(0));
 			zd.updateInDatabase("layer_set_id");
 		}
-		if (null != root) {
+		if (null != lbucks) {
 			recreateBuckets(false); // only ZDisplayable
 		}
 		Display.addAll(this, coll);
@@ -852,7 +856,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean remove(final ZDisplayable zdispl) {
 		if (null == zdispl || null == al_zdispl || -1 == al_zdispl.indexOf(zdispl)) return false;
 		// remove from Bucket before modifying stack index
-		if (null != root) Bucket.remove(zdispl, db_map);
+		removeFromBuckets(zdispl);
 		// now remove proper, so stack_index hasn't changed yet
 		al_zdispl.remove(zdispl);
 		removeFromOffscreens(zdispl);
@@ -986,7 +990,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find ZDisplayable objects that contain the point x,y in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Layer layer, final int x, final int y, final boolean visible_only) {
-		if (null != root) return root.find(x, y, layer, visible_only);
+		if (null != lbucks) return lbucks.get(layer).root.find(x, y, layer, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (ZDisplayable zd : al_zdispl) {
 			if (zd.contains(layer, x, y)) al.add(zd);
@@ -995,7 +999,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	/** Find ZDisplayable objects of the given class that intersect the given rectangle in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Rectangle r, final boolean visible_only) {
-		if (null != root) return root.find(c, r, layer, visible_only);
+		if (null != lbucks) return lbucks.get(layer).root.find(c, r, layer, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (ZDisplayable zd : al_zdispl) {
 			if (zd.getClass() != c) continue;
@@ -1005,7 +1009,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	/** Find ZDisplayable objects that intersect the given rectangle in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
-		if (null != root) return root.find(r, layer, visible_only);
+		if (null != lbucks) return lbucks.get(layer).root.find(r, layer, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (ZDisplayable zd : al_zdispl) {
 			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
@@ -1307,24 +1311,28 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				case LayerSet.TOP:
 					// To the end of the list:
 					al_zdispl.add(al_zdispl.remove(i));
-					if (null != root) root.update(this, d, i, al_zdispl.size()-1);
+					// OLD // if (null != root) root.update(this, d, i, al_zdispl.size()-1);
+					updateInBuckets(d, i, al_zdispl.size()-1);
 					break;
 				case LayerSet.UP:
 					// +1 in the list
 					if (size -1 == i) return;
 					al_zdispl.add(i+1, al_zdispl.remove(i));
-					if (null != root) root.update(this, d, i, i+1);
+					//if (null != root) root.update(this, d, i, i+1);
+					updateInBuckets(d, i, i+1);
 					break;
 				case LayerSet.DOWN:
 					// -1 in the list
 					if (0 == i) return;
 					al_zdispl.add(i-1, al_zdispl.remove(i)); //swap
-					if (null != root) root.update(this, d, i-1, i);
+					//if (null != root) root.update(this, d, i-1, i);
+					updateInBuckets(d, i-1, i);
 					break;
 				case LayerSet.BOTTOM:
 					// to first position in the list
 					al_zdispl.add(0, al_zdispl.remove(i));
-					if (null != root) root.update(this, d, 0, i);
+					//if (null != root) root.update(this, d, 0, i);
+					updateInBuckets(d, 0, i);
 					break;
 			}
 			updateInDatabase("stack_index");
@@ -1610,9 +1618,41 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al;
 	}
 
+	/** A Bucket for the ZDisplayable parts that show in every Layer. */
+	private final class LayerBucket {
+		private Bucket root;
+		private HashMap<Displayable,ArrayList<Bucket>> db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+
+		LayerBucket(final Layer la) {
+			this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(LayerSet.this, la));
+			this.root.populate(LayerSet.this, la, this.db_map);
+		}
+	}
+
 	/** For fast search. */
-	Bucket root = null;
-	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
+	protected HashMap<Layer,LayerBucket> lbucks = null;
+
+	final private void addToBuckets(final Displayable zd, final int i) {
+		if (null == lbucks) return;
+		for (final Long lid : zd.getLayerIds()) {
+			final Layer la = getLayer(lid); // map lookup
+			final LayerBucket lbuck = lbucks.get(la);
+			lbuck.root.put(i, zd, la, lbuck.db_map);
+		}
+	}
+	final private void removeFromBuckets(final Displayable zd) {
+		if (null == lbucks) return;
+		for (final Long lid : zd.getLayerIds()) {
+			Bucket.remove(zd, lbucks.get(getLayer(lid)).db_map);
+		}
+	}
+	final private void updateInBuckets(final Displayable zd, final int i, final int j) {
+		if (null == lbucks) return;
+		for (final Long lid : zd.getLayerIds()) {
+			final Layer la = getLayer(lid);
+			lbucks.get(la).root.update(this, zd, i, j);
+		}
+	}
 
 	/** Returns a copy of the list of ZDisplayable objects. */
 	public ArrayList<ZDisplayable> getZDisplayables() { return (ArrayList<ZDisplayable>)al_zdispl.clone(); }
@@ -1622,29 +1662,30 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al_zdispl;
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
-		return db_map;
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer la) {
+		if (null == lbucks) return null;
+		return lbucks.get(la).db_map;
 	}
 
-	public void updateBucket(final Displayable d) {
-		if (null != root) root.updatePosition(d, db_map);
+	synchronized public void updateBucket(final Displayable d, final Layer layer) {
+		if (null != lbucks) {
+			final LayerBucket lbuck = lbucks.get(layer);
+			if (null != lbuck) lbuck.root.updatePosition(d, layer, lbuck.db_map);
+		}
 	}
 
 	synchronized public void recreateBuckets(final boolean layers) {
-		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
-		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
-		this.root.populate(this, db_map);
-		if (layers) {
-			for (final Layer la : al_layers) {
-				// recreate only if there were any already
-				if (null != la.root) la.recreateBuckets();
-			}
+		this.lbucks = new HashMap<Layer,LayerBucket>(al_layers.size());
+		for (final Layer la : al_layers) {
+			this.lbucks.put(la, new LayerBucket(la));
+			// recreate only if there were any already
+			if (layers && null != la.root) la.recreateBuckets();
 		}
 	}
 
 	/** Checks only buckets for ZDisplayable, not any related to any layer. */
 	public void checkBuckets() {
-		if (null == root || null == db_map) recreateBuckets(false);
+		if (null == lbucks) recreateBuckets(false);
 	}
 
 	/** Returns the minimal 2D bounding box for Displayables of class @param c in all layers. */
@@ -2007,7 +2048,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			for (final Map.Entry<Displayable,AffineTransform> e : affines.entrySet()) {
 				e.getKey().getAffineTransform().setTransform(e.getValue());
 			}
-			if (null != ls.root) ls.recreateBuckets(true);
+			if (null != ls.lbucks) ls.recreateBuckets(true);
 			Display.updateSelection();
 			Display.update(ls); //so it's not left out painted beyond borders
 			return true;

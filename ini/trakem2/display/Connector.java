@@ -178,7 +178,7 @@ public class Connector extends Treeline {
 					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
-			if (!new_format) calculateBoundingBox();
+			if (!new_format) calculateBoundingBox(null);
 
 
 			// Now, into nodes:
@@ -388,11 +388,10 @@ public class Connector extends Treeline {
 
 	/** Add a root or child nodes to root. */
 	@Override
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, final Layer layer, int x_p, int y_p, double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
 			return;
 		}
-		final Layer layer = Display.getFrontLayer(this.project);
 
 		if (-1 == last_radius) {
 			last_radius = 10 / (float)mag;
@@ -439,7 +438,7 @@ public class Connector extends Treeline {
 				((ConnectorNode)found).setData(last_radius);
 				addNode(root, found, Node.MAX_EDGE_CONFIDENCE);
 				setActive(found);
-				repaint(true);
+				repaint(true, layer);
 			}
 			return;
 		} else {

@@ -219,7 +219,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		return true;
 	}
 
-	public boolean calculateBoundingBox() {
+	public boolean calculateBoundingBox(final Layer la) {
 		if (null == root) return false;
 		Rectangle box = null;
 		synchronized (node_layer_map) {
@@ -249,7 +249,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			}}
 		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
-		if (null != layer_set) layer_set.updateBucket(this);
+		updateBucket(la);
 
 		return true;
 	}
@@ -313,11 +313,11 @@ public class AreaTree extends Tree implements AreaContainer {
 	private AreaNode receiver = null;
 
 	@Override
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, final Layer la, int x_p, int y_p, double mag) {
 		int tool = ProjectToolbar.getToolId();
 		//Utils.log2("tool is pen: " + (ProjectToolbar.PEN == tool) + "  or brush: " + (ProjectToolbar.BRUSH == tool));
 		if (ProjectToolbar.PEN == tool) {
-			super.mousePressed(me, x_p, y_p, mag);
+			super.mousePressed(me, la, x_p, y_p, mag);
 			return;
 		}
 
@@ -362,8 +362,8 @@ public class AreaTree extends Tree implements AreaContainer {
 		if (null != receiver) {
 			receiver.getData(); // create the AreaWrapper if not there already
 			receiver.aw.setSource(this);
-			receiver.aw.mousePressed(me, x_p, y_p, mag);
-			calculateBoundingBox();
+			receiver.aw.mousePressed(me, la, x_p, y_p, mag);
+			calculateBoundingBox(la);
 			receiver.aw.setSource(null);
 
 			setLastEdited(receiver);
@@ -375,27 +375,27 @@ public class AreaTree extends Tree implements AreaContainer {
 
 	}
 	@Override
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, final Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
-			super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+			super.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 			return;
 		}
 		if (null == receiver) return;
 		receiver.aw.setSource(this);
-		receiver.aw.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+		receiver.aw.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		// no need, repaint includes the brush area//calculateBoundingBox();
 		receiver.aw.setSource(null); // since a mouse released can occur outside the canvas
 	}
 	@Override
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, final Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
-			super.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+			super.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
 			return;
 		}
 		if (null == receiver) return;
 		receiver.aw.setSource(this);
-		receiver.aw.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
-		calculateBoundingBox();
+		receiver.aw.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
+		calculateBoundingBox(la);
 		receiver.aw.setSource(null);
 
 		updateViewData(receiver);

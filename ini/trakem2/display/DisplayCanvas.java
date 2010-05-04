@@ -722,7 +722,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		default: // the PEN and PENCIL tools, and any other custom tool
 			display.getLayerSet().addPreDataEditStep(active);
 			box = active.getBoundingBox();
-			active.mousePressed(me, x_p, y_p, magnification);
+			active.mousePressed(me, display.getLayer(), x_p, y_p, magnification);
 			invalidateVolatile();
 			break;
 		}
@@ -860,7 +860,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					box = box2;
 					break;
 				default:
-					active.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+					active.mouseDragged(me, display.getLayer(), x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 					// the line above must repaint on its own
 					break;
 				}
@@ -1024,7 +1024,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case ProjectToolbar.PENCIL:
 			case ProjectToolbar.PEN:
 			case ProjectToolbar.BRUSH:
-				active.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r); // active, not selection (Selection only handles transforms, not active's data editions)
+				active.mouseReleased(me, display.getLayer(), x_p, y_p, x_d, y_d, x_r, y_r); // active, not selection (Selection only handles transforms, not active's data editions)
 				// update active's bounding box
 				selection.updateTransform(active);
 				box.add(selection.getBox());

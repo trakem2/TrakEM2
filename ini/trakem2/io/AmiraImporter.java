@@ -203,7 +203,7 @@ public class AmiraImporter {
 			for (final Map.Entry<Float,AreaList> e : alis.entrySet()) {
 				final AreaList ali = e.getValue();
 				ali.setProperty("label", Integer.toString(e.getKey().intValue()));
-				ali.calculateBoundingBox();
+				ali.calculateBoundingBox(null);
 				ali.setColor(Color.getHSBColor(hue, 1, 1));
 				ali.setAlpha(alpha);
 				hue += 0.38197f; // golden angle

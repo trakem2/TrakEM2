@@ -21,6 +21,7 @@ import java.util.Set;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 
+import ini.trakem2.display.Layer;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.OptionPanel;
@@ -82,18 +83,18 @@ public class AreaWrapper {
 	}
 
 	/** Add an area in world coordinates. */
-	public void add(final Area wa) {
+	public void add(final Area wa, final Layer layer) {
 		try {
 			this.area.add(wa.createTransformedArea(source.getAffineTransform().createInverse()));
-			((AreaContainer)source).calculateBoundingBox();
+			((AreaContainer)source).calculateBoundingBox(layer);
 		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 	}
 
 	/** Subtract an area in world coordinates. */
-	public void subtract(final Area wa) {
+	public void subtract(final Area wa, final Layer layer) {
 		try {
 			this.area.subtract(wa.createTransformedArea(source.getAffineTransform().createInverse()));
-			((AreaContainer)source).calculateBoundingBox();
+			((AreaContainer)source).calculateBoundingBox(layer);
 		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 	}
 
@@ -506,11 +507,10 @@ public class AreaWrapper {
 	// shared, and thus made null at every mouse release
 	static private Integer controller_key = null;
 
-	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag) {
-		mousePressed(me, x_p_w, y_p_w, mag, null);
+	public void mousePressed(final MouseEvent me, Layer la, final int x_p_w, final int y_p_w, final double mag) {
+		mousePressed(me, la, x_p_w, y_p_w, mag, null);
 	}
-	public void mousePressed(final MouseEvent me, final int x_p_w, final int y_p_w, final double mag, final List<Runnable> post_tasks) {
-		final Layer la = Display.getFrontLayer(source.getProject());
+	public void mousePressed(final MouseEvent me, Layer la, final int x_p_w, final int y_p_w, final double mag, final List<Runnable> post_tasks) {
 		this.post_mouseReleased_tasks = post_tasks;
 
 		// transform the x_p, y_p to the local coordinates
@@ -618,7 +618,7 @@ public class AreaWrapper {
 						} else {
 							area.add(blocal);
 						}
-						((AreaContainer)source).calculateBoundingBox();
+						((AreaContainer)source).calculateBoundingBox(la);
 						Display.repaint(la, bmin.getBounds(), 1); // use b, in world coords
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 				}
@@ -657,7 +657,7 @@ public class AreaWrapper {
 			}
 		}
 	}
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// nothing, the BrushThread handles it
 		if (null != AreaWrapper.controller_key && KeyEvent.VK_M == AreaWrapper.controller_key.intValue() && ProjectToolbar.getToolId() == ProjectToolbar.BRUSH) {
 			// "move" the area
@@ -668,10 +668,10 @@ public class AreaWrapper {
 			return;
 		}
 		if (null != blowcommander) {
-			blowcommander.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+			blowcommander.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		}
 	}
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.BRUSH == tool) {
 			if (null != AreaWrapper.controller_key) {
@@ -685,7 +685,7 @@ public class AreaWrapper {
 			}
 		} else if (ProjectToolbar.PENCIL == tool) {
 			if (null != blowcommander) {
-				blowcommander.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
+				blowcommander.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
 				blowcommander = null;
 			}
 		}
@@ -701,11 +701,11 @@ public class AreaWrapper {
 
 		// Repaint instead the last rectangle, to erase the circle
 		if (null != r_old) {
-			Display.repaint(Display.getFrontLayer(), r_old, 3, false);
+			Display.repaint(la, r_old, 3, false);
 			r_old = null;
 		}
 		// repaint the navigator and snapshot
-		Display.repaint(Display.getFrontLayer(), source);
+		Display.repaint(la, source);
 	}
 
 	static public final int PAINT_OVERLAP = 0;
@@ -765,8 +765,8 @@ public class AreaWrapper {
 					// Casting a null is fine, and addArea survives a null.
 					Area a = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
 					if (null != a) {
-						add(a.createTransformedArea(source.getAffineTransform().createInverse()));
-						((AreaContainer)source).calculateBoundingBox();
+						add(a.createTransformedArea(source.getAffineTransform().createInverse()), la);
+						((AreaContainer)source).calculateBoundingBox(la);
 					}
 					ke.consume();
 					return;
@@ -776,7 +776,7 @@ public class AreaWrapper {
 					return;
 				case KeyEvent.VK_X: // remove area from current layer, if any
 					area.reset();
-					((AreaContainer)source).calculateBoundingBox();
+					((AreaContainer)source).calculateBoundingBox(la);
 					ke.consume();
 					return;
 			}
@@ -808,11 +808,11 @@ public class AreaWrapper {
 		try {
 			switch (keyCode) {
 				case KeyEvent.VK_A:
-					add(M.getArea(sroi));
+					add(M.getArea(sroi), la);
 					ke.consume();
 					break;
 				case KeyEvent.VK_D: // VK_S is for 'save' always
-					subtract(M.getArea(sroi));
+					subtract(M.getArea(sroi), la);
 					ke.consume();
 					break;
 			}
