@@ -233,6 +233,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			if (null != display.gridoverlay) display.gridoverlay.paint(g);
 
+			/* // debug: paint the ZDisplayable's bucket in this layer
+			if (null != active_layer.getParent().lbucks) {
+				active_layer.getParent().lbucks.get(active_layer).root.paint(g, srcRect, magnification, Color.red);
+			}
+			*/
+
 			g.dispose();
 		} while (volatileImage.contentsLost());
 	}
@@ -1519,6 +1525,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			r.y = (int) ((r.y - srcRect.y) * magnification) - extra;
 			r.width = (int) Math.ceil(r.width * magnification) + extra + extra;
 			r.height = (int) Math.ceil(r.height * magnification) + extra + extra;
+			invalidateVolatile();
 			RT.paint(r, update_graphics);
 		} else {
 			// everything
@@ -1547,6 +1554,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		if (count > 0) {
 			//repaint(r.x, r.y, r.width, r.height);
+			invalidateVolatile();
 			RT.paint(r, update_graphics);
 		}
 	}
@@ -1557,6 +1565,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 * modified.
 	 */
 	public void repaint(final Rectangle r, final int extra) {
+		invalidateVolatile();
 		if (null == r) {
 			//Utils.log2("DisplayCanvas.repaint(Rectangle, int) warning: null r");
 			RT.paint(null, update_graphics);
@@ -1582,12 +1591,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Repaint everything, updating offscreen graphics if so specified. */
 	public void repaint(final boolean update_graphics) {
 		this.update_graphics = update_graphics | this.update_graphics;
+		invalidateVolatile();
 		RT.paint(null, this.update_graphics);
 	}
 
 	/** Overridden to multithread. This method is here basically to enable calls to the FakeImagePlus.draw from the HAND and other tools to repaint properly.*/
 	public void repaint() {
 		//Utils.log2("issuing thread");
+		invalidateVolatile();
 		RT.paint(null, update_graphics);
 	}
 
@@ -1600,6 +1611,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Overridden to multithread. */
 	public void repaint(int x, int y, int width, int height) {
+		invalidateVolatile();
 		RT.paint(new Rectangle(x, y, width, height), update_graphics);
 	}
 
