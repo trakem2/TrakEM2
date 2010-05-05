@@ -1,0 +1,13 @@
+2-core
+
+simple parallel
+2.18   5.82
+2.35   3.69
+2.25   3.67
+	
+8-core
+simple parallel
+2.15   3.68
+2.19   2.85
+2.153  3.65
+	NOT WORTH IT
