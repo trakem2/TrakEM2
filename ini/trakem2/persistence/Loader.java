@@ -873,6 +873,7 @@ abstract public class Loader {
 					flush(imp);
 				}
 				mawts.removeAndFlushAll();
+				triggerGC();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
