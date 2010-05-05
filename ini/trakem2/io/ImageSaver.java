@@ -55,6 +55,13 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.persistence.FSLoader;
 
+import com.sun.media.jai.codec.TIFFEncodeParam;
+import com.sun.media.jai.codec.TIFFDecodeParam;
+import com.sun.media.jai.codec.ImageCodec;
+import javax.media.jai.PlanarImage;
+import java.awt.image.RenderedImage;
+import java.io.OutputStream;
+
 /** Provides the necessary thread-safe image file saver utilities. */
 public class ImageSaver {
 
@@ -433,23 +440,66 @@ public class ImageSaver {
 
 	/** Open a jpeg file including the alpha channel if it has one. */
 	static public BufferedImage openJpegAlpha(final String path) {
+		return openImage(path, true);
+	}
+
+	static public BufferedImage openPNGAlpha(final String path) {
+		return openImage(path, true);
+	}
+
+	/** Open an image file including the alpha channel if it has one; will open JPEG, PNG and BMP.
+	 *  @param ensure_premultiplied_alpha when true, ALWAYS puts the loaded image into a TYPE_INT_ARGB_PRE, which ensures for example PNG images with an alpha channel but of TYPE_CUSTOM to be premultiplied as well. */
+	static public BufferedImage openImage(final String path, final boolean ensure_premultiplied_alpha) {
 		synchronized (getPathLock(path)) {
 			try {
 				final BufferedImage img = ImageIO.read(new File(path));
-				BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
-				imgPre.createGraphics().drawImage( img, 0, 0, null );
-				img.flush();
-				return imgPre;
+				if (ensure_premultiplied_alpha || img.getType() == BufferedImage.TYPE_INT_ARGB || img.getType() == BufferedImage.TYPE_CUSTOM) {
+					// Premultiply alpha, for speed (makes a huge difference)
+					final BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+					imgPre.createGraphics().drawImage( img, 0, 0, null );
+					img.flush();
+					return imgPre;
+				}
+				return img;
 			} catch (FileNotFoundException fnfe) {
-				Utils.log2("openJpegAlpha: Path not found: " + path);
+				Utils.log2("openImage: Path not found: " + path);
 			} catch (Exception e) {
-				Utils.log2("openJpegAlpha: cannot open " + path);
+				Utils.log2("openImage: cannot open " + path);
 				//IJError.print(e, true);
 			} finally {
 				removePathLock(path);
 			}
 		}
 		return null;
+	}
+
+	static public BufferedImage openGreyImage(final String path) {
+		synchronized (getPathLock(path)) {
+			try {
+				return asGrey(ImageIO.read(new File(path)));
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("openImage: Path not found: " + path);
+			} catch (Exception e) {
+				Utils.log2("openImage: cannot open " + path);
+				//IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return null;
+	}
+
+	/** If the given BufferedImage is of type TYPE_BYTE_GRAY, it will simply return it. If not, it will flush() the given BufferedImage, and return a new grey one. */
+	static private final BufferedImage asGrey(final BufferedImage bi) {
+		if (null == bi) return null;
+		if (bi.getType() == BufferedImage.TYPE_BYTE_GRAY) {
+			return bi;
+		}
+		// Else:
+		final BufferedImage grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+		grey.createGraphics().drawImage(bi, 0, 0, null);
+		bi.flush();
+		return grey;
 	}
 
 	static public final void debugAlpha() {
@@ -491,4 +541,185 @@ public class ImageSaver {
 		// 2) check if ImagePlus preserves the alpha channel as well: it doesn't
 	}
 
+	static public final boolean saveAsPNG(final ImageProcessor ip, final String path) {
+		Image awt = null;
+		try {
+			awt = ip.createImage();
+			return ImageSaver.saveAsPNG(awt, path);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		} finally {
+			if (null != awt) awt.flush();
+		}
+	}
+
+	static public final boolean saveAsPNG(final Image awt, final String path) {
+		try {
+			BufferedImage bi = null;
+			if (awt instanceof BufferedImage) {
+				bi = (BufferedImage)awt;
+			} else {
+				bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+				bi.createGraphics().drawImage(awt, 0, 0, null);
+			}
+			return saveAsPNG(bi, path);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+	}
+
+	/** Save a PNG with or without alpha channel with default compression at maximum level (9, expressed as 0 in the ImageWriter compression quality because 0 indicates "maximum compression is important").*/
+	static public final boolean saveAsPNG(final BufferedImage awt, final String path) {
+		if (!checkPath(path)) return false;
+		synchronized (getPathLock(path)) {
+			try {
+				// java.lang.UnsupportedOperationException: Compression not supported (!)
+				/*
+				// This is all the mid-level junk code I have to learn and manage just to SET THE F*CK*NG compression level for a PNG
+				ImageWriter writer = ImageIO.getImageWritersByFormatName("png").next(); // just the first one
+				if (null != writer) {
+					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all PNG specs in it
+					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+					iwp.setCompressionQuality(0); // <---------------------------------------------------------- THIS IS ALL I WANTED
+					writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
+					writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					return true;
+				}
+				*/
+
+				// If the above doesn't find any, magically do it anyway without setting the compression quality:
+				return ImageIO.write(awt, "png", new File(path));
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("saveAsPng: Path not found: " + path);
+			} catch (Exception e) {
+				IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return false;
+	}
+
+	/** WARNING fails when there is an alpha channel: generates an empty file. */
+	/*
+	static public final boolean saveAsBMP(final BufferedImage awt, final String path) {
+		if (!checkPath(path)) return false;
+		synchronized (getPathLock(path)) {
+			try {
+				return ImageIO.write(awt, "bmp", new File(path));
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("saveAsPng: Path not found: " + path);
+			} catch (Exception e) {
+				IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return false;
+	}
+	*/
+
+	static public final boolean saveAsTIFF(final ImageProcessor ip, final String path, final boolean as_grey) {
+		try {
+			return saveAsTIFF(ip.getBufferedImage(), path, as_grey);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return false;
+	}
+
+	/** Will not flush @param awt. */
+	static public final boolean saveAsTIFF(final Image awt, final String path, final boolean as_grey) {
+		BufferedImage bi = null;
+		try {
+			if (awt instanceof BufferedImage) return saveAsTIFF((BufferedImage)awt, path, as_grey);
+			// Else, transform into BufferedImage (which is a RenderedImage):
+			bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), as_grey ? BufferedImage.TYPE_BYTE_GRAY : BufferedImage.TYPE_INT_ARGB);
+			bi.createGraphics().drawImage(awt, 0, 0, null);
+			return saveAsTIFF(bi, path, false); // no need for more checks for grey
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != bi) bi.flush();
+		}
+		return false;
+	}
+
+	static public final boolean saveAsTIFF(BufferedImage bi, final String path, final boolean as_grey) {
+		if (!checkPath(path)) return false;
+		synchronized (getPathLock(path)) {
+			OutputStream out = null;
+			try {
+				if (as_grey) bi = asGrey(bi);
+				final TIFFEncodeParam param = new TIFFEncodeParam();
+				// If the bi is larger than 512x512, I could use COMPRESSION_LZW or COMPRESSION_DEFLATE (zip-in-tiff, lossless), or COMPRESSION_JPEG_TTN2 (Jpeg-in-tiff) -- i.e. an adaptive strategy as suggested by Clay Reid
+				param.setCompression(TIFFEncodeParam.COMPRESSION_NONE);
+				out = new BufferedOutputStream(new FileOutputStream(path));
+				ImageCodec.createImageEncoder("TIFF", out, param).encode(bi);
+				out.flush(); // !@#$% Couldn't it do it by itself?
+				final File f = new File(path);
+				return f.exists() && f.length() > 0; // no other way to check if the writing was successful
+			} catch (FileNotFoundException fnfe) {
+				Utils.log2("saveAsTIFF: Path not found: " + path);
+			} catch (Exception e) {
+				IJError.print(e, true);
+			} finally {
+				if (null != out) try { out.close(); } catch (Exception e) {}
+				removePathLock(path);
+			}
+		}
+		return false;
+	}
+
+	// WARNING JAI is fragile, throws an Exception when reading malformed tif files (like tif files whose OutputStream was not flush()'ed)
+
+	static private final BufferedImage openTIFF(final String path) throws Exception {
+		/*
+		final RenderedImage ri = ImageCodec.createImageDecoder("TIFF", new File(path), new TIFFDecodeParam()).decodeAsRenderedImage();
+		final PlanarImage pi = PlanarImage.wrapRenderedImage(ri);
+		final BufferedImage img = pi.getAsBufferedImage();
+		*/
+		return PlanarImage.wrapRenderedImage(ImageCodec.createImageDecoder("TIFF", new File(path), new TIFFDecodeParam()).decodeAsRenderedImage()).getAsBufferedImage();
+	}
+
+	/** Opens RGB or RGB + alpha images stored in TIFF format. */
+	static public final BufferedImage openTIFF(final String path, final boolean ensure_premultiplied_alpha) {
+		synchronized (getPathLock(path)) {
+			try {
+				final BufferedImage img = openTIFF(path);
+
+				if (ensure_premultiplied_alpha || img.getType() == BufferedImage.TYPE_INT_ARGB || img.getType() == BufferedImage.TYPE_CUSTOM) {
+					// Premultiply alpha, for speed (makes a huge difference)
+					final BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+					imgPre.createGraphics().drawImage( img, 0, 0, null );
+					img.flush();
+					return imgPre;
+				}
+				return img;
+
+			} catch (Exception e) {
+				Utils.log2("openTIFF: cannot open " + path + " :\n\t" + e);
+				//IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return null;
+	}
+
+	static public final BufferedImage openGreyTIFF(final String path) {
+		synchronized (getPathLock(path)) {
+			try {
+				return asGrey(openTIFF(path));
+			} catch (Exception e) {
+				Utils.log2("openGreyTIFF: cannot open " + path + " :\n\t" + e);
+				//IJError.print(e, true);
+			} finally {
+				removePathLock(path);
+			}
+		}
+		return null;
+	}
 }

@@ -423,27 +423,57 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			al.addAll(al_displayables);
 			return al;
 		}
-		for (Object ob : al_displayables) {
-			if (ob.getClass() == c) al.add((Displayable)ob); // cast only the few added, not all as it would in looping with  Displayabe d : al_displayables
+		for (final Displayable d : al_displayables) {
+			if (d.getClass() == c) al.add(d);
 		}
 		return al;
 	}
 
 	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
-	public ArrayList<Displayable> getDisplayables(final Class c, final Rectangle roi) {
-		return getDisplayables(c, new Area(roi), true);
+	public Collection<Displayable> getDisplayables(final Class c, final Rectangle roi) {
+		return getDisplayables(c, new Area(roi), true, false);
 	}
 
 	/** Returns a list of all Displayable of class c that intersect the given area. */
-	synchronized public ArrayList<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
-		final ArrayList<Displayable> al = getDisplayables(c);
-		for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
-			Displayable d = it.next();
-			if (visible_only && !d.isVisible()) { it.remove(); continue; }
-			Area area = new Area(d.getPerimeter());
-			area.intersect(aroi);
-			Rectangle b = area.getBounds();
-			if (0 == b.width || 0 == b.height) it.remove();
+	synchronized public Collection<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
+		return getDisplayables(c, aroi, visible_only, false);
+	}
+
+	/** Check class identity by instanceof instead of equality. */
+	synchronized public Collection<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only, final boolean instance_of) {
+		if (null != root) return root.find(c, aroi, this, visible_only, instance_of);
+		// Else, the slow way
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		if (Displayable.class == c) {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				final Area area = d.getArea();
+				area.intersect(aroi);
+				final Rectangle b = area.getBounds();
+				if (!(0 == b.width || 0 == b.height)) al.add(d);
+			}
+			return al;
+		}
+		if (instance_of) {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				if (c.isAssignableFrom(d.getClass())) {
+					final Area area = d.getArea();
+					area.intersect(aroi);
+					final Rectangle b = area.getBounds();
+					if (!(0 == b.width || 0 == b.height)) al.add(d);
+				}
+			}
+		} else {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				if (d.getClass() == c) {
+					final Area area = d.getArea();
+					area.intersect(aroi);
+					final Rectangle b = area.getBounds();
+					if (!(0 == b.width || 0 == b.height)) al.add(d);
+				}
+			}
 		}
 		return al;
 	}

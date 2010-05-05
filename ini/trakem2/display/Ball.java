@@ -1110,7 +1110,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		final float[] fp = new float[2];
 		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
 		for (int i=0; i<n_points; i++) {
-			if (vdt.layer.getId() == p_layer[i]) {
+			if (vlocal.layer.getId() == p_layer[i]) {
 				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
 					if (rt.roi.contains(p[0][i], p[1][i])) {
 						// Keep point copy
@@ -1122,7 +1122,7 @@ public class Ball extends ZDisplayable implements VectorData {
 						fp[0] = (float)(ox + p_width[i]);
 						fp[1] = (float)oy;
 						rt.ct.applyInPlace(fp);
-						p_width[i] = Math.abs(fp[0] - p[0][i]);
+						p_width[i] = Math.sqrt(Math.pow(fp[0] - p[0][i], 2) + Math.pow(fp[1] - p[1][i], 2));
 						break;
 					}
 				}

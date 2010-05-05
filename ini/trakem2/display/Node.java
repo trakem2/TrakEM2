@@ -1,5 +1,6 @@
 package ini.trakem2.display;
 
+import ij.measure.Calibration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -23,6 +24,8 @@ import java.awt.geom.Point2D;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.Project;
+
+import javax.vecmath.Point3f;
 
 /** Can only have one parent, so there aren't cyclic graphs. */
 public abstract class Node<T> implements Taggable {
@@ -292,10 +295,10 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Paint in the context of offscreen space, without transformations. */
-	final void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
-		Point2D.Double po = t.transformPoint(this.x, this.y);
-		float x = (float)((po.x - srcRect.x) * magnification);
-		float y = (float)((po.y - srcRect.y) * magnification);
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
+		final Point2D.Double po = t.transformPoint(this.x, this.y);
+		final float x = (float)((po.x - srcRect.x) * magnification);
+		final float y = (float)((po.y - srcRect.y) * magnification);
 
 		// paint the node as a draggable point
 		if (null == parent) {
@@ -343,7 +346,7 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** Only this node, not any of its children. */
-	final void translate(final float dx, final float dy) {
+	final public void translate(final float dx, final float dy) {
 		x += dx;
 		y += dy;
 	}
@@ -409,10 +412,10 @@ public abstract class Node<T> implements Taggable {
 									       x, y, 0, // origin of edge
 									       (x - parent.x)/2, (y - parent.y)/2, 0); // end of half-edge to parent
 	}
-	final boolean hasChildren() {
+	public final boolean hasChildren() {
 		return null != children && children.length > 0;
 	}
-	final int getChildrenCount() {
+	public final int getChildrenCount() {
 		if (null == children) return 0;
 		return children.length;
 	}
@@ -482,7 +485,7 @@ public abstract class Node<T> implements Taggable {
 		this.parent = null;
 		*/
 	}
-	final boolean setConfidence(final Node child, final byte conf) {
+	synchronized public final boolean setConfidence(final Node child, final byte conf) {
 		if (null == children) return false;
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
 		for (int i=0; i<children.length; i++) {
@@ -520,7 +523,7 @@ public abstract class Node<T> implements Taggable {
 		}
 		return -1;
 	}
-	final Node findPreviousBranchOrRootPoint() {
+	synchronized public final Node findPreviousBranchOrRootPoint() {
 		if (null == this.parent) return null;
 		Node parent = this.parent;
 		while (true) {
@@ -533,7 +536,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Assumes there aren't any cycles. */
-	final Node findNextBranchOrEndPoint() {
+	synchronized public final Node findNextBranchOrEndPoint() {
 		Node child = this;
 		while (true) {
 			if (null == child.children || child.children.length > 1) return child;
@@ -646,5 +649,8 @@ public abstract class Node<T> implements Taggable {
 				break;
 			}
 		}
+	}
+	public Point3f asPoint() {
+		return new Point3f(x, y, (float)la.getZ());
 	}
 }

@@ -202,6 +202,20 @@ public class Search {
 	}
 
 	private void executeSearch() {
+		final Project project;
+		final Display display = Display.getFront();
+		if (null == display) {
+			project = ControlWindow.getActive();
+		} else {
+			project = display.getProject();
+		}
+		if (null == project) {
+			// Should not happen
+			return;
+		}
+		Bureaucrat.createAndStart(new Worker.Task("Searching") {
+			public void exec() {
+
 		String pattern = search_field.getText();
 		if (null == pattern || 0 == pattern.length()) {
 			return;
@@ -219,23 +233,35 @@ public class Search {
 		//Utils.log2("pattern after: " + pattern);
 		final ArrayList al = new ArrayList();
 		//Utils.log("types[pulldown] = " + types[pulldown.getSelectedIndex()]);
-		find(ControlWindow.getActive().getRootLayerSet(), al, types[pulldown.getSelectedIndex()]);
+		find(project.getRootLayerSet(), al, types[pulldown.getSelectedIndex()]);
 		//Utils.log2("found labels: " + al.size());
 		if (0 == al.size()) return;
 		final Vector v_obs = new Vector();
 		final Vector v_txt = new Vector();
 		final Vector v_co = new Vector();
 		Coordinate co = null;
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
+		for (final Iterator it = al.iterator(); it.hasNext(); ) {
+			if (Thread.currentThread().isInterrupted()) {
+				return;
+			}
 			final DBObject dbo = (DBObject)it.next();
 			boolean matched = false;
 			// Search in its title
-			String txt =  dbo instanceof Displayable ?
-				  dbo.getProject().getMeaningfulTitle((Displayable)dbo)
+			Displayable d = null;
+			if (dbo instanceof Displayable) {
+				d = (Displayable)dbo;
+			}
+			String txt = null != d ?
+				  dbo.getProject().getMeaningfulTitle(d)
 				: dbo.getTitle();
 			if (null == txt || 0 == txt.trim().length()) continue;
 			matched = pat.matcher(txt).matches();
 			long id = dbo.getId();
+			if (!matched && null != d) {
+				// Search also in its annotation
+				txt = d.getAnnotation();
+				if (null != txt) matched = pat.matcher(txt).matches();
+			}
 			if (!matched) {
 				// Search also in its toString()
 				txt = dbo.toString();
@@ -247,15 +273,16 @@ public class Search {
 				matched = pat.matcher(txt).matches();
 				if (matched) txt = "id: #" + txt;
 			}
-			if (!matched && dbo instanceof Displayable) {
+			if (!matched && null != d) {
 				// Search also in its properties
-				Map<String,String> props = ((Displayable)dbo).getProperties();
+				Map<String,String> props = d.getProperties();
 				if (null != props) {
 					for (final Map.Entry<String,String> e : props.entrySet()) {
 						if (pat.matcher(e.getKey()).matches()
 						 || pat.matcher(e.getValue()).matches()) {
 							matched = true;
 							txt = e.getKey() + " => " + e.getValue() + " [property]";
+							break;
 						}
 					}
 				}
@@ -263,12 +290,12 @@ public class Search {
 					Map<Displayable,Map<String,String>> linked_props = ((Displayable)dbo).getLinkedProperties();
 					if (null != linked_props) {
 						for (final Map.Entry<Displayable,Map<String,String>> e : linked_props.entrySet()) {
-							Displayable d = e.getKey();
 							for (final Map.Entry<String,String> ee : e.getValue().entrySet()) {
 								if (pat.matcher(ee.getKey()).matches()
 								 || pat.matcher(ee.getValue()).matches()) {
 									matched = true;
 									txt = ee.getKey() + " => " + e.getValue() + " [linked property]";
+									break;
 								}
 							}
 						}
@@ -309,6 +336,8 @@ public class Search {
 		search_tabs.addTab(typed_pattern, jsp);
 		search_tabs.setSelectedComponent(jsp);
 		search_frame.pack();
+
+		}}, project);
 	}
 
 	private Coordinate<Node> createCoordinate(Tree tree, Node nd) {

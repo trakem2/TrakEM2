@@ -36,7 +36,7 @@ public final class ReconstructArea {
 			return;
 		}
 		data[data.length-1] = 'L'; // replacing the closing z for an L, since we read backwards
-		final int[] xy = new int[2];
+		final float[] xy = new float[2];
 		int i_L = -1;
 		// find first L
 		for (int i=0; i<data.length; i++) {
@@ -46,21 +46,22 @@ public final class ReconstructArea {
 			}
 		}
 		readXY(data, i_L, xy);
-		final int x0 = xy[0];
-		final int y0 = xy[1];
-		gp.moveTo(x0, y0);
+		//final float x0 = xy[0];
+		//final float y0 = xy[1];
+		//gp.moveTo(x0, y0);
+		gp.moveTo(xy[0], xy[1]);
 		int first = i_L+1;
 		while (-1 != (first = readXY(data, first, xy))) {
 			gp.lineTo(xy[0], xy[1]);
 		}
 
 		// close loop
-		gp.lineTo(x0, y0); //TODO unnecessary?
+		//gp.lineTo(x0, y0); //TODO unnecessary?
 		gp.closePath();
 	}
 
 	/** Assumes all read chars will be digits except for the separator (single white space char), and won't fail (but generate ugly results) when any char is not a digit. */
-	static private final int readXY(final char[] data, int first, final int[] xy) { // final method: inline
+	static public final int readXY(final char[] data, int first, final float[] xy) { // final method: inline
 		if (first >= data.length) return -1;
 		int last = first;
 		char c = data[first];
@@ -69,7 +70,7 @@ public final class ReconstructArea {
 			if (data.length == last) return -1;
 			c = data[last];
 		}
-		first = last +2; // the first digit position after the found L, which will be the next first.
+		first = last +2; // the first digit position after the found L (the found L will be the next first)
 
 		// skip the L and the white space separating <y> and L
 		last -= 2;
@@ -84,6 +85,10 @@ public final class ReconstructArea {
 			if ('-' == c) {
 				xy[1] *= -1;
 				break;
+			} else if ('.' == c) {
+				// divide by position to make all numbers be after the comma
+				xy[1] /= pos;
+				pos = 1;
 			} else {
 				xy[1] += (((int)c) -48) * pos; // digit zero is char with int value 48
 				pos *= 10;
@@ -103,6 +108,10 @@ public final class ReconstructArea {
 			if ('-' == c) {
 				xy[0] *= -1;
 				break;
+			} else if ('.' == c) {
+				// divide by position to make all numbers be after the comma
+				xy[0] /= pos;
+				pos = 1;
 			} else {
 				xy[0] += (((int)c) -48) * pos;
 				pos *= 10;

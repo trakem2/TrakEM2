@@ -77,6 +77,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		//
 		this.setScrollsOnExpand(true);
 		this.addKeyListener(this);
+
 		if (null != background) {
 			final DefaultTreeCellRenderer renderer = createNodeRenderer();
 			renderer.setBackground(background);
@@ -405,15 +406,43 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		if (null == node) return;
 		setExpandedSilently(node, b);
 	}
-	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
+
+	static private final java.lang.reflect.Field f_expandedState = DNDTree.getExpandedStateField();
+
+	static private final java.lang.reflect.Field getExpandedStateField() {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			Hashtable ht = (Hashtable)f.get(this);
-			ht.put(new TreePath(node.getPath()), new Boolean(b)); // this queries directly the expandedState transient private HashMap of the JTree
+			return f;
+		} catch (Exception e) {
+			Utils.log2("ERROR: " + e);
+			return null;
+		}
+	}
+
+	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
+		try {
+			final Hashtable ht = (Hashtable)f_expandedState.get(this);
+			ht.put(new TreePath(node.getPath()), b); // this queries directly the expandedState transient private Hashtable of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
 		 }
+	}
+
+	/** Get the map of Thing vs. expanded state for all nodes that have children. */
+	public HashMap<? extends Thing,Boolean> getExpandedStates() {
+		try {
+			final Hashtable ht = (Hashtable)f_expandedState.get(this);
+			final HashMap<Thing,Boolean> m = new HashMap<Thing,Boolean>(ht.size());
+			for (final Map.Entry<TreePath,Boolean> e : (Collection<Map.Entry<TreePath,Boolean>>)ht.entrySet()) {
+				final Thing t = (Thing)((DefaultMutableTreeNode)e.getKey().getLastPathComponent()).getUserObject();
+				if (t.hasChildren()) m.put(t, e.getValue());
+			}
+			return m;
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
 	}
 
 	/** Check if there is a node holding the given Thing, and whether such node is expanded. */
@@ -425,9 +454,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 
 	public boolean isExpanded(final DefaultMutableTreeNode node) {
 		try {
-			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
-			f.setAccessible(true);
-			Hashtable ht = (Hashtable)f.get(this);
+			final Hashtable ht = (Hashtable)f_expandedState.get(this);
 			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets

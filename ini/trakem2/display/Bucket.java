@@ -270,7 +270,6 @@ public class Bucket {
 				 bu.find(accum, px, py, layer, visible_only);
 			}
 		} else {
-			final Rectangle tmp = new Rectangle();
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
@@ -296,12 +295,44 @@ public class Bucket {
 				 bu.find(accum, area, layer, visible_only);
 			}
 		} else {
-			final Rectangle tmp = new Rectangle();
 			for (Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
 				if (d.intersects(layer, area)) {
 					accum.put(entry.getKey(), d);
+				}
+			}
+		}
+	}
+	/** Find all Displayable objects that intersect the given Area and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
+	synchronized final Collection<Displayable> find(final Class c, final Area area, final Layer layer, final boolean visible_only, final boolean instance_of) {
+		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
+		find(accum, c, area, layer, visible_only, instance_of);
+		return accum.values(); // sorted by integer key
+	}
+	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
+	private void find(final TreeMap<Integer,Displayable> accum, final Class c, final Area area, final Layer layer, final boolean visible_only, final boolean instance_of) {
+		if (empty || !intersects(area.getBounds())) return;
+		if (null != children) {
+			for (final Bucket bu : children) {
+				 bu.find(accum, c, area, layer, visible_only, instance_of);
+			}
+		} else {
+			if (instance_of) {
+				for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+					final Displayable d = entry.getValue();
+					if (visible_only && !d.isVisible()) continue;
+					if (c.isAssignableFrom(d.getClass()) && d.intersects(layer, area)) {
+						accum.put(entry.getKey(), d);
+					}
+				}
+			} else {
+				for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+					final Displayable d = entry.getValue();
+					if (visible_only && !d.isVisible()) continue;
+					if (d.getClass() == c && d.intersects(layer, area)) {
+						accum.put(entry.getKey(), d);
+					}
 				}
 			}
 		}

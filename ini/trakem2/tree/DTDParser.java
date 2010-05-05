@@ -214,6 +214,21 @@ public class DTDParser {
 		}
 	}
 
+	static private class TypeNode {
+		private TypeNode parent;
+		private Set<TypeNode> children = new HashSet<TypeNode>();
+		private String name;
+		TypeNode(final String name) {
+			this.name = name;
+		}
+		TypeNode addChild(String cn) {
+			TypeNode child = new TypeNode(cn);
+			child.parent = this;
+			children.add(child);
+			return child;
+		}
+	}
+
 	/** A method to check whether a type is internal to TrakEM2 and should be ignored for a template. */
 	static private boolean isAllowed(String type) {
 		/*
@@ -259,6 +274,7 @@ public class DTDParser {
 
 		// extract all tags into a hashtable of type names
 		final HashMap<String,DTDParser.Type> ht_types = new HashMap<String,DTDParser.Type>();
+		final List<DTDParser.Type> types = new ArrayList<DTDParser.Type>(); // sequential, as found in the DTD file
 		final HashMap<String,Object> ht_attributes = new HashMap<String,Object>();
 		int i = -1;
 		final String text = data.toString();
@@ -280,6 +296,7 @@ public class DTDParser {
 				DTDParser.Type type = new DTDParser.Type(chunk.substring(i_space +1));
 				if (isAllowed(type.name)) {
 					ht_types.put(type.name, type);
+					types.add(type);
 				} else if (type.name.equals("project")) {
 					if (null != root_type_name) {
 						throw new Exception("ERROR in XML file: more than one project template element defined:\n   At least: " + root_type_name + " and " + type.name);
@@ -319,6 +336,39 @@ public class DTDParser {
 			i_last = text.indexOf('>', i_last +1);
 		}
 		// Now traverse the hash tables and reconstruct the hierarchy of TemplateThing.
+
+		if (null == root_type_name) {
+			// Can happen when reading a .dtd file instead of extracting the dtd from an XML file
+			// Reconstruct the tree, as is sequentially specified in the DTD:
+			final Map<String,TypeNode> nodes = new HashMap<String,TypeNode>(); // a Map of the last created node with that name (there could be more than one, so NOT all TypeNode instances will be contained in the Map).
+			final List<TypeNode> seqnodes = new ArrayList<TypeNode>(); // sequential, as found in dtd file
+
+			for (final DTDParser.Type type : types) {
+				TypeNode tn = nodes.get(type.name);
+				if (null == tn) {
+					// Create a new node with, for now, a null parent
+					tn = new TypeNode(type.name);
+					nodes.put(type.name, tn);
+					// Add it as an ELEMENT declaration
+					seqnodes.add(tn);
+				}
+				if (tn.children.isEmpty() && null != type.children) {
+					for (final String child : type.children) {
+						nodes.put(child, tn.addChild(child));
+					}
+				}
+			}
+			for (final TypeNode node : seqnodes) {
+				if (null == node.parent) {
+					if (null != root_type_name) {
+						Utils.log("WARNING found second DTD root: " + node.name);
+					} else {
+						Utils.log("Found DTD root: " + node.name);
+						root_type_name = node.name;
+					}
+				}
+			}
+		}
 
 		if (null == root_type_name) {
 			throw new Exception("ERROR in XML file: could not find the root element!");

@@ -39,6 +39,8 @@ public interface Thing {
 
 	public HashMap getAttributes();
 
+	public boolean hasChildren();
+
 	public ArrayList getChildren();
 
 	public Object getObject();

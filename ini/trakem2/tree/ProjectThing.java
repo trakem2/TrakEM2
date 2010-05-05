@@ -33,6 +33,7 @@ import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.display.Line3D;
+import ini.trakem2.display.Tree;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -330,6 +331,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return al_children;
 	}
 
+	public boolean hasChildren() {
+		return !(null == al_children || 0 == al_children.size());
+	}
+
 	public boolean addAttribute(String title, Object object) {
 		if (null == title || null == object) return false;
 		if (title.equals("id")) return true; // no need to store the id as an attribute (but will exists as such in the XML file)
@@ -555,6 +560,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 		if (null != object && object instanceof Displayable) {
 			addPopupItem("Show centered in Display", listener, al_items);
+		}
+
+		if (null != object && object instanceof Tree) {
+			addPopupItem("Show tabular view", listener, al_items);
 		}
 
 		// plugins
@@ -1019,7 +1028,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return hs;
 	}
 
-	public void exportXML(final StringBuffer sb_body, String indent, Object any) {
+	/** Expects a HashMap<Thing,Boolean> as @param any. */
+	public void exportXML(final StringBuffer sb_body, final String indent, final Object any) {
+		exportXML(sb_body, indent, (HashMap<Thing,Boolean>)any);
+	}
+
+	public void exportXML(final StringBuffer sb_body, final String indent, final HashMap<Thing,Boolean> expanded_states) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -1032,9 +1046,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			// the title
 			sb_body.append(" title=\"").append((String)object).append("\"");
 		}
-		if (!this.project.fasterSave()) { // davi-experimenting -- per Steve Butterfield, profiling shows that finding this out is very expensive. For 100's of thousands of profiles projectected from Reconstruct64, this results in multi-hour saves.
-			boolean expanded = this.project.getProjectTree().isExpanded(this);
-			if (expanded) sb_body.append(" expanded=\"true\"");
+		//boolean expanded = this.project.getProjectTree().isExpanded(this);
+		if (null != al_children) {
+			final Boolean b = expanded_states.get(this);
+			if (null != b && Boolean.TRUE.equals(b)) sb_body.append(" expanded=\"true\"");
 		}
 		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
 			sb_body.append("\n");
@@ -1050,7 +1065,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
 			for (ProjectThing child : al_children) {
-				child.exportXML(sb_body, in, any);
+				child.exportXML(sb_body, in, expanded_states);
 			}
 		}
 		// 3 - closing tag:
@@ -1111,7 +1126,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	public boolean isExpanded() {
-		return project.getLayerTree().isExpanded(this);
+		return project.getProjectTree().isExpanded(this);
 	}
 
 	/** Return information on this node and its object. */

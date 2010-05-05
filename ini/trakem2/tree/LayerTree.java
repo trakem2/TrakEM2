@@ -47,6 +47,7 @@ import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Iterator;
 //import java.util.Enumeration;
 import java.util.ArrayList;
@@ -509,6 +510,16 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				}
 			} else if (command.equals("Search...")) {
 				new Search();
+			} else if (command.equals("Reset layer Z and thickness")) {
+				LayerSet ls = ((LayerSet)thing.getObject());
+				List<Layer> layers = ls.getLayers();
+				ls.addLayerEditedStep(layers);
+				int i = 0;
+				for (final Layer la : ls.getLayers()) {
+					la.setZ(i++);
+					la.setThickness(1);
+				}
+				ls.addLayerEditedStep(layers);
 			} else {
 				Utils.log("LayerTree.actionPerformed: don't know what to do with the command: " + command);
 				return;

@@ -1143,10 +1143,19 @@ public class Project extends DBObject {
 		}
 		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
+		// Create table of expanded states
+		/*
+		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
+		for (final Enumeration e = this.project_tree.getRoot().depthFirstEnumeration(); e.hasMoreElements(); ) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)e.nextElement();
+			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
+		}
+		*/
+		final HashMap<? extends Thing,Boolean> expanded_states = project_tree.getExpandedStates();
 		if (null != root_pt.getChildren()) {
 			String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
-				pt.exportXML(sb_body, in2, any);
+				pt.exportXML(sb_body, in2, expanded_states);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
@@ -1397,6 +1406,7 @@ public class Project extends DBObject {
 		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
 		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
 		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
@@ -1430,6 +1440,18 @@ public class Project extends DBObject {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
 		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+
+		final int new_mipmap_format = gd.getNextChoiceIndex();
+		final int old_mipmap_format = loader.getMipMapFormat();
+		if (new_mipmap_format != old_mipmap_format) {
+			YesNoDialog yn = new YesNoDialog("MipMaps format", "Changing mipmaps format to '" + FSLoader.MIPMAP_FORMATS[new_mipmap_format] + "'requires regenerating all mipmaps. Proceed?");
+			if (yn.yesPressed()) {
+				if (loader.setMipMapFormat(new_mipmap_format)) {
+					loader.updateMipMapsFormat(old_mipmap_format, new_mipmap_format);
+				}
+			}
+		}
+
 		boolean layer_mipmaps2 = gd.getNextBoolean();
 		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
 			if (layer_mipmaps && !layer_mipmaps2) {
@@ -1458,7 +1480,11 @@ public class Project extends DBObject {
 		double d_look_ahead_cache = gd.getNextNumber();
 		if (!Double.isNaN(d_look_ahead_cache) && d_look_ahead_cache >= 0) {
 			setProperty("look_ahead_cache", Integer.toString((int)d_look_ahead_cache));
-			Utils.logAll("WARNING: look-ahead cache is incomplete.\n  Expect issues when editing objects, adding new ones, and the like.\n  Use \"Project - Flush image cache\" to fix any lack of refreshing issues you encounter.");
+			if (0 == d_look_ahead_cache) {
+				Display.clearColumnScreenshots(this.layer_set);
+			} else {
+				Utils.logAll("WARNING: look-ahead cache is incomplete.\n  Expect issues when editing objects, adding new ones, and the like.\n  Use \"Project - Flush image cache\" to fix any lack of refreshing issues you encounter.");
+			}
 		} else {
 			Utils.log2("Ignoring invalid 'look ahead cache' value " + d_look_ahead_cache);
 		}

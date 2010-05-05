@@ -113,15 +113,16 @@ public class StitchingTEM {
 	 * Rotation of the images is NOT considered by the TOP_LEFT_RULE (phase- and cross-correlation),
 	 * but it can be for the FREE_RULE (SIFT).
 	 * 
-	 * @return A new Bureaucrat Thread, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
+	 * @return A new Runnable task, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
 	static public Runnable stitch(
-			final Patch[] patch, 
-			final int grid_width, 
-			final double default_bottom_top_overlap, 
-			final double default_left_right_overlap, 
+			final Patch[] patch,
+			final int grid_width,
+			final double default_bottom_top_overlap,
+			final double default_left_right_overlap,
 			final boolean optimize,
-			final int stitching_rule) 
+			final int stitching_rule,
+			final PhaseCorrelationParam param_)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
@@ -129,6 +130,16 @@ public class StitchingTEM {
 		}
 		if (patch.length < 2) {
 			return null;
+		}
+
+		final PhaseCorrelationParam param;
+
+		if (null == param_) {
+			// Launch phase correlation dialog
+			param = new PhaseCorrelationParam();
+			param.setup(patch[0]);
+		} else {
+			param = param_;
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
@@ -146,7 +157,7 @@ public class StitchingTEM {
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize);
+				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
 			case StitchingTEM.FREE_RULE:
 				final HashSet<Patch> hs = new HashSet<Patch>();
 				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
@@ -173,17 +184,13 @@ public class StitchingTEM {
 			final int grid_width, 
 			final double default_bottom_top_overlap, 
 			final double default_left_right_overlap,  
-			final boolean optimize) 
+			final boolean optimize,
+			final PhaseCorrelationParam param)
 	{
 		return new Runnable()
 		{
 			public void run() {
 				
-				// Launch phase correlation dialog
-				PhaseCorrelationParam param = new PhaseCorrelationParam();
-				param.setup(patch[0]);
-				
-
 				try {
 					final int LEFT = 0, TOP = 1;
 
@@ -340,7 +347,14 @@ public class StitchingTEM {
 					if (optimize) {
 
 						ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
-						al_fixed_tiles.add(al_tiles.get(0));
+						// Add locked tiles as fixed tiles, if any:
+                                                for (int i=0; i<patch.length; i++) {
+                                                        if (patch[i].isLocked2()) al_fixed_tiles.add(al_tiles.get(i));
+                                                }
+                                                if (al_fixed_tiles.isEmpty()) {
+							// When none, add the first one as fixed
+                                                        al_fixed_tiles.add(al_tiles.get(0));
+                                                }
 
 						// Optimize iteratively tile configuration by removing bad matches
 						optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
@@ -748,6 +762,14 @@ public class StitchingTEM {
 		 */
 		public PhaseCorrelationParam() {}
 
+		/** Run setup on a Patch of the layer, if any. */
+		public boolean setup(Layer layer) {
+			Collection<Displayable> p = layer.getDisplayables(Patch.class);
+			Patch patch = p.isEmpty() ? null : (Patch)p.iterator().next();
+			// !@#$%%^^
+			return setup(patch);
+		}
+
 		/** 
 		 * Returns false when canceled.
 		 * @param ref is an optional Patch from which to estimate an appropriate image scale 
@@ -802,9 +824,14 @@ public class StitchingTEM {
 		for (final Patch p : al) {
 			// Pre-check: just a warning
 			final int aff_type = p.getAffineTransform().getType();
-			if (AffineTransform.TYPE_IDENTITY != aff_type
-			  || 0 != (AffineTransform.TYPE_TRANSLATION ^ aff_type)) {
-				Utils.log2("WARNING: patch with a non-translation transform: " + p);
+			switch (p.getAffineTransform().getType()) {
+				case AffineTransform.TYPE_IDENTITY:
+				case AffineTransform.TYPE_TRANSLATION:
+					// ok
+					break;
+				default:
+					Utils.log2("WARNING: patch with a non-translation transform: " + p);
+					break;
 			}
 			// create tiles
 			TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);

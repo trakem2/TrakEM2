@@ -214,6 +214,10 @@ public final class LayerThing extends DBObject implements TitledThing {
 		return al_children;
 	}
 
+	public boolean hasChildren() {
+		return !(null == al_children || 0 == al_children.size());
+	}
+
 	public Object getObject() {
 		return object;
 	}
@@ -283,6 +287,11 @@ public final class LayerThing extends DBObject implements TitledThing {
 			if (empty) item.setEnabled(false);
 
 			item = new JMenuItem("Reverse layer Z coords...");
+			item.addActionListener(listener);
+			al_items.add(item);
+			if (empty) item.setEnabled(false);
+
+			item = new JMenuItem("Reset layer Z and thickness");
 			item.addActionListener(listener);
 			al_items.add(item);
 			if (empty) item.setEnabled(false);

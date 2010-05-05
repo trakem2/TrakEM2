@@ -876,11 +876,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return al;
 		}
 		if (instance_of) {
-			for (ZDisplayable zd : al_zdispl) {
+			for (final ZDisplayable zd : al_zdispl) {
 				if (c.isInstance(zd)) al.add(zd);
 			}
 		} else {
-			for (ZDisplayable zd : al_zdispl) {
+			for (final ZDisplayable zd : al_zdispl) {
 				if (zd.getClass() == c) al.add(zd);
 			}
 		}
@@ -888,9 +888,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public ArrayList<ZDisplayable> getZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
-		final ArrayList<ZDisplayable> al = getZDisplayables(c);
+		return getZDisplayables(c, layer, aroi, visible_only, false);
+	}
+
+	public ArrayList<ZDisplayable> getZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
+		final ArrayList<ZDisplayable> al = getZDisplayables(c, instance_of);
 		final double z = layer.getZ();
-		for (Iterator<ZDisplayable> it = al.iterator(); it.hasNext(); ) {
+		for (final Iterator<ZDisplayable> it = al.iterator(); it.hasNext(); ) {
 			ZDisplayable zd = it.next();
 			if (visible_only && !zd.isVisible()) { it.remove(); continue; }
 			if (!zd.intersects(aroi, z, z)) it.remove();
@@ -1114,9 +1118,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find any Displayable or ZDisplayable objects of class C which intersect with the Area @param aroi. If @param visible_only, then only those that are not hidden. */
 	public ArrayList<Displayable> find(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
+		return find(c, layer, aroi, visible_only, false);
+	}
+
+	public ArrayList<Displayable> find(final Class c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		al.addAll(layer.getDisplayables(c, aroi, visible_only));
-		al.addAll(getZDisplayables(c, layer, aroi, visible_only));
+		al.addAll(layer.getDisplayables(c, aroi, visible_only, instance_of));
+		al.addAll(getZDisplayables(c, layer, aroi, visible_only, instance_of));
 		return al;
 	}
 
@@ -2184,6 +2192,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	final void clearScreenshots() {
 		synchronized (offscreens) {
+			for (final DisplayCanvas.Screenshot s : offscreens.values()) {
+				s.flush();
+			}
 			offscreens.clear();
 			offscreens2.clear();
 		}
@@ -2202,6 +2213,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					offscreens.put(sc.props, sc);
 					putO2(sc.layer, sc);
 				}
+				// not flushing: they will get thrown out eventually
 			}
 		}
 	}
@@ -2242,7 +2254,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
-	/** Find all java.awt.geom.Area in layer that intersect with box, if visible. */
+	/** Find all java.awt.geom.Area in layer that intersect with box, if visible.
+	 *  Areas are returned as they are, with coords local to the Displayable they come from.
+	 *  Modifying the Area instances will modify the actual data in the AreaContainer Displayable. */
 	protected Map<Displayable,List<Area>> findAreas(final Layer layer, final Rectangle box, final boolean visible) {
 		final Map<Displayable,List<Area>> m = new HashMap<Displayable,List<Area>>();
 		for (final Displayable zd : findZDisplayables(layer, box, visible)) {

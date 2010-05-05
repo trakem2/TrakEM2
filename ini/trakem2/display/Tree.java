@@ -25,9 +25,14 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.gui.StackWindow;
+import ij.io.FileSaver;
+import ij.io.Opener;
 
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -44,6 +49,7 @@ import java.awt.RenderingHints;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseListener;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.WindowAdapter;
@@ -75,6 +81,8 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import javax.vecmath.Point3f;
 import javax.swing.KeyStroke;
@@ -96,6 +104,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.MouseAdapter;
 
 import fiji.geom.AreaCalculations;
+import java.io.File;
 
 // Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
 // That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
@@ -117,7 +126,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	protected final Set<Node> end_nodes = new HashSet<Node>();
 
-	protected Node root = null;
+	protected Node<?> root = null;
 
 	protected Tree(Project project, String title) {
 		super(project, title, 0, 0);
@@ -713,10 +722,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	protected Coordinate<Node> createCoordinate(final Node nd) {
 		if (null == nd) return null;
-		double x = nd.x;
-		double y = nd.y;
+		float x = nd.x;
+		float y = nd.y;
 		if (!this.at.isIdentity()) {
-			double[] dps = new double[]{x, y};
+			float[] dps = new float[]{x, y};
 			this.at.transform(dps, 0, dps, 0, 1);
 			x = dps[0];
 			y = dps[1];
@@ -794,7 +803,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		synchronized (node_layer_map) {
 			Node nearest = findNode(x, y, layer, magnification);
 			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) return nearest;
+			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) {
+				updateViewData(nearest);
+				return nearest;
+			}
 			return null;
 		}
 	}
@@ -1478,7 +1490,29 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					ts = layer_set.getTags(keyCode);
 				}
 				// Ask to chose one, if more than one
+				final Set<Tag> target_tags = target.getTags();
+				if (untag && (null == target_tags || target_tags.isEmpty())) {
+					// nothing to untag
+					return;
+				}
 				if (ts.size() > 1) {
+					// if the target_tags has only one tag for the given keycode, just remove it
+					if (untag && null != target_tags) {
+						int count = 0;
+						Tag t = null;
+						for (final Tag tag : target_tags) {
+							if (tag.getKeyCode() == keyCode) {
+								count++;
+								t = tag;
+							}
+						}
+						if (1 == count) {
+							// just remove it
+							target.removeTag(t);
+							Display.repaint(layer_set);
+							return;
+						}
+					}
 					final JPopupMenu popup = new JPopupMenu();
 					popup.add(new JLabel(untag ? "Untag:" : "Tag:"));
 					int i = 1;
@@ -1489,6 +1523,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0 + i, 0, true));
 						}
 						i++;
+						if (null != target_tags) {
+							if (untag) item.setEnabled(target_tags.contains(tag));
+							else item.setEnabled(!target_tags.contains(tag));
+						}
 						item.addActionListener(new ActionListener() {
 							public void actionPerformed(ActionEvent ae) {
 								if (untag) target.removeTag(tag);
@@ -1679,10 +1717,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return flyThrough(root, marked, width, height, magnification, type, dir);
 	}
 
-	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
-	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
-	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type, final String dir) {
-		// Create regions
+	public LinkedList<Region> generateRegions(final Node first, final Node last, final int width, final int height, final double magnification) {
 		final LinkedList<Region> regions = new LinkedList<Region>();
 		Node node = last;
 		float[] fps = new float[2];
@@ -1698,7 +1733,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			if (first == node) break;
 			node = node.parent;
 		}
-		return project.getLoader().createFlyThrough(regions, magnification, type, dir);
+		return regions;
+	}
+
+	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
+	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
+	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type, final String dir) {
+		return project.getLoader().createFlyThrough(generateRegions(first, last, width, height, magnification), magnification, type, dir);
 	}
 
 	/** Measures number of branch points and end points, and total cable length.
@@ -1871,6 +1912,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			createGUI();
 		}
 		private final class Table extends JTable {
+			private int last_sorted_column = -1;
+			private boolean last_sorting_order = true; // descending == true
 			Table() {
 				super();
 				getTableHeader().addMouseListener(new MouseAdapter() {
@@ -1880,6 +1923,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						int column = convertColumnIndexToModel(viewColumn);
 						if (-1 == column) return;
 						((NodeTableModel)getModel()).sortByColumn(column, me.isShiftDown());
+						last_sorted_column = column;
+						last_sorting_order = me.isShiftDown();
 					}
 				});
 				this.addMouseListener(new MouseAdapter() {
@@ -1890,14 +1935,39 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						} else if (Utils.isPopupTrigger(me)) {
 							JPopupMenu popup = new JPopupMenu();
 							final JMenuItem go = new JMenuItem("Go"); popup.add(go);
+							final JMenuItem review = new JMenuItem("Review"); popup.add(review);
+							final JMenuItem rm_review = new JMenuItem("Remove review stack"); popup.add(rm_review);
+							popup.addSeparator();
+							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
+							final JMenuItem rm_reviews = new JMenuItem("Remove all reviews"); popup.add(rm_reviews);
 							//
 							ActionListener listener = new ActionListener() {
 								public void actionPerformed(ActionEvent ae) {
 									final Object src = ae.getSource();
-									if (src == go) go(row);
+									if (go == src) go(row);
+									else if (generate == src) {
+										if (!Utils.check("Really generate all review stacks?")) {
+											return;
+										}
+										generateAllReviewStacks();
+									}
+									else if (review == src) review(row);
+									else if (rm_reviews == src) {
+										if (!Utils.check("Really remove all review tags and associated stacks?")) {
+											return;
+										}
+										removeReviews();
+									}
+									else if (rm_review == src) removeReview(row);
 								}
 							};
 							go.addActionListener(listener);
+							review.addActionListener(listener);
+							review.setEnabled(hasReviewTag(row));
+							rm_review.addActionListener(listener);
+							rm_review.setEnabled(hasReviewTag(row));
+							generate.addActionListener(listener);
+							rm_reviews.addActionListener(listener);
 							popup.show(Table.this, me.getX(), me.getY());
 						}
 					}
@@ -1915,6 +1985,46 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 			void go(int row) {
 				Display.centerAt(Tree.this.createCoordinate(((NodeTableModel)this.getModel()).nodes.get(row)));
+			}
+			void resort() {
+				if (-1 != last_sorted_column) {
+					((NodeTableModel)getModel()).sortByColumn(last_sorted_column, last_sorting_order);
+				}
+			}
+			private boolean hasReviewTag(final int row) {
+				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				Set<Tag> tags = nd.getTags();
+				if (null == tags) return false;
+				for (Tag tag : tags) if (tag.toString().startsWith("#R-")) return true;
+				return false;
+			}
+			private void review(int row) {
+				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				// See if there are any tags
+				Set<Tag> tags = nd.getTags();
+				if (null == tags) {
+					Utils.log("Node without review tag!");
+					return;
+				}
+				// Find a review tag, if any
+				Tag review_tag = null;
+				for (Tag tag : tags) {
+					if (tag.toString().startsWith("#R-")) {
+						review_tag = tag;
+						break;
+					}
+				}
+				if (null == review_tag) {
+					Utils.log("Node without review tag!");
+					return;
+				}
+				// Find a stack for the review tag, and open it
+				Tree.this.openImage(getReviewTagPath(review_tag), nd);
+			}
+			private void removeReview(final int row) {
+				final Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				if (null == nd) return;
+				Tree.this.removeReview(nd);
 			}
 		}
 		void show() {
@@ -1999,6 +2109,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		void recreate(final Node root) {
 			Tree.this.project.getLoader().doLater(new Callable() { public Object call() {
 				create(root);
+				for (Table t : new Table[]{table_branchnodes, table_searchnodes, table_endnodes, table_allnodes}) {
+					t.resort();
+				}
 				Utils.revalidateComponent(frame);
 				return null;
 			}});
@@ -2007,6 +2120,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			synchronized (nodedata) {
 				nodedata.remove(node);
 			}
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				Utils.revalidateComponent(frame);
+			}});
 		}
 		private void search(final String regex) {
 			final StringBuilder sb = new StringBuilder();
@@ -2222,6 +2338,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		}
 		this.calculateBoundingBox();
+		updateView();
 		return true;
 	}
 
@@ -2328,5 +2445,245 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		clearState();
 		return true;
+	}
+
+	/** Open an image in a separate thread and returns the thread. Frees up to 1 Gb for it. */
+	private Future<ImagePlus> openImage(final String path, final Node last) {
+		return project.getLoader().doLater(new Callable<ImagePlus>() {
+			public ImagePlus call() {
+				try {
+					if (!new File(path).exists()) {
+						Utils.log("Could not find file " + path);
+						return null;
+					}
+					project.getLoader().releaseMemory(1000000000L); // 1 Gb
+					Opener op = new Opener();
+					op.setSilentMode(true);
+					final ImagePlus imp = op.openImage(path); // TODO WARNING should go via the Loader
+					if (null == imp) {
+						Utils.log("ERROR: could not open " + path);
+					} else {
+						StackWindow stack = new StackWindow(imp);
+						MouseListener[] ml = stack.getCanvas().getMouseListeners();
+						for (MouseListener m : ml) stack.getCanvas().removeMouseListener(m);
+						stack.getCanvas().addMouseListener(new MouseAdapter() {
+							public void mousePressed(MouseEvent me) {
+								if (2 == me.getClickCount()) {
+									me.consume();
+									// Go to the node
+									// Slices are 1-based: 1<=i<=N
+									int slice = imp.getCurrentSlice();
+									if (slice == imp.getNSlices()) {
+										Display.centerAt(createCoordinate(last));
+									} else {
+										Node parent = last.getParent();
+										int count = imp.getNSlices() -1;
+										while (null != parent) {
+											if (count == slice) {
+												Display.centerAt(createCoordinate(parent));
+												break;
+											}
+											// next cycle
+											count--;
+											parent = parent.getParent();
+										};
+									}
+								}
+							}
+							public void mouseDragged(MouseEvent me) {
+								if (2 == me.getClickCount()) {
+									me.consume();
+								}
+							}
+							public void mouseRelesed(MouseEvent me) {
+								if (2 == me.getClickCount()) {
+									me.consume();
+								}
+							}
+						});
+						for (MouseListener m : ml) stack.getCanvas().addMouseListener(m);
+					}
+					return imp;
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+				return null;
+			}
+		});
+	}
+
+	public Bureaucrat generateAllReviewStacks() {
+		return Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
+			public void exec() {
+
+		// Find all end nodes and branch nodes
+		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
+		// Generate a fly-through stack from each found node to its previous branch point or root
+		final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		// Disable window
+		final TreeNodesDataView tndv = Tree.this.tndv;
+		if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+		try {
+			int next = 0;
+			final List<Runnable> todo = new ArrayList<Runnable>();
+			final List<Future> fus = new ArrayList<Future>();
+			final Object dirsync = new Object();
+			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+				for (final Node nd : e.getValue()) {
+					if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
+					if (Thread.currentThread().isInterrupted()) return;
+					final int num = ++next;
+					final Tag tag = new Tag("#R-" + next, KeyEvent.VK_R);
+					nd.addTag(tag);
+					updateViewData(nd);
+					//
+					todo.add(new Runnable() {
+						public void run() {
+							try {
+								ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0), 1.0, ImagePlus.COLOR_RGB);
+								imp.setTitle(imp.getTitle() + tag.toString());
+								File fdir = new File(getReviewTagPath(tag));
+								synchronized (dirsync) {
+									File parent = fdir.getParentFile();
+									if (!parent.exists()) {
+										if (!parent.mkdirs()) {
+											Utils.log("FAILED to create directories " + parent.getAbsolutePath()
+											+ "\nNOT created review stack for " + tag.toString());
+											return;
+										}
+									}
+								}
+								ij.IJ.redirectErrorMessages();
+								new FileSaver(imp).saveAsZip(fdir.getAbsolutePath());
+							} catch (Exception e) {
+								IJError.print(e);
+								Utils.log("\nERROR: NOT created review stack for " + tag.toString());
+								return;
+							}
+						}
+					});
+				}
+			}
+			// Now that all tags exists (and will get painted), generate the stacks
+			for (final Runnable r : todo) fus.add(exe.submit(r));
+			Utils.wait(fus);
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+			exe.shutdown();
+			Display.repaint(getLayerSet());
+		}
+			}}, getProject());
+	}
+
+	private String getReviewTagPath(Tag tag) {
+		// Remove the "#" from the tag name
+		return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
+	}
+	boolean removeReview(final Node nd) {
+		final Set<Tag> tags = nd.getTags();
+		if (null == tags) return true;
+		for (final Tag tag : tags) {
+			String s = tag.toString();
+			if (s.startsWith("#R-")) {
+				try {
+					String path = getReviewTagPath(tag);
+					File f = new File(path);
+					if (f.exists()) {
+						if (!f.delete()) {
+							Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
+							return false;
+						}
+					} else {
+						Utils.log("No review file exists for " + s);
+					}
+					// Remove tag:
+					nd.removeTag(tag);
+					updateViewData(nd);
+				} catch (Exception ee) {
+					IJError.print(ee);
+				}
+			}
+		}
+		return true;
+	}
+	public Bureaucrat removeReviews() {
+		return Bureaucrat.createAndStart(new Worker.Task("Removing review stacks") { // .. and tags
+			public void exec() {
+
+		// Remove all review tags
+		// Remove all .zip stacks for this Treeline
+		boolean success = true;
+		for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+			for (final Node nd : e.getValue()) {
+				if (Thread.currentThread().isInterrupted()) return;
+				success = success && removeReview(nd);
+			}
+		}
+		File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
+		if (success) {
+			// Remove directory (even if not empty)
+			Utils.removeFile(f);
+		} else {
+			Utils.log("Could not delete some review stacks.\n --> Directory remains: " + f.getAbsolutePath());
+		}
+		Display.repaint(getLayerSet());
+
+			}}, getProject());
+	}
+
+	public Map<Node,Collection<Displayable>> findIntersecting(final Class c) throws Exception {
+		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
+		Process.progressive(root.getSubtreeNodes(),
+				     new TaskFactory<Node,Object>() {
+					 public Callable<Object> create(final Node nd) {
+						 return new Callable<Object>() {
+							 public Object call() {
+								final Area a = nd.getArea();
+								a.transform(Tree.this.at);
+								final Collection<Displayable> col = layer_set.find(c, nd.la, a, false, true);
+								if (col.isEmpty()) return null;
+								synchronized (m) {
+									m.put(nd, col);
+								}
+								return null;
+							 }
+						 };
+					 }});
+		return m;
+	}
+
+	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incomming connectors. */
+	public Collection<Connector>[] findConnectors() throws Exception {
+		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
+		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
+		final ArrayList<Connector> incomming = new ArrayList<Connector>();
+		Process.progressive(root.getSubtreeNodes(),
+				     new TaskFactory<Node,Object>() {
+					 public Callable<Object> create(final Node nd) {
+						 return new Callable<Object>() {
+							 public Object call() {
+								final Area a = nd.getArea();
+								a.transform(Tree.this.at);
+								final Collection<Displayable> col = layer_set.find(Connector.class, nd.la, a, false, true);
+								if (col.isEmpty()) return null;
+								// Outgoing or incomming?
+								for (final Connector c : (Collection<Connector>)(Collection)col) {
+									if (c.intersectsOrigin(a)) {
+										synchronized (outgoing) {
+											outgoing.add(c);
+										}
+									} else {
+										synchronized (incomming) {
+											incomming.add(c);
+										}
+									}
+								}
+								return null;
+							 }
+						 };
+					 }});
+		return (Collection<Connector>[]) new Collection[]{outgoing, incomming};
 	}
 }

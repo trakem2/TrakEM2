@@ -252,6 +252,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Displayable displ = (Displayable)obd;
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
+			} else if (command.equals("Show tabular view")) {
+				((Tree)obd).createMultiTableView();
 			} else if (command.equals("Show in 3D")) {
 				ini.trakem2.display.Display3D.showAndResetView(thing);
 			} else if (command.equals("Hide")) {
@@ -872,6 +874,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 
 			List<Displayable> original_vdata = null;
+			final Set<Long> lids_to_operate = new HashSet<Long>();
 			if (0 != lids.size()) {
 				original_vdata = new ArrayList<Displayable>();
 				// Further checking needed (there could just simply be more layers in the target than in the source project):
@@ -883,7 +886,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 						Utils.log("CANNOT transfer: not all required layers are present in the target project!\n  First object that couldn't be transfered: \n    " + d);
 						return false;
 					}
-					if (d instanceof VectorData) original_vdata.add(d);
+					if (d instanceof VectorData) {
+						original_vdata.add(d);
+						lids_to_operate.addAll(d.getLayerIds());
+					}
 				}
 			}
 
@@ -930,13 +936,16 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					original_vdata = new ArrayList<Displayable>();
 					for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
 						final Displayable d = (Displayable) child.getObject();
-						if (d instanceof VectorData) original_vdata.add(d);
+						if (d instanceof VectorData) {
+							original_vdata.add(d);
+							lids_to_operate.addAll(d.getLayerIds());
+						}
 					}
 				}
 				//Utils.log2("original vdata:", original_vdata);
 				//Utils.log2("vdata:", vdata);
 				// Transform with images
-				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(original_vdata, vdata), vdata, target_project.getRootLayerSet());
+				AlignTask.transformVectorData(AlignTask.createTransformPropertiesTable(original_vdata, vdata, lids_to_operate), vdata, target_project.getRootLayerSet());
 			} // else if trmodep[0], leave as is.
 			
 			return true;

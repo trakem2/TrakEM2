@@ -11,6 +11,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
+import java.awt.geom.GeneralPath;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.awt.Polygon;
@@ -327,27 +328,20 @@ public final class M {
 		}
 		return pols;
 	}
-
-	/** Return a new Area resulting from applying @param ict to @param a;
-	 *  converts the newly transformed points to ints (TrakEM2 operates with ints in its areas). */
-	static public final Area transform(final mpicbg.models.CoordinateTransform ict, final Area a) {
-		final Area a2 = new Area();
-		final float[] fp = new float[2];
+	static public final Collection<Polygon> getPolygonsByRounding(final Area area) {
+		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
 		Polygon pol = new Polygon();
 
 		final float[] coords = new float[6];
-		for (PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
+		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
 			int seg_type = pit.currentSegment(coords);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
 				case PathIterator.SEG_LINETO:
-					fp[0] = coords[0];
-					fp[1] = coords[1];
-					ict.applyInPlace(fp);
-					pol.addPoint((int)fp[0], (int)fp[1]); // as ints!
+					pol.addPoint(Math.round(coords[0]), Math.round(coords[1]));
 					break;
 				case PathIterator.SEG_CLOSE:
-					a2.add(new Area(pol));
+					pols.add(pol);
 					pol = new Polygon();
 					break;
 				default:
@@ -359,7 +353,39 @@ public final class M {
 				break;
 			}
 		}
-		return a2;
+		return pols;
+	}
+
+	/** Return a new Area resulting from applying @param ict to @param a;
+	 *  assumes areas consists of paths with moveTo, lineTo and close operations. */
+	static public final Area transform(final mpicbg.models.CoordinateTransform ict, final Area a) {
+		final GeneralPath path = new GeneralPath();
+		final float[] coords = new float[6];
+		final float[] fp = new float[2];
+
+		for (final PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
+			final int seg_type = pit.currentSegment(coords);
+			fp[0] = coords[0];
+			fp[1] = coords[1];
+			ict.applyInPlace(fp);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+					path.moveTo(fp[0], fp[1]);
+					break;
+				case PathIterator.SEG_LINETO:
+				case PathIterator.SEG_CLOSE:
+					path.lineTo(fp[0], fp[1]);
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
+		}
+		return new Area(path);
 	}
 
 	/** Apply in place the @param ict to the Area @param a, but only for the part that intersects the roi. */
@@ -445,6 +471,15 @@ public final class M {
 	static public final Area areaInInts(final Area area) {
 		final Area a = new Area();
 		for (final Polygon pol : M.getPolygons(area)) {
+			a.add(new Area(pol));
+		}
+		return a;
+	}
+
+	/** Converts all points in @param area to ints by rounding. */
+	static public final Area areaInIntsByRounding(final Area area) {
+		final Area a = new Area();
+		for (final Polygon pol : M.getPolygonsByRounding(area)) {
 			a.add(new Area(pol));
 		}
 		return a;
@@ -594,7 +629,7 @@ public final class M {
 		p[1][i] = fp[1];
 	}
 
-	/** The @param ict is expected to transform this data as if this data was expressed in world coordinates,
+	/** The @param ict is expected to transform the data as if this data was expressed in world coordinates,
 	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
 	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
 		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
@@ -609,5 +644,21 @@ public final class M {
 		tolocal.set(to_local);
 		chain.add(tolocal);
 		return chain;
+	}
+
+	/** Returns the shortest possible String representation of a float number, according to the desired decimal @param precision. */
+	static public final String shortest(final float f, final float precision) {
+		return Math.abs(f - (int)f) < precision ?
+			  Integer.toString((int)f)
+			: Float.toString(f);
+	}
+
+	/** Appends to @param sb the shortest possible String representation of a float number, according to the desired decimal @param precision. */
+	static public final void appendShortest(final float f, final float precision, final StringBuffer sb) {
+		if (Math.abs(f - (int)f) < precision) {
+			sb.append((int)f);
+		} else {
+			sb.append(f);
+		}
 	}
 }

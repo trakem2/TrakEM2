@@ -2466,7 +2466,42 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Show tabular view"); item.addActionListener(this); popup.add(item);
-				item.setSelected(selection.getSelected(Tree.class).size() > 1);
+				final Collection<Tree> trees = (Collection<Tree>)(Collection)selection.getSelected(Tree.class);
+				JMenu review = new JMenu("Review");
+				final JMenuItem tgenerate = new JMenuItem("Generate review stacks (selected Trees)"); review.add(tgenerate);
+				tgenerate.setEnabled(trees.size() > 0);
+				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
+				tremove.setEnabled(trees.size() > 0);
+				final JMenuItem tconnectors = new JMenuItem("View table of outgoing connectors"); review.add(tconnectors);
+				ActionListener l = new ActionListener() {
+					public void actionPerformed(final ActionEvent ae) {
+						if (!Utils.check("Really " + ae.getActionCommand())) {
+							return;
+						}
+						dispatcher.exec(new Runnable() {
+							public void run() {
+								int count = 0;
+								for (final Tree t : trees) {
+									Utils.log("Processing " + (++count) + "/" + trees.size());
+									Bureaucrat bu = null;
+									if (ae.getSource() == tgenerate) bu = t.generateAllReviewStacks();
+									else if (ae.getSource() == tremove) bu = t.removeReviews();
+									if (null != bu) try {
+										bu.getWorker().join();
+									} catch (InterruptedException ie) { return; }
+								}
+							}
+						});
+					}
+				};
+				for (JMenuItem c : new JMenuItem[]{tgenerate, tremove}) c.addActionListener(l);
+				tconnectors.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						for (final Tree t : trees) TreeConnectorsView.create(t);
+					}
+				});
+				popup.add(review);
+
 				JMenu go = new JMenu("Go");
 				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
@@ -4228,7 +4263,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			getLayerSet().addChangeTreesStep();
 			List<Tree> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
 			if (null == ts) return;
 			Displayable elder = Display.this.active;
@@ -4261,14 +4295,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(Treeline.class);
 			if (((Tree)active).canJoin(tlines)) {
-				getLayerSet().addChangeTreesStep();
+				// Record current state
+				class State {{
+					Set<DoStep> dataedits = new HashSet<DoStep>();
+					for (final Tree tl : tlines) {
+						dataedits.add(new Displayable.DoEdit(tl).init(tl, new String[]{"data"}));
+					}
+					getLayerSet().addChangeTreesStep(dataedits);
+				}};
+				new State();
+				//
 				((Tree)active).join(tlines);
 				for (final Tree tl : tlines) {
 					if (tl == active) continue;
 					tl.remove2(false);
 				}
 				Display.repaint(getLayerSet());
-				getLayerSet().addChangeTreesStep();
+				// Again, to record current state
+				new State();
 			}
 		} else if (command.equals("Previous branch point or start")) {
 			if (!(active instanceof Tree)) return;
@@ -4410,9 +4454,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		} else if (command.equals("Unlink all")) {
 			if (Utils.check("Really unlink all objects from all layers?")) {
-				for (final Displayable d : layer.getParent().getDisplayables()) {
+				Collection<Displayable> ds = layer.getParent().getDisplayables();
+				for (final Displayable d : ds) {
 					d.unlink();
 				}
+				Display.updateCheckboxes(ds, DisplayablePanel.LOCK_STATE);
 			}
 		} else if (command.equals("Calibration...")) {
 			try {

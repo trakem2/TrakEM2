@@ -43,7 +43,7 @@ import java.awt.AlphaComposite;
 
 public class Treeline extends Tree {
 
-	static private float last_radius = -1;
+	static protected float last_radius = -1;
 
 	public Treeline(Project project, String title) {
 		super(project, title);
@@ -120,11 +120,19 @@ public class Treeline extends Tree {
 		super.mousePressed(me, x_p, y_p, mag);
 	}
 
+	protected boolean requireAltDownToEditRadius() {
+		return true;
+	}
+
 	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == getActive()) return;
 
-		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
+		if (requireAltDownToEditRadius() && !me.isAltDown()) {
+			super.mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
+			return;
+		}
+		if (me.isShiftDown() && !Utils.isControlDown(me)) {
 			// transform to the local coordinates
 			float xd = x_d,
 			      yd = y_d;
@@ -134,7 +142,9 @@ public class Treeline extends Tree {
 				yd = (float)po.y;
 			}
 			Node nd = getActive();
-			nd.setData((float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2)));
+			float r = (float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2));
+			nd.setData(r);
+			last_radius = r;
 			repaint(true);
 			return;
 		}
@@ -187,8 +197,8 @@ public class Treeline extends Tree {
 		return nearest;
 	}
 
-	static public final class RadiusNode extends Node<Float> {
-		private float r;
+	static public class RadiusNode extends Node<Float> {
+		protected float r;
 
 		public RadiusNode(final float lx, final float ly, final Layer la) {
 			this(lx, ly, la, 0);
@@ -204,7 +214,7 @@ public class Treeline extends Tree {
 			this.r = null == sr ? 0 : Float.parseFloat(sr);
 		}
 
-		public final Node newInstance(final float lx, final float ly, final Layer layer) {
+		public Node newInstance(final float lx, final float ly, final Layer layer) {
 			return new RadiusNode(lx, ly, layer, 0);
 		}
 
@@ -277,9 +287,11 @@ public class Treeline extends Tree {
 		}
 
 		/** Expects @param a in local coords. */
+		@Override
 		public boolean intersects(final Area a) {
 			if (0 == r) return a.contains(x, y);
 			return M.intersects(a, new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r)));
+			// TODO: not the getSegment() ?
 		}
 
 		@Override
@@ -356,6 +368,7 @@ public class Treeline extends Tree {
 	 *
 	 * Differences are not so huge in any case.
 	 */
+	/*
 	static final public void testMeshGenerationPerformance(int n_iterations) {
 		// test 3D mesh generation
 
@@ -506,6 +519,7 @@ public class Treeline extends Tree {
 		}
 		System.out.println("C: " + (System.currentTimeMillis() - t0));
 	}
+	*/
 
 	public List generateMesh(double scale_, int parallels) {
 		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
