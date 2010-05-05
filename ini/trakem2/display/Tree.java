@@ -145,11 +145,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		this.color = color;
 	}
 
-	final protected Set<Node> getNodesToPaint(final Layer active_layer) {
+	final protected Collection<Node> getNodesToPaint(final Layer active_layer) {
 		// Determine which layers to paint
-		final Set<Node> nodes;
+		final Collection<Node> nodes;
 		if (layer_set.color_cues) {
-			nodes = new HashSet<Node>();
+			nodes = new ArrayList<Node>();
 			if (-1 == layer_set.n_layers_color_cue) {
 				// All layers
 				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
@@ -188,7 +188,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
-			final Set<Node> nodes = getNodesToPaint(active_layer);
+			final Collection<Node> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
 				// Clear transform and stroke
 				gt = g.getTransform();
@@ -227,13 +227,12 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	protected Rectangle getPaintingBounds() {
-		Rectangle box = null,
-			  tmp = new Rectangle();
+		Rectangle box = null;
 		synchronized (node_layer_map) {
 			for (final Collection<Node> nodes : node_layer_map.values()) {
-				tmp = getBounds(tmp, nodes);
-				if (null == box) box = tmp;
-				else if (null != tmp) box.add(tmp);
+				final Rectangle b = getBounds(nodes);
+				if (null == box) box = b;
+				else if (null != b) box.add(b);
 			}
 		}
 		return box;
@@ -244,17 +243,21 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		final Collection<Node> nodes = node_layer_map.get(layer);
 		if (null == nodes) return null;
 		synchronized (node_layer_map) {
-			return getBounds(tmp, nodes);
+			Rectangle r = getBounds(nodes);
+			if (null == r) return null;
+			tmp.setRect(r); // it's expected
+			return r;
 		}
 	}
 
 	// Call always from within a synchronized (node_layer_map) block.
-	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+	protected Rectangle getBounds(final Collection<Node> nodes) {
+		Rectangle b = null;
 		for (final Node nd : nodes) {
-			if (null == tmp) tmp = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-			else tmp.add((int)nd.x, (int)nd.y);
+			if (null == b) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
+			else b.add((int)nd.x, (int)nd.y);
 		}
-		return tmp;
+		return b;
 	}
 
 	protected boolean calculateBoundingBox(final Layer la) {
@@ -946,7 +949,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	public Node[] findNearestEdge(float x_pl, float y_pl, Layer layer, double magnification) {
 		if (null == root) return null;
 		// Don't traverse all, just look into nodes currently being painted according to layer_set.n_layers_color_cue
-		final Set<Node> nodes = getNodesToPaint(layer);
+		final Collection<Node> nodes = getNodesToPaint(layer);
 		if (null == nodes) return null;
 		//
 		double d = (10.0D / magnification);
@@ -1015,6 +1018,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				Collection<Node> subtree = child.getSubtreeNodes();
 				cacheSubtree(subtree);
 
+				repaint(true, child.la);
 				setLastAdded(child);
 				updateView();
 

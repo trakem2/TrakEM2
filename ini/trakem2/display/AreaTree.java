@@ -129,7 +129,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
+		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
 			if (active_layer != this.la || null == aw) return;
 
 			final AffineTransform aff = new AffineTransform();
@@ -450,16 +450,17 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	@Override
-	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+	protected Rectangle getBounds(final Collection<Node> nodes) {
+		Rectangle box = null;
 		for (final AreaNode nd : (Collection<AreaNode>)(Collection)nodes) {
 			final Rectangle b;
 			if (null == nd.aw || nd.aw.getArea().isEmpty()) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 			else b = nd.aw.getArea().getBounds();
 			//
-			if (null == tmp) tmp = b;
-			else tmp.add(b);
+			if (null == box) box = b;
+			else box.add(b);
 		}
-		return tmp;
+		return box;
 	}
 
 	public List generateMesh(final double scale, final int resample) {

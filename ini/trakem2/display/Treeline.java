@@ -247,7 +247,7 @@ public class Treeline extends Tree {
 
 		/** Paint radiuses. */
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
+		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
 			if (null == this.parent) return;
 			RadiusNode parent = (RadiusNode) this.parent;
 			if (0 == this.r && 0 == parent.r) return;
@@ -702,17 +702,18 @@ public class Treeline extends Tree {
 	}
 
 	@Override
-	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+	protected Rectangle getBounds(final Collection<Node> nodes) {
+		Rectangle box = null;
 		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
 			if (null == nd.parent) {
-				if (null == tmp) tmp = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-				else tmp.add((int)nd.x, (int)nd.y);
+				if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
+				else box.add((int)nd.x, (int)nd.y);
 				continue;
 			}
 			// Get the segment with the parent node
-			if (null == tmp) tmp = nd.getSegment().getBounds();
-			else tmp.add(nd.getSegment().getBounds());
+			if (null == box) box = nd.getSegment().getBounds();
+			else box.add(nd.getSegment().getBounds());
 		}
-		return tmp;
+		return box;
 	}
 }

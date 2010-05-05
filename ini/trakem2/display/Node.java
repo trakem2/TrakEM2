@@ -169,7 +169,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-	final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color t_color, final boolean with_arrows, final boolean with_confidence_boxes) {
+	final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final AffineTransform aff, final Color t_color, final boolean with_arrows, final boolean with_confidence_boxes) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
 
 		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
@@ -546,7 +546,7 @@ public abstract class Node<T> implements Taggable {
 
 	public abstract Node newInstance(float x, float y, Layer layer);
 
-	abstract public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree);
+	abstract public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree);
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);

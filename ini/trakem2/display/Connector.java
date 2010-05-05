@@ -86,12 +86,11 @@ public class Connector extends Treeline {
 			return new ConnectorNode(lx, ly, layer, 0);
 		}
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
+		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
 			final AffineTransform a = new AffineTransform();
 			a.scale(magnification, magnification);
 			a.translate(-srcRect.x, -srcRect.y);
 			a.concatenate(tree.at);
-			;
 
 			// Which color?
 			if (active_layer == this.la) {
@@ -454,16 +453,17 @@ public class Connector extends Treeline {
 	protected boolean requireAltDownToEditRadius() { return false; }
 
 	@Override
-	protected Rectangle getBounds(Rectangle tmp, final Collection<Node> nodes) {
+	protected Rectangle getBounds(final Collection<Node> nodes) {
 		final Rectangle nb = new Rectangle();
+		Rectangle box = null;
 		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
 			final int r = 0 == nd.r ? 1 : (int)nd.r;
-			if (null == tmp) tmp = new Rectangle((int)nd.x - r, (int)nd.y - r, r+r, r+r);
+			if (null == box) box = new Rectangle((int)nd.x - r, (int)nd.y - r, r+r, r+r);
 			else {
 				nb.setBounds((int)nd.x - r, (int)nd.y - r, r+r, r+r);
-				tmp.add(nb);
+				box.add(nb);
 			}
 		}
-		return tmp;
+		return box;
 	}
 }
