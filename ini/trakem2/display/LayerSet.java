@@ -71,6 +71,10 @@ import org.xml.sax.Attributes;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.Callable;
+
 
 /** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
 public final class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
@@ -1103,11 +1107,54 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		writer.write(sb_body.toString());
 		// export ZDisplayable objects
 		if (null != al_zdispl) {
-			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
-				ZDisplayable zd = (ZDisplayable)it.next();
+			/* // old
+			for (final ZDisplayable : al_zdispl) {
 				sb_body.setLength(0);
 				zd.exportXML(sb_body, in, any);
 				writer.write(sb_body.toString()); // each separately, for they can be huge
+			}
+			*/
+			final int nproc = Runtime.getRuntime().availableProcessors();
+			final ExecutorService exec = Utils.newFixedThreadPool(nproc, "ZDisplayable-Writers");
+			try {
+				final LinkedList<Future<StringBuffer>> fus = new LinkedList<Future<StringBuffer>>();
+				for (final ZDisplayable zd : al_zdispl) {
+					fus.add(exec.submit(new Callable<StringBuffer>() {
+						public StringBuffer call() {
+							final StringBuffer sb = new StringBuffer();
+							boolean success = false;
+							while (!success) {
+								try {
+									zd.exportXML(sb, in, any);
+									success = true;
+								} catch (Throwable e) {
+									// Could be an OutOfMemoryError
+									zd.getProject().getLoader().releaseAll();
+									zd.getProject().getLoader().releaseAllCaches();
+									Utils.log2("Oops retrying");
+									// reset
+									sb.setLength(0);
+								}
+							}
+							return sb;
+						}
+					}));
+					// Generate twice as many tasks as processors
+					if (fus.size() < nproc + nproc) continue;
+					// Wait and write down half of those
+					while (fus.size() > nproc) {
+						writer.write(fus.removeFirst().get().toString());
+					}
+				}
+				while (fus.size() > 0) {
+					writer.write(fus.removeFirst().get().toString());
+				}
+			} catch (Throwable t) {
+				Utils.log("ERROR failed to write some ZDisplayable objects.");
+				IJError.print(t);
+				throw new Exception("Writing of ZDisplayables failed!"); // rethrow to stop writing process
+			} finally {
+				exec.shutdown();
 			}
 		}
 		// export Layer and contained Displayable objects
