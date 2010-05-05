@@ -2677,7 +2677,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incomming connectors. */
-	public Collection<Connector>[] findConnectors() throws Exception {
+	public List<Connector>[] findConnectors() throws Exception {
 		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
 		final ArrayList<Connector> incomming = new ArrayList<Connector>();
@@ -2706,6 +2706,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							 }
 						 };
 					 }});
-		return (Collection<Connector>[]) new Collection[]{outgoing, incomming};
+		return (List<Connector>[]) new List[]{outgoing, incomming};
 	}
 }
