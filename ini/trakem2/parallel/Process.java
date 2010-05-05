@@ -12,11 +12,20 @@ import java.util.concurrent.Future;
 public class Process {
 
 	static private final int MIN_AHEAD = 4;
+	static private final int NPROC = Runtime.getRuntime().availableProcessors();
+
+	static private final int sensible(final int nproc) {
+		return Math.max(1, Math.min(nproc, NPROC + 2));
+	}
 
 	/** Takes a Collection of inputs, applies a function to each created by the generator, and places their output in output. */
 	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs) throws Exception {
-		final int nproc = Runtime.getRuntime().availableProcessors();
-		final ExecutorService exec = Executors.newFixedThreadPool(nproc);
+		progressive(inputs, generator, outputs, NPROC);
+	}
+	/** Takes a Collection of inputs, applies a function to each created by the generator, and places their output in output. */
+	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc) throws Exception {
+		final int nproc = sensible(n_proc);
+		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
 		try {
 			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
@@ -40,7 +49,7 @@ public class Process {
 	/** Takes a Collection of inputs, applies a function to each created by the generator. */
 	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator) throws Exception {
 		final int nproc = Runtime.getRuntime().availableProcessors();
-		final ExecutorService exec = Executors.newFixedThreadPool(nproc);
+		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
 		try {
 			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
