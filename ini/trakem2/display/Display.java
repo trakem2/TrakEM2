@@ -2406,7 +2406,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				tgenerate.setEnabled(trees.size() > 0);
 				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
 				tremove.setEnabled(trees.size() > 0);
-				final JMenuItem tconnectors = new JMenuItem("View table of outgoing connectors"); review.add(tconnectors);
+				final JMenuItem tconnectors = new JMenuItem("View table of outgoing/incomming connectors"); review.add(tconnectors);
 				ActionListener l = new ActionListener() {
 					public void actionPerformed(final ActionEvent ae) {
 						if (!Utils.check("Really " + ae.getActionCommand())) {
@@ -2800,7 +2800,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		JMenu graph = new JMenu("Graph");
 		GraphMenuListener gl = new GraphMenuListener();
 		item = new JMenuItem("Select outgoing Connectors"); item.addActionListener(gl); graph.add(item);
-		item = new JMenuItem("Select incomming Connectors"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select incoming Connectors"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
@@ -2851,7 +2851,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (origins.isEmpty()) continue;
 					to_select.add(con);
 				}
-			} else if (command.equals("Select incomming Connectors")) {
+			} else if (command.equals("Select incoming Connectors")) {
 				for (final Connector con : connectors) {
 					for (final Set<Displayable> targets : con.getTargets()) {
 						targets.retainAll(sel);
