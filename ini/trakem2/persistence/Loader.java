@@ -586,8 +586,10 @@ abstract public class Loader {
 		return true;
 	}
 
-	final private class GCRunner extends Thread {
-		boolean run = false;
+	final static private class GCRunner extends Thread {
+		private boolean run = false;
+		private long initial = Long.MAX_VALUE;
+		final private int MAX_ITERATIONS = 7;
 		GCRunner() {
 			super("GCRunner");
 			setPriority(Thread.NORM_PRIORITY);
@@ -597,6 +599,7 @@ abstract public class Loader {
 		final void trigger() {
 			synchronized (this) {
 				run = true;
+				initial = IJ.currentMemory();
 				notify();
 			}
 		}
@@ -610,9 +613,7 @@ abstract public class Loader {
 						run = false;
 					}
 
-					final long initial = IJ.currentMemory();
 					long now = initial;
-					final int max = 7;
 					long sleep = 50; // initial value
 					int iterations = 0;
 					Utils.showStatus("Clearing memory...");
@@ -627,17 +628,22 @@ abstract public class Loader {
 						try { Thread.sleep(sleep); } catch (InterruptedException ie) { return; }
 						sleep += sleep; // incremental
 						now = IJ.currentMemory();
-						Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
-						Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
+						try {
+							Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+							int i = 1;
+							for (final Loader l : v_loaders) {
+								Utils.log2("\t" + i + ":  mawts: " + l.mawts.size() + "  imps: " + l.imps.size());
+							}
+						} catch (Exception e) {}
 						iterations++;
-					} while (now >= initial && iterations < max);
+					} while ((now + (now/10)) >= initial && iterations < MAX_ITERATIONS); // 10 % is acceptable
 					Utils.showStatus("Memory cleared.");
 				}
 			}
 		}
 	}
 
-	private final GCRunner gcrunner = new GCRunner();
+	private static final GCRunner gcrunner = new GCRunner();
 
 	/** Trigger garbage collection in a separate thread. */
 	public final void triggerGC() {
