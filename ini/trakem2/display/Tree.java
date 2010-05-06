@@ -2107,10 +2107,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			frame.setVisible(true);
 		}
 		private synchronized void create(final Node root) {
-			this.branchnodes = new ArrayList<Node>();
-			this.endnodes = new ArrayList<Node>();
-			this.allnodes = null == root ? new ArrayList<Node>() : new ArrayList<Node>(root.getSubtreeNodes());
-			this.searchnodes = new ArrayList<Node>();
+			final ArrayList<Node> branchnodes = new ArrayList<Node>(),
+			      		      endnodes = new ArrayList<Node>(),
+					      allnodes = null == root ? new ArrayList<Node>() : new ArrayList<Node>(root.getSubtreeNodes()),
+					      searchnodes = new ArrayList<Node>();
 			for (final Node nd : allnodes) {
 				switch (nd.getChildrenCount()) {
 					case 0: endnodes.add(nd); break;
@@ -2118,6 +2118,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					default: branchnodes.add(nd); break;
 				}
 			}
+
+			// Swap:
+			this.branchnodes = branchnodes;
+			this.endnodes = endnodes;
+			this.allnodes = allnodes;
+			this.searchnodes = searchnodes;
+
 			this.model_branchnodes = new NodeTableModel(branchnodes, nodedata);
 			this.model_endnodes = new NodeTableModel(endnodes, nodedata);
 			this.model_allnodes = new NodeTableModel(allnodes, nodedata);
@@ -2212,7 +2219,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	private class NodeTableModel extends AbstractTableModel {
-		final List<Node> nodes;
+		List<Node> nodes;
 		final HashMap<Node,NodeData> nodedata;
 
 		private NodeTableModel(final List<Node> nodes, final HashMap<Node,NodeData> nodedata) {
@@ -2275,7 +2282,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		public void setValueAt(Object value, int row, int col) {}
 		public void sortByColumn(final int col, final boolean descending) {
 			final ArrayList<Node> nodes = new ArrayList<Node>(NodeTableModel.this.nodes);
-			Collections.sort(NodeTableModel.this.nodes, new Comparator<Node>() {
+			Collections.sort(nodes, new Comparator<Node>() {
 				public int compare(Node nd1, Node nd2) {
 					if (descending) {
 						Node tmp = nd1;
@@ -2292,6 +2299,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					return ((Comparable)val1).compareTo((Comparable)val2);
 				}
 			});
+			this.nodes = nodes; // swap
 			fireTableDataChanged();
 			fireTableStructureChanged();
 		}
