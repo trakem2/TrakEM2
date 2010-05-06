@@ -214,7 +214,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.setStroke(this.stroke); // AFTER setting the transform
 				// Active has to be painted wherever it is, within al_top
 				//if (null != active && active.getClass() != Patch.class && !active.isOutOfRepaintingClip(magnification, srcRect, clipRect)) active.paint(g, magnification, true, c_alphas, active_layer);
-				boolean active_painted = null == active;
+				boolean active_painted = null == active || !active.isVisible(); // if null or not visible, consider it painted
 				if (null != top) {
 					final Rectangle tmp = null != clipRect ? new Rectangle() : null;
 					final Rectangle clip = null != clipRect ? new Rectangle((int)(clipRect.x * magnification) - srcRect.x, (int)(clipRect.y * magnification) - srcRect.y, (int)(clipRect.width * magnification), (int)(clipRect.height * magnification)) : null;
@@ -224,10 +224,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						if (active_painted) continue;
 						else active_painted = top[i] == active;
 					}
-					if (!active_painted) {
+					if (!active_painted && null != active && active.isVisible()) {
 						// Active may not have been part of top array if it was added new and the offscreen image was not updated,
 						// which is the case for any non-image object
-						if (null != active) active.paint(g, srcRect, magnification, true, c_alphas, active_layer);
+						active.paint(g, srcRect, magnification, true, c_alphas, active_layer);
 					}
 				}
 			}
