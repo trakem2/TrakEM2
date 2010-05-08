@@ -34,6 +34,9 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
+import java.util.concurrent.Callable;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.Thing;
@@ -1601,10 +1604,30 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	synchronized public void recreateBuckets(final boolean layers) {
 		this.lbucks = new HashMap<Layer,LayerBucket>(al_layers.size());
+		/*
 		for (final Layer la : al_layers) {
 			this.lbucks.put(la, new LayerBucket(la));
 			// recreate only if there were any already
 			if (layers && null != la.root) la.recreateBuckets();
+		}
+		*/
+		try {
+			Process.progressive(al_layers, new TaskFactory<Layer,Object>() {
+				public Callable<Object> create(final Layer layer) {
+					return new Callable<Object>() {
+						public Object call() {
+							LayerBucket lb = new LayerBucket(layer);
+							synchronized (lbucks) {
+								lbucks.put(layer, lb);
+							}
+							if (layers && null != layer.root) layer.recreateBuckets();
+							return null;
+						}
+					};
+				}
+			}, Process.NUM_PROCESSORS -1); // works even when there is only 1 core, since it checks and fixes the '0' processors request
+		} catch (Exception e) {
+			IJError.print(e);
 		}
 	}
 
