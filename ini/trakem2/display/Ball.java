@@ -1155,6 +1155,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		return Utils.asList(p_layer, 0, n_points);
 	}
 
+	@Override
 	public void adjustProperties() {
 		GenericDialog gd = makeAdjustPropertiesDialog(); // in superclass
 		gd.addCheckbox("Paint as outlines", !fill_paint);
@@ -1176,6 +1177,7 @@ public class Ball extends ZDisplayable implements VectorData {
 			}
 		} else if (fill_paint != fp) {
 			prev.add("fill_paint", fp);
+			this.fill_paint = fp; // change it after storing state in DoEdit
 			updateInDatabase("fill_paint");
 		}
 
