@@ -214,9 +214,6 @@ public class Ball extends ZDisplayable implements VectorData {
 				area_composite = fill_paint ? (alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite)
 							    : null;
 
-		Utils.log("fill_paint: " + fill_paint + " area == peri ? " + (perimeter_composite == area_composite));
-		if (null != area_composite) Utils.log("area alpha: " + ((AlphaComposite)area_composite).getAlpha());
-
 		// Clear transform and stroke
 		final AffineTransform gt = g.getTransform();
 		g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
