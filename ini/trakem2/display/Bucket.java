@@ -145,6 +145,7 @@ public class Bucket {
 			for (final Map.Entry<Integer,Displayable> e : parent_list.entrySet()) {
 				final Displayable d = e.getValue();
 				final Area a = areas.get(d);
+				if (null == a) continue;
 				if (M.intersects(AREA, a)) local_list.put(e.getKey(), d);
 			}
 
