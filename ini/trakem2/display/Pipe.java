@@ -235,13 +235,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored. Returns -1 if none found. */
-	synchronized protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
+	synchronized protected int findPoint(double[][] a, long[] p_layer, int x_p, int y_p, long lid, double magnification) {
 		int index = -1;
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
 		long i_layer = Display.getFrontLayer(this.project).getId();
 		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != lid) continue;
 			double dist = Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i]);
 			if (i_layer == p_layer[i] && dist <= d && dist <= min_dist) {
 				min_dist = dist;
@@ -701,9 +702,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (ProjectToolbar.PEN == tool) {
 
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
-				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
+				index = Displayable.findNearestPoint(p, p_layer, n_points, x_p, y_p, layer.getId());
 			} else {
-				index = findPoint(p, x_p, y_p, mag);
+				index = findPoint(p, p_layer, x_p, y_p, layer.getId(), mag);
 			}
 
 			if (-1 != index) {
@@ -724,11 +725,11 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			}
 
 			// find if click is on a left control point
-			index_l = findPoint(p_l, x_p, y_p, mag);
+			index_l = findPoint(p_l, p_layer, x_p, y_p, layer.getId(), mag);
 			index_r = -1;
 			// if not, then try on the set of right control points
 			if (-1 == index_l) {
-				index_r = findPoint(p_r, x_p, y_p, mag);
+				index_r = findPoint(p_r, p_layer, x_p, y_p, layer.getId(), mag);
 			}
 
 			final long layer_id = layer.getId();

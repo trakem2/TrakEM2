@@ -133,11 +133,12 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/**Find a point in an array, with a precision dependent on the magnification.*/
-	protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
+	protected int findPoint(double[][] a, int x_p, int y_p, double magnification, final long lid) {
 		int index = -1;
 		double d = (10.0D / magnification);
 		if (d < 4) d = 4;
 		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != lid) continue;
 			if ((Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i])) <= p_width[i]) {
 				index = i;
 			}
@@ -308,9 +309,9 @@ public class Ball extends ZDisplayable implements VectorData {
 		if (ProjectToolbar.PEN == tool) {
 			long layer_id = layer.getId();
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
-				index = findNearestPoint(p, n_points, x_p, y_p); // should go to an AbstractProfile or something
+				index = findNearestPoint(p, p_layer, n_points, x_p, y_p, layer.getId()); // should go to an AbstractProfile or something
 			} else {
-				index = findPoint(p, x_p, y_p, mag);
+				index = findPoint(p, x_p, y_p, mag, layer.getId());
 			}
 			if (-1 != index) {
 				if (layer_id == p_layer[index]) {
