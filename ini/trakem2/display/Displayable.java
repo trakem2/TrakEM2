@@ -1479,6 +1479,21 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return index;
 	}
 
+	static protected int findNearestPoint(final double[][] a, final long[] p_layer, final int n_points, final double x_p, final double y_p, final long lid) {
+		if (0 == n_points) return -1;
+		double min_dist = Double.MAX_VALUE;
+		int index = -1;
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != lid) continue;
+			double sq_dist = Math.pow(a[0][i] - x_p, 2) + Math.pow(a[1][i] - y_p, 2);
+			if (sq_dist < min_dist) {
+				index = i;
+				min_dist = sq_dist;
+			}
+		}
+		return index;
+	}
+
 	/** Performs a deep copy of this object. */
 	public Displayable clone() {
 		return clone(this.project);
