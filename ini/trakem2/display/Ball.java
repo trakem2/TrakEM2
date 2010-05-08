@@ -95,7 +95,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		this.p_layer = new long[5];
 		this.p_width = new double[5];
 
-		Object ob_data = ht.get("fill_paint");
+		Object ob_data = ht.get("fill");
 		try {
 			if (null != ob_data) this.fill_paint = "true".equals(((String)ob_data).trim().toLowerCase()); // fails: //Boolean.getBoolean((String)ob_data);
 		} catch (Exception e) {
@@ -1173,6 +1173,7 @@ public class Ball extends ZDisplayable implements VectorData {
 					b.updateInDatabase("fill_paint");
 				}
 			}
+			Display.repaint(layer_set);
 		} else if (fill_paint != fp) {
 			prev.add("fill_paint", fp);
 			this.fill_paint = fp; // change it after storing state in DoEdit
