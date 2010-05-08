@@ -1461,4 +1461,11 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	synchronized public Collection<Long> getLayerIds() {
 		return new ArrayList<Long>((Collection<Long>)ht_areas.keySet());
 	}
+
+	@Override
+	public Area getAreaAt(final Layer layer) {
+		final Area a = getArea(layer);
+		if (null == a) return null;
+		return a.createTransformedArea(this.at);
+	}
 }
