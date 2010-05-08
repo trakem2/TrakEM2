@@ -230,6 +230,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						// Active may not have been part of top array if it was added new and the offscreen image was not updated,
 						// which is the case for any non-image object
 						active.paint(g, srcRect, magnification, true, c_alphas, active_layer);
+						Utils.log("painting active!!");
 					}
 				}
 			}

@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.gui.GenericDialog;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -64,6 +65,9 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Every new Ball will have, for its first point, the last user-adjusted radius value or the radius of the last user-selected point. */
 	static private double last_radius = -1;
 
+	/** Paint as outlines (false) or as solid areas (true; default, with a default alpha of 0.4f).*/
+	private boolean fill_paint = true;
+
 	public Ball(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
@@ -85,11 +89,18 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Construct a Ball from an XML entry. */
 	public Ball(Project project, long id, HashMap ht, HashMap ht_links) {
 		super(project, id, ht, ht_links);
-		// indivudal balls will be added as soon as parsed
+		// indiviudal balls will be added as soon as parsed
 		this.n_points = 0;
 		this.p = new double[2][5];
 		this.p_layer = new long[5];
 		this.p_width = new double[5];
+
+		Object ob_data = ht.get("fill_paint");
+		try {
+			if (null != ob_data) this.fill_paint = "true".equals(((String)ob_data).trim().toLowerCase()); // fails: //Boolean.getBoolean((String)ob_data);
+		} catch (Exception e) {
+			Utils.log("Ball: could not read fill_paint value from XML:" + e);
+		}
 	}
 
 	/** Used to add individual ball objects when parsing. */
@@ -200,7 +211,11 @@ public class Ball extends ZDisplayable implements VectorData {
 		//arrange transparency
 		final Composite original_composite = g.getComposite(),
 				perimeter_composite = alpha == 1.0f ? original_composite : AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha),
-				area_composite = alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite;
+				area_composite = fill_paint ? (alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite)
+							    : null;
+
+		Utils.log("fill_paint: " + fill_paint + " area == peri ? " + (perimeter_composite == area_composite));
+		if (null != area_composite) Utils.log("area alpha: " + ((AlphaComposite)area_composite).getAlpha());
 
 		// Clear transform and stroke
 		final AffineTransform gt = g.getTransform();
@@ -230,8 +245,10 @@ public class Ball extends ZDisplayable implements VectorData {
 				final int x = (int)((p[0][j] -radius -srcRect.x) * magnification),
 				          y = (int)((p[1][j] -radius -srcRect.y) * magnification),
 					  w = (int)(2 * radius * magnification);
-				g.setComposite(area_composite);
-				g.fillOval(x, y, w, w);
+				if (fill_paint) {
+					g.setComposite(area_composite);
+					g.fillOval(x, y, w, w);
+				}
 				g.setComposite(perimeter_composite);
 				g.drawOval(x, y, w, w);
 			} else if (color_cues) {
@@ -247,8 +264,10 @@ public class Ball extends ZDisplayable implements VectorData {
 					final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
 					          y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
 						  w = (int)(2 * slice_radius * magnification);
-					g.setComposite(area_composite);
-					g.fillOval(x, y, w, w);
+					if (fill_paint) {
+						g.setComposite(area_composite);
+						g.fillOval(x, y, w, w);
+					}
 					g.setComposite(perimeter_composite);
 					g.drawOval(x, y, w, w);
 				}
@@ -732,6 +751,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");
 		super.exportXML(sb_body, in, any);
+		if (!fill_paint) sb_body.append(in).append("fill=\"").append(fill_paint).append("\"\n"); // otherwise no need
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n")
 		;
 		sb_body.append(indent).append(">\n");
@@ -748,7 +768,8 @@ public class Ball extends ZDisplayable implements VectorData {
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_ball (").append(Displayable.commonDTDChildren()).append(",t2_ball_ob)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
-		sb_header.append(indent).append("<!ELEMENT t2_ball_ob EMPTY>\n")
+		sb_header.append(indent).append("<!ATTLIST t2_ball fill NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ELEMENT t2_ball_ob EMPTY>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob x NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob y NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob r NMTOKEN #REQUIRED>\n")
@@ -1132,5 +1153,35 @@ public class Ball extends ZDisplayable implements VectorData {
 	@Override
 	synchronized public Collection<Long> getLayerIds() {
 		return Utils.asList(p_layer, 0, n_points);
+	}
+
+	public void adjustProperties() {
+		GenericDialog gd = makeAdjustPropertiesDialog(); // in superclass
+		gd.addCheckbox("Paint as outlines", !fill_paint);
+		gd.addCheckbox("Apply paint mode to all Ball instances", false);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		// superclass processing
+		final Displayable.DoEdit prev = processAdjustPropertiesDialog(gd);
+		// local proccesing
+		final boolean fp = !gd.getNextBoolean();
+		final boolean to_all = gd.getNextBoolean();
+		if (to_all) {
+			for (final ZDisplayable zd : layer_set.getZDisplayables()) {
+				if (zd.getClass() == Ball.class) {
+					Ball b = (Ball)zd;
+					b.fill_paint = fp;
+					b.updateInDatabase("fill_paint");
+				}
+			}
+		} else if (fill_paint != fp) {
+			prev.add("fill_paint", fp);
+			updateInDatabase("fill_paint");
+		}
+
+		// Add current step, with the same modified keys
+		DoEdit current = new DoEdit(this).init(prev);
+		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
+		getLayerSet().addEditStep(current);
 	}
 }
