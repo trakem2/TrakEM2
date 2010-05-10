@@ -115,7 +115,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
-	static public Layer[] createMany(Project project, LayerSet parent) {
+	static public List<Layer> createMany(Project project, LayerSet parent) {
 		if (null == parent) return null;
 		GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
 		gd.addNumericField("First Z coord: ", 0, 3);
@@ -137,23 +137,25 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			Utils.log("Invalid number of layers");
 			return null;
 		}
-		Layer[] layer = new Layer[n_layers];
+		List<Layer> layers = new ArrayList<Layer>(n_layers);
 		for (int i=0; i<n_layers; i++) {
+			Layer la = null;
 			if (skip) {
-				layer[i] = parent.getLayer(z);
-				if (null == layer[i]) {
-					layer[i] = new Layer(project, z, thickness, parent);
-					parent.addSilently(layer[i]);
-				} else layer[i] = null; // don't create
-			} else {
-				layer[i] = new Layer(project, z, thickness, parent);
-				parent.addSilently(layer[i]);
+				// Check if layer exists
+				la = parent.getLayer(z);
+				if (null == la) la = new Layer(project, z, thickness, parent);
+				// else don't create, but use existing
+			} else la = new Layer(project, z, thickness, parent);
+			if (null != la) {
+				parent.addSilently(la);
+				layers.add(la);
 			}
 			z += thickness;
 		}
+		parent.recreateBuckets(layers, true); // all empty
 		// update the scroller of currently open Displays
 		Display.updateLayerScroller(parent);
-		return layer;
+		return layers;
 	}
 
 	/** Returns a title such as 018__4-K4_2__z1.67 , which is [layer_set index]__[title]__[z coord] . The ordinal number starts at 1 and finishes at parent's length, inclusive. */

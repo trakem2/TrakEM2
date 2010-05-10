@@ -1602,17 +1602,17 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
-	synchronized public void recreateBuckets(final boolean layers) {
+	/** Recreate the ZDisplayable buckets, and also the Layer Displayable buckets if desired. */
+	synchronized public void recreateBuckets(final boolean layer_buckets) {
 		this.lbucks = new HashMap<Layer,LayerBucket>(al_layers.size());
-		/*
-		for (final Layer la : al_layers) {
-			this.lbucks.put(la, new LayerBucket(la));
-			// recreate only if there were any already
-			if (layers && null != la.root) la.recreateBuckets();
-		}
-		*/
+		recreateBuckets(al_layers, layer_buckets);
+	}
+
+	/** Regenerate the quad-tree bucket system for the ZDisplayable instances that have data at each of the given layers,
+	 *  and optionally regenerate the buckets as well for the 2D Displayable instances of that layer as well. */
+	synchronized public void recreateBuckets(final Collection<Layer> layers, final boolean layer_buckets) {
 		try {
-			Process.progressive(al_layers, new TaskFactory<Layer,Object>() {
+			Process.progressive(layers, new TaskFactory<Layer,Object>() {
 				public Callable<Object> create(final Layer layer) {
 					return new Callable<Object>() {
 						public Object call() {
@@ -1620,7 +1620,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 							synchronized (lbucks) {
 								lbucks.put(layer, lb);
 							}
-							if (layers && null != layer.root) layer.recreateBuckets();
+							if (layer_buckets && null != layer.root) layer.recreateBuckets();
 							return null;
 						}
 					};
