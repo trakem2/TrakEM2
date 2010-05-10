@@ -1564,21 +1564,36 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null == lbucks) return;
 		for (final Long lid : zd.getLayerIds()) {
 			final Layer la = getLayer(lid); // map lookup
-			final LayerBucket lbuck = lbucks.get(la);
-			lbuck.root.put(i, zd, la, lbuck.db_map);
+			final LayerBucket lb = lbucks.get(la);
+			if (null == lb) {
+				nbmsg(la);
+				continue;
+			}
+			lb.root.put(i, zd, la, lb.db_map);
 		}
 	}
 	final private void removeFromBuckets(final Displayable zd) {
 		if (null == lbucks) return;
 		for (final Long lid : zd.getLayerIds()) {
-			Bucket.remove(zd, lbucks.get(getLayer(lid)).db_map);
+			final Layer la = getLayer(lid);
+			final LayerBucket lb = lbucks.get(la);
+			if (null == lb) {
+				nbmsg(la);
+				continue;
+			}
+			Bucket.remove(zd, lb.db_map);
 		}
 	}
 	final private void updateInBuckets(final Displayable zd, final int i, final int j) {
 		if (null == lbucks) return;
 		for (final Long lid : zd.getLayerIds()) {
 			final Layer la = getLayer(lid);
-			lbucks.get(la).root.update(this, zd, i, j);
+			final LayerBucket lb = lbucks.get(la);
+			if (null == lb) {
+				nbmsg(la);
+				continue;
+			}
+			lb.root.update(this, zd, i, j);
 		}
 	}
 
@@ -1592,13 +1607,18 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer la) {
 		if (null == lbucks) return null;
-		return lbucks.get(la).db_map;
+		final LayerBucket lb = lbucks.get(la);
+		if (null == lb) {
+			nbmsg(la);
+			return null;
+		}
+		return lb.db_map;
 	}
 
 	synchronized public void updateBucket(final Displayable d, final Layer layer) {
 		if (null != lbucks) {
-			final LayerBucket lbuck = lbucks.get(layer);
-			if (null != lbuck) lbuck.root.updatePosition(d, layer, lbuck.db_map);
+			final LayerBucket lb = lbucks.get(layer);
+			if (null != lb) lb.root.updatePosition(d, layer, lb.db_map);
 		}
 	}
 
@@ -1606,6 +1626,14 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	synchronized public void recreateBuckets(final boolean layer_buckets) {
 		this.lbucks = new HashMap<Layer,LayerBucket>(al_layers.size());
 		recreateBuckets(al_layers, layer_buckets);
+	}
+
+	synchronized public void recreateBuckets(final Layer layer, final boolean layer_buckets) {
+		LayerBucket lb = new LayerBucket(layer);
+		synchronized (lbucks) {
+			lbucks.put(layer, lb);
+		}
+		if (layer_buckets && null != layer.root) layer.recreateBuckets();
 	}
 
 	/** Regenerate the quad-tree bucket system for the ZDisplayable instances that have data at each of the given layers,
@@ -2470,7 +2498,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find ZDisplayable objects that contain the point x,y in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Layer layer, final int x, final int y, final boolean visible_only) {
-		if (null != lbucks) return lbucks.get(layer).root.find(x, y, layer, visible_only);
+		if (null != lbucks) {
+			final LayerBucket lb = lbucks.get(layer);
+			if (null != lb) return lb.root.find(x, y, layer, visible_only);
+			else nbmsg(layer);
+		}
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final ZDisplayable zd : al_zdispl) {
 			if (zd.contains(layer, x, y)) al.add(zd);
@@ -2479,7 +2511,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	/** Find ZDisplayable objects of the given class that intersect the given rectangle in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Rectangle r, final boolean visible_only) {
-		if (null != lbucks) return lbucks.get(layer).root.find(c, r, layer, visible_only);
+		if (null != lbucks) {
+			final LayerBucket lb = lbucks.get(layer);
+			if (null != lb) return lb.root.find(c, r, layer, visible_only);
+			else nbmsg(layer);
+		}
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final ZDisplayable zd : al_zdispl) {
 			if (zd.getClass() != c) continue;
@@ -2490,7 +2526,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Find ZDisplayable objects of the given class that intersect the given area in the given layer.
 	 *  If @param instance_of is true, use c.isAssignableFrom instead of class equality. */
 	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
-		if (null != lbucks) return lbucks.get(layer).root.find(c, aroi, layer, visible_only, instance_of);
+		if (null != lbucks) {
+			final LayerBucket lb = lbucks.get(layer);
+			if (null != lb) return lb.root.find(c, aroi, layer, visible_only, instance_of);
+			else nbmsg(layer);
+		}
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final ZDisplayable zd : al_zdispl) {
 			if (visible_only && !zd.isVisible()) continue;
@@ -2503,13 +2543,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	/** Find ZDisplayable objects that intersect the given rectangle in the given layer. */
 	public Collection<Displayable> findZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
-		if (null != lbucks) return lbucks.get(layer).root.find(r, layer, visible_only);
+		if (null != lbucks) {
+			LayerBucket lb = lbucks.get(layer);
+			if (null != lb) return lb.root.find(r, layer, visible_only);
+			else nbmsg(layer);
+		}
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final ZDisplayable zd : al_zdispl) {
 			if (visible_only && !zd.isVisible()) continue;
 			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
 		}
 		return al;
+	}
+
+	private static final void nbmsg(final Layer la) {
+		Utils.log2("No buckets for layer " + la);
 	}
 
 }

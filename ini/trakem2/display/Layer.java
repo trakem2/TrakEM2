@@ -110,6 +110,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			if (Double.isNaN(z) || Double.isNaN(thickness)) return null;
 			Layer layer = new Layer(project, z, thickness, parent);
 			parent.add(layer);
+			parent.recreateBuckets(layer, true);
 			return layer;
 		} catch (Exception e) {}
 		return null;
