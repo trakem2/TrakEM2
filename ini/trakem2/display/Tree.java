@@ -2136,13 +2136,12 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			this.table_searchnodes.setModel(this.model_searchnodes);
 		}
 		void recreate(final Node root) {
-			Tree.this.project.getLoader().doLater(new Callable() { public Object call() {
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
 				create(root);
-				for (Table t : new Table[]{table_branchnodes, table_searchnodes, table_endnodes, table_allnodes}) {
+				for (final Table t : new Table[]{table_branchnodes, table_searchnodes, table_endnodes, table_allnodes}) {
 					t.resort();
 				}
 				Utils.revalidateComponent(frame);
-				return null;
 			}});
 		}
 		void updateData(final Node node) {
