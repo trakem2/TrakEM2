@@ -1482,6 +1482,7 @@ public final class Patch extends Displayable implements ImageData {
 		return 0 != (pvalue[0] & 0xff000000);
 	}
 
+	/** After setting a preprocessor script, it is advisable that you call updateMipMaps() immediately. */
 	public void setPreprocessorScriptPath(final String path) {
 		final String old_path = project.getLoader().getPreprocessorScriptPath(this);
 
