@@ -2719,4 +2719,32 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					 }});
 		return (List<Connector>[]) new List[]{outgoing, incomming};
 	}
+
+	@Override
+	public String toString() {
+		if (null == root) return "Empty";
+		final Point3f p = getOriginPoint(true);
+		return new StringBuilder("Root: x=").append(p.x).append(", y=" + p.y).append(" z=").append(p.z).toString();
+	}
+
+	public Point3f getOriginPoint(final boolean calibrated) {
+		if (null == root) return null;
+		return fix(root.asPoint(), calibrated, new float[2]);
+	}
+
+	/** Expects a non-null float[] for reuse, and modifies @param p in place. */
+	protected Point3f fix(final Point3f p, final boolean calibrated, final float[] f) {
+		f[0] = p.x;
+		f[1] = p.y;
+		this.at.transform(f, 0, f, 0, 1);
+		p.x = f[0];
+		p.y = f[1];
+		if (calibrated) {
+			final Calibration cal = layer_set.getCalibration();
+			p.x *= cal.pixelWidth;
+			p.y *= cal.pixelHeight;
+			p.z *= cal.pixelWidth; // not pixelDepth!
+		}
+		return p;
+	}
 }

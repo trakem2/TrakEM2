@@ -311,26 +311,6 @@ public class Connector extends Treeline {
 		return rt;
 	}
 
-	public Point3f getOriginPoint(final boolean calibrated) {
-		if (null == root) return null;
-		return fix(root.asPoint(), calibrated, new float[2]);
-	}
-
-	final private Point3f fix(final Point3f p, final boolean calibrated, final float[] f) {
-		f[0] = p.x;
-		f[1] = p.y;
-		this.at.transform(f, 0, f, 0, 1);
-		p.x = f[0];
-		p.y = f[1];
-		if (calibrated) {
-			final Calibration cal = layer_set.getCalibration();
-			p.x *= cal.pixelWidth;
-			p.y *= cal.pixelHeight;
-			p.z *= cal.pixelWidth; // not pixelDepth!
-		}
-		return p;
-	}
-
 	public List<Point3f> getTargetPoints(final boolean calibrated) {
 		if (null == root) return null;
 		final List<Point3f> targets = new ArrayList<Point3f>();
