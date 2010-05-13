@@ -3113,6 +3113,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				if (Thread.currentThread().isInterrupted()) return;
 				Patch p = (Patch) d;
 				p.setPreprocessorScriptPath(script);
+				p.updateMipMaps();
 			}
 		}
 		private Collection<Layer> getLayerList(String title) {

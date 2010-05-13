@@ -385,7 +385,7 @@ abstract public class Loader {
 		}
 	}
 
-	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; you can obtain a unique id from method getNextId() .*/
+	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; use getNextId to obtain a unique id. */
 	public void cacheImagePlus(long id, ImagePlus imp) {
 		synchronized (db_lock) {
 			lock();
@@ -2239,7 +2239,7 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
-		return importImages(ref_layer, null, null, 0, 0, false);
+		return importImages(ref_layer, null, null, 0, 0, false, 1);
 	}
 
 	/** Import images from the given text file, which is expected to contain 4 columns:<br />
@@ -2253,9 +2253,10 @@ while (it.hasNext()) {
 	 * Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
 	 * The text file can contain comments that start with the # sign.<br />
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
-	 * The @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
+	 * @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
+	 * @param scale Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
-	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_) {
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_) {
 		// check parameters: ask for good ones if necessary
 		if (null == abs_text_file_path_) {
 			String[] file = Utils.selectFile("Select text file");
@@ -2271,6 +2272,7 @@ while (it.hasNext()) {
 			gdd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
+			gdd.addSlider("Scale:", 0, 100, 100);
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
@@ -2296,6 +2298,14 @@ while (it.hasNext()) {
 					break;
 			}
 			homogenize_contrast_ = gdd.getNextBoolean();
+			double sc = gdd.getNextNumber();
+			if (Double.isNaN(sc)) scale_ = 1.0f;
+			else scale_ = ((float)sc)/100.0f;
+		}
+
+		if (Float.isNaN(scale_) || scale_ < 0 || scale_ > 1) {
+			Utils.log("Non-sensical scale: " + scale_ + "\nUsing scale of 1 instead.");
+			scale_ = 1;
 		}
 
 		// make vars accessible from inner threads:
@@ -2305,6 +2315,7 @@ while (it.hasNext()) {
 		final double layer_thickness = layer_thickness_;
 		final double calibration = calibration_;
 		final boolean homogenize_contrast = homogenize_contrast_;
+		final float scale = (float)scale_;
 
 
 		return Bureaucrat.createAndStart(new Worker.Task("Importing images", true) {
@@ -2347,6 +2358,38 @@ while (it.hasNext()) {
 					final ExecutorService ex = Utils.newFixedThreadPool(np, "import-images");
 					final List<Future> imported = new ArrayList<Future>();
 					final Worker wo = this;
+
+					final String script_path;
+
+					// If scale is at least 1/100 lower than 1, then:
+					if (Math.abs(scale - (int)scale) > 0.01) {
+						// Assume source and target sigma of 0.5
+						final double sigma = Math.sqrt(Math.pow(1/scale, 2) - 0.25);
+						final String script = new StringBuilder()
+							.append("import ij.ImagePlus;\n")
+							.append("import ij.process.ImageProcessor;\n")
+							.append("import ij.plugin.filter.GaussianBlur;\n")
+							.append("GaussianBlur blur = new GaussianBlur();\n")
+							.append("double accuracy = (imp.getType() == ImagePlus.GRAY8 || imp.getType() == ImagePlus.COLOR_RGB) ? 0.002 : 0.0002;\n") // as in ij.plugin.filter.GaussianBlur
+							.append("imp.getProcessor().setInterpolationMethod(ImageProcessor.NONE);\n")
+							.append("blur.blurGaussian(imp.getProcessor(),").append(sigma).append(',').append(sigma).append(",accuracy);\n")
+							.append("imp.setProcessor(imp.getTitle(), imp.getProcessor().resize((int)(imp.getWidth() * ").append(scale).append("), (int)(imp.getHeight() * ").append(scale).append(")));")
+							.toString();
+						File f = new File(getStorageFolder() + "resize-" + scale + ".bsh");
+						int v = 1;
+						while (f.exists()) {
+							f = new File(getStorageFolder() + "resize-" + scale + "." + v + ".bsh");
+							v++;
+						}
+						script_path = Utils.saveToFile(f, script) ? f.getAbsolutePath() : null;
+						if (null == script_path) {
+							Utils.log("Could NOT save a preprocessor script for image scaling\nat path " + f.getAbsolutePath());
+						}
+					} else {
+						script_path = null;
+					}
+
+					Utils.log("Scaling script path is " + script_path);
 
 					// 3 - parse each line
 					for (int i = 0; i < lines.length; i++) {
@@ -2410,8 +2453,8 @@ while (it.hasNext()) {
 						final Layer layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
 						touched_layers.add(layer);
 						final String imagefilepath = path;
-						final double xx = x;
-						final double yy = y;
+						final double xx = x * scale;
+						final double yy = y * scale;
 
 						// If loaded twice as many, wait for mipmaps to finish
 						// Otherwise, images would end up loaded twice for no reason
@@ -2448,6 +2491,17 @@ while (it.hasNext()) {
 								// add Patch and generate its mipmaps
 								final Patch patch = new Patch(layer.getProject(), imp.getTitle(), xx, yy, imp);
 								addedPatchFrom(imagefilepath, patch);
+								// After setting the path, set the script if any
+								if (null != script_path) {
+									// cache the image for reuse
+									cacheImagePlus(patch.getId(), imp);
+									try {
+										patch.setPreprocessorScriptPath(script_path);
+									} catch (Throwable t) {
+										Utils.log("FAILED to set a scaling preprocessor script to patch " + patch);
+										IJError.print(t);
+									}
+								}
 								if (!homogenize_contrast) {
 									fus.add(regenerateMipMaps(patch));
 								}
@@ -4517,7 +4571,7 @@ while (it.hasNext()) {
 	/** Table of preprocessor scripts. */
 	private Hashtable<Patch,String> preprocessors = new Hashtable<Patch,String>();
 
-	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.  Automatically regenerates mipmaps
+	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all. Does NOT automatically regenerate mipmaps.
 	 *  To remove the script, set it to null. */
 	public void setPreprocessorScriptPath(final Patch p, final String path) {
 		setPreprocessorScriptPathSilently( p, path );
@@ -4525,9 +4579,8 @@ while (it.hasNext()) {
 		// Merely running the preProcess on the cached image is no guarantee; threading competition may result in an unprocessed, newly loaded image.
 		// Hence, decache right after setting the script, then update mipmaps
 		decacheImagePlus(p.getId());
-		regenerateMipMaps(p); // queued
 	}
-	
+
 	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.
 	 *  To remove the script, set it to null. */
 	public void setPreprocessorScriptPathSilently(final Patch p, final String path) {
