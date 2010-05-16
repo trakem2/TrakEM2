@@ -504,7 +504,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	public String getShortTitle() {
-		Rectangle b = getBoundingBox(null);
+		final String title = getTitle();
+		if (null != title && !getClass().getSimpleName().toLowerCase().equals(title.toLowerCase())) return title;
+		final Rectangle b = getBoundingBox(null);
 		return "x=" + Utils.cutNumber(b.x, 2) + " y=" + Utils.cutNumber(b.y, 2) + (null != layer ? " z=" + Utils.cutNumber(layer.getZ(), 2) : "");
 	}
 
