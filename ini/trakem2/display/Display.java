@@ -2738,9 +2738,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		final boolean has_arealists = layer.getParent().contains(AreaList.class);
 		item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
-		if (has_arealists) item.setEnabled(false);
+		item.setEnabled(has_arealists);
 		item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
-		if (has_arealists) item.setEnabled(false);
+		item.setEnabled(has_arealists);
 		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && AreaList.class == active.getClass());
 		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
