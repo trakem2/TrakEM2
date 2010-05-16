@@ -2721,7 +2721,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public String toString() {
+	public String getShortTitle() {
+		final String title = getTitle();
+		if (null != title && !getClass().getSimpleName().toLowerCase().equals(title.toLowerCase())) return title;
 		if (null == root) return "Empty";
 		final Point3f p = getOriginPoint(true);
 		return new StringBuilder("Root: x=").append(p.x).append(", y=" + p.y).append(" z=").append(p.z).toString();
