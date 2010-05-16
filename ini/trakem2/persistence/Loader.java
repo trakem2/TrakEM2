@@ -3865,17 +3865,33 @@ while (it.hasNext()) {
 		try {
 			String path = preprocessors.get(p);
 			if (null == path) return;
-			if (null != imp) {
+			final File f = new File(path);
+			if (!f.exists()) {
+				Utils.log("ERROR: preprocessor script file does NOT exist: " + path);
+				return;
+			} else if (!f.canRead()) {
+				Utils.log("ERROR: can NOT read preprocessor script file at: " + path);
+				return;
+			}
+			if (null == imp) {
+				imp = new ImagePlus(); // uninitialized: the script may generate its data
+			} else {
 				// Prepare image for pre-processing
 				imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
-			} else {
-				imp = new ImagePlus(); // uninitialized: the script may generate its data
 			}
 			// Run the script
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
 			// Update Patch image properties:
-			cache(p, imp);
-			p.updatePixelProperties();
+			if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
+				cache(p, imp);
+				p.updatePixelProperties();
+			} else {
+				Utils.log("ERROR: preprocessor script failed to create a valid image:"
+						+ "\n  ImageProcessor: " + imp.getProcessor()
+						+ "\n  pixel array: " + (null == imp.getProcessor() ? null : imp.getProcessor().getPixels())
+						+ "\n  width: " + imp.getWidth()
+						+ "\n  height: " + imp.getHeight());
+			}
 		} catch (Exception e) {
 			IJError.print(e);
 		}
