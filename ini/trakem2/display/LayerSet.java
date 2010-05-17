@@ -75,7 +75,9 @@ import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
 
 
-/** A LayerSet represents an axis on which layers can be stacked up. Paints with 0.67 alpha transparency when not active. */
+/** A LayerSet is a container for a list of Layer.
+ *  LayerSet methods are NOT synchronized. It is your reponsibility to synchronize access to a LayerSet instance methods. Failure to do so may result in corrupted internal datastructures and overall misbehavior.
+ */
 public final class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
 
 	// the anchors for resizing
