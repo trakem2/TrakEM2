@@ -2254,7 +2254,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				case 1: return getNodeData(nd).x;
 				case 2: return getNodeData(nd).y;
 				case 3: return getNodeData(nd).z;
-				case 4: return nd.la;
+				case 4: return nd.la.getParent().indexOf(nd.la) + 1;
 				case 5: return getNodeData(nd).conf;
 				case 6: return getNodeData(nd).data;
 				case 7: return getNodeData(nd).tags;
