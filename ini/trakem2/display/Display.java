@@ -2542,9 +2542,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			popup.addSeparator();
 
 			if (! (active instanceof ZDisplayable)) {
-				ArrayList al_layers = layer.getParent().getLayers();
-				int i_layer = al_layers.indexOf(layer);
-				int n_layers = al_layers.size();
+				int i_layer = layer.getParent().indexOf(layer);
+				int n_layers = layer.getParent().size();
 				item = new JMenuItem("Send to previous layer"); item.addActionListener(this); popup.add(item);
 				if (1 == n_layers || 0 == i_layer || active.isLinked()) item.setEnabled(false);
 				// check if the active is a profile and contains a link to another profile in the layer it is going to be sent to, or it is linked
@@ -3693,16 +3692,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			canvas.applyTransform();
 		} else if (command.equals("Apply transform propagating to last layer")) {
 			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
-				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				final HashSet<Layer> subset = new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size())); // +1 to exclude current layer
+				final LayerSet ls = getLayerSet();
+				final HashSet<Layer> subset = new HashSet<Layer>(ls.getLayers(ls.indexOf(Display.this.layer)+1, ls.size())); // +1 to exclude current layer
 				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
 				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Apply transform propagating to first layer")) {
 			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
-				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				final HashSet<Layer> subset = new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer)));
+				final LayerSet ls = getLayerSet();
+				final HashSet<Layer> subset = new HashSet<Layer>(ls.getLayers(0, ls.indexOf(Display.this.layer) -1)); // -1 to exclude current layer
 				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
 				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));

@@ -768,7 +768,7 @@ final public class AlignTask
 		final GenericDialog gd1 = new GenericDialog( "Align Multi-Layer Mosaic : Layer Range" );
 		
 		gd1.addMessage( "Layer Range:" );
-		final int sel = layers.indexOf(l);
+		final int sel = l.getParent().indexOf(l);
 		gd1.addChoice( "first :", layerTitles, layerTitles[ sel ] );
 		gd1.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		

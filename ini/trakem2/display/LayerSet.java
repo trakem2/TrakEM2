@@ -276,7 +276,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Add a new Layer, inserted according to its Z. */
 	public void add(final Layer layer) {
-		if (-1 != al_layers.indexOf(layer)) return;
+		if (null != idlayers.get(layer.getId())) return;
 		final double z = layer.getZ();
 		final int n = al_layers.size();
 		int i = 0;
@@ -392,6 +392,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public double getRotY() { return rot_y; }
 	public double getRotZ() { return rot_z; }
 
+	/** The number of Layers in this LayerSet. */
 	public int size() {
 		return al_layers.size();
 	}
@@ -691,7 +692,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Remove a child. Does not destroy it or delete it from the database. */
 	public void remove(Layer layer) {
-		if (null == layer || -1 == al_layers.indexOf(layer)) return;
+		if (null == layer || null == idlayers.get(layer.getId())) return;
 		al_layers.remove(layer);
 		idlayers.remove(layer.getId());
 		synchronized (layerindices) { layerindices.clear(); }
@@ -701,24 +702,24 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		removeFromOffscreens(layer);
 	}
 
-	public Layer next(Layer layer) {
-		int i = al_layers.indexOf(layer);
+	public Layer next(final Layer layer) {
+		final int i = indexOf(layer);
 		if (-1 == i) {
 			Utils.log("LayerSet.next: no such Layer " + layer);
 			return layer;
 		}
 		if (al_layers.size() -1 == i) return layer;
-		else return (Layer)al_layers.get(i+1);
+		else return al_layers.get(i+1);
 	}
 
-	public Layer previous(Layer layer) {
-		int i = al_layers.indexOf(layer);
+	public Layer previous(final Layer layer) {
+		final int i = indexOf(layer);
 		if (-1 == i) {
 			Utils.log("LayerSet.previous: no such Layer " + layer);
 			return layer;
 		}
 		if (0 == i) return layer;
-		else return (Layer)al_layers.get(i-1);
+		else return al_layers.get(i-1);
 	}
 
 	public Layer nextNonEmpty(Layer layer) {
@@ -880,7 +881,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public boolean contains(final Layer layer) {
 		if (null == layer) return false;
-		return -1 != al_layers.indexOf(layer);
+		return -1 != indexOf(layer);
 	}
 
 	public boolean contains(final Displayable zdispl) {
@@ -894,10 +895,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Returns a sublist of layers from first to last, both inclusive. If last is larger than first, the order is reversed.  */
-	public List<Layer> getLayers(int first, int last) {
-		List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
+	public List<Layer> getLayers(final int first, final int last) {
+		final List<Layer> las = al_layers.subList(Math.min(first, last), Math.max(first, last) +1);
 		if (first > last) {
-			List<Layer> las2 = new ArrayList<Layer>(las);
+			final List<Layer> las2 = new ArrayList<Layer>(las);
 			Collections.reverse(las2); // would otherwise reverse the original list! A monumental error.
 			return las2;
 		}
@@ -905,8 +906,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Returns the layer range from first to last, both included. If last.getZ() &lt; first.getZ(), the order is reversed. */
-	public List<Layer> getLayers(Layer first, Layer last) {
-		return getLayers(al_layers.indexOf(first), al_layers.indexOf(last));
+	public List<Layer> getLayers(final Layer first, final Layer last) {
+		return getLayers(indexOf(first), indexOf(last));
 	}
 
 	/** Returns the list of layers to paint by considering the range of n_layers_color_cue around the active layer index. */
@@ -919,7 +920,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return list;
 		}
 		// Else:
-		int i = al_layers.indexOf(active_layer);
+		int i = indexOf(active_layer);
 		int first = i - n_layers_color_cue;
 		int last = i + n_layers_color_cue;
 		if (first < 0) first = 0;
@@ -936,18 +937,18 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void setAlpha(float alpha) { return; }
 
 	/** Move the given Displayable to the next layer if possible. */
-	public void moveDown(Layer layer, Displayable d) {
-		int i = al_layers.indexOf(layer);
+	public void moveDown(final Layer layer, final Displayable d) {
+		final int i = indexOf(layer);
 		if (al_layers.size() -1 == i || -1 == i) return;
 		layer.remove(d);
 		((Layer)(al_layers.get(i +1))).add(d);
 	}
 	/** Move the given Displayable to the previous layer if possible. */
-	public void moveUp(Layer layer, Displayable d) {
-		int i = al_layers.indexOf(layer);
+	public void moveUp(final Layer layer, final Displayable d) {
+		final int i = indexOf(layer);
 		if (0 == i || -1 == i) return;
 		layer.remove(d);
-		((Layer)(al_layers.get(i -1))).add(d);
+		al_layers.get(i -1).add(d);
 	}
 
 	/** Move all Displayable objects in the HashSet to the given target layer. */
@@ -1217,7 +1218,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Get up to 'n' layers before and after the given layers. */
 	public ArrayList getNeighborLayers(final Layer layer, final int n) {
-		final int i_layer = al_layers.indexOf(layer);
+		final int i_layer = indexOf(layer);
 		final ArrayList al = new ArrayList();
 		if (-1 == i_layer) return al;
 		int start = i_layer - n;

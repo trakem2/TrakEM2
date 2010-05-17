@@ -319,7 +319,7 @@ public class TMLHandler extends DefaultHandler {
 			final List<Layer> layers = layer_set.getLayers();
 			for (final Long lid : new HashSet<Long>(dlids)) {
 				fus.add(exec.submit(new Runnable() { public void run() {
-					int start = layers.indexOf(layer_set.getLayer(lid.longValue()));
+					int start = layer_set.indexOf(layer_set.getLayer(lid.longValue()));
 					int next = start + 1;
 					int prev = start -1;
 					while (next < layer_set.size() || prev > -1) {

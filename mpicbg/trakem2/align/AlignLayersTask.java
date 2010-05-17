@@ -110,7 +110,7 @@ final public class AlignLayersTask
 		final GenericDialog gd = new GenericDialog( "Align Layers" );
 		
 		gd.addMessage( "Layer Range:" );
-		final int sel = layers.indexOf(l);
+		final int sel = l.getParent().indexOf(l);
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
