@@ -1204,7 +1204,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.al_layers.clear();
 		this.al_zdispl.clear();
 		this.idlayers.clear();
-		this.layerindices.clear();
+		synchronized (layerindices) { this.layerindices.clear(); }
 		this.offscreens.clear();
 	}
 
