@@ -119,6 +119,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private double rot_z; // should be equivalent to the Displayable.rot
 	private final ArrayList<Layer> al_layers = new ArrayList<Layer>();
 	private final HashMap<Long,Layer> idlayers = new HashMap<Long,Layer>();
+	private final HashMap<Layer,Integer> layerindices = new HashMap<Layer,Integer>();
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
 	/** A LayerSet can contain Displayables that are show in every single Layer, such as Pipe objects. */
@@ -253,6 +254,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
 			idlayers.put(layer.getId(), layer);
+			synchronized (layerindices) { layerindices.clear(); }
 			double z = layer.getZ();
 			int i = 0;
 			for (Layer la : al_layers) {
@@ -290,6 +292,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		layer.setParent(this);
 		idlayers.put(layer.getId(), layer);
+		synchronized (layerindices) { layerindices.clear(); }
 		Display.updateLayerScroller(this);
 		//debug();
 	}
@@ -691,6 +694,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null == layer || -1 == al_layers.indexOf(layer)) return;
 		al_layers.remove(layer);
 		idlayers.remove(layer.getId());
+		synchronized (layerindices) { layerindices.clear(); }
 		for (final ZDisplayable zd : new ArrayList<ZDisplayable>(al_zdispl)) zd.layerRemoved(layer); // may call back and add/remove ZDisplayable objects
 		Display.updateLayerScroller(this);
 		Display.updateTitle(this);
@@ -1067,8 +1071,25 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** From zero to size-1. */
-	public int indexOf(Layer layer) {
-		return al_layers.indexOf(layer);
+	public int indexOf(final Layer layer) {
+		synchronized (layerindices) {
+			Integer i = layerindices.get(layer);
+			if (null == i) {
+				// Recreate
+				layerindices.clear();
+				int k = 0;
+				for (final Layer la : al_layers) {
+					layerindices.put(la, k);
+					k++;
+				}
+				i = layerindices.get(layer);
+				if (null == i) {
+					Utils.log("ERROR: could not find an index for layer " + layer);
+					return -1;
+				}
+			}
+			return i.intValue();
+		}
 	}
 
 	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
@@ -1183,6 +1204,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.al_layers.clear();
 		this.al_zdispl.clear();
 		this.idlayers.clear();
+		this.layerindices.clear();
 		this.offscreens.clear();
 	}
 
