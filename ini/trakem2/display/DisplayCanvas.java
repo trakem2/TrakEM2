@@ -28,7 +28,6 @@ import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.Loader;
-import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.*;
 import ini.trakem2.imaging.*;
 
@@ -38,27 +37,22 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
-import java.awt.image.BufferStrategy;
 import java.awt.image.VolatileImage;
 import java.util.*;
 import java.awt.Cursor;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import ini.trakem2.utils.Lock;
 
 import ini.trakem2.display.graphics.*;
-import ini.trakem2.plugin.TPlugIn;
 
 import javax.vecmath.Point2f;
 import javax.vecmath.Vector2f;
 import javax.vecmath.Vector3d;
 import ij.measure.Calibration;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.FutureTask;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
@@ -66,7 +60,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private boolean update_graphics = false;
 	private BufferedImage offscreen = null;
-	private ArrayList al_top = new ArrayList();
+	private ArrayList<Displayable> al_top = new ArrayList<Displayable>();
 
 	private final Lock lock_paint = new Lock();
 
@@ -77,11 +71,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private FreeHandProfile freehandProfile = null;
 	private Robot r;// used for setting the mouse pointer
 
-	//private RepaintThread rt_old = null;
-	/** Any painting operation should wait on this object, set the controling flag to true, and when done set controling to false and controler.notifyAll(). */
-	private final Object controler_ob = new Object();
-	private boolean controling = false;
-
 	private final Lock offscreen_lock = new Lock();
 
 	private Cursor noCursor;
@@ -90,11 +79,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private boolean dragging = false;
 	private boolean input_disabled = false;
 	private boolean input_disabled2 = false;
-
-	private static final int NONE = 0;
-	private static final int MOUSE = 1;
-	private static final int KEY_MOVE = 2;
-	private static final int Z_KEY = 4; // the undo system
 
 	/** Store a copy of whatever data as each Class may define it, one such data object per class.
 	 * Private to the package. */
@@ -266,7 +250,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (invalid_volatile || null == volatileImage
 			 || volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK)
 			{
-				// clear clip, remake in full
+				// clear clip, remade in full
 				clipRect = null;
 				renderVolatileImage(offscreen, active, top, active_layer, c_alphas, at, clipRect);
 			}
@@ -336,10 +320,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// overriding to avoid default behaviour in java.awt.Canvas which consists in first repainting the entire drawable area with the background color, and then calling method paint.
 		this.paint(g);
 	}
-
-	//private AtomicInteger counter = new AtomicInteger(0); // threads' tag
-
-	private long last_paint = 0;
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter", new OffscreenThread()) {
@@ -473,10 +453,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					noCursor = Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(1,1,BufferedImage.TYPE_BYTE_BINARY), new Point(0,0), "noCursor");
 			}
 
-			final long now = System.currentTimeMillis();
-			//p("interval: " + (now - last_paint));
-			last_paint = now;
-
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
 			IJError.print(e);
@@ -521,12 +497,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Paints a handle on the offscreen x,y. Adapted from ij.gui.Roi class. */
+	/*
 	private void drawHandle(Graphics g, double x, double y) {
 		g.setColor(Color.black);
 		g.fillRect((int) ((x - srcRect.x) * magnification) - 1, (int) ((y - srcRect.y) * magnification) - 1, 3, 3);
 		g.setColor(Color.white);
 		g.drawRect((int) ((x - srcRect.x) * magnification) - 2, (int) ((y - srcRect.y) * magnification) - 2, 5, 5);
 	}
+	*/
 
 	static protected BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
 	static protected AffineTransform DEFAULT_AFFINE = new AffineTransform();
@@ -556,8 +534,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private boolean popup = false;
 
 	private boolean locked = false; // TODO temporary!
-
-	private boolean beyond_srcRect = false;
 
 	private int tmp_tool = -1;
 
@@ -881,7 +857,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					break;
 				}
 			} else {
-				beyond_srcRect = true;
+				//beyond_srcRect = true;
 				Utils.log("DisplayCanvas.mouseDragged: preventing drag beyond layer limits.");
 			}
 		} else if (display.getMode() instanceof ManualAlignMode) {
@@ -1125,9 +1101,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			break;
 		default: // selection tool
 
-			if (roi != null && roi.getState() != roi.CONSTRUCTING && roi.isHandle(sx, sy) >= 0)
+			if (roi != null && roi.getState() != Roi.CONSTRUCTING && roi.isHandle(sx, sy) >= 0)
 				setCursor(handCursor);
-			else if (Prefs.usePointerCursor || (roi != null && roi.getState() != roi.CONSTRUCTING && roi.contains(ox, oy)))
+			else if (Prefs.usePointerCursor || (roi != null && roi.getState() != Roi.CONSTRUCTING && roi.contains(ox, oy)))
 				setCursor(defaultCursor);
 			else
 				setCursor(crosshairCursor);
@@ -1360,6 +1336,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				MouseEvent me = null;
 				synchronized (this) {
 					try { this.wait(); } catch (Exception e) {}
+					if (!go) return;
 					me = this.me;
 					this.me = null;
 				}
@@ -1410,8 +1387,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				final Layer layer = DisplayCanvas.this.display.getLayer();
 				final int x_p = offScreenX(me.getX()),
 				          y_p = offScreenY(me.getY());
-				final ArrayList<Displayable> al = new ArrayList(layer.getParent().findZDisplayables(layer, x_p, y_p, true));
-				final ArrayList al2 = new ArrayList(layer.find(x_p, y_p, true));
+				final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.getParent().findZDisplayables(layer, x_p, y_p, true));
+				final ArrayList<Displayable> al2 = new ArrayList<Displayable>(layer.find(x_p, y_p, true));
 				Collections.reverse(al2); // text labels first
 				al.addAll(al2);
 				if (0 == al.size()) {
@@ -1549,20 +1526,17 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 */
 	// it is assumed that the linked objects are close to each other, otherwise
 	// the clip rectangle grows enormously.
-	public void repaint(final HashSet hs) {
+	public void repaint(final HashSet<Displayable> hs) {
 		if (null == hs) return;
-		final Iterator it = hs.iterator();
-		int count = 0;
-		Rectangle r = new Rectangle();
+		Rectangle r = null;
 		final Layer dl = display.getLayer();
-		while (it.hasNext()) {
-			final Displayable d = (Displayable) it.next();
+		for (final Displayable d : hs) {
 			if (d.getLayer() == dl) {
-				count++;
-				r.add(d.getBoundingBox());
+				if (null == r) r = d.getBoundingBox();
+				else r.add(d.getBoundingBox());
 			}
 		}
-		if (count > 0) {
+		if (null != r) {
 			//repaint(r.x, r.y, r.width, r.height);
 			invalidateVolatile();
 			RT.paint(r, update_graphics);
@@ -1642,6 +1616,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			offscreen_lock.unlock();
 		}
+		mouse_moved.quit();
 		try {
 			synchronized (this) { if (null != animator) animator.shutdownNow(); }
 			cancelAnimations();
@@ -1671,7 +1646,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public void cancelTransform() {
-		Selection selection = display.getSelection();
 		display.getMode().cancel();
 		display.setMode(new DefaultMode(display));
 		repaint(true);
@@ -1845,7 +1819,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_Z:
 				// UNDO: shift+z or ctrl+z
 				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Utils.getControlModifier())) {
-					// If it's the last step and the last action was not Z_KEY undo action, then store current:
 					Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
 						if (isTransforming()) display.getMode().undoOneStep();
 						else display.getLayerSet().undoOneStep();
@@ -2532,7 +2505,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// TODO rewrite to avoid calling the list twice
 				final Collection<? extends Paintable> paintable_patches = graphics_source.asPaintable(al_paint);
 				// paint first the current layer Patches only (to set the background)
-				int count = 0;
 				// With prePaint capabilities:
 				if (prepaint) {
 					for (final Paintable d : paintable_patches) {
@@ -2770,7 +2742,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			  && s.srcRect.x == this.srcRect.x && s.srcRect.y == this.srcRect.y
 			  && s.srcRect.width == this.srcRect.width && s.srcRect.height == this.srcRect.height
 			  && s.mode == this.mode
-			  && c_alphas == this.c_alphas
+			  && s.c_alphas == this.c_alphas
 			  && Utils.equalContent(s.blending_list, this.blending_list)
 			  && Utils.equalContent(s.hm, this.hm);
 		}
@@ -2823,7 +2795,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			for (final ZDisplayable zd : display.getLayerSet().getDisplayableList()) {
 				if (!(zd instanceof Tree)) continue;
 				final Tree t = (Tree)zd;
-				final Node nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
+				final Node<?> nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
 				if (null == nd) continue;
 				// Else:
 				display.toLayer(nd.la);
@@ -2919,8 +2891,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final double pixelWidth = cal.pixelWidth;
 		final double pixelHeight = cal.pixelHeight;
 
-		final double dist_to_travel = Math.sqrt(Math.pow((tx - ox)*pixelWidth, 2) + Math.pow((ty - oy)*pixelHeight, 2)
-						                + Math.pow((start_layer.getZ() - target_layer.getZ()) * pixelWidth, 2));
+		//final double dist_to_travel = Math.sqrt(Math.pow((tx - ox)*pixelWidth, 2) + Math.pow((ty - oy)*pixelHeight, 2)
+		//				                + Math.pow((start_layer.getZ() - target_layer.getZ()) * pixelWidth, 2));
 
 		// vector in calibrated coords between origin and target
 		final Vector3d g = new Vector3d((tx - ox)*pixelWidth, (ty - oy)*pixelHeight, (target_layer.getZ() - start_layer.getZ())*pixelWidth);
@@ -2970,7 +2942,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		this.sfs.clear();
 		try {
 			// wait
-			Thread.currentThread().sleep(150);
+			Thread.sleep(150);
 		} catch (InterruptedException ie) {}
 	}
 	private void cancelAnimation(final ScheduledFuture sf) {
