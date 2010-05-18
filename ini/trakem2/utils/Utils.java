@@ -303,6 +303,9 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final void log2(final Object... ob){
 		Utils.log2(Utils.toString(ob));
 	}
+	static public final void logMany2(final Object... ob){
+		Utils.log2(Utils.toString(ob));
+	}
 
 	/** Print an object; if it's an array, print each element, recursively, as [0, 1, 2] or [[0, 1, 2], [3, 4, 5]], etc, same for Iterable and Map objects. */
 	static public final String toString(final Object ob) {
