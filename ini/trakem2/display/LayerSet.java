@@ -1299,6 +1299,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
+	/** Returns the reverse index of ZDisplayable zd, which is the actual index as seen in the screen. */
 	public int indexOf(final ZDisplayable zd) {
 		int k = al_zdispl.indexOf(zd);
 		if (-1 == k) return -1;
