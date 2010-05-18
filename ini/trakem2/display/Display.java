@@ -1246,7 +1246,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		} else if (null != active) {
 			if (value != active.getAlpha()) { // because there's a callback from setActive that would then affect all other selected Displayable without having dragged the slider, i.e. just by being selected.
-				canvas.invalidateVolatile();
 				selection.setAlpha(value);
 			}
 		}
@@ -1646,7 +1645,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
-		canvas.invalidateVolatile(); // removing active, no need to update offscreen but yes the volatile
 		repaint(displ, null, 5, true, false);
 		// from Selection.deleteAll this method is called ... but it's ok: same thread, no locking problems.
 		selection.remove(displ);
@@ -1686,7 +1684,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
 	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, final boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
-		canvas.invalidateVolatile();
 		if (update_graphics || displ.getClass() == Patch.class || displ != active) {
 			canvas.setUpdateGraphics(true);
 		}
@@ -4388,7 +4385,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Grid overlay...")) {
 			if (null == gridoverlay) gridoverlay = new GridOverlay();
 			gridoverlay.setup(canvas.getFakeImagePlus().getRoi());
-			canvas.invalidateVolatile();
 			canvas.repaint(false);
 		} else if (command.equals("Enhance contrast (selected images)...")) {
 			final Layer la = layer;
