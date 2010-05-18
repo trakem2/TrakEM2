@@ -59,7 +59,6 @@ import com.sun.media.jai.codec.TIFFEncodeParam;
 import com.sun.media.jai.codec.TIFFDecodeParam;
 import com.sun.media.jai.codec.ImageCodec;
 import javax.media.jai.PlanarImage;
-import java.awt.image.RenderedImage;
 import java.io.OutputStream;
 
 /** Provides the necessary thread-safe image file saver utilities. */
