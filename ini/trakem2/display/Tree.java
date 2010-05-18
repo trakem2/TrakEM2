@@ -716,11 +716,15 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				if (radius < 2) radius = 2;
 			}
 			final Point2D.Double po = inverseTransformPoint(x, y);
-			radius *= radius;
+			final float fx = (float)po.x,
+			            fy = (float)po.y;
+			return isAnyNear(nodes, (float)po.x, (float)po.y, radius * radius);
+		}
+	}
 
-			for (final Node nd : nodes) {
-				if (nd.isNear((float)po.x, (float)po.y, radius)) return true;
-			}
+	protected boolean isAnyNear(final Collection<Node> nodes, final float lx, final float ly, final float radius) {
+		for (final Node nd : nodes) {
+			if (nd.isNear(lx, ly, radius)) return true;
 		}
 		return false;
 	}

@@ -140,7 +140,12 @@ public class AreaTree extends Tree implements AreaContainer {
 			aw.paint(g, aff, ((AreaTree)tree).fill_paint, tree.getColor());
 		}
 
+		/*
 		final boolean contains(final int lx, final int ly) {
+			return null != aw && aw.getArea().contains(lx, ly);
+		}
+		*/
+		final boolean contains(final float lx, final float ly) {
 			return null != aw && aw.getArea().contains(lx, ly);
 		}
 
@@ -487,5 +492,17 @@ public class AreaTree extends Tree implements AreaContainer {
 				Utils.log2(" .. and has paths: " + M.getPolygons(a).size());
 			}
 		}
+	}
+
+	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
+	 *  where a segment is defined as the line between a clicked point and the next. */
+	@Override
+	protected boolean isAnyNear(final Collection<Node> nodes, final float lx, final float ly, final float radius) {
+		for (final Node nd : nodes) {
+			final AreaNode an = (AreaNode)nd;
+			if (null == an.aw && an.isNear(lx, ly, radius)) return true;
+			if (an.getData().contains(lx, ly)) return true;
+		}
+		return false;
 	}
 }
