@@ -232,9 +232,11 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 
 		final boolean color_cues = layer_set.color_cues;
+		final int n_layers_color_cue = layer_set.n_layers_color_cue;
 
 		// Paint a sliced sphere
 		final double current_layer_z = active_layer.getZ();
+		final int current_layer_index = layer_set.indexOf(active_layer);
 		final long active_lid = active_layer.getId();
 		for (int j=0; j<n_points; j++) {
 			if (active_lid == p_layer[j]) {
@@ -250,24 +252,33 @@ public class Ball extends ZDisplayable implements VectorData {
 				g.setComposite(perimeter_composite);
 				g.drawOval(x, y, w, w);
 			} else if (color_cues) {
-				// does the point intersect with the layer?
-				final double z = layer_set.getLayer(p_layer[j]).getZ();
-				final double depth = Math.abs(current_layer_z - z);
-				if (depth < this.p_width[j]) { // compare with untransformed data, in pixels!
-					// intersects!
-					if (z < current_layer_z) g.setColor(Color.red);
-					else g.setColor(Color.blue);
-					// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
-					final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
-					final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
-					          y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
-						  w = (int)(2 * slice_radius * magnification);
-					if (fill_paint) {
-						g.setComposite(area_composite);
-						g.fillOval(x, y, w, w);
+				boolean can_paint = -1 == n_layers_color_cue;
+				final Layer layer = layer_set.getLayer(p_layer[j]); // fast: map lookup
+				if (!can_paint) {
+					can_paint = Math.abs(current_layer_index - layer_set.indexOf(layer)) <= n_layers_color_cue; // fast: map lookup
+				}
+				// Check if p_layer[j] is within the range of layers to color cue:
+				//Utils.logMany2("current_layer_index: ", current_layer_index, "layer index:", layer_set.indexOf(layer), "n_layers_color_cue", n_layers_color_cue);
+				if (can_paint) {
+					// does the point intersect with the layer?
+					final double z = layer.getZ();
+					final double depth = Math.abs(current_layer_z - z);
+					if (depth < this.p_width[j]) { // compare with untransformed data, in pixels!
+						// intersects!
+						if (z < current_layer_z) g.setColor(Color.red);
+						else g.setColor(Color.blue);
+						// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
+						final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
+						final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
+							  y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
+							  w = (int)(2 * slice_radius * magnification);
+						if (fill_paint) {
+							g.setComposite(area_composite);
+							g.fillOval(x, y, w, w);
+						}
+						g.setComposite(perimeter_composite);
+						g.drawOval(x, y, w, w);
 					}
-					g.setComposite(perimeter_composite);
-					g.drawOval(x, y, w, w);
 				}
 			}
 		}
