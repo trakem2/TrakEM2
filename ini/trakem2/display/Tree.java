@@ -352,16 +352,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 		boolean must_lock = false;
 
-		AffineTransform aff;
-		try {
-			aff = this.at.createInverse();
-		} catch (Exception e) {
-			IJError.print(e);
-			return false;
-		}
-
 		for (final Node nd : tolink) {
-			for (final Patch patch : (Collection<Patch>) (Collection) nd.findLinkTargets(aff)) {
+			for (final Patch patch : (Collection<Patch>) (Collection) nd.findLinkTargets(this.at)) {
 				link(patch);
 				if (patch.locked) must_lock = true;
 			}

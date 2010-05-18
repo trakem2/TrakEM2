@@ -557,12 +557,12 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** Returns a list of Patch to link, which lay under the node. Use the given @param aff to transform the Node data before looking up targets. */
-	public Collection<Displayable> findLinkTargets(final AffineTransform aff) {
+	public Collection<Displayable> findLinkTargets(final AffineTransform to_world) {
 		float x = this.x,
 		      y = this.y;
-		if (!aff.isIdentity()) {
+		if (null != to_world && !to_world.isIdentity()) {
 			float[] fp = new float[]{x, y};
-			aff.transform(fp, 0, fp, 0, 1); // aff is already an inverted affine
+			to_world.transform(fp, 0, fp, 0, 1);
 			x = fp[0];
 			y = fp[1];
 		}
