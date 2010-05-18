@@ -199,7 +199,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		index = n_points;
 		//add one up
 		this.n_points++;
-		updateInDatabase(new StringBuffer("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (").append(id).append(",").append(x_p).append(",").append(y_p).append(",").append(p_width[index]).append(",").append(layer_id).append(")").toString());
+		updateInDatabase(new StringBuilder("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (").append(id).append(",").append(x_p).append(",").append(y_p).append(",").append(p_width[index]).append(",").append(layer_id).append(")").toString());
 		return index;
 	}
 
@@ -542,7 +542,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	public String[] getPointsForSQL() {
 		String[] sql = new String[n_points];
 		for (int i=0; i<n_points; i++) {
-			StringBuffer sb = new StringBuffer("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (");
+			StringBuilder sb = new StringBuilder("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (");
 			sb.append(this.id).append(",")
 			  .append(p[0][i]).append(",")
 			  .append(p[1][i]).append(",")
@@ -558,7 +558,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	private String getUpdatePointForSQL(int index) {
 		if (index < 0 || index > n_points-1) return null;
 
-		StringBuffer sb = new StringBuffer("UPDATE ab_ball_points SET ");
+		StringBuilder sb = new StringBuilder("UPDATE ab_ball_points SET ");
 		sb.append("x=").append(p[0][index])
 		  .append(", y=").append(p[1][index])
 		  .append(", width=").append(p_width[index])
@@ -742,11 +742,12 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Similar to exportSVG but the layer_id is saved instead of the z. The convention is my own, a ball_ob that contains ball objects and links. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
-		String in = indent + "\t";
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String in = indent + "\t";
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");
 		super.exportXML(sb_body, in, any);
 		if (!fill_paint) sb_body.append(in).append("fill=\"").append(fill_paint).append("\"\n"); // otherwise no need
@@ -760,8 +761,8 @@ public class Ball extends ZDisplayable implements VectorData {
 		sb_body.append(indent).append("</t2_ball>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_ball";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_ball";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_ball (").append(Displayable.commonDTDChildren()).append(",t2_ball_ob)>\n");
@@ -792,29 +793,27 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Returns information on the number of ball objects per layer. */
 	public String getInfo() {
 		// group balls by layer
-		HashMap ht = new HashMap();
+		final HashMap<Long,ArrayList<Integer>> ht = new HashMap<Long,ArrayList<Integer>>();
 		for (int i=0; i<n_points; i++) {
-			ArrayList al = (ArrayList)ht.get(new Long(p_layer[i]));
+			ArrayList<Integer> al = ht.get(new Long(p_layer[i]));
 			if (null == al) {
-				al = new ArrayList();
-				ht.put(new Long(p_layer[i]), al);
+				al = new ArrayList<Integer>();
+				ht.put(p_layer[i], al);
 			}
-			al.add(new Integer(i)); // blankets!
+			al.add(i);
 		}
 		int total = 0;
-		StringBuffer sb1 = new StringBuffer("Ball id: ").append(this.id).append('\n');
-		StringBuffer sb = new StringBuffer();
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			long lid = ((Long)entry.getKey()).longValue();
-			ArrayList al = (ArrayList)entry.getValue();
+		final StringBuilder sb1 = new StringBuilder("Ball id: ").append(this.id).append('\n');
+		final StringBuilder sb = new StringBuilder();
+		for (final Map.Entry<Long,ArrayList<Integer>> entry : ht.entrySet()) {
+			final long lid = entry.getKey().longValue();
+			final ArrayList<Integer> al = entry.getValue();
 			sb.append("\tLayer ").append(this.layer_set.getLayer(lid).toString()).append(":\n");
 			sb.append("\t\tcount : ").append(al.size()).append('\n');
 			total += al.size();
 			double average = 0;
-			for (Iterator at = al.iterator(); at.hasNext(); ) {
-				int i = ((Integer)at.next()).intValue(); // I hate java
-				average += p_width[i];
+			for (final Integer i : al) {
+				average += p_width[i.intValue()];
 			}
 			sb.append("\t\taverage radius: ").append(average / al.size()).append('\n');
 		}

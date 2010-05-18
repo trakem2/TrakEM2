@@ -246,7 +246,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 			doctype = doctype.replace(' ', '_'); //spaces may not play well in the XML file
 			*/
 			//StringBuffer sb = new StringBuffer("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ");
-			StringBuffer sb = new StringBuffer("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
+			StringBuilder sb = new StringBuilder("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n");
 			//sb.append(doctype).append(" [\n");
 			HashSet hs = new HashSet(); // accumulate ELEMENT and ATTLIST
 			//StringBuffer sb2 = new StringBuffer();

@@ -118,7 +118,7 @@ public class Bureaucrat extends Thread {
 		ControlWindow.startWaitingCursor();
 		int sandwitch = ControlWindow.isGUIEnabled() ? 100 : 5000; // 0.1 second or 5
 		Utils.showStatus("Started processing: " + worker.getTaskName(), false); // don't steal focus, ever
-		final StringBuffer sb = new StringBuffer("Processing... ").append(worker.getTaskName()).append(" - ");
+		final StringBuilder sb = new StringBuilder("Processing... ").append(worker.getTaskName()).append(" - ");
 		final int base_len = sb.length();
 		while (worker.isWorking() && !worker.hasQuitted()) {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}

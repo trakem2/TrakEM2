@@ -383,11 +383,11 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_label\n");
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"font-size:").append(font.getSize())
 		       .append(";font-style:").append(font.getStyle())
 		       .append(";font-family:").append(font.getFamily())
@@ -399,7 +399,7 @@ public class DLabel extends Displayable implements VectorData {
 		sb_body.append(indent).append("</t2_label>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		if (hs.contains("t2_label")) return;
 		sb_header.append(indent).append("<!ELEMENT t2_label (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD("t2_label", sb_header, hs, indent);

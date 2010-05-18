@@ -1286,12 +1286,13 @@ public class Profile extends Displayable implements VectorData {
 		}
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_profile\n");
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		if (n_points > 0) {
 			sb_body.append(in).append("d=\"M");
@@ -1316,8 +1317,8 @@ public class Profile extends Displayable implements VectorData {
 		sb_body.append(indent).append("</t2_profile>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_profile";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_profile";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_profile (").append(Displayable.commonDTDChildren()).append(")>\n");

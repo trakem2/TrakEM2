@@ -257,7 +257,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			synchronized (layerindices) { layerindices.clear(); }
 			double z = layer.getZ();
 			int i = 0;
-			for (Layer la : al_layers) {
+			for (final Layer la : al_layers) {
 				if (! (la.getZ() < z) ) {
 					al_layers.add(i, layer);
 					layer.setParentSilently(this);
@@ -691,7 +691,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Remove a child. Does not destroy it or delete it from the database. */
-	public void remove(Layer layer) {
+	public void remove(final Layer layer) {
 		if (null == layer || null == idlayers.get(layer.getId())) return;
 		al_layers.remove(layer);
 		idlayers.remove(layer.getId());
@@ -744,10 +744,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public int getLayerIndex(final long id) {
-		for (int i=al_layers.size()-1; i>-1; i--) {
-			if (((Layer)al_layers.get(i)).getId() == id) return i;
-		}
-		return -1;
+		final Layer layer = getLayer(id);
+		if (null == layer) return -1;
+		return indexOf(layer);
 	}
 
 	/** Find a layer by index, or null if none. */
@@ -1094,7 +1093,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
-		final StringBuffer sb_body = new StringBuffer();
+		final StringBuilder sb_body = new StringBuilder();
 		sb_body.append(indent).append("<t2_layer_set\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
@@ -1130,8 +1129,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		writer.write(sb_body.toString());
 		// export ZDisplayable objects
 		if (null != al_zdispl) {
-			for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
-				ZDisplayable zd = (ZDisplayable)it.next();
+			for (final ZDisplayable zd : al_zdispl) {
 				sb_body.setLength(0);
 				zd.exportXML(sb_body, in, any);
 				writer.write(sb_body.toString()); // each separately, for they can be huge
@@ -1140,9 +1138,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// export Layer and contained Displayable objects
 		if (null != al_layers) {
 			//Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
-			for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
+			for (final Layer la : al_layers) {
 				sb_body.setLength(0);
-				((Layer)it.next()).exportXML(sb_body, in, any);
+				la.exportXML(sb_body, in, any);
 				writer.write(sb_body.toString());
 			}
 		}
@@ -1151,8 +1149,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Includes the !ELEMENT */
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_layer_set";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_layer_set";
 		if (!hs.contains(type)) {
 			sb_header.append(indent).append("<!ELEMENT t2_layer_set (").append(Displayable.commonDTDChildren()).append(",t2_layer,t2_pipe,t2_ball,t2_area_list,t2_calibration,t2_stack,t2_treeline)>\n");
 			Displayable.exportDTD(type, sb_header, hs, indent);
@@ -1210,7 +1208,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Used by the Layer.setZ method. */
-	protected void reposition(Layer layer) {
+	protected void reposition(final Layer layer) {
 		if (null == layer || !al_layers.contains(layer)) return;
 		al_layers.remove(layer);
 		addSilently(layer);
@@ -2068,6 +2066,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final HashMap<Layer,ArrayList<Displayable>> all_displ;
 		final ArrayList<ZDisplayable> all_zdispl;
 		final HashMap<Displayable,Set<Displayable>> links;
+		final HashMap<Long,Layer> idlayers;
+		final HashMap<Layer,Integer> layerindices;
 
 		HashSet<DoStep> dependents = null;
 
@@ -2085,6 +2085,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 			this.all_layers = ls.getLayers(); // a copy of the list, but each object is the running instance
 			this.all_zdispl = ls.getZDisplayables(); // idem
+			this.idlayers = new HashMap<Long,Layer>(ls.idlayers);
+			this.layerindices = new HashMap<Layer,Integer>(ls.layerindices);
 
 			this.links = new HashMap<Displayable,Set<Displayable>>();
 			for (final ZDisplayable zd : this.all_zdispl) {
@@ -2110,6 +2112,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			// Replace all layers
 			ls.al_layers.clear();
 			ls.al_layers.addAll(this.all_layers);
+			ls.idlayers.clear();
+			ls.idlayers.putAll(this.idlayers);
+			synchronized (ls.layerindices) {
+				ls.layerindices.clear(); // will get regenerated
+			}
 
 			final ArrayList<Displayable> patches = new ArrayList<Displayable>();
 

@@ -1320,7 +1320,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null == set) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			for (final Display d : al_displays) {
-				if (set.contains(d.layer)) {
+				if (d.layer.getParent() == set) {
 					d.updateSnapshots();
 					if (update_canvas_dimensions) d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
 					d.repaintAll();
@@ -1562,7 +1562,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Add the ZDisplayable to all Displays that show a Layer belonging to the given LayerSet. */
 	static public void add(final LayerSet set, final ZDisplayable zdispl) {
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				if (front == d) {
 					zdispl.setLayer(d.layer); // the active one
 					d.add(zdispl, true, true); // calling add(Displayable, boolean, boolean)
@@ -1584,7 +1584,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void addAll(final LayerSet set, final Collection<? extends ZDisplayable> coll) {
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				for (final ZDisplayable zd : coll) {
 					if (front == d) zd.setLayer(d.layer);
 				}
@@ -1774,7 +1774,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (repaint_disabled) return;
 		if (null == set) return;
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				if (repaint_navigator) {
 					if (null != displ) {
 						DisplayablePanel dp = d.ht_panels.get(displ);
@@ -1794,7 +1794,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void repaint(final LayerSet set) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				d.navigator.repaint(true);
 				d.canvas.repaint(true);
 			}
@@ -1804,7 +1804,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void repaint(final LayerSet set, final Rectangle box) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				d.navigator.repaint(box);
 				d.canvas.repaint(box, 0, true);
 			}
@@ -5076,7 +5076,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	/** Export the DTD that defines this object. */
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		if (hs.contains("t2_display")) return; // TODO to avoid collisions the type shoud be in a namespace such as tm2:display
 		hs.add("t2_display");
 		sb_header.append(indent).append("<!ELEMENT t2_display EMPTY>\n")
@@ -5096,7 +5096,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 	/** Export all displays of the given project as XML entries. */
 	static public void exportXML(final Project project, final Writer writer, final String indent, final Object any) throws Exception {
-		final StringBuffer sb_body = new StringBuffer();
+		final StringBuilder sb_body = new StringBuilder();
 		final String in = indent + "\t";
 		for (final Display d : al_displays) {
 			if (d.project != project) continue;

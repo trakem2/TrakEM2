@@ -718,7 +718,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) { // TODO the Loader should handle the saving of images, not this class.
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
 		String in = indent + "\t";
 		String path = null;
 		String path2 = null;
@@ -805,8 +806,8 @@ public final class Patch extends Displayable implements ImageData {
 		return Math.pow(256, pow) - 1;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_patch";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_patch";
 		if (hs.contains(type)) return;
 		// The Patch itself:
 		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list)>\n");

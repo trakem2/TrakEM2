@@ -1562,13 +1562,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Exports data, the tag is not opened nor closed. */
-	synchronized public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_pipe\n");
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		if (n_points > 0) {
 			sb_body.append(in).append("d=\"M");
@@ -1597,8 +1597,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_pipe";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_pipe";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_pipe (").append(Displayable.commonDTDChildren()).append(")>\n");
@@ -1977,7 +1977,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			vs.calibrate(this.layer_set.getCalibration());
 			len = vs.computeLength(); // no resampling
 		}
-		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
+		return new StringBuilder("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
 	/** @param area is expected in world coordinates. */

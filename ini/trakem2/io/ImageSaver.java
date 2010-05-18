@@ -326,7 +326,7 @@ public class ImageSaver {
 	/** Returns a string containing information about the specified  image. */
 	static public final String getDescriptionString(final ImagePlus imp, final FileInfo fi) {
 		final Calibration cal = imp.getCalibration();
-		final StringBuffer sb = new StringBuffer(100);
+		final StringBuilder sb = new StringBuilder(100);
 		sb.append("ImageJ="+ImageJ.VERSION+"\n");
 		if (fi.nImages>1 && fi.fileType!=FileInfo.RGB48)
 			sb.append("images="+fi.nImages+"\n");

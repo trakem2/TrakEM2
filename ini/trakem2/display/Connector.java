@@ -264,9 +264,9 @@ public class Connector extends Treeline {
 		return root.getChildrenCount();
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
-		String type = "t2_connector";
+		final String type = "t2_connector";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_connector (t2_node*,").append(Displayable.commonDTDChildren()).append(")>\n");

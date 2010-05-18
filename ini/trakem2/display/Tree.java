@@ -387,8 +387,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** Exports to type t2_treeline. */
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_node";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_tag EMPTY>\n");
@@ -403,13 +403,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		String name = getClass().getName().toLowerCase();
-		String type = "t2_" + name.substring(name.lastIndexOf('.') + 1);
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+		final String type = "t2_" + getClass().getSimpleName().toLowerCase();
 		sb_body.append(indent).append("<").append(type).append('\n');
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		sb_body.append(indent).append(">\n");
 		super.restXML(sb_body, in, any);
@@ -418,7 +418,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** One day, java will get tail-call optimization (i.e. no more stack overflow errors) and I will laugh at this function. */
-	static private void exportXML(final Tree tree, final String indent_base, final StringBuffer sb, final Node root) {
+	static private void exportXML(final Tree tree, final String indent_base, final StringBuilder sb, final Node root) {
 		// Simulating recursion
 		//
 		// write depth-first, closing as children get written
@@ -459,8 +459,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		}
 	}
-	static private StringBuffer getIndents(String base, int more) {
-		final StringBuffer sb = new StringBuffer(base.length() + more);
+	static private final StringBuilder getIndents(final String base, int more) {
+		final StringBuilder sb = new StringBuilder(base.length() + more);
 		sb.append(base);
 		while (more > 0) {
 			sb.append(' ');
@@ -468,7 +468,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		return sb;
 	}
-	static private final void dataNodeXML(final Tree tree, final StringBuffer indent, final StringBuffer sb, final Node node) {
+	static private final void dataNodeXML(final Tree tree, final StringBuilder indent, final StringBuilder sb, final Node node) {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)
 		  .append("\" y=\"").append(node.y)
@@ -501,17 +501,17 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		indent.setLength(indent.length() -1);
 	}
-	abstract protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node);
-	abstract protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node);
+	abstract protected boolean exportXMLNodeAttributes(StringBuilder indent, StringBuilder sb, Node node);
+	abstract protected boolean exportXMLNodeData(StringBuilder indent, StringBuilder sb, Node node);
 
-	static private void exportTags(final Node node, final StringBuffer sb, final StringBuffer indent) {
+	static private void exportTags(final Node node, final StringBuilder sb, final StringBuilder indent) {
 		for (final Tag tag : (Collection<Tag>) node.getTags()) {
 			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(tag.toString()))
 					 .append("\" key=\"").append((char)tag.getKeyCode()).append("\" />\n");
 		}
 	}
 
-	static private final void closeNodeXML(final StringBuffer indent, final StringBuffer sb) {
+	static private final void closeNodeXML(final StringBuilder indent, final StringBuilder sb) {
 		sb.append(indent).append("</t2_node>\n");
 	}
 

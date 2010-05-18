@@ -1107,12 +1107,30 @@ public class Project extends DBObject {
 		}
 	}
 
+	@Override
+	public void exportXML(final StringBuilder sb, final String indent, final Object any) {
+		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, Object) !!");
+	}
+
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
-	public void exportXML(final java.io.Writer writer, String indent, Object any) throws Exception {
-		StringBuffer sb_body = new StringBuffer();
+	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
 		// 1 - opening tag
-		sb_body.append(indent).append("<trakem2>\n");
-		String in = indent + "\t";
+		writer.write(indent);
+		writer.write("<trakem2>\n");
+		final String in = indent + "\t";
+		// 2,3 - export the project itself
+		exportXML(writer, in);
+		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
+		layer_set.exportXML(writer, in, any);
+		// 5 - export Display objects
+		Display.exportXML(this, writer, in, any);
+		// 6 - closing tag
+		writer.write("</trakem2>\n");
+	}
+
+	// A separate method to ensure that sb_body instance is garbage collected.
+	private final void exportXML(final java.io.Writer writer, final String in) throws Exception {
+		final StringBuilder sb_body = new StringBuilder();
 		// 2 - the project itself
 		sb_body.append(in).append("<project \n")
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
@@ -1133,25 +1151,17 @@ public class Project extends DBObject {
 		*/
 		final HashMap<? extends Thing,Boolean> expanded_states = project_tree.getExpandedStates();
 		if (null != root_pt.getChildren()) {
-			String in2 = in + "\t";
+			final String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
 				pt.exportXML(sb_body, in2, expanded_states);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
 		writer.write(sb_body.toString());
-		sb_body.setLength(0);
-		sb_body = null;
-		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
-		layer_set.exportXML(writer, in, any);
-		// 5 - export Display objects
-		Display.exportXML(this, writer, in, any);
-		// 6 - closing tag
-		writer.write("</trakem2>\n");
 	}
 
 	/** Export a complete DTD listing to export the project as XML. */
-	public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
 		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
 		// 2 - export user-defined templates

@@ -2120,7 +2120,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		return !input_disabled;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append("<canvas magnification=\"").append(magnification).append("\" srcrect_x=\"").append(srcRect.x).append("\" srcrect_y=\"").append(srcRect.y).append("\" srcrect_width=\"").append(srcRect.width).append("\" srcrect_height=\"").append(srcRect.height).append("\">\n");
 	}
 

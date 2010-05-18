@@ -193,19 +193,21 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
-		String type = "t2_areatree";
+		final String type = "t2_areatree";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_areatree (t2_node*,").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
-	protected boolean exportXMLNodeAttributes(StringBuffer indent, StringBuffer sb, Node node) { return true; }
+	@Override
+	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node node) { return true; }
 
-	protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node) {
-		AreaNode an = (AreaNode)node;
+	@Override
+	protected boolean exportXMLNodeData(final StringBuilder indent, final StringBuilder sb, final Node node) {
+		final AreaNode an = (AreaNode)node;
 		//Utils.log2("Calling AreaTree.exportXMLNodeData for node " + an + " which has area: " + (null != an.aw) + " which is not empty: " + (null != an.aw ? !an.aw.getArea().isEmpty() : true));
 		if (null == an.aw || an.aw.getArea().isEmpty()) {
 			return true;

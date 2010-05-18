@@ -388,8 +388,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return false;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_area_list";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_area_list";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_area_list (").append(Displayable.commonDTDChildren()).append(",t2_area)>\n");
@@ -402,7 +402,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_area_list\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
@@ -423,7 +424,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Exports the given area as a list of SVG path elements with integers only. Only reads SEG_MOVETO, SEG_LINETO and SEG_CLOSE elements, all others ignored (but could be just as easily saved in the SVG path). */
-	static final void exportArea(final StringBuffer sb, final String indent, final Area area) {
+	static final void exportArea(final StringBuilder sb, final String indent, final Area area) {
 		// I could add detectors for straight lines and thus avoid saving so many points.
 		final float[] coords = new float[6];
 		final float precision = 0.0001f;
@@ -461,7 +462,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 	}
 	/** Exports the given area as a list of SVG path elements with integers only. Only reads SEG_MOVETO, SEG_LINETO and SEG_CLOSE elements, all others ignored (but could be just as easily saved in the SVG path). */
-	private void exportAreaT2(final StringBuffer sb, final String indent, final Area area) {
+	private void exportAreaT2(final StringBuilder sb, final String indent, final Area area) {
 		// I could add detectors for straight lines and thus avoid saving so many points.
 		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
 			float[] coords = new float[6];
@@ -889,7 +890,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		volume /= scale;
 		surface /= scale;
 		// remove pretentious after-comma digits on return:
-		return new StringBuffer("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
+		return new StringBuilder("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
 	}
 
 	/** @param area is expected in world coordinates. */
@@ -922,7 +923,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		// Current AmiraMeshEncoder supports ByteProcessor only: 256 labels max, including background at zero.
 		if (as_amira_labels && list.size() > 255) {
 			Utils.log("Saving ONLY first 255 AreaLists!\nDiscarded:");
-			StringBuffer sb = new StringBuffer();
+			final StringBuilder sb = new StringBuilder();
 			for (final Displayable d : list.subList(255, list.size())) {
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
@@ -988,7 +989,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 		String amira_params = null;
 		if (as_amira_labels) {
-			final StringBuffer sb = new StringBuffer("CoordType \"uniform\"\nMaterials {\nExterior {\n Id 0,\nColor 0 0 0\n}\n");
+			final StringBuilder sb = new StringBuilder("CoordType \"uniform\"\nMaterials {\nExterior {\n Id 0,\nColor 0 0 0\n}\n");
 			final float[] c = new float[3];
 			int value = 0;
 			for (final Displayable d : list) {

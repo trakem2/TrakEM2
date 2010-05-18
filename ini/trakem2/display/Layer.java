@@ -166,7 +166,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		String title = lt.getTitle();
 		if (null == title) title = "";
 		else title = title.replace(' ', '_');
-		final StringBuffer sb = new StringBuffer().append(parent.indexOf(this) + 1);
+		final StringBuilder sb = new StringBuilder().append(parent.indexOf(this) + 1);
 		final int s_size = Integer.toString(parent.size()).length();
 		while (sb.length() < s_size) {
 			sb.insert(0, '0');
@@ -176,7 +176,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public String toString() {
-		if (null == parent) return new StringBuffer("z=").append(Utils.cutNumber(z, 4)).toString();
+		if (null == parent) return new StringBuilder("z=").append(Utils.cutNumber(z, 4)).toString();
 		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
 		return "z=" + Utils.cutNumber(z, 4);
 	}
@@ -762,21 +762,22 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return hs;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		String in = indent + "\t";
+	@Override
+	public void exportXML(final StringBuilder sb_body, String indent, Object any) {
+		final String in = indent + "\t";
 		// 1 - open tag
 		sb_body.append(indent).append("<t2_layer oid=\"").append(id).append("\"\n")
 		       .append(in).append(" thickness=\"").append(thickness).append("\"\n")
 		       .append(in).append(" z=\"").append(z).append("\"\n")
 		;
+		// TODO this search is linear!
 		String title = project.findLayerThing(this).getTitle();
 		if (null == title) title = "";
 		sb_body.append(in).append(" title=\"").append(title).append("\"\n"); // TODO 'title' should be a property of the Layer, not the LayerThing. Also, the LayerThing should not exist: LayerSet and Layer should be directly presentable in a tree. They are not Things as in "objects of the sample", but rather, structural necessities such as Patch.
 		sb_body.append(indent).append(">\n");
 		// 2 - export children
 		if (null != al_displayables) {
-			for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (final Displayable d : al_displayables) {
 				d.exportXML(sb_body, in, any);
 			}
 		}
@@ -785,8 +786,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Includes all Displayable objects in the list of possible children. */
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_layer";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_layer";
 		if (hs.contains(type)) return;
 		sb_header.append(indent).append("<!ELEMENT t2_layer (t2_patch,t2_label,t2_layer_set,t2_profile)>\n")
 			 .append(indent).append(Displayable.TAG_ATTR1).append(type).append(" oid").append(Displayable.TAG_ATTR2)

@@ -72,7 +72,7 @@ public class Bucket {
 		this.h = h;
 		this.AREA = new Area(new Rectangle(x, y, w, h));
 		this.bucket_side = bucket_side;
-		Utils.showStatus(new StringBuffer("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
+		Utils.showStatus(new StringBuilder("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
 		//Utils.log2(this.toString());
 	}
 

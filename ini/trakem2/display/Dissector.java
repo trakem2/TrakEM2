@@ -366,7 +366,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			}
 		}
 
-		final void exportXML(StringBuffer sb_body, String indent) {
+		final void exportXML(final StringBuilder sb_body, final String indent) {
 			sb_body.append(indent).append("<t2_dd_item tag=\"").append(tag).append("\" radius=\"").append(radius).append("\" points=\"");
 			for (int i=0; i<n_points; i++) {
 				sb_body.append('[').append(p[0][i]).append(' ').append(p[1][i]).append(' ').append(p_layer[i]).append(']');
@@ -375,7 +375,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			sb_body.append("\" />\n");
 		}
 
-		final void putData(StringBuffer sb) {
+		final void putData(final StringBuilder sb) {
 			for (int i=0; i<n_points; i++) {
 				sb.append(tag).append('\t')
 				   .append(radius).append('\t')
@@ -623,8 +623,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return box;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_dissector";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_dissector";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_dissector (").append(Displayable.commonDTDChildren()).append(",t2_dd_item)>\n");
@@ -636,14 +636,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_dissector\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		sb_body.append(indent).append(">\n");
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			item.exportXML(sb_body, in);
 		}
 		super.restXML(sb_body, in, any);
@@ -661,9 +661,9 @@ public class Dissector extends ZDisplayable implements VectorData {
 	 *  and then a list of 5 tab-separated columns: item tag, radius, x, y, z
 	 */
 	public String getInfo() {
-		StringBuffer sb = new StringBuffer("title: ").append(this.title).append("\nitems: ").append(al_items.size()).append('\n').append("tag\tradius\tx\ty\tz\n");
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			((Item)it.next()).putData(sb);
+		final StringBuilder sb = new StringBuilder("title: ").append(this.title).append("\nitems: ").append(al_items.size()).append('\n').append("tag\tradius\tx\ty\tz\n");
+		for (final Item item : al_items) {
+			item.putData(sb);
 		}
 		return sb.toString();
 	}

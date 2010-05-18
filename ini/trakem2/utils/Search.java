@@ -216,7 +216,7 @@ public class Search {
 		}
 		// fix pattern
 		final String typed_pattern = pattern;
-		final StringBuffer sb = new StringBuffer(); // I hate java
+		final StringBuilder sb = new StringBuilder(); // I hate java
 		if (!pattern.startsWith("^")) sb.append("^.*");
 		for (int i=0; i<pattern.length(); i++) {
 			sb.append(pattern.charAt(i));

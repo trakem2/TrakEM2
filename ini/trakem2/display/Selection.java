@@ -320,7 +320,7 @@ public class Selection {
 		if (null != display) display.getLayerSet().addChangeTreesStep();
 
 		// remove one by one, skip those that fail and log the error
-		StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		try {
 			if (null != display) display.getProject().getLoader().startLargeUpdate();
 			for (final Displayable d : al_d) {

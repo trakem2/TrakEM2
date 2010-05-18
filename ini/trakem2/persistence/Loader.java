@@ -1060,7 +1060,7 @@ abstract public class Loader {
 	private final Hashtable<String,ImageLoadingLock> ht_plocks = new Hashtable<String,ImageLoadingLock>();
 
 	protected final ImageLoadingLock getOrMakeImageLoadingLock(final long id, final int level) {
-		final String key = new StringBuffer().append(id).append('.').append(level).toString();
+		final String key = new StringBuilder().append(id).append('.').append(level).toString();
 		ImageLoadingLock plock = ht_plocks.get(key);
 		if (null != plock) return plock;
 		plock = new ImageLoadingLock(key);
@@ -1582,7 +1582,7 @@ abstract public class Loader {
 		if (gd.wasCanceled()) return null;
 
 		final String regex = gd.getNextString();
-		Utils.log2(new StringBuffer("using regex: ").append(regex).toString()); // avoid destroying backslashes
+		Utils.log2(new StringBuilder("using regex: ").append(regex).toString()); // avoid destroying backslashes
 		int first = (int)gd.getNextNumber();
 		if (first < 1) first = 1;
 		int last = (int)gd.getNextNumber();
@@ -3165,7 +3165,7 @@ while (it.hasNext()) {
 							if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 							// negative tile sizes will be made into black tiles
 							// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
+							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
 						}
 					}
 					scale_pow++;
@@ -3616,7 +3616,7 @@ while (it.hasNext()) {
 				else export_images = false; // 'no' option
 			}
 			// 1 - get headers in DTD format
-			StringBuffer sb_header = new StringBuffer("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
+			StringBuilder sb_header = new StringBuilder("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 
 			final HashSet hs = new HashSet();
 			project.exportDTD(sb_header, hs, "\t");
@@ -3978,7 +3978,7 @@ while (it.hasNext()) {
 	}
 
 	public final void printMemState() {
-		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
+		Utils.log2(new StringBuilder("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
 		                    .append("\n\timps: ").append(imps.size())
 				    .append("\n\tmawts: ").append(mawts.size())
 			   .toString());
@@ -4238,7 +4238,7 @@ while (it.hasNext()) {
 		return null;
 	}
 
-	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
+	public void insertXMLOptions(StringBuilder sb_body, String indent) {}
 
 	/** Homogenize contrast layer-wise, for all given layers. */
 	public Bureaucrat enhanceContrast(final Collection<Layer> layers) {

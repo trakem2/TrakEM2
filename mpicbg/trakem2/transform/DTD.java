@@ -25,7 +25,7 @@ public class DTD
 {
 	private DTD(){}
 	
-	static public void append(StringBuffer sb_header, HashSet< String > hs, String indent )
+	static public void append(final StringBuilder sb_header, final HashSet< String > hs, final String indent )
 	{
 		/* non invertible coordinate transforms (ignore the i) */
 		if ( !hs.contains( "ict_transform" ) )

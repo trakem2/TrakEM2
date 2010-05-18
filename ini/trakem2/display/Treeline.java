@@ -323,20 +323,23 @@ public class Treeline extends Tree {
 		}
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
-		String type = "t2_treeline";
+		final String type = "t2_treeline";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_treeline (t2_node*,").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
-	protected boolean exportXMLNodeAttributes(final StringBuffer indent, final StringBuffer sb, final Node node) {
+	@Override
+	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node node) {
 		sb.append(" r=\"").append(node.getData()).append('\"');
 		return true;
 	}
-	protected boolean exportXMLNodeData(StringBuffer indent, StringBuffer sb, Node node) {
+	
+	@Override
+	protected boolean exportXMLNodeData(final StringBuilder indent, final StringBuilder sb, final Node node) {
 		return false;
 	}
 

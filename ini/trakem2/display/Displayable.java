@@ -1268,7 +1268,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	static protected final String TAG_ATTR2 = " NMTOKEN #REQUIRED>\n";
 
 	/** Adds simply DTD !ATTRIBUTE tags. The ProjectThing that encapsulates this object will give the type. */
-	static public void exportDTD(String type, StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" oid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_id").append(TAG_ATTR2)
 			 /*
@@ -1287,7 +1287,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)
@@ -1312,7 +1312,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(final StringBuffer sb_body, final String in, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String in, final Object any) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1352,7 +1352,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(final StringBuffer sb_body, final String in, final Object any) {
+	synchronized protected void restXML(final StringBuilder sb_body, final String in, final Object any) {
 		// Properties:
 		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
