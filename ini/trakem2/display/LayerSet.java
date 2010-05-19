@@ -73,6 +73,7 @@ import org.xml.sax.InputSource;
 import org.xml.sax.Attributes;
 import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
+import java.io.InputStream;
 
 
 /** A LayerSet is a container for a list of Layer.
@@ -2423,18 +2424,24 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public void importTags(String path, boolean replace) {
 		HashMap<Integer,TreeSet<Tag>> backup = new HashMap<Integer,TreeSet<Tag>>(this.tags); // copy!
+		InputStream istream = null;
 		try {
 			if (replace) removeAllTags();
 			SAXParserFactory f = SAXParserFactory.newInstance();
 			f.setValidating(false);
 			SAXParser parser = f.newSAXParser();
-			parser.parse(new InputSource(Utils.createStream(path)), new TagsParser());
+			istream = Utils.createStream(path);
+			parser.parse(new InputSource(istream), new TagsParser());
 		} catch (Throwable t) {
 			IJError.print(t);
 			// restore:
 			this.tags.clear();
 			this.tags.putAll(backup);
 			// no undo for all potentially removed tags ...
+		} finally {
+			try {
+				if (null != istream) istream.close();
+			} catch (Exception e) {}
 		}
 	}
 	
