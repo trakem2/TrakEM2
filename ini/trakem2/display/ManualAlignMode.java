@@ -27,6 +27,8 @@ import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Font;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Collection;
 import java.util.TreeMap;
 import java.util.Map;
 import java.util.SortedMap;
@@ -38,6 +40,7 @@ import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 import java.awt.Component;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.awt.Stroke;
 import java.awt.BasicStroke;
 
@@ -58,6 +61,14 @@ import mpicbg.models.PointMatch;
 
 import mpicbg.trakem2.align.Align;
 import ij.gui.GenericDialog;
+
+import java.io.File;
+import java.io.InputStream;
+import org.xml.sax.helpers.DefaultHandler;
+import org.xml.sax.InputSource;
+import org.xml.sax.Attributes;
+import javax.xml.parsers.SAXParserFactory;
+import javax.xml.parsers.SAXParser;
 
 public class ManualAlignMode implements Mode {
 
@@ -174,6 +185,15 @@ public class ManualAlignMode implements Mode {
 		}
 	}
 
+	private final void addPoint(final Layer layer, final float x, final float y) {
+		Landmarks lm = m.get(layer);
+		if (null == lm) {
+			lm = new Landmarks(layer);
+			m.put(layer, lm);
+		}
+		lm.add(layer, x, y);
+	}
+
 	private Layer current_layer = null;
 	private int index = -1;
 
@@ -202,10 +222,10 @@ public class ManualAlignMode implements Mode {
 	}
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
-		Utils.log2("index is " + index);
+		//Utils.log2("index is " + index);
 		if (-1 != index && current_layer == display.getLayer()) {
 			Landmarks lm = m.get(current_layer);
-			Utils.log2("lm is " + lm);
+			//Utils.log2("lm is " + lm);
 			if (null != lm) {
 				lm.set(index, x_d, y_d);
 				display.repaint();
@@ -430,4 +450,141 @@ public class ManualAlignMode implements Mode {
 
 	public void srcRectUpdated(Rectangle srcRect, double magnification) {}
 	public void magnificationUpdated(Rectangle srcRect, double magnification) {}
+
+	/** Export landmarks into XML file, in patch coordinates. */
+	public boolean exportLandmarks() {
+		if (m.isEmpty()) {
+			Utils.log("No landmarks to export!");
+			return false;
+		}
+		final StringBuilder sb = new StringBuilder("<landmarks>\n");
+		for (final Map.Entry<Layer,Landmarks> e : new TreeMap<Layer,Landmarks>(m).entrySet()) { // sorted by Layer z
+			sb.append(" <layer id=\"").append(e.getKey().getId()).append("\">\n");
+			for (final Point p : e.getValue().points) {
+				float[] w = p.getW();
+				double x = w[0],
+				       y = w[1];
+				// Find the point in a patch, and inverseTransform it into the patch local coords
+				final Collection<Displayable> under = e.getKey().find(Patch.class, (int)x, (int)y, true);
+				if (!under.isEmpty()) {
+					Patch patch = (Patch)under.iterator().next();
+					Point2D.Double po = patch.inverseTransformPoint(x, y);
+					x = po.x;
+					y = po.y;
+					sb.append("  <point patch_id=\"").append(patch.getId()).append('\"');
+				} else {
+					// Store the point as absolute
+					sb.append("  <point ");
+				}
+				sb.append(" x=\"").append(x).append("\" y=\"").append(y).append("\" />\n");
+			}
+			sb.append(" </layer>\n");
+		}
+		sb.append("</landmarks>");
+		File f = Utils.chooseFile(null, "landmarks", ".xml");
+		if (null != f && Utils.saveToFile(f, sb.toString())) {
+			return true;
+		}
+		return false;
+	}
+
+	/** Import landmarks from XML file. */
+	public boolean importLandmarks() {
+		if (!this.m.isEmpty() && !Utils.checkYN("Remove current landmarks and import new landmarks from a file?")) return false;
+
+		// copy for restore in case of failure:
+		final HashMap<Layer,Landmarks> current = new HashMap<Layer,Landmarks>(this.m);
+		InputStream istream = null;
+		try {
+			String[] fs = Utils.selectFile("Choose landmarks XML file");
+			if (null == fs || null == fs[0] || null == fs[1]) return false;
+			File f = new File(fs[0] + fs[1]);
+			if (!f.exists() || !f.canRead()) {
+				Utils.log("ERROR: cannot read file at " + f.getAbsolutePath());
+				return false;
+			}
+			// Clear current landmarks and parse from file:
+			this.m.clear();
+			SAXParserFactory ft = SAXParserFactory.newInstance();
+			ft.setValidating(false);
+			SAXParser parser = ft.newSAXParser();
+			istream = Utils.createStream(fs[0] + fs[1]);
+			parser.parse(new InputSource(istream), new LandmarksParser());
+
+			// Warn on inconsistencies
+			final HashSet<Integer> sizes = new HashSet<Integer>();
+			for (Landmarks lm : this.m.values()) {
+				sizes.add(lm.points.size());
+			}
+			if (sizes.size() > 1) {
+				Utils.log("WARNING: different number of landmarks in at least one layer.");
+			}
+			display.repaint();
+
+		} catch (Throwable t) {
+			IJError.print(t);
+			Utils.log("ERROR: did not import any landmarks.");
+			this.m.clear();
+			this.m.putAll(current);
+			return false;
+		} finally {
+			try {
+				if (null != istream) istream.close();
+			} catch (Exception e) {}
+		}
+		return true;
+	}
+
+	private final class LandmarksParser extends DefaultHandler {
+		Layer layer = null;
+		public void startElement(String uri, String localName, String qName, Attributes attributes) {
+			final HashMap<String,String> a = new HashMap<String,String>();
+			for (int i=attributes.getLength() -1; i>-1; i--) {
+				a.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
+			}
+			final String tag = qName.toLowerCase();
+			if ("point".equals(tag)) {
+				if (null == this.layer) return; // ignore!
+				String sid = a.get("patch_id");
+				String sX = a.get("x");
+				String sY = a.get("y");
+				if (null == sX || null == sY) {
+					Utils.log("ERROR: ignoring point with x, y : " + sX + ", " + sY);
+					return;
+				}
+				if (null == sid) {
+					// Assume absolute coords
+					addPoint(layer, (float)Double.parseDouble(sX), (float)Double.parseDouble(sY));
+				} else {
+					// Find the patch
+					Patch p = (Patch)layer.findById(Long.parseLong(sid));
+					if (null == p) {
+						Utils.log("ERROR: ignoring point for layer " + layer + "\n  Reason: could not find Patch with id " + sid);
+						return;
+					}
+					// ... and add the point transformed to world
+					Point2D.Double po = p.transformPoint(Double.parseDouble(sX), Double.parseDouble(sY));
+					addPoint(layer, (float)po.x, (float)po.y);
+				}
+			} else if ("layer".equals(tag)) {
+				String sid = a.get("id");
+				this.layer = null;
+				if (null == sid) {
+					Utils.log("ERROR: could not parse a layer that lacks an id!");
+					return;
+				}
+				this.layer = display.getLayerSet().getLayer(Long.parseLong(sid));
+				if (null == this.layer) {
+					Utils.log("ERROR: could not find layer with id " + sid);
+					return;
+				}
+			}
+		}
+		public void endElement(String namespace_URI, String local_name, String qualified_name) {
+			if ("layer".equals(qualified_name)) {
+				Landmarks lm = m.get(this.layer);
+				Utils.log("Loaded " + lm.points.size() + " landmarks for layer " + layer.getParent().indexOf(layer) + ": " + layer);
+			}
+		}
+	}
 }

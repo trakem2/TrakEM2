@@ -2318,6 +2318,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
 			item = new JMenuItem("Specify transform..."); item.addActionListener(this); popup.add(item);
 			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
+			if (getMode().getClass() == ManualAlignMode.class) {
+				final JMenuItem lexport = new JMenuItem("Export landmarks"); popup.add(lexport);
+				final JMenuItem limport = new JMenuItem("Import landmarks"); popup.add(limport);
+				ActionListener a = new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						ManualAlignMode mam = (ManualAlignMode)getMode();
+						Object source = ae.getSource();
+						if (lexport == source) {
+							mam.exportLandmarks();
+						} else if (limport == source) {
+							mam.importLandmarks();
+						}
+					}
+				};
+				lexport.addActionListener(a);
+				limport.addActionListener(a);
+			}
 			return popup;
 		}
 
