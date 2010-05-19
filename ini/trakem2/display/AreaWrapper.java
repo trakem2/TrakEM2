@@ -356,10 +356,12 @@ public class AreaWrapper {
 			// create brush
 			while (paint) {
 				// detect mouse up
+				/*
 				if (0 == (flags & leftClick)) { // I think this never happens
 					quit();
 					return;
 				}
+				*/
 				final Point p = dc.getCursorLoc(); // as offscreen coords
 				if (p.equals(previous_p) /*|| (null != previous_p && p.distance(previous_p) < brush_size/5) */) {
 					try { Thread.sleep(3); } catch (InterruptedException ie) {}
