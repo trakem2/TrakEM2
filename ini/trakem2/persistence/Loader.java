@@ -618,6 +618,10 @@ abstract public class Loader {
 					int iterations = 0;
 					Utils.showStatus("Clearing memory...");
 					do {
+						if (iterations >= 3) {
+							// Throw away half for all. This is the new version of the "massive mode".
+							releaseAllCaches(0.5f);
+						}
 						System.gc();
 						Thread.yield();
 						// 'run' should be false. If true, re-read initial values and iterations, for a new request came in:
@@ -636,7 +640,7 @@ abstract public class Loader {
 							}
 						} catch (Exception e) {}
 						iterations++;
-					} while ((now + (now/10)) >= initial && iterations < MAX_ITERATIONS); // 10 % is acceptable
+					} while ((now + (now/10)) >= initial && iterations < MAX_ITERATIONS); // 10% is acceptable
 					Utils.showStatus("Memory cleared.");
 				}
 			}
@@ -867,6 +871,13 @@ abstract public class Loader {
 	static public void releaseAllCaches() {
 		for (final Loader lo : new Vector<Loader>(v_loaders)) {
 			lo.releaseAll();
+		}
+	}
+
+	static public void releaseAllCaches(final float fraction) {
+		final long mem = (long)(IJ.maxMemory() * fraction);
+		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+			lo.releaseMemory(mem);
 		}
 	}
 
