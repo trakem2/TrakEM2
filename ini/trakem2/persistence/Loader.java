@@ -618,10 +618,6 @@ abstract public class Loader {
 					int iterations = 0;
 					Utils.showStatus("Clearing memory...");
 					do {
-						if (iterations >= 3) {
-							// Throw away half for all. This is the new version of the "massive mode".
-							releaseAllCaches(0.5f);
-						}
 						System.gc();
 						Thread.yield();
 						// 'run' should be false. If true, re-read initial values and iterations, for a new request came in:
@@ -785,7 +781,7 @@ abstract public class Loader {
 	private final long releaseOthers(final long min_free_bytes) {
 		if (1 == v_loaders.size()) return 0;
 		long released = 0;
-		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			if (lo == this) continue;
 			released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
 			if (released >= min_free_bytes) return released;
@@ -869,14 +865,14 @@ abstract public class Loader {
 	static private final AtomicLong clonks = new AtomicLong();
 
 	static public void releaseAllCaches() {
-		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			lo.releaseAll();
 		}
 	}
 
 	static public void releaseAllCaches(final float fraction) {
 		final long mem = (long)(IJ.maxMemory() * fraction);
-		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			lo.releaseMemory(mem);
 		}
 	}
