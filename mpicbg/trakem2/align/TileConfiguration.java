@@ -28,6 +28,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.graphics.AddARGBComposite;
+import ini.trakem2.display.graphics.FilterARGBComposite;
 import ini.trakem2.display.graphics.SubtractInverseARGBComposite;
 
 public class TileConfiguration extends mpicbg.models.TileConfiguration
@@ -139,10 +140,10 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		for ( int l = 0; l <= lastLayerIndex; ++ l )
 		{
 			if ( l == lastLayerIndex )
-				g.setComposite( SubtractInverseARGBComposite.getInstance( 1.0f ) );				
+				g.setComposite( FilterARGBComposite.getInstance( 1.0f ) );				
 			else
 				//g.setComposite( SubtractInverseARGBComposite.getInstance( 0.33f ) );
-				g.setComposite( AlphaComposite.getInstance( AlphaComposite.SRC_OVER, 0.33f ) );
+				g.setComposite( FilterARGBComposite.getInstance( 0.5f ) );
 			
 			final Layer layer = layers.get( l );
 			final Image imgLayer = layer.getProject().getLoader().getFlatAWTImage( layer, srcRect, magnification, -1, ImagePlus.COLOR_RGB, Patch.class, null, false, Color.WHITE );
