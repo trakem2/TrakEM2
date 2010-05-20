@@ -726,7 +726,9 @@ final public class AlignTask
 			
 		if ( Thread.currentThread().isInterrupted() ) return;
 		
-		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
+		/* <visualization> */
+		//Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
+		/* </visualization> */
 		
 		for ( AbstractAffineTile2D< ? > t : interestingTiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
@@ -1075,7 +1077,11 @@ final public class AlignTask
 					final ArrayList< AbstractAffineTile2D< ? > > currentLayerGraphTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 					currentLayerGraphTiles.addAll( ( Set )currentLayerGraph );
 					
-					AbstractAffineTile2D.pairOverlappingTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
+					/* <visualization> */
+					//AbstractAffineTile2D.pairOverlappingTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
+					AbstractAffineTile2D.pairTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
+					/* </visualization> */
+					
 				}
 			}
 			

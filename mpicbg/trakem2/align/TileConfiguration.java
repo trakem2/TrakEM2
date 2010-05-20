@@ -5,11 +5,13 @@ package mpicbg.trakem2.align;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Formatter;
 import java.util.HashSet;
 
 import mpicbg.ij.visualization.PointVis;
@@ -46,12 +48,15 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		
 		/* initialize the configuration with the current model of each tile */
 		apply();
-		
+		updateErrors();
+		observer.add( error );
 		
 		println( "i mean min max" );
 		
 		while ( proceed )
 		{
+			visualizeOptimizationIteration( i );
+			
 			for ( final Tile< ? > tile : tiles )
 			{
 				if ( fixedTiles.contains( tile ) ) continue;
@@ -77,8 +82,6 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 				}
 			}
 			
-			visualizeOptimizationIteration( i );
-			
 			println( new StringBuffer( i + " " ).append( error ).append( " " ).append( minError ).append( " " ).append( maxError ).toString() );
 			
 			proceed &= ++i < maxIterations;
@@ -95,8 +98,8 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 	
 	public void visualizeOptimizationIteration( final int i )
 	{
-		final int width = 720;
-		final int height = 720;
+		final int width = 512;
+		final int height = 512;
 		
 		final double displayWidth = ( ( AbstractAffineTile2D< ? > )tiles.iterator().next() ).getPatch().getLayerSet().getLayerWidth();
 		final double displayHeight = ( ( AbstractAffineTile2D< ? > )tiles.iterator().next() ).getPatch().getLayerSet().getLayerHeight();
@@ -110,11 +113,15 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		int maxY = Integer.MIN_VALUE;
 		for ( final Tile< ? > t : tiles )
 		{
-			final Rectangle b = ( ( AbstractAffineTile2D< ? > )t ).getPatch().getBoundingBox();
+			final AbstractAffineTile2D< ? > at = ( AbstractAffineTile2D< ? > )t;
+			
+			final Rectangle b = at.getPatch().getBoundingBox();
 			minX = Math.min( minX, b.x );
 			maxX = Math.max( maxX, b.x + b.width );
 			minY = Math.min( minY, b.y );
 			maxY = Math.max( maxY, b.y + b.height );
+			
+			at.getPatch().setAffineTransform( at.createAffine() );
 		}
 		
 		int lastLayerIndex = 0;
@@ -132,10 +139,10 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		for ( int l = 0; l <= lastLayerIndex; ++ l )
 		{
 			if ( l == lastLayerIndex )
-				g.setComposite( SubtractInverseARGBComposite.getInstance( 0.5f ) );				
+				g.setComposite( SubtractInverseARGBComposite.getInstance( 1.0f ) );				
 			else
 				//g.setComposite( SubtractInverseARGBComposite.getInstance( 0.33f ) );
-				g.setComposite( AlphaComposite.getInstance( AlphaComposite.SRC_OVER, 0.25f ) );
+				g.setComposite( AlphaComposite.getInstance( AlphaComposite.SRC_OVER, 0.33f ) );
 			
 			final Layer layer = layers.get( l );
 			final Image imgLayer = layer.getProject().getLoader().getFlatAWTImage( layer, srcRect, magnification, -1, ImagePlus.COLOR_RGB, Patch.class, null, false, Color.WHITE );
@@ -154,7 +161,13 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 			PointVis.drawWorldPoints( ip, srcPoints, Color.GREEN, 3, srcRect, magnification );
 		}
 		
+		ip.setAntialiasedText( true );
+		ip.setFont( new Font( "Sans", Font.PLAIN, 18 ) );
+		ip.setColor( Color.BLACK );
+		ip.drawString( "i: " + i, 20, 490 );
+		ip.drawString( "e: (" + String.format( "%.2f", minError ) + ", " + String.format( "%.2f", error ) + ", " + String.format( "%.2f", maxError ) + ")", 120, 490 );
+		
 		final ImagePlus impI = new ImagePlus( "i " + i, ip );
-		IJ.save( impI, "optimize-" + lastLayerIndex + "-" + i + ".tif" );
+		IJ.save( impI, "optimize-" + String.format( "%04d", lastLayerIndex ) + "-" + String.format( "%04d", i ) + ".tif" );
 	}
 }
