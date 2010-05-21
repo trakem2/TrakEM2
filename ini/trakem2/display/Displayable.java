@@ -2134,6 +2134,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return getAreaAt(layer);
 	}
 
+	/** If this Displayable intersects with @param r or almost intersects, then returns true.
+	 *  This method is meant to be very fast, and err on the "yes" and never on the "no". */
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		// Unless overriden:
+		final Area a = getAreaForBucket(layer);
+		if (a == null) return false;
+		return a.getBounds().intersects(r);
+	}
+
 	public void setAnnotation(final String annotation) { this.annotation = annotation; }
 
 	/** Returns null if none. */

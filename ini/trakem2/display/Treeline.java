@@ -227,7 +227,24 @@ public class Treeline extends Tree {
 
 		public final Float getDataCopy() { return this.r; }
 
-		private Polygon getSegment() {
+		@Override
+		public boolean isRoughlyInside(final Rectangle localbox) {
+			if (0 == this.r) {
+				if (null == parent) {
+					return localbox.contains((int)this.x, (int)this.y);
+				} else {
+					if (0 == parent.getData()) { // parent.getData() == ((RadiusNode)parent).r
+						return localbox.intersectsLine(parent.x, parent.y, this.x, this.y);
+					} else {
+						return getSegment().intersects(localbox);
+					}
+				}
+			} else {
+				return getSegment().intersects(localbox);
+			}
+		}
+
+		private final Polygon getSegment() {
 			final RadiusNode parent = (RadiusNode) this.parent;
 			float vx = parent.x - this.x;
 			float vy = parent.y - this.y;
@@ -245,7 +262,7 @@ public class Treeline extends Tree {
 					   4);
 		}
 
-		/** Paint radiuses. */
+		/** Paint segments. */
 		@Override
 		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
 			if (null == this.parent) return;

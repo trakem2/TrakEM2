@@ -2597,6 +2597,23 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al;
 	}
 
+	/** Find ZDisplayable objects that intersect the given rectangle in the given layer.
+	 *  May return false positives but never false negatives. */
+	protected Collection<Displayable> roughlyFindZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
+		if (null != lbucks) {
+			LayerBucket lb = lbucks.get(layer);
+			if (null != lb) return lb.root.roughlyFind(r, layer, visible_only);
+			else nbmsg(layer);
+		}
+		// Else, linear:
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final ZDisplayable zd : al_zdispl) {
+			if (visible_only && !zd.isVisible()) continue;
+			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
+		}
+		return al;
+	}
+
 	private static final void nbmsg(final Layer la) {
 		Utils.log2("No buckets for layer " + la);
 	}

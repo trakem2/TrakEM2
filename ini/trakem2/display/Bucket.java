@@ -62,6 +62,7 @@ public class Bucket {
 
 	private final int x,y,w,h;
 	private final Area AREA;
+	private final Rectangle BOX;
 
 	private boolean empty = true;
 
@@ -70,7 +71,8 @@ public class Bucket {
 		this.y = y;
 		this.w = w;
 		this.h = h;
-		this.AREA = new Area(new Rectangle(x, y, w, h));
+		this.BOX = new Rectangle(x, y, w, h);
+		this.AREA = new Area(BOX);
 		this.bucket_side = bucket_side;
 		Utils.showStatus(new StringBuilder("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
 		//Utils.log2(this.toString());
@@ -232,6 +234,43 @@ public class Bucket {
 				if (visible_only && !d.isVisible()) continue;
 				final Area a = d.getAreaForBucket(layer);
 				if (null != a && M.intersects(asrc, a)) {
+					accum.put(entry.getKey(), d);
+				}
+			}
+		}
+	}
+
+	/** Find All Displayable objects that intersect with the given srcRect and return them ordered by stack_index. Of @param visible_only is true, then hidden Displayable objects are ignored.
+	 *
+	 * Fast and dirty, never returns a false negative but may return a false positive. */
+	synchronized final Collection<Displayable> roughlyFind(final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
+		find(accum, srcRect, layer, visible_only);
+		return accum.values(); // sorted by integer key
+	}
+
+	/** Recursive search, accumulates Displayable objects that intersect the srcRect and, if @param visible_only is true, then checks first if so. */
+	private void roughlyFind(final TreeMap<Integer,Displayable> accum, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+		if (empty || !intersects(srcRect)) return;
+		if (null != children) {
+			for (final Bucket bu : children) {
+				bu.roughlyFind(accum, srcRect, layer, visible_only);
+			}
+		} else {
+			final Rectangle tmp = new Rectangle();
+			final Area asrc = new Area(srcRect);
+			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+				final Displayable d = entry.getValue();
+				if (visible_only && !d.isVisible()) continue;
+				/* // Too slow for a rough search as needed by DisplayCanvas.gatherDisplayables!
+				 * // That method calls LayerSet.findZDisplayables(Layer, Rectangle, boolean) which calls here
+				final Area a = d.getAreaForBucket(layer);
+				if (null != a && M.intersects(asrc, a)) {
+					accum.put(entry.getKey(), d);
+				}
+				*/
+				// Instead:
+				if (d.isRoughlyInside(layer, BOX)) {
 					accum.put(entry.getKey(), d);
 				}
 			}

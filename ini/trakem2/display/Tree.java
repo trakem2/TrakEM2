@@ -2425,6 +2425,30 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 	}
 
+	/** Fast and dirty, never returns a false negative but may return a false positive. */
+	@Override
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle box) {
+		synchronized (node_layer_map) {
+			final Set<Node> nodes = node_layer_map.get(layer);
+			if (null == nodes) return false;
+			try {
+				final Rectangle local = this.at.createInverse().createTransformedShape(box).getBounds();
+				for (final Node nd : nodes) {
+					// May not be enough for lots of corner cases
+					// such as:
+					//  * parent and child node outside, but paint inside
+					//  * data of an outside node spills inside the box
+					//
+					// if (local.contains((int)nd.x, (int)nd.y)) return true;
+				}
+				return false;
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return false;
+			}
+		}
+	}
+
 	/** Retain the data within the layer range, and through out all the rest. */
 	@Override
 	synchronized public boolean crop(List<Layer> range) {

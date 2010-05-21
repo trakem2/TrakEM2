@@ -156,6 +156,12 @@ public class AreaTree extends Tree implements AreaContainer {
 		}
 
 		@Override
+		public boolean isRoughlyInside(final Rectangle localbox) {
+			if (null == aw) return localbox.contains((int)x, (int)y);
+			return aw.getArea().getBounds().intersects(localbox);
+		}
+
+		@Override
 		public Collection<Displayable> findLinkTargets(final AffineTransform aff) {
 			if (null == aw) return super.findLinkTargets(aff);
 			Area a = aw.getArea();

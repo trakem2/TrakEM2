@@ -211,6 +211,10 @@ public abstract class Node<T> implements Taggable {
 				//
 				for (int i=0, k=0; i<children.length; i++, k+=2) {
 					final Node child = children[i];
+
+					// Does the line from parent to child cross the srcRect?
+					// Or what is the same, does the line from parent to child cross any of the edges of the srcRect?
+
 					// To screen coords:
 					final int chx = (int)((fps[k] - srcRect.x) * magnification);
 					final int chy = (int)((fps[k+1] - srcRect.y) * magnification);
@@ -550,6 +554,10 @@ public abstract class Node<T> implements Taggable {
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
+
+	/** May return a false positive but never a false negative.
+	 *  Checks only for itself and towards its parent. */
+	public abstract boolean isRoughlyInside(Rectangle localbox);
 
 	/** Returns are in local coords. */
 	public Area getArea() {

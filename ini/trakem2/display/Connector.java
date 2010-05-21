@@ -110,6 +110,11 @@ public class Connector extends Treeline {
 		}
 
 		@Override
+		public boolean isRoughlyInside(final Rectangle localbox) {
+			return localbox.intersects(x - r, y - r, r + r, r + r);
+		}
+
+		@Override
 		public Area getArea() {
 			if (0 == r) return super.getArea(); // a little square
 			return new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r));
