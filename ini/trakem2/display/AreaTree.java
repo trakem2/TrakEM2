@@ -38,7 +38,7 @@ import java.awt.geom.Point2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 
-public class AreaTree extends Tree implements AreaContainer {
+public class AreaTree extends Tree<Area> implements AreaContainer {
 
 	private boolean fill_paint = true;
 
@@ -58,12 +58,12 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	@Override
-	public Tree newInstance() {
+	public Tree<Area> newInstance() {
 		return new AreaTree(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
 	@Override
-	public Node newNode(float lx, float ly, Layer la, Node modelNode) {
+	public Node<Area> newNode(float lx, float ly, Layer la, Node modelNode) {
 		// Ignore modeNode (could be nice, though, to automatically add the previous area)
 		return new AreaNode(lx, ly, la);
 	}
@@ -95,7 +95,7 @@ public class AreaTree extends Tree implements AreaContainer {
 			super(attr);
 		}
 
-		public final Node newInstance(final float lx, final float ly, final Layer layer) {
+		public final Node<Area> newInstance(final float lx, final float ly, final Layer layer) {
 			return new AreaNode(lx, ly, layer);
 		}
 
@@ -130,7 +130,7 @@ public class AreaTree extends Tree implements AreaContainer {
 
 		/** Returns false if the edges should not be painted. */
 		@Override
-		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree, final AffineTransform to_screen) {
+		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Area>> to_paint, final Tree<Area> tree, final AffineTransform to_screen) {
 			if (active_layer != this.la || null == aw) return true; // yes, paint the edges
 
 			aw.paint(g, to_screen, ((AreaTree)tree).fill_paint, tree.getColor());
@@ -191,7 +191,7 @@ public class AreaTree extends Tree implements AreaContainer {
 
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {
 		synchronized (node_layer_map) {
-			final Set<Node> nodes = node_layer_map.get(layer);
+			final Set<Node<Area>> nodes = node_layer_map.get(layer);
 			if (null == nodes) return null;
 			final List<Area> a = new ArrayList<Area>();
 			for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
@@ -213,10 +213,10 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	@Override
-	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node node) { return true; }
+	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node<Area> node) { return true; }
 
 	@Override
-	protected boolean exportXMLNodeData(final StringBuilder indent, final StringBuilder sb, final Node node) {
+	protected boolean exportXMLNodeData(final StringBuilder indent, final StringBuilder sb, final Node<Area> node) {
 		final AreaNode an = (AreaNode)node;
 		//Utils.log2("Calling AreaTree.exportXMLNodeData for node " + an + " which has area: " + (null != an.aw) + " which is not empty: " + (null != an.aw ? !an.aw.getArea().isEmpty() : true));
 		if (null == an.aw || an.aw.getArea().isEmpty()) {
@@ -235,7 +235,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		if (null == root) return false;
 		Rectangle box = null;
 		synchronized (node_layer_map) {
-			for (final Collection<Node> nodes : node_layer_map.values()) {
+			for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
 				for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
 					if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 					else box.add((int)nd.x, (int)nd.y);
@@ -254,8 +254,8 @@ public class AreaTree extends Tree implements AreaContainer {
 		final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
 
 		// now readjust points to make min_x,min_y be the x,y
-		for (final Collection<Node> nodes : node_layer_map.values()) {
-			for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
+		for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
+			for (final Node<Area> nd : nodes) {
 				nd.translate(-box.x, -box.y); // just the x,y itself
 				nd.getData().transform(aff);
 			}}
@@ -266,7 +266,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		return true;
 	}
 
-	private AreaNode findEventReceiver(final Collection<Node> nodes, final int lx, final int ly, final Layer layer, final double mag, final InputEvent ie) {
+	private AreaNode findEventReceiver(final Collection<Node<Area>> nodes, final int lx, final int ly, final Layer layer, final double mag, final InputEvent ie) {
 
 		Area brush = null;
 		try {
@@ -336,7 +336,7 @@ public class AreaTree extends Tree implements AreaContainer {
 		if (null == root) return;
 
 		final Layer layer = Display.getFrontLayer();
-		final Collection<Node> nodes = node_layer_map.get(layer);
+		final Collection<Node<Area>> nodes = node_layer_map.get(layer);
 		if (null == nodes || nodes.isEmpty()) {
 			return;
 		}
@@ -353,9 +353,9 @@ public class AreaTree extends Tree implements AreaContainer {
 				IJError.print(nite);
 				return;
 			}
-			for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
+			for (final Node<Area> nd : nodes) {
 				if (nd.intersects(roi)) {
-					receiver = nd;
+					receiver = (AreaNode)nd;
 					break;
 				}
 			}
@@ -428,7 +428,7 @@ public class AreaTree extends Tree implements AreaContainer {
 				DisplayCanvas dc = (DisplayCanvas)origin;
 				Layer layer = dc.getDisplay().getLayer();
 
-				final Collection<Node> nodes = node_layer_map.get(layer);
+				final Collection<Node<Area>> nodes = node_layer_map.get(layer);
 				if (null == nodes || nodes.isEmpty()) {
 					return;
 				}
@@ -462,7 +462,7 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node> nodes) {
+	protected Rectangle getBounds(final Collection<Node<Area>> nodes) {
 		Rectangle box = null;
 		for (final AreaNode nd : (Collection<AreaNode>)(Collection)nodes) {
 			final Rectangle b;
@@ -478,7 +478,7 @@ public class AreaTree extends Tree implements AreaContainer {
 	public List generateMesh(final double scale, final int resample) {
 		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
-			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+			for (final Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {
 				final Area a = new Area();
 				for (final AreaNode nd : (Collection<AreaNode>) (Collection) e.getValue()) {
 					if (null != nd.aw) a.add(nd.aw.getArea());
@@ -490,8 +490,8 @@ public class AreaTree extends Tree implements AreaContainer {
 	}
 
 	public void debug() {
-		for (Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-			for (Node nd : e.getValue()) {
+		for (Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {
+			for (Node<Area> nd : e.getValue()) {
 				Area a = ((AreaNode)nd).aw.getArea();
 				Utils.log2("area: " + a + "  " + (null != a ? a.getBounds() : null));
 				Utils.log2(" .. and has paths: " + M.getPolygons(a).size());
@@ -502,8 +502,8 @@ public class AreaTree extends Tree implements AreaContainer {
 	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
 	 *  where a segment is defined as the line between a clicked point and the next. */
 	@Override
-	protected boolean isAnyNear(final Collection<Node> nodes, final float lx, final float ly, final float radius) {
-		for (final Node nd : nodes) {
+	protected boolean isAnyNear(final Collection<Node<Area>> nodes, final float lx, final float ly, final float radius) {
+		for (final Node<Area> nd : nodes) {
 			final AreaNode an = (AreaNode)nd;
 			if (null == an.aw && an.isNear(lx, ly, radius)) return true;
 			if (an.getData().contains(lx, ly)) return true;
