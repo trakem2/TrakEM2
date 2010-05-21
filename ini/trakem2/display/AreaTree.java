@@ -128,16 +128,14 @@ public class AreaTree extends Tree implements AreaContainer {
 			return a;
 		}
 
+		/** Returns false if the edges should not be painted. */
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
-			if (active_layer != this.la || null == aw) return;
+		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree, final AffineTransform to_screen) {
+			if (active_layer != this.la || null == aw) return true; // yes, paint the edges
 
-			final AffineTransform aff = new AffineTransform();
-			aff.scale(magnification, magnification);
-			aff.translate(-srcRect.x, -srcRect.y);
-			aff.concatenate(tree.at);
+			aw.paint(g, to_screen, ((AreaTree)tree).fill_paint, tree.getColor());
 
-			aw.paint(g, aff, ((AreaTree)tree).fill_paint, tree.getColor());
+			return true;
 		}
 
 		/*

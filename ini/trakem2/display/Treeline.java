@@ -262,18 +262,16 @@ public class Treeline extends Tree {
 					   4);
 		}
 
-		/** Paint segments. */
+		/** Paint segments. Returns true if the edges have to be painted as well. */
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
-			if (null == this.parent) return;
-			RadiusNode parent = (RadiusNode) this.parent;
-			if (0 == this.r && 0 == parent.r) return;
+		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree, final AffineTransform to_screen) {
+			if (null == this.parent) return true; // doing it here for less total cost
+			if (0 == this.r && 0 == parent.getData()) return true;
 
-			final AffineTransform a = new AffineTransform();
-			a.scale(magnification, magnification);
-			a.translate(-srcRect.x, -srcRect.y);
-			a.concatenate(tree.at);
-			Shape shape = a.createTransformedShape(getSegment());
+			// Two transformations, but it's onluy 4 points each and it's necessary
+			final Polygon segment = getSegment();
+			if (!tree.at.createTransformedShape(segment).getBounds().intersects(srcRect)) return false;
+			final Shape shape = to_screen.createTransformedShape(segment);
 
 			// Which color?
 			if (active_layer == this.la) {
@@ -283,13 +281,14 @@ public class Treeline extends Tree {
 				else g.setColor(Color.blue);
 			}
 
-			Composite c = g.getComposite();
-			float alpha = tree.getAlpha();
-			if (alpha > 0.4f) alpha = 0.4f;
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			final Composite c = g.getComposite();
+			final float alpha = tree.getAlpha();
+			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha > 0.4f ? 0.4f : alpha));
 			g.fill(shape);
 			g.setComposite(c);
 			g.draw(shape); // in Tree's composite mode (such as an alpha)
+
+			return true;
 		}
 
 		/** Expects @param a in local coords. */

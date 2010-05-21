@@ -195,21 +195,26 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
 				stroke = g.getStroke();
 				g.setStroke(DisplayCanvas.DEFAULT_STROKE);
+				final AffineTransform to_screen = new AffineTransform();
+				to_screen.scale(magnification, magnification);
+				to_screen.translate(-srcRect.x, -srcRect.y);
+				to_screen.concatenate(this.at);
 				for (final Node nd : nodes) {
-					nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this);
-					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
-					if (nd == marked) {
-						if (null == MARKED_CHILD) createMarks();
-						Composite c = g.getComposite();
-						g.setXORMode(Color.green);
-						float[] fps = new float[]{nd.x, nd.y};
-						this.at.transform(fps, 0, fps, 0, 1);
-						AffineTransform aff = new AffineTransform();
-						aff.translate((fps[0] - srcRect.x) * magnification, (fps[1] - srcRect.y) * magnification);
-						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
-						g.setComposite(c);
+					if (nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this, to_screen)) {
+						nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
+						if (nd == marked) {
+							if (null == MARKED_CHILD) createMarks();
+							Composite c = g.getComposite();
+							g.setXORMode(Color.green);
+							float[] fps = new float[]{nd.x, nd.y};
+							this.at.transform(fps, 0, fps, 0, 1);
+							AffineTransform aff = new AffineTransform();
+							aff.translate((fps[0] - srcRect.x) * magnification, (fps[1] - srcRect.y) * magnification);
+							g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
+							g.setComposite(c);
+						}
+						if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 					}
-					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
 				}
 			}
 		}
@@ -2441,7 +2446,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					//
 					// if (local.contains((int)nd.x, (int)nd.y)) return true;
 
-					// A bit more carful:
+					// A bit more careful:
 					if (nd.isRoughlyInside(local)) return true;
 				}
 				return false;

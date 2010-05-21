@@ -86,21 +86,21 @@ public class Connector extends Treeline {
 			return new ConnectorNode(lx, ly, layer, 0);
 		}
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree) {
-			final AffineTransform a = new AffineTransform();
-			a.scale(magnification, magnification);
-			a.translate(-srcRect.x, -srcRect.y);
-			a.concatenate(tree.at);
+		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree, final AffineTransform to_screen) {
+			if (srcRect.intersects(x - r, y - r, r + r, r + r)) {
+				// Which color?
+				if (active_layer == this.la) {
+					g.setColor(tree.getColor());
+				} else {
+					if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
+					else g.setColor(Color.blue);
+				}
 
-			// Which color?
-			if (active_layer == this.la) {
-				g.setColor(tree.getColor());
-			} else {
-				if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
-				else g.setColor(Color.blue);
+				g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
+
+				return true;
 			}
-
-			g.draw(a.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
+			return false;
 		}
 
 		@Override

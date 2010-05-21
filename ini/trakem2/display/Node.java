@@ -550,7 +550,7 @@ public abstract class Node<T> implements Taggable {
 
 	public abstract Node newInstance(float x, float y, Layer layer);
 
-	abstract public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree);
+	abstract public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree, final AffineTransform to_screen);
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
