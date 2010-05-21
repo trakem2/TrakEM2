@@ -1469,4 +1469,24 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		if (null == a) return null;
 		return a.createTransformedArea(this.at);
 	}
+
+	@Override
+	public boolean isRoughlyInside(final Layer layer, final Rectangle box) {
+		final Area a = getArea(layer);
+		if (null == a) return false;
+		final float[] coords = new float[6];
+		final float precision = 0.0001f;
+		for (final PathIterator pit = a.getPathIterator(this.at); !pit.isDone(); pit.next()) {
+			switch (pit.currentSegment(coords)) {
+				case PathIterator.SEG_MOVETO:
+				case PathIterator.SEG_LINETO:
+				case PathIterator.SEG_CLOSE:
+					if (box.contains(coords[0], coords[1])) return true;
+					break;
+				default:
+					break;
+			}
+		}
+		return false;
+	}
 }
