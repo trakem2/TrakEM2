@@ -158,7 +158,8 @@ public class AreaTree extends Tree implements AreaContainer {
 		@Override
 		public boolean isRoughlyInside(final Rectangle localbox) {
 			if (null == aw) return localbox.contains((int)x, (int)y);
-			return aw.getArea().getBounds().intersects(localbox);
+			if (aw.getArea().getBounds().intersects(localbox)) return true;
+			return super.isRoughlyInside(localbox);
 		}
 
 		@Override

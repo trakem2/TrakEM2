@@ -557,7 +557,13 @@ public abstract class Node<T> implements Taggable {
 
 	/** May return a false positive but never a false negative.
 	 *  Checks only for itself and towards its parent. */
-	public abstract boolean isRoughlyInside(Rectangle localbox);
+	public boolean isRoughlyInside(final Rectangle localbox) {
+		if (null == parent) {
+			return localbox.contains((int)this.x, (int)this.y);
+		} else {
+			return localbox.intersectsLine(parent.x, parent.y, this.x, this.y);
+		}
+	}
 
 	/** Returns are in local coords. */
 	public Area getArea() {
