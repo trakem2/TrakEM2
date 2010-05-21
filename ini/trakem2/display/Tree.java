@@ -2440,6 +2440,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					//  * data of an outside node spills inside the box
 					//
 					// if (local.contains((int)nd.x, (int)nd.y)) return true;
+
+					// A bit more carful:
+					if (nd.isRoughlyInside(local)) return true;
 				}
 				return false;
 			} catch (NoninvertibleTransformException nite) {
