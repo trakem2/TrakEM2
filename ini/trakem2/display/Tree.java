@@ -145,11 +145,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		this.color = color;
 	}
 
-	final protected Collection<Node> getNodesToPaint(final Layer active_layer) {
+	final protected Set<Node> getNodesToPaint(final Layer active_layer) {
 		// Determine which layers to paint
-		final Collection<Node> nodes;
+		final Set<Node> nodes;
 		if (layer_set.color_cues) {
-			nodes = new ArrayList<Node>();
+			nodes = new HashSet<Node>();
 			if (-1 == layer_set.n_layers_color_cue) {
 				// All layers
 				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
