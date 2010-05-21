@@ -87,7 +87,10 @@ public class Connector extends Treeline {
 		}
 		@Override
 		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node> to_paint, final Tree tree, final AffineTransform to_screen) {
-			if (srcRect.intersects(x - r, y - r, r + r, r + r)) {
+			final float[] fp = new float[]{x, y, x + r, y};
+			tree.at.transform(fp, 0, fp, 0, 2);
+			final float radius = fp[2] - fp[0];
+			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
 				// Which color?
 				if (active_layer == this.la) {
 					g.setColor(tree.getColor());
