@@ -195,10 +195,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
 				stroke = g.getStroke();
 				g.setStroke(DisplayCanvas.DEFAULT_STROKE);
+
 				final AffineTransform to_screen = new AffineTransform();
 				to_screen.scale(magnification, magnification);
 				to_screen.translate(-srcRect.x, -srcRect.y);
 				to_screen.concatenate(this.at);
+
 				for (final Node<T> nd : nodes) {
 					if (nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this, to_screen)) {
 						nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
