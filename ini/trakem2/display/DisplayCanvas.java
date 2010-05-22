@@ -2532,7 +2532,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 					}
 					// Repeating loop ... the human compiler at work, just because one cannot lazily concatenate both sequences:
-					for (final Displayable d : lp.layer.getParent().findZDisplayables(lp.layer, srcRect, true)) {
+					for (final Displayable d : lp.layer.getParent().roughlyFindZDisplayables(lp.layer, srcRect, true)) {
 						if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
 						d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 					}
