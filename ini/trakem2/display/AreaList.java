@@ -1474,6 +1474,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	public boolean isRoughlyInside(final Layer layer, final Rectangle box) {
 		final Area a = getArea(layer);
 		if (null == a) return false;
+		/*
 		final float[] coords = new float[6];
 		final float precision = 0.0001f;
 		for (final PathIterator pit = a.getPathIterator(this.at); !pit.isDone(); pit.next()) {
@@ -1488,5 +1489,16 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			}
 		}
 		return false;
+		*/
+		// The above is about 2x to 3x faster than:
+		//return a.createTransformedArea(this.at).intersects(box);
+
+		// But this is 3x faster even than using path iterator:
+		try {
+			return this.at.createInverse().createTransformedShape(box).intersects(a.getBounds());
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
+			return false;
+		}
 	}
 }
