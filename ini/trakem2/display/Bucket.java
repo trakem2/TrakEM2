@@ -245,7 +245,7 @@ public class Bucket {
 	 * Fast and dirty, never returns a false negative but may return a false positive. */
 	synchronized final Collection<Displayable> roughlyFind(final Rectangle srcRect, final Layer layer, final boolean visible_only) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, srcRect, layer, visible_only);
+		roughlyFind(accum, srcRect, layer, visible_only);
 		return accum.values(); // sorted by integer key
 	}
 
