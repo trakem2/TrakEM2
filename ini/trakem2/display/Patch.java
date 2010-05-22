@@ -1766,4 +1766,9 @@ public final class Patch extends Displayable implements ImageData {
 	protected Area getAreaForBucket(final Layer layer) {
 		return new Area(getPerimeter());
 	}
+
+	@Override
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		return layer == this.layer && r.intersects(getBoundingBox());
+	}
 }
