@@ -1013,6 +1013,16 @@ public class Ball extends ZDisplayable implements VectorData {
 		return a;
 	}
 
+	@Override
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		if (0 == n_points) return false;
+		final Rectangle box = this.at.createTransformedShape(r).getBounds();
+		for (int i=0; i<n_points; i++) {
+			if (box.contains(p[0][i], p[1][i])) return true;
+		}
+		return false;
+	}
+
 	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated.
 	 * 'name-id' is a column that displays the title of this Ball object only when such title is purely a number.
 	 * */
