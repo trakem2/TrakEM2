@@ -240,7 +240,11 @@ public class Treeline extends Tree<Float> {
 					}
 				}
 			} else {
-				return getSegment().intersects(localbox);
+				if (null == parent) {
+					return localbox.contains((int)this.x, (int)this.y);
+				} else {
+					return getSegment().intersects(localbox);
+				}
 			}
 		}
 
@@ -268,9 +272,9 @@ public class Treeline extends Tree<Float> {
 			if (null == this.parent) return true; // doing it here for less total cost
 			if (0 == this.r && 0 == parent.getData()) return true;
 
-			// Two transformations, but it's onluy 4 points each and it's necessary
+			// Two transformations, but it's only 4 points each and it's necessary
 			final Polygon segment = getSegment();
-			if (!tree.at.createTransformedShape(segment).getBounds().intersects(srcRect)) return false;
+			if (!tree.at.createTransformedShape(segment).intersects(srcRect)) return false;
 			final Shape shape = to_screen.createTransformedShape(segment);
 
 			// Which color?
