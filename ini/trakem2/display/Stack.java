@@ -125,7 +125,7 @@ public class Stack extends ZDisplayable implements ImageData
 
 	/** For cloning purposes. */
 	private Stack(Project project, long id, String title,
-		      AffineTransform at, double width, double height,
+		      AffineTransform at, float width, float height,
 		      float alpha, boolean visible, Color color, boolean locked,
 		      double depth, double min, double max,
 		      float[] boundsMin, float[] boundsMax,
@@ -514,8 +514,8 @@ public class Stack extends ZDisplayable implements ImageData
 		g.setComposite( original_composite );
 	}
 
-	static public final void exportDTD( final StringBuffer sb_header, final HashSet hs, final String indent ) {
-		String type = "t2_stack";
+	static public final void exportDTD( final StringBuilder sb_header, final HashSet hs, final String indent ) {
+		final String type = "t2_stack";
 		if (hs.contains(type)) return;
 		hs.add( type );
 		sb_header.append(indent).append("<!ELEMENT t2_stack (").append(Displayable.commonDTDChildren()).append(",(iict_transform|iict_transform_list)?)>\n");
@@ -525,12 +525,13 @@ public class Stack extends ZDisplayable implements ImageData
 	}
 	
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) { // TODO the Loader should handle the saving of images, not this class.
-		String in = indent + "\t";
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
+		final String in = indent + "\t";
 		sb_body.append(indent).append("<t2_stack\n");
 		
 		super.exportXML(sb_body, in, any);
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 
 		sb_body.append(in).append("file_path=\"").append(file_path).append("\"\n")
 		       .append(in).append("style=\"fill-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n")

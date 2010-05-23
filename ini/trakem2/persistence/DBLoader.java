@@ -989,7 +989,7 @@ public class DBLoader extends Loader {
 		ResultSet r = connection.prepareStatement("SELECT ab_profiles.id, ab_displayables.id, title, width, height, alpha, visible, color_red, color_green, color_blue, closed, locked, m00, m10, m01, m11, m02, m12 FROM ab_profiles, ab_displayables WHERE ab_profiles.id=ab_displayables.id AND ab_profiles.id=" + id).executeQuery();
 		Profile p = null;
 		if (r.next()) {
-			p = new Profile(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), (float)r.getDouble("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("closed"), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			p = new Profile(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), (float)r.getDouble("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("closed"), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 			// the polygon is not loaded, only when repainting the profile.
 		}
 		r.close();
@@ -1000,7 +1000,7 @@ public class DBLoader extends Loader {
 		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_pipe_points.pipe_id, ab_displayables.locked, m00, m10, m01, m11, m02, m12 FROM ab_zdisplayables, ab_displayables, ab_pipe_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_pipe_points.pipe_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
 		Pipe p = null;
 		if (r.next()) {
-			p = new Pipe(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			p = new Pipe(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return p;
@@ -1010,7 +1010,7 @@ public class DBLoader extends Loader {
 		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_ball_points.ball_id, ab_displayables.locked, m00, m10, m01, m11, m02, m12 FROM ab_zdisplayables, ab_displayables, ab_ball_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_ball_points.ball_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
 		Ball b = null;
 		if (r.next()) {
-			b = new Ball(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			b = new Ball(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return b;
@@ -1026,7 +1026,7 @@ public class DBLoader extends Loader {
 		r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, locked, m00, m10, m01, m11, m02, m12, ab_zdisplayables.id FROM ab_zdisplayables, ab_displayables WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=" + id).executeQuery();
 		AreaList area_list = null;
 		if (r.next()) {
-			area_list = new AreaList(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), al_ul, new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			area_list = new AreaList(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), al_ul, new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return area_list;
@@ -1129,7 +1129,7 @@ public class DBLoader extends Loader {
 				LayerSet layer_set = null;
 				if (rls.next()) {
 					long ls_id = rls.getLong("id");
-					layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
+					layer_set = new LayerSet(project, ls_id, rls.getString("title"), (float)rls.getDouble("width"), (float)rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), (float)rls.getDouble("layer_width"), (float)rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 					// store for children Layer to find it
 					hs_pt.put(new Long(ls_id), layer_set);
 					// find the pipes (or other possible ZDisplayable objects) in the hs_pt that belong to this LayerSet and add them silently
@@ -1188,7 +1188,7 @@ public class DBLoader extends Loader {
 			ResultSet rls = connection.prepareStatement("SELECT * FROM ab_layer_sets, ab_displayables WHERE ab_layer_sets.id=ab_displayables.id AND ab_layer_sets.parent_layer_id=" + id).executeQuery();
 			while (rls.next()) {
 				long ls_id = rls.getLong("id");
-				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
+				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), (float)rls.getDouble("width"), (float)rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), (float)rls.getDouble("layer_width"), (float)rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 				hs_pt.put(new Long(ls_id), layer_set);
 				hs_d.put(new Integer(rls.getInt("stack_index")), layer_set);
 				layer_set.setLayer(layer, false);
@@ -1211,7 +1211,7 @@ public class DBLoader extends Loader {
 			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, width, height, stack_index, imp_type, locked, min, max, m00, m10, m01, m11, m02, m12 FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rp.next()) {
 				long patch_id = rp.getLong("id");
-				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("width"), rp.getDouble("height"), rp.getInt("o_width"), rp.getInt("o_height"),rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
+				Patch patch = new Patch(project, patch_id, rp.getString("title"), (float)rp.getDouble("width"), (float)rp.getDouble("height"), rp.getInt("o_width"), rp.getInt("o_height"),rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
 				hs_pt.put(new Long(patch_id), patch); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rp.getInt("stack_index")), patch);
 			}
@@ -1221,7 +1221,7 @@ public class DBLoader extends Loader {
 			ResultSet rl = connection.prepareStatement("SELECT ab_labels.id, ab_displayables.id, layer_id, title, width, height, m00, m10, m01, m11, m02, m12, stack_index, font_name, font_style, font_size, ab_labels.type, locked FROM ab_labels,ab_displayables WHERE ab_labels.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rl.next()) {
 				long label_id = rl.getLong("id");
-				DLabel label = new DLabel(project, label_id, rl.getString("title"), rl.getDouble("width"), rl.getDouble("height"), rl.getInt("type"), rl.getString("font_name"), rl.getInt("font_style"), rl.getInt("font_size"), rl.getBoolean("locked"), new AffineTransform(rl.getDouble("m00"), rl.getDouble("m10"), rl.getDouble("m01"), rl.getDouble("m11"), rl.getDouble("m02"), rl.getDouble("m12")));
+				DLabel label = new DLabel(project, label_id, rl.getString("title"), (float)rl.getDouble("width"), (float)rl.getDouble("height"), rl.getInt("type"), rl.getString("font_name"), rl.getInt("font_style"), rl.getInt("font_size"), rl.getBoolean("locked"), new AffineTransform(rl.getDouble("m00"), rl.getDouble("m10"), rl.getDouble("m01"), rl.getDouble("m11"), rl.getDouble("m02"), rl.getDouble("m12")));
 				hs_pt.put(new Long(label_id), label); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rl.getInt("stack_index")), label);
 			}

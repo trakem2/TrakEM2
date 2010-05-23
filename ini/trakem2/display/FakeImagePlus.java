@@ -157,10 +157,18 @@ public class FakeImagePlus extends ImagePlus {
 		public void setPixels(Object ob) {} // disabled
 	}
 
+	// Like ImagePlus.d2s, which is private
+	private final String doubleToString(final double n) {
+		return n == (int)n ? Integer.toString((int)n)
+				   : IJ.d2s(n);
+	}
+
 	@Override
 	public void mouseMoved(final int x, final int y) {
-		final StringBuilder sb = new StringBuilder("x=").append(x).append(", y=").append(y);
-		if (ProjectToolbar.getToolId() <= ProjectToolbar.SELECT && !display.getLayerSet().getProject().mipmapsOnlyMode()) { // davi-experimenting: add mipmapsOnlyMode test (otherwise repair dialog will be triggered when getPixel(x,y) fails
+		final Calibration cal = getCalibration();
+		final StringBuilder sb = new StringBuilder(64).append("x=").append(doubleToString(cal.getX(x))).append(' ').append(cal.getUnit())
+		  .append(", y=").append(doubleToString(cal.getY(y))).append(' ').append(cal.getUnit());
+		if (ProjectToolbar.getToolId() <= ProjectToolbar.SELECT && !display.getLayerSet().getProject().mipmapsOnlyMode()) { // davi-experimenting: add mipmapsOnlyMode test (otherwise repair dialog will be triggered when getPixel(x,y) fails)
 			sb.append(", value=");
 			final int[] v = getPixel(x, y);
 			switch (type) {

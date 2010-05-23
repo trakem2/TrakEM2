@@ -19,18 +19,20 @@ import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
+import javax.swing.JTabbedPane;
 import javax.swing.table.AbstractTableModel;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.IJError;
 
 /** List all connectors whose origins intersect with the given tree. */
 public class TreeConnectorsView {
 
 	private JFrame frame;
-	private TargetsTableModel model;
+	private TargetsTableModel outgoing_model = new TargetsTableModel(),
+				  incoming_model = new TargetsTableModel();
 	private Tree tree;
-	private List<Row> rows;
 
 	public TreeConnectorsView(final Tree tree) {
 		this.tree = tree;
@@ -105,36 +107,29 @@ public class TreeConnectorsView {
 
 	public void update() {
 		// Find all Connector instances intersecting with the nodes of Tree
-		final List<Row> rows = new ArrayList<Row>();
-		final Set<Connector> cons_unique = new HashSet<Connector>();
-		for (final Node nd : (Collection<Node>)this.tree.getRoot().getSubtreeNodes()) {
-			final Area a = nd.getArea();
-			a.transform(this.tree.at);
-			final Collection<Connector> ds = (Collection<Connector>)(Collection)nd.la.getParent().find(Connector.class, nd.la, a, true);
-			ds.removeAll(cons_unique);
-			for (final Connector c : ds) {
-				int i = 0;
-				for (final Set<Displayable> targets : c.getTargets(ZDisplayable.class)) {
-					rows.add(new Row(c, i++, targets));
-				}
-			}
-		}
-		this.rows = rows;
-		// update table model
-		if (null != model) {
-			model.fireTableDataChanged();
-			model.fireTableStructureChanged();
+		try {
+			final Collection<Connector>[] connectors = this.tree.findConnectors();
+			outgoing_model.setData(connectors[0]);
+			incoming_model.setData(connectors[1]);
+		} catch (Exception e) {
+			IJError.print(e);
 		}
 	}
 
-	private void createGUI() {
-		this.frame = new JFrame("Connectors for Tree #" + this.tree.getId());
-		this.model = new TargetsTableModel();
+	private void addTab(JTabbedPane tabs, String title, TargetsTableModel model) {
 		JTable table = new Table();
 		table.setModel(model);
 		JScrollPane jsp = new JScrollPane(table);
 		jsp.setPreferredSize(new Dimension(500, 500));
-		frame.getContentPane().add(jsp);
+		tabs.addTab(title, jsp);
+	}
+
+	private void createGUI() {
+		this.frame = new JFrame("Connectors for Tree #" + this.tree.getId());
+		JTabbedPane tabs = new JTabbedPane();
+		addTab(tabs, "Outgoing", outgoing_model);
+		addTab(tabs, "Incoming", incoming_model);
+		frame.getContentPane().add(tabs);
 		frame.pack();
 		frame.setVisible(true);
 	}
@@ -169,7 +164,8 @@ public class TreeConnectorsView {
 								else if (src == goandsel) {
 									go(col, row);
 									if (0 != (ae.getModifiers() ^ ActionEvent.SHIFT_MASK)) Display.getFront().getSelection().clear();
-									Display.getFront().getSelection().add(rows.get(row).connector);
+									TargetsTableModel ttm = (TargetsTableModel)getModel();
+									Display.getFront().getSelection().add(ttm.rows.get(row).connector);
 								} else if (src == update) {
 									Bureaucrat.createAndStart(new Worker.Task("Updating...") {
 										public void exec() {
@@ -188,11 +184,26 @@ public class TreeConnectorsView {
 			});
 		}
 		void go(int col, int row) {
-			Display.centerAt(rows.get(row).getCoordinate(col));
+			TargetsTableModel ttm = (TargetsTableModel)getModel();
+			Display.centerAt(ttm.rows.get(row).getCoordinate(col));
 		}
 	}
 
 	private class TargetsTableModel extends AbstractTableModel {
+
+		List<Row> rows = null;
+
+		synchronized public void setData(final Collection<Connector> connectors) {
+			this.rows = new ArrayList<Row>(connectors.size());
+			for (final Connector c : connectors) {
+				int i = 0;
+				for (final Set<Displayable> targets : c.getTargets(VectorData.class)) {
+					this.rows.add(new Row(c, i++, targets));
+				}
+			}
+			fireTableDataChanged();
+			fireTableStructureChanged();
+		}
 
 		public int getColumnCount() { return 2; }
 		public String getColumnName(final int col) {
@@ -213,7 +224,7 @@ public class TreeConnectorsView {
 		public boolean isCellEditable(int row, int col) { return false; }
 		public void setValueAt(Object value, int row, int col) {}
 		final void sortByColumn(final int col, final boolean descending) {
-			final ArrayList<Row> rows = new ArrayList<Row>(TreeConnectorsView.this.rows);
+			final ArrayList<Row> rows = new ArrayList<Row>(this.rows);
 			Collections.sort(rows, new Comparator<Row>() {
 				public int compare(final Row r1, final Row r2) {
 					final long op = r1.getColumn(col) - r2.getColumn(col);
@@ -227,7 +238,7 @@ public class TreeConnectorsView {
 					return 0;
 				}
 			});
-			TreeConnectorsView.this.rows = rows; // swap
+			this.rows = rows; // swap
 			fireTableDataChanged();
 			fireTableStructureChanged();
 		}

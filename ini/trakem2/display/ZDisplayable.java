@@ -25,8 +25,6 @@ package ini.trakem2.display;
 import ini.trakem2.Project;
 
 import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Rectangle;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,12 +47,12 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** For reconstruction from the database. */
-	public ZDisplayable(Project project, long id, String title, boolean locked, AffineTransform at, double width, double height) {
+	public ZDisplayable(Project project, long id, String title, boolean locked, AffineTransform at, float width, float height) {
 		super(project, id, title, locked, at, width, height);
 	}
 
 	/** For reconstruction from an XML file. */
-	public ZDisplayable(Project project, long id, HashMap ht, HashMap ht_links) {
+	public ZDisplayable(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		Object data = ht.get("layer_set_id");
 		if (null != data) {
@@ -86,11 +84,11 @@ public abstract class ZDisplayable extends Displayable {
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in. */
 	abstract public Layer getFirstLayer();
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(StringBuilder sb_body, String indent, Object any) {
 		super.exportXML(sb_body, indent, any);
 		sb_body.append(indent).append("layer_set_id=\"").append(layer_set.getId()).append("\"\n");
 	}
-	static public void exportDTD(String type, StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
 		if (hs.contains(type)) return;
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_set_id").append(TAG_ATTR2)
@@ -118,8 +116,8 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** Check if this instance will paint anything at the level of the given Layer. */
-	public boolean paintsAt(Layer layer) {
-		if (null == layer || !layer_set.contains(layer)) return false;
+	public boolean paintsAt(final Layer layer) {
+		if (null == layer || layer_set != layer.getParent()) return false;
 		return true;
 	}
 
@@ -173,5 +171,19 @@ public abstract class ZDisplayable extends Displayable {
 			for (final Displayable d : hs_linked) if (d.layer == la) unlink(d);
 		}
 		return true;
+	}
+
+	public void updateBucket(final Layer la) {
+		if (null == la) updateBucket(); // for all layers
+		else if (null != getBucketable()) getBucketable().updateBucket(this, la);
+	}
+
+	/** Update buckets for all Layers. */
+	@Override
+	public void updateBucket() {
+		if (null == getBucketable()) return;
+		for (final Layer layer : getLayersWithData()) {
+			getBucketable().updateBucket(this, layer);
+		}
 	}
 }

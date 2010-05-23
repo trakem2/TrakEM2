@@ -53,7 +53,7 @@ public class ImageFileFilter implements FilenameFilter {
 		this.code = code;
 		if (null == regex || 0 == regex.length()) return;
 		// create pattern
-		final StringBuffer sb = new StringBuffer(); // I hate java, all these loops just to avoid parsing the backslashes
+		final StringBuilder sb = new StringBuilder(); // I hate java, all these loops just to avoid parsing the backslashes
 		if (!regex.startsWith("^")) sb.append("^.*");
 		for (int i=0; i<regex.length(); i++) {
 			sb.append(regex.charAt(i));

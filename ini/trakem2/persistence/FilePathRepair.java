@@ -235,9 +235,9 @@ public class FilePathRepair {
 			//
 			String wrong_parent_path = new File(data.vpath.get(row)).getParent();
 			wrong_parent_path = wrong_parent_path.replace('\\', '/');
-			if (!wrong_parent_path.endsWith("/")) wrong_parent_path = new StringBuffer(wrong_parent_path).append('/').toString(); // not File.separatorChar, TrakEM2 uses '/' as folder separator
+			if (!wrong_parent_path.endsWith("/")) wrong_parent_path = new StringBuilder(wrong_parent_path).append('/').toString(); // not File.separatorChar, TrakEM2 uses '/' as folder separator
 
-			final String path = new StringBuffer(dir).append(filename).toString();
+			final String path = new StringBuilder(dir).append(filename).toString();
 
 			// keep track of fixed slices to avoid calling n_slices * n_slices times!
 			final HashSet<Patch> fixed = new HashSet<Patch>();
@@ -261,7 +261,7 @@ public class FilePathRepair {
 			}
 
 			String good_parent_path = dir;
-			if (!dir.endsWith("/")) good_parent_path = new StringBuffer(good_parent_path).append('/').toString(); // not File.separatorChar, TrakEM2 uses '/' as folder separator
+			if (!dir.endsWith("/")) good_parent_path = new StringBuilder(good_parent_path).append('/').toString(); // not File.separatorChar, TrakEM2 uses '/' as folder separator
 
 			// Check for similar parent paths and see if they can be fixed
 			if (fix_similar) {
@@ -270,7 +270,7 @@ public class FilePathRepair {
 					final Patch p = data.vp.get(i);
 					if (wrong_path.startsWith(wrong_parent_path)) {
 						// try to fix as well
-						final File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
+						final File file = new File(new StringBuilder(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
 						if (file.exists()) {
 							if (-1 == p.getFilePath().lastIndexOf("-----#slice=")) {
 								if (!fixed.contains(p) && fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
@@ -292,7 +292,7 @@ public class FilePathRepair {
 					final Patch p = (Patch) d;
 					final String wrong_path = p.getImageFilePath();
 					if (wrong_path.startsWith(wrong_parent_path)) {
-						File file = new File(new StringBuffer(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
+						File file = new File(new StringBuilder(good_parent_path).append(wrong_path.substring(wrong_parent_path.length())).toString());
 						if (file.exists()) {
 							if (-1 == p.getFilePath().lastIndexOf("-----#slice=")) {
 								if (!fixed.contains(p) && fixPatchPath(p, file.getAbsolutePath(), update_mipmaps)) {
@@ -341,7 +341,7 @@ public class FilePathRepair {
 				loader.releaseToFit(Math.max(Loader.MIN_FREE_BYTES, ps.getOWidth() * ps.getOHeight() * 10));
 				dim = loader.getDimensions(new_path);
 				if (null == dim) {
-					Utils.log(new StringBuffer("ERROR: could not open image at ").append(new_path).toString()); // preserving backslashes
+					Utils.log(new StringBuilder("ERROR: could not open image at ").append(new_path).toString()); // preserving backslashes
 					return n_fixed;
 				}
 				// Check dimensions
@@ -373,7 +373,7 @@ public class FilePathRepair {
 			loader.releaseToFit(Math.max(Loader.MIN_FREE_BYTES, patch.getOWidth() * patch.getOHeight() * 10));
 			final Dimension dim = loader.getDimensions(new_path);
 			if (null == dim) {
-				Utils.log(new StringBuffer("ERROR: could not open image at ").append(new_path).toString()); // preserving backslashes
+				Utils.log(new StringBuilder("ERROR: could not open image at ").append(new_path).toString()); // preserving backslashes
 				return false;
 			}
 			// Check and set dimensions

@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.gui.GenericDialog;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -64,6 +65,9 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Every new Ball will have, for its first point, the last user-adjusted radius value or the radius of the last user-selected point. */
 	static private double last_radius = -1;
 
+	/** Paint as outlines (false) or as solid areas (true; default, with a default alpha of 0.4f).*/
+	private boolean fill_paint = true;
+
 	public Ball(Project project, String title, double x, double y) {
 		super(project, title, x, y);
 		n_points = 0;
@@ -74,7 +78,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Construct an unloaded Ball from the database. Points will be loaded later, when needed. */
-	public Ball(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Ball(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -83,13 +87,20 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Construct a Ball from an XML entry. */
-	public Ball(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Ball(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
-		// indivudal balls will be added as soon as parsed
+		// individual balls will be added as soon as parsed
 		this.n_points = 0;
 		this.p = new double[2][5];
 		this.p_layer = new long[5];
 		this.p_width = new double[5];
+
+		Object ob_data = ht.get("fill");
+		try {
+			if (null != ob_data) this.fill_paint = "true".equals(((String)ob_data).trim().toLowerCase()); // fails: //Boolean.getBoolean((String)ob_data);
+		} catch (Exception e) {
+			Utils.log("Ball: could not read fill_paint value from XML:" + e);
+		}
 	}
 
 	/** Used to add individual ball objects when parsing. */
@@ -122,11 +133,12 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/**Find a point in an array, with a precision dependent on the magnification.*/
-	protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
+	protected int findPoint(double[][] a, int x_p, int y_p, double magnification, final long lid) {
 		int index = -1;
 		double d = (10.0D / magnification);
 		if (d < 4) d = 4;
 		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != lid) continue;
 			if ((Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i])) <= p_width[i]) {
 				index = i;
 			}
@@ -187,7 +199,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		index = n_points;
 		//add one up
 		this.n_points++;
-		updateInDatabase(new StringBuffer("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (").append(id).append(",").append(x_p).append(",").append(y_p).append(",").append(p_width[index]).append(",").append(layer_id).append(")").toString());
+		updateInDatabase(new StringBuilder("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (").append(id).append(",").append(x_p).append(",").append(y_p).append(",").append(p_width[index]).append(",").append(layer_id).append(")").toString());
 		return index;
 	}
 
@@ -200,7 +212,8 @@ public class Ball extends ZDisplayable implements VectorData {
 		//arrange transparency
 		final Composite original_composite = g.getComposite(),
 				perimeter_composite = alpha == 1.0f ? original_composite : AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha),
-				area_composite = alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite;
+				area_composite = fill_paint ? (alpha > 0.4f ? AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.4f) : perimeter_composite)
+							    : null;
 
 		// Clear transform and stroke
 		final AffineTransform gt = g.getTransform();
@@ -219,9 +232,11 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 
 		final boolean color_cues = layer_set.color_cues;
+		final int n_layers_color_cue = layer_set.n_layers_color_cue;
 
 		// Paint a sliced sphere
 		final double current_layer_z = active_layer.getZ();
+		final int current_layer_index = layer_set.indexOf(active_layer);
 		final long active_lid = active_layer.getId();
 		for (int j=0; j<n_points; j++) {
 			if (active_lid == p_layer[j]) {
@@ -230,27 +245,40 @@ public class Ball extends ZDisplayable implements VectorData {
 				final int x = (int)((p[0][j] -radius -srcRect.x) * magnification),
 				          y = (int)((p[1][j] -radius -srcRect.y) * magnification),
 					  w = (int)(2 * radius * magnification);
-				g.setComposite(area_composite);
-				g.fillOval(x, y, w, w);
+				if (fill_paint) {
+					g.setComposite(area_composite);
+					g.fillOval(x, y, w, w);
+				}
 				g.setComposite(perimeter_composite);
 				g.drawOval(x, y, w, w);
 			} else if (color_cues) {
-				// does the point intersect with the layer?
-				final double z = layer_set.getLayer(p_layer[j]).getZ();
-				final double depth = Math.abs(current_layer_z - z);
-				if (depth < this.p_width[j]) { // compare with untransformed data, in pixels!
-					// intersects!
-					if (z < current_layer_z) g.setColor(Color.red);
-					else g.setColor(Color.blue);
-					// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
-					final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
-					final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
-					          y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
-						  w = (int)(2 * slice_radius * magnification);
-					g.setComposite(area_composite);
-					g.fillOval(x, y, w, w);
-					g.setComposite(perimeter_composite);
-					g.drawOval(x, y, w, w);
+				boolean can_paint = -1 == n_layers_color_cue;
+				final Layer layer = layer_set.getLayer(p_layer[j]); // fast: map lookup
+				if (!can_paint) {
+					can_paint = Math.abs(current_layer_index - layer_set.indexOf(layer)) <= n_layers_color_cue; // fast: map lookup
+				}
+				// Check if p_layer[j] is within the range of layers to color cue:
+				//Utils.logMany2("current_layer_index: ", current_layer_index, "layer index:", layer_set.indexOf(layer), "n_layers_color_cue", n_layers_color_cue);
+				if (can_paint) {
+					// does the point intersect with the layer?
+					final double z = layer.getZ();
+					final double depth = Math.abs(current_layer_z - z);
+					if (depth < this.p_width[j]) { // compare with untransformed data, in pixels!
+						// intersects!
+						if (z < current_layer_z) g.setColor(Color.red);
+						else g.setColor(Color.blue);
+						// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
+						final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
+						final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
+							  y = (int)((p[1][j] -slice_radius -srcRect.y) * magnification),
+							  w = (int)(2 * slice_radius * magnification);
+						if (fill_paint) {
+							g.setComposite(area_composite);
+							g.fillOval(x, y, w, w);
+						}
+						g.setComposite(perimeter_composite);
+						g.drawOval(x, y, w, w);
+					}
 				}
 			}
 		}
@@ -279,7 +307,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	/**Helper vars for mouse events. Safe as static since only one Ball will be edited at a time.*/
 	static int index = -1;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -290,18 +318,18 @@ public class Ball extends ZDisplayable implements VectorData {
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
-			long layer_id = Display.getFrontLayer().getId();
+			long layer_id = layer.getId();
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
-				index = findNearestPoint(p, n_points, x_p, y_p); // should go to an AbstractProfile or something
+				index = findNearestPoint(p, p_layer, n_points, x_p, y_p, layer.getId()); // should go to an AbstractProfile or something
 			} else {
-				index = findPoint(p, x_p, y_p, mag);
+				index = findPoint(p, x_p, y_p, mag, layer.getId());
 			}
 			if (-1 != index) {
 				if (layer_id == p_layer[index]) {
 					if (Utils.isControlDown(me) && me.isShiftDown() && p_layer[index] == Display.getFrontLayer().getId()) {
 						removePoint(index);
 						index = -1; // to prevent saving in the database twice
-						repaint(false);
+						repaint(false, layer);
 						return;
 					}
 				} else index = -1; // disable if not in the front layer (so a new point will be added)
@@ -312,12 +340,12 @@ public class Ball extends ZDisplayable implements VectorData {
 			}
 			if (-1 == index) {
 				index = addPoint(x_p, y_p, layer_id, (0 == n_points ? Ball.getFirstWidth() : p_width[n_points -1])); // either 10 screen pixels or the same as the last point
-				repaint(false);
+				repaint(false, layer);
 			}
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -342,12 +370,12 @@ public class Ball extends ZDisplayable implements VectorData {
 				} else {
 					dragPoint(index, x_d - x_d_old, y_d - y_d_old);
 				}
-				repaint(false);
+				repaint(false, layer);
 			}
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 
 		//update points in database if there was any change
 		if (-1 != index && index != n_points) { // don't do it when the last point is removed
@@ -361,17 +389,18 @@ public class Ball extends ZDisplayable implements VectorData {
 
 		// reset
 		index = -1;
-		repaint(true);
+		repaint(true, layer);
 	}
 
-	private void calculateBoundingBox(boolean adjust_position) {
+	/** Uses the @param layer to update a specific Bucket for that layer. */
+	private void calculateBoundingBox(boolean adjust_position, Layer la) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
 		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
-			layer_set.updateBucket(this);
+			updateBucket(la);
 			return;
 		}
 		if (0 != n_points) {
@@ -382,8 +411,8 @@ public class Ball extends ZDisplayable implements VectorData {
 				if (p[1][i] + p_width[i] > max_y) max_y = p[1][i] + p_width[i];
 			}
 		}
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
@@ -396,7 +425,7 @@ public class Ball extends ZDisplayable implements VectorData {
 			updateInDatabase("dimensions");
 		}
 
-		layer_set.updateBucket(this);
+		updateBucket(la);
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -407,16 +436,11 @@ public class Ball extends ZDisplayable implements VectorData {
 		p_width = null;
 	}
 
-
-	public void repaint() {
-		repaint(true);
-	}
-
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Profile. */
-	public void repaint(boolean repaint_navigator) {
+	public void repaint(boolean repaint_navigator, Layer layer) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, layer);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 5, repaint_navigator);
 	}
@@ -529,7 +553,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	public String[] getPointsForSQL() {
 		String[] sql = new String[n_points];
 		for (int i=0; i<n_points; i++) {
-			StringBuffer sb = new StringBuffer("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (");
+			StringBuilder sb = new StringBuilder("INSERT INTO ab_ball_points (ball_id, x, y, width, layer_id) VALUES (");
 			sb.append(this.id).append(",")
 			  .append(p[0][i]).append(",")
 			  .append(p[1][i]).append(",")
@@ -545,7 +569,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	private String getUpdatePointForSQL(int index) {
 		if (index < 0 || index > n_points-1) return null;
 
-		StringBuffer sb = new StringBuffer("UPDATE ab_ball_points SET ");
+		StringBuilder sb = new StringBuilder("UPDATE ab_ball_points SET ");
 		sb.append("x=").append(p[0][index])
 		  .append(", y=").append(p[1][index])
 		  .append(", width=").append(p_width[index])
@@ -729,13 +753,15 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Similar to exportSVG but the layer_id is saved instead of the z. The convention is my own, a ball_ob that contains ball objects and links. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
-		String in = indent + "\t";
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String in = indent + "\t";
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");
 		super.exportXML(sb_body, in, any);
+		if (!fill_paint) sb_body.append(in).append("fill=\"").append(fill_paint).append("\"\n"); // otherwise no need
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n")
 		;
 		sb_body.append(indent).append(">\n");
@@ -746,13 +772,14 @@ public class Ball extends ZDisplayable implements VectorData {
 		sb_body.append(indent).append("</t2_ball>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_ball";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_ball";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_ball (").append(Displayable.commonDTDChildren()).append(",t2_ball_ob)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
-		sb_header.append(indent).append("<!ELEMENT t2_ball_ob EMPTY>\n")
+		sb_header.append(indent).append("<!ATTLIST t2_ball fill NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ELEMENT t2_ball_ob EMPTY>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob x NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob y NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_ball_ob r NMTOKEN #REQUIRED>\n")
@@ -761,6 +788,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** */ // this may be inaccurate
+	@Override
 	public boolean paintsAt(Layer layer) {
 		if (!super.paintsAt(layer)) return false;
 		// find previous and next
@@ -776,29 +804,27 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Returns information on the number of ball objects per layer. */
 	public String getInfo() {
 		// group balls by layer
-		HashMap ht = new HashMap();
+		final HashMap<Long,ArrayList<Integer>> ht = new HashMap<Long,ArrayList<Integer>>();
 		for (int i=0; i<n_points; i++) {
-			ArrayList al = (ArrayList)ht.get(new Long(p_layer[i]));
+			ArrayList<Integer> al = ht.get(new Long(p_layer[i]));
 			if (null == al) {
-				al = new ArrayList();
-				ht.put(new Long(p_layer[i]), al);
+				al = new ArrayList<Integer>();
+				ht.put(p_layer[i], al);
 			}
-			al.add(new Integer(i)); // blankets!
+			al.add(i);
 		}
 		int total = 0;
-		StringBuffer sb1 = new StringBuffer("Ball id: ").append(this.id).append('\n');
-		StringBuffer sb = new StringBuffer();
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			long lid = ((Long)entry.getKey()).longValue();
-			ArrayList al = (ArrayList)entry.getValue();
+		final StringBuilder sb1 = new StringBuilder("Ball id: ").append(this.id).append('\n');
+		final StringBuilder sb = new StringBuilder();
+		for (final Map.Entry<Long,ArrayList<Integer>> entry : ht.entrySet()) {
+			final long lid = entry.getKey().longValue();
+			final ArrayList<Integer> al = entry.getValue();
 			sb.append("\tLayer ").append(this.layer_set.getLayer(lid).toString()).append(":\n");
 			sb.append("\t\tcount : ").append(al.size()).append('\n');
 			total += al.size();
 			double average = 0;
-			for (Iterator at = al.iterator(); at.hasNext(); ) {
-				int i = ((Integer)at.next()).intValue(); // I hate java
-				average += p_width[i];
+			for (final Integer i : al) {
+				average += p_width[i.intValue()];
 			}
 			sb.append("\t\taverage radius: ").append(average / al.size()).append('\n');
 		}
@@ -987,6 +1013,16 @@ public class Ball extends ZDisplayable implements VectorData {
 		return a;
 	}
 
+	@Override
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		if (0 == n_points) return false;
+		final Rectangle box = this.at.createTransformedShape(r).getBounds();
+		for (int i=0; i<n_points; i++) {
+			if (box.contains(p[0][i], p[1][i])) return true;
+		}
+		return false;
+	}
+
 	/** Returns a listing of all balls contained here, one per row with index, x, y, z, and radius, all calibrated.
 	 * 'name-id' is a column that displays the title of this Ball object only when such title is purely a number.
 	 * */
@@ -1046,7 +1082,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 	}
 
-	/** Retain the data within the layer range, and through out all the rest. */
+	/** Retain the data within the layer range, and throw out all the rest. */
 	synchronized public boolean crop(List<Layer> range) {
 		if (-1 == n_points) setupForDisplay();
 		HashSet<Long> lids = new HashSet<Long>();
@@ -1059,7 +1095,7 @@ public class Ball extends ZDisplayable implements VectorData {
 				i--;
 			}
 		}
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, null);
 		return true;
 	}
 
@@ -1103,7 +1139,7 @@ public class Ball extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		if (null != chain) calculateBoundingBox(true); // may be called way too many times, but avoids lots of headaches.
+		if (null != chain) calculateBoundingBox(true, la); // may be called way too many times, but avoids lots of headaches.
 		return true;
 	}
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
@@ -1128,12 +1164,45 @@ public class Ball extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, vlocal.layer);
 		return true;
 	}
 
 	@Override
 	synchronized public Collection<Long> getLayerIds() {
 		return Utils.asList(p_layer, 0, n_points);
+	}
+
+	@Override
+	public void adjustProperties() {
+		GenericDialog gd = makeAdjustPropertiesDialog(); // in superclass
+		gd.addCheckbox("Paint as outlines", !fill_paint);
+		gd.addCheckbox("Apply paint mode to all Ball instances", false);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		// superclass processing
+		final Displayable.DoEdit prev = processAdjustPropertiesDialog(gd);
+		// local proccesing
+		final boolean fp = !gd.getNextBoolean();
+		final boolean to_all = gd.getNextBoolean();
+		if (to_all) {
+			for (final ZDisplayable zd : layer_set.getZDisplayables()) {
+				if (zd.getClass() == Ball.class) {
+					Ball b = (Ball)zd;
+					b.fill_paint = fp;
+					b.updateInDatabase("fill_paint");
+				}
+			}
+			Display.repaint(layer_set);
+		} else if (fill_paint != fp) {
+			prev.add("fill_paint", fp);
+			this.fill_paint = fp; // change it after storing state in DoEdit
+			updateInDatabase("fill_paint");
+		}
+
+		// Add current step, with the same modified keys
+		DoEdit current = new DoEdit(this).init(prev);
+		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
+		getLayerSet().addEditStep(current);
 	}
 }

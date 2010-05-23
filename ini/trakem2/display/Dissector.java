@@ -366,7 +366,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			}
 		}
 
-		final void exportXML(StringBuffer sb_body, String indent) {
+		final void exportXML(final StringBuilder sb_body, final String indent) {
 			sb_body.append(indent).append("<t2_dd_item tag=\"").append(tag).append("\" radius=\"").append(radius).append("\" points=\"");
 			for (int i=0; i<n_points; i++) {
 				sb_body.append('[').append(p[0][i]).append(' ').append(p[1][i]).append(' ').append(p_layer[i]).append(']');
@@ -375,7 +375,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			sb_body.append("\" />\n");
 		}
 
-		final void putData(StringBuffer sb) {
+		final void putData(final StringBuilder sb) {
 			for (int i=0; i<n_points; i++) {
 				sb.append(tag).append('\t')
 				   .append(radius).append('\t')
@@ -390,14 +390,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		super(project, title, x, y);
 	}
 
-	public Dissector(Project project, long id, String title,  double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Dissector(Project project, long id, String title,  float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
 	}
 	/** Reconstruct from XML. */
-	public Dissector(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Dissector(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// individual items will be added as soon as parsed
 	}
@@ -486,11 +486,10 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	private Rectangle bbox = null;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer la, int x_p, int y_p, double mag) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
-		final Layer la = Display.getFrontLayer(this.project);
 		final long lid = la.getId(); // isn't this.layer pointing to the current layer always?
 
 		// transform the x_p, y_p to the local coordinates
@@ -556,7 +555,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
@@ -593,14 +592,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
-		bbox = calculateBoundingBox();
+		bbox = calculateBoundingBox(la);
 	}
 
 	/** Make points as local as possible, and set the width and height. */
-	private Rectangle calculateBoundingBox() {
+	private Rectangle calculateBoundingBox(Layer la) {
 		Rectangle box = null;
 		for (Item item : al_items) {
 			if (null == box) box = item.getBoundingBox();
@@ -620,12 +619,12 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (0 != box.x || 0 != box.y) {
 			for (Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
-		layer_set.updateBucket(this);
+		updateBucket(la);
 		return box;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_dissector";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_dissector";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_dissector (").append(Displayable.commonDTDChildren()).append(",t2_dd_item)>\n");
@@ -637,14 +636,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_dissector\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		sb_body.append(indent).append(">\n");
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			item.exportXML(sb_body, in);
 		}
 		super.restXML(sb_body, in, any);
@@ -662,16 +661,16 @@ public class Dissector extends ZDisplayable implements VectorData {
 	 *  and then a list of 5 tab-separated columns: item tag, radius, x, y, z
 	 */
 	public String getInfo() {
-		StringBuffer sb = new StringBuffer("title: ").append(this.title).append("\nitems: ").append(al_items.size()).append('\n').append("tag\tradius\tx\ty\tz\n");
-		for (Iterator it = al_items.iterator(); it.hasNext(); ) {
-			((Item)it.next()).putData(sb);
+		final StringBuilder sb = new StringBuilder("title: ").append(this.title).append("\nitems: ").append(al_items.size()).append('\n').append("tag\tradius\tx\ty\tz\n");
+		for (final Item item : al_items) {
+			item.putData(sb);
 		}
 		return sb.toString();
 	}
 
 	/** Always paint as box. TODO paint as the area of an associated ROI. */
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
 		paintAsBox(g);
 	}
 
@@ -742,7 +741,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		calculateBoundingBox();
+		calculateBoundingBox(null);
 		return true;
 	}
 
@@ -777,7 +776,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		if (null != chain) calculateBoundingBox();
+		if (null != chain) calculateBoundingBox(la);
 		return true;
 	}
 
@@ -797,7 +796,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		calculateBoundingBox();
+		calculateBoundingBox(vlocal.layer);
 		return true;
 	}
 

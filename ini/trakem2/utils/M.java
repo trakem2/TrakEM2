@@ -654,7 +654,7 @@ public final class M {
 	}
 
 	/** Appends to @param sb the shortest possible String representation of a float number, according to the desired decimal @param precision. */
-	static public final void appendShortest(final float f, final float precision, final StringBuffer sb) {
+	static public final void appendShortest(final float f, final float precision, final StringBuilder sb) {
 		if (Math.abs(f - (int)f) < precision) {
 			sb.append((int)f);
 		} else {

@@ -110,12 +110,13 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			if (Double.isNaN(z) || Double.isNaN(thickness)) return null;
 			Layer layer = new Layer(project, z, thickness, parent);
 			parent.add(layer);
+			parent.recreateBuckets(layer, true);
 			return layer;
 		} catch (Exception e) {}
 		return null;
 	}
 
-	static public Layer[] createMany(Project project, LayerSet parent) {
+	static public List<Layer> createMany(Project project, LayerSet parent) {
 		if (null == parent) return null;
 		GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
 		gd.addNumericField("First Z coord: ", 0, 3);
@@ -137,23 +138,25 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			Utils.log("Invalid number of layers");
 			return null;
 		}
-		Layer[] layer = new Layer[n_layers];
+		List<Layer> layers = new ArrayList<Layer>(n_layers);
 		for (int i=0; i<n_layers; i++) {
+			Layer la = null;
 			if (skip) {
-				layer[i] = parent.getLayer(z);
-				if (null == layer[i]) {
-					layer[i] = new Layer(project, z, thickness, parent);
-					parent.addSilently(layer[i]);
-				} else layer[i] = null; // don't create
-			} else {
-				layer[i] = new Layer(project, z, thickness, parent);
-				parent.addSilently(layer[i]);
+				// Check if layer exists
+				la = parent.getLayer(z);
+				if (null == la) la = new Layer(project, z, thickness, parent);
+				// else don't create, but use existing
+			} else la = new Layer(project, z, thickness, parent);
+			if (null != la) {
+				parent.addSilently(la);
+				layers.add(la);
 			}
 			z += thickness;
 		}
+		parent.recreateBuckets(layers, true); // all empty
 		// update the scroller of currently open Displays
 		Display.updateLayerScroller(parent);
-		return layer;
+		return layers;
 	}
 
 	/** Returns a title such as 018__4-K4_2__z1.67 , which is [layer_set index]__[title]__[z coord] . The ordinal number starts at 1 and finishes at parent's length, inclusive. */
@@ -163,7 +166,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		String title = lt.getTitle();
 		if (null == title) title = "";
 		else title = title.replace(' ', '_');
-		final StringBuffer sb = new StringBuffer().append(parent.indexOf(this) + 1);
+		final StringBuilder sb = new StringBuilder().append(parent.indexOf(this) + 1);
 		final int s_size = Integer.toString(parent.size()).length();
 		while (sb.length() < s_size) {
 			sb.insert(0, '0');
@@ -173,7 +176,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public String toString() {
-		if (null == parent) return new StringBuffer("z=").append(Utils.cutNumber(z, 4)).toString();
+		if (null == parent) return new StringBuilder("z=").append(Utils.cutNumber(z, 4)).toString();
 		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
 		return "z=" + Utils.cutNumber(z, 4);
 	}
@@ -258,10 +261,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (null != root) {
 			if (d.length == stack_index) {
 				// append at the end
-				root.put(stack_index, displ, displ.getBoundingBox(null));
+				root.put(stack_index, displ, this, db_map);
 			} else {
 				// add as last first, then update
-				root.put(d.length, displ, displ.getBoundingBox(null));
+				root.put(d.length, displ, this, db_map);
 				// find and update the range of affected Displayable objects
 				root.update(this, displ, stack_index, d.length); // first to last indices affected
 			}
@@ -272,7 +275,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap() {
+	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer layer) { // ignore layer
 		return db_map;
 	}
 
@@ -397,6 +400,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return n;
 	}
 
+	/** Checks if there are any Displayable or if any ZDisplayable paints in this layer. */
 	public boolean isEmpty() {
 		return 0 == al_displayables.size() && parent.isEmptyAt(this); // check for ZDisplayable painting here as well
 	}
@@ -496,10 +500,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
-	public double getLayerWidth() {
+	public float getLayerWidth() {
 		return parent.getLayerWidth();
 	}
-	public double getLayerHeight() {
+	public float getLayerHeight() {
 		return parent.getLayerHeight();
 	}
 
@@ -758,21 +762,22 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return hs;
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
-		String in = indent + "\t";
+	@Override
+	public void exportXML(final StringBuilder sb_body, String indent, Object any) {
+		final String in = indent + "\t";
 		// 1 - open tag
 		sb_body.append(indent).append("<t2_layer oid=\"").append(id).append("\"\n")
 		       .append(in).append(" thickness=\"").append(thickness).append("\"\n")
 		       .append(in).append(" z=\"").append(z).append("\"\n")
 		;
+		// TODO this search is linear!
 		String title = project.findLayerThing(this).getTitle();
 		if (null == title) title = "";
 		sb_body.append(in).append(" title=\"").append(title).append("\"\n"); // TODO 'title' should be a property of the Layer, not the LayerThing. Also, the LayerThing should not exist: LayerSet and Layer should be directly presentable in a tree. They are not Things as in "objects of the sample", but rather, structural necessities such as Patch.
 		sb_body.append(indent).append(">\n");
 		// 2 - export children
 		if (null != al_displayables) {
-			for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (final Displayable d : al_displayables) {
 				d.exportXML(sb_body, in, any);
 			}
 		}
@@ -781,8 +786,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Includes all Displayable objects in the list of possible children. */
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_layer";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_layer";
 		if (hs.contains(type)) return;
 		sb_header.append(indent).append("<!ELEMENT t2_layer (t2_patch,t2_label,t2_layer_set,t2_profile)>\n")
 			 .append(indent).append(Displayable.TAG_ATTR1).append(type).append(" oid").append(Displayable.TAG_ATTR2)
@@ -921,15 +926,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	synchronized public void recreateBuckets() {
-		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this));
+		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this, this));
 		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
-		this.root.populate(this, db_map);
+		this.root.populate(this, this, db_map);
 		//root.debug();
 	}
 
 	/** Update buckets of a position change for the given Displayable. */
-	public void updateBucket(final Displayable d) {
-		if (null != root) root.updatePosition(d, db_map);
+	public void updateBucket(final Displayable d, final Layer layer) { // ignore layer
+		if (null != root) root.updatePosition(d, this, db_map);
 	}
 
 	public void checkBuckets() {

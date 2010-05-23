@@ -103,7 +103,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 	}
 
 	private final String makeTitle() {
-		return new StringBuffer().append(layer.getParent().indexOf(layer) + 1).append(':').append(' ').append(layer.getTitle()).toString();
+		return new StringBuilder().append(layer.getParent().indexOf(layer) + 1).append(':').append(' ').append(layer.getTitle()).toString();
 	}
 
 	public final void setColor(final Color color) {

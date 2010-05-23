@@ -31,16 +31,11 @@ import java.io.BufferedReader;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import ij.gui.YesNoCancelDialog;
 import ij.gui.GenericDialog;
-import ij.io.*;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.VirtualStack; // only after 1.38q
 import ini.trakem2.display.*;
-import ini.trakem2.*;
-import ini.trakem2.persistence.*;
 import ini.trakem2.io.ImageFileFilter;
 
 

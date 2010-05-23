@@ -99,7 +99,7 @@ public class ProjectToolbar implements MouseListener {
 		// sort of a constructor: an embedded macro set
 		if (!toolbar_present) {
 			int tool = Toolbar.getToolId();
-			StringBuffer sb_tools = new StringBuffer();
+			final StringBuilder sb_tools = new StringBuilder();
 			sb_tools.append("macro 'Select and Transform Tool-C000L2242L2363L3494L35b5L46c6L4797L48a8L49b9L5a6aL8acaL5b6bL9bdbL5c5cLacdcLbdcd' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'SELECT');\n}\n")
 				.append("macro 'Freehand Tool-C000Lb0c0La1d1L92e2L83f3L74f4L65e5L56d6L47c7L38b8L29a9L2a2aL4a9aL1b2bL5b8bL1c1cL6c7cL0d1dL5d6dL0e0eL3e5eL0f3f' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'PENCIL');\n}\n")
 				.append("macro 'Pen Tool-C000L8080L7191L7292L6363L8383La3a3L6464L8484Lb4b4L5555L8585Lb5b5L4646L8686Lc6c6L4747Lc7c7L3838Ld8d8L4949Lc9c9L4a4aLcacaL5b5bLbbbbL5c5cLbcbcL4dcdL5e5eLbebeL5fbf' {\ncall('ini.trakem2.utils.ProjectToolbar.toolChanged', 'PEN');\n}\n")

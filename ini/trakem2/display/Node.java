@@ -1,6 +1,5 @@
 package ini.trakem2.display;
 
-import ij.measure.Calibration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -9,7 +8,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Collection;
-import java.util.Collections;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
@@ -32,8 +30,8 @@ public abstract class Node<T> implements Taggable {
 	/** Maximum possible confidence in an edge (ranges from 0 to 5, inclusive).*/
 	static public final byte MAX_EDGE_CONFIDENCE = 5;
 
-	protected Node parent = null;
-	public Node getParent() { return parent; }
+	protected Node<T> parent = null;
+	public Node<T> getParent() { return parent; }
 
 	protected float x, y;
 	public float getX() { return x; }
@@ -42,16 +40,16 @@ public abstract class Node<T> implements Taggable {
 	protected Layer la;
 	public Layer getLayer() { return la; }
 
-	protected Node[] children = null;
-	public List<Node> getChildrenNodes() {
-		final ArrayList<Node> a = new ArrayList<Node>();
+	protected Node<T>[] children = null;
+	public ArrayList<Node<T>> getChildrenNodes() {
+		final ArrayList<Node<T>> a = new ArrayList<Node<T>>();
 		if (null == children) return a;
 		for (int i=0; i<children.length; i++) a.add(children[i]);
 		return a;
 	}
 	/** @return a map of child node vs edge confidence to that child. */
-	public Map<Node,Byte> getChildren() {
-		final HashMap<Node,Byte> m = new HashMap<Node,Byte>();
+	public Map<Node<T>,Byte> getChildren() {
+		final HashMap<Node<T>,Byte> m = new HashMap<Node<T>,Byte>();
 		if (null == children) return m;
 		for (int i=0; i<children.length; i++) m.put(children[i], confidence[i]);
 		return m;
@@ -67,7 +65,7 @@ public abstract class Node<T> implements Taggable {
 		for (int i=0; i<children.length; i++) a.add(confidence[i]);
 		return a;
 	}
-	public byte getEdgeConfidence(final Node child) {
+	public byte getEdgeConfidence(final Node<T> child) {
 		if (null == children) return (byte)0;
 		for (int i=0; i<children.length; i++) {
 			if (child == children[i]) return confidence[i];
@@ -89,23 +87,23 @@ public abstract class Node<T> implements Taggable {
 		this.la = la;
 	}
 	/** To reconstruct from XML, without a layer. */
-	public Node(final HashMap attr) {
-		this.x = Float.parseFloat((String)attr.get("x"));
-		this.y = Float.parseFloat((String)attr.get("y"));
+	public Node(final HashMap<String,String> attr) {
+		this.x = Float.parseFloat(attr.get("x"));
+		this.y = Float.parseFloat(attr.get("y"));
 		this.la = null;
 	}
 	public void setLayer(final Layer la) {
 		this.la = la;
 	}
 	/** Returns -1 when not added (e.g. if child is null). */
-	synchronized public final int add(final Node child, final byte confidence) {
+	synchronized public final int add(final Node<T> child, final byte confidence) {
 		if (null == child) return -1;
 		if (null != child.parent) {
 			Utils.log("WARNING: tried to add a node that already had a parent!");
 			return -1;
 		}
 		if (null != children) {
-			for (final Node nd : children) {
+			for (final Node<T> nd : children) {
 				if (nd == child) {
 					Utils.log("WARNING: tried to add a node to a parent that already had the node as a child!");
 					return -1;
@@ -118,7 +116,7 @@ public abstract class Node<T> implements Taggable {
 		child.parent = this;
 		return children.length -1;
 	}
-	synchronized public final boolean remove(final Node child) {
+	synchronized public final boolean remove(final Node<T> child) {
 		if (null == children) {
 			Utils.log("WARNING: tried to remove a child from a childless node!");
 			return false; // no children!
@@ -145,7 +143,7 @@ public abstract class Node<T> implements Taggable {
 		}
 
 		// Else, rearrange arrays:
-		final Node[] ch = new Node[children.length-1];
+		final Node<T>[] ch = (Node<T>[])new Node[children.length-1];
 		final byte[] co = new byte[children.length-1];
 		System.arraycopy(children, 0, ch, 0, k);
 		System.arraycopy(confidence, 0, co, 0, k);
@@ -157,10 +155,10 @@ public abstract class Node<T> implements Taggable {
 	}
 	private final void enlargeArrays(final int n_more) {
 		if (null == children) {
-			children = new Node[n_more];
+			children = (Node<T>[])new Node[n_more];
 			confidence = new byte[n_more];
 		} else {
-			final Node[] ch = new Node[children.length + n_more];
+			final Node<T>[] ch = (Node<T>[])new Node[children.length + n_more];
 			System.arraycopy(children, 0, ch, 0, children.length);
 			final byte[] co = new byte[children.length + n_more];
 			System.arraycopy(confidence, 0, co, 0, children.length);
@@ -169,7 +167,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-	final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final AffineTransform aff, final Color t_color, final boolean with_arrows, final boolean with_confidence_boxes) {
+	final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<T>> to_paint, final AffineTransform aff, final Color t_color, final boolean with_arrows, final boolean with_confidence_boxes) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
 
 		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
@@ -216,7 +214,11 @@ public abstract class Node<T> implements Taggable {
 				aff.transform(fps, 0, fps, 0, children.length);
 				//
 				for (int i=0, k=0; i<children.length; i++, k+=2) {
-					final Node child = children[i];
+					final Node<T> child = children[i];
+
+					// Does the line from parent to child cross the srcRect?
+					// Or what is the same, does the line from parent to child cross any of the edges of the srcRect?
+
 					// To screen coords:
 					final int chx = (int)((fps[k] - srcRect.x) * magnification);
 					final int chy = (int)((fps[k+1] - srcRect.y) * magnification);
@@ -295,7 +297,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Paint in the context of offscreen space, without transformations. */
-	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t) {
 		final Point2D.Double po = t.transformPoint(this.x, this.y);
 		final float x = (float)((po.x - srcRect.x) * magnification);
 		final float y = (float)((po.y - srcRect.y) * magnification);
@@ -327,18 +329,18 @@ public abstract class Node<T> implements Taggable {
 
 	/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.
 	 *  Non-recursive, avoids potential stack overflow. */
-	public final List<Node> getSubtreeNodes() {
-		final List<Node> nodes = new ArrayList<Node>();
-		final LinkedList<Node> todo = new LinkedList<Node>();
+	public final List<Node<T>> getSubtreeNodes() {
+		final List<Node<T>> nodes = new ArrayList<Node<T>>();
+		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
 		todo.add(this);
 
 		while (!todo.isEmpty()) {
 			// Grab one node from the todo list and add it
-			Node nd = todo.removeFirst();
+			final Node<T> nd = todo.removeFirst();
 			nodes.add(nd);
 			// Then add all its children to the todo list
 			if (null != nd.children) {
-				for (final Node child : nd.children) todo.add(child);
+				for (final Node<T> child : nd.children) todo.add(child);
 			}
 		}
 
@@ -353,10 +355,10 @@ public abstract class Node<T> implements Taggable {
 
 	/** Returns a recursive copy of this Node subtree, where the copy of this Node is the root.
 	 * Non-recursive to avoid stack overflow. */
-	final public Node clone(final Project pr) {
+	final public Node<T> clone(final Project pr) {
 		// todo list containing packets of a copied node and the lists of original children and confidence to clone into it
 		final LinkedList<Object[]> todo = new LinkedList<Object[]>();
-		final Node root = newInstance(x, y, la);
+		final Node<T> root = newInstance(x, y, la);
 		root.setData(this.getDataCopy());
 		root.tags = null == this.tags ? null : new TreeSet<Tag>(this.tags);
 		if (null != this.children) {
@@ -376,12 +378,12 @@ public abstract class Node<T> implements Taggable {
 
 		while (!todo.isEmpty()) {
 			final Object[] o = todo.removeFirst();
-			final Node copy = (Node)o[0];
-			final Node[] original_children = (Node[])o[1];
+			final Node<T> copy = (Node<T>)o[0];
+			final Node<T>[] original_children = (Node<T>[])o[1];
 			copy.confidence = (byte[])((byte[])o[2]).clone();
-			copy.children = new Node[original_children.length];
+			copy.children = (Node<T>[])new Node[original_children.length];
 			for (int i=0; i<original_children.length; i++) {
-				final Node ochild = original_children[i];
+				final Node<T> ochild = original_children[i];
 				copy.children[i] = newInstance(ochild.x, ochild.y, ochild.la);
 				copy.children[i].setData(ochild.getDataCopy());
 				copy.children[i].parent = copy;
@@ -426,15 +428,15 @@ public abstract class Node<T> implements Taggable {
 		// Find first the list of nodes from this node to the current root
 		// and then proceed in reverse direction!
 
-		final LinkedList<Node> path = new LinkedList<Node>();
+		final LinkedList<Node<T>> path = new LinkedList<Node<T>>();
 		path.add(this);
-		Node parent = this.parent;
+		Node<T> parent = this.parent;
 		while (null != parent) {
 			path.addFirst(parent);
 			parent = parent.parent;
 		}
-		Node newchild = path.removeFirst();
-		for (final Node nd : path) {
+		Node<T> newchild = path.removeFirst();
+		for (final Node<T> nd : path) {
 			// Made nd the parent of newchild (was the opposite)
 			// 1 - Find out the confidence of the edge to the child node:
 			byte conf = MAX_EDGE_CONFIDENCE;
@@ -485,7 +487,7 @@ public abstract class Node<T> implements Taggable {
 		this.parent = null;
 		*/
 	}
-	synchronized public final boolean setConfidence(final Node child, final byte conf) {
+	synchronized public final boolean setConfidence(final Node<T> child, final byte conf) {
 		if (null == children) return false;
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
 		for (int i=0; i<children.length; i++) {
@@ -496,7 +498,7 @@ public abstract class Node<T> implements Taggable {
 		}
 		return false;
 	}
-	final boolean adjustConfidence(final Node child, final int inc) {
+	final boolean adjustConfidence(final Node<T> child, final int inc) {
 		if (null == children) return false;
 		for (int i=0; i<children.length; i++) {
 			if (child == children[i]) {
@@ -509,23 +511,23 @@ public abstract class Node<T> implements Taggable {
 		return false;
 	}
 	/** Returns -1 if not a child of this node. */
-	final byte getConfidence(final Node child) {
+	final byte getConfidence(final Node<T> child) {
 		if (null == children) return -1;
 		for (int i=0; i<children.length; i++) {
 			if (child == children[i]) return confidence[i];
 		}
 		return -1;
 	}
-	final int indexOf(final Node child) {
+	final int indexOf(final Node<T> child) {
 		if (null == children) return -1;
 		for (int i=0; i<children.length; i++) {
 			if (child == children[i]) return i;
 		}
 		return -1;
 	}
-	synchronized public final Node findPreviousBranchOrRootPoint() {
+	synchronized public final Node<T> findPreviousBranchOrRootPoint() {
 		if (null == this.parent) return null;
-		Node parent = this.parent;
+		Node<T> parent = this.parent;
 		while (true) {
 			if (1 == parent.children.length) {
 				if (null == parent.parent) return parent; // the root
@@ -536,8 +538,8 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	/** Assumes there aren't any cycles. */
-	synchronized public final Node findNextBranchOrEndPoint() {
-		Node child = this;
+	synchronized public final Node<T> findNextBranchOrEndPoint() {
+		Node<T> child = this;
 		while (true) {
 			if (null == child.children || child.children.length > 1) return child;
 			child = child.children[0];
@@ -550,12 +552,22 @@ public abstract class Node<T> implements Taggable {
 
 	public abstract T getDataCopy();
 
-	public abstract Node newInstance(float x, float y, Layer layer);
+	public abstract Node<T> newInstance(float x, float y, Layer layer);
 
-	abstract public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree);
+	abstract public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<T>> to_paint, final Tree<T> tree, final AffineTransform to_screen);
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
+
+	/** May return a false positive but never a false negative.
+	 *  Checks only for itself and towards its parent. */
+	public boolean isRoughlyInside(final Rectangle localbox) {
+		if (null == parent) {
+			return localbox.contains((int)this.x, (int)this.y);
+		} else {
+			return localbox.intersectsLine(parent.x, parent.y, this.x, this.y);
+		}
+	}
 
 	/** Returns are in local coords. */
 	public Area getArea() {
@@ -563,12 +575,12 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** Returns a list of Patch to link, which lay under the node. Use the given @param aff to transform the Node data before looking up targets. */
-	public Collection<Displayable> findLinkTargets(final AffineTransform aff) {
+	public Collection<Displayable> findLinkTargets(final AffineTransform to_world) {
 		float x = this.x,
 		      y = this.y;
-		if (!aff.isIdentity()) {
+		if (null != to_world && !to_world.isIdentity()) {
 			float[] fp = new float[]{x, y};
-			aff.transform(fp, 0, fp, 0, 1); // aff is already an inverted affine
+			to_world.transform(fp, 0, fp, 0, 1);
 			x = fp[0];
 			y = fp[1];
 		}

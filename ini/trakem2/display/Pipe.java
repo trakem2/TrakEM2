@@ -93,7 +93,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct an unloaded Pipe from the database. Points will be loaded later, when needed. */
-	public Pipe(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Pipe(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -103,13 +103,12 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct a Pipe from an XML entry. */
-	public Pipe(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Pipe(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("d")) {
 				// parse the points
 				// parse the SVG points data
@@ -235,13 +234,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored. Returns -1 if none found. */
-	synchronized protected int findPoint(double[][] a, int x_p, int y_p, double magnification) {
+	synchronized protected int findPoint(double[][] a, long[] p_layer, int x_p, int y_p, long lid, double magnification) {
 		int index = -1;
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
 		long i_layer = Display.getFrontLayer(this.project).getId();
 		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != lid) continue;
 			double dist = Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i]);
 			if (i_layer == p_layer[i] && dist <= d && dist <= min_dist) {
 				min_dist = dist;
@@ -688,7 +688,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	static private int index, index_l, index_r;
 	static private boolean is_new_point = false;
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -701,9 +701,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (ProjectToolbar.PEN == tool) {
 
 			if (Utils.isControlDown(me) && me.isShiftDown()) {
-				index = Displayable.findNearestPoint(p, n_points, x_p, y_p);
+				index = Displayable.findNearestPoint(p, p_layer, n_points, x_p, y_p, layer.getId());
 			} else {
-				index = findPoint(p, x_p, y_p, mag);
+				index = findPoint(p, p_layer, x_p, y_p, layer.getId(), mag);
 			}
 
 			if (-1 != index) {
@@ -711,7 +711,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					//delete point
 					removePoint(index);
 					index = index_r = index_l = -1;
-					repaint(false);
+					repaint(false, layer);
 					return;
 				}
 				// Make the radius for newly added point that of the last added 
@@ -724,14 +724,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			}
 
 			// find if click is on a left control point
-			index_l = findPoint(p_l, x_p, y_p, mag);
+			index_l = findPoint(p_l, p_layer, x_p, y_p, layer.getId(), mag);
 			index_r = -1;
 			// if not, then try on the set of right control points
 			if (-1 == index_l) {
-				index_r = findPoint(p_r, x_p, y_p, mag);
+				index_r = findPoint(p_r, p_layer, x_p, y_p, layer.getId(), mag);
 			}
 
-			long layer_id = Display.getFrontLayer(this.project).getId();
+			final long layer_id = layer.getId();
 
 			if (-1 != index && layer_id != p_layer[index]) index = -1; // disable!
 			else if (-1 != index_l && layer_id != p_layer[index_l]) index_l = -1;
@@ -748,13 +748,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 				} else {
 					generateInterpolatedPoints(0.05);
 				}
-				repaint(false);
+				repaint(false, layer);
 				return;
 			}
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -785,7 +785,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					dragControlPoint(index, x_d, y_d, p_l, p_r, true);
 				}
 				generateInterpolatedPoints(0.05);
-				repaint(false);
+				repaint(false, layer);
 				return;
 			}
 
@@ -793,26 +793,26 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			if (-1 != index_r) {
 				dragControlPoint(index_r, x_d, y_d, p_r, p_l, is_new_point); //((index_r != n_points-1)?false:true)); //last point gets its 2 control points dragged symetrically
 				generateInterpolatedPoints(0.05);
-				repaint(false);
+				repaint(false, layer);
 				return;
 			}
 			if (-1 != index_l) {
 				dragControlPoint(index_l, x_d, y_d, p_l, p_r, is_new_point); //((index_l != n_points-1)?false:true)); //last point gets its 2 control points dragged symetrically
 				generateInterpolatedPoints(0.05);
-				repaint(false);
+				repaint(false, layer);
 				return;
 			}
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 
 		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.PEN == tool) {
 			//generate interpolated points
 			generateInterpolatedPoints(0.05);
-			repaint(); //needed at least for the removePoint
+			repaint(true, layer); //needed at least for the removePoint
 		}
 
 		//update points in database if there was any change
@@ -837,21 +837,21 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 
 		//Display.repaint(layer, this, 5); // the entire Displayable object
-		repaint(true);
+		repaint(true, layer);
 
 		// reset
 		is_new_point = false;
 		index = index_r = index_l = -1;
 	}
 
-	synchronized protected void calculateBoundingBox(final boolean adjust_position) {
+	synchronized protected void calculateBoundingBox(final boolean adjust_position, final Layer la) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
 		double max_y = 0.0D;
 		if (0 == n_points) {
 			this.width = this.height = 0;
-			layer_set.updateBucket(this);
+			updateBucket(la);
 			return;
 		}
 		// get perimeter of the tube, without the transform
@@ -877,8 +877,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			if (p_r[1][i] > max_y) max_y = p_r[1][i];
 		}
 
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
@@ -895,7 +895,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 		updateInDatabase("dimensions");
 
-		layer_set.updateBucket(this);
+		updateBucket(la);
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -921,15 +921,11 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		n_points = -1; // flag that points exist but are not loaded
 	}
 
-	public void repaint() {
-		repaint(true);
-	}
-
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
-	public void repaint(boolean repaint_navigator) {
+	public void repaint(boolean repaint_navigator, Layer la) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
 		Rectangle box = getBoundingBox(null);
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, la);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 5, repaint_navigator);
 	}
@@ -1565,13 +1561,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Exports data, the tag is not opened nor closed. */
-	synchronized public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_pipe\n");
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		if (n_points > 0) {
 			sb_body.append(in).append("d=\"M");
@@ -1600,8 +1596,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_pipe";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_pipe";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_pipe (").append(Displayable.commonDTDChildren()).append(")>\n");
@@ -1980,7 +1976,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			vs.calibrate(this.layer_set.getCalibration());
 			len = vs.computeLength(); // no resampling
 		}
-		return new StringBuffer("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
+		return new StringBuilder("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
 	/** @param area is expected in world coordinates. */
@@ -2170,7 +2166,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			}
 		}
 		generateInterpolatedPoints(0.05);
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, null);
 		return true;
 	}
 
@@ -2219,7 +2215,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 		if (null != chain) {
 			generateInterpolatedPoints(0.05);
-			calculateBoundingBox(true);
+			calculateBoundingBox(true, la);
 		}
 		return true;
 	}
@@ -2250,7 +2246,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			}
 		}
 		generateInterpolatedPoints(0.05);
-		calculateBoundingBox(true);
+		calculateBoundingBox(true, vlocal.layer);
 		return true;
 	}
 
@@ -2266,5 +2262,16 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (null == pols) return a;
 		for (final Polygon pol : pols) a.add(new Area(pol));
 		return a;
+	}
+
+	@Override
+	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		final Polygon[] pols = getSubPerimeters(layer); // in world coords
+		if (null == pols) return false;
+		final Rectangle box = this.at.createTransformedShape(r).getBounds();
+		for (final Polygon pol : pols) {
+			if (pol.intersects(box)) return true;
+		}
+		return false;
 	}
 }

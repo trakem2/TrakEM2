@@ -298,7 +298,7 @@ public class Segmentation {
 				return;
 			}
 			aw.getArea().add(area.createTransformedArea(aff));
-			ac.calculateBoundingBox();
+			ac.calculateBoundingBox(layer);
 
 			Display.repaint(layer);
 		}}, layer.getProject());
@@ -331,7 +331,7 @@ public class Segmentation {
 				}
 			});
 		}
-		public void mouseDragged(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
+		public void mouseDragged(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 			try {
 				dispatcher.submit(new Runnable() {
 					public void run() {
@@ -340,13 +340,13 @@ public class Segmentation {
 							br.moveBlow(x_p - x_d, y_p - y_d);
 						} catch (Throwable t) {
 							IJError.print(t);
-							mouseReleased(me, x_p, y_p, x_d_old, y_d_old, x_d, y_d);
+							mouseReleased(me, la, x_p, y_p, x_d_old, y_d_old, x_d, y_d);
 						}
 					}
 				});
 			} catch (RejectedExecutionException ree) {} // Ignore: operations have been canceled
 		}
-		public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
+		public void mouseReleased(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 			dispatcher.submit(new Runnable() {
 				public void run() {
 					// Add the roi to the Area
@@ -421,7 +421,7 @@ public class Segmentation {
 
 			try {
 				aw.getArea().add(M.getArea(sroi).createTransformedArea(source_aff.createInverse()));
-				ac.calculateBoundingBox();
+				ac.calculateBoundingBox(layer);
 				Display.getFront().getCanvas().getFakeImagePlus().killRoi();
 			} catch (NoninvertibleTransformException nite) {
 				IJError.print(nite);

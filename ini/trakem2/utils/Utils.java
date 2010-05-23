@@ -104,7 +104,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.7r 2010-03-31";
+	static public String version = "0.7s 2010-05-08";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -126,8 +126,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Avoid waiting on the AWT thread repainting ImageJ's log window. */
 	static private final class LogDispatcher extends Thread {
-		private final StringBuffer cache = new StringBuffer();
-		private boolean loading = false;
+		private final StringBuilder cache = new StringBuilder();
 		private boolean go = true;
 		public LogDispatcher() {
 			super("T2-Log-Dispatcher");
@@ -142,17 +141,9 @@ public class Utils implements ij.plugin.PlugIn {
 		public final void log(final String msg) {
 			try {
 				synchronized (cache) {
-					loading = true; // no need to synch, variable setting is atomic
 					if (0 != cache.length()) cache.append('\n');
 					cache.append(msg);
-					loading = false;
 				}
-				Thread.yield();
-				if (loading) return;
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-			try {
 				synchronized (this) { notify(); }
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -161,13 +152,18 @@ public class Utils implements ij.plugin.PlugIn {
 		public void run() {
 			while (go) {
 				try {
-					synchronized (this) { wait(); }
 					String msg = null;
-					synchronized (cache) {
-						if (0 != cache.length()) msg = cache.toString();
-						cache.setLength(0);
+					int len = 0;
+					synchronized (cache) { len = cache.length(); } 
+					while (len > 0) {
+						synchronized (cache) {
+							if (0 != cache.length()) msg = cache.toString();
+							cache.setLength(0);
+						}
+						if (null != msg) IJ.log(msg);
+						synchronized (cache) { len = cache.length(); }
 					}
-					IJ.log(msg);
+					synchronized (this) { wait(); }
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -180,7 +176,6 @@ public class Utils implements ij.plugin.PlugIn {
 	    Waits 100 ms before printing the status message; if too many status messages are being sent, the last one overrides all. */
 	static private final class StatusDispatcher extends Thread {
 		private String msg = null;
-		private boolean loading = false;
 		private boolean go = true;
 		private double progress = -1;
 		public StatusDispatcher() {
@@ -216,8 +211,16 @@ public class Utils implements ij.plugin.PlugIn {
 		public void run() {
 			while (go) {
 				try {
-					// first part ensures it gets printed even if the notify was issued while not waiting
-					synchronized (this) {
+					String msg = null;
+					double progress = -1;
+					while (null != this.msg || -1 != this.progress) {
+						synchronized (this) {
+							// Acquire and reset
+							msg = this.msg;
+							this.msg = null;
+							progress = this.progress;
+							this.progress = -1;
+						}
 						if (null != msg) {
 							IJ.showStatus(msg);
 							msg = null;
@@ -226,19 +229,10 @@ public class Utils implements ij.plugin.PlugIn {
 							IJ.showProgress(progress);
 							progress = -1;
 						}
-						wait();
 					}
 					// allow some time for overwriting of messages
 					Thread.sleep(100);
-					/* // should not be needed
-					// print the msg if necessary
-					synchronized (this) {
-						if (null != msg) {
-							IJ.showStatus(msg);
-							msg = null;
-						}
-					}
-					*/
+					synchronized (this) { wait(); }
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -295,7 +289,7 @@ public class Utils implements ij.plugin.PlugIn {
 		Utils.log2((null != msg ? msg : "") + ob + "\n\t" + Utils.toString(ob));
 	}
 	static public final void log2(final String msg, final Object ob1, final Object... ob) {
-		final StringBuffer sb = new StringBuffer(null == msg ? "" : msg + "\n");
+		final StringBuilder sb = new StringBuilder(null == msg ? "" : msg + "\n");
 		sb.append(ob1.toString()).append(" : ").append(Utils.toString(ob1)).append('\n');
 		for (int i=0; i<ob.length; i++) sb.append(ob.toString()).append(" : ").append(Utils.toString(ob[i])).append('\n');
 		sb.setLength(sb.length()-1);
@@ -307,6 +301,9 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void log2(final Object... ob){
+		Utils.log2(Utils.toString(ob));
+	}
+	static public final void logMany2(final Object... ob){
 		Utils.log2(Utils.toString(ob));
 	}
 
@@ -579,7 +576,7 @@ public class Utils implements ij.plugin.PlugIn {
 		if (-1 != i_e) {
 			final int exp = Integer.parseInt(num.substring(i_e+2));
 			if (n_decimals < exp) {
-				final StringBuffer sb = new StringBuffer("0.");
+				final StringBuilder sb = new StringBuilder("0.");
 				int count = n_decimals;
 				while (count > 0) {
 					sb.append('0');
@@ -588,7 +585,7 @@ public class Utils implements ij.plugin.PlugIn {
 				return sb.toString(); // returns 0.000... as many zeros as desired n_decimals
 			}
 			// else move comma
-			StringBuffer sb = new StringBuffer("0.");
+			final StringBuilder sb = new StringBuilder("0.");
 			int count = exp -1;
 			while (count > 0) {
 				sb.append('0');
@@ -603,7 +600,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		// else, there is no scientific notation to worry about
 		final int i_dot = num.indexOf('.');
-		final StringBuffer sb = new StringBuffer(num.substring(0, i_dot+1));
+		final StringBuilder sb = new StringBuilder(num.substring(0, i_dot+1));
 		for (int i=i_dot+1; i < (n_decimals + i_dot + 1) && i < num.length(); i++) {
 			sb.append(num.charAt(i));
 		}
@@ -771,7 +768,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final String openTextFile(final String path) {
 		if (null == path || !new File(path).exists()) return null;
-		final StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		BufferedReader r = null;
 		try {
 			r = new BufferedReader(new FileReader(path));
@@ -1041,7 +1038,7 @@ public class Utils implements ij.plugin.PlugIn {
 		final int hour = c.get(Calendar.HOUR_OF_DAY);
 		final int min = c.get(Calendar.MINUTE);
 		final int sec = c.get(Calendar.SECOND);
-		final StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		if (hour < 10) sb.append('0');
 		sb.append(hour).append(':');
 		if (min < 10) sb.append('0');
@@ -1087,7 +1084,7 @@ public class Utils implements ij.plugin.PlugIn {
 		int k = i / 26;
 		char c = (char)((i % 26) + 65); // 65 is 'A'
 		if (0 == k) return Character.toString(c);
-		return new StringBuffer().append(getCharacter(k)).append(c).toString();
+		return new StringBuilder().append(getCharacter(k)).append(c).toString();
 	}
 
 	static public final Object getField(final Object ob, final String field_name) {
@@ -1225,7 +1222,7 @@ public class Utils implements ij.plugin.PlugIn {
 		// Concatenate all good groups with underscores:
 		final Pattern pat = Pattern.compile("\\b[a-zA-Z]+[\\w]*\\b");
 		final Matcher m = pat.matcher(s);
-		final StringBuffer sb = new StringBuffer();
+		final StringBuilder sb = new StringBuilder();
 		while (m.find()) {
 			sb.append(m.group()).append('_');
 		}

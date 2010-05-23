@@ -104,7 +104,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	final protected AffineTransform at = new AffineTransform();
 
 	/** Width and height of the data, not the bounding box. If the AffineTransform is different than identity, then the bounding box will be different. */
-	protected double width = 0,
+	protected float width = 0,
 		         height = 0;
 
 	protected boolean locked = false;
@@ -333,9 +333,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** Check if this or any of the Displayables in the linked group is locked. */
 	public boolean isLocked() {
 		if (locked) return true;
-		return isLocked(new HashSet());
+		return isLocked(new HashSet<Displayable>());
 	}
-	private boolean isLocked(HashSet hs) {
+	private final boolean isLocked(final HashSet<Displayable> hs) {
 		if (locked) return true;
 		else if (hs.contains(this)) return false;
 		hs.add(this);
@@ -356,7 +356,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Reconstruct a Displayable from the database. */
-	public Displayable(Project project, long id, String title, boolean locked, AffineTransform at, double width, double height) {
+	public Displayable(Project project, long id, String title, boolean locked, AffineTransform at, float width, float height) {
 		super(project, id);
 		this.title = title;
 		this.locked = locked;
@@ -367,26 +367,28 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
-	public Displayable(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Displayable(Project project, long id, HashMap<String,String> ht, HashMap ht_links) {
 		super(project, id);
 		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
-		for (final Map.Entry entry : (Collection<Map.Entry>) ht.entrySet()) {
-			final String key = (String)entry.getKey();
-			final String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			try {
-				if (key.equals("width")) width = Double.parseDouble(data);
-				else if (key.equals("height")) height = Double.parseDouble(data);
+				if (key.equals("width")) width = Float.parseFloat(data);
+				else if (key.equals("height")) height = Float.parseFloat(data);
 				else if (key.equals("transform")) {
 					final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
 					this.at.setTransform(Double.parseDouble(nums[0]), Double.parseDouble(nums[1]),
 							     Double.parseDouble(nums[2]), Double.parseDouble(nums[3]),
 							     Double.parseDouble(nums[4]), Double.parseDouble(nums[5]));
 					//Utils.log2("at: " + this.at);
+				} else if (key.equals("title")) {
+					if (null != data && !data.toLowerCase().equals("null")) {
+						this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
+					} else this.title = null;
 				}
-				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
-				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
 				else if (key.equals("style")) {
 					try {
 					// 1 - extract alpha
@@ -424,21 +426,20 @@ public abstract class Displayable extends DBObject implements Paintable  {
 						if (null == this.color) this.color = Color.yellow;
 						Utils.log("ERROR at reading style: " + es);
 					}
-				} else if (key.equals("links")) {
+				}
+				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
+				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
+				else if (key.equals("links")) {
 					// This is hard one, must be stored until all objects exist and then processed
 					if (null != data && data.length() > 0) ht_links.put(this, data);
-				} else if (key.equals("title")) {
-					if (null != data && !data.toLowerCase().equals("null")) {
-						this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
-					} else this.title = null;
+				} else if (key.equals("composite")) {
+						compositeMode = Byte.parseByte(data);
 				} else if (key.equals("x")) {
 					x = Double.parseDouble(data); // this could be done with reflection, but not all, hence this dullness
 				} else if (key.equals("y")) {
 					y = Double.parseDouble(data);
 				} else if (key.equals("rot")) {
 					rot = Double.parseDouble(data);
-				} else if (key.equals("composite")) {
-					compositeMode = Byte.parseByte(data);
 				} else if (key.equals("edited_yn")) this.setEditedYN( data.trim().toLowerCase().equals("true"), false ); // davi-experimenting
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
@@ -523,27 +524,29 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	public String getShortTitle() {
-		Rectangle b = getBoundingBox(null);
+		final String title = getTitle();
+		if (null != title && !getClass().getSimpleName().toLowerCase().equals(title.toLowerCase())) return title;
+		final Rectangle b = getBoundingBox(null);
 		return "x=" + Utils.cutNumber(b.x, 2) + " y=" + Utils.cutNumber(b.y, 2) + (null != layer ? " z=" + Utils.cutNumber(layer.getZ(), 2) : "");
 	}
 
 	/** Returns the x of the bounding box. */
-	public double getX() {
+	public int getX() {
 		return getBoundingBox(null).x;
 	}
 
 	/** Returns the y of the bounding box. */
-	public double getY() {
+	public int getY() {
 		return getBoundingBox(null).y;
 	}
 
 	/** Returns the width of the data. */
-	public double getWidth() {
+	public float getWidth() {
 		return this.width;
 	}
 
 	/** Returns the height of the data. */
-	public double getHeight() {
+	public float getHeight() {
 		return this.height;
 	}
 
@@ -706,13 +709,13 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return hs;
 	}
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		Utils.log2("mousePressed not implemented yet for " + this.getClass().getName());
 	}
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		Utils.log2("mouseDragged not implemented yet for " + this.getClass().getName());
 	}
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		Utils.log2("mouseReleased not implemented yet for " + this.getClass().getName());
 	}
 
@@ -778,6 +781,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Repaint this Displayable in all Display instances that are showing it. */
 	public void repaint() {
+		Utils.log("called repaint() for " + getClass().getName());
 		Display.repaint(layer, this, 5);
 	}
 
@@ -879,7 +883,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// link the other to this
 		this.hs_linked.add(d);
 		// link this to the other
-		if (null == d.hs_linked) d.hs_linked = new HashSet();
+		if (null == d.hs_linked) d.hs_linked = new HashSet<Displayable>();
 		d.hs_linked.add(this);
 		// update the database
 		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
@@ -964,7 +968,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		final ArrayList al = layer.getDisplayables(Patch.class);
+		final ArrayList<Displayable> al = layer.getDisplayables(Patch.class);
 
 		// this bounding box:
 		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
@@ -973,8 +977,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// for each Patch, check if it underlays this profile's bounding box
 		Rectangle box = new Rectangle();
 		boolean must_lock = false;
-		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
-			final Displayable displ = (Displayable)itd.next();
+		for (final Displayable displ : al) {
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
 				// Link the patch
@@ -1039,12 +1042,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public Rectangle getLinkedBox(final boolean same_layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return getBoundingBox();
 		final Rectangle box = new Rectangle();
-		accumulateLinkedBox(same_layer, new HashSet(), box);
+		accumulateLinkedBox(same_layer, new HashSet<Displayable>(), box);
 		return box;
 	}
 
 	/** Accumulates in the box. */
-	private void accumulateLinkedBox(final boolean same_layer, final HashSet hs_done, final Rectangle box) {
+	private void accumulateLinkedBox(final boolean same_layer, final HashSet<Displayable> hs_done, final Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		box.add(getBoundingBox(null));
@@ -1161,8 +1164,6 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// store old box
 		//Rectangle box = getLinkedBox(true);//getBoundingBox();
 
-		final HashSet<String> fields = new HashSet<String>();
-
 		// adjust values:
 		String title1 = gd.getNextString();
 		double x1 = gd.getNextNumber();
@@ -1220,8 +1221,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 				Rectangle b2 = getBoundingBox(null);
 				int dx = b2.x - b.x;
 				int dy = b2.y - b.y;
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : hs) {
 					if (this.equals(d)) continue;
 					d.translate(dx, dy, false);
 				}
@@ -1232,8 +1232,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (1 != sx || 1 != sy) {
 			if (null != hs) {
 				// scale all
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : hs) {
 					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2, false); // centered on this
 				}
 			} else {
@@ -1245,8 +1244,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			double rads = Math.toRadians(rot1);
 			if (null != hs) {
 				//Utils.log2("delta_angle, rot1, rot: " + delta_angle + "," + rot1 + "," + rot);
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : hs) {
 					d.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 				}
 			} else {
@@ -1284,7 +1282,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	static protected final String TAG_ATTR2 = " NMTOKEN #REQUIRED>\n";
 
 	/** Adds simply DTD !ATTRIBUTE tags. The ProjectThing that encapsulates this object will give the type. */
-	static public void exportDTD(String type, StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" oid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_id").append(TAG_ATTR2)
 			 /*
@@ -1304,7 +1302,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)
@@ -1329,7 +1327,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(final StringBuffer sb_body, final String in, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String in, final Object any) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1369,7 +1367,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(final StringBuffer sb_body, final String in, final Object any) {
+	synchronized protected void restXML(final StringBuilder sb_body, final String in, final Object any) {
 		// Properties:
 		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
@@ -1416,9 +1414,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	// I'm sure it could be made more efficient, but I'm too tired!
 	public boolean hasLinkedGroupWithinLayer(Layer la) {
-		HashSet hs = getLinkedGroup(new HashSet());
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
 			if (!d.layer.equals(la)) return false;
 		}
 		return true;
@@ -1489,6 +1485,21 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		double min_dist = Double.MAX_VALUE;
 		int index = -1;
 		for (int i=0; i<n_points; i++) {
+			double sq_dist = Math.pow(a[0][i] - x_p, 2) + Math.pow(a[1][i] - y_p, 2);
+			if (sq_dist < min_dist) {
+				index = i;
+				min_dist = sq_dist;
+			}
+		}
+		return index;
+	}
+
+	static protected int findNearestPoint(final double[][] a, final long[] p_layer, final int n_points, final double x_p, final double y_p, final long lid) {
+		if (0 == n_points) return -1;
+		double min_dist = Double.MAX_VALUE;
+		int index = -1;
+		for (int i=0; i<n_points; i++) {
+			if (p_layer[i] != lid) continue;
 			double sq_dist = Math.pow(a[0][i] - x_p, 2) + Math.pow(a[1][i] - y_p, 2);
 			if (sq_dist < min_dist) {
 				index = i;
@@ -1573,7 +1584,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Commands the parent container (a Layer or a LayerSet) to update the bucket position of this Displayable. */
 	public void updateBucket() {
-		if (null != getBucketable()) getBucketable().updateBucket(this);
+		if (null != getBucketable()) getBucketable().updateBucket(this, this.layer);
 	}
 
 	/** Scale relative to an anchor point (will translate as necessary). */
@@ -1693,8 +1704,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Concatenate the given affine to this and all its linked objects. */
 	public void transform(final AffineTransform at) {
-		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : getLinkedGroup(new HashSet())) {
 			d.at.concatenate(at);
 			d.updateInDatabase("transform");
 			d.updateBucket();
@@ -1705,8 +1715,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** preConcatenate the given affine transform to this Displayable's affine. */
 	public void preTransform(final AffineTransform affine, final boolean linked) {
 		if (linked) {
-			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
-				final Displayable d = (Displayable)it.next();
+			for (final Displayable d : getLinkedGroup(null)) {
 				d.at.preConcatenate(affine);
 				d.updateInDatabase("transform");
 				d.updateBucket();
@@ -1729,7 +1738,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		g.drawLine((int)c2[6], (int)c2[7], (int)c2[0], (int)c2[1]);
 	}
 
-	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				paint(g, srcRect, mag, false, 0xffffffff, layer);
@@ -1995,7 +2004,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		public Displayable getD() { return null; }
 
 		public boolean isIdenticalTo(final Object ob) {
-			if (ob instanceof Collection) {
+			if (ob instanceof Collection<?>) {
 				final Collection<Displayable> col = (Collection<Displayable>) ob;
 				if (ht.size() != col.size()) return false;
 				for (final Displayable d : col) {
@@ -2043,7 +2052,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	static abstract protected class DataPackage {
-		protected final double width, height;
+		protected final float width, height;
 		protected final boolean edited_yn; // davi-experimenting
 		protected final AffineTransform at;
 		protected HashMap<Displayable,HashSet<Displayable>> links = null;
@@ -2115,6 +2124,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return Arrays.asList(this.layer.getId());
 	}
 
+	/** Override it to provide Layer pointers directly. */
+	public Collection<Layer> getLayersWithData() {
+		final Collection<Long> lids = getLayerIds();
+		final Collection<Layer> layers = new ArrayList<Layer>(lids.size());
+		final LayerSet layer_set = getLayerSet();
+		for (final Long l : lids) layers.add(layer_set.getLayer(l));
+		return layers;
+	}
+
 	public Area getArea() {
 		return new Area(getPerimeter());
 	}
@@ -2124,6 +2142,20 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	 *  For example, a Polyine would show a list of little 1x1 rectangles for each point in the @param layer. */
 	public Area getAreaAt(final Layer layer) {
 		return getArea();
+	}
+
+	/** Should call getAreaAt(layer), or methods that are similar but faster. */
+	protected Area getAreaForBucket(final Layer layer) {
+		return getAreaAt(layer);
+	}
+
+	/** If this Displayable intersects with @param r or almost intersects, then returns true.
+	 *  This method is meant to be very fast, and err on the "yes" and never on the "no". */
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		// Unless overriden:
+		final Area a = getAreaForBucket(layer);
+		if (a == null) return false;
+		return a.getBounds().intersects(r);
 	}
 
 	public void setAnnotation(final String annotation) { this.annotation = annotation; }

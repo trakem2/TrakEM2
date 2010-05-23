@@ -1150,10 +1150,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.layer = layer;
 		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
 
+		/* // OBSOLETE
 		// update the current Layer pointer in ZDisplayable objects
 		for (Iterator it = layer.getParent().getZDisplayables().iterator(); it.hasNext(); ) {
 			((ZDisplayable)it.next()).setLayer(layer); // the active layer
 		}
+		*/
 
 		updateVisibleTab(set_zdispl);
 
@@ -1172,7 +1174,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				it.remove();
 				selection.remove(d);
 				if (d == last_active && sel.size() > 0) {
-					// select the last one of the remaining, if any
+					// set as active (by selecting it) the last one of the remaining, if any
 					sel_next = sel.size()-1;
 				}
 			}
@@ -1312,7 +1314,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		} else if (null != active) {
 			if (value != active.getAlpha()) { // because there's a callback from setActive that would then affect all other selected Displayable without having dragged the slider, i.e. just by being selected.
-				canvas.invalidateVolatile();
 				selection.setAlpha(value);
 			}
 		}
@@ -1386,7 +1387,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null == set) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			for (final Display d : al_displays) {
-				if (set.contains(d.layer)) {
+				if (d.layer.getParent() == set) {
 					d.updateSnapshots();
 					if (update_canvas_dimensions) d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
 					d.repaintAll();
@@ -1628,7 +1629,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Add the ZDisplayable to all Displays that show a Layer belonging to the given LayerSet. */
 	static public void add(final LayerSet set, final ZDisplayable zdispl) {
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				if (front == d) {
 					zdispl.setLayer(d.layer); // the active one
 					d.add(zdispl, true, true); // calling add(Displayable, boolean, boolean)
@@ -1650,7 +1651,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void addAll(final LayerSet set, final Collection<? extends ZDisplayable> coll) {
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				for (final ZDisplayable zd : coll) {
 					if (front == d) zd.setLayer(d.layer);
 				}
@@ -1712,7 +1713,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null == active || !selection.contains(displ)) {
 			canvas.setUpdateGraphics(true);
 		}
-		canvas.invalidateVolatile(); // removing active, no need to update offscreen but yes the volatile
 		repaint(displ, null, 5, true, false);
 		// from Selection.deleteAll this method is called ... but it's ok: same thread, no locking problems.
 		selection.remove(displ);
@@ -1752,7 +1752,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
 	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, final boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
-		canvas.invalidateVolatile();
 		if (update_graphics || displ.getClass() == Patch.class || displ != active) {
 			canvas.setUpdateGraphics(true);
 		}
@@ -1840,7 +1839,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (repaint_disabled) return;
 		if (null == set) return;
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				if (repaint_navigator) {
 					if (null != displ) {
 						DisplayablePanel dp = d.ht_panels.get(displ);
@@ -1860,7 +1859,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void repaint(final LayerSet set) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				d.navigator.repaint(true);
 				d.canvas.repaint(true);
 			}
@@ -1870,7 +1869,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void repaint(final LayerSet set, final Rectangle box) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
-			if (set.contains(d.layer)) {
+			if (d.layer.getParent() == set) {
 				d.navigator.repaint(box);
 				d.canvas.repaint(box, 0, true);
 			}
@@ -2387,6 +2386,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
 			item = new JMenuItem("Specify transform..."); item.addActionListener(this); popup.add(item);
 			if (getMode().getClass() != AffineTransformMode.class) item.setEnabled(false);
+			if (getMode().getClass() == ManualAlignMode.class) {
+				final JMenuItem lexport = new JMenuItem("Export landmarks"); popup.add(lexport);
+				final JMenuItem limport = new JMenuItem("Import landmarks"); popup.add(limport);
+				ActionListener a = new ActionListener() {
+					public void actionPerformed(ActionEvent ae) {
+						ManualAlignMode mam = (ManualAlignMode)getMode();
+						Object source = ae.getSource();
+						if (lexport == source) {
+							mam.exportLandmarks();
+						} else if (limport == source) {
+							mam.importLandmarks();
+						}
+					}
+				};
+				lexport.addActionListener(a);
+				limport.addActionListener(a);
+			}
 			return popup;
 		}
 
@@ -2472,7 +2488,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				tgenerate.setEnabled(trees.size() > 0);
 				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
 				tremove.setEnabled(trees.size() > 0);
-				final JMenuItem tconnectors = new JMenuItem("View table of outgoing connectors"); review.add(tconnectors);
+				final JMenuItem tconnectors = new JMenuItem("View table of outgoing/incomming connectors"); review.add(tconnectors);
 				ActionListener l = new ActionListener() {
 					public void actionPerformed(final ActionEvent ae) {
 						if (!Utils.check("Really " + ae.getActionCommand())) {
@@ -2608,9 +2624,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			popup.addSeparator();
 
 			if (! (active instanceof ZDisplayable)) {
-				ArrayList al_layers = layer.getParent().getLayers();
-				int i_layer = al_layers.indexOf(layer);
-				int n_layers = al_layers.size();
+				int i_layer = layer.getParent().indexOf(layer);
+				int n_layers = layer.getParent().size();
 				item = new JMenuItem("Send to previous layer"); item.addActionListener(this); popup.add(item);
 				if (1 == n_layers || 0 == i_layer || active.isLinked()) item.setEnabled(false);
 				// check if the active is a profile and contains a link to another profile in the layer it is going to be sent to, or it is linked
@@ -2801,11 +2816,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		popup.add(menu);
 
 		menu = new JMenu("Export");
+		final boolean has_arealists = layer.getParent().contains(AreaList.class);
 		item = new JMenuItem("Make flat image..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Arealists as labels (tif)"); item.addActionListener(this); menu.add(item);
-		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		item.setEnabled(has_arealists);
 		item = new JMenuItem("Arealists as labels (amira)"); item.addActionListener(this); menu.add(item);
-		if (0 == layer.getParent().getZDisplayables(AreaList.class).size()) item.setEnabled(false);
+		item.setEnabled(has_arealists);
 		item = new JMenuItem("Image stack under selected Arealist"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && AreaList.class == active.getClass());
 		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
@@ -2844,7 +2860,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select all"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Select all visible"); item.addActionListener(this); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
-		if (0 == layer.getDisplayables().size() && 0 == layer.getParent().getZDisplayables().size()) item.setEnabled(false);
+		if (0 == layer.getDisplayableList().size() && 0 == layer.getParent().getDisplayableList().size()) item.setEnabled(false);
 		item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 		if (0 == selection.getNSelected()) item.setEnabled(false);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
@@ -2869,7 +2885,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		JMenu graph = new JMenu("Graph");
 		GraphMenuListener gl = new GraphMenuListener();
 		item = new JMenuItem("Select outgoing Connectors"); item.addActionListener(gl); graph.add(item);
-		item = new JMenuItem("Select incomming Connectors"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Select incoming Connectors"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
@@ -2920,7 +2936,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (origins.isEmpty()) continue;
 					to_select.add(con);
 				}
-			} else if (command.equals("Select incomming Connectors")) {
+			} else if (command.equals("Select incoming Connectors")) {
 				for (final Connector con : connectors) {
 					for (final Set<Displayable> targets : con.getTargets()) {
 						targets.retainAll(sel);
@@ -3182,6 +3198,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				if (Thread.currentThread().isInterrupted()) return;
 				Patch p = (Patch) d;
 				p.setPreprocessorScriptPath(script);
+				p.updateMipMaps();
 			}
 		}
 		private Collection<Layer> getLayerList(String title) {
@@ -3235,7 +3252,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				java.util.List<Displayable> a = new ArrayList<Displayable>();
 				if (null != aroi) {
 					a.addAll(d.layer.getDisplayables(c, aroi, true));
-					a.addAll(d.layer.getParent().getZDisplayables(c, d.layer, aroi, true));
+					a.addAll(d.layer.getParent().findZDisplayables(c, d.layer, aroi, true, true));
 				} else {
 					a.addAll(d.layer.getDisplayables(c));
 					a.addAll(d.layer.getParent().getZDisplayables(c));
@@ -3761,16 +3778,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			canvas.applyTransform();
 		} else if (command.equals("Apply transform propagating to last layer")) {
 			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
-				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				final HashSet<Layer> subset = new HashSet<Layer>(layers.subList(layers.indexOf(Display.this.layer)+1, layers.size())); // +1 to exclude current layer
+				final LayerSet ls = getLayerSet();
+				final HashSet<Layer> subset = new HashSet<Layer>(ls.getLayers(ls.indexOf(Display.this.layer)+1, ls.size())); // +1 to exclude current layer
 				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
 				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));
 			}
 		} else if (command.equals("Apply transform propagating to first layer")) {
 			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
-				final java.util.List<Layer> layers = layer.getParent().getLayers();
-				final HashSet<Layer> subset = new HashSet<Layer>(layers.subList(0, layers.indexOf(Display.this.layer)));
+				final LayerSet ls = getLayerSet();
+				final HashSet<Layer> subset = new HashSet<Layer>(ls.getLayers(0, ls.indexOf(Display.this.layer) -1)); // -1 to exclude current layer
 				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
 				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));
@@ -4470,7 +4487,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Grid overlay...")) {
 			if (null == gridoverlay) gridoverlay = new GridOverlay();
 			gridoverlay.setup(canvas.getFakeImagePlus().getRoi());
-			canvas.invalidateVolatile();
 			canvas.repaint(false);
 		} else if (command.equals("Enhance contrast (selected images)...")) {
 			final Layer la = layer;
@@ -5160,7 +5176,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	/** Export the DTD that defines this object. */
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		if (hs.contains("t2_display")) return; // TODO to avoid collisions the type shoud be in a namespace such as tm2:display
 		hs.add("t2_display");
 		sb_header.append(indent).append("<!ELEMENT t2_display EMPTY>\n")
@@ -5180,7 +5196,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 	/** Export all displays of the given project as XML entries. */
 	static public void exportXML(final Project project, final Writer writer, final String indent, final Object any) throws Exception {
-		final StringBuffer sb_body = new StringBuffer();
+		final StringBuilder sb_body = new StringBuilder();
 		final String in = indent + "\t";
 		for (final Display d : al_displays) {
 			if (d.project != project) continue;
@@ -5351,8 +5367,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
-		double new_width = gd.getNextNumber();
-		double new_height =gd.getNextNumber();
+		float new_width = (float)gd.getNextNumber();
+		float new_height = (float)gd.getNextNumber();
 		layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 	}
 

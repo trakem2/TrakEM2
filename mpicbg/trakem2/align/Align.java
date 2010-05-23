@@ -493,7 +493,7 @@ public class Align
 		final Patch patch = t.getPatch();
 		final Loader loader = patch.getProject().getLoader();
 		final Features fe = new Features( p.sift, list );
-		return loader.serialize( fe, new StringBuffer( loader.getUNUIdFolder() ).append( "features.ser/" )
+		return loader.serialize( fe, new StringBuilder( loader.getUNUIdFolder() ).append( "features.ser/" )
 			.append( FSLoader.createIdPath( Long.toString( patch.getId() ), "features", ".ser" ) ).toString() );
 	}
 
@@ -505,7 +505,7 @@ public class Align
 		final Patch patch = t.getPatch();
 		final Loader loader = patch.getProject().getLoader();
 
-		final Object ob = loader.deserialize( new StringBuffer( loader.getUNUIdFolder() ).append( "features.ser/" )
+		final Object ob = loader.deserialize( new StringBuilder( loader.getUNUIdFolder() ).append( "features.ser/" )
 			.append( FSLoader.createIdPath( Long.toString( patch.getId() ), "features", ".ser" ) ).toString() );
 		if ( null != ob )
 		{
@@ -573,10 +573,10 @@ public class Align
 		return
 			loader.serialize(
 				new PointMatches( p, list ),
-				new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() ) &&
+				new StringBuilder( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() ) &&
 			loader.serialize(
 				new PointMatches( p, tsil ),
-				new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p2.getId() ) + "_" + Long.toString( p1.getId() ), "pointmatches", ".ser" ) ).toString() );
+				new StringBuilder( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p2.getId() ) + "_" + Long.toString( p1.getId() ), "pointmatches", ".ser" ) ).toString() );
 	}
 	
 	
@@ -589,7 +589,7 @@ public class Align
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
 		
-		final Object ob = loader.deserialize( new StringBuffer( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
+		final Object ob = loader.deserialize( new StringBuilder( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
 				.append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() );
 		
 		if ( null != ob )

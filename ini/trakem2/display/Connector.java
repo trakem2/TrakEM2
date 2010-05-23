@@ -44,27 +44,27 @@ public class Connector extends Treeline {
 		super(project, title);
 	}
 	
-	public Connector(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Connector(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
 	/** Reconstruct from XML. */
-	public Connector(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public Connector(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 	}
 
 	@Override
-	public Tree newInstance() {
+	public Tree<Float> newInstance() {
 		return new Connector(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
 	@Override
-	public Node newNode(float lx, float ly, Layer la, Node modelNode) {
+	public Node<Float> newNode(float lx, float ly, Layer la, Node<?> modelNode) {
 		return new ConnectorNode(lx, ly, la, null == modelNode ? 0 : ((ConnectorNode)modelNode).r);
 	}
 
 	@Override
-	public Node newNode(HashMap ht_attr) {
+	public Node<Float> newNode(final HashMap<String,String> ht_attr) {
 		return new ConnectorNode(ht_attr);
 	}
 
@@ -77,31 +77,33 @@ public class Connector extends Treeline {
 			super(lx, ly, la, radius);
 		}
 		/** To reconstruct from XML, without a layer. */
-		public ConnectorNode(final HashMap attr) {
+		public ConnectorNode(final HashMap<String,String> attr) {
 			super(attr);
 		}
 
 		@Override
-		public final Node newInstance(final float lx, final float ly, final Layer layer) {
+		public final Node<Float> newInstance(final float lx, final float ly, final Layer layer) {
 			return new ConnectorNode(lx, ly, layer, 0);
 		}
 		@Override
-		public void paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Set<Node> to_paint, final Tree tree) {
-			final AffineTransform a = new AffineTransform();
-			a.scale(magnification, magnification);
-			a.translate(-srcRect.x, -srcRect.y);
-			a.concatenate(tree.at);
-			;
+		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Float>> to_paint, final Tree<Float> tree, final AffineTransform to_screen) {
+			final float[] fp = new float[]{x, y, x + r, y};
+			tree.at.transform(fp, 0, fp, 0, 2);
+			final float radius = fp[2] - fp[0];
+			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
+				// Which color?
+				if (active_layer == this.la) {
+					g.setColor(tree.getColor());
+				} else {
+					if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
+					else g.setColor(Color.blue);
+				}
 
-			// Which color?
-			if (active_layer == this.la) {
-				g.setColor(tree.getColor());
-			} else {
-				if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
-				else g.setColor(Color.blue);
+				g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
+
+				return true;
 			}
-
-			g.draw(a.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
+			return false;
 		}
 
 		@Override
@@ -111,13 +113,18 @@ public class Connector extends Treeline {
 		}
 
 		@Override
+		public boolean isRoughlyInside(final Rectangle localbox) {
+			return localbox.intersects(x - r, y - r, r + r, r + r);
+		}
+
+		@Override
 		public Area getArea() {
 			if (0 == r) return super.getArea(); // a little square
 			return new Area(new Ellipse2D.Float(x-r, y-r, r+r, r+r));
 		}
 
 		@Override
-		public void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree t) {
+		public void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<Float> t) {
 			final Point2D.Double po = t.transformPoint(this.x, this.y);
 			final float x = (float)((po.x - srcRect.x) * magnification);
 			final float y = (float)((po.y - srcRect.y) * magnification);
@@ -178,14 +185,14 @@ public class Connector extends Treeline {
 					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
-			if (!new_format) calculateBoundingBox();
+			if (!new_format) calculateBoundingBox(null);
 
 
 			// Now, into nodes:
 			this.root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
 			addNode(null, root, (byte)0);
 			for (int i=1; i<lids.length; i++) {
-				Node nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
+				Node<Float> nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
 				addNode(this.root, nd, Node.MAX_EDGE_CONFIDENCE);
 			}
 			cacheSubtree(root.getSubtreeNodes());
@@ -208,7 +215,7 @@ public class Connector extends Treeline {
 		final AffineTransform aff = new AffineTransform(c.at);
 		aff.preConcatenate(this.at.createInverse());
 		final float[] f = new float[4];
-		for (final Map.Entry<Node,Byte> e : c.root.getChildren().entrySet()) {
+		for (final Map.Entry<Node<Float>,Byte> e : c.root.getChildren().entrySet()) {
 			final ConnectorNode nd = (ConnectorNode)e.getKey();
 			f[0] = nd.x;
 			f[1] = nd.y;
@@ -232,10 +239,10 @@ public class Connector extends Treeline {
 		return getUnder(root, c);
 	}
 
-	private final Set<Displayable> getUnder(final Node node, final Class c) {
+	private final Set<Displayable> getUnder(final Node<Float> node, final Class c) {
 		final Area a = node.getArea();
 		a.transform(this.at);
-		HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, true));
+		final HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, true));
 		targets.remove(this);
 		return targets;
 	}
@@ -249,7 +256,7 @@ public class Connector extends Treeline {
 	public List<Set<Displayable>> getTargets(final Class c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
-		for (Node nd : root.getChildrenNodes()) {
+		for (final Node<Float> nd : root.getChildrenNodes()) {
 			al.add(getUnder(nd, c));
 		}
 		return al;
@@ -265,9 +272,9 @@ public class Connector extends Treeline {
 		return root.getChildrenCount();
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
-		String type = "t2_connector";
+		final String type = "t2_connector";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_connector (t2_node*,").append(Displayable.commonDTDChildren()).append(")>\n");
@@ -283,7 +290,7 @@ public class Connector extends Treeline {
 		return copy;
 	}
 
-	private final void insert(final Node nd, final ResultsTable rt, final int i, final byte confidence, final Calibration cal, final float[] f) {
+	private final void insert(final Node<Float> nd, final ResultsTable rt, final int i, final byte confidence, final Calibration cal, final float[] f) {
 		f[0] = nd.x;
 		f[1] = nd.y;
 		this.at.transform(f, 0, f, 0, 1);
@@ -312,44 +319,24 @@ public class Connector extends Treeline {
 		return rt;
 	}
 
-	public Point3f getOriginPoint(final boolean calibrated) {
-		if (null == root) return null;
-		return fix(root.asPoint(), calibrated, new float[2]);
-	}
-
-	final private Point3f fix(final Point3f p, final boolean calibrated, final float[] f) {
-		f[0] = p.x;
-		f[1] = p.y;
-		this.at.transform(f, 0, f, 0, 1);
-		p.x = f[0];
-		p.y = f[1];
-		if (calibrated) {
-			final Calibration cal = layer_set.getCalibration();
-			p.x *= cal.pixelWidth;
-			p.y *= cal.pixelHeight;
-			p.z *= cal.pixelWidth; // not pixelDepth!
-		}
-		return p;
-	}
-
 	public List<Point3f> getTargetPoints(final boolean calibrated) {
 		if (null == root) return null;
 		final List<Point3f> targets = new ArrayList<Point3f>();
 		if (null == root.children) return targets;
 		final float[] f = new float[2];
-		for (final Node nd : root.children) {
+		for (final Node<Float> nd : root.children) {
 			targets.add(fix(nd.asPoint(), calibrated, f));
 		}
 		return targets;
 	}
 
-	public Coordinate<Node> getCoordinateAtOrigin() {
+	public Coordinate<Node<Float>> getCoordinateAtOrigin() {
 		if (null == root) return null;
 		return createCoordinate(root);
 	}
 
 	/** Get a coordinate for target i. */
-	public Coordinate<Node> getCoordinate(final int i) {
+	public Coordinate<Node<Float>> getCoordinate(final int i) {
 		if (null == root || !root.hasChildren()) return null;
 		return createCoordinate(root.children[i]);
 	}
@@ -388,11 +375,10 @@ public class Connector extends Treeline {
 
 	/** Add a root or child nodes to root. */
 	@Override
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, final Layer layer, int x_p, int y_p, double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
 			return;
 		}
-		final Layer layer = Display.getFrontLayer(this.project);
 
 		if (-1 == last_radius) {
 			last_radius = 10 / (float)mag;
@@ -408,7 +394,7 @@ public class Connector extends Treeline {
 				y_pl = (int)po.y;
 			}
 
-			Node found = findNode(x_pl, y_pl, layer, mag);
+			Node<Float> found = findNode(x_pl, y_pl, layer, mag);
 			setActive(found);
 
 			if (null != found) {
@@ -439,7 +425,7 @@ public class Connector extends Treeline {
 				((ConnectorNode)found).setData(last_radius);
 				addNode(root, found, Node.MAX_EDGE_CONFIDENCE);
 				setActive(found);
-				repaint(true);
+				repaint(true, layer);
 			}
 			return;
 		} else {
@@ -453,4 +439,19 @@ public class Connector extends Treeline {
 
 	@Override
 	protected boolean requireAltDownToEditRadius() { return false; }
+
+	@Override
+	protected Rectangle getBounds(final Collection<Node<Float>> nodes) {
+		final Rectangle nb = new Rectangle();
+		Rectangle box = null;
+		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
+			final int r = 0 == nd.r ? 1 : (int)nd.r;
+			if (null == box) box = new Rectangle((int)nd.x - r, (int)nd.y - r, r+r, r+r);
+			else {
+				nb.setBounds((int)nd.x - r, (int)nd.y - r, r+r, r+r);
+				box.add(nb);
+			}
+		}
+		return box;
+	}
 }

@@ -1,42 +1,27 @@
 package ini.trakem2.utils;
 
-import ini.trakem2.display.Display;
+import ij.measure.Calibration;
+import ij.process.ImageProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 
-import ij.measure.Calibration;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.process.ImageProcessor;
-import ij.process.ByteProcessor;
-
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.Color;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.RenderingHints;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.HashSet;
-import java.util.HashMap;
-
-import marchingcubes.MCTriangulator;
-import isosurface.Triangulator;
 
 import javax.vecmath.Point3f;
 
-import mpicbg.imglib.type.numeric.integer.ByteType;
-import mpicbg.imglib.image.Image;
+import marchingcubes.MCTriangulator;
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
-import mpicbg.imglib.container.array.ArrayContainerFactory;
-import mpicbg.imglib.image.ImageFactory;
-import mpicbg.imglib.cursor.*;
+import mpicbg.imglib.image.Image;
+import mpicbg.imglib.type.numeric.integer.ByteType;
 //import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 
 
@@ -48,7 +33,7 @@ public final class AreaUtils {
 	 *  @param scale The scaling of the entire universe, to limit the overall box
 	 *  @param resample The optimization parameter for marching cubes (i.e. a value of 2 will scale down to half, then apply marching cubes, then scale up by 2 the vertices coordinates).
 	 *  @return The List of triangles involved, specified as three consecutive vertices. A list of Point3f vertices. */
-	static public List generateTriangles(final Displayable d, final double scale, final int resample_, final Map<Layer,Area> areas) {
+	static public List<Point3f> generateTriangles(final Displayable d, final double scale, final int resample_, final Map<Layer,Area> areas) {
 		// in the LayerSet, layers are ordered by Z already.
 		try {
 
@@ -248,7 +233,7 @@ public final class AreaUtils {
 						Utils.log2("verts[" + i + "] = " + p.x + ", " + p.y + ", " + p.z + "  p.z as int: " + ((int)(p.z + 0.05f)));
 					}
 				}
-				return new ArrayList(output.values());
+				return new ArrayList<Point3f>(output.values());
 			} else {
 				return java.util.Arrays.asList(verts);
 			}
@@ -267,12 +252,12 @@ public final class AreaUtils {
 	 * @param la_thickness the thickness of that layer
 	 * @param layer_index The stack slice index corresponding to the Layer @param la.
 	 */
-	static private final void fix3DPoints(final List list, final TreeMap<Integer,Point3f> output, final Point3f[] verts, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz, final int n_slices) {
+	static private final void fix3DPoints(final List<Point3f> list, final TreeMap<Integer,Point3f> output, final Point3f[] verts, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz, final int n_slices) {
 		int fixed = 0;
 		// Find all pixels that belong to the layer, and transform them back:
 		for (int i=0; i<verts.length; i++) {
 			if (null != verts[i]) continue; // already processed! The unprocessed Z is merely coincident with a processed Z.
-			final Point3f p = (Point3f) list.get(i);
+			final Point3f p = list.get(i);
 			final int pz = (int)(p.z + 0.05f);
 			//final int pz = (int)(p.z + (0.5f * Math.signum(p.z)));
 			if ( pz >= layer_index && pz < layer_index + n_slices) {
@@ -373,7 +358,6 @@ public final class AreaUtils {
 		final Area area = new Area();
 		final ArrayList<Area> segments = new ArrayList<Area>();
 		final Rectangle box = new Rectangle(0, 0, 1, 1);
-		int inc = 50;
 
 		for (int y=0; y<height; y++) {
 			float prev = ip.getPixelValue(0, y);

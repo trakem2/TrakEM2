@@ -1029,11 +1029,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Expects a HashMap<Thing,Boolean> as @param any. */
-	public void exportXML(final StringBuffer sb_body, final String indent, final Object any) {
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		exportXML(sb_body, indent, (HashMap<Thing,Boolean>)any);
 	}
 
-	public void exportXML(final StringBuffer sb_body, final String indent, final HashMap<Thing,Boolean> expanded_states) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final HashMap<Thing,Boolean> expanded_states) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -1135,20 +1136,20 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Return information on this node and its object, and also on all the children, recursively. */
+	@Override
 	public String getInfo() {
-		StringBuffer sb = new StringBuffer();
-		getInfo(new HashSet(), sb);
+		final StringBuilder sb = new StringBuilder();
+		getInfo(new HashSet<ProjectThing>(), sb);
 		return sb.toString();
 	}
 
 	/** Accumulate info recursively from all children nodes. */
-	private final void getInfo(HashSet hs, final StringBuffer info) {
-		if (null == hs) hs = new HashSet();
+	private final void getInfo(final HashSet<ProjectThing> hs, final StringBuilder info) {
 		if (hs.contains(this)) return;
 		hs.add(this);
 		info.append('\n').append(getNodeInfo());
 		if (null == al_children) return;
-		for (ProjectThing child : al_children) {
+		for (final ProjectThing child : al_children) {
 			child.getInfo(hs, info);
 		}
 	}

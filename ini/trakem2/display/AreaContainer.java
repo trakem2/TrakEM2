@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface AreaContainer {
 	public List<Area> getAreas(Layer layer, Rectangle box);
-	public boolean calculateBoundingBox();
+	public boolean calculateBoundingBox(Layer layer);
 }

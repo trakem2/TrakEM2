@@ -125,7 +125,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
 	public Patch(Project project, long id, String title,
-		     double width, double height,
+		     float width, float height,
 		     int o_width, int o_height,
 		     int type, boolean locked, double min, double max, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
@@ -140,16 +140,16 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Reconstruct from an XML entry. */
-	public Patch(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
+	public Patch(Project project, long id, HashMap<String,String> ht_attributes, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// cache path:
-		project.getLoader().addedPatchFrom((String)ht_attributes.get("file_path"), this);
+		project.getLoader().addedPatchFrom(ht_attributes.get("file_path"), this);
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (final Map.Entry entry : (Collection<Map.Entry>) ht_attributes.entrySet()) {
-			final String key = (String)entry.getKey();
-			final String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("type")) {
 				this.type = Integer.parseInt(data);
 			} else if (key.equals("min")) {
@@ -158,8 +158,6 @@ public final class Patch extends Displayable implements ImageData {
 			} else if (key.equals("max")) {
 				this.max = Double.parseDouble(data);
 				hasmax = true;
-			} else if (key.equals("original_path")) {
-				this.original_path = data;
 			} else if (key.equals("o_width")) {
 				this.o_width = Integer.parseInt(data);
 			} else if (key.equals("o_height")) {
@@ -170,6 +168,8 @@ public final class Patch extends Displayable implements ImageData {
 					path = project.getLoader().getParentFolder() + path;
 				}
 				project.getLoader().setPreprocessorScriptPathSilently(this, path);
+			} else if (key.equals("original_path")) {
+				this.original_path = data;
 			}
 		}
 
@@ -719,7 +719,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
-	public void exportXML(StringBuffer sb_body, String indent, Object any) { // TODO the Loader should handle the saving of images, not this class.
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
 		String in = indent + "\t";
 		String path = null;
 		String path2 = null;
@@ -806,8 +807,8 @@ public final class Patch extends Displayable implements ImageData {
 		return Math.pow(256, pow) - 1;
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_patch";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_patch";
 		if (hs.contains(type)) return;
 		// The Patch itself:
 		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list)>\n");
@@ -874,7 +875,8 @@ public final class Patch extends Displayable implements ImageData {
 		return false;
 	}
 
-	public void paintSnapshot(final Graphics2D g, final Rectangle srcRect, final double mag) {
+	@Override
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				if (!project.getLoader().isSnapPaintable(this.id)) {
@@ -1482,6 +1484,7 @@ public final class Patch extends Displayable implements ImageData {
 		return 0 != (pvalue[0] & 0xff000000);
 	}
 
+	/** After setting a preprocessor script, it is advisable that you call updateMipMaps() immediately. */
 	public void setPreprocessorScriptPath(final String path) {
 		final String old_path = project.getLoader().getPreprocessorScriptPath(this);
 
@@ -1757,5 +1760,16 @@ public final class Patch extends Displayable implements ImageData {
 			return false;
 		}
 		return true;
+	}
+
+	/** Use this instead of getAreaAt which calls getArea which is ... dog slow for something like buckets. */
+	@Override
+	protected Area getAreaForBucket(final Layer layer) {
+		return new Area(getPerimeter());
+	}
+
+	@Override
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		return layer == this.layer && r.intersects(getBoundingBox());
 	}
 }

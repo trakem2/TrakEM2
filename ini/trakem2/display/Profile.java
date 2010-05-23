@@ -156,7 +156,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Construct a Bezier Profile from the database, but the points will be loaded later, when actually needed, by calling setupForDisplay(). */
-	public Profile(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
+	public Profile(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -166,18 +166,17 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Construct a Bezier Profile from an XML entry. */
-	public Profile(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Profile(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("d")) {
 				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				ArrayList al_p_r = new ArrayList();
-				ArrayList al_p_l = new ArrayList();// needs shifting, inserting one point at the beginning if not closed.
+				final ArrayList<String> al_p = new ArrayList<String>(),
+									al_p_r = new ArrayList<String>(),
+									al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
 				// sequence is: M p[0],p[1] C p_r[0],p_r[1] p_l[0],p_l[1] and repeat without the M, and finishes with the last p[0],p[1]. If closed, appended at the end is p_r[0],p_r[1] p_l[0],p_l[1]
 				// first point:
 				int i_start = data.indexOf('M');
@@ -236,13 +235,13 @@ public class Profile extends Displayable implements VectorData {
 				this.p_l = new double[2][n_points];
 				this.p_r = new double[2][n_points];
 				for (int i=0; i<n_points; i++) {
-					String[] sp = ((String)al_p.get(i)).split(",");
+					String[] sp = al_p.get(i).split(",");
 					p[0][i] = Double.parseDouble(sp[0]);
 					p[1][i] = Double.parseDouble(sp[1]);
-					sp = ((String)al_p_l.get(i)).split(",");
+					sp = al_p_l.get(i).split(",");
 					p_l[0][i] = Double.parseDouble(sp[0]);
 					p_l[1][i] = Double.parseDouble(sp[1]);
-					sp = ((String)al_p_r.get(i)).split(",");
+					sp = al_p_r.get(i).split(",");
 					p_r[0][i] = Double.parseDouble(sp[0]);
 					p_r[1][i] = Double.parseDouble(sp[1]);
 				}
@@ -253,7 +252,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** A constructor for cloning purposes. */
-	private Profile(Project project, String title, double x, double y, double width, double height, float alpha, Color color, int n_points, double[][] p, double[][] p_r, double[][] p_l, double[][] p_i, boolean closed) {
+	private Profile(Project project, String title, double x, double y, float width, float height, float alpha, Color color, int n_points, double[][] p, double[][] p_r, double[][] p_l, double[][] p_i, boolean closed) {
 		super(project, title, x, y);
 		this.width = width;
 		this.height = height;
@@ -601,7 +600,7 @@ public class Profile extends Displayable implements VectorData {
 	static private boolean is_new_point = false;
 
 	/**Execute the mousePressed MouseEvent on this Profile.*/
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double mag) {
+	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -676,7 +675,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/**Execute the mouseDragged MouseEvent on this Profile.*/
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -734,7 +733,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/**Execute the mouseReleased MouseEvent on this Profile.*/
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN == tool) {
 			//generate interpolated points
@@ -763,8 +762,8 @@ public class Profile extends Displayable implements VectorData {
 	/**Calculate the bounding box of the curve in the shape of a Rectangle defined by x,y,width,height. If adjust_position is true, then points are made local to the minimal x,y. */
 	protected void calculateBoundingBox(boolean adjust_position) {
 		if (0 == n_points) {
-			this.width = this.height = 0.0D;
-			layer.updateBucket(this);
+			this.width = this.height = 0;
+			updateBucket();
 			return;
 		}
 		//go over all points and control points and find the max and min
@@ -789,8 +788,8 @@ public class Profile extends Displayable implements VectorData {
 			if (p_r[1][i] > max_y) max_y = p_r[1][i];
 		}
 
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
@@ -805,7 +804,7 @@ public class Profile extends Displayable implements VectorData {
 			this.at.translate(min_x, min_y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 			updateInDatabase("transform");
 		}
-		layer.updateBucket(this);
+		updateBucket();
 		updateInDatabase("dimensions");
 	}
 
@@ -1286,12 +1285,13 @@ public class Profile extends Displayable implements VectorData {
 		}
 	}
 
-	public void exportXML(StringBuffer sb_body, String indent, Object any) {
+	@Override
+	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_profile\n");
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
 		if (-1 == n_points) setupForDisplay(); // reload
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		if (n_points > 0) {
 			sb_body.append(in).append("d=\"M");
@@ -1316,8 +1316,8 @@ public class Profile extends Displayable implements VectorData {
 		sb_body.append(indent).append("</t2_profile>\n");
 	}
 
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String type = "t2_profile";
+	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String type = "t2_profile";
 		if (hs.contains(type)) return;
 		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_profile (").append(Displayable.commonDTDChildren()).append(")>\n");

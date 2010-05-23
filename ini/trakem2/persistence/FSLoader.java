@@ -274,7 +274,7 @@ public final class FSLoader extends Loader {
 			lock();
 			try {
 				if (null == dir_storage) dir_storage = System.getProperty("user.dir") + "/";
-				return new StringBuffer(64).append(System.currentTimeMillis()).append('.')
+				return new StringBuilder(64).append(System.currentTimeMillis()).append('.')
 							   .append(Math.abs(dir_storage.hashCode())).append('.')
 							   .append(Math.abs(System.getProperty("user.name").hashCode()))
 							   .toString();
@@ -820,7 +820,7 @@ public final class FSLoader extends Loader {
 			return null;
 		}
 		final String dir = getMasksFolder();
-		return new StringBuffer(dir).append(createIdPath(Long.toString(p.getId()), filename, ".zip")).toString();
+		return new StringBuilder(dir).append(createIdPath(Long.toString(p.getId()), filename, ".zip")).toString();
 	}
 
 	@Override
@@ -1617,7 +1617,8 @@ public final class FSLoader extends Loader {
 
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
-	public void insertXMLOptions(StringBuffer sb_body, String indent) {
+	@Override
+	public void insertXMLOptions(final StringBuilder sb_body, final String indent) {
 		sb_body.append(indent).append("unuid=\"").append(unuid).append("\"\n");
 		if (null != dir_mipmaps) sb_body.append(indent).append("mipmaps_folder=\"").append(makeRelativePath(dir_mipmaps)).append("\"\n");
 		if (null != dir_storage) sb_body.append(indent).append("storage_folder=\"").append(makeRelativePath(dir_storage)).append("\"\n");
@@ -1893,7 +1894,7 @@ public final class FSLoader extends Loader {
 			pai = null;
 			
 			// Old style:
-			//final String filename = new StringBuffer(new File(path).getName()).append('.').append(patch.getId()).append(mExt).toString();
+			//final String filename = new StringBuilder(new File(path).getName()).append('.').append(patch.getId()).append(mExt).toString();
 			// New style:
 			final String filename = createMipMapRelPath(patch, mExt);
 
@@ -2219,7 +2220,7 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedFeatures(final Patch patch) {
-		final File f = new File(new StringBuffer(getUNUIdFolder()).append("features.ser/").append(FSLoader.createIdPath(Long.toString(patch.getId()), "features", ".ser")).toString());
+		final File f = new File(new StringBuilder(getUNUIdFolder()).append("features.ser/").append(FSLoader.createIdPath(Long.toString(patch.getId()), "features", ".ser")).toString());
 		if (f.exists()) {
 			try {
 				return f.delete();
@@ -2233,7 +2234,7 @@ public final class FSLoader extends Loader {
 	/** Remove the file, if it exists, with serialized point matches for patch.
 	 * Returns true when no such file or on success; false otherwise. */
 	public boolean removeSerializedPointMatches(final Patch patch) {
-		final String ser = new StringBuffer(getUNUIdFolder()).append("pointmatches.ser/").toString();
+		final String ser = new StringBuilder(getUNUIdFolder()).append("pointmatches.ser/").toString();
 		final File fser = new File(ser);
 
 		if (!fser.exists() || !fser.isDirectory()) return true;
@@ -2250,7 +2251,7 @@ public final class FSLoader extends Loader {
 		} else {
 			final String sid_ = sid + "_"; // minimal 2 length: a number and the underscore
 			final int len = sid_.length();
-			final StringBuffer dd = new StringBuffer();
+			final StringBuilder dd = new StringBuilder();
 			for (int i=1; i<=len; i++) {
 				dd.append(sid_.charAt(i-1));
 				if (0 == i % 2 && len != i) dd.append('/');
@@ -2295,7 +2296,7 @@ public final class FSLoader extends Loader {
 				Utils.log2("No underscore: can't process " + path);
 				continue;
 			}
-			name = FSLoader.createIdPath(new StringBuffer().append(name.substring(iunderscore+1)).append('_').append(name.substring(0, iunderscore)).toString(), "pointmatches", ".ser");
+			name = FSLoader.createIdPath(new StringBuilder().append(name.substring(iunderscore+1)).append('_').append(name.substring(0, iunderscore)).toString(), "pointmatches", ".ser");
 
 			f = new File(dir + name);
 			if (f.exists()) {
@@ -2379,7 +2380,7 @@ public final class FSLoader extends Loader {
 		// synch, so that multithreaded generateMipMaps won't collide trying to create dirs
 		synchronized (db_lock) {
 			lock();
-			final String path = new StringBuffer(dir_mipmaps).append(level).append('/').toString();
+			final String path = new StringBuilder(dir_mipmaps).append(level).append('/').toString();
 			if (isURL(dir_mipmaps)) {
 				unlock();
 				return path;
@@ -2404,7 +2405,7 @@ public final class FSLoader extends Loader {
 
 	/** Returns the near-unique folder for the project hosted by this FSLoader. */
 	public String getUNUIdFolder() {
-		return new StringBuffer(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
+		return new StringBuilder(getStorageFolder()).append("trakem2.").append(unuid).append('/').toString();
 	}
 
 	/** Return the unuid_dir or null if none valid selected. */
@@ -2611,7 +2612,7 @@ public final class FSLoader extends Loader {
 				return level;
 			} else {
 				do {
-					final File f = new File(new StringBuffer(dir_mipmaps).append(level).append('/').append(filename).toString());
+					final File f = new File(new StringBuilder(dir_mipmaps).append(level).append('/').append(filename).toString());
 					if (f.exists()) {
 						return level;
 					}
@@ -2661,7 +2662,7 @@ public final class FSLoader extends Loader {
 		}
 
 		// New style:
-		final String path = new StringBuffer(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
+		final String path = new StringBuilder(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
 		if (patch.hasAlphaChannel()) {
 			return mmio.openWithAlpha(path); // ImageSaver.openJpegAlpha(path);
@@ -2882,7 +2883,7 @@ public final class FSLoader extends Loader {
 			// 3 - Reorganize current mipmaps folder to folders with following convention: <level>/dd/dd/d.jpg where ddddd is Patch.id=12345 12/34/5.jpg etc.
 			final String dir_mipmaps = getMipMapsFolder();
 			for (final String name : new File(dir_mipmaps).list()) {
-				String level_dir = new StringBuffer(dir_mipmaps).append(name).append('/').toString();
+				final String level_dir = new StringBuilder(dir_mipmaps).append(name).append('/').toString();
 				final File f = new File(level_dir);
 				if (!f.isDirectory() || f.isHidden()) continue;
 				for (final String mm : f.list()) {
@@ -2894,7 +2895,7 @@ public final class FSLoader extends Loader {
 					String id = mm.substring(prev_last_dot+1, last_dot);
 					String filename = mm.substring(0, prev_last_dot);
 					File oldf = new File(level_dir + mm);
-					File newf = new File(new StringBuffer(new_dir_mipmaps).append(name).append('/').append(createIdPath(id, filename, mExt)).toString());
+					File newf = new File(new StringBuilder(new_dir_mipmaps).append(name).append('/').append(createIdPath(id, filename, mExt)).toString());
 					File fd = newf.getParentFile();
 					fd.mkdirs();
 					if (!fd.exists()) {
@@ -2966,7 +2967,7 @@ public final class FSLoader extends Loader {
 	/** For sid=12345 creates 12/34/5.${filename}.jpg
 	 *  Will be fine with other filename-valid chars in sid. */
 	static public final String createIdPath(final String sid, final String filename, final String ext) {
-		final StringBuffer sf = new StringBuffer(((sid.length() * 3) / 2) + 1);
+		final StringBuilder sf = new StringBuilder(((sid.length() * 3) / 2) + 1);
 		final int len = sid.length();
 		for (int i=1; i<=len; i++) {
 			sf.append(sid.charAt(i-1));

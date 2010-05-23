@@ -315,11 +315,11 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				}
 			} else if (command.equals("many new layers...")) {
 				LayerSet set = (LayerSet)thing.getObject();
-				Layer[] layer = Layer.createMany(set.getProject(), set);
+				List<Layer> layers = Layer.createMany(set.getProject(), set);
 				// add them to the tree as LayerThing
-				if (null == layer) return;
-				for (int i=0; i<layer.length; i++) {
-					addLayer(set, layer[i]); // null layers will be skipped
+				if (null == layers) return;
+				for (Layer la : layers) {
+					addLayer(set, la); // null layers will be skipped
 				}
 				Display.updateTitle(set);
 				return;
@@ -379,8 +379,8 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 					gd.showDialog();
 					if (gd.wasCanceled()) return;
-					double new_width = gd.getNextNumber();
-					double new_height =gd.getNextNumber();
+					float new_width = (float)gd.getNextNumber(),
+						  new_height = (float)gd.getNextNumber();
 					ls.setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 				}
 			} else if (command.equals("Autoresize LayerSet")) {

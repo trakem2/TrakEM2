@@ -24,7 +24,6 @@ package ini.trakem2.utils;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
 import java.util.ArrayList;
 
@@ -87,12 +86,12 @@ public class Bureaucrat extends Thread {
 		worker_thread.start();
 		// Make sure we start AFTER the worker has started.
 		while (!worker.hasStarted()) {
-			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
+			try { Thread.sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
 		start();
 		// Make sure we return AFTER having started.
 		while (!started) {
-			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
+			try { Thread.sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
 	}
 	private void cleanup() {
@@ -118,7 +117,7 @@ public class Bureaucrat extends Thread {
 		ControlWindow.startWaitingCursor();
 		int sandwitch = ControlWindow.isGUIEnabled() ? 100 : 5000; // 0.1 second or 5
 		Utils.showStatus("Started processing: " + worker.getTaskName(), false); // don't steal focus, ever
-		final StringBuffer sb = new StringBuffer("Processing... ").append(worker.getTaskName()).append(" - ");
+		final StringBuilder sb = new StringBuilder("Processing... ").append(worker.getTaskName()).append(" - ");
 		final int base_len = sb.length();
 		while (worker.isWorking() && !worker.hasQuitted()) {
 			try { Thread.sleep(sandwitch); } catch (InterruptedException ie) {}

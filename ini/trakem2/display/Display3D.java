@@ -956,7 +956,7 @@ public final class Display3D {
 		ProjectThing pt = d.getProject().findProjectThing(d);
 		if (null == pt) return null;
 		pt = (ProjectThing) pt.getParent();
-		return d3d.universe.getContent(new StringBuffer(pt.toString()).append(" #").append(pt.getId()).toString());
+		return d3d.universe.getContent(new StringBuilder(pt.toString()).append(" #").append(pt.getId()).toString());
 	}
 
 	static public Future<Boolean> setColor(final Displayable d, final Color color) {

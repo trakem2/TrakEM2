@@ -385,7 +385,7 @@ abstract public class Loader {
 		}
 	}
 
-	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; you can obtain a unique id from method getNextId() .*/
+	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; use getNextId to obtain a unique id. */
 	public void cacheImagePlus(long id, ImagePlus imp) {
 		synchronized (db_lock) {
 			lock();
@@ -586,8 +586,10 @@ abstract public class Loader {
 		return true;
 	}
 
-	final private class GCRunner extends Thread {
-		boolean run = false;
+	final static private class GCRunner extends Thread {
+		private boolean run = false;
+		private long initial = Long.MAX_VALUE;
+		final private int MAX_ITERATIONS = 7;
 		GCRunner() {
 			super("GCRunner");
 			setPriority(Thread.NORM_PRIORITY);
@@ -597,6 +599,7 @@ abstract public class Loader {
 		final void trigger() {
 			synchronized (this) {
 				run = true;
+				initial = IJ.currentMemory();
 				notify();
 			}
 		}
@@ -610,9 +613,7 @@ abstract public class Loader {
 						run = false;
 					}
 
-					final long initial = IJ.currentMemory();
 					long now = initial;
-					final int max = 7;
 					long sleep = 50; // initial value
 					int iterations = 0;
 					Utils.showStatus("Clearing memory...");
@@ -627,17 +628,22 @@ abstract public class Loader {
 						try { Thread.sleep(sleep); } catch (InterruptedException ie) { return; }
 						sleep += sleep; // incremental
 						now = IJ.currentMemory();
-						Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
-						Utils.log2("\t  mawts: " + mawts.size() + "  imps: " + imps.size());
+						try {
+							Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
+							int i = 1;
+							for (final Loader l : v_loaders) {
+								Utils.log2("\t" + i + ":  mawts: " + l.mawts.size() + "  imps: " + l.imps.size());
+							}
+						} catch (Exception e) {}
 						iterations++;
-					} while (now >= initial && iterations < max);
+					} while ((now + (now/10)) >= initial && iterations < MAX_ITERATIONS); // 10% is acceptable
 					Utils.showStatus("Memory cleared.");
 				}
 			}
 		}
 	}
 
-	private final GCRunner gcrunner = new GCRunner();
+	private static final GCRunner gcrunner = new GCRunner();
 
 	/** Trigger garbage collection in a separate thread. */
 	public final void triggerGC() {
@@ -775,7 +781,7 @@ abstract public class Loader {
 	private final long releaseOthers(final long min_free_bytes) {
 		if (1 == v_loaders.size()) return 0;
 		long released = 0;
-		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			if (lo == this) continue;
 			released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
 			if (released >= min_free_bytes) return released;
@@ -859,8 +865,15 @@ abstract public class Loader {
 	static private final AtomicLong clonks = new AtomicLong();
 
 	static public void releaseAllCaches() {
-		for (final Loader lo : new Vector<Loader>(v_loaders)) {
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			lo.releaseAll();
+		}
+	}
+
+	static public void releaseAllCaches(final float fraction) {
+		final long mem = (long)(IJ.maxMemory() * fraction);
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+			lo.releaseMemory(mem);
 		}
 	}
 
@@ -873,6 +886,7 @@ abstract public class Loader {
 					flush(imp);
 				}
 				mawts.removeAndFlushAll();
+				triggerGC();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -1053,7 +1067,7 @@ abstract public class Loader {
 	private final Hashtable<String,ImageLoadingLock> ht_plocks = new Hashtable<String,ImageLoadingLock>();
 
 	protected final ImageLoadingLock getOrMakeImageLoadingLock(final long id, final int level) {
-		final String key = new StringBuffer().append(id).append('.').append(level).toString();
+		final String key = new StringBuilder().append(id).append('.').append(level).toString();
 		ImageLoadingLock plock = ht_plocks.get(key);
 		if (null != plock) return plock;
 		plock = new ImageLoadingLock(key);
@@ -1575,7 +1589,7 @@ abstract public class Loader {
 		if (gd.wasCanceled()) return null;
 
 		final String regex = gd.getNextString();
-		Utils.log2(new StringBuffer("using regex: ").append(regex).toString()); // avoid destroying backslashes
+		Utils.log2(new StringBuilder("using regex: ").append(regex).toString()); // avoid destroying backslashes
 		int first = (int)gd.getNextNumber();
 		if (first < 1) first = 1;
 		int last = (int)gd.getNextNumber();
@@ -2232,7 +2246,7 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
-		return importImages(ref_layer, null, null, 0, 0, false);
+		return importImages(ref_layer, null, null, 0, 0, false, 1);
 	}
 
 	/** Import images from the given text file, which is expected to contain 4 columns:<br />
@@ -2246,9 +2260,10 @@ while (it.hasNext()) {
 	 * Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
 	 * The text file can contain comments that start with the # sign.<br />
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
-	 * The @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
+	 * @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
+	 * @param scale Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
-	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_) {
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_) {
 		// check parameters: ask for good ones if necessary
 		if (null == abs_text_file_path_) {
 			String[] file = Utils.selectFile("Select text file");
@@ -2264,6 +2279,7 @@ while (it.hasNext()) {
 			gdd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
+			gdd.addSlider("Scale:", 0, 100, 100);
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
@@ -2289,6 +2305,14 @@ while (it.hasNext()) {
 					break;
 			}
 			homogenize_contrast_ = gdd.getNextBoolean();
+			double sc = gdd.getNextNumber();
+			if (Double.isNaN(sc)) scale_ = 1.0f;
+			else scale_ = ((float)sc)/100.0f;
+		}
+
+		if (Float.isNaN(scale_) || scale_ < 0 || scale_ > 1) {
+			Utils.log("Non-sensical scale: " + scale_ + "\nUsing scale of 1 instead.");
+			scale_ = 1;
 		}
 
 		// make vars accessible from inner threads:
@@ -2298,6 +2322,7 @@ while (it.hasNext()) {
 		final double layer_thickness = layer_thickness_;
 		final double calibration = calibration_;
 		final boolean homogenize_contrast = homogenize_contrast_;
+		final float scale = (float)scale_;
 
 
 		return Bureaucrat.createAndStart(new Worker.Task("Importing images", true) {
@@ -2340,6 +2365,38 @@ while (it.hasNext()) {
 					final ExecutorService ex = Utils.newFixedThreadPool(np, "import-images");
 					final List<Future> imported = new ArrayList<Future>();
 					final Worker wo = this;
+
+					final String script_path;
+
+					// If scale is at least 1/100 lower than 1, then:
+					if (Math.abs(scale - (int)scale) > 0.01) {
+						// Assume source and target sigma of 0.5
+						final double sigma = Math.sqrt(Math.pow(1/scale, 2) - 0.25);
+						final String script = new StringBuilder()
+							.append("import ij.ImagePlus;\n")
+							.append("import ij.process.ImageProcessor;\n")
+							.append("import ij.plugin.filter.GaussianBlur;\n")
+							.append("GaussianBlur blur = new GaussianBlur();\n")
+							.append("double accuracy = (imp.getType() == ImagePlus.GRAY8 || imp.getType() == ImagePlus.COLOR_RGB) ? 0.002 : 0.0002;\n") // as in ij.plugin.filter.GaussianBlur
+							.append("imp.getProcessor().setInterpolationMethod(ImageProcessor.NONE);\n")
+							.append("blur.blurGaussian(imp.getProcessor(),").append(sigma).append(',').append(sigma).append(",accuracy);\n")
+							.append("imp.setProcessor(imp.getTitle(), imp.getProcessor().resize((int)(imp.getWidth() * ").append(scale).append("), (int)(imp.getHeight() * ").append(scale).append(")));")
+							.toString();
+						File f = new File(getStorageFolder() + "resize-" + scale + ".bsh");
+						int v = 1;
+						while (f.exists()) {
+							f = new File(getStorageFolder() + "resize-" + scale + "." + v + ".bsh");
+							v++;
+						}
+						script_path = Utils.saveToFile(f, script) ? f.getAbsolutePath() : null;
+						if (null == script_path) {
+							Utils.log("Could NOT save a preprocessor script for image scaling\nat path " + f.getAbsolutePath());
+						}
+					} else {
+						script_path = null;
+					}
+
+					Utils.log("Scaling script path is " + script_path);
 
 					// 3 - parse each line
 					for (int i = 0; i < lines.length; i++) {
@@ -2403,8 +2460,8 @@ while (it.hasNext()) {
 						final Layer layer = layer_set.getLayer(z, layer_thickness, true); // will create a new Layer if necessary
 						touched_layers.add(layer);
 						final String imagefilepath = path;
-						final double xx = x;
-						final double yy = y;
+						final double xx = x * scale;
+						final double yy = y * scale;
 
 						// If loaded twice as many, wait for mipmaps to finish
 						// Otherwise, images would end up loaded twice for no reason
@@ -2441,6 +2498,17 @@ while (it.hasNext()) {
 								// add Patch and generate its mipmaps
 								final Patch patch = new Patch(layer.getProject(), imp.getTitle(), xx, yy, imp);
 								addedPatchFrom(imagefilepath, patch);
+								// After setting the path, set the script if any
+								if (null != script_path) {
+									// cache the image for reuse
+									cacheImagePlus(patch.getId(), imp);
+									try {
+										patch.setPreprocessorScriptPath(script_path);
+									} catch (Throwable t) {
+										Utils.log("FAILED to set a scaling preprocessor script to patch " + patch);
+										IJError.print(t);
+									}
+								}
 								if (!homogenize_contrast) {
 									fus.add(regenerateMipMaps(patch));
 								}
@@ -3104,7 +3172,7 @@ while (it.hasNext()) {
 							if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 							// negative tile sizes will be made into black tiles
 							// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuffer(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
+							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
 						}
 					}
 					scale_pow++;
@@ -3555,7 +3623,7 @@ while (it.hasNext()) {
 				else export_images = false; // 'no' option
 			}
 			// 1 - get headers in DTD format
-			StringBuffer sb_header = new StringBuffer("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
+			StringBuilder sb_header = new StringBuilder("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 
 			final HashSet hs = new HashSet();
 			project.exportDTD(sb_header, hs, "\t");
@@ -3805,17 +3873,33 @@ while (it.hasNext()) {
 		try {
 			String path = preprocessors.get(p);
 			if (null == path) return;
-			if (null != imp) {
+			final File f = new File(path);
+			if (!f.exists()) {
+				Utils.log("ERROR: preprocessor script file does NOT exist: " + path);
+				return;
+			} else if (!f.canRead()) {
+				Utils.log("ERROR: can NOT read preprocessor script file at: " + path);
+				return;
+			}
+			if (null == imp) {
+				imp = new ImagePlus(); // uninitialized: the script may generate its data
+			} else {
 				// Prepare image for pre-processing
 				imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
-			} else {
-				imp = new ImagePlus(); // uninitialized: the script may generate its data
 			}
 			// Run the script
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
 			// Update Patch image properties:
-			cache(p, imp);
-			p.updatePixelProperties();
+			if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
+				cache(p, imp);
+				p.updatePixelProperties();
+			} else {
+				Utils.log("ERROR: preprocessor script failed to create a valid image:"
+						+ "\n  ImageProcessor: " + imp.getProcessor()
+						+ "\n  pixel array: " + (null == imp.getProcessor() ? null : imp.getProcessor().getPixels())
+						+ "\n  width: " + imp.getWidth()
+						+ "\n  height: " + imp.getHeight());
+			}
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -3902,7 +3986,7 @@ while (it.hasNext()) {
 	}
 
 	public final void printMemState() {
-		Utils.log2(new StringBuffer("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
+		Utils.log2(new StringBuilder("mem in use: ").append((IJ.currentMemory() * 100.0f) / max_memory).append('%')
 		                    .append("\n\timps: ").append(imps.size())
 				    .append("\n\tmawts: ").append(mawts.size())
 			   .toString());
@@ -4162,7 +4246,7 @@ while (it.hasNext()) {
 		return null;
 	}
 
-	public void insertXMLOptions(StringBuffer sb_body, String indent) {}
+	public void insertXMLOptions(StringBuilder sb_body, String indent) {}
 
 	/** Homogenize contrast layer-wise, for all given layers. */
 	public Bureaucrat enhanceContrast(final Collection<Layer> layers) {
@@ -4511,7 +4595,7 @@ while (it.hasNext()) {
 	/** Table of preprocessor scripts. */
 	private Hashtable<Patch,String> preprocessors = new Hashtable<Patch,String>();
 
-	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.  Automatically regenerates mipmaps
+	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all. Does NOT automatically regenerate mipmaps.
 	 *  To remove the script, set it to null. */
 	public void setPreprocessorScriptPath(final Patch p, final String path) {
 		setPreprocessorScriptPathSilently( p, path );
@@ -4519,9 +4603,8 @@ while (it.hasNext()) {
 		// Merely running the preProcess on the cached image is no guarantee; threading competition may result in an unprocessed, newly loaded image.
 		// Hence, decache right after setting the script, then update mipmaps
 		decacheImagePlus(p.getId());
-		regenerateMipMaps(p); // queued
 	}
-	
+
 	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all.
 	 *  To remove the script, set it to null. */
 	public void setPreprocessorScriptPathSilently(final Patch p, final String path) {

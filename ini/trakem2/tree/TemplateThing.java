@@ -437,8 +437,8 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Only the header !ELEMENT and !ATTLIST. */
-	public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
-		String tag = type.replace(' ', '_');
+	public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+		final String tag = type.replace(' ', '_');
 		if (hs.contains(tag)) return;
 		hs.add(tag);
 		sb_header.append(indent).append("<!ELEMENT ").append(tag);
