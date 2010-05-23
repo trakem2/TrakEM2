@@ -145,9 +145,9 @@ public class Connector extends Treeline {
 
 	static private final Color brightGreen = new Color(33, 255, 0);
 
-	public void readLegacyXML(final LayerSet ls, final HashMap ht_attr, final HashMap ht_links) {
-		String origin = (String) ht_attr.get("origin");
-		String targets = (String) ht_attr.get("targets");
+	public void readLegacyXML(final LayerSet ls, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
+		final String origin = ht_attr.get("origin");
+		final String targets = ht_attr.get("targets");
 		if (null != origin) {
 			final String[] o = origin.split(",");
 			String[] t = null;
