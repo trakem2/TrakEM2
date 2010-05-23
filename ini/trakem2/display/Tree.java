@@ -993,6 +993,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return nd;
 	}
 
+	/** Will call calculateBoundingBox and repaint. */
 	public boolean addNode(final Node<T> parent, final Node<T> child, final byte confidence) {
 		//try {
 
