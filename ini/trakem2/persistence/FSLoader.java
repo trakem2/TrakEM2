@@ -203,7 +203,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 	}
-	static public void exportDTD(StringBuffer sb_header, HashSet hs, String indent) {
+	static public void exportDTD(StringBuilder sb_header, HashSet hs, String indent) {
 		// if (null != ht_user_id_ranges) { TODO have a setting permitting backwards-compatible export?
 			sb_header.append(indent).append("<!ELEMENT user_id_ranges (user_id_range)>\n");
 			sb_header.append(indent).append("<!ATTLIST user_id_ranges current_user_name NMTOKEN #IMPLIED>\n"); // placeholder, not implemented yet
