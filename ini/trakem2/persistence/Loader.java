@@ -3623,10 +3623,9 @@ while (it.hasNext()) {
 				else export_images = false; // 'no' option
 			}
 			// 1 - get headers in DTD format
-			StringBuilder sb_header = new StringBuilder("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
+			StringBuilder sb_header = new StringBuilder(30000).append("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 
-			final HashSet hs = new HashSet();
-			project.exportDTD(sb_header, hs, "\t");
+			project.exportDTD(sb_header, new HashSet<String>(), "\t");
 
 			sb_header.append("] >\n\n");
 
