@@ -264,18 +264,20 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				gd.showDialog();
 				if (gd.wasCanceled()) return;
 				String new_type = gd.getNextString().toLowerCase(); // TODO WARNING toLowerCase enforced, need to check the TMLHandler
-				if (tt.getProject().typeExists(new_type.toLowerCase())) {
-					Utils.showMessage("Type '" + new_type + "' exists already.\nSelect it from the contextual menu list\nor choose a different name.");
-					return;
-				} else if (tt.getProject().isBasicType(new_type.toLowerCase())) {
-					Utils.showMessage("Type '" + new_type + "' is reserved.\nPlease choose a different name.");
-					return;
-				}
-				
+
+
 				// replace spaces before testing for non-alphanumeric chars
 				new_type = new_type.replace(' ', '_').trim(); // spaces don't play well in an XML file.
 
 				if (isInvalidTypeName(new_type, true)) {
+					return;
+				}
+
+				if (tt.getProject().typeExists(new_type.toLowerCase())) {
+					Utils.showMessage("Type '" + new_type + "' exists already.\nSelect it from the contextual menu list\nor choose a different name.");
+					return;
+				} else if (Project.isBasicType(new_type.toLowerCase())) {
+					Utils.showMessage("Type '" + new_type + "' is reserved.\nPlease choose a different name.");
 					return;
 				}
 
