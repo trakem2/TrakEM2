@@ -180,14 +180,16 @@ public class Connector extends Treeline {
 			//if (!new_format) calculateBoundingBox(null);
 
 			// Now, into nodes:
-			this.root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
-			addNode(null, root, (byte)0);
+			final Node<Float> root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
 			for (int i=1; i<lids.length; i++) {
 				Node<Float> nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
-				addNode(this.root, nd, Node.MAX_EDGE_CONFIDENCE);
+				root.add(nd, Node.MAX_EDGE_CONFIDENCE);
 			}
-			cacheSubtree(root.getSubtreeNodes());
-			
+			setRoot(root);
+
+			// Above, cannot be done with addNode: would call repaint and thus calculateBoundingBox, which would screw up relative coords.
+
+			// Fix bounding box to new tree methods:
 			calculateBoundingBox(null);
 		}
 	}
