@@ -195,7 +195,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
 		final String type = "t2_areatree";
 		if (hs.contains(type)) return;

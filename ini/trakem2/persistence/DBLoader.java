@@ -885,7 +885,7 @@ public class DBLoader extends Loader {
 				unlock();
 				return null;
 			}
-			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recusive things such as neurite_branch)
+			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recursive things such as neurite_branch)
 			HashMap hs_tt = new HashMap();
 			unpack(root_tt, hs_tt);
 

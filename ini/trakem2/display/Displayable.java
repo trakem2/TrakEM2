@@ -1263,7 +1263,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	static protected final String TAG_ATTR2 = " NMTOKEN #REQUIRED>\n";
 
 	/** Adds simply DTD !ATTRIBUTE tags. The ProjectThing that encapsulates this object will give the type. */
-	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" oid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_id").append(TAG_ATTR2)
 			 /*
@@ -1282,7 +1282,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		;
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)

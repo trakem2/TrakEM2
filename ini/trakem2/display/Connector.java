@@ -3,38 +3,28 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
-import java.awt.Point;
-import java.awt.Choice;
 import java.awt.Color;
-import java.awt.Shape;
-import java.awt.event.MouseEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Area;
-import java.awt.geom.Ellipse2D;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Collection;
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
-import javax.media.j3d.Transform3D;
-import javax.vecmath.AxisAngle4f;
-import java.awt.Polygon;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.vecmath.Point3f;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
@@ -237,12 +227,12 @@ public class Connector extends Treeline {
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
-	public Set<Displayable> getOrigins(final Class c) {
+	public Set<Displayable> getOrigins(final Class<?> c) {
 		if (null == root) return new HashSet<Displayable>();
 		return getUnder(root, c);
 	}
 
-	private final Set<Displayable> getUnder(final Node<Float> node, final Class c) {
+	private final Set<Displayable> getUnder(final Node<Float> node, final Class<?> c) {
 		final Area a = node.getArea();
 		a.transform(this.at);
 		final HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, true));
@@ -256,7 +246,7 @@ public class Connector extends Treeline {
 	}
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
-	public List<Set<Displayable>> getTargets(final Class c) {
+	public List<Set<Displayable>> getTargets(final Class<?> c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
 		for (final Node<Float> nd : root.getChildrenNodes()) {
@@ -275,7 +265,7 @@ public class Connector extends Treeline {
 		return root.getChildrenCount();
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
 		final String type = "t2_connector";
 		if (hs.contains(type)) return;

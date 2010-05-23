@@ -382,7 +382,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Exports to type t2_treeline. */
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
