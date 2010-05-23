@@ -22,19 +22,14 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ini.trakem2.utils.Utils;
+
 import java.awt.Component;
 import java.awt.Rectangle;
 import java.util.LinkedList;
-import java.util.ArrayList;
-import javax.swing.SwingUtilities;
-import ini.trakem2.utils.Lock;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 
 public abstract class AbstractRepaintThread extends Thread {
 
-	final private Lock lock_event = new Lock();
-	final private Lock lock_paint = new Lock();
 	private boolean quit = false;
 	final protected AbstractOffscreenThread off;
 	private final java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
@@ -67,15 +62,10 @@ public abstract class AbstractRepaintThread extends Thread {
 	public void paint(final Rectangle clipRect, final boolean update_graphics) {
 		//Utils.log2("update_graphics: " + update_graphics);
 		//Utils.printCaller(this, 5);
-		// queue the event
-		synchronized (lock_event) {
-			lock_event.lock();
+		// queue the event and signal a repaint request
+		synchronized (events) {
 			events.add(new PaintEvent(clipRect, update_graphics));
-			lock_event.unlock();
-		}
-		// signal a repaint request
-		synchronized (lock_paint) {
-			lock_paint.notifyAll();
+			events.notify();
 		}
 	}
 
@@ -83,8 +73,8 @@ public abstract class AbstractRepaintThread extends Thread {
 	public void quit() {
 		this.quit = true;
 		// notify and finish
-		synchronized (lock_paint) {
-			lock_paint.notifyAll();
+		synchronized (events) {
+			events.notify();
 		}
 	}
 
@@ -92,9 +82,9 @@ public abstract class AbstractRepaintThread extends Thread {
 		while (!quit) {
 			try {
 				// wait until anyone issues a repaint event
-				if (0 == events.size()) {
-					synchronized (lock_paint) {
-						try { lock_paint.wait(); } catch (InterruptedException ie) {}
+				synchronized (events) {
+					if (0 == events.size()) {
+						try { events.wait(); } catch (InterruptedException ie) {}
 					}
 				}
 
@@ -108,13 +98,11 @@ public abstract class AbstractRepaintThread extends Thread {
 				try { Thread.sleep(10); } catch (InterruptedException ie) {}
 
 				// obtain all events up to now and clear the event queue
-				PaintEvent[] pe = null;
-				synchronized (lock_event) {
-					lock_event.lock();
+				final PaintEvent[] pe;
+				synchronized (events) {
 					pe = new PaintEvent[events.size()];
-					pe = events.toArray(pe);
+					events.toArray(pe);
 					events.clear();
-					lock_event.unlock();
 				}
 				if (0 == pe.length) {
 					Utils.log2("No repaint events (?)");
