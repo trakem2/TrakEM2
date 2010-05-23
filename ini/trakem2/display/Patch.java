@@ -1204,6 +1204,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Caching system to avoid repeated checks. No automatic memoization ... snif */
 	public final boolean hasAlphaMask() {
+		if (project.noAlphaMasks()) return false; // davi-experimenting
 		if (alpha_path_checked) return has_alpha;
 		// else, see if the path exists:
 		try {
