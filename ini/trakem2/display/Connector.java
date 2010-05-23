@@ -89,7 +89,8 @@ public class Connector extends Treeline {
 		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Float>> to_paint, final Tree<Float> tree, final AffineTransform to_screen) {
 			final float[] fp = new float[]{x, y, x + r, y};
 			tree.at.transform(fp, 0, fp, 0, 2);
-			final float radius = fp[2] - fp[0];
+			float radius = fp[2] - fp[0];
+			if (radius <= 0) radius = 1;
 			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
 				// Which color?
 				if (active_layer == this.la) {
@@ -114,6 +115,7 @@ public class Connector extends Treeline {
 
 		@Override
 		public boolean isRoughlyInside(final Rectangle localbox) {
+			final float r = this.r <= 0 ? 1 : this.r;
 			return localbox.intersects(x - r, y - r, r + r, r + r);
 		}
 
