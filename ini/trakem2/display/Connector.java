@@ -185,8 +185,7 @@ public class Connector extends Treeline {
 					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
-			if (!new_format) calculateBoundingBox(null);
-
+			//if (!new_format) calculateBoundingBox(null);
 
 			// Now, into nodes:
 			this.root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
@@ -196,6 +195,8 @@ public class Connector extends Treeline {
 				addNode(this.root, nd, Node.MAX_EDGE_CONFIDENCE);
 			}
 			cacheSubtree(root.getSubtreeNodes());
+			
+			calculateBoundingBox(null);
 		}
 	}
 
