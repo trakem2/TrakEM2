@@ -348,7 +348,13 @@ public class Search {
 
 	private Coordinate<Displayable> createCoordinate(final Displayable d) {
 		Rectangle r = d.getBoundingBox();
-		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, d instanceof ZDisplayable ? ((ZDisplayable)d).getFirstLayer() : d.getLayer(), d);
+		Layer la = d instanceof ZDisplayable ? ((ZDisplayable)d).getFirstLayer() : d.getLayer();
+		if (null == la) {
+			Display display = Display.getFront(d.getProject());
+			if (null == display) la = d.getProject().getRootLayerSet().getLayer(0);
+			else la = display.getLayer();
+		}
+		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, la, d);
 	}
 
 	private JScrollPane makeTable(TableModel model) {
