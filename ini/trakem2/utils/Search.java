@@ -346,9 +346,9 @@ public class Search {
 		return new Coordinate<Node>(x, y, nd.getLayer(), nd);
 	}
 
-	private Coordinate<Displayable> createCoordinate(Displayable d) {
+	private Coordinate<Displayable> createCoordinate(final Displayable d) {
 		Rectangle r = d.getBoundingBox();
-		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, d.getLayer(), d);
+		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, d instanceof ZDisplayable ? ((ZDisplayable)d).getFirstLayer() : d.getLayer(), d);
 	}
 
 	private JScrollPane makeTable(TableModel model) {
@@ -388,9 +388,7 @@ public class Search {
 			if (2 == me.getClickCount()) {
 				if (null != co) {
 					Display.centerAt(co);
-					return;
-				}
-				if (ob instanceof Displayable) {
+				} else if (ob instanceof Displayable) {
 					// no zoom
 					Display.centerAt(createCoordinate((Displayable)ob), true, me.isShiftDown());
 				} else if (ob instanceof Layer) {
