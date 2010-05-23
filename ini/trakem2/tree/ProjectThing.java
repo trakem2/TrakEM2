@@ -926,12 +926,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Recursive into children, find those of the given type that have the same parent chain as the given TemplateThing. */
-	public HashSet collectSimilarThings(final TemplateThing tt, HashSet hs) {
+	public HashSet<ProjectThing> collectSimilarThings(final TemplateThing tt, HashSet<ProjectThing> hs) {
 		if (template.getType().equals(tt.getType()) && parent.template.getType().equals(tt.getParent().getType())) {
 			hs.add(this);
 		}
 		if (null == al_children || al_children.isEmpty()) return hs;
-		for (ProjectThing child : al_children) {
+		for (final ProjectThing child : al_children) {
 			hs = child.collectSimilarThings(tt, hs);
 		}
 		return hs;
