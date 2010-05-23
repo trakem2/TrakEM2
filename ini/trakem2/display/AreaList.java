@@ -175,8 +175,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	public Layer getFirstLayer() {
 		double min_z = Double.MAX_VALUE;
 		Layer first_layer = null;
-		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
-			Layer la = this.layer_set.getLayer(((Long)it.next()).longValue());
+		for (final Long lid : ht_areas.keySet()) {
+			final Layer la = this.layer_set.getLayer(lid.longValue());
 			double z = la.getZ();
 			if (z < min_z) {
 				min_z = z;
