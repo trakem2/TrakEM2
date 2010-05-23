@@ -9,6 +9,6 @@ public interface Bucketable {
 	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(Layer layer);
 	public void updateBucket(Displayable d, Layer layer);
 	public Project getProject();
-	public double getLayerWidth();
-	public double getLayerHeight();
+	public float getLayerWidth();
+	public float getLayerHeight();
 }

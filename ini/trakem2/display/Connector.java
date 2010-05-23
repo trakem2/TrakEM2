@@ -44,12 +44,12 @@ public class Connector extends Treeline {
 		super(project, title);
 	}
 	
-	public Connector(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Connector(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
 	/** Reconstruct from XML. */
-	public Connector(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public Connector(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 	}
 
@@ -59,12 +59,12 @@ public class Connector extends Treeline {
 	}
 
 	@Override
-	public Node<Float> newNode(float lx, float ly, Layer la, Node modelNode) {
+	public Node<Float> newNode(float lx, float ly, Layer la, Node<?> modelNode) {
 		return new ConnectorNode(lx, ly, la, null == modelNode ? 0 : ((ConnectorNode)modelNode).r);
 	}
 
 	@Override
-	public Node<Float> newNode(HashMap ht_attr) {
+	public Node<Float> newNode(final HashMap<String,String> ht_attr) {
 		return new ConnectorNode(ht_attr);
 	}
 
@@ -77,7 +77,7 @@ public class Connector extends Treeline {
 			super(lx, ly, la, radius);
 		}
 		/** To reconstruct from XML, without a layer. */
-		public ConnectorNode(final HashMap attr) {
+		public ConnectorNode(final HashMap<String,String> attr) {
 			super(attr);
 		}
 

@@ -73,7 +73,7 @@ public class TMLHandler extends DefaultHandler {
 	private String base_dir;
 	private String xml_path;
 	/** Stores the object and its String with coma-separated links, to construct links when all objects exist. */
-	final private HashMap ht_links = new HashMap();
+	final private HashMap<Displayable,String> ht_links = new HashMap<Displayable,String>();
 
 	private Thing current_thing = null;
 	final private ArrayList al_open = new ArrayList();
@@ -81,9 +81,9 @@ public class TMLHandler extends DefaultHandler {
 	final private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
 	final private ArrayList<HashMap> al_displays = new ArrayList<HashMap>(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
-	final private HashMap ht_displayables = new HashMap();
-	final private HashMap ht_zdispl = new HashMap();
-	final private HashMap ht_oid_pt = new HashMap();
+	final private HashMap<Long,Displayable> ht_displayables = new HashMap<Long,Displayable>();
+	final private HashMap<Long,Displayable> ht_zdispl = new HashMap<Long,Displayable>();
+	final private HashMap<Long,ProjectThing> ht_oid_pt = new HashMap<Long,ProjectThing>();
 	final private HashMap<ProjectThing,Boolean> ht_pt_expanded = new HashMap<ProjectThing,Boolean>();
 	private Ball last_ball = null;
 	private AreaList last_area_list = null;
@@ -94,13 +94,13 @@ public class TMLHandler extends DefaultHandler {
 	private Treeline last_treeline = null;
 	private AreaTree last_areatree = null;
 	private Connector last_connector = null;
-	private Tree last_tree = null;
+	private Tree<?> last_tree = null;
 	final private LinkedList<Taggable> taggables = new LinkedList<Taggable>();
 	private ReconstructArea reca = null;
-	private Node last_root_node = null;
-	final private LinkedList<Node> nodes = new LinkedList<Node>();
-	final private Map<Long,List<Node>> node_layer_table = new HashMap<Long,List<Node>>();
-	final private Map<Tree,Node> tree_root_nodes = new HashMap<Tree,Node>();
+	private Node<?> last_root_node = null;
+	final private LinkedList<Node<?>> nodes = new LinkedList<Node<?>>();
+	final private Map<Long,List<Node<?>>> node_layer_table = new HashMap<Long,List<Node<?>>>();
+	final private Map<Tree<?>,Node<?>> tree_root_nodes = new HashMap<Tree<?>,Node<?>>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private StringBuilder last_annotation = null;
@@ -249,20 +249,21 @@ public class TMLHandler extends DefaultHandler {
 
 		// 4 - Assign layers to Treeline nodes
 		for (final Layer la : al_layers) {
-			final List<Node> list = node_layer_table.remove(la.getId());
+			final List<Node<?>> list = node_layer_table.remove(la.getId());
 			if (null == list) continue;
-			for (final Node nd : list) nd.setLayer(la);
+			for (final Node<?> nd : list) nd.setLayer(la);
 		}
 		if (!node_layer_table.isEmpty()) {
 			Utils.log("ERROR: node_layer_table is not empty!");
 		}
 		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
-		for (final Map.Entry<Tree,Node> e : tree_root_nodes.entrySet()) {
+		for (final Map.Entry e : tree_root_nodes.entrySet()) {
 			if (null == e.getValue()) {
 				//Utils.log2("Ignoring, applies to new Treeline format only.");
 				continue;
 			}
-			e.getKey().setRoot(e.getValue()); // will generate node caches of each Treeline
+			// Can't compile with <?>
+			((Tree)e.getKey()).setRoot((Node)e.getValue()); // will generate node caches of each Treeline
 		}
 		tree_root_nodes.clear();
 
@@ -382,7 +383,7 @@ public class TMLHandler extends DefaultHandler {
 			// failsafe:
 			qualified_name = qualified_name.toLowerCase();
 
-			HashMap ht_attributes = new HashMap();
+			final HashMap<String,String> ht_attributes = new HashMap<String,String>();
 			for (int i=attributes.getLength() -1; i>-1; i--) {
 				ht_attributes.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
 			}
@@ -407,7 +408,7 @@ public class TMLHandler extends DefaultHandler {
 					return;
 				}
 				// Create the project
-				this.project = new Project(Long.parseLong((String)ht_attributes.remove("id")), (String)ht_attributes.remove("title"));
+				this.project = new Project(Long.parseLong(ht_attributes.remove("id")), (String)ht_attributes.remove("title"));
 				this.project.setTempLoader(this.loader); // temp, but will be the same anyway
 				this.project.parseXMLOptions(ht_attributes);
 				this.project.addToDatabase(); // register id
@@ -574,7 +575,7 @@ public class TMLHandler extends DefaultHandler {
 		Utils.log("SAXParseException : " + e);
 	}
 
-	private ProjectThing makeProjectThing(String type, HashMap ht_attributes) {
+	private ProjectThing makeProjectThing(String type, final HashMap<String,String> ht_attributes) {
 		try {
 			type = type.toLowerCase();
 
@@ -582,14 +583,14 @@ public class TMLHandler extends DefaultHandler {
 			//Utils.log2("TMLHander.makeProjectThing for type=" + type);
 
 			long id = -1;
-			Object sid = ht_attributes.remove("id");
+			final String sid = ht_attributes.remove("id");
 			if (null != sid) {
-				id = Long.parseLong((String)sid);
+				id = Long.parseLong(sid);
 			}
 			long oid = -1;
-			Object soid = ht_attributes.remove("oid");
+			final String soid = ht_attributes.remove("oid");
 			if (null != soid) {
-				oid = Long.parseLong((String)soid);
+				oid = Long.parseLong(soid);
 			}
 			Boolean expanded = new Boolean(false); // default: collapsed
 			Object eob = ht_attributes.remove("expanded");
@@ -597,12 +598,10 @@ public class TMLHandler extends DefaultHandler {
 				expanded = new Boolean((String)eob);
 			}
 			// abstract object, including profile_list
-			HashMap ht_attr = new HashMap();
-			for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				String key = (String)entry.getKey();
-				String data = (String)entry.getValue();
-				ht_attr.put(key, new ProjectAttribute(this.project, -1, key, data));
+			final HashMap<String,ProjectAttribute> ht_attr = new HashMap<String,ProjectAttribute>();
+			for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
+				final String key = (String)entry.getKey();
+				ht_attr.put(key, new ProjectAttribute(this.project, -1, key, entry.getValue()));
 				//Utils.log2("putting key=[" + key + "]=" + data);
 			}
 			TemplateThing tt = this.project.getTemplateThing(type);
@@ -680,30 +679,30 @@ public class TMLHandler extends DefaultHandler {
 		p.put(key, value);
 	}
 
-	private LayerThing makeLayerThing(String type, final HashMap ht_attributes) {
+	private LayerThing makeLayerThing(String type, final HashMap<String,String> ht_attributes) {
 		try {
 			type = type.toLowerCase();
 			if (0 == type.indexOf("t2_")) {
 				type = type.substring(3);
 			}
-			long id = -1;
-			Object sid = ht_attributes.get("id");
-			if (null != sid) id = Long.parseLong((String)sid);
+			//long id = -1;
+			//final String sid = ht_attributes.get("id");
+			//if (null != sid) id = Long.parseLong(sid);
 			long oid = -1;
-			Object soid = ht_attributes.get("oid");
-			if (null != soid) oid = Long.parseLong((String)soid);
+			final String soid = ht_attributes.get("oid");
+			if (null != soid) oid = Long.parseLong(soid);
 
 			if (type.equals("node")) {
 				if (null == last_tree) {
 					throw new NullPointerException("Can't create a node for null last_tree!");
 				}
-				final Node node = last_tree.newNode(ht_attributes);
+				final Node<?> node = last_tree.newNode(ht_attributes);
 				taggables.add(node);
 				// Put node into the list of nodes with that layer id, to update to proper Layer pointer later
-				final long ndlid = Long.parseLong((String)ht_attributes.get("lid"));
-				List<Node> list = node_layer_table.get(ndlid);
+				final long ndlid = Long.parseLong(ht_attributes.get("lid"));
+				List<Node<?>> list = node_layer_table.get(ndlid);
 				if (null == list) {
-					list = new ArrayList<Node>();
+					list = new ArrayList<Node<?>>();
 					node_layer_table.put(ndlid, list);
 				}
 				list.add(node);
@@ -711,14 +710,14 @@ public class TMLHandler extends DefaultHandler {
 				if (null == last_root_node) {
 					last_root_node = node;
 				} else {
-					nodes.getLast().add(node, Byte.parseByte((String)ht_attributes.get("c")));
+					((Node)nodes.getLast()).add(node, Byte.parseByte((String)ht_attributes.get("c")));
 				}
 				// Put node into stack of nodes (to be removed on closing the tag)
 				nodes.add(node);
 			} else if (type.equals("profile")) {
 				Profile profile = new Profile(this.project, oid, ht_attributes, ht_links);
 				profile.addToDatabase();
-				ht_displayables.put(new Long(oid), profile);
+				ht_displayables.put(oid, profile);
 				addToLastOpenLayer(profile);
 				last_displayable = profile;
 				return null;
@@ -976,22 +975,22 @@ public class TMLHandler extends DefaultHandler {
 		catch ( Exception e ) { IJError.print(e); }
 	}
 
-	private final Node parseBranch(String s) {
+	private final Node<?> parseBranch(String s) {
 		// 1 - Parse the slab
 		final int first = s.indexOf('(');
 		final int last = s.indexOf(')', first+1);
 		final String[] coords = s.substring(first+1, last).split(" ");
-		Node prev = null;
-		final List<Node> nodes = new ArrayList<Node>();
+		Node<?> prev = null;
+		final List<Node<?>> nodes = new ArrayList<Node<?>>();
 		for (int i=0; i<coords.length; i+=3) {
 			long lid = Long.parseLong(coords[i+2]);
 			Node nd = new Treeline.RadiusNode(Float.parseFloat(coords[i]), Float.parseFloat(coords[i+1]), null);
 			nd.setData(0f);
 			nodes.add(nd);
 			// Add to node_layer_table for later assignment of a Layer object to the node
-			List<Node> list = node_layer_table.get(lid);
+			List<Node<?>> list = node_layer_table.get(lid);
 			if (null == list) {
-				list = new ArrayList<Node>();
+				list = new ArrayList<Node<?>>();
 				node_layer_table.put(lid, list);
 			}
 			list.add(nd);
@@ -1020,8 +1019,7 @@ public class TMLHandler extends DefaultHandler {
 				// Add the root node of the new branch to the node at branch index
 				int openbranch = s.indexOf('{', open+1);
 				int branchindex = Integer.parseInt(s.substring(open+1, openbranch-1));
-				nodes.get(branchindex).add(parseBranch(s.substring(open, end)),
-							   Node.MAX_EDGE_CONFIDENCE);
+				((Node)nodes.get(branchindex)).add(parseBranch(s.substring(open, end)), Node.MAX_EDGE_CONFIDENCE);
 				open = s.indexOf('{', end+1);
 			}
 		}

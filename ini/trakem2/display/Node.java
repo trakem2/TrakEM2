@@ -87,9 +87,9 @@ public abstract class Node<T> implements Taggable {
 		this.la = la;
 	}
 	/** To reconstruct from XML, without a layer. */
-	public Node(final HashMap attr) {
-		this.x = Float.parseFloat((String)attr.get("x"));
-		this.y = Float.parseFloat((String)attr.get("y"));
+	public Node(final HashMap<String,String> attr) {
+		this.x = Float.parseFloat(attr.get("x"));
+		this.y = Float.parseFloat(attr.get("y"));
 		this.la = null;
 	}
 	public void setLayer(final Layer la) {

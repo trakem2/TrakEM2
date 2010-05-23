@@ -1,42 +1,34 @@
 package ini.trakem2.display;
 
-import ij.measure.Calibration;
 import ini.trakem2.Project;
-import ini.trakem2.utils.Utils;
+import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.utils.Utils;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
 import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.Point;
-import java.awt.Shape;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.InputEvent;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.Collection;
-import java.util.List;
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
-import javax.media.j3d.Transform3D;
-import javax.vecmath.AxisAngle4f;
-import java.awt.Polygon;
-import java.awt.Graphics2D;
-import java.awt.Rectangle;
 import java.awt.geom.Point2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.vecmath.Point3f;
 
 public class AreaTree extends Tree<Area> implements AreaContainer {
 
@@ -48,12 +40,12 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	/** Reconstruct from XML. */
-	public AreaTree(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public AreaTree(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 	}
 
 	/** For cloning purposes, does not call addToDatabase() */
-	public AreaTree(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
+	public AreaTree(final Project project, final long id, final String title, final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
 		super(project, id, title, width, height, alpha, visible, color, locked, at);
 	}
 
@@ -63,13 +55,13 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	@Override
-	public Node<Area> newNode(float lx, float ly, Layer la, Node modelNode) {
+	public Node<Area> newNode(float lx, float ly, Layer la, Node<?> modelNode) {
 		// Ignore modeNode (could be nice, though, to automatically add the previous area)
 		return new AreaNode(lx, ly, la);
 	}
 	
 	@Override
-	public Node newNode(HashMap ht_attr) {
+	public Node<Area> newNode(HashMap<String,String> ht_attr) {
 		return new AreaNode(ht_attr);
 	}
 
@@ -91,7 +83,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			super(lx, ly, la);
 		}
 		/** To reconstruct from XML, without a layer. */
-		public AreaNode(final HashMap attr) {
+		public AreaNode(final HashMap<String,String> attr) {
 			super(attr);
 		}
 
@@ -99,7 +91,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			return new AreaNode(lx, ly, layer);
 		}
 
-		public final synchronized boolean setData(Area area) {
+		public final synchronized boolean setData(final Area area) {
 			if (null == area) {
 				if (null == this.aw) return true;
 				this.aw.getArea().reset();
@@ -475,7 +467,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return box;
 	}
 
-	public List generateMesh(final double scale, final int resample) {
+	public List<Point3f> generateMesh(final double scale, final int resample) {
 		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
 			for (final Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {

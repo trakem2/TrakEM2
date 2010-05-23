@@ -71,7 +71,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** For reconstruction purposes. */
-	public DLabel(Project project, long id, String text, double width, double height, int type, String font_name, int font_style, int font_size, boolean locked, AffineTransform at) {
+	public DLabel(Project project, long id, String text, float width, float height, int type, String font_name, int font_style, int font_size, boolean locked, AffineTransform at) {
 		super(project, id, text, locked, at, width, height);
 		this.type = TEXT; // default
 		this.font = new Font(font_name, font_style, font_size);

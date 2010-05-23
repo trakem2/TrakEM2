@@ -87,7 +87,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		n_points = 0;
 	}
 
-	public Polyline(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Polyline(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -845,8 +845,8 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 		final double[] m = calculateDataBoundingBox();
 
-		this.width = m[2] - m[0];  // max_x - min_x;
-		this.height = m[3] - m[1]; // max_y - min_y;
+		this.width = (float)(m[2] - m[0]);  // max_x - min_x;
+		this.height = (float)(m[3] - m[1]); // max_y - min_y;
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y

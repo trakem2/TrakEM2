@@ -124,7 +124,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
 	public Patch(Project project, long id, String title,
-		     double width, double height,
+		     float width, float height,
 		     int o_width, int o_height,
 		     int type, boolean locked, double min, double max, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
@@ -139,16 +139,16 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Reconstruct from an XML entry. */
-	public Patch(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
+	public Patch(Project project, long id, HashMap<String,String> ht_attributes, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// cache path:
-		project.getLoader().addedPatchFrom((String)ht_attributes.get("file_path"), this);
+		project.getLoader().addedPatchFrom(ht_attributes.get("file_path"), this);
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (final Map.Entry entry : (Collection<Map.Entry>) ht_attributes.entrySet()) {
-			final String key = (String)entry.getKey();
-			final String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("type")) {
 				this.type = Integer.parseInt(data);
 			} else if (key.equals("min")) {
@@ -157,8 +157,6 @@ public final class Patch extends Displayable implements ImageData {
 			} else if (key.equals("max")) {
 				this.max = Double.parseDouble(data);
 				hasmax = true;
-			} else if (key.equals("original_path")) {
-				this.original_path = data;
 			} else if (key.equals("o_width")) {
 				this.o_width = Integer.parseInt(data);
 			} else if (key.equals("o_height")) {
@@ -169,6 +167,8 @@ public final class Patch extends Displayable implements ImageData {
 					path = project.getLoader().getParentFolder() + path;
 				}
 				project.getLoader().setPreprocessorScriptPathSilently(this, path);
+			} else if (key.equals("original_path")) {
+				this.original_path = data;
 			}
 		}
 

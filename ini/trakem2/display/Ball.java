@@ -78,7 +78,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Construct an unloaded Ball from the database. Points will be loaded later, when needed. */
-	public Ball(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Ball(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -87,9 +87,9 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Construct a Ball from an XML entry. */
-	public Ball(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Ball(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
-		// indiviudal balls will be added as soon as parsed
+		// individual balls will be added as soon as parsed
 		this.n_points = 0;
 		this.p = new double[2][5];
 		this.p_layer = new long[5];
@@ -411,8 +411,8 @@ public class Ball extends ZDisplayable implements VectorData {
 				if (p[1][i] + p_width[i] > max_y) max_y = p[1][i] + p_width[i];
 			}
 		}
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y

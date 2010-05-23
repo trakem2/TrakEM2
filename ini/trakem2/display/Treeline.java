@@ -51,12 +51,12 @@ public class Treeline extends Tree<Float> {
 	}
 
 	/** Reconstruct from XML. */
-	public Treeline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public Treeline(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 	}
 
 	/** For cloning purposes, does not call addToDatabase() */
-	public Treeline(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
+	public Treeline(final Project project, final long id, final String title, final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
 		super(project, id, title, width, height, alpha, visible, color, locked, at);
 	}
 
@@ -71,7 +71,7 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public Node<Float> newNode(HashMap ht_attr) {
+	public Node<Float> newNode(HashMap<String,String> ht_attr) {
 		return new RadiusNode(ht_attr);
 	}
 

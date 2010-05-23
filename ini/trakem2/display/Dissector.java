@@ -390,14 +390,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		super(project, title, x, y);
 	}
 
-	public Dissector(Project project, long id, String title,  double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Dissector(Project project, long id, String title,  float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
 	}
 	/** Reconstruct from XML. */
-	public Dissector(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Dissector(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// individual items will be added as soon as parsed
 	}

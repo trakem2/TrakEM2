@@ -500,10 +500,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
-	public double getLayerWidth() {
+	public float getLayerWidth() {
 		return parent.getLayerWidth();
 	}
-	public double getLayerHeight() {
+	public float getLayerHeight() {
 		return parent.getLayerHeight();
 	}
 

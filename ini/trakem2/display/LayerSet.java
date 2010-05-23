@@ -113,8 +113,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
 	static public final String[] ROTATIONS = new String[]{"90 right", "90 left", "Flip horizontally", "Flip vertically"};
 
-	private double layer_width; // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
-	private double layer_height;
+	private float layer_width, // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
+				  layer_height;
 	private double rot_x;
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
@@ -148,7 +148,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Create a new LayerSet with a 0,0,0 rotation vector and default 20,20 px Displayable width,height. */
-	public LayerSet(Project project, String title, double x, double y, Layer parent, double layer_width, double layer_height) {
+	public LayerSet(Project project, String title, double x, double y, Layer parent, float layer_width, float layer_height) {
 		super(project, title, x, y);
 		rot_x = rot_y = rot_z = 0.0D;
 		this.width = 20;
@@ -160,7 +160,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Reconstruct from the database. */
-	public LayerSet(Project project, long id, String title, double width, double height, double rot_x, double rot_y, double rot_z, double layer_width, double layer_height, boolean locked, int shapshots_mode, AffineTransform at) {
+	public LayerSet(Project project, long id, String title, float width, float height, double rot_x, double rot_y, double rot_z, float layer_width, float layer_height, boolean locked, int shapshots_mode, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.rot_x = rot_x;
 		this.rot_y = rot_y;
@@ -180,9 +180,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			String key = (String)entry.getKey();
 			String data = (String)entry.getValue();
 			if (key.equals("layer_width")) {
-				this.layer_width = Double.parseDouble(data);
+				this.layer_width = Float.parseFloat(data);
 			} else if (key.equals("layer_height")) {
-				this.layer_height = Double.parseDouble(data);
+				this.layer_height = Float.parseFloat(data);
 			} else if (key.equals("rot_x")) {
 				this.rot_x = Double.parseDouble(data);
 			} else if (key.equals("rot_y")) {
@@ -237,8 +237,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		try {
-			double width = gd.getNextNumber();
-			double height = gd.getNextNumber();
+			float width = (float)gd.getNextNumber();
+			float height = (float)gd.getNextNumber();
 			if (Double.isNaN(width) || Double.isNaN(height)) return null;
 			if (0 == width || 0 == height) {
 				Utils.showMessage("Cannot accept zero width or height for LayerSet dimensions.");
@@ -387,8 +387,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		g.setTransform(gt);
 	}
 
-	public double getLayerWidth() { return layer_width; }
-	public double getLayerHeight() { return layer_height; }
+	public float getLayerWidth() { return layer_width; }
+	public float getLayerHeight() { return layer_height; }
 	public double getRotX() { return rot_x; }
 	public double getRotY() { return rot_y; }
 	public double getRotZ() { return rot_z; }
@@ -493,8 +493,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		//Utils.log("x,y  xe,ye : " + x + "," + y + "  " + xe + "," + ye);
 		// finally, accept:
 		if (w != layer_width || h != layer_height) {
-			this.layer_width = Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? Well, it is for SBCL
-			this.layer_height = Math.ceil(h);
+			this.layer_width = (float)Math.ceil(w); // stupid int to double conversions ... why floating point math is a non-solved problem? It is for SBCL
+			this.layer_height = (float)Math.ceil(h);
 			updateInDatabase("layer_dimensions");
 			if (null != lbucks) recreateBuckets(true);
 			// and notify the Displays, if any
@@ -533,7 +533,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** May leave objects beyond the visible window. */
-	public void setDimensions(double x, double y, double layer_width, double layer_height) {
+	public void setDimensions(float x, float y, float layer_width, float layer_height) {
 		// Record previous state
 		if (prepareStep(this)) {
 			addEditStep(new LayerSet.DoResizeLayerSet(this));
@@ -558,7 +558,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Returns false if any Displayables are being partially or totally cropped away. */
-	public boolean setDimensions(double layer_width, double layer_height, int anchor) {
+	public boolean setDimensions(float layer_width, float layer_height, int anchor) {
 		// check preconditions
 		if (Double.isNaN(layer_width) || Double.isNaN(layer_height)) { Utils.log("LayerSet.setDimensions: NaNs! Not adjusting."); return false; }
 		if (layer_width <=0 || layer_height <= 0) { Utils.showMessage("LayerSet: can't accept zero or a minus for layer width or height"); return false; }
@@ -614,7 +614,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		*/
 
 		// collect all Displayable and ZDisplayable objects
-		ArrayList al = new ArrayList();
+		ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i=al_layers.size() -1; i>-1; i--) {
 			al.addAll(((Layer)al_layers.get(i)).getDisplayables());
 		}
@@ -622,8 +622,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 		// check that no displayables are being cropped away
 		if (layer_width < this.layer_width || layer_height < this.layer_height) {
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (final Displayable d : al) {
 				Rectangle b = d.getBoundingBox(null);
 				double dw = b.getWidth();
 				double dh = b.getHeight();
@@ -2016,7 +2015,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 		final LayerSet ls;
 		final HashMap<Displayable,AffineTransform> affines;
-		final double width, height;
+		final float width, height;
 
 		DoResizeLayerSet(final LayerSet ls) {
 			this.ls = ls;

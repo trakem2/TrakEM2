@@ -156,7 +156,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Construct a Bezier Profile from the database, but the points will be loaded later, when actually needed, by calling setupForDisplay(). */
-	public Profile(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
+	public Profile(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -166,18 +166,17 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Construct a Bezier Profile from an XML entry. */
-	public Profile(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Profile(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("d")) {
 				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				ArrayList al_p_r = new ArrayList();
-				ArrayList al_p_l = new ArrayList();// needs shifting, inserting one point at the beginning if not closed.
+				final ArrayList<String> al_p = new ArrayList<String>(),
+									al_p_r = new ArrayList<String>(),
+									al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
 				// sequence is: M p[0],p[1] C p_r[0],p_r[1] p_l[0],p_l[1] and repeat without the M, and finishes with the last p[0],p[1]. If closed, appended at the end is p_r[0],p_r[1] p_l[0],p_l[1]
 				// first point:
 				int i_start = data.indexOf('M');
@@ -236,13 +235,13 @@ public class Profile extends Displayable implements VectorData {
 				this.p_l = new double[2][n_points];
 				this.p_r = new double[2][n_points];
 				for (int i=0; i<n_points; i++) {
-					String[] sp = ((String)al_p.get(i)).split(",");
+					String[] sp = al_p.get(i).split(",");
 					p[0][i] = Double.parseDouble(sp[0]);
 					p[1][i] = Double.parseDouble(sp[1]);
-					sp = ((String)al_p_l.get(i)).split(",");
+					sp = al_p_l.get(i).split(",");
 					p_l[0][i] = Double.parseDouble(sp[0]);
 					p_l[1][i] = Double.parseDouble(sp[1]);
-					sp = ((String)al_p_r.get(i)).split(",");
+					sp = al_p_r.get(i).split(",");
 					p_r[0][i] = Double.parseDouble(sp[0]);
 					p_r[1][i] = Double.parseDouble(sp[1]);
 				}
@@ -253,7 +252,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** A constructor for cloning purposes. */
-	private Profile(Project project, String title, double x, double y, double width, double height, float alpha, Color color, int n_points, double[][] p, double[][] p_r, double[][] p_l, double[][] p_i, boolean closed) {
+	private Profile(Project project, String title, double x, double y, float width, float height, float alpha, Color color, int n_points, double[][] p, double[][] p_r, double[][] p_l, double[][] p_i, boolean closed) {
 		super(project, title, x, y);
 		this.width = width;
 		this.height = height;
@@ -763,7 +762,7 @@ public class Profile extends Displayable implements VectorData {
 	/**Calculate the bounding box of the curve in the shape of a Rectangle defined by x,y,width,height. If adjust_position is true, then points are made local to the minimal x,y. */
 	protected void calculateBoundingBox(boolean adjust_position) {
 		if (0 == n_points) {
-			this.width = this.height = 0.0D;
+			this.width = this.height = 0;
 			updateBucket();
 			return;
 		}
@@ -789,8 +788,8 @@ public class Profile extends Displayable implements VectorData {
 			if (p_r[1][i] > max_y) max_y = p_r[1][i];
 		}
 
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y

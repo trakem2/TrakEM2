@@ -125,7 +125,7 @@ public class Stack extends ZDisplayable implements ImageData
 
 	/** For cloning purposes. */
 	private Stack(Project project, long id, String title,
-		      AffineTransform at, double width, double height,
+		      AffineTransform at, float width, float height,
 		      float alpha, boolean visible, Color color, boolean locked,
 		      double depth, double min, double max,
 		      float[] boundsMin, float[] boundsMax,

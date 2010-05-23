@@ -93,7 +93,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct an unloaded Pipe from the database. Points will be loaded later, when needed. */
-	public Pipe(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Pipe(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -103,13 +103,12 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct a Pipe from an XML entry. */
-	public Pipe(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Pipe(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("d")) {
 				// parse the points
 				// parse the SVG points data
@@ -878,8 +877,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			if (p_r[1][i] > max_y) max_y = p_r[1][i];
 		}
 
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y

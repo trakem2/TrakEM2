@@ -5280,8 +5280,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[7]);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
-		double new_width = gd.getNextNumber();
-		double new_height =gd.getNextNumber();
+		float new_width = (float)gd.getNextNumber();
+		float new_height = (float)gd.getNextNumber();
 		layer.getParent().setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 	}
 
