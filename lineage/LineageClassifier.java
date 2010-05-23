@@ -1,19 +1,14 @@
 package lineage;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
+import java.util.ArrayList;
+import java.util.Hashtable;
 
 import weka.classifiers.Classifier;
+import weka.core.Attribute;
 import weka.core.DenseInstance;
 import weka.core.Instance;
 import weka.core.Instances;
-import weka.core.Attribute;
-import weka.core.FastVector;
-
-import java.util.Hashtable;
-import java.util.ArrayList;
 
 /**
  * Lineage classifier class
