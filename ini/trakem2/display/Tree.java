@@ -1155,13 +1155,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			final AffineTransform aff = new AffineTransform(tl.at); // 1 - to world coords
 			aff.preConcatenate(at_inv);		// 2 - to this local coords
 			final float[] fps = new float[2];
-			for (final Node<T> nd : tl.marked.getSubtreeNodes()) { // fails to compile? Why?
+			for (final Node<T> nd : tl.marked.getSubtreeNodes()) {
 				fps[0] = nd.x;
 				fps[1] = nd.y;
 				aff.transform(fps, 0, fps, 0, 1);
 				nd.x = fps[0];
 				nd.y = fps[1];
 			}
+			transformNodeData(tl);
 			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
 			// Remove from tl pointers
 			tl.root = null; // stolen!
@@ -1179,6 +1180,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		return true;
 	}
+
+	protected void transformNodeData(final Tree<T> t) {}
 
 	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
 	protected Node<T> findNodeNear(float x, float y, final Layer layer, final double magnification) {

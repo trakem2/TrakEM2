@@ -4225,7 +4225,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Join")) {
 			if (!(active instanceof Tree)) return;
-			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(Treeline.class);
+			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(active.getClass());
 			if (((Tree)active).canJoin(tlines)) {
 				// Record current state
 				class State {{
