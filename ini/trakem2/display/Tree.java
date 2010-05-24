@@ -1121,21 +1121,24 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			Utils.log("No marked node in to-be parent Tree " + this);
 			return false;
 		}
-		boolean quit = false;
 		for (final Tree<T> tl : ts) {
 			if (this == tl) continue;
+			if (getClass() != tl.getClass()) {
+				Utils.log("For joining, all trees must be of the same kind!");
+				return false;
+			}
 			if (null == tl.marked) {
 				Utils.log("No marked node in to-be child treeline " + tl);
-				quit = true;
+				return false;
 			}
 		}
-		return !quit;
+		return true;
 	}
 
 	/*  Requires each Tree to have a non-null marked Node; otherwise, returns false. */
 	public boolean join(final List<? extends Tree<T>> ts) {
 		if (!canJoin(ts)) return false;
-		// All Tree in ts have a marked node
+		// Preconditions passed: all Tree in ts have a marked node and are of the same kind
 
 		final AffineTransform at_inv;
 		try {
