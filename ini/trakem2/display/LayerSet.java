@@ -1174,7 +1174,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
 			}
 		}
-		writer.write("</t2_layer_set>\n");
+		writer.write(indent + "</t2_layer_set>\n");
 	}
 
 	/** Includes the !ELEMENT */
