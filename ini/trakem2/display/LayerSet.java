@@ -1090,6 +1090,16 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
+	private static java.lang.reflect.Field sbvalue = null;
+	static {
+		try {
+			sbvalue = StringBuilder.class.getSuperclass().getDeclaredField("value");
+			sbvalue.setAccessible(true);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+	}
+
 	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
 		project.getLoader().releaseToFit(60000000); // 60 Mb
 		final StringBuilder sb_body = new StringBuilder(20000000); // 40 Mb: 1 char is 2 bytes
@@ -1125,13 +1135,21 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			       .append(in).append("/>\n")
 			;
 		}
-		writer.write(sb_body.toString());
+		if (null == sbvalue) {
+			writer.write(sb_body.toString());
+		} else {
+			writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
+		}
 		// export ZDisplayable objects
 		if (null != al_zdispl) {
 			for (final ZDisplayable zd : al_zdispl) {
 				sb_body.setLength(0);
 				zd.exportXML(sb_body, in, any);
-				writer.write(sb_body.toString()); // each separately, for they can be huge
+				if (null == sbvalue) {
+					writer.write(sb_body.toString()); // each separately, for they can be huge
+				} else {
+					writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
+				}
 			}
 		}
 		// export Layer and contained Displayable objects
@@ -1140,7 +1158,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			for (final Layer la : al_layers) {
 				sb_body.setLength(0);
 				la.exportXML(sb_body, in, any);
-				writer.write(sb_body.toString());
+				if (null == sbvalue) {
+					writer.write(sb_body.toString());
+				} else {
+					writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
+				}
 			}
 		}
 		sb_body.setLength(0);
