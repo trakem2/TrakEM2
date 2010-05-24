@@ -1101,8 +1101,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
-		project.getLoader().releaseToFit(60000000); // 60 Mb
-		final StringBuilder sb_body = new StringBuilder(20000000); // 40 Mb: 1 char is 2 bytes
+		final StringBuilder sb_body = new StringBuilder(512);
 		sb_body.append(indent).append("<t2_layer_set\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, any);
