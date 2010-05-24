@@ -721,6 +721,7 @@ public final class Patch extends Displayable implements ImageData {
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
 	@Override
 	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
+		if (project.noSavePatches()) return; // davi-experimenting -- useful to strip out ~300 MB of patch XML for analysis of segmentation by other tools
 		String in = indent + "\t";
 		String path = null;
 		String path2 = null;
@@ -794,7 +795,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		super.restXML(sb_body, in, any);
 
-		sb_body.append(indent).append("</t2_patch>\n");
+		sb_body.append(indent).append("</t2_patch>\n"); 
 	}
 
 	static private final double getMaxMax(final int type) {

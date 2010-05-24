@@ -262,6 +262,8 @@ public class Project extends DBObject {
 	public boolean mipmapsOnlyMode() { return mipmaps_only_mode; } // davi-experimenting
 	private boolean no_alpha_masks = true; // davi-experimenting
 	public boolean noAlphaMasks() { return no_alpha_masks; } // davi-experimenting
+	private boolean no_save_patches = false; // davi-experimenting
+	public boolean noSavePatches() { return no_save_patches; } // davi-experimenting
 	
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
@@ -1433,6 +1435,7 @@ public class Project extends DBObject {
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
 		gd.addCheckbox("Run in mipmaps-only mode (davi-experimenting)", mipmaps_only_mode);  // davi-experimenting
 		gd.addCheckbox("Don't check for image alpha masks (davi-experimenting)", no_alpha_masks);  // davi-experimenting
+		gd.addCheckbox("Don't save patches (davi-experimenting)", no_save_patches);  // davi-experimenting
 		//
 		gd.showDialog();
 		//
@@ -1508,6 +1511,7 @@ public class Project extends DBObject {
 
 		this.mipmaps_only_mode = gd.getNextBoolean(); // davi-experimenting
 		this.no_alpha_masks = gd.getNextBoolean(); // davi-experimenting
+		this.no_save_patches = gd.getNextBoolean(); // davi-experimenting
 
 	}
 
