@@ -945,41 +945,42 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 	public void exportXML(final StringBuilder sb_body, final String indent, final HashMap<Thing,Boolean> expanded_states) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		// 1 - opening tag with attributes:
-		String tag = template.getType().replace(' ','_');
-		sb_body.append(indent).append("<").append(tag).append(" id=\"").append(id).append("\"");
+		final String tag = template.getType().replace(' ','_');
+		sb_body.append(indent).append('<').append(tag).append(" id=\"").append(id).append('"');
 		// the object id if any
-		if (object instanceof DBObject) {
-			sb_body.append(" oid=\"").append(((DBObject)object).getId()).append("\"");
-		} else if (object instanceof String && !object.equals(template.getType())) { // TODO the title should be an attribute
-			// the title
-			sb_body.append(" title=\"").append((String)object).append("\"");
+		if (object.getClass() == String.class) {
+				if (!template.getType().equals(object)) {
+					sb_body.append(" title=\"").append((String)object).append('"');
+				}
+		} else {
+			sb_body.append(" oid=\"").append(((DBObject)object).getId()).append('"');
 		}
+
 		//boolean expanded = this.project.getProjectTree().isExpanded(this);
 		if (null != al_children) {
 			final Boolean b = expanded_states.get(this);
 			if (null != b && Boolean.TRUE.equals(b)) sb_body.append(" expanded=\"true\"");
 		}
 		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
-			sb_body.append("\n");
+			sb_body.append('\n');
 			// the rest of the attributes:
 			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
 				ProjectAttribute pa = (ProjectAttribute)it.next();
-				sb_body.append(in).append(pa.asXML()).append("\n");
+				sb_body.append(in).append(pa.asXML()).append('\n');
 			}
-			sb_body.append(indent).append(">\n");
-		} else {
-			sb_body.append(">\n");
 		}
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
+			sb_body.append(">\n");
 			for (ProjectThing child : al_children) {
 				child.exportXML(sb_body, in, expanded_states);
 			}
+			sb_body.append(indent).append("</").append(tag).append(">\n");
+		} else {
+			sb_body.append("/>\n");
 		}
-		// 3 - closing tag:
-		sb_body.append(indent).append("</").append(tag).append(">\n");
 	}
 
 	public void debug(String indent) {
