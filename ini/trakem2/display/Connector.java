@@ -401,8 +401,12 @@ public class Connector extends Treeline {
 				if (me.isShiftDown() && Utils.isControlDown(me)) {
 					if (found == root) {
 						// Remove the whole Connector
+						layer_set.addChangeTreesStep();
 						if (remove2(true)) {
 							setActive(null);
+							layer_set.addChangeTreesStep();
+						} else {
+							layer_set.removeLastUndoStep(); // no need
 						}
 						return;
 					} else {
