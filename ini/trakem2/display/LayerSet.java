@@ -1143,7 +1143,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				writer.write(sb_body.toString());
 			}
 		}
-		super.restXML(sb_body, in, any);
+		sb_body.setLength(0);
+		if (sb_body.length() > 0) {
+			super.restXML(sb_body, in, any);
+			if (null == sbvalue) {
+				writer.write(sb_body.toString());
+			} else {
+				writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
+			}
+		}
 		writer.write("</t2_layer_set>\n");
 	}
 
