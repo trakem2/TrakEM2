@@ -469,6 +469,35 @@ public class Search {
 								display.select(displ, shift_down);
 							}
 						}
+						// begin davi-experimenting: handle multi-row selections (leaving above code intact rather than rewriting whole method). Only works on Displayables, and only works when the clicked row is a Displayable
+						final int[] selected_rows = table.getSelectedRows();
+						final int selected_row_count = table.getSelectedRowCount();
+						if ( selected_row_count > 1 && ob instanceof Displayable) {
+							int selected_displayable_count = 0;
+							for (int cur_row = 0; cur_row<selected_row_count; cur_row++) {
+								final DBObject selected_ob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(selected_rows[cur_row]);
+								if (selected_ob instanceof Displayable) selected_displayable_count++;
+							}
+							if (selected_displayable_count > 1) {
+								final Displayable clicked_d = (Displayable) ob;
+								final Display display = Display.getFront(clicked_d.getProject());
+								if (null == display) {
+									Utils.log("Multiline search cannot select or show objects without an open display");
+								} else {
+									for (int cur_row = 0; cur_row<selected_row_count; cur_row++) {
+										final DBObject selected_ob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(selected_rows[cur_row]);
+										if (selected_ob != ob && selected_ob instanceof Displayable) { // was this object already dealt with, above?
+											final Displayable selected_d = (Displayable) selected_ob;
+											if (!selected_d.isVisible()) selected_d.setVisible(true); // TODO need to ask for update of 'eye' icon in display?
+											if (command.equals(select)) {										
+												display.select(selected_d, true);												
+											}
+										}
+									}
+								}
+							}
+						}
+						// end davi-experimenting
 					}
 				};
 				JMenuItem item = new JMenuItem(show2D); popup.add(item); item.addActionListener(listener);
