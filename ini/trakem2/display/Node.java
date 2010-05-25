@@ -37,6 +37,12 @@ public abstract class Node<T> implements Taggable {
 	public float getX() { return x; }
 	public float getY() { return y; }
 
+	/** The confidence value of the edge towards the parent;
+	 *  in other words, how much this node can be trusted to continue from its parent node.
+	 *  Defaults to MAX_EDGE_CONFIDENCE for full trust, and 0 for none. */
+	protected byte confidence = MAX_EDGE_CONFIDENCE;
+	public byte getConfidence() { return confidence; }
+
 	protected Layer la;
 	public Layer getLayer() { return la; }
 
@@ -51,24 +57,20 @@ public abstract class Node<T> implements Taggable {
 	public Map<Node<T>,Byte> getChildren() {
 		final HashMap<Node<T>,Byte> m = new HashMap<Node<T>,Byte>();
 		if (null == children) return m;
-		for (int i=0; i<children.length; i++) m.put(children[i], confidence[i]);
+		for (int i=0; i<children.length; i++) m.put(children[i], children[i].confidence);
 		return m;
 	}
 
-	/** The confidence value of the edge towards a child;
-	 *  in other words, how much this node can be trusted.
-	 *  Defaults to MAX_EDGE_CONFIDENCE for full trust, and 0 for none. */
-	protected byte[] confidence = null;
 	public List<Byte> getEdgeConfidence() {
 		final ArrayList<Byte> a = new ArrayList<Byte>();
 		if (null == children) return a;
-		for (int i=0; i<children.length; i++) a.add(confidence[i]);
+		for (int i=0; i<children.length; i++) a.add(children[i].confidence);
 		return a;
 	}
 	public byte getEdgeConfidence(final Node<T> child) {
 		if (null == children) return (byte)0;
 		for (int i=0; i<children.length; i++) {
-			if (child == children[i]) return confidence[i];
+			if (child == children[i]) return children[i].confidence;
 		}
 		return (byte)0;
 	}
@@ -96,7 +98,7 @@ public abstract class Node<T> implements Taggable {
 		this.la = la;
 	}
 	/** Returns -1 when not added (e.g. if child is null). */
-	synchronized public final int add(final Node<T> child, final byte confidence) {
+	synchronized public final int add(final Node<T> child, final byte conf) {
 		if (null == child) return -1;
 		if (null != child.parent) {
 			Utils.log("WARNING: tried to add a node that already had a parent!");
@@ -112,7 +114,7 @@ public abstract class Node<T> implements Taggable {
 		}
 		enlargeArrays(1);
 		this.children[children.length-1] = child;
-		this.confidence[children.length-1] = confidence;
+		child.confidence = conf;
 		child.parent = this;
 		return children.length -1;
 	}
@@ -138,7 +140,6 @@ public abstract class Node<T> implements Taggable {
 
 		if (1 == children.length) {
 			children = null;
-			confidence = null;
 			return true;
 		}
 
@@ -146,24 +147,18 @@ public abstract class Node<T> implements Taggable {
 		final Node<T>[] ch = (Node<T>[])new Node[children.length-1];
 		final byte[] co = new byte[children.length-1];
 		System.arraycopy(children, 0, ch, 0, k);
-		System.arraycopy(confidence, 0, co, 0, k);
 		System.arraycopy(children, k+1, ch, k, children.length - k -1);
-		System.arraycopy(confidence, k+1, co, k, children.length - k -1);
 		children = ch;
-		confidence = co;
 		return true;
 	}
 	private final void enlargeArrays(final int n_more) {
 		if (null == children) {
 			children = (Node<T>[])new Node[n_more];
-			confidence = new byte[n_more];
 		} else {
 			final Node<T>[] ch = (Node<T>[])new Node[children.length + n_more];
 			System.arraycopy(children, 0, ch, 0, children.length);
 			final byte[] co = new byte[children.length + n_more];
-			System.arraycopy(confidence, 0, co, 0, children.length);
 			children = ch;
-			confidence = co;
 		}
 	}
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
@@ -274,11 +269,11 @@ public abstract class Node<T> implements Taggable {
 					}
 					if (active && with_confidence_boxes && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ < child.la.getZ()))) {
 						// Draw confidence half-way through the edge
-						String s = Integer.toString(confidence[i]&0xff);
-						Dimension dim = Utils.getDimensions(s, g.getFont());
+						final String s = Integer.toString(children[i].confidence&0xff);
+						final Dimension dim = Utils.getDimensions(s, g.getFont());
 						g.setColor(Color.white);
-						int xc = (int)(x + (chx - x)/2);
-						int yc = (int)(y + (chy - y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
+						final int xc = (int)(x + (chx - x)/2),
+							  yc = (int)(y + (chy - y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
 						g.fillRect(xc, yc, dim.width+2, dim.height+2);
 						g.setColor(Color.black);
 						g.drawString(s, xc+1, yc+dim.height+1);
@@ -356,7 +351,7 @@ public abstract class Node<T> implements Taggable {
 		root.setData(this.getDataCopy());
 		root.tags = null == this.tags ? null : new TreeSet<Tag>(this.tags);
 		if (null != this.children) {
-			todo.add(new Object[]{root, this.children, this.confidence});
+			todo.add(new Object[]{root, this.children});
 		}
 		
 		final HashMap<Long,Layer> ml;
@@ -374,17 +369,17 @@ public abstract class Node<T> implements Taggable {
 			final Object[] o = todo.removeFirst();
 			final Node<T> copy = (Node<T>)o[0];
 			final Node<T>[] original_children = (Node<T>[])o[1];
-			copy.confidence = (byte[])((byte[])o[2]).clone();
 			copy.children = (Node<T>[])new Node[original_children.length];
 			for (int i=0; i<original_children.length; i++) {
 				final Node<T> ochild = original_children[i];
 				copy.children[i] = newInstance(ochild.x, ochild.y, ochild.la);
 				copy.children[i].setData(ochild.getDataCopy());
+				copy.children[i].confidence = ochild.confidence;
 				copy.children[i].parent = copy;
 				copy.children[i].tags = null == ochild.tags ? null : new TreeSet<Tag>(ochild.tags);
 				if (null != ml) copy.children[i].la = ml.get(copy.children[i].la.getId()); // replace Layer pointer in the copy
 				if (null != ochild.children) {
-					todo.add(new Object[]{copy.children[i], ochild.children, ochild.confidence});
+					todo.add(new Object[]{copy.children[i], ochild.children});
 				}
 			}
 		}
@@ -436,7 +431,7 @@ public abstract class Node<T> implements Taggable {
 			byte conf = MAX_EDGE_CONFIDENCE;
 			for (int i=0; i<newchild.children.length; i++) {
 				if (nd == newchild.children[i]) {
-					conf = newchild.confidence[i];
+					conf = newchild.children[i].confidence;
 					break;
 				}
 			}
@@ -462,7 +457,7 @@ public abstract class Node<T> implements Taggable {
 			byte conf = MAX_EDGE_CONFIDENCE;
 			for (int i=0; i<parent.children.length; i++) {
 				if (child == parent.children[i]) {
-					conf = parent.confidence[i];
+					conf = parent.children[i].confidence;
 					break;
 				}
 			}
@@ -486,29 +481,24 @@ public abstract class Node<T> implements Taggable {
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
 		for (int i=0; i<children.length; i++) {
 			if (child == children[i]) {
-				confidence[i] = conf;
+				children[i].confidence = conf;
 				return true;
 			}
 		}
 		return false;
 	}
-	final boolean adjustConfidence(final Node<T> child, final int inc) {
-		if (null == children) return false;
-		for (int i=0; i<children.length; i++) {
-			if (child == children[i]) {
-				byte conf = (byte)((confidence[i]&0xff) + inc);
-				if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
-				confidence[i] = conf;
-				return true;
-			}
-		}
-		return false;
+	/** Adjust the confidence value of this node with its parent. */
+	final public boolean adjustConfidence(final int inc) {
+		byte conf = (byte)((confidence&0xff) + inc);
+		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
+		confidence = conf;
+		return true;
 	}
 	/** Returns -1 if not a child of this node. */
 	final byte getConfidence(final Node<T> child) {
 		if (null == children) return -1;
 		for (int i=0; i<children.length; i++) {
-			if (child == children[i]) return confidence[i];
+			if (child == children[i]) return children[i].confidence;
 		}
 		return -1;
 	}

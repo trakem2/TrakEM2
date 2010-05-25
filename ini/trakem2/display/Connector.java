@@ -285,7 +285,7 @@ public class Connector extends Treeline {
 		return copy;
 	}
 
-	private final void insert(final Node<Float> nd, final ResultsTable rt, final int i, final byte confidence, final Calibration cal, final float[] f) {
+	private final void insert(final Node<Float> nd, final ResultsTable rt, final int i, final Calibration cal, final float[] f) {
 		f[0] = nd.x;
 		f[1] = nd.y;
 		this.at.transform(f, 0, f, 0, 1);
@@ -298,7 +298,7 @@ public class Connector extends Treeline {
 		rt.addValue(3, f[1] * cal.pixelHeight);
 		rt.addValue(4, nd.la.getZ() * cal.pixelWidth); // NOT pixelDepth!
 		rt.addValue(5, ((ConnectorNode)nd).r);
-		rt.addValue(6, confidence);
+		rt.addValue(6, nd.confidence);
 	}
 
 	public ResultsTable measure(ResultsTable rt) {
@@ -306,10 +306,10 @@ public class Connector extends Treeline {
 		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius", "confidence"});
 		final Calibration cal = layer_set.getCalibration();
 		final float[] f = new float[2];
-		insert(root, rt, 0, Node.MAX_EDGE_CONFIDENCE, cal, f);
+		insert(root, rt, 0, cal, f);
 		if (null == root.children) return rt;
 		for (int i=0; i<root.children.length; i++) {
-			insert(root.children[i], rt, i+1, root.confidence[i], cal, f);
+			insert(root.children[i], rt, i+1, cal, f);
 		}
 		return rt;
 	}

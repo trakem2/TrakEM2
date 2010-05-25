@@ -817,7 +817,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		synchronized (node_layer_map) {
 			Node<T> nearest = findNode(x, y, layer, magnification);
 			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) {
+			if (null != nearest && nearest.adjustConfidence(inc)) {
 				updateViewData(nearest);
 				return nearest;
 			}
@@ -2355,7 +2355,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// add all its children to the parent
 					for (int i=0; i<nd.children.length; i++) {
 						nd.children[i].parent = null;
-						nd.parent.add(nd.children[i], nd.confidence[i]);
+						nd.parent.add(nd.children[i], nd.children[i].confidence);
 					}
 				}
 				nd.parent.remove(nd);
@@ -2487,7 +2487,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							// ... and gets any other children of the root
 							for (int i=1; i<nd.children.length; i++) {
 								nd.children[i].parent = null;
-								nd.children[0].add(nd.children[i], nd.confidence[i]);
+								nd.children[0].add(nd.children[i], nd.children[i].confidence);
 							}
 						}
 					} else {
@@ -2501,7 +2501,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							// Else, add all its children to its parent
 							for (int i=0; i<nd.children.length; i++) {
 								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
-								nd.parent.add(nd.children[i], nd.confidence[i]);
+								nd.parent.add(nd.children[i], nd.children[i].confidence);
 							}
 						}
 					}
