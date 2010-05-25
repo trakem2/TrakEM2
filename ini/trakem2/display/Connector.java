@@ -45,7 +45,10 @@ public class Connector extends Treeline {
 	}
 	
 	public Connector(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
-		super(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
+		// davi-experimenting: an apparent bug, here, hit when mergeMany started breaking. was:
+		// super(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
+		// changed to:
+		super(project, id, title, width, height, alpha, visible, color, locked, at);
 	}
 
 	/** Reconstruct from XML. */
