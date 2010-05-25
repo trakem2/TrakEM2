@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Collection;
+import java.util.Collections;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
 import java.awt.geom.AffineTransform;
@@ -349,7 +350,7 @@ public abstract class Node<T> implements Taggable {
 		final LinkedList<Object[]> todo = new LinkedList<Object[]>();
 		final Node<T> root = newInstance(x, y, la);
 		root.setData(this.getDataCopy());
-		root.tags = null == this.tags ? null : new TreeSet<Tag>(this.tags);
+		root.tags = getTagsCopy();
 		if (null != this.children) {
 			todo.add(new Object[]{root, this.children});
 		}
@@ -376,7 +377,7 @@ public abstract class Node<T> implements Taggable {
 				copy.children[i].setData(ochild.getDataCopy());
 				copy.children[i].confidence = ochild.confidence;
 				copy.children[i].parent = copy;
-				copy.children[i].tags = null == ochild.tags ? null : new TreeSet<Tag>(ochild.tags);
+				copy.children[i].tags = ochild.getTagsCopy();
 				if (null != ml) copy.children[i].la = ml.get(copy.children[i].la.getId()); // replace Layer pointer in the copy
 				if (null != ochild.children) {
 					todo.add(new Object[]{copy.children[i], ochild.children});
@@ -571,31 +572,110 @@ public abstract class Node<T> implements Taggable {
 		return this.la.find(Patch.class, (int)x, (int)y, true);
 	}
 
-	TreeSet<Tag> tags = null; // private to the package
+	/** The tags:
+	 *  null: none
+	 *  a Tag instance: just one tag
+	 *  a Tag[] instance: more than one tag, sorted.
+	 *
+	 *  The justification for this seemingly silly storage system is to take the minimal space possible,
+	 *  while preserving the sortedness of tags.
+	 *  As expected, the huge storage savings (used to be a TreeSet&lt;Tag&gt;, which has inside a TreeMap, which has a HashMap inside, and so on),
+	 *  result in heavy computations required to add or remove a Tag, but these operations are rare and thus acceptable.
+	 */
+	Object tags = null; // private to the package
 
 	/** @return true if the tag wasn't there already. */
-	synchronized public boolean addTag(Tag tag) {
-		if (null == tags) tags = new TreeSet<Tag>();
-		return tags.add(tag);
+	synchronized public boolean addTag(final Tag tag) {
+		if (null == this.tags) {
+			// Currently no tags
+			this.tags = tag;
+			return true;
+		}
+		// If not null, there is already at least one tag
+		final Tag[] t2;
+		if (tags instanceof Tag[]) {
+			// Currently more than one tag
+			final Tag[] t1 = (Tag[])tags;
+			for (final Tag t : t1) {
+				if (t.equals(tag)) return false;
+			}
+			t2 = new Tag[t1.length + 1];
+			System.arraycopy(t1, 0, t2, 0, t1.length);
+			// Add tag as last
+			t2[t2.length -1] = tag;
+		} else {
+			// Currently only one tag
+			if (tag.equals(this.tags)) return false;
+			t2 = new Tag[]{(Tag)this.tags, tag};
+		}
+		// Sort tags
+		final ArrayList<Tag> al = new ArrayList<Tag>(t2.length);
+		for (final Tag t : t2) al.add(t);
+		Collections.sort(al);
+		this.tags = al.toArray(t2); // reuse t2 array, has the right size
+		return true;
 	}
 
 	/** @return true if the tag was there. */
-	synchronized public boolean removeTag(Tag tag) {
-		if (null == tags) return false;
-		boolean b = tags.remove(tag);
-		if (tags.isEmpty()) tags = null;
-		return b;
+	synchronized public boolean removeTag(final Tag tag) {
+		if (null == tags) return false; // no tags
+		if (tags instanceof Tag[]) {
+			// Currently more than one tag
+			final Tag[] t1 = (Tag[])this.tags;
+			for (int i=0; i<t1.length; i++) {
+				if (t1[i].equals(tag)) {
+					// remove:
+					if (2 == t1.length) {
+						this.tags = 0 == i ? t1[1] : t1[0];
+					} else {
+						final Tag[] t2 = new Tag[t1.length -1];
+						if (0 == i) {
+							System.arraycopy(t1, 1, t2, 0, t2.length);
+						} else if (t1.length -1 == i) {
+							System.arraycopy(t1, 0, t2, 0, t2.length);
+						} else {
+							System.arraycopy(t1, 0, t2, 0, i);
+							System.arraycopy(t1, i+1, t2, i, t2.length - i);
+						}
+						this.tags = t2;
+					}
+					return true;
+				}
+			}
+			return false;
+		} else {
+			// Currently just one tag
+			if (this.tags.equals(tag)) {
+				this.tags = null;
+			}
+			return false;
+		}
+	}
+
+	synchronized private final Object getTagsCopy() {
+		if (null == this.tags) return null;
+		if (this.tags instanceof Tag) return this.tags;
+		final Tag[] t1 = (Tag[])this.tags;
+		final Tag[] t2 = new Tag[t1.length];
+		System.arraycopy(t1, 0, t2, 0, t1.length);
+		return t2;
 	}
 
 	/** @return a shallow copy of the tags set, if any, or null. */
 	synchronized public Set<Tag> getTags() {
 		if (null == tags) return null;
-		return (Set<Tag>) tags.clone();
+		final TreeSet<Tag> ts = new TreeSet<Tag>();
+		if (tags instanceof Tag[]) {
+			for (final Tag t : (Tag[])this.tags) ts.add(t);
+		} else {
+			ts.add((Tag)this.tags);
+		}
+		return ts;
 	}
 
 	/** @return the tags, if any, or null. */
 	synchronized public Set<Tag> removeAllTags() {
-		Set<Tag> tags = this.tags;
+		final Set<Tag> tags = getTags();
 		this.tags = null;
 		return tags;
 	}
@@ -614,6 +694,8 @@ public abstract class Node<T> implements Taggable {
 		g.setColor(background_color);
 		g.drawLine(x, y, ox, oy);
 		g.setStroke(stroke);
+
+		final Tag[] tags = this.tags instanceof Tag[] ? (Tag[])this.tags : new Tag[]{(Tag)this.tags};
 
 		for (final Tag ob : tags) {
 			String tag = ob.toString();

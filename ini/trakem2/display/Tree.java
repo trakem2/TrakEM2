@@ -2166,7 +2166,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final Pattern pat = Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
 				this.searchnodes = new ArrayList<Node<T>>();
 				for (final Node<T> nd : allnodes) {
-					final Collection<Tag> tags = (Collection<Tag>) nd.getTags();
+					final Collection<Tag> tags = nd.getTags();
 					if (null == tags) continue;
 					for (final Tag tag : tags) {
 						if (pat.matcher(tag.toString()).matches()) {
