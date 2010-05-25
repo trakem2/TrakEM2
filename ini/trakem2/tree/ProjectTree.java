@@ -1439,50 +1439,17 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			return (ht_ids_in_projects.containsKey(id) && ht_ids_in_projects.get(id).contains(p));
 		}
 	}
+	/** returns null if childThing not found in ProjectTree or if the childOb is the user object of the root ProjectThing in the ProjectTree */
+	public String getParentTitle(Object childOb) {
+		// find the Thing that holds it (code from duplicateChild())
+		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
+		ProjectThing root_thing = (ProjectThing)root.getUserObject();
+		Thing child = root_thing.findChild(childOb);
+		if (null == child) {
+			Utils.log("ProjectTree.getParentTitle: node not found for child " + child);
+			return null;
+		}
+		return child.getParent().getTitle();
+	}
 	// end davi-experimenting block
 }
-/*	// steals liberally from sendToSiblingProject(), but assumes target project has same transformations as source and various other simplifying brittlenesses 
-private boolean transferProjectThing(long pt_id, Project source_p) {
-	ProjectThing pt = source_p.find(pt_id); 
-	if (null == pt) { 
-		Utils.log2("WARNING: can't find ProjectThing with id=" + Long.toString(pt_id) + "' in project '" +  ProjectTree.getHumanFacingNameFromProject(source_p) + "'"); 
-		return false; 
-	}
-	// now recursively add Projects from there to here
-	ProjectThing new_pt;
-	try{
-		new_pt = pt.deepClone(this.project, true); // new ids, taken from target_project
-	} catch (Exception ee) {
-		Utils.log2("WARNING: deepClone() failed for ProjectThing with id=" + Long.toString(pt_id) + "' in project '" +  ProjectTree.getHumanFacingNameFromProject(source_p) + "'. Error:  " + ee.getMessage());
-		return false;
-	}
-	ProjectThing parent_pt = (ProjectThing) pt.getParent();
-	if (!parent_pt.addChild(new_pt)) {
-		Utils.log2("WARNING: addChild() failed for ProjectThing with id=" + Long.toString(pt_id) + "' in project '" +  ProjectTree.getHumanFacingNameFromProject(source_p) + "'");
-		return false;
-	}
-	
-	final List<ProjectThing> copies = new_pt.findChildrenOfTypeR(Displayable.class);
-	//Utils.log2("copies size: " + copies.size());
-	final List<ZDisplayable> zd = new ArrayList<ZDisplayable>();
-	for (final ProjectThing t : copies) {
-		final Displayable d = (Displayable) t.getObject();
-		if (d instanceof ZDisplayable) {
-			zd.add((ZDisplayable)d);
-		} else {
-			// profile: always special
-			Utils.log("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
-			
-			// maybe this from ProjectThing.createClonedChild()
-			
-			// Displayable original = (Displayable)child.object;
-			// original.getLayer().add(displ);
-			// Display.repaint(original.getLayer(), displ, 5);
-			 
-		}
-	}
-	this.project.getRootLayerSet().addAll(zd); // add them all in one shot
-	 
-	return true;
-}
-*/

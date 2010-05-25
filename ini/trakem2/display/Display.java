@@ -2888,6 +2888,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select incoming Connectors"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Output .dot text (davi-experimenting)"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
 		menu.add(graph);
 		popup.add(menu);
@@ -2921,7 +2922,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return popup;
 	}
 
-	private final class GraphMenuListener implements ActionListener {
+		private final class GraphMenuListener implements ActionListener {
 		public void actionPerformed(ActionEvent ae) {
 			final String command = ae.getActionCommand();
 			final Collection<Displayable> sel = selection.getSelected();
@@ -2929,7 +2930,51 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
 			final HashSet<Displayable> to_select = new HashSet<Displayable>();
 
-			if (command.equals("Select outgoing Connectors")) {
+			
+			if (command.equals("Output .dot text (davi-experimenting)")) {
+				// this case is specific to our project -- we care only about how treelines connect to other treelines, and we know that
+				// every treeline has a parent, whose name we care about.
+				// TODO break this out into a separate file, say ProjectGraph.java
+				class GraphEdge {
+					Treeline origin, target;
+					Connector connector;
+					GraphEdge(Treeline o, Treeline t, Connector c) {
+						this.origin = o;
+						this.target = t;
+						this.connector = c;
+					}
+					String originParentName() {
+						return project.getProjectTree().getParentTitle(this.origin);
+					}
+					String targetParentName() {
+						return project.getProjectTree().getParentTitle(this.target);
+					}
+				}
+				
+				Set<Displayable> in_graph = new HashSet<Displayable>();
+				Set<GraphEdge> edges = new HashSet<GraphEdge>();
+				for (Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins(Treeline.class);
+					if (origins.isEmpty()) continue;
+					in_graph.addAll(origins);
+					// else, add all targets
+					for (Set<Displayable> targets : con.getTargets(Treeline.class)) {
+						in_graph.addAll(targets);
+						for (Displayable t : targets) {
+							for (Displayable o : origins) {
+								edges.add(new GraphEdge((Treeline) o, (Treeline) t, con));
+							}
+						}
+					}
+				}
+				Utils.log2("digraph t2 {");
+				for (GraphEdge ge : edges) {
+					Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
+				}
+				Utils.log2("}");
+				
+				return; // need to return to avoid changing selection
+			} else if (command.equals("Select outgoing Connectors")) {
 				for (final Connector con : connectors) {
 					Set<Displayable> origins = con.getOrigins();
 					origins.retainAll(sel);
