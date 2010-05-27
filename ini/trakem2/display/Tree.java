@@ -382,7 +382,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Exports to type t2_treeline. */
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -817,7 +817,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		synchronized (node_layer_map) {
 			Node<T> nearest = findNode(x, y, layer, magnification);
 			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) {
+			if (null != nearest && nearest.adjustConfidence(inc)) {
 				updateViewData(nearest);
 				return nearest;
 			}
@@ -993,6 +993,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return nd;
 	}
 
+	/** Will call calculateBoundingBox and repaint. */
 	public boolean addNode(final Node<T> parent, final Node<T> child, final byte confidence) {
 		//try {
 
@@ -1120,21 +1121,24 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			Utils.log("No marked node in to-be parent Tree " + this);
 			return false;
 		}
-		boolean quit = false;
 		for (final Tree<T> tl : ts) {
 			if (this == tl) continue;
+			if (getClass() != tl.getClass()) {
+				Utils.log("For joining, all trees must be of the same kind!");
+				return false;
+			}
 			if (null == tl.marked) {
 				Utils.log("No marked node in to-be child treeline " + tl);
-				quit = true;
+				return false;
 			}
 		}
-		return !quit;
+		return true;
 	}
 
 	/*  Requires each Tree to have a non-null marked Node; otherwise, returns false. */
 	public boolean join(final List<? extends Tree<T>> ts) {
 		if (!canJoin(ts)) return false;
-		// All Tree in ts have a marked node
+		// Preconditions passed: all Tree in ts have a marked node and are of the same kind
 
 		final AffineTransform at_inv;
 		try {
@@ -1151,13 +1155,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			final AffineTransform aff = new AffineTransform(tl.at); // 1 - to world coords
 			aff.preConcatenate(at_inv);		// 2 - to this local coords
 			final float[] fps = new float[2];
-			for (final Node<T> nd : tl.marked.getSubtreeNodes()) { // fails to compile? Why?
+			for (final Node<T> nd : tl.marked.getSubtreeNodes()) {
 				fps[0] = nd.x;
 				fps[1] = nd.y;
 				aff.transform(fps, 0, fps, 0, 1);
 				nd.x = fps[0];
 				nd.y = fps[1];
 			}
+			transformNodeData(tl);
 			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
 			// Remove from tl pointers
 			tl.root = null; // stolen!
@@ -1175,6 +1180,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		return true;
 	}
+
+	protected void transformNodeData(final Tree<T> t) {}
 
 	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
 	protected Node<T> findNodeNear(float x, float y, final Layer layer, final double magnification) {
@@ -2159,7 +2166,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final Pattern pat = Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
 				this.searchnodes = new ArrayList<Node<T>>();
 				for (final Node<T> nd : allnodes) {
-					final Collection<Tag> tags = (Collection<Tag>) nd.getTags();
+					final Collection<Tag> tags = nd.getTags();
 					if (null == tags) continue;
 					for (final Tag tag : tags) {
 						if (pat.matcher(tag.toString()).matches()) {
@@ -2348,7 +2355,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// add all its children to the parent
 					for (int i=0; i<nd.children.length; i++) {
 						nd.children[i].parent = null;
-						nd.parent.add(nd.children[i], nd.confidence[i]);
+						nd.parent.add(nd.children[i], nd.children[i].confidence);
 					}
 				}
 				nd.parent.remove(nd);
@@ -2480,7 +2487,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							// ... and gets any other children of the root
 							for (int i=1; i<nd.children.length; i++) {
 								nd.children[i].parent = null;
-								nd.children[0].add(nd.children[i], nd.confidence[i]);
+								nd.children[0].add(nd.children[i], nd.children[i].confidence);
 							}
 						}
 					} else {
@@ -2494,7 +2501,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							// Else, add all its children to its parent
 							for (int i=0; i<nd.children.length; i++) {
 								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
-								nd.parent.add(nd.children[i], nd.confidence[i]);
+								nd.parent.add(nd.children[i], nd.children[i].confidence);
 							}
 						}
 					}

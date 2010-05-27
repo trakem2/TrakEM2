@@ -1596,7 +1596,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_pipe";
 		if (hs.contains(type)) return;
 		hs.add(type);

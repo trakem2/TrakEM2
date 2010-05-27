@@ -4355,7 +4355,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Join")) {
 			if (!(active instanceof Tree)) return;
-			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(Treeline.class);
+			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(active.getClass());
 			if (((Tree)active).canJoin(tlines)) {
 				// Record current state
 				class State {{
@@ -5096,9 +5096,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public final void centerAt(final Coordinate<Displayable> c, final boolean select, final boolean shift_down) {
 		if (null == c) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Layer la = c.layer;
+			if (null == la) {
+				if (null == c.object) return;
+				la = c.object.getProject().getRootLayerSet().getLayer(0);
+				if (null == la) return; // nothing to center on
+			}
 			Display display = front;
-			if (null == display || c.layer.getParent() != display.getLayerSet()) {
-				display = new Display(c.layer.getProject(), c.layer); // gets set to front
+			if (null == display || la.getParent() != display.getLayerSet()) {
+				display = new Display(la.getProject(), la); // gets set to front
 			}
 			display.center(c);
 

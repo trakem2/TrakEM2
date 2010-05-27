@@ -3,38 +3,28 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
-import java.awt.Point;
-import java.awt.Choice;
 import java.awt.Color;
-import java.awt.Shape;
-import java.awt.event.MouseEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Area;
-import java.awt.geom.Ellipse2D;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Collection;
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
-import javax.media.j3d.Transform3D;
-import javax.vecmath.AxisAngle4f;
-import java.awt.Polygon;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.vecmath.Point3f;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
@@ -92,7 +82,8 @@ public class Connector extends Treeline {
 		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Float>> to_paint, final Tree<Float> tree, final AffineTransform to_screen) {
 			final float[] fp = new float[]{x, y, x + r, y};
 			tree.at.transform(fp, 0, fp, 0, 2);
-			final float radius = fp[2] - fp[0];
+			float radius = fp[2] - fp[0];
+			if (radius <= 0) radius = 1;
 			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
 				// Which color?
 				if (active_layer == this.la) {
@@ -117,6 +108,7 @@ public class Connector extends Treeline {
 
 		@Override
 		public boolean isRoughlyInside(final Rectangle localbox) {
+			final float r = this.r <= 0 ? 1 : this.r;
 			return localbox.intersects(x - r, y - r, r + r, r + r);
 		}
 
@@ -148,9 +140,9 @@ public class Connector extends Treeline {
 
 	static private final Color brightGreen = new Color(33, 255, 0);
 
-	public void readLegacyXML(final LayerSet ls, final HashMap ht_attr, final HashMap ht_links) {
-		String origin = (String) ht_attr.get("origin");
-		String targets = (String) ht_attr.get("targets");
+	public void readLegacyXML(final LayerSet ls, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
+		final String origin = ht_attr.get("origin");
+		final String targets = ht_attr.get("targets");
 		if (null != origin) {
 			final String[] o = origin.split(",");
 			String[] t = null;
@@ -188,17 +180,20 @@ public class Connector extends Treeline {
 					if (new_format) radius[k] = Float.parseFloat(t[i+3]);
 				}
 			}
-			if (!new_format) calculateBoundingBox(null);
-
+			//if (!new_format) calculateBoundingBox(null);
 
 			// Now, into nodes:
-			this.root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
-			addNode(null, root, (byte)0);
+			final Node<Float> root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
 			for (int i=1; i<lids.length; i++) {
 				Node<Float> nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
-				addNode(this.root, nd, Node.MAX_EDGE_CONFIDENCE);
+				root.add(nd, Node.MAX_EDGE_CONFIDENCE);
 			}
-			cacheSubtree(root.getSubtreeNodes());
+			setRoot(root);
+
+			// Above, cannot be done with addNode: would call repaint and thus calculateBoundingBox, which would screw up relative coords.
+
+			// Fix bounding box to new tree methods:
+			calculateBoundingBox(null);
 		}
 	}
 
@@ -237,12 +232,12 @@ public class Connector extends Treeline {
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
-	public Set<Displayable> getOrigins(final Class c) {
+	public Set<Displayable> getOrigins(final Class<?> c) {
 		if (null == root) return new HashSet<Displayable>();
 		return getUnder(root, c);
 	}
 
-	private final Set<Displayable> getUnder(final Node<Float> node, final Class c) {
+	private final Set<Displayable> getUnder(final Node<Float> node, final Class<?> c) {
 		final Area a = node.getArea();
 		a.transform(this.at);
 		final HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, true));
@@ -256,7 +251,7 @@ public class Connector extends Treeline {
 	}
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
-	public List<Set<Displayable>> getTargets(final Class c) {
+	public List<Set<Displayable>> getTargets(final Class<?> c) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
 		for (final Node<Float> nd : root.getChildrenNodes()) {
@@ -275,7 +270,7 @@ public class Connector extends Treeline {
 		return root.getChildrenCount();
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
 		final String type = "t2_connector";
 		if (hs.contains(type)) return;
@@ -293,7 +288,7 @@ public class Connector extends Treeline {
 		return copy;
 	}
 
-	private final void insert(final Node<Float> nd, final ResultsTable rt, final int i, final byte confidence, final Calibration cal, final float[] f) {
+	private final void insert(final Node<Float> nd, final ResultsTable rt, final int i, final Calibration cal, final float[] f) {
 		f[0] = nd.x;
 		f[1] = nd.y;
 		this.at.transform(f, 0, f, 0, 1);
@@ -306,7 +301,7 @@ public class Connector extends Treeline {
 		rt.addValue(3, f[1] * cal.pixelHeight);
 		rt.addValue(4, nd.la.getZ() * cal.pixelWidth); // NOT pixelDepth!
 		rt.addValue(5, ((ConnectorNode)nd).r);
-		rt.addValue(6, confidence);
+		rt.addValue(6, nd.confidence);
 	}
 
 	public ResultsTable measure(ResultsTable rt) {
@@ -314,10 +309,10 @@ public class Connector extends Treeline {
 		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius", "confidence"});
 		final Calibration cal = layer_set.getCalibration();
 		final float[] f = new float[2];
-		insert(root, rt, 0, Node.MAX_EDGE_CONFIDENCE, cal, f);
+		insert(root, rt, 0, cal, f);
 		if (null == root.children) return rt;
 		for (int i=0; i<root.children.length; i++) {
-			insert(root.children[i], rt, i+1, root.confidence[i], cal, f);
+			insert(root.children[i], rt, i+1, cal, f);
 		}
 		return rt;
 	}
@@ -409,8 +404,12 @@ public class Connector extends Treeline {
 				if (me.isShiftDown() && Utils.isControlDown(me)) {
 					if (found == root) {
 						// Remove the whole Connector
+						layer_set.addChangeTreesStep();
 						if (remove2(true)) {
 							setActive(null);
+							layer_set.addChangeTreesStep();
+						} else {
+							layer_set.removeLastUndoStep(); // no need
 						}
 						return;
 					} else {

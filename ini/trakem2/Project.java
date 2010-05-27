@@ -109,9 +109,9 @@ public class Project extends DBObject {
 
 	static private class PlugInSource implements Comparable<PlugInSource> {
 		String menu;
-		Class c;
+		Class<?> c;
 		String title;
-		PlugInSource(String menu, Class c, String title) {
+		PlugInSource(String menu, Class<?> c, String title) {
 			this.menu = menu;
 			this.c = c;
 			this.title = title;
@@ -159,10 +159,9 @@ public class Project extends DBObject {
 						if (-1 == lc) continue;
 						String menu = line.substring(0, fc).trim();
 						if (!menu.equals("Project Tree") && !menu.equals("Display")) continue;
-						Class c;
 						String classname = line.substring(lc+1).trim();
 						try {
-							c = Class.forName(classname);
+							Class.forName(classname);
 						} catch (ClassNotFoundException cnfe) {
 							Utils.log2("TPlugIn class not found: " + classname);
 							continue;
@@ -283,7 +282,7 @@ public class Project extends DBObject {
 		this.project = this;
 	}
 
-	private ScheduledFuture autosaving = null;
+	private ScheduledFuture<?> autosaving = null;
 
 	private void restartAutosaving() {
 		// cancel current autosaving if it's running
@@ -292,7 +291,6 @@ public class Project extends DBObject {
 		} catch (Throwable t) { IJError.print(t); }
 		//
 		final int interval_in_minutes = getProperty("autosaving_interval", 0);
-		final int interval_in_seconds = interval_in_minutes * 60;
 		if (0 == interval_in_minutes) return;
 		// else, relaunch
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
@@ -422,7 +420,7 @@ public class Project extends DBObject {
 		// fetch the root layer thing and the root layer set (will load all layers and layer sets, with minimal contents of patches; gets the basic objects -profile, pipe, etc.- from the project.root_pt). Will open all existing displays for each layer.
 		LayerThing root_layer_thing = null;
 		try {
-			root_layer_thing = loader.getRootLayerThing(project, project.root_pt, project.layer_set_template, project.layer_template);
+			root_layer_thing = loader.getRootLayerThing(project, project.root_pt, Project.layer_set_template, Project.layer_template);
 			if (null == root_layer_thing) {
 				project.destroy();
 				Utils.showMessage("Could not retrieve the root layer thing.");
@@ -630,10 +628,6 @@ public class Project extends DBObject {
 
 	static private Project createNewProject(Loader loader, boolean ask_for_template) {
 		return createNewProject(loader, ask_for_template, null);
-	}
-
-	static private Project createNewSubProject(Project source, Loader loader) {
-		return createNewProject(loader, false, source.root_tt, true);
 	}
 
 	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root) {
@@ -1041,7 +1035,7 @@ public class Project extends DBObject {
 		return title;
 	}
 
-	static public String getType(final Class c) {
+	static public String getType(final Class<?> c) {
 		if (AreaList.class == c) return "area_list";
 		if (DLabel.class == c) return "label";
 		String name = c.getName().toLowerCase();
@@ -1181,7 +1175,7 @@ public class Project extends DBObject {
 	}
 
 	/** Export a complete DTD listing to export the project as XML. */
-	public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
 		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display, user_id_ranges)>\n");
 		

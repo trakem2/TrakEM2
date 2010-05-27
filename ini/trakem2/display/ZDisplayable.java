@@ -88,7 +88,7 @@ public abstract class ZDisplayable extends Displayable {
 		super.exportXML(sb_body, indent, any);
 		sb_body.append(indent).append("layer_set_id=\"").append(layer_set.getId()).append("\"\n");
 	}
-	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		if (hs.contains(type)) return;
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_set_id").append(TAG_ATTR2)

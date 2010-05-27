@@ -102,15 +102,15 @@ public final class ProjectAttribute extends DBObject implements Attribute { // s
 	}
 
 	public String asXML() {
-		String xml = title.replace(' ', '_') + "=\"";
+		StringBuilder sb = new StringBuilder(title.replace(' ', '_')).append('=').append('"');
 		if (null == object) {
 			// pass
 		} else if (object instanceof ProjectThing) {
-			xml += ((ProjectThing)object).getId();
+			sb.append(((ProjectThing)object).getId());
 		} else {
-			xml += object.toString();
+			sb.append(object.toString());
 		}
-		return xml + "\"";
+		return sb.append('"').toString();
 	}
 
 	public long getObjectId() {

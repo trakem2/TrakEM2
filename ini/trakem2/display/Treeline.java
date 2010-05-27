@@ -354,7 +354,7 @@ public class Treeline extends Tree<Float> {
 		}
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
 		final String type = "t2_treeline";
 		if (hs.contains(type)) return;
@@ -364,7 +364,7 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node node) {
+	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node<Float> node) {
 		sb.append(" r=\"").append(node.getData()).append('\"');
 		return true;
 	}

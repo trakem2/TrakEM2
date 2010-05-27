@@ -195,7 +195,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		Tree.exportDTD(sb_header, hs, indent);
 		final String type = "t2_areatree";
 		if (hs.contains(type)) return;
@@ -501,5 +501,22 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			if (an.getData().contains(lx, ly)) return true;
 		}
 		return false;
+	}
+
+	/** Transform data in nodes of @param t so that it becomes relative to this AffineTransform. */
+	@Override
+	protected void transformNodeData(final Tree<Area> t) {
+		try {
+			final AffineTransform aff = new AffineTransform(t.at); // to world
+			final AffineTransform inv = this.at.createInverse(); // to this.at
+			aff.preConcatenate(inv);
+			for (final Node<Area> nd : t.root.getSubtreeNodes()) {
+				final AreaNode an = (AreaNode)nd;
+				if (null == an.aw) continue;
+				an.aw.getArea().transform(aff);
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 }

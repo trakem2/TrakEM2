@@ -393,7 +393,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children, find those of the given type that have the same immediate parent type as the given TemplateThing. */
-	public HashSet collectSimilarThings(TemplateThing tt, HashSet hs) {
+	public HashSet<TemplateThing> collectSimilarThings(TemplateThing tt, HashSet<TemplateThing> hs) {
 		if (type.equals(tt.type) && parent.getType().equals(tt.getParent().getType())) {
 			hs.add(this);
 		}
