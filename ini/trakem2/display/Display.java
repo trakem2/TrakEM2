@@ -1638,8 +1638,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final JScrollPane jsp = ht_tabs.get(displ.getClass());
 			if (null != jsp) {
 				JPanel p = (JPanel)jsp.getViewport().getView();
-				p.remove((Component)ob);
-				Utils.revalidateComponent(p);
+				final boolean visible = isPartiallyWithinViewport(jsp, ob);
+				p.remove(ob);
+				if (visible) {
+					Utils.revalidateComponent(p);
+				}
 			}
 		}
 		if (null == active || !selection.contains(displ)) {
