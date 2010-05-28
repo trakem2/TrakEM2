@@ -248,7 +248,6 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		}
 		return null;
 	}
-	// TODO this could be improved by checking while searching for nodes, not first getting all then checking.
 
 	/** Find the node in the tree that contains a Thing which contains the given project_ob. */
 	static public DefaultMutableTreeNode findNode2(final Object project_ob, final JTree tree) {
