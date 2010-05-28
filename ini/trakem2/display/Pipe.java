@@ -2268,9 +2268,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
 		final Polygon[] pols = getSubPerimeters(layer); // in world coords
 		if (null == pols) return false;
-		final Rectangle box = this.at.createTransformedShape(r).getBounds();
 		for (final Polygon pol : pols) {
-			if (pol.intersects(box)) return true;
+			if (pol.intersects(r)) return true;
 		}
 		return false;
 	}
