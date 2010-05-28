@@ -2944,6 +2944,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// wait
 			Thread.sleep(150);
 		} catch (InterruptedException ie) {}
+		zoom_and_pan = true;
+		// Re-enable input, in case the watcher task is canceled as well:
+		// (It's necessary since there isn't any easy way to tell the scheduler to execute a code block when it cancels its tasks).
+		zoom_and_pan = true;
+		display.getProject().setReceivesInput(true);
 	}
 	private void cancelAnimation(final ScheduledFuture sf) {
 		sfs.remove(sf);
