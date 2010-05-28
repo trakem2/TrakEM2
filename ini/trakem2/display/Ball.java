@@ -31,7 +31,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
-import ini.trakem2.utils.Search;
 import ini.trakem2.persistence.DBObject;
 
 import java.awt.*;
