@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -1785,5 +1786,19 @@ public class Profile extends Displayable implements VectorData {
 		generateInterpolatedPoints(0.05);
 		calculateBoundingBox(true);
 		return true;
+	}
+	
+	@Override
+	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		if (this.layer != layer) return false;
+		try {
+			final Rectangle box = this.at.createInverse().createTransformedShape(r).getBounds();
+			for (int i=0; i<n_points; i++) {
+				if (box.contains(p[0][i], p[1][i])) return true;
+			}
+		} catch (NoninvertibleTransformException e) {
+			IJError.print(e);
+		}
+		return false;
 	}
 }
