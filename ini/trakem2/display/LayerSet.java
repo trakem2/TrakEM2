@@ -2435,7 +2435,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	{
 		tags.put(KeyEvent.VK_T, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("TODO", KeyEvent.VK_T)})));
-		tags.put(KeyEvent.VK_U, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("Uncertain end", KeyEvent.VK_T)})));
+		tags.put(KeyEvent.VK_U, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("Uncertain end", KeyEvent.VK_U)})));
 	}
 
 	public Tag putTag(final Object tag, final int keyCode) {
