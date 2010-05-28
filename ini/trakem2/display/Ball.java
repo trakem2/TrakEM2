@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
@@ -1016,9 +1017,13 @@ public class Ball extends ZDisplayable implements VectorData {
 	@Override
 	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
 		if (0 == n_points) return false;
-		final Rectangle box = this.at.createTransformedShape(r).getBounds();
-		for (int i=0; i<n_points; i++) {
-			if (box.contains(p[0][i], p[1][i])) return true;
+		try {
+			final Rectangle box = this.at.createInverse().createTransformedShape(r).getBounds();
+			for (int i=0; i<n_points; i++) {
+				if (box.contains(p[0][i], p[1][i])) return true;
+			}
+		} catch (NoninvertibleTransformException nite) {
+			IJError.print(nite);
 		}
 		return false;
 	}
