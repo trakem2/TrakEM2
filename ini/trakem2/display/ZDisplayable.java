@@ -99,13 +99,28 @@ public abstract class ZDisplayable extends Displayable {
 	@Deprecated
 	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {}
 
+	@Override
 	protected boolean remove2(boolean check) {
 		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
 	}
 
+	@Override
 	public boolean remove(boolean check) {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;
 		if (layer_set.remove(this) && removeFromDatabase()) {
+			unlink();
+			removeLinkedPropertiesFromOrigins();
+			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes
+			Display.flush(this);
+			return true;
+		}
+		return false;
+	}
+	
+	/** Does not remove from the LayerSet. */
+	@Override
+	public boolean softRemove() {
+		if (removeFromDatabase()) {
 			unlink();
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes

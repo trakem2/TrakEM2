@@ -2138,4 +2138,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Returns null if none. */
 	public String getAnnotation() { return this.annotation; }
+	
+	/** Calls remove(false) unless overriden. */
+	public boolean softRemove() {
+		return remove(false);
+	}
 }

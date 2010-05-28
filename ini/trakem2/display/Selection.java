@@ -52,6 +52,7 @@ import java.awt.geom.Area;
 import java.awt.image.ColorModel;
 import java.awt.event.MouseEvent;
 
+import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
@@ -283,9 +284,11 @@ public class Selection {
 	public boolean deleteAll() {
 		if (null == active) return true; // nothing to remove
 		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
-		// obtain a list of displayables to remove
-		TreeMap<Integer,Displayable> sorted_d = null;
-		TreeMap<Integer,Displayable> sorted_zd = null;
+		
+		// Sort into Displayable and ZDisplayable
+		final HashSet<ZDisplayable> zds = new HashSet<ZDisplayable>();
+		final HashSet<Displayable> ds = new HashSet<Displayable>();
+
 		synchronized (queue_lock) {
 			try {
 				lock();
@@ -293,16 +296,11 @@ public class Selection {
 				if (null != display) display.setActive(null);
 				this.active = null;
 
-				// Order by stack index (for buckets; see later)
-				sorted_d = new TreeMap<Integer,Displayable>();
-				sorted_zd = new TreeMap<Integer,Displayable>();
-
 				for (final Displayable d : queue) {
 					if (d instanceof ZDisplayable) {
-						ZDisplayable zd = (ZDisplayable)d;
-						sorted_zd.put(d.getLayerSet().indexOf(zd), d);
+						zds.add((ZDisplayable)d);
 					} else {
-						sorted_d.put(d.getLayer().indexOf(d), d);
+						ds.add(d);
 					}
 				}
 			} catch (Exception e) {
@@ -312,32 +310,57 @@ public class Selection {
 			}
 		}
 
-		final ArrayList<Displayable> al_d = new ArrayList<Displayable>(sorted_d.values());
-		al_d.addAll(sorted_zd.values());
-		// Remove starting with higher stack index numbers:
-		Collections.reverse(al_d);
-
 		if (null != display) display.getLayerSet().addChangeTreesStep();
 
 		// remove one by one, skip those that fail and log the error
-		final StringBuilder sb = new StringBuilder();
 		try {
 			if (null != display) display.getProject().getLoader().startLargeUpdate();
-			for (final Displayable d : al_d) {
-				// Remove from the trees and from the Layer/LayerSet
-				if (!d.remove2(false)) {
-					sb.append(d.getTitle()).append('\n');
+			
+			// Displayable:
+			// 1. First the Profile from the Project Tree, one by one,
+			//    while creating a map of Layer vs Displayable list to remove in that layer:
+			final HashMap<Layer,HashSet<Displayable>> ml = new HashMap<Layer,HashSet<Displayable>>();
+			for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+				final Displayable d = it.next();
+				if (d.getClass() == Profile.class) {
+					if (!d.remove2(false)) {
+						Utils.log("Could NOT delete " + d);
+						continue;
+					}
+					it.remove(); // remove the Profile
 					continue;
 				}
+				HashSet<Displayable> l = ml.get(d.getLayer());
+				if (null == l) {
+					l = new HashSet<Displayable>();
+					ml.put(d.getLayer(), l);
+				}
+				l.add(d);
+			}
+			// 2. Then the rest, in bulk:
+			if (ml.size() > 0) {
+				for (final Map.Entry<Layer,HashSet<Displayable>> e : ml.entrySet()) {
+					e.getKey().removeAll(e.getValue());
+				}
+			}
+			// ZDisplayable: bulk removal
+			if (zds.size() > 0) {
+				ZDisplayable first = zds.iterator().next();
+				// 1. From the Project Tree:
+				Utils.log("calling ProjectTree.remove(boolean,Set)");
+				ProjectTree ptree = first.getProject().getProjectTree();
+				Set<Displayable> not_removed = ptree.remove(false, zds);
+				// 2. Then only those successfully removed, from the LayerSet:
+				zds.removeAll(not_removed);
+				Utils.log("calling LayerSet.removeAll(Set)");
+				first.getLayerSet().removeAll(zds);
 			}
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
 			if (null != display) display.getProject().getLoader().commitLargeUpdate();
 		}
-		if (sb.length() > 0) {
-			Utils.log("Could NOT delete:\n" + sb.toString());
-		}
+
 		//Display.repaint(display.getLayer(), box, 0);
 		Display.updateSelection(); // from all displays
 
@@ -347,15 +370,15 @@ public class Selection {
 	}
 
 	/** Set the elements of the given LinkedList as those of the stored, previous selection, only if the given list is not empty. */
-	private void setPrev(LinkedList q) {
+	private void setPrev(final LinkedList<Displayable> q) {
 		if (0 == q.size()) return;
 		queue_prev.clear();
 		queue_prev.addAll(q);
 	}
 
 	/** Remove all given displayables from this selection. */
-	public void removeAll(Collection<Displayable> col) {
-		for (Displayable d : col) remove(d);
+	public void removeAll(final Collection<Displayable> col) {
+		for (final Displayable d : col) remove(d);
 	}
 
 	/** Remove the given displayable from this selection. */
