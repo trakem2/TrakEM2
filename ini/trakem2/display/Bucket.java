@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.TreeMap;
 import java.util.Collection;
 import java.util.Map;
@@ -514,27 +515,41 @@ public class Bucket {
 	}
 	*/
 
-	/** Returns whether this bucket is empty of Displayable objects, and accumulates removed Displayable in the set. */
-	final private boolean remove(final int stack_index, final Set<Displayable> hs) {
+	/** Returns whether this bucket is empty of Displayable objects. */
+	final private boolean remove2(final int stack_index) {
 		if (null != children) {
 			this.empty = true;
 			for (final Bucket bu : children) {
-				if (!bu.remove(stack_index, hs)) this.empty = false;
+				if (!bu.remove2(stack_index)) this.empty = false;
 			}
 			return this.empty;
 		} else if (null != map) {
-			final Displayable d = map.remove(stack_index);
-			if (null != d) hs.add(d);
-			else Utils.log2("Bucket could not remove Displayable at stack index " + stack_index);
+			if (null == map.remove(stack_index)) Utils.log("Bucket could not remove Displayable at stack index " + stack_index);
 			return map.isEmpty();
 		}
 		return true;
 	}
 
-	synchronized final Set<Displayable> remove(final int stack_index) {
-		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		remove(stack_index, hs);
-		return hs;
+	synchronized final void remove(final int stack_index) {
+		remove2(stack_index);
+	}
+	
+	/** Returns whether this bucket is empty of Displayable objects. */
+	final private boolean removeAll2(final Collection<Integer> stack_indices) {
+		if (null != children) {
+			this.empty = true;
+			for (final Bucket bu : children) {
+				if (!bu.removeAll2(stack_indices)) this.empty = false;
+			}
+		} else if (null != map) {
+			for (final Integer i : stack_indices) map.remove(i);
+			return map.isEmpty();
+		}
+		return true;
+	}
+	
+	synchronized final void removeAll(final Collection<Integer> stack_indices) {
+		removeAll2(stack_indices);
 	}
 
 	static final void remove(final Displayable d, final HashMap<Displayable, ArrayList<Bucket>> db_map) {
