@@ -2543,8 +2543,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (!active.isOnlyLinkedTo(Patch.class)) {
 						item.setEnabled(false);
 					}
-				} else if (!(DLabel.class == aclass || Stack.class == aclass)) { // can't delete elements from the trees (Profile, Pipe, LayerSet, Ball, Dissector, AreaList, Polyline)
-					item.setEnabled(false);
 				}
 			} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
 
@@ -3660,13 +3658,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (active == null) return;
 			showCentered(active);
 		} else if (command.equals("Delete...")) {
-			/*
-			if (null != active) {
-				Displayable d = active;
-				selection.remove(d);
-				d.remove(true); // will repaint
-			}
-			*/
 			// remove all selected objects
 			selection.deleteAll();
 		} else if (command.equals("Color...")) {
