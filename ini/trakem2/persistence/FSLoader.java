@@ -394,7 +394,8 @@ public final class FSLoader extends Loader {
 			} else {
 				try {
 					SAXParserFactory factory = SAXParserFactory.newInstance();
-					factory.setValidating(true);
+					factory.setValidating(false);
+					factory.setXIncludeAware(false);
 					SAXParser parser = factory.newSAXParser();
 					if (isURL(this.project_file_path)) {
 						i_stream = new java.net.URL(this.project_file_path).openStream();

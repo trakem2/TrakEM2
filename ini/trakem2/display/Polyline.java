@@ -45,6 +45,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.Graphics2D;
@@ -955,6 +956,21 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 		a.transform(this.at);
 		return a;
+	}
+	
+	@Override
+	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		try {
+			final Rectangle box = this.at.createInverse().createTransformedShape(r).getBounds();
+			for (int i=0; i<n_points; i++) {
+				if (p_layer[i] == layer.getId()) {
+					if (box.contains(p[0][i], p[1][i])) return true;
+				}
+			}
+		} catch (NoninvertibleTransformException e) {
+			IJError.print(e);
+		}
+		return false;
 	}
 
 	public boolean isDeletable() {

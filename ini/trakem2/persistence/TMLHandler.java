@@ -567,8 +567,7 @@ public class TMLHandler extends DefaultHandler {
 		if (null != last_treeline) {
 			// for old format:
 			last_treeline_data.append(c, start, length);
-		}
-		if (null != last_annotation) {
+		} else if (null != last_annotation) {
 			last_annotation.append(c, start, length);
 		}
 	}

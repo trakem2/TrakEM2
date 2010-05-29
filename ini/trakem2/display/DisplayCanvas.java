@@ -45,10 +45,13 @@ import ini.trakem2.utils.Lock;
 
 import ini.trakem2.display.graphics.*;
 
+import javax.swing.plaf.basic.BasicInternalFrameTitlePane.RestoreAction;
 import javax.vecmath.Point2f;
 import javax.vecmath.Vector2f;
 import javax.vecmath.Vector3d;
 import ij.measure.Calibration;
+
+import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.Executors;
@@ -2845,7 +2848,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		v.scale(20/mag);
 		final Point2f cp = new Point2f(0, 0); // the current deltas
 		//
-		final ScheduledFuture[] sf = new ScheduledFuture[1];
+		final ScheduledFuture<?>[] sf = new ScheduledFuture[1];
 		sf[0] = animate(new Runnable() {
 			public void run() {
 				cp.add(v);
@@ -2912,7 +2915,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// vector in calibrated coords between origin and target
 		final Vector3d g = new Vector3d((tx - ox)*pixelWidth, (ty - oy)*pixelHeight, (target_layer.getZ() - start_layer.getZ())*pixelWidth);
 
-		final ScheduledFuture[] sf = new ScheduledFuture[1];
+		final ScheduledFuture<?>[] sf = new ScheduledFuture[1];
 		sf[0] = animate(new Runnable() {
 			public void run() {
 				if (DisplayCanvas.this.srcRect.contains(target)) {
@@ -2946,12 +2949,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private ScheduledExecutorService animator = null;
 	private boolean zoom_and_pan = true;
-	private final Vector<ScheduledFuture> sfs = new Vector<ScheduledFuture>();
+	private final Vector<ScheduledFuture<?>> sfs = new Vector<ScheduledFuture<?>>();
 
 	private void cancelAnimations() {
 		if (sfs.isEmpty()) return;
-		Vector<ScheduledFuture> sfs = (Vector<ScheduledFuture>)this.sfs.clone();
-		for (ScheduledFuture sf : sfs) {
+		Vector<ScheduledFuture<?>> sfs = (Vector<ScheduledFuture<?>>)this.sfs.clone();
+		for (ScheduledFuture<?> sf : sfs) {
 			sf.cancel(true);
 		}
 		this.sfs.clear();
@@ -2959,13 +2962,22 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// wait
 			Thread.sleep(150);
 		} catch (InterruptedException ie) {}
+		// Re-enable input, in case the watcher task is canceled as well:
+		// (It's necessary since there isn't any easy way to tell the scheduler to execute a code block when it cancels its tasks).
+		restoreUserInput();
 	}
-	private void cancelAnimation(final ScheduledFuture sf) {
+	private void cancelAnimation(final ScheduledFuture<?> sf) {
 		sfs.remove(sf);
 		sf.cancel(true);
+		restoreUserInput();
+	}
+	
+	private void restoreUserInput() {
+		zoom_and_pan = true;
+		display.getProject().setReceivesInput(true);
 	}
 
-	private ScheduledFuture animate(Runnable run, long initialDelay, long delay, TimeUnit units) {
+	private ScheduledFuture<?> animate(Runnable run, long initialDelay, long delay, TimeUnit units) {
 		initAnimator();
 		// Cancel any animations currently running
 		cancelAnimations();
@@ -2973,7 +2985,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		display.getProject().setReceivesInput(false);
 		zoom_and_pan = false;
 		// Create tasks to run periodically: a task and a watcher task
-		final ScheduledFuture[] sf = new ScheduledFuture[2];
+		final ScheduledFuture<?>[] sf = new ScheduledFuture[2];
 		sf[0] = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
 		sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
@@ -3027,12 +3039,19 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			display.getLayerSet().getOverlay().remove(elf);
 		}
 	}
+	
+	private abstract class Animation implements Runnable {
+		final Highlighter h;
+		Animation(final Highlighter h) {
+			this.h = h;
+		}
+	}
 
-	private ScheduledFuture playHighlight(final Rectangle target) {
+	private ScheduledFuture<?> playHighlight(final Rectangle target) {
 		initAnimator();
 		final Highlighter highlight = new Highlighter(target);
-		final ScheduledFuture[] sf = new ScheduledFuture[2];
-		sf[0] = animator.scheduleWithFixedDelay(new Runnable() {
+		final ScheduledFuture<?>[] sf = (ScheduledFuture<?>[])new ScheduledFuture[2];
+		sf[0] = animator.scheduleWithFixedDelay(new Animation(highlight) {
 			public void run() {
 				if (!highlight.next()) {
 					cancelAnimation(sf[0]);
@@ -3040,7 +3059,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 			}
 		}, 10, 100, TimeUnit.MILLISECONDS);
-		sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
+		sf[1] = animator.scheduleWithFixedDelay(new Animation(highlight) {
 			public void run() {
 				if (sf[0].isCancelled()) {
 					highlight.cleanup();

@@ -597,7 +597,7 @@ public final class Display3D {
 		Display3D d3d = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
 		if (null == d3d) {
 			// there is no Display3D showing the pt to remove
-			Utils.log2("No Display3D contains ProjectThing: " + pt);
+			//Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
 		if (null == d3d.ht_pt_meshes.remove(pt)) {

@@ -368,6 +368,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	public boolean remove(boolean check) {
+		return remove(check, true);
+	}
+	
+	protected boolean remove(boolean check, boolean remove_object) {
 		if (check) {
 			if (!Utils.check("Really delete " + this.toString() + (null == al_children || 0 == al_children.size() ? "" : " and all its children?"))) return false;
 		}
@@ -392,7 +396,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			}
 		}
 		// remove the object
-		if (null != object && object instanceof DBObject) {
+		if (remove_object && null != object && object instanceof DBObject) {
 			if (!((DBObject)object).remove(false)) {
 				Utils.showMessage("Deletion incomplete, check database, for object: " + object.toString());
 				return false;

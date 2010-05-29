@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.Collection;
 
@@ -54,7 +55,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
 	/** For fast search. */
 	Bucket root = null;
-	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
+	private HashMap<Displayable,HashSet<Bucket>> db_map = null;
 
 	private double z;
 	private double thickness;
@@ -266,7 +267,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				// add as last first, then update
 				root.put(d.length, displ, this, db_map);
 				// find and update the range of affected Displayable objects
-				root.update(this, displ, stack_index, d.length); // first to last indices affected
+				root.updateRange(this, displ, stack_index, d.length); // first to last indices affected
 			}
 		}
 
@@ -275,7 +276,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer layer) { // ignore layer
+	public HashMap<Displayable, HashSet<Bucket>> getBucketMap(final Layer layer) { // ignore layer
 		return db_map;
 	}
 
@@ -303,6 +304,27 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		parent.removeFromOffscreens(this);
 		Display.remove(this, displ);
 		return true;
+	}
+	
+	/** Remove a set of children. Does not destroy the children nor remove them from the database, only from the Layer and the Display. */
+	public synchronized boolean removeAll(final Set<Displayable> ds) {
+		if (null == ds || null == al_displayables) return false;
+		// Ensure list is iterated only once: don't ask for index every time!
+		final ArrayList<Integer> stack_indices = new ArrayList<Integer>(ds.size());
+		int i = 0;
+		for (final Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
+			if (ds.contains(d)) {
+				it.remove();
+				parent.removeFromOffscreens(this);
+				Display.remove(this, d);
+				stack_indices.add(i);
+			}
+			i++;
+			if (stack_indices.size() == ds.size()) break;
+		}
+		if (null != root) root.removeAll(stack_indices);
+		return ds.size() == stack_indices.size();
 	}
 
 	/** Used for reconstruction purposes. */
@@ -612,7 +634,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i, i+1);
+		if (null != root) root.updateRange(this, d, i, i+1);
 	}
 
 	/** Within its own class only. */
@@ -626,7 +648,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i-1, i);
+		if (null != root) root.updateRange(this, d, i-1, i);
 	}
 
 	/** Within its own class only. */
@@ -655,7 +677,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i, j);
+		if (null != root) root.updateRange(this, d, i, j);
 	}
 
 	/** Within its own class only. */
@@ -682,7 +704,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, j, i);
+		if (null != root) root.updateRange(this, d, j, i);
 	}
 
 	/** Within its own class only. */
@@ -927,7 +949,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	synchronized public void recreateBuckets() {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this, this));
-		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		this.db_map = new HashMap<Displayable,HashSet<Bucket>>();
 		this.root.populate(this, this, db_map);
 		//root.debug();
 	}

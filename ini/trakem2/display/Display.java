@@ -1706,8 +1706,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final JScrollPane jsp = ht_tabs.get(displ.getClass());
 			if (null != jsp) {
 				JPanel p = (JPanel)jsp.getViewport().getView();
-				p.remove((Component)ob);
-				Utils.revalidateComponent(p);
+				final boolean visible = isPartiallyWithinViewport(jsp, ob);
+				p.remove(ob);
+				if (visible) {
+					Utils.revalidateComponent(p);
+				}
 			}
 		}
 		if (null == active || !selection.contains(displ)) {
@@ -2608,8 +2611,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (!active.isOnlyLinkedTo(Patch.class)) {
 						item.setEnabled(false);
 					}
-				} else if (!(DLabel.class == aclass || Stack.class == aclass)) { // can't delete elements from the trees (Profile, Pipe, LayerSet, Ball, Dissector, AreaList, Polyline)
-					item.setEnabled(false);
 				}
 			} catch (Exception e) { IJError.print(e); item.setEnabled(false); }
 
@@ -3774,13 +3775,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (active == null) return;
 			showCentered(active);
 		} else if (command.equals("Delete...")) {
-			/*
-			if (null != active) {
-				Displayable d = active;
-				selection.remove(d);
-				d.remove(true); // will repaint
-			}
-			*/
 			// remove all selected objects
 			selection.deleteAll();
 		} else if (command.equals("Color...")) {
@@ -4325,10 +4319,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			List<Tree> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
+			List<ZDisplayable> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
 			if (null == ts) return;
 			Displayable elder = Display.this.active;
-			for (Tree t : ts) {
+			for (ZDisplayable t : ts) {
 				if (t == elder) continue;
 				getLayerSet().add(t); // will change Display.this.active !
 				project.getProjectTree().addSibling(elder, t);

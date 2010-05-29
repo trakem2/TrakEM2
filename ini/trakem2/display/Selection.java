@@ -22,43 +22,29 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ij.gui.ShapeRoi;
-import ij.gui.PointRoi;
 import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ini.trakem2.Project;
+import ini.trakem2.tree.ProjectTree;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.Utils;
 
-import java.awt.Rectangle;
 import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Point;
-import java.util.Collections;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.TreeMap;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Set;
-import java.awt.Stroke;
-import java.awt.BasicStroke;
-import java.awt.AlphaComposite;
-import java.awt.Composite;
-import java.awt.Graphics2D;
+import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.image.ColorModel;
-import java.awt.event.MouseEvent;
-
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.utils.History;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 
 /** Keeps track of selected objects and mediates their transformation.*/ 
 public class Selection {
@@ -151,10 +137,9 @@ public class Selection {
 			if (!hs.contains(d)) {
 				hs.add(d);
 				// now, grab the linked group and add it as well to the hashtable
-				HashSet hsl = d.getLinkedGroup(new HashSet());
+				HashSet<Displayable> hsl = d.getLinkedGroup(new HashSet<Displayable>());
 				if (null != hsl) {
-					for (Iterator it = hsl.iterator(); it.hasNext(); ) {
-						Displayable displ = (Displayable)it.next();
+					for (final Displayable displ : hsl) {
 						if (!hs.contains(displ)) hs.add(displ);
 					}
 				}
@@ -171,7 +156,7 @@ public class Selection {
 	/** Select all objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not. */
 	public void selectAll() {
 		if (null == display) return;
-		ArrayList al = display.getLayer().getDisplayables();
+		ArrayList<Displayable> al = display.getLayer().getDisplayables();
 		al.addAll(display.getLayer().getParent().getZDisplayables());
 		selectAll(al);
 	}
@@ -179,10 +164,10 @@ public class Selection {
 	/** Select all isVisible() objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not, as long as their return true from isVisible(). */
 	public void selectAllVisible() {
 		if (null == display) return;
-		ArrayList al = display.getLayer().getDisplayables();
+		ArrayList<Displayable> al = display.getLayer().getDisplayables();
 		al.addAll(display.getLayer().getParent().getZDisplayables());
 		final Rectangle tmp = new Rectangle();
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
+		for (final Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 			Displayable d = (Displayable) it.next();
 			if (!d.isVisible() || 0 == d.getAlpha()) {
 				it.remove();
@@ -222,11 +207,11 @@ public class Selection {
 		Rectangle bounds = shroi.getBounds();
 		affine.translate(bounds.x, bounds.y);
 		aroi = aroi.createTransformedArea(affine);
-		Collection al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
+		Collection<Displayable> al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
 		al.addAll(display.getLayer().getParent().findZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only, true));
 		final Rectangle tmp = new Rectangle();
 		if (visible_only) {
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
+			for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
 				if (!d.isVisible() || 0 == d.getAlpha()) {
 					it.remove();
@@ -242,28 +227,28 @@ public class Selection {
 		if (al.size() > 0) selectAll(al);
 	}
 
-	protected void selectAll(Collection al) {
+	protected void selectAll(Collection<? extends Displayable> al) {
 		synchronized (queue_lock) {
 		try {
 			lock();
 			setPrev(queue);
-			for (Iterator it = al.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (final Displayable d : al) {
 				if (queue.contains(d)) continue;
 				queue.add(d);
 				if (hs.contains(d)) continue;
 				hs.add(d);
 				// now, grab the linked group and add it as well to the hashset
-				HashSet hsl = d.getLinkedGroup(new HashSet());
+				HashSet<Displayable> hsl = d.getLinkedGroup(new HashSet<Displayable>());
 				if (null != hsl) {
-					for (Iterator hit = hsl.iterator(); hit.hasNext(); ) {
-						Displayable displ = (Displayable)hit.next();
+					for (final Displayable displ : hsl) {
 						if (!hs.contains(displ)) hs.add(displ);
 					}
 				}
 			}
-
+				
+			unlock();
 			resetBox();
+			lock();
 
 			if (null != display) {
 				if (null == this.active) {
@@ -283,9 +268,11 @@ public class Selection {
 	public boolean deleteAll() {
 		if (null == active) return true; // nothing to remove
 		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
-		// obtain a list of displayables to remove
-		TreeMap<Integer,Displayable> sorted_d = null;
-		TreeMap<Integer,Displayable> sorted_zd = null;
+		
+		// Sort into Displayable and ZDisplayable
+		final HashSet<ZDisplayable> zds = new HashSet<ZDisplayable>();
+		final HashSet<Displayable> ds = new HashSet<Displayable>();
+
 		synchronized (queue_lock) {
 			try {
 				lock();
@@ -293,16 +280,11 @@ public class Selection {
 				if (null != display) display.setActive(null);
 				this.active = null;
 
-				// Order by stack index (for buckets; see later)
-				sorted_d = new TreeMap<Integer,Displayable>();
-				sorted_zd = new TreeMap<Integer,Displayable>();
-
 				for (final Displayable d : queue) {
 					if (d instanceof ZDisplayable) {
-						ZDisplayable zd = (ZDisplayable)d;
-						sorted_zd.put(d.getLayerSet().indexOf(zd), d);
+						zds.add((ZDisplayable)d);
 					} else {
-						sorted_d.put(d.getLayer().indexOf(d), d);
+						ds.add(d);
 					}
 				}
 			} catch (Exception e) {
@@ -312,32 +294,55 @@ public class Selection {
 			}
 		}
 
-		final ArrayList<Displayable> al_d = new ArrayList<Displayable>(sorted_d.values());
-		al_d.addAll(sorted_zd.values());
-		// Remove starting with higher stack index numbers:
-		Collections.reverse(al_d);
-
 		if (null != display) display.getLayerSet().addChangeTreesStep();
 
 		// remove one by one, skip those that fail and log the error
-		final StringBuilder sb = new StringBuilder();
 		try {
 			if (null != display) display.getProject().getLoader().startLargeUpdate();
-			for (final Displayable d : al_d) {
-				// Remove from the trees and from the Layer/LayerSet
-				if (!d.remove2(false)) {
-					sb.append(d.getTitle()).append('\n');
+			
+			// Displayable:
+			// 1. First the Profile from the Project Tree, one by one,
+			//    while creating a map of Layer vs Displayable list to remove in that layer:
+			final HashMap<Layer,HashSet<Displayable>> ml = new HashMap<Layer,HashSet<Displayable>>();
+			for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+				final Displayable d = it.next();
+				if (d.getClass() == Profile.class) {
+					if (!d.remove2(false)) {
+						Utils.log("Could NOT delete " + d);
+						continue;
+					}
+					it.remove(); // remove the Profile
 					continue;
 				}
+				HashSet<Displayable> l = ml.get(d.getLayer());
+				if (null == l) {
+					l = new HashSet<Displayable>();
+					ml.put(d.getLayer(), l);
+				}
+				l.add(d);
+			}
+			// 2. Then the rest, in bulk:
+			if (ml.size() > 0) {
+				for (final Map.Entry<Layer,HashSet<Displayable>> e : ml.entrySet()) {
+					e.getKey().removeAll(e.getValue());
+				}
+			}
+			// ZDisplayable: bulk removal
+			if (zds.size() > 0) {
+				ZDisplayable first = zds.iterator().next();
+				// 1. From the Project Tree:
+				ProjectTree ptree = first.getProject().getProjectTree();
+				Set<Displayable> not_removed = ptree.remove(false, zds);
+				// 2. Then only those successfully removed, from the LayerSet:
+				zds.removeAll(not_removed);
+				first.getLayerSet().removeAll(zds);
 			}
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
 			if (null != display) display.getProject().getLoader().commitLargeUpdate();
 		}
-		if (sb.length() > 0) {
-			Utils.log("Could NOT delete:\n" + sb.toString());
-		}
+
 		//Display.repaint(display.getLayer(), box, 0);
 		Display.updateSelection(); // from all displays
 
@@ -347,19 +352,19 @@ public class Selection {
 	}
 
 	/** Set the elements of the given LinkedList as those of the stored, previous selection, only if the given list is not empty. */
-	private void setPrev(LinkedList q) {
+	private void setPrev(final LinkedList<Displayable> q) {
 		if (0 == q.size()) return;
 		queue_prev.clear();
 		queue_prev.addAll(q);
 	}
 
 	/** Remove all given displayables from this selection. */
-	public void removeAll(Collection<Displayable> col) {
-		for (Displayable d : col) remove(d);
+	public void removeAll(final Collection<Displayable> col) {
+		for (final Displayable d : col) remove(d);
 	}
 
 	/** Remove the given displayable from this selection. */
-	public void remove(Displayable d) {
+	public void remove(final Displayable d) {
 		if (null == d) {
 			Utils.log2("Selection.remove warning: null Displayable to remove.");
 			return;
@@ -396,21 +401,18 @@ public class Selection {
 				return;
 			}
 			// now, remove linked ones from the hs
-			HashSet hs_to_remove = d.getLinkedGroup(new HashSet());
-			HashSet hs_to_keep = new HashSet();
-			for (Iterator it = queue.iterator(); it.hasNext(); ) {
-				Displayable displ = (Displayable)it.next();
+			HashSet<Displayable> hs_to_keep = new HashSet<Displayable>();
+			for (final Displayable displ : queue) {
 				hs_to_keep = displ.getLinkedGroup(hs_to_keep); //accumulates into the hashset
 			}
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			for (final Iterator<Displayable> it = hs.iterator(); it.hasNext(); ) {
 				Object ob = it.next();
 				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
 				it.remove();
 			}
 			// recompute box
 			Rectangle r = new Rectangle(); // as temp storage
-			for (Iterator it = queue.iterator(); it.hasNext(); ) {
-				Displayable di = (Displayable)it.next();
+			for (final Displayable di : queue) {
 				box.add(di.getBoundingBox(r));
 			}
 		} catch (Exception e) {
@@ -428,7 +430,7 @@ public class Selection {
 			// set null active before clearing so that borders can be repainted
 			if (null != display && queue.size() > 0) {
 				display.setActive(null);
-				display.repaint(display.getLayer(), 5, box, false);
+				Display.repaint(display.getLayer(), 5, box, false);
 			}
 			setPrev(queue);
 			this.queue.clear();
@@ -437,7 +439,7 @@ public class Selection {
 			Rectangle bb = box;
 			this.box = null;
 			if (null != display) {
-				display.repaint(display.getLayer(), 5, bb, false);
+				Display.repaint(display.getLayer(), 5, bb, false);
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -452,8 +454,7 @@ public class Selection {
 		Rectangle b = active.getBoundingBox();
 		Layer layer = display.getLayer();
 		Rectangle r = new Rectangle(); // for reuse
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs) {
 			if (!d.equals(active) && d.getLayer().equals(layer)) {
 				b.add(d.getBoundingBox(r));
 			}
@@ -568,8 +569,8 @@ public class Selection {
 			try {
 				lock();
 				if (c.equals(Displayable.class) && queue.size() > 0) return true;
-				for (Iterator it = queue.iterator(); it.hasNext(); ) {
-					if (c.isInstance(it.next())) return true;
+				for (final Displayable d : queue) {
+					if (c.isInstance(d)) return true;
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -595,9 +596,8 @@ public class Selection {
 			}
 			Utils.log2("updating selection");
 			hs.clear();
-			HashSet hsl = new HashSet();
-			for (Iterator it = queue.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			HashSet<Displayable> hsl = new HashSet<Displayable>();
+			for (final Displayable d : queue) {
 				// collect all linked ones into the hs
 				hsl = d.getLinkedGroup(hsl);
 			}
@@ -768,9 +768,15 @@ public class Selection {
 	public void moveUp() {
 		if (null == display) return;
 		Layer la = display.getLayer();
-		LinkedList list = (LinkedList)queue.clone();
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
-			la.getParent().moveUp(la, (Displayable)it.next());
+		synchronized (queue_lock) {
+			lock();
+			try {
+				for (final Displayable d : queue) {
+					la.getParent().moveUp(la, d);
+				}
+			} finally {
+				unlock();
+			}
 		}
 		clear();
 	}
@@ -779,9 +785,15 @@ public class Selection {
 	public void moveDown() {
 		if (null == display) return;
 		Layer la = display.getLayer();
-		LinkedList list = (LinkedList)queue.clone();
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
-			la.getParent().moveDown(la, (Displayable)it.next());
+		synchronized (queue_lock) {
+			lock();
+			try {
+				for (final Displayable d : queue) {
+					la.getParent().moveDown(la, d);
+				}
+			} finally {
+				unlock();
+			}
 		}
 		clear();
 	}
@@ -792,8 +804,7 @@ public class Selection {
 		Collection<Displayable> col = new ArrayList<Displayable>();
 		synchronized (queue_lock) {
 			lock();
-			for (Iterator it = queue.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			for (final Displayable d : queue) {
 				if (b != d.isVisible()) {
 					d.setVisible(b);
 					col.add(d);
@@ -823,8 +834,8 @@ public class Selection {
 	public void restore() {
 		synchronized (queue_lock) {
 			lock();
-			LinkedList q = (LinkedList)queue.clone();
-			ArrayList al = new ArrayList();
+			LinkedList<Displayable> q = new LinkedList<Displayable>(queue);
+			ArrayList<Displayable> al = new ArrayList<Displayable>();
 			al.addAll(queue_prev);
 			unlock();
 			clear();
@@ -930,13 +941,18 @@ public class Selection {
 	}
 	/** Recalculate box and reset handles. */
 	public void resetBox() {
-		box = null;
-		Rectangle b = new Rectangle();
-		for (Iterator it = queue.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			b = d.getBoundingBox(b);
-			if (null == box) box = (Rectangle)b.clone();
-			box.add(b);
+		synchronized (queue_lock) {
+			try {
+				box = null;
+				Rectangle b = new Rectangle();
+				for (final Displayable d : queue) {
+					b = d.getBoundingBox(b);
+					if (null == box) box = (Rectangle)b.clone();
+					box.add(b);
+				}
+			} finally {
+				unlock();
+			}
 		}
 	}
 }

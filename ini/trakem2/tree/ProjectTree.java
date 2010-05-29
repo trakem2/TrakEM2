@@ -55,6 +55,7 @@ import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.tree.*;
+
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -631,17 +632,41 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 	}
 	/** If the given node is null, it will be searched for. */
-	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
-		Object obd = thing.getObject();
-		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
-		boolean b = thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
-		// This is a patch: removal from buckets is subtly broken
-		// thing.getProject().getRootLayerSet().recreateBuckets(true);
-		// The true problem is that the offscreen repaint thread sets the DisplayCanvas.al_top list before, not at the end of removing all.
-		// --> actually no: querying the LayerSet buckets for ZDisplayables still returns them, but al_zdispl doesn't have them.
-		thing.getProject().getRootLayerSet().recreateBuckets(true);
+	public boolean remove(final boolean check, final ProjectThing thing, final DefaultMutableTreeNode node) {
+		final Object obd = thing.getObject();
+		if (obd.getClass() == Project.class) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
+		final boolean b = thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
 		Display.repaint();
 		return b;
+	}
+
+	/** Remove the Thing and DefaultMutableTreeNode that wrap each of the Displayable;
+	 *  calls softRemove on each Displayable, and does NOT call remove on the Displayable.
+	 *  If a Displayable is not found, it returns it in a set of not found objects.
+	 *  If all are removed, returns an empty set. */
+	public final Set<Displayable> remove(final boolean check, final Set<? extends Displayable> displayables) {
+		boolean b = true;
+		
+		final Enumeration en = ((DefaultMutableTreeNode)getModel().getRoot()).depthFirstEnumeration();
+		final HashSet<DefaultMutableTreeNode> to_remove = new HashSet<DefaultMutableTreeNode>();
+		final HashSet<Displayable> remaining = new HashSet<Displayable>(displayables);
+		while (en.hasMoreElements()) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)en.nextElement();
+			final ProjectThing pt = (ProjectThing)node.getUserObject();
+			if (remaining.remove(pt.getObject())) {
+				pt.remove(false, false); // don't call remove on the object!
+				((Displayable)pt.getObject()).softRemove();
+				to_remove.add(node);
+			}
+		}
+		// Updates the model properly:
+		for (final DefaultMutableTreeNode node : to_remove) {
+			((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+		}
+		if (!remaining.isEmpty()) {
+			Utils.log("Could not remove:", remaining);
+		}
+		return remaining;
 	}
 
 	public void showInfo(ProjectThing thing) {
