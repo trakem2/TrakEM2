@@ -331,12 +331,10 @@ public class Selection {
 			if (zds.size() > 0) {
 				ZDisplayable first = zds.iterator().next();
 				// 1. From the Project Tree:
-				Utils.log("calling ProjectTree.remove(boolean,Set)");
 				ProjectTree ptree = first.getProject().getProjectTree();
 				Set<Displayable> not_removed = ptree.remove(false, zds);
 				// 2. Then only those successfully removed, from the LayerSet:
 				zds.removeAll(not_removed);
-				Utils.log("calling LayerSet.removeAll(Set)");
 				first.getLayerSet().removeAll(zds);
 			}
 		} catch (Exception e) {
