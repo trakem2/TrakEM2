@@ -1699,7 +1699,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 						nbmsg(getLayer(lid));
 						continue;
 					}
-					final Collection<Bucket> buckets = lb.db_map.get(zd);
+					final Collection<Bucket> buckets = lb.db_map.remove(zd);
 					if (null == buckets) {
 						recreateBuckets(getLayer(lid), false); // regenerate
 					} else {
