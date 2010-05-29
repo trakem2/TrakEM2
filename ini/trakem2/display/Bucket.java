@@ -79,7 +79,7 @@ public class Bucket {
 		return "Bucket: " + x + ",  " + y + ", " + w + ", " + h;
 	}
 
-	synchronized final void populate(final Bucketable container, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	synchronized final void populate(final Bucketable container, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map) {
 		final HashMap<Integer,Displayable> list = new HashMap<Integer,Displayable>();
 		int i = 0;
 		// cache all bounding boxes
@@ -94,7 +94,7 @@ public class Bucket {
 	}
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
-	final private boolean populate(final Bucketable container, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Area> areas) {
+	final private boolean populate(final Bucketable container, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Area> areas) {
 		if (this.w <= bucket_side || this.h <= bucket_side) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
@@ -415,12 +415,12 @@ public class Bucket {
 	}
 
 	/** Remove from wherever it is, then test if it's in that bucket, otherwise re-add. */
-	synchronized final void updatePosition(final Displayable d, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
-		final ArrayList<Bucket> list = db_map.get(d);
+	synchronized final void updatePosition(final Displayable d, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map) {
+		final HashSet<Bucket> hs = db_map.get(d);
 		final Area a = d.getAreaForBucket(layer);
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
-		if (null != list) {
-			for (final Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
+		if (null != hs) {
+			for (final Iterator<Bucket> it = hs.iterator(); it.hasNext(); ) {
 				final Bucket bu = it.next();
 				if (null != a && a.intersects(bu.x, bu.y, bu.w, bu.h)) continue; // bu.intersects(box)) continue; // no change of bucket: lower-right corner still within the bucket
 				// else, remove
@@ -433,10 +433,10 @@ public class Bucket {
 	}
 
 	/** Add the given Displayable to all buckets that intercept its bounding box. */
-	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map) {
 		put(stack_index, d, layer, d.getAreaForBucket(layer), db_map);
 	}
-	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final Area a, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	synchronized final void put(final int stack_index, final Displayable d, final Layer layer, final Area a, final HashMap<Displayable,HashSet<Bucket>> db_map) {
 		if (null == a) return;
 		/*
 		if (0 == box.width || 0 == box.height) {
@@ -447,7 +447,7 @@ public class Bucket {
 		*/
 		putIn(stack_index, d, a, db_map);
 	}
-	private final void putIn(final int stack_index, final Displayable d, final Area a, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
+	private final void putIn(final int stack_index, final Displayable d, final Area a, final HashMap<Displayable,HashSet<Bucket>> db_map) {
 		if (!a.intersects(x, y, w, h)) return;
 		// there will be at least one now
 		this.empty = false;
@@ -466,13 +466,13 @@ public class Bucket {
 		}
 	}
 
-	final private void putToBucketMap(final Displayable d, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
-		ArrayList<Bucket> list = db_map.get(d);
+	final private void putToBucketMap(final Displayable d, final HashMap<Displayable,HashSet<Bucket>> db_map) {
+		HashSet<Bucket> list = db_map.get(d);
 		if (null == list) {
-			list = new ArrayList<Bucket>();
+			list = new HashSet<Bucket>();
 			db_map.put(d, list);
 			list.add(this);
-		} else if (!list.contains(this)) list.add(this); // linear search!!!! TODO
+		} else list.add(this);
 	}
 	/*
 	final private void removeFromBucketMap(final Displayable d, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
@@ -520,11 +520,11 @@ public class Bucket {
 		removeAll2(stack_indices);
 	}
 
-	static final void remove(final Displayable d, final HashMap<Displayable, ArrayList<Bucket>> db_map) {
+	static final void remove(final Displayable d, final HashMap<Displayable, HashSet<Bucket>> db_map) {
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
-		final ArrayList<Bucket> list = db_map.remove(d);
-		if (null == list) return;
-		for (final Bucket bu : list) {
+		final HashSet<Bucket> hs = db_map.remove(d);
+		if (null == hs) return;
+		for (final Bucket bu : hs) {
 			bu.remove(stack_index);
 		}
 	}

@@ -1624,7 +1624,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** A Bucket for the ZDisplayable parts that show in every Layer. */
 	protected final class LayerBucket {
 		protected final Bucket root;
-		protected final HashMap<Displayable,ArrayList<Bucket>> db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		protected final HashMap<Displayable,HashSet<Bucket>> db_map = new HashMap<Displayable,HashSet<Bucket>>();
 
 		LayerBucket(final Layer la) {
 			this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(LayerSet.this, la));
@@ -1738,7 +1738,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al_zdispl;
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer la) {
+	public HashMap<Displayable, HashSet<Bucket>> getBucketMap(final Layer la) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return null;
 			final LayerBucket lb = lbucks.get(la);

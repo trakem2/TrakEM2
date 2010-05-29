@@ -55,7 +55,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
 	/** For fast search. */
 	Bucket root = null;
-	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
+	private HashMap<Displayable,HashSet<Bucket>> db_map = null;
 
 	private double z;
 	private double thickness;
@@ -276,7 +276,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer layer) { // ignore layer
+	public HashMap<Displayable, HashSet<Bucket>> getBucketMap(final Layer layer) { // ignore layer
 		return db_map;
 	}
 
@@ -949,7 +949,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	synchronized public void recreateBuckets() {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this, this));
-		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		this.db_map = new HashMap<Displayable,HashSet<Bucket>>();
 		this.root.populate(this, this, db_map);
 		//root.debug();
 	}
