@@ -1722,7 +1722,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					nbmsg(la);
 					continue;
 				}
-				lb.root.update(this, zd, i, j);
+				for (final Bucket bu : lb.db_map.get(zd)) {
+					bu.update(this, zd, i, j);
+				}
 			}
 		}
 	}
