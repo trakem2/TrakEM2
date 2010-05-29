@@ -370,9 +370,9 @@ public class Bucket {
 	synchronized final void update(final Bucketable container, final Displayable d, final int old_i, final int new_i) {
 		// Build a map with the new indices
 		final HashMap<Displayable,Integer> stack_indices = new HashMap<Displayable,Integer>();
-		int i = 0;
-		for (final Displayable displ : container.getDisplayableList()) {
-			stack_indices.put(displ, i++);
+		final ArrayList<? extends Displayable> dlist = container.getDisplayableList();
+		for (int i=old_i; i<=new_i; i++) {
+			stack_indices.put(dlist.get(i), i++);
 		}
 		updateRange(container, old_i, new_i, stack_indices);
 	}
