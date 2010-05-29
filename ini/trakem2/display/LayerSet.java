@@ -1712,6 +1712,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			}
 		}
 	}
+	/** Used ONLY by move up/down/top/bottom. */
 	final private void updateInBuckets(final Displayable zd, final int i, final int j) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return;
