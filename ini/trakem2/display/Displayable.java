@@ -348,7 +348,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
-	public Displayable(Project project, long id, HashMap<String,String> ht, HashMap ht_links) {
+	public Displayable(final Project project, final long id, final HashMap<String,String> ht, final HashMap<Displayable,String> ht_links) {
 		super(project, id);
 		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
