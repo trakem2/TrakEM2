@@ -372,7 +372,7 @@ public class Bucket {
 		final HashMap<Displayable,Integer> stack_indices = new HashMap<Displayable,Integer>();
 		final ArrayList<? extends Displayable> dlist = container.getDisplayableList();
 		for (int i=old_i; i<=new_i; i++) {
-			stack_indices.put(dlist.get(i), i++);
+			stack_indices.put(dlist.get(i), i);
 		}
 		updateRange(container, old_i, new_i, stack_indices);
 	}
