@@ -1314,27 +1314,27 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					// To the end of the list:
 					al_zdispl.add(al_zdispl.remove(i));
 					// OLD // if (null != root) root.update(this, d, i, al_zdispl.size()-1);
-					updateInBuckets(d, i, al_zdispl.size()-1);
+					updateRangeInBuckets(d, i, al_zdispl.size()-1);
 					break;
 				case LayerSet.UP:
 					// +1 in the list
 					if (size -1 == i) return;
 					al_zdispl.add(i+1, al_zdispl.remove(i));
 					//if (null != root) root.update(this, d, i, i+1);
-					updateInBuckets(d, i, i+1);
+					updateRangeInBuckets(d, i, i+1);
 					break;
 				case LayerSet.DOWN:
 					// -1 in the list
 					if (0 == i) return;
 					al_zdispl.add(i-1, al_zdispl.remove(i)); //swap
 					//if (null != root) root.update(this, d, i-1, i);
-					updateInBuckets(d, i-1, i);
+					updateRangeInBuckets(d, i-1, i);
 					break;
 				case LayerSet.BOTTOM:
 					// to first position in the list
 					al_zdispl.add(0, al_zdispl.remove(i));
 					//if (null != root) root.update(this, d, 0, i);
-					updateInBuckets(d, 0, i);
+					updateRangeInBuckets(d, 0, i);
 					break;
 			}
 			updateInDatabase("stack_index");
@@ -1713,7 +1713,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 	/** Used ONLY by move up/down/top/bottom. */
-	final private void updateInBuckets(final Displayable zd, final int i, final int j) {
+	final private void updateRangeInBuckets(final Displayable zd, final int i, final int j) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return;
 			for (final Long lid : zd.getLayerIds()) {
@@ -1724,7 +1724,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					continue;
 				}
 				for (final Bucket bu : lb.db_map.get(zd)) {
-					bu.update(this, zd, i, j);
+					bu.updateRange(this, zd, i, j);
 				}
 			}
 		}

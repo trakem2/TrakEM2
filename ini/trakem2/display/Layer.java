@@ -267,7 +267,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				// add as last first, then update
 				root.put(d.length, displ, this, db_map);
 				// find and update the range of affected Displayable objects
-				root.update(this, displ, stack_index, d.length); // first to last indices affected
+				root.updateRange(this, displ, stack_index, d.length); // first to last indices affected
 			}
 		}
 
@@ -634,7 +634,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i, i+1);
+		if (null != root) root.updateRange(this, d, i, i+1);
 	}
 
 	/** Within its own class only. */
@@ -648,7 +648,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i-1, i);
+		if (null != root) root.updateRange(this, d, i-1, i);
 	}
 
 	/** Within its own class only. */
@@ -677,7 +677,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i, j);
+		if (null != root) root.updateRange(this, d, i, j);
 	}
 
 	/** Within its own class only. */
@@ -704,7 +704,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, j, i);
+		if (null != root) root.updateRange(this, d, j, i);
 	}
 
 	/** Within its own class only. */

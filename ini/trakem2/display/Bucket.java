@@ -367,7 +367,7 @@ public class Bucket {
 	}
 
 	/** Update a Displayable's stack index from old to new, or a range. */
-	synchronized final void update(final Bucketable container, final Displayable d, final int old_i, final int new_i) {
+	synchronized final void updateRange(final Bucketable container, final Displayable d, final int old_i, final int new_i) {
 		// Build a map with the new indices
 		final HashMap<Displayable,Integer> stack_indices = new HashMap<Displayable,Integer>();
 		final ArrayList<? extends Displayable> dlist = container.getDisplayableList();
