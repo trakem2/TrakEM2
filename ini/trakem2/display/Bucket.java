@@ -62,8 +62,6 @@ public class Bucket {
 	private ArrayList<Bucket> children = null;
 
 	private final int x,y,w,h;
-	private final Area AREA;
-	private final Rectangle BOX;
 
 	private boolean empty = true;
 
@@ -72,8 +70,6 @@ public class Bucket {
 		this.y = y;
 		this.w = w;
 		this.h = h;
-		this.BOX = new Rectangle(x, y, w, h);
-		this.AREA = new Area(BOX);
 		this.bucket_side = bucket_side;
 		Utils.showStatus(new StringBuilder("Creating bucket ").append(x).append(',').append(y).append(',').append(w).append(',').append(h).toString(), false);
 		//Utils.log2(this.toString());
@@ -97,27 +93,6 @@ public class Bucket {
 		populate(container, layer, db_map, w+w, h+h, w, h, list, areas);
 	}
 
-	static private final Rectangle getBounds(final Displayable d, final Layer layer) {
-		return getBounds(d, new Rectangle(), layer);
-	}
-
-	/** Get bounds of a Displayable ensuring that if it has zero dimensions, then the whole layer dimensions are assigned to it. */
-	static private final Rectangle getBounds(final Displayable d, final Rectangle tmp, final Layer layer) {
-		return d.getBounds(tmp, layer);
-		/*
-		final Rectangle box = d.getBounds(tmp, layer);
-		if (null == box) return new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
-		if (0 == box.width || 0 == box.height) {
-			// no data: then it must exist in all buckets, so when data is added anywhere, it can be found and updated.
-			box.x = 0;
-			box.y = 0;
-			box.width = (int) layer.getLayerWidth();
-			box.height = (int) layer.getLayerHeight();
-		}
-		return box;
-		*/
-	}
-
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
 	final private boolean populate(final Bucketable container, final Layer layer, final HashMap<Displayable,ArrayList<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Area> areas) {
 		if (this.w <= bucket_side || this.h <= bucket_side) {
@@ -127,7 +102,7 @@ public class Bucket {
 				final Displayable d = e.getValue();
 				final Area a = areas.get(d);
 				if (null == a) continue;
-				if (M.intersects(AREA, a)) {
+				if (a.intersects(x, y, w, h)) {
 					map.put(e.getKey(), d);
 					putToBucketMap(d, db_map);
 				}
@@ -149,7 +124,7 @@ public class Bucket {
 				final Displayable d = e.getValue();
 				final Area a = areas.get(d);
 				if (null == a) continue;
-				if (M.intersects(AREA, a)) local_list.put(e.getKey(), d);
+				if (a.intersects(x, y, w, h)) local_list.put(e.getKey(), d);
 			}
 
 			//Utils.log2(local_list.size() + " :: " + this.toString());
@@ -258,8 +233,9 @@ public class Bucket {
 				bu.roughlyFind(accum, srcRect, layer, visible_only);
 			}
 		} else {
-			final Rectangle tmp = new Rectangle();
-			final Area asrc = new Area(srcRect);
+			//final Rectangle tmp = new Rectangle();
+			//final Area asrc = new Area(srcRect);
+			final Rectangle BOX = new Rectangle(x, y, w, h);
 			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
 				final Displayable d = entry.getValue();
 				if (visible_only && !d.isVisible()) continue;
@@ -454,7 +430,7 @@ public class Bucket {
 		if (null != list) {
 			for (final Iterator<Bucket> it = list.iterator(); it.hasNext(); ) {
 				final Bucket bu = it.next();
-				if (null != a && M.intersects(bu.AREA, a)) continue; // bu.intersects(box)) continue; // no change of bucket: lower-right corner still within the bucket
+				if (null != a && a.intersects(bu.x, bu.y, bu.w, bu.h)) continue; // bu.intersects(box)) continue; // no change of bucket: lower-right corner still within the bucket
 				// else, remove
 				bu.map.remove(stack_index);
 				it.remove();
@@ -480,7 +456,7 @@ public class Bucket {
 		putIn(stack_index, d, a, db_map);
 	}
 	private final void putIn(final int stack_index, final Displayable d, final Area a, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
-		if (!M.intersects(AREA, a)) return;
+		if (!a.intersects(x, y, w, h)) return;
 		// there will be at least one now
 		this.empty = false;
 		if (null != children) {
@@ -504,7 +480,7 @@ public class Bucket {
 			list = new ArrayList<Bucket>();
 			db_map.put(d, list);
 			list.add(this);
-		} else if (!list.contains(this)) list.add(this);
+		} else if (!list.contains(this)) list.add(this); // linear search!!!! TODO
 	}
 	/*
 	final private void removeFromBucketMap(final Displayable d, final HashMap<Displayable,ArrayList<Bucket>> db_map) {
@@ -554,12 +530,11 @@ public class Bucket {
 
 	static final void remove(final Displayable d, final HashMap<Displayable, ArrayList<Bucket>> db_map) {
 		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
-		final ArrayList<Bucket> list = db_map.get(d);
+		final ArrayList<Bucket> list = db_map.remove(d);
 		if (null == list) return;
 		for (final Bucket bu : list) {
 			bu.remove(stack_index);
 		}
-		db_map.remove(d);
 	}
 
 	synchronized public void paint(Graphics2D g, Rectangle srcRect, double mag, Color color) {
