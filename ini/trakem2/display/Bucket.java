@@ -368,11 +368,10 @@ public class Bucket {
 
 	/** Update a Displayable's stack index from old to new, or a range. */
 	synchronized final void update(final Bucketable container, final Displayable d, final int old_i, final int new_i) {
-		// Precompute a map with the new indices
+		// Build a map with the new indices
 		final HashMap<Displayable,Integer> stack_indices = new HashMap<Displayable,Integer>();
-		final List<? extends Displayable> dlist = container.getDisplayableList();
 		int i = 0;
-		for (final Displayable displ : dlist) {
+		for (final Displayable displ : container.getDisplayableList()) {
 			stack_indices.put(displ, i++);
 		}
 		updateRange(container, old_i, new_i, stack_indices);
@@ -404,21 +403,14 @@ public class Bucket {
 			for (final Bucket bu : children) bu.updateRange(container, first, last, new_stack_indices);
 		} else if (null != map) {
 			// remove range
-			/*
-			final ArrayList<Displayable> a = new ArrayList<Displayable>();
+			// (in two steps, to avoid overwriting existing entries)
+			final ArrayList<Displayable> a = new ArrayList<Displayable>(last - first + 1);
 			for (int i=first; i<=last; i++) {
 				final Displayable d =  map.remove(i);
 				if (null != d) a.add(d);
 			}
 			// re-add range with new stack_index keys
-			for (final Displayable d : a) map.put(container.getDisplayableList().indexOf(d), d);
-			*/
-			
-			// Remove range, and re-add with new indices
-			for (int i=first; i<=last; i++) {
-				final Displayable d = map.remove(i);
-				if (null != d) map.put(new_stack_indices.get(d), d);
-			}
+			for (final Displayable d : a) map.put(new_stack_indices.get(d), d);
 		}
 	}
 
