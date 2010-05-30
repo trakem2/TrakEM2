@@ -442,7 +442,23 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Returns a list of Displayable of class c only.*/
-	synchronized public ArrayList<Displayable> getDisplayables(final Class c) {
+	/*// So yes, it can be done to return a typed list of any kind: this WORKS:
+	synchronized public<T extends Displayable> ArrayList<T> getDisplayables(final Class<T> c) {
+		final ArrayList<T> al = new ArrayList<T>();
+		if (null == c) return al;
+		if (Displayable.class == c) {
+			al.addAll((Collection<T>)al_displayables); // T is Displayable
+			return al;
+		}
+		for (final Displayable d : al_displayables) {
+			if (d.getClass() == c) al.add((T)d);
+		}
+		return al;
+	}
+	*/
+
+	/** Returns a list of Displayable of class c only.*/
+	synchronized public ArrayList<Displayable> getDisplayables(final Class<?> c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c) return al;
 		if (Displayable.class == c) {
@@ -454,6 +470,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
+	
 
 	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
 	public Collection<Displayable> getDisplayables(final Class c, final Rectangle roi) {
