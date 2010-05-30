@@ -2855,6 +2855,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final String command = ae.getActionCommand();
 			final Collection<Displayable> sel = selection.getSelected();
 			if (null == sel || sel.isEmpty()) return;
+			
+			Bureaucrat.createAndStart(new Worker.Task(command) {
+				public void exec() {
+					
+
 			final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
 			final HashSet<Displayable> to_select = new HashSet<Displayable>();
 
@@ -2895,6 +2900,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 
 			selection.selectAll(new ArrayList<Displayable>(to_select));
+			
+				}}, Display.this.project);
 		}
 	}
 
