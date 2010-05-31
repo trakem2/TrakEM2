@@ -22,40 +22,77 @@
 
 package ini.trakem2.display;
 
-import ij.*;
-import ij.gui.*;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.Prefs;
+import ij.WindowManager;
+import ij.gui.ImageCanvas;
+import ij.gui.Roi;
+import ij.gui.Toolbar;
+import ij.measure.Calibration;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.display.graphics.GraphicsSource;
+import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.persistence.Loader;
-import ini.trakem2.utils.*;
-import ini.trakem2.imaging.*;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import java.awt.event.*;
-import java.awt.*;
+import java.awt.AWTException;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Composite;
+import java.awt.Cursor;
+import java.awt.Event;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsConfiguration;
+import java.awt.Image;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Robot;
+import java.awt.Stroke;
+import java.awt.Toolkit;
+import java.awt.Transparency;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Ellipse2D;
 import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.VolatileImage;
-import java.util.*;
-import java.awt.Cursor;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.ListIterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.Vector;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
-import ini.trakem2.utils.Lock;
-
-import ini.trakem2.display.graphics.*;
-
-import javax.swing.plaf.basic.BasicInternalFrameTitlePane.RestoreAction;
 import javax.vecmath.Point2f;
 import javax.vecmath.Vector2f;
 import javax.vecmath.Vector3d;
-import ij.measure.Calibration;
-
-import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
