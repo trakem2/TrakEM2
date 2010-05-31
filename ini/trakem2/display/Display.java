@@ -2136,6 +2136,36 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	private void selectTab(Patch patch) {
+		tabs.setSelectedComponent(scroll_patches);
+		scrollToShow(scroll_patches, ht_panels.get(patch));
+	}
+
+	private void selectTab(Profile profile) {
+		tabs.setSelectedComponent(scroll_profiles);
+		scrollToShow(scroll_profiles, ht_panels.get(profile));
+	}
+
+	private void selectTab(DLabel label) {
+		tabs.setSelectedComponent(scroll_labels);
+		scrollToShow(scroll_labels, ht_panels.get(label));
+	}
+
+	private void selectTab(ZDisplayable zd) {
+		tabs.setSelectedComponent(scroll_zdispl);
+		scrollToShow(scroll_zdispl, ht_panels.get(zd));
+	}
+
+	private void selectTab(Pipe d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Polyline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Treeline d) { selectTab((ZDisplayable)d); }
+	private void selectTab(AreaTree d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Connector d) { selectTab((ZDisplayable)d); }
+	private void selectTab(AreaList d) { selectTab((ZDisplayable)d); } 
+	private void selectTab(Ball d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Dissector d) { selectTab((ZDisplayable)d); }
+	private void selectTab(Stack d) { selectTab((ZDisplayable)d); }
+
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final ArrayList<? extends Displayable> al) {
 		if (null == al) return;
