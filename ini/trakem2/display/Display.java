@@ -392,6 +392,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		public void quit() {
 			go = false;
+			synchronized (this) {
+				notify();
+			}
 		}
 	}
 
