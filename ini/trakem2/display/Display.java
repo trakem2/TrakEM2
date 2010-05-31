@@ -1067,7 +1067,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	public synchronized void setLayer(final Layer layer) {
 		if (!mode.canChangeLayer()) {
-			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
+			scroller.setValue(Display.this.layer.getParent().indexOf(Display.this.layer)); // TODO should be done in EDT
 			return;
 		}
 		if (null == layer || layer == this.layer) return;
@@ -1079,7 +1079,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		this.layer = layer;
-		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
+		// Below, will fire the event as well, and call stl.set(layer) which calls setLayer with the same layer, and returns.
+		// But just scroller.getModel().setValue(int) will ALSO fire the event. So let it do the loop.
+		scroller.setValue(layer.getParent().indexOf(layer));
 
 		/* // OBSOLETE
 		// update the current Layer pointer in ZDisplayable objects
@@ -3438,7 +3440,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			scroller.setEnabled(false);
 		} else {
 			scroller.setEnabled(true);
-			scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
+			scroller.setValues(layer.getParent().indexOf(layer), 1, 0, size);
 		}
 		recreateLayerPanels(layer);
 	}
