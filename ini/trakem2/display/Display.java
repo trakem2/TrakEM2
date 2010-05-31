@@ -944,6 +944,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		public void update(Graphics g) { paint(g); }
 		public void paint(Graphics g) {
 			try {
+				g.setColor(Color.white);
+				g.fillRect(0, 0, getWidth(), getHeight());
 				int i = 0;
 				for (; i<Toolbar.LINE; i++) {
 					drawButton.invoke(toolbar, g, i);
