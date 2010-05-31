@@ -5185,7 +5185,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return selection;
 	}
 
-	public boolean isSelected(Displayable d) {
+	public final boolean isSelected(final Displayable d) {
 		return selection.contains(d);
 	}
 
