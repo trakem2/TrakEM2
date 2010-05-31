@@ -205,7 +205,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (volatileImage != null) {
 					volatileImage.flush();
 				}
-				display.getProject().getLoader().releaseToFit(w * h * 10);
 				volatileImage = gc.createCompatibleVolatileImage(w, h);
 				volatileImage.setAccelerationPriority(1.0f);
 				invalid_volatile = false;
@@ -297,6 +296,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				top = this.al_top; // will never be cleared, but may be swapped
 			}
 			final GraphicsConfiguration gc = getGraphicsConfiguration();
+			display.getProject().getLoader().releaseToFit(getWidth() * getHeight() * 4 * 5); // 5 images
 
 			// Protect volatile image while rendering it
 			synchronized (volatile_lock) {
