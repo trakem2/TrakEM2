@@ -937,8 +937,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			// Magic cocktail:
 			Dimension dim = new Dimension(250, size+size);
-			setPreferredSize(dim);
 			setMinimumSize(dim);
+			setPreferredSize(dim);
 			setMaximumSize(dim);
 		}
 		public void update(Graphics g) { paint(g); }
