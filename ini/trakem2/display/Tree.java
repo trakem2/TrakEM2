@@ -276,10 +276,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		this.width = box.width;
 		this.height = box.height;
 
-		// now readjust points to make min_x,min_y be the x,y
-		for (final Collection<Node<T>> nodes : node_layer_map.values()) {
-			for (final Node<T> nd : nodes) {
-				nd.translate(-box.x, -box.y); }}
+		synchronized (node_layer_map) {
+			// now readjust points to make min_x,min_y be the x,y
+			for (final Collection<Node<T>> nodes : node_layer_map.values()) {
+				for (final Node<T> nd : nodes) {
+					nd.translate(-box.x, -box.y); }}
+		}
 		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
 		updateBucket(la);
@@ -622,9 +624,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			end_nodes.remove(nd);
 			nd.setRoot();
 			this.root = nd;
-			updateView();
-			return true;
 		}
+		updateView();
+		return true;
 	}
 
 	/** Split the Tree into new Tree at the point closest to the x,y,layer world coordinate.
@@ -708,10 +710,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	@Override
 	public boolean contains(final Layer layer, final int x, final int y) {
 		if (null == root) return false;
+		final Display front = Display.getFront();
 		synchronized (node_layer_map) {
 			final Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes) return false;
-			Display front = Display.getFront();
 			float radius = 10;
 			if (null != front) {
 				double mag = front.getCanvas().getMagnification();
@@ -814,15 +816,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			x = (float)po.x;
 			y = (float)po.y;
 		}
+		Node<T> nearest;
 		synchronized (node_layer_map) {
-			Node<T> nearest = findNode(x, y, layer, magnification);
+			nearest = findNode(x, y, layer, magnification);
 			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null != nearest && nearest.adjustConfidence(inc)) {
-				updateViewData(nearest);
-				return nearest;
+			if (null == nearest || !nearest.adjustConfidence(inc)) {
+				return null;
 			}
-			return null;
 		}
+		if (null != nearest) updateViewData(nearest);
+		return nearest;
 	}
 
 	/** Find the node whose confidence box for the parent edge is closest to x,y,layer, if any.  */
@@ -932,12 +935,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			// If child was in end_nodes, remains there
 
 			setLastAdded(in_between);
-			updateView();
-
-			addToLinkLater(in_between);
-
-			return true;
 		}
+		updateView();
+		addToLinkLater(in_between);
+		return true;
 	}
 
 	/** Considering only the set of consecutive layers currently painted, find a point near an edge
@@ -995,8 +996,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Will call calculateBoundingBox and repaint. */
 	public boolean addNode(final Node<T> parent, final Node<T> child, final byte confidence) {
-		//try {
 
+		boolean added = false;
+		Collection<Node<T>> subtree = null;
 		synchronized (node_layer_map) {
 			Set<Node<T>> nodes = node_layer_map.get(child.la);
 			if (null == nodes) {
@@ -1013,33 +1015,29 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				if (null == child.children && !end_nodes.add(child)) {
 					Utils.log("WARNING: child was already in end_nodes list!");
 				}
-				Collection<Node<T>> subtree = child.getSubtreeNodes();
+				subtree = child.getSubtreeNodes();
 				cacheSubtree(subtree);
 
-				repaint(true, child.la);
 				setLastAdded(child);
-				updateView();
 
-				synchronized (tolink) {
-					tolink.addAll(subtree);
-				}
+				added = true;
 
-				return true;
 			} else if (0 == nodes.size()) {
 				node_layer_map.remove(child.la);
 			}
-			return false;
 		}
+		if (added) {
+			repaint(true, child.la);
+			updateView();
 
-		/*} finally {
-			//Utils.log2("new node: " + child + " with parent: " + parent);
-			//Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
-			if (null == parent) {
-				Utils.log2("just added parent: ");
-				Utils.log2(" nodes to paint: " + Utils.toString(getNodesToPaint(Display.getFrontLayer())));
-				Utils.log2(" nodes in node_layer_map: " + Utils.toString(node_layer_map));
+			if (null != subtree) {
+				synchronized (tolink) {
+					tolink.addAll(subtree);
+				}
 			}
-		}*/
+			return true;
+		}
+		return false;
 	}
 
 	/** Remove a node only (not its subtree).
@@ -1073,44 +1071,44 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** If the tree is a cyclic graph, it may destroy all. */
 	public void removeNode(final Node<T> node) {
-		synchronized (node_layer_map) {
-			removeNode(node, node.getSubtreeNodes());
-		}
+		removeNode(node, node.getSubtreeNodes());
 	}
 
 	// TODO this function is not thread safe. Works well because multiple threads aren't so far calling cache-modifying functions.
 	// Should synchronize on node_layer_map.
 	private void removeNode(final Node<T> node, final Collection<Node<T>> subtree_nodes) {
-		if (null == node.parent) {
-			root = null;
-			clearCache();
-		} else {
-			// if not an end-point, update cached lists
-			if (null != node.children) {
-				Utils.log2("Removing children of node " + node);
-				for (final Node<T> nd : subtree_nodes) { // includes the node itself
-					node_layer_map.get(nd.la).remove(nd);
-					if (null == nd.children && !end_nodes.remove(nd)) {
-						Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
-					}
-				}
+		synchronized (node_layer_map) {
+			if (null == node.parent) {
+				root = null;
+				clearCache();
 			} else {
-				Utils.log2("Just removing node " + node);
-				end_nodes.remove(node);
-				node_layer_map.get(node.la).remove(node);
+				// if not an end-point, update cached lists
+				if (null != node.children) {
+					Utils.log2("Removing children of node " + node);
+					for (final Node<T> nd : subtree_nodes) { // includes the node itself
+						node_layer_map.get(nd.la).remove(nd);
+						if (null == nd.children && !end_nodes.remove(nd)) {
+							Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
+						}
+					}
+				} else {
+					Utils.log2("Just removing node " + node);
+					end_nodes.remove(node);
+					node_layer_map.get(node.la).remove(node);
+				}
+				if (1 == node.parent.getChildrenCount()) {
+					end_nodes.add(node.parent);
+				}
+				// Finally, remove from parent node
+				node.parent.remove(node);
 			}
-			if (1 == node.parent.getChildrenCount()) {
-				end_nodes.add(node.parent);
-			}
-			// Finally, remove from parent node
-			node.parent.remove(node);
+			fireNodeRemoved(node);
 		}
 		synchronized (tolink) {
 			if (null != subtree_nodes) {
 				tolink.removeAll(subtree_nodes);
 			} else tolink.remove(node);
 		}
-		fireNodeRemoved(node);
 		updateView();
 	}
 
@@ -2113,8 +2111,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		private synchronized void create(final Node<T> root) {
 			final ArrayList<Node<T>> branchnodes = new ArrayList<Node<T>>(),
 			      		      endnodes = new ArrayList<Node<T>>(),
-					      allnodes = null == root ? new ArrayList<Node<T>>() : new ArrayList<Node<T>>(root.getSubtreeNodes()),
-					      searchnodes = new ArrayList<Node<T>>();
+					      searchnodes = new ArrayList<Node<T>>(),
+					      allnodes;
+			synchronized (node_layer_map) {
+				allnodes = null == root ? new ArrayList<Node<T>>() : new ArrayList<Node<T>>(root.getSubtreeNodes());
+			}
 			for (final Node<T> nd : allnodes) {
 				switch (nd.getChildrenCount()) {
 					case 0: endnodes.add(nd); break;

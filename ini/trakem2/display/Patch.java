@@ -270,34 +270,36 @@ public final class Patch extends Displayable implements ImageData {
 	/** Set a new ImagePlus for this Patch.
 	 * The original path and image remain untouched. Any later image is deleted and replaced by the new one.
 	 */
-	synchronized public String set(final ImagePlus new_imp) {
-		if (null == new_imp) return null;
-		// flag to mean: this Patch has never been set to any image except the original
-		//    The intention is never to remove the mipmaps of original images
-		boolean first_time = null == original_path;
-		// 0 - set original_path to the current path if there is no original_path recorded:
-		if (isStack()) {
-			for (Patch p : getStackPatches()) {
-				if (null == p.original_path) original_path = p.project.getLoader().getAbsolutePath(p);
+	public String set(final ImagePlus new_imp) {
+		synchronized (this) {
+			if (null == new_imp) return null;
+			// flag to mean: this Patch has never been set to any image except the original
+			//    The intention is never to remove the mipmaps of original images
+			boolean first_time = null == original_path;
+			// 0 - set original_path to the current path if there is no original_path recorded:
+			if (isStack()) {
+				for (Patch p : getStackPatches()) {
+					if (null == p.original_path) original_path = p.project.getLoader().getAbsolutePath(p);
+				}
+			} else {
+				if (null == original_path) original_path = project.getLoader().getAbsolutePath(this);
 			}
-		} else {
-			if (null == original_path) original_path = project.getLoader().getAbsolutePath(this);
-		}
-		// 1 - tell the loader to store the image somewhere, unless the image has a path already
-		final String path = project.getLoader().setImageFile(this, new_imp);
-		if (null == path) {
-			Utils.log2("setImageFile returned null!");
-			return null; // something went wrong
-		}
-		// 2 - update properties and mipmaps
-		if (isStack()) {
-			for (Patch p : getStackPatches()) {
-				p.readProps(new_imp);
-				project.getLoader().regenerateMipMaps(p);
+			// 1 - tell the loader to store the image somewhere, unless the image has a path already
+			final String path = project.getLoader().setImageFile(this, new_imp);
+			if (null == path) {
+				Utils.log2("setImageFile returned null!");
+				return null; // something went wrong
 			}
-		} else {
-			readProps(new_imp);
-			project.getLoader().regenerateMipMaps(this);
+			// 2 - update properties and mipmaps
+			if (isStack()) {
+				for (Patch p : getStackPatches()) {
+					p.readProps(new_imp);
+					project.getLoader().regenerateMipMaps(p);
+				}
+			} else {
+				readProps(new_imp);
+				project.getLoader().regenerateMipMaps(this);
+			}
 		}
 		Display.repaint(layer, this, 5);
 		return project.getLoader().getAbsolutePath(this);
@@ -1013,32 +1015,34 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Revert the ImagePlus to the one stored in original_path, if any; will revert all linked patches if this is part of a stack. */
-	synchronized public boolean revert() {
-		if (null == original_path) return false; // nothing to revert to
-		// 1 - check that original_path exists
-		if (!new File(original_path).exists()) {
-			Utils.log("CANNOT revert: Original file path does not exist: " + original_path + " for patch " + getTitle() + " #" + id);
-			return false;
-		}
-		// 2 - check that the original can be loaded
-		final ImagePlus imp = project.getLoader().fetchOriginal(this);
-		if (null == imp || null == set(imp)) {
-			Utils.log("CANNOT REVERT: original image at path " + original_path + " fails to load, for patch " + getType() + " #" + id);
-			return false;
-		}
-		// 3 - update path in loader, and cache imp for each stack slice id
-		if (isStack()) {
-			for (Patch p : getStackPatches()) {
-				p.project.getLoader().addedPatchFrom(p.original_path, p);
-				p.project.getLoader().cacheImagePlus(p.id, imp);
-				p.project.getLoader().regenerateMipMaps(p);
+	public boolean revert() {
+		synchronized (this) {
+			if (null == original_path) return false; // nothing to revert to
+			// 1 - check that original_path exists
+			if (!new File(original_path).exists()) {
+				Utils.log("CANNOT revert: Original file path does not exist: " + original_path + " for patch " + getTitle() + " #" + id);
+				return false;
 			}
-		} else {
-			project.getLoader().addedPatchFrom(original_path, this);
-			project.getLoader().cacheImagePlus(id, imp);
-			project.getLoader().regenerateMipMaps(this);
+			// 2 - check that the original can be loaded
+			final ImagePlus imp = project.getLoader().fetchOriginal(this);
+			if (null == imp || null == set(imp)) {
+				Utils.log("CANNOT REVERT: original image at path " + original_path + " fails to load, for patch " + getType() + " #" + id);
+				return false;
+			}
+			// 3 - update path in loader, and cache imp for each stack slice id
+			if (isStack()) {
+				for (Patch p : getStackPatches()) {
+					p.project.getLoader().addedPatchFrom(p.original_path, p);
+					p.project.getLoader().cacheImagePlus(p.id, imp);
+					p.project.getLoader().regenerateMipMaps(p);
+				}
+			} else {
+				project.getLoader().addedPatchFrom(original_path, this);
+				project.getLoader().cacheImagePlus(id, imp);
+				project.getLoader().regenerateMipMaps(this);
+			}
+			// 4 - update screens
 		}
-		// 4 - update screens
 		Display.repaint(layer, this, 0);
 		Utils.showStatus("Reverted patch " + getTitle(), false);
 		return true;
