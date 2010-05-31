@@ -159,15 +159,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent.
 	 *  MUST be called within a "synchronized (volatile_lock) { ... }" block. */
-	private void renderVolatileImage(final GraphicsConfiguration gc, final Displayable active, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
+	private void renderVolatileImage(final GraphicsConfiguration gc, final BufferedImage offscreen, final ArrayList<Displayable> top, final Displayable active, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
 		do {
-			final ArrayList<Displayable> top;
-			final BufferedImage offscreen;
-			synchronized (offscreen_lock) {
-				offscreen = this.offscreen;
-				top = this.al_top; // will never be cleared, but may be swapped
-			}
-
 			final int w = getWidth(), h = getHeight();
 			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != w 
 					|| volatileImage.getHeight() != h
@@ -196,14 +189,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// 2 - Paint offscreen image
 			if (null != offscreen) g.drawImage(offscreen, 0, 0, null);
-
-			// Flush all old offscreen images
-			synchronized (offscreen_lock) {
-				for (final BufferedImage bi : to_flush) {
-					bi.flush();
-				}
-				to_flush.clear();
-			}
 
 			// 3 - Paint the active Displayable and all cached on top
 
@@ -268,15 +253,22 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final Graphics2D g2d = (Graphics2D) g.create();
 		g2d.setRenderingHints(rhints);
 		do {
-			// Protect volatile image while rendering it
+			final ArrayList<Displayable> top;
+			final BufferedImage offscreen;
+			synchronized (offscreen_lock) {
+				offscreen = this.offscreen;
+				top = this.al_top; // will never be cleared, but may be swapped
+			}
 			final GraphicsConfiguration gc = getGraphicsConfiguration();
+
+			// Protect volatile image while rendering it
 			synchronized (volatile_lock) {
 				if (invalid_volatile || null == volatileImage
 				 || volatileImage.validate(gc) != VolatileImage.IMAGE_OK)
 				{
 					// clear clip, remade in full
 					clipRect = null;
-					renderVolatileImage(gc, active, active_layer, c_alphas, at, clipRect);
+					renderVolatileImage(gc, offscreen, top, active, active_layer, c_alphas, at, clipRect);
 				}
 				if (null != clipRect) g2d.setClip(clipRect);
 				g2d.drawImage(volatileImage, 0, 0, null);
@@ -284,6 +276,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		} while (volatileImage.contentsLost());
 
 		g2d.dispose();
+
+		// Flush all old offscreen images
+		synchronized (offscreen_lock) {
+			for (final BufferedImage bi : to_flush) {
+				bi.flush();
+			}
+			to_flush.clear();
+		}
 	}
 
 	protected void invalidateVolatile() {

@@ -274,12 +274,8 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		}
 	}
 
-	private void renderVolatileImage(final GraphicsConfiguration gc) {
+	private void renderVolatileImage(final GraphicsConfiguration gc, final BufferedImage image) {
 		do {
-			final BufferedImage image;
-			synchronized (offscreen_lock) {
-				image = this.image;
-			}
 			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != SIDE
 					|| volatileImage.getHeight() != SIDE
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
@@ -295,14 +291,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			//
 			final Graphics2D g = volatileImage.createGraphics();
 			if (null != image) g.drawImage(image, 0, 0, SIDE, SIDE, null);
-
-			// Flush all old offscreen images
-			synchronized (offscreen_lock) {
-				for (final BufferedImage bi : to_flush) {
-					bi.flush();
-				}
-				to_flush.clear();
-			}
 
 			// paint red rectangle indicating srcRect
 			final Rectangle srcRect = display.getCanvas().getSrcRect();
@@ -322,18 +310,30 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		g2d.setRenderingHints(DisplayCanvas.rhints);
 		final GraphicsConfiguration gc = getGraphicsConfiguration(); // outside synch, avoid deadlocks
 		do {
+			final BufferedImage image;
+			synchronized (offscreen_lock) {
+				image = this.image;
+			}
 			// Protect volatileImage while generating it
 			synchronized (volatile_lock) {
 				if (invalid_volatile || null == volatileImage
 				 || volatileImage.validate(gc) != VolatileImage.IMAGE_OK)
 				{
-					renderVolatileImage(gc);
+					renderVolatileImage(gc, image);
 				}
 				g2d.drawImage(volatileImage, 0, 0, null);
 			}
 		} while (volatileImage.contentsLost());
 
 		g2d.dispose();
+
+		// Flush all old offscreen images
+		synchronized (offscreen_lock) {
+			for (final BufferedImage bi : to_flush) {
+				bi.flush();
+			}
+			to_flush.clear();
+		}
 	}
 
 	public void invalidateVolatile() {
