@@ -63,6 +63,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private boolean update_graphics = false;
 	private BufferedImage offscreen = null;
+	private final HashSet<BufferedImage> to_flush = new HashSet<BufferedImage>();
 	private ArrayList<Displayable> al_top = new ArrayList<Displayable>();
 
 	private final Lock lock_paint = new Lock();
@@ -74,7 +75,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private FreeHandProfile freehandProfile = null;
 	private Robot r;// used for setting the mouse pointer
 
-	private final Lock offscreen_lock = new Lock();
+	private final Object offscreen_lock = new Object();
 
 	private Cursor noCursor;
 
@@ -151,21 +152,30 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	*/
 
 	private VolatileImage volatileImage;
+	private Object volatile_lock = new Object();
 	//private javax.swing.Timer resourceTimer = new javax.swing.Timer(10000, resourceReaper);
 	//private boolean frameRendered = false;
 	private boolean invalid_volatile = false;
 
-	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
-	private void renderVolatileImage(final BufferedImage bufferedImage, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
+	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent.
+	 *  MUST be called within a "synchronized (volatile_lock) { ... }" block. */
+	private void renderVolatileImage(final GraphicsConfiguration gc, final Displayable active, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
 		do {
+			final ArrayList<Displayable> top;
+			final BufferedImage offscreen;
+			synchronized (offscreen_lock) {
+				offscreen = this.offscreen;
+				top = this.al_top; // will never be cleared, but may be swapped
+			}
+
 			final int w = getWidth(), h = getHeight();
-			final GraphicsConfiguration gc = getGraphicsConfiguration();
 			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != w 
 					|| volatileImage.getHeight() != h
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (volatileImage != null) {
 					volatileImage.flush();
 				}
+				display.getProject().getLoader().releaseToFit(w * h * 10);
 				volatileImage = gc.createCompatibleVolatileImage(w, h);
 				volatileImage.setAccelerationPriority(1.0f);
 				invalid_volatile = false;
@@ -185,7 +195,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			else g.fillRect(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
 
 			// 2 - Paint offscreen image
-			g.drawImage(bufferedImage, 0, 0, null);
+			if (null != offscreen) g.drawImage(offscreen, 0, 0, null);
+
+			// Flush all old offscreen images
+			synchronized (offscreen_lock) {
+				for (final BufferedImage bi : to_flush) {
+					bi.flush();
+				}
+				to_flush.clear();
+			}
 
 			// 3 - Paint the active Displayable and all cached on top
 
@@ -207,11 +225,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (null != top) {
 					final Rectangle tmp = null != clipRect ? new Rectangle() : null;
 					final Rectangle clip = null != clipRect ? new Rectangle((int)(clipRect.x * magnification) - srcRect.x, (int)(clipRect.y * magnification) - srcRect.y, (int)(clipRect.width * magnification), (int)(clipRect.height * magnification)) : null;
-					for (int i=0; i<top.length; i++) {
-						if (null != clipRect && !top[i].getBoundingBox(tmp).intersects(clip)) continue;
-						top[i].paint(g, srcRect, magnification, top[i] == active, c_alphas, active_layer);
+					for (final Displayable d : top) {
+						if (null != clipRect && !d.getBoundingBox(tmp).intersects(clip)) continue;
+						d.paint(g, srcRect, magnification, d == active, c_alphas, active_layer);
 						if (active_painted) continue;
-						else active_painted = top[i] == active;
+						else active_painted = d == active;
 					}
 					if (must_paint_active && !active_painted) {
 						// Active may not have been part of top array if it was added new and the offscreen image was not updated,
@@ -246,38 +264,32 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 *
 	 *  Expects clipRect in screen coordinates
 	 */
-	private void render(final Graphics g, final Displayable active, final Displayable[] top, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
+	private void render(final Graphics g, final Displayable active, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
 		final Graphics2D g2d = (Graphics2D) g.create();
 		g2d.setRenderingHints(rhints);
 		do {
-			if (invalid_volatile || null == volatileImage
-			 || volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK)
-			{
-				// clear clip, remade in full
-				clipRect = null;
-				renderVolatileImage(offscreen, active, top, active_layer, c_alphas, at, clipRect);
+			// Protect volatile image while rendering it
+			final GraphicsConfiguration gc = getGraphicsConfiguration();
+			synchronized (volatile_lock) {
+				if (invalid_volatile || null == volatileImage
+				 || volatileImage.validate(gc) != VolatileImage.IMAGE_OK)
+				{
+					// clear clip, remade in full
+					clipRect = null;
+					renderVolatileImage(gc, active, active_layer, c_alphas, at, clipRect);
+				}
+				if (null != clipRect) g2d.setClip(clipRect);
+				g2d.drawImage(volatileImage, 0, 0, null);
 			}
-			if (null != clipRect) g2d.setClip(clipRect);
-			g2d.drawImage(volatileImage, 0, 0, null);
 		} while (volatileImage.contentsLost());
 
 		g2d.dispose();
-
-		//
-		// Restart the resource reaper timer if neccessary
-		//
-		/*
-		if (!frameRendered) {
-			frameRendered = true;
-			if (!resourceTimer.isRunning()) {
-				resourceTimer.restart();
-			}
-		}
-		*/
 	}
 
 	protected void invalidateVolatile() {
-		this.invalid_volatile = true;
+		synchronized (volatile_lock) {
+			this.invalid_volatile = true;
+		}
 	}
 
 	/////////////////
@@ -319,7 +331,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Overriding to disable it. */
 	public void handlePopupMenu() {}
 
-	public void update(Graphics g) {
+	public final void update(final Graphics g) {
 		// overriding to avoid default behaviour in java.awt.Canvas which consists in first repainting the entire drawable area with the background color, and then calling method paint.
 		this.paint(g);
 	}
@@ -378,37 +390,17 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			final Graphics2D g2d = (Graphics2D)g;
 
-			Displayable[] di = null;
+			// prepare the canvas for the srcRect and magnification
+			final AffineTransform at_original = g2d.getTransform();
+			atc.setToIdentity();
+			atc.scale(magnification, magnification);
+			atc.translate(-srcRect.x, -srcRect.y);
+			at_original.preConcatenate(atc);
 
-			synchronized (offscreen_lock) {
-				offscreen_lock.lock();
-				try {
+			if (null != offscreen && dragging) invalidateVolatile(); // to update the active at least
+			render(g, active, active_layer, c_alphas, at_original, clipRect);
 
-					// prepare the canvas for the srcRect and magnification
-					final AffineTransform at_original = g2d.getTransform();
-					atc.setToIdentity();
-					atc.scale(magnification, magnification);
-					atc.translate(-srcRect.x, -srcRect.y);
-					at_original.preConcatenate(atc);
-
-					di = new Displayable[al_top.size()];
-					al_top.toArray(di);
-
-					//Utils.log2("al_top.size(): " + di.length);
-
-					if (null != offscreen) {
-						//g.drawImage(offscreen, 0, 0, null);
-						if (dragging) invalidateVolatile(); // to update the active at least
-						render(g, active, di, active_layer, c_alphas, at_original, clipRect);
-					}
-
-					g2d.setTransform(at_original);
-
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				offscreen_lock.unlock();
-			}
+			g2d.setTransform(at_original);
 
 			g2d.setStroke(this.stroke);
 
@@ -1611,13 +1603,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// cleanup update graphics thread if any
 		RT.quit();
 		synchronized (offscreen_lock) {
-			offscreen_lock.lock();
-
-			offscreen = null;
-			// reset for remaking if necessary TODO doesn't work in at least java 1.6 ?
+			if (null != offscreen) {
+				offscreen.flush();
+				offscreen = null;
+			}
 			update_graphics = true;
-
-			offscreen_lock.unlock();
+			for (final BufferedImage bi : to_flush) bi.flush();
+			to_flush.clear();
 		}
 		mouse_moved.quit();
 		try {
@@ -2323,21 +2315,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 
 			synchronized (offscreen_lock) {
-				offscreen_lock.lock();
-				try {
-					// only on success:
-					update_graphics = false;
-					if (null != offscreen) offscreen.flush();
-					offscreen = target;
-					invalidateVolatile();
-					DisplayCanvas.this.al_top = al_top;
-
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-
-				offscreen_lock.unlock();
+				// only on success:
+				if (null != offscreen) to_flush.add(offscreen);
+				offscreen = target;
+				update_graphics = false;
+				DisplayCanvas.this.al_top = al_top;
 			}
+			// Outside, otherwise could deadlock
+			invalidateVolatile();
 
 			// Send repaint event, without offscreen graphics
 			RT.paint(clipRect, false);
@@ -2451,10 +2436,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// create new graphics
 			try {
-				display.getProject().getLoader().releaseToFit(g_width * g_height * 4 + 1024);
+				display.getProject().getLoader().releaseToFit(g_width * g_height * 10);
 			} catch (Exception e) {} // when closing, asynch state may throw for a null loader.
 
 			final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT); // creates a BufferedImage.TYPE_INT_ARGB image in my T60p ATI FireGL laptop
+			//Utils.log2("offscreen acceleration priority: " + target.getAccelerationPriority());
 			final Graphics2D g = target.createGraphics();
 
 			g.setTransform(atc); //at_original);
