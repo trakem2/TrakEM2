@@ -1639,7 +1639,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final JScrollPane jsp = ht_tabs.get(displ.getClass());
 			if (null != jsp) {
 				JPanel p = (JPanel)jsp.getViewport().getView();
-				final boolean visible = isPartiallyWithinViewport(jsp, ob);
+				final boolean visible = isPartiallyWithinViewport(jsp.getViewport(), ob);
 				p.remove(ob);
 				if (visible) {
 					Utils.revalidateComponent(p);
@@ -3215,27 +3215,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Check if a panel for the given Displayable is partially visible in the JScrollPane */
 	public boolean isPartiallyWithinViewport(final Displayable d) {
 		final JScrollPane scroll = ht_tabs.get(d.getClass());
-		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll, ht_panels.get(d));
+		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll.getViewport(), ht_panels.get(d));
 		return false;
 	}
 
 	/** Check if a panel for the given Displayable is at least partially visible in the JScrollPane */
-	private boolean isPartiallyWithinViewport(final JScrollPane scroll, final DisplayablePanel dp) {
+	private boolean isPartiallyWithinViewport(final JViewport view, final DisplayablePanel dp) {
 		if(null == dp) {
 			//Utils.log2("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
 			return false; // to fast for you baby
 		}
-		JViewport view = scroll.getViewport();
-		java.awt.Dimension dimensions = view.getExtentSize();
-		java.awt.Point p = view.getViewPosition();
-		int y = dp.getY();
-		if (   ((y + DisplayablePanel.HEIGHT - p.y) <= dimensions.height && y >= p.y) // completely visible
-		    || ((y + DisplayablePanel.HEIGHT - p.y) >  dimensions.height && y < p.y + dimensions.height) // partially hovering at the bottom
-		    || ((y + DisplayablePanel.HEIGHT) > p.y && y < p.y) // partially hovering at the top
-		) {
-			return true;
-		}
-		return false;
+		final int vheight = view.getExtentSize().height,
+		      	  py = view.getViewPosition().y,
+			  y = dp.getY();
+		// Test if not outside view
+		return !(y + DisplayablePanel.HEIGHT < py || y > py + vheight);
 	}
 
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
