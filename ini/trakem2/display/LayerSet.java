@@ -1259,7 +1259,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Used by the Layer.setZ method. */
 	protected void reposition(final Layer layer) {
-		if (null == layer || !al_layers.contains(layer)) return;
+		if (null == layer || !idlayers.containsKey(layer.getId())) return;
 		al_layers.remove(layer);
 		addSilently(layer);
 	}
