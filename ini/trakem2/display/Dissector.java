@@ -227,7 +227,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 		// Expects graphics with an identity transform
 		final void paint(final Graphics2D g, final AffineTransform aff, final Layer layer) {
-			final int i_current = layer_set.getLayerIndex(layer.getId());
+			final int i_current = layer_set.indexOf(layer);
 			int ii;
 			final int M_radius = radius;
 			final int EXTRA = 2;
