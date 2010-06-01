@@ -343,6 +343,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	}
 
 	public void paint(final Graphics g) {
+		if (null == g) return;
 		render(g);
 	}
 

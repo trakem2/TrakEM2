@@ -391,6 +391,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private final AffineTransform atc = new AffineTransform();
 
 	public void paint(final Graphics g) {
+		if (null == g) return;
 		try {
 			synchronized (lock_paint) {
 				lock_paint.lock();
@@ -468,7 +469,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
-			IJError.print(e);
+			//IJError.print(e);
 		} finally {
 			synchronized (lock_paint) {
 				lock_paint.unlock();
