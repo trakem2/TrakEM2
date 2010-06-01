@@ -2457,8 +2457,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		try {
 			// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
-			//StopWatch timer = new StopWatch();
-
 			// prepare the canvas for the srcRect and magnification
 			final AffineTransform atc = new AffineTransform();
 			atc.scale(magnification, magnification);
@@ -2497,15 +2495,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			//Utils.log2("offscreen painting: " + al_paint.size());
 
-			//timer.elapsed("offscreen set up");
-
 			// filter paintables
 			final Collection<? extends Paintable> paintables = graphics_source.asPaintable(al_paint);
 
 			// adjust:
 			first_non_patch = paintables.size() - (al_paint.size() - first_non_patch);
-
-			//timer.elapsed("grabbed paintables");
 
 			// Determine painting mode
 			if (Display.REPAINT_SINGLE_LAYER == mode) {
@@ -2654,10 +2648,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.setClip(r2);
 				g.fill(r2);
 			}
-
-			//timer.elapsed("painted outsides");
-
-			//timer.cumulative();
 
 			return target;
 		} catch (OutOfMemoryError oome) {
