@@ -170,24 +170,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		rhints = new RenderingHints(hints);
 	}
 
-	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
-	/*
-	private ActionListener resourceReaper = new ActionListener() {
-		public void actionPerformed(final ActionEvent ae) {
-			if (!frameRendered) {
-				if (volatileImage != null) {
-					volatileImage.flush();
-					volatileImage = null;
-				}
-				frameRendered = false;
-
-				// Stop the timer so we don't wakeup needlessly
-				resourceTimer.stop();
-			}
-		}
- 	};
-	*/
-
 	private VolatileImage volatileImage;
 	private Object volatile_lock = new Object();
 	//private javax.swing.Timer resourceTimer = new javax.swing.Timer(10000, resourceReaper);
