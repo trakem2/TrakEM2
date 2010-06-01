@@ -492,11 +492,13 @@ abstract public class Loader {
 
 	static public final long getCurrentMemory() {
 		// totalMemory() is the amount of current JVM heap allocation, whether it's being used or not. It may grow over time if -Xms < -Xmx
-		return RUNTIME.totalMemory() - RUNTIME.freeMemory(); }
+		return RUNTIME.totalMemory() - RUNTIME.freeMemory();
+	}
 
 	static public final long getFreeMemory() {
 		// max_memory changes as some is reserved by image opening calls
-		return max_memory - getCurrentMemory(); }
+		return max_memory - getCurrentMemory();
+	}
 
 	/** Maximum vailable memory, in bytes. */
 	static private final long MAX_MEMORY = RUNTIME.maxMemory() - 128000000; // 128 M always free
