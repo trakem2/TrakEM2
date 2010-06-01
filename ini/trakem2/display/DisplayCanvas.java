@@ -2341,7 +2341,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			//Utils.log2("Found target " + target + "\n  with al_top.size() = " + al_top.size());
 
 			if (null == target) {
-				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true, al_top);
+				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true, al_top, true);
 				// Store it:
 				/* CAN'T, may have prePaint in it
 				if (null != sc && display.getProject().getProperty("look_ahead_cache", 0) > 0) {
@@ -2445,13 +2445,28 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		return first_non_patch;
 	}
+	
+	@Deprecated
+	public BufferedImage paintOffscreen(final Layer layer, final int g_width, final int g_height,
+			final Rectangle srcRect, final double magnification, final Displayable active,
+			final int c_alphas, final Rectangle clipRect, final Loader loader, final HashMap<Color,Layer> hm,
+			final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source,
+			final boolean prepaint, final ArrayList<Displayable> al_top) {
+		return paintOffscreen(layer, g_width, g_height, srcRect, magnification, active,
+						c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source,
+						prepaint, al_top, false);
+	}
 
 	/** This method uses data only from the arguments, and changes none.
 	 *  Will fill @param al_top with proper Displayable objects, or none when none are selected. */
-	public BufferedImage paintOffscreen(final Layer layer, final int g_width, final int g_height, final Rectangle srcRect, final double magnification, final Displayable active, final int c_alphas, final Rectangle clipRect, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint, final ArrayList<Displayable> al_top) {
+	public BufferedImage paintOffscreen(final Layer layer, final int g_width, final int g_height,
+			final Rectangle srcRect, final double magnification, final Displayable active,
+			final int c_alphas, final Rectangle clipRect, final Loader loader, final HashMap<Color,Layer> hm,
+			final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source,
+			final boolean prepaint, final ArrayList<Displayable> al_top, final boolean preload) {
 
 		final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
-		int first_non_patch = gatherDisplayables(layer, srcRect, active, al_paint, al_top, true);
+		int first_non_patch = gatherDisplayables(layer, srcRect, active, al_paint, al_top, preload);
 
 		return paintOffscreen(layer, al_paint, active, g_width, g_height, c_alphas, loader, hm, blending_list, mode, graphics_source, prepaint, first_non_patch);
 	}
@@ -2805,7 +2820,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		public void createImage() {
 			BufferedImage img = paintOffscreen(layer, props.g_width, props.g_height, props.srcRect, props.magnification,
 						  display.getActive(), props.c_alphas, null, layer.getProject().getLoader(),
-						  props.hm, props.blending_list, props.mode, props.graphics_source, false, al_top);
+						  props.hm, props.blending_list, props.mode, props.graphics_source, false, al_top, false);
 			layer.getProject().getLoader().cacheAWT(sid, img);
 		}
 		public void flush() {
