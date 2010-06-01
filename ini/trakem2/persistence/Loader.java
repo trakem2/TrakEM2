@@ -695,7 +695,7 @@ abstract public class Loader {
 	/** The minimal number of memory bytes that should always be free. */
 	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
 
-	/** 100 Mb per processor, which is a bit more than 67 Mb, the size of a 32-bit 4096x4096 image. */
+	/** 150 Mb per processor, which is ~2x 67 Mb, the size of a 32-bit 4096x4096 image. */
 	public static long computeDesirableMinFreeBytes() {
 		long f = 150000000 * Runtime.getRuntime().availableProcessors();
 		if (f > max_memory / 2) {
