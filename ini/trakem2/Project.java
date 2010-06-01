@@ -894,7 +894,7 @@ public class Project extends DBObject {
 
 	/** Find the node in the layer tree with a Thing that contains the given object, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Layer layer) {
-		select(layer, layer_tree);
+		layer_tree.selectNode(layer);
 	}
 	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Displayable d) {
