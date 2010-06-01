@@ -1139,7 +1139,6 @@ abstract public class Loader {
 		}
 
 		Image mawt = null;
-		long n_bytes = 0;
 
 		// 2 - check if the exact file is present for the desired level
 		if (level >= 0 && isMipMapsEnabled()) {
@@ -1157,13 +1156,10 @@ abstract public class Loader {
 				}
 
 				// going to load:
+				
+				long n_bytes = estimateImageFileSize(p, level);
+				n_bytes = -alterMaxMem(-n_bytes);
 
-				synchronized (db_lock) {
-					lock();
-					n_bytes = estimateImageFileSize(p, level);
-					n_bytes = -alterMaxMem(-n_bytes);
-					unlock();
-				}
 
 				try {
 					// Locks on db_lock to release memory when needed
@@ -1171,12 +1167,13 @@ abstract public class Loader {
 				} catch (Throwable t) {
 					IJError.print(t);
 					mawt = null;
+				} finally {
+					alterMaxMem(n_bytes);
 				}
 
 				synchronized (db_lock) {
 					try {
 						lock();
-						alterMaxMem(n_bytes);
 						if (null != mawt) {
 							//Utils.log2("returning exact mawt from file for level " + level);
 							if (REGENERATING != mawt) {
