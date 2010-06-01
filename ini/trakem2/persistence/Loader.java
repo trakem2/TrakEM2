@@ -829,12 +829,7 @@ abstract public class Loader {
 
 				// Third some awts
 				if (0 != mawts.size()) {
-					for (int i=0; i<BATCH_SIZE; i++) {
-						Image mawt = mawts.removeFirst();
-						if (null == mawt) break; // BATCH_SIZE larger than cache
-						released += measureSize(mawt);
-						if (null != mawt) mawt.flush();
-					}
+					released += mawts.removeAndFlushSome(BATCH_SIZE);
 					if (released >= min_free_bytes) return released;
 				}
 
@@ -844,7 +839,6 @@ abstract public class Loader {
 					// Remove any autotraces
 					Polyline.flushTraceCache(Project.findProject(this));
 					// in any case, can't release more:
-					mawts.gc();
 					if (0 == clonks.incrementAndGet() % 20) {
 						triggerGC();
 					}
