@@ -276,7 +276,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	private void renderVolatileImage(final GraphicsConfiguration gc, final BufferedImage image) {
 		do {
-			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != SIDE
+			if (volatileImage == null || volatileImage.getWidth() != SIDE
 					|| volatileImage.getHeight() != SIDE
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (volatileImage != null) {

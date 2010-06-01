@@ -180,13 +180,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 *  MUST be called within a "synchronized (volatile_lock) { ... }" block. */
 	private void renderVolatileImage(final GraphicsConfiguration gc, final BufferedImage offscreen, final ArrayList<Displayable> top, final Displayable active, final Layer active_layer, final int c_alphas, final AffineTransform at, Rectangle clipRect) {
 		do {
+			// Recreate volatileImage ONLY if necessary: when null, when incompatible, or when dimensions have changed
+			// Otherwise, just paint on top of it
 			final int w = getWidth(), h = getHeight();
-			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != w 
-					|| volatileImage.getHeight() != h
-					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
-				if (volatileImage != null) {
-					volatileImage.flush();
-				}
+			if (null == volatileImage || volatileImage.getWidth() != w
+			  || volatileImage.getHeight() != h || volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
+				if (null != volatileImage) volatileImage.flush();
 				volatileImage = gc.createCompatibleVolatileImage(w, h);
 				volatileImage.setAccelerationPriority(1.0f);
 				invalid_volatile = false;
