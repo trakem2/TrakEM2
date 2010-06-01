@@ -198,7 +198,7 @@ abstract public class Loader {
 
 	// What I need is not provided: a LinkedHashMap with a method to do 'removeFirst' or remove(0) !!! To call my_map.entrySet().iterator() to delete the the first element of a LinkedHashMap is just too much calling for an operation that has to be blazing fast. So I create a double list setup with arrays. The variables are not static because each loader could be connected to a different database, and each database has its own set of unique ids. Memory from other loaders is free by the releaseOthers(double) method.
 	transient protected CacheImagePlus imps = new CacheImagePlus(50);
-	transient protected CacheImageMipMaps mawts = new CacheImageMipMaps(50);
+	transient protected ImageCache mawts = new MAWTCache();
 
 	static transient protected Vector<Loader> v_loaders = null; // Vector: synchronized
 
@@ -492,11 +492,13 @@ abstract public class Loader {
 
 	static public final long getCurrentMemory() {
 		// totalMemory() is the amount of current JVM heap allocation, whether it's being used or not. It may grow over time if -Xms < -Xmx
-		return RUNTIME.totalMemory() - RUNTIME.freeMemory(); }
+		return RUNTIME.totalMemory() - RUNTIME.freeMemory();
+	}
 
 	static public final long getFreeMemory() {
 		// max_memory changes as some is reserved by image opening calls
-		return max_memory - getCurrentMemory(); }
+		return max_memory - getCurrentMemory();
+	}
 
 	/** Maximum vailable memory, in bytes. */
 	static private final long MAX_MEMORY = RUNTIME.maxMemory() - 128000000; // 128 M always free
@@ -693,7 +695,7 @@ abstract public class Loader {
 	/** The minimal number of memory bytes that should always be free. */
 	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
 
-	/** 100 Mb per processor, which is a bit more than 67 Mb, the size of a 32-bit 4096x4096 image. */
+	/** 150 Mb per processor, which is ~2x 67 Mb, the size of a 32-bit 4096x4096 image. */
 	public static long computeDesirableMinFreeBytes() {
 		long f = 150000000 * Runtime.getRuntime().availableProcessors();
 		if (f > max_memory / 2) {
@@ -737,10 +739,10 @@ abstract public class Loader {
 		return 0;
 	}
 
-	/** Returns a lower-bound estimate: as if it was grayscale; plus some overhead. */
-	private final long measureSize(final Image img) {
+	/** Returns a an upper-bound estimate, as if it was an int[], plus some overhead. */
+	static final long measureSize(final Image img) {
 		if (null == img) return 0;
-		return img.getWidth(null) * img.getHeight(null) + 100;
+		return img.getWidth(null) * img.getHeight(null) * 4 + 100;
 	}
 
 	/** Free up to MIN_FREE_BYTES. Locks on db_lock. */
@@ -827,12 +829,7 @@ abstract public class Loader {
 
 				// Third some awts
 				if (0 != mawts.size()) {
-					for (int i=0; i<BATCH_SIZE; i++) {
-						Image mawt = mawts.removeFirst();
-						if (null == mawt) break; // BATCH_SIZE larger than cache
-						released += measureSize(mawt);
-						if (null != mawt) mawt.flush();
-					}
+					released += mawts.removeAndFlushSome(BATCH_SIZE);
 					if (released >= min_free_bytes) return released;
 				}
 
@@ -842,7 +839,6 @@ abstract public class Loader {
 					// Remove any autotraces
 					Polyline.flushTraceCache(Project.findProject(this));
 					// in any case, can't release more:
-					mawts.gc();
 					if (0 == clonks.incrementAndGet() % 20) {
 						triggerGC();
 					}
@@ -1096,10 +1092,10 @@ abstract public class Loader {
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		final int max_level = Loader.getHighestMipMapLevel(p);
-		return fetchAWTImage(p, level > max_level ? max_level : level);
+		return fetchAWTImage(p, level > max_level ? max_level : level, max_level);
 	}
 
-	final public Image fetchAWTImage(final Patch p, int level) {
+	final public Image fetchAWTImage(final Patch p, final int level, final int max_level) {
 		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		// find an equal or larger existing pyramid awt
@@ -1177,29 +1173,36 @@ abstract public class Loader {
 							}
 							return mawt;
 						}
-						// 3 - else, load closest level to it but still giving a larger image
-						final int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
-						//Utils.log2("closest mipmap level is " + lev);
-						if (lev >= 0) {
-							mawt = mawts.getClosestAbove(id, lev);
-							boolean newly_cached = false;
-							if (null == mawt) {
-								// reload existing scaled file
-								mawt = fetchMipMapAWT2(p, lev, n_bytes);
-								if (null != mawt) {
-									mawts.put(id, mawt, lev);
-									newly_cached = true; // means: cached was false, now it is
+				
+						// Check if an appropriate level is cached
+						mawt = mawts.getClosestAbove(id, level);
+						
+						if (null == mawt) {
+							// 3 - else, load closest level to it but still giving a larger image
+							final int lev = getClosestMipMapLevel(p, level, max_level); // finds the file for the returned level, otherwise returns zero
+							//Utils.log2("closest mipmap level is " + lev);
+							if (lev > -1) {
+								boolean newly_cached = false;
+								if (null == mawt) {
+									// reload existing scaled file
+									mawt = fetchMipMapAWT2(p, lev, n_bytes);
+									if (null != mawt) {
+										mawts.put(id, mawt, lev);
+										newly_cached = true; // means: cached was false, now it is
+									}
+									// else if null, the file did not exist or could not be regenerated or regeneration is off
 								}
-								// else if null, the file did not exist or could not be regenerated or regeneration is off
+								//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+								if (null != mawt) {
+									if (newly_cached) Display.repaintSnapshot(p);
+									//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+									return mawt;
+								}
+							} else if (ERROR_PATH_NOT_FOUND == lev) {
+								mawt = NOT_FOUND;
 							}
-							//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
-							if (null != mawt) {
-								if (newly_cached) Display.repaintSnapshot(p);
-								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
-								return mawt;
-							}
-						} else if (ERROR_PATH_NOT_FOUND == lev) {
-							mawt = NOT_FOUND;
+						} else {
+							return mawt;
 						}
 					} catch (Exception e) {
 						IJError.print(e);
@@ -4107,7 +4110,7 @@ while (it.hasNext()) {
 	public boolean isMipMapsEnabled() { return false; }
 
 	/** Does nothing and returns zero unless overriden. */
-	public int getClosestMipMapLevel(final Patch patch, int level) {return 0;}
+	public int getClosestMipMapLevel(final Patch patch, int level, int max_level) {return 0;}
 
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) { return null; }
@@ -4119,7 +4122,7 @@ while (it.hasNext()) {
 		/*
 		if (0xffffffff == old_channels) {
 			// reuse any loaded mipmaps
-			Hashtable<Integer,Image> ht = null;
+			Map<Integer,Image> ht = null;
 			synchronized (db_lock) {
 				lock();
 				ht = mawts.getAll(p.getId());
@@ -4421,7 +4424,7 @@ while (it.hasNext()) {
 				try {
 					if (p.getProject().getLoader().hs_unloadable.contains(p)) return null;
 					if (repaint) {
-						if (Display.willPaint(p, mag)) {
+						if (Display.willPaint(p)) {
 							final Image awt = p.getProject().getLoader().fetchImage(p, mag);
 							if (null != awt) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							return awt;

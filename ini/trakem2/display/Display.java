@@ -910,7 +910,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private class ToolbarPanel extends JPanel implements MouseListener {
+	private class ToolbarPanel extends Canvas implements MouseListener {
 		Method drawButton;
 		Field lineType;
 		Field SIZE;
@@ -5238,18 +5238,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 
-	/** Check if any display will paint the given Displayable at the given magnification. */
-	static public boolean willPaint(final Displayable displ, final double magnification) {
-		Rectangle box = null; ;
+	/** Check if any display will paint the given Displayable within its srcRect. */
+	static public boolean willPaint(final Displayable displ) {
+		Rectangle box = null;
 		for (final Display d : al_displays) {
-			/* // Can no longer do this check, because 'magnification' is now affected by the Displayable AffineTransform! And thus it would not paint after the prePaint.
-			if (Math.abs(d.canvas.getMagnification() - magnification) > 0.00000001) {
-				continue;
-			}
-			*/
-			if (null == box) box = displ.getBoundingBox(null);
-			if (d.getLayer() == d.layer && d.canvas.getSrcRect().intersects(box)) {
-				return true;
+			if (displ.getLayer() == d.layer) {
+				if (null == box) box = displ.getBoundingBox(null);
+				if (d.canvas.getSrcRect().intersects(box)) {
+					return true;
+				}
 			}
 		}
 		return false;

@@ -286,7 +286,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
 	static public final void log2(final String msg, final Object ob) {
-		Utils.log2((null != msg ? msg : "") + ob + "\n\t" + Utils.toString(ob));
+		Utils.log2((null != msg ? msg : "") + ob + "\n\t" + Utils.toString(ob) + "\n");
 	}
 	static public final void log2(final String msg, final Object ob1, final Object... ob) {
 		final StringBuilder sb = new StringBuilder(null == msg ? "" : msg + "\n");

@@ -57,10 +57,11 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	private int x_p, y_p;
 	private int new_x_old=0, new_y_old=0;
 
-	private final Object updating_ob = new Object();
-	private boolean updating = false;
+	private final Object offscreen_lock = new Object();
+	private final HashSet<BufferedImage> to_flush = new HashSet<BufferedImage>();
 
 	private VolatileImage volatileImage;
+	private final Object volatile_lock = new Object();
 	private boolean invalid_volatile = false;
 
 	DisplayNavigator(Display display, double layer_width, double layer_height) { // contorsions to avoid java bugs ( a.k.a. the 'this' is not functional until the object in question has finished initialization.
@@ -94,7 +95,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	public void repaint(boolean update_graphics) {
 		redraw_displayables = update_graphics;
-		invalid_volatile = true;
+		invalidateVolatile();
 		repaint();
 	}
 
@@ -102,7 +103,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	public void repaint(Displayable d) {
 		if (display.getCanvas().isDragging()) return;
 		redraw_displayables = true;
-		invalid_volatile = true;
+		invalidateVolatile();
 		final Rectangle r = d.getBoundingBox(null);
 		r.x = (int)(r.x * scale);
 		r.y = (int)(r.y * scale);
@@ -259,18 +260,13 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 				// finally, when done, call repaint (like sending an event)
 
 				// block only while modifying the image pointer
-				synchronized (updating_ob) {
-					while (updating) {
-						try { updating_ob.wait(); } catch (InterruptedException ie) {}
-					}
-					updating = true;
-
+				synchronized (offscreen_lock) {
+					if (null != DisplayNavigator.this.image) to_flush.add(DisplayNavigator.this.image);
 					DisplayNavigator.this.image = target;
 					redraw_displayables = false;
-
-					updating = false;
-					updating_ob.notifyAll();
 				}
+				// Outside, otherwise would deadlock
+				invalidateVolatile();
 				RT.paint(clipRect, false);
 			} catch (Exception e) {
 				IJError.print(e);
@@ -278,10 +274,9 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		}
 	}
 
-	private void renderVolatileImage(final BufferedImage bufferedImage) {
+	private void renderVolatileImage(final GraphicsConfiguration gc, final BufferedImage image) {
 		do {
-			final GraphicsConfiguration gc = getGraphicsConfiguration();
-			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != SIDE
+			if (volatileImage == null || volatileImage.getWidth() != SIDE
 					|| volatileImage.getHeight() != SIDE
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (volatileImage != null) {
@@ -295,7 +290,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			// Now paint the BufferedImage into the accelerated image
 			//
 			final Graphics2D g = volatileImage.createGraphics();
-			g.drawImage(bufferedImage, 0, 0, SIDE, SIDE, null);
+			if (null != image) g.drawImage(image, 0, 0, SIDE, SIDE, null);
 
 			// paint red rectangle indicating srcRect
 			final Rectangle srcRect = display.getCanvas().getSrcRect();
@@ -313,28 +308,43 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	private void render(final Graphics g) {
 		final Graphics2D g2d = (Graphics2D) g.create();
 		g2d.setRenderingHints(DisplayCanvas.rhints);
+		final GraphicsConfiguration gc = getGraphicsConfiguration(); // outside synch, avoid deadlocks
 		do {
-			if (invalid_volatile || null == volatileImage
-			 || volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK)
-			{
-				renderVolatileImage(image);
+			final BufferedImage image;
+			synchronized (offscreen_lock) {
+				image = this.image;
 			}
-			g2d.drawImage(volatileImage, 0, 0, null);
+			// Protect volatileImage while generating it
+			synchronized (volatile_lock) {
+				if (invalid_volatile || null == volatileImage
+				 || volatileImage.validate(gc) != VolatileImage.IMAGE_OK)
+				{
+					renderVolatileImage(gc, image);
+				}
+				g2d.drawImage(volatileImage, 0, 0, null);
+			}
 		} while (volatileImage.contentsLost());
 
 		g2d.dispose();
+
+		// Flush all old offscreen images
+		synchronized (offscreen_lock) {
+			for (final BufferedImage bi : to_flush) {
+				bi.flush();
+			}
+			to_flush.clear();
+		}
+	}
+
+	public void invalidateVolatile() {
+		synchronized (volatile_lock) {
+			invalid_volatile = true;
+		}
 	}
 
 	public void paint(final Graphics g) {
-		final Graphics2D g2d = (Graphics2D)g;
-		synchronized (updating_ob) {
-			while (updating) { try { updating_ob.wait(); } catch (InterruptedException ie) {} }
-			updating = true;
-			render(g);
-
-			updating = false;
-			updating_ob.notifyAll();
-		}
+		if (null == g) return;
+		render(g);
 	}
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
@@ -385,7 +395,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		DisplayCanvas canvas = display.getCanvas();
 		canvas.setSrcRect(new_x, new_y, this.srcRect.width, this.srcRect.height);
 		canvas.repaint(true);
-		invalid_volatile = true;
+		invalidateVolatile();
 		this.repaint();
 	}
 
@@ -397,23 +407,15 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	/** Release resources. */
 	public void destroy() {
-		synchronized (updating_ob) {
-			while (updating) try { updating_ob.wait(); } catch (InterruptedException ie) {}
-			updating = true;
-			RT.quit();
-			updating = false;
-			updating_ob.notifyAll();
-		}
-		Thread.yield();
-		synchronized (updating_ob) {
-			while (updating) try { updating_ob.wait(); } catch (InterruptedException ie) {}
-			updating = true;
+		RT.quit();
+		synchronized (offscreen_lock) {
 			if (null != image) {
 				image.flush();
 				image = null;
 			}
-			updating = false;
-			updating_ob.notifyAll();
+			redraw_displayables = true;
+			for (final BufferedImage bi : to_flush) bi.flush();
+			to_flush.clear();
 		}
 	}
 
