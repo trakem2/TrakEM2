@@ -11,27 +11,37 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** Access is not synchronized, that is your duty. */
+/** Access is not synchronized, that is your duty.
+ * 
+ *  The current setup depends on calls to removeAndFlushSome to clean up empty slots;
+ *  otherwise these slots are never cleaned up to avoid O(n) overhead (worst case)
+ *  when removing a Pyramid for a given id, or O(1) cost of checking whether the first interval
+ *  is empty and removing it. Granted, the latter could be done in all calls to @method append,
+ *  but in the current setup this overhead is just not necessary. */
 public class MAWTCache implements ImageCache {
 	
 	private final class Pyramid {
 		private final Image[] images;
 		private HashMap<Long,Pyramid> interval = null;
 		private final long id;
+		private int n_images;
 
 		Pyramid(final long id, final Image image, final int level) {
 			this.id = id;
 			this.images = new Image[maxLevel(image, level)];
 			this.images[level] = image;
+			this.n_images = 1;
 		}
 
 		/** Accepts a null @param img. */
 		final void replace(final Image img, final int level) {
 			if (null == this.images[level]) {
 				this.images[level] = img;
+				this.n_images++;
 			} else {
 				this.images[level].flush();
 				this.images[level] = img;
+				if (null == img) this.n_images--;
 			}
 		}
 	}
@@ -50,9 +60,9 @@ public class MAWTCache implements ImageCache {
 	}
 	
 	private final int maxLevel(final Image image, final int starting_level) {
+		/*
 		final int w = image.getWidth(null);
 		final int h = image.getHeight(null);
-		/*
 		int max_level = starting_level;
 
 		while (w > 32 || h > 32) {
@@ -63,12 +73,16 @@ public class MAWTCache implements ImageCache {
 		return max_level;
 		*/
 
-		final int max = Math.max(w, h);
+		final int max = Math.max(image.getWidth(null), image.getHeight(null));
+		return starting_level + (max < max_levels.length ? max_levels[max] : computeLevel(max));
+
+		/*
 		if (max >= max_levels.length) {
 			return starting_level + computeLevel(max);
 		} else {
 			return starting_level + max_levels[max];
 		}
+		*/
 	}
 	
 	private final HashMap<Long,Pyramid> pyramids = new HashMap<Long,Pyramid>();
@@ -180,24 +194,25 @@ public class MAWTCache implements ImageCache {
 		count++;
 	}
 
+	// WARNING: an empty interval may be left behind. Will be cleaned up by removeAndFlushSome.
 	public final Image remove(final long id, final int level) {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return null;
 		final Image im = p.images[level];
 		p.replace(null, level);
 		count--;
-		// If at least one level is still not null, keep the pyramid
-		for (int i=0; i<p.images.length; i++) {
-			if (null != p.images[i]) return im;
+		// If at least one level is still not null, keep the pyramid; otherwise drop it
+		if (0 == p.n_images) {
+			p.interval.remove(id);
+			pyramids.remove(id);
 		}
-		// Otherwise drop it
-		p.interval.remove(id);
 		return im;
 	}
 
+	// WARNING: an empty interval may be left behind. Will be cleaned up by removeAndFlushSome.
 	public final ArrayList<Image> remove(final long id) {
 		final ArrayList<Image> a = new ArrayList<Image>();
-		final Pyramid p = pyramids.get(id);
+		final Pyramid p = pyramids.remove(id);
 		if (null == p) return a;
 		for (int i=0; i<p.images.length; i++) {
 			if (null != p.images[i]) a.add(p.images[i]);
@@ -217,6 +232,7 @@ public class MAWTCache implements ImageCache {
 		reset();
 	}
 
+	// WARNING: an empty interval may be left behind. Will be cleaned up by removeAndFlushSome.
 	public final void removeAndFlush(final long id) {
 		final Pyramid p = pyramids.remove(id);
 		if (null == p) return;
@@ -238,11 +254,17 @@ public class MAWTCache implements ImageCache {
 				for (int i=0; i<p.images.length; i++) {
 					if (null == p.images[i]) continue;
 					size += Loader.measureSize(p.images[i]);
-					p.images[i].flush();
-					p.images[i] = null; // so next time it will be skipped
+					p.replace(null, i);
 					n--;
 					count--;
-					if (0 == n) return size;  // the last empty pyramid will be removed on the next method call.
+					if (0 == n) {
+						if (0 == p.n_images) {
+							pyramids.remove(p.id);
+							it.remove();
+							if (interval.isEmpty()) intervals.removeFirst();
+						}
+						return size;
+					}
 				}
 				pyramids.remove(p.id);
 				it.remove(); // from the interval
@@ -288,5 +310,4 @@ public class MAWTCache implements ImageCache {
 		}
 		Utils.log2("interval size distribution: ", s);
 	}
-
 }
