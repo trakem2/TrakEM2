@@ -4122,7 +4122,7 @@ while (it.hasNext()) {
 		/*
 		if (0xffffffff == old_channels) {
 			// reuse any loaded mipmaps
-			Hashtable<Integer,Image> ht = null;
+			Map<Integer,Image> ht = null;
 			synchronized (db_lock) {
 				lock();
 				ht = mawts.getAll(p.getId());
