@@ -4424,7 +4424,7 @@ while (it.hasNext()) {
 				try {
 					if (p.getProject().getLoader().hs_unloadable.contains(p)) return null;
 					if (repaint) {
-						if (Display.willPaint(p, mag)) {
+						if (Display.willPaint(p)) {
 							final Image awt = p.getProject().getLoader().fetchImage(p, mag);
 							if (null != awt) Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 							return awt;
