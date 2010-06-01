@@ -1096,10 +1096,10 @@ abstract public class Loader {
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		final int max_level = Loader.getHighestMipMapLevel(p);
-		return fetchAWTImage(p, level > max_level ? max_level : level);
+		return fetchAWTImage(p, level > max_level ? max_level : level, max_level);
 	}
 
-	final public Image fetchAWTImage(final Patch p, int level) {
+	final public Image fetchAWTImage(final Patch p, final int level, final int max_level) {
 		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		// find an equal or larger existing pyramid awt
@@ -1177,29 +1177,36 @@ abstract public class Loader {
 							}
 							return mawt;
 						}
-						// 3 - else, load closest level to it but still giving a larger image
-						final int lev = getClosestMipMapLevel(p, level); // finds the file for the returned level, otherwise returns zero
-						//Utils.log2("closest mipmap level is " + lev);
-						if (lev >= 0) {
-							mawt = mawts.getClosestAbove(id, lev);
-							boolean newly_cached = false;
-							if (null == mawt) {
-								// reload existing scaled file
-								mawt = fetchMipMapAWT2(p, lev, n_bytes);
-								if (null != mawt) {
-									mawts.put(id, mawt, lev);
-									newly_cached = true; // means: cached was false, now it is
+				
+						// Check if an appropriate level is cached
+						mawt = mawts.getClosestAbove(id, level);
+						
+						if (null == mawt) {
+							// 3 - else, load closest level to it but still giving a larger image
+							final int lev = getClosestMipMapLevel(p, level, max_level); // finds the file for the returned level, otherwise returns zero
+							//Utils.log2("closest mipmap level is " + lev);
+							if (lev > -1) {
+								boolean newly_cached = false;
+								if (null == mawt) {
+									// reload existing scaled file
+									mawt = fetchMipMapAWT2(p, lev, n_bytes);
+									if (null != mawt) {
+										mawts.put(id, mawt, lev);
+										newly_cached = true; // means: cached was false, now it is
+									}
+									// else if null, the file did not exist or could not be regenerated or regeneration is off
 								}
-								// else if null, the file did not exist or could not be regenerated or regeneration is off
+								//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+								if (null != mawt) {
+									if (newly_cached) Display.repaintSnapshot(p);
+									//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
+									return mawt;
+								}
+							} else if (ERROR_PATH_NOT_FOUND == lev) {
+								mawt = NOT_FOUND;
 							}
-							//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
-							if (null != mawt) {
-								if (newly_cached) Display.repaintSnapshot(p);
-								//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
-								return mawt;
-							}
-						} else if (ERROR_PATH_NOT_FOUND == lev) {
-							mawt = NOT_FOUND;
+						} else {
+							return mawt;
 						}
 					} catch (Exception e) {
 						IJError.print(e);
@@ -4107,7 +4114,7 @@ while (it.hasNext()) {
 	public boolean isMipMapsEnabled() { return false; }
 
 	/** Does nothing and returns zero unless overriden. */
-	public int getClosestMipMapLevel(final Patch patch, int level) {return 0;}
+	public int getClosestMipMapLevel(final Patch patch, int level, int max_level) {return 0;}
 
 	/** Does nothing and returns null unless overriden. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) { return null; }
