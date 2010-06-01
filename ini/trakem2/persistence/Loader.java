@@ -499,6 +499,10 @@ abstract public class Loader {
 		// max_memory changes as some is reserved by image opening calls
 		return max_memory - getCurrentMemory();
 	}
+	
+	static public final long getApparentMaxMemory() {
+		return max_memory;
+	}
 
 	/** Maximum vailable memory, in bytes. */
 	static private final long MAX_MEMORY = RUNTIME.maxMemory() - 128000000; // 128 M always free
