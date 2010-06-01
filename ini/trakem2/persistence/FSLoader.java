@@ -2359,7 +2359,7 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			if (forget_dir_mipmaps) this.dir_mipmaps = null;
-			mawts.removeAllPyramids(); // does not remove level 0 awts (i.e. the 100% images)
+			mawts.removeAndFlushAll();
 			unlock();
 		}
 	}
@@ -2370,7 +2370,6 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			try {
-				//mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
 				// Need to remove ALL now, since level 0 is also included as a mipmap:
 				for (final Image img : mawts.remove(id)) {
 					if (null != img) img.flush();
