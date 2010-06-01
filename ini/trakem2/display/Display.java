@@ -910,7 +910,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private class ToolbarPanel extends JPanel implements MouseListener {
+	private class ToolbarPanel extends Canvas implements MouseListener {
 		Method drawButton;
 		Field lineType;
 		Field SIZE;
