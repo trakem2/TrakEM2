@@ -739,10 +739,10 @@ abstract public class Loader {
 		return 0;
 	}
 
-	/** Returns a lower-bound estimate: as if it was grayscale; plus some overhead. */
-	private final long measureSize(final Image img) {
+	/** Returns a an upper-bound estimate, as if it was an int[], plus some overhead. */
+	static final long measureSize(final Image img) {
 		if (null == img) return 0;
-		return img.getWidth(null) * img.getHeight(null) + 100;
+		return img.getWidth(null) * img.getHeight(null) * 4 + 100;
 	}
 
 	/** Free up to MIN_FREE_BYTES. Locks on db_lock. */
