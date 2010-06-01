@@ -258,11 +258,11 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			if (null != o && o instanceof Thing && project_ob.equals(((Thing)o).getObject())) {
 				return node; // the root itself
 			}
-			Enumeration e = node.depthFirstEnumeration();
+			final Enumeration<?> e = node.depthFirstEnumeration();
 			while (e.hasMoreElements()) {
 				node = (DefaultMutableTreeNode)e.nextElement();
 				o = node.getUserObject();
-				if (null != o && o instanceof Thing && project_ob.equals(((Thing)o).getObject())) {
+				if (null != o && o instanceof Thing && project_ob == ((Thing)o).getObject()) {
 					//gotcha
 					return node;
 				}

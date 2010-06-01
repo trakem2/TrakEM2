@@ -562,6 +562,14 @@ public class Selection {
 		return false;
 	}
 
+	/** Intended for fast query, may fail and if so returns true. */
+	protected final boolean likelyContains(final Displayable d) {
+		try {
+			return queue.contains(d);
+		} catch (Exception e) {}
+		return true;
+	}
+
 	/** Returns true if selection contains any items of the given class.*/
 	public boolean contains(final Class c) {
 		if (null == c) return false;

@@ -23,27 +23,22 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.persistence;
 
 
-import ini.trakem2.utils.IJError;
 import java.util.ArrayList;
-import java.util.Hashtable;
 import java.util.HashMap;
 import java.util.ListIterator;
 import java.util.LinkedList;
-import java.util.Iterator;
 import java.util.Map;
 import java.awt.Image;
 
 /** A cache for TrakEM2's rolling memory of java.awt.Image instances.
- *  Uses both a list and a map. When the list goes beyond a certain LINEAR_SEARCH_LIMIT, then the map is used.
- *  Each image is added as a CacheImageMipMaps.Entry, which stores the image, the corresponding Patch id and the level of the image (0, 1, 2 ... mipmap level of descresing power of 2 sizes).
+ *  Uses both a list and a map.
+ *  Each image is added as a CacheImageMipMaps.Entry, which stores the image, the corresponding Patch id and the level of the image (0, 1, 2 ... mipmap level of decreasing power of 2 sizes).
  *  The map contains unique Patch id keys versus Image arrays of values, where the array index is the index.
  */
-public class CacheImageMipMaps {
+public class CacheImageMipMaps implements ImageCache {
 
 	private final LinkedList<Entry> cache;
 	private final HashMap<Long,Image[]> map = new HashMap<Long,Image[]>();
-	private boolean use_map = false;
-	public static int LINEAR_SEARCH_LIMIT = 0;
 
 	private class Entry {
 		final long id;
@@ -76,7 +71,9 @@ public class CacheImageMipMaps {
 		return null;
 	}
 
-	/** Replace or put. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#replace(long, java.awt.Image, int)
+	 */
 	public void replace(final long id, final Image image, final int level) {
 		final Entry e = rfind(id, level);
 		if (null == e) put(id, image, level);
@@ -122,87 +119,57 @@ public class CacheImageMipMaps {
 		}
 	}
 
-	/** No duplicates allowed: if the id exists it's sended to the end and the image is first flushed (if different), then updated with the new one provided. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#put(long, java.awt.Image, int)
+	 */
 	public final void put(final long id, final Image image, final int level) {
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) { // images are more likely to be close to the end
-			final Entry e = li.previous();
-			if (id == e.id && level == e.level) {
-				li.remove();
-				cache.addLast(e);
-				if (image != e.image) {
-					// replace
-					e.image.flush();
-					e.image = image;
-					// replace in map
-					if (use_map) {
+		if (map.containsKey(id)) {
+			final ListIterator<Entry> li = cache.listIterator(cache.size());
+			while (li.hasPrevious()) { // images are more likely to be close to the end
+				final Entry e = li.previous();
+				if (id == e.id && level == e.level) {
+					li.remove();
+					cache.addLast(e);
+					if (image != e.image) {
+						// replace
+						e.image.flush();
+						e.image = image;
+						// replace in map
 						Image[] images = map.get(id);
 						if (null == images) images = new Image[maxLevel(image, level)];
 						images[level] = image;
 					}
+					return;
 				}
-				return;
 			}
 		}
 		// else, new
 		cache.addLast(new Entry(id, level, image));
 
-		if (use_map) {
-			// add new to the map
-			Image[] images = map.get(id);
-			try {
-				if (null == images) {
-					//System.out.println("CREATION maxLevel, level, image.width: " + maxLevel(image, level) + ", " + level + ", " + image.getWidth(null));
-					images = new Image[maxLevel(image, level)];
-					images[level] = image;
-					map.put(id, images);
-				} else {
-					images[level] = image;
-				}
-			} catch (Exception e) {
-				System.out.println("length of images[]: " + images.length);
-				System.out.println("level to add: " + level);
-				System.out.println("size of the image: " + image.getWidth(null));
-				System.out.println("maxlevel is: " + maxLevel(image, level));
+		// add new to the map
+		Image[] images = map.get(id);
+		try {
+			if (null == images) {
+				//System.out.println("CREATION maxLevel, level, image.width: " + maxLevel(image, level) + ", " + level + ", " + image.getWidth(null));
+				images = new Image[maxLevel(image, level)];
+				images[level] = image;
+				map.put(id, images);
+			} else {
+				images[level] = image;
 			}
-		} else if (cache.size() >= LINEAR_SEARCH_LIMIT) { // create the map one step before it's used, hence the >= not > alone.
-			// initialize map
-			final ListIterator<Entry> lim = cache.listIterator(0);
-			while (lim.hasNext()) {
-				final Entry e = lim.next();
-				if (!map.containsKey(e.id)) {
-					final Image[] images = new Image[maxLevel(image, level)];
-					images[e.level] = e.image;
-					map.put(e.id, images);
-				} else {
-					final Image[] images = map.get(e.id);
-					images[e.level] = e.image;
-				}
-			}
-			use_map = true;
-			//System.out.println("CREATED map");
+		} catch (Exception e) {
+			System.out.println("length of images[]: " + images.length);
+			System.out.println("level to add: " + level);
+			System.out.println("size of the image: " + image.getWidth(null));
+			System.out.println("maxlevel is: " + maxLevel(image, level));
 		}
 	}
 
-	/** A call to this method puts the element at the end of the list, and returns it. Returns null if not found. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#get(long, int)
+	 */
 	public final Image get(final long id, final int level) {
-		if (0 == LINEAR_SEARCH_LIMIT) return getFromMap(id, level);
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		int i = 0;
-		while (li.hasPrevious()) { // images are more likely to be close to the end
-			if (i > LINEAR_SEARCH_LIMIT) {
-				return getFromMap(id, level);
-			}
-			i++;
-			///
-			final Entry e = li.previous();
-			if (id == e.id && level == e.level) {
-				li.remove();
-				cache.addLast(e);
-				return e.image;
-			}
-		}
-		return null;
+		return getFromMap(id, level);
 	}
 
 	private final Image getFromMap(final long id, final int level) {
@@ -231,90 +198,48 @@ public class CacheImageMipMaps {
 		return null;
 	}
 
-	/** Find the cached image of the given level or its closest but smaller image (larger level), or null if none found. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#getClosestBelow(long, int)
+	 */
 	public final Image getClosestBelow(final long id, final int level) {
-		if (0 == LINEAR_SEARCH_LIMIT) return getBelowFromMap(id, level);
-		Entry ee = null;
-		int lev = Integer.MAX_VALUE;
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		int i = 0;
-		while (li.hasPrevious()) { // images are more likely to be close to the end
-			if (i > LINEAR_SEARCH_LIMIT) {
-				return getBelowFromMap(id, level);
-			}
-			i++;
-			///
-			final Entry e = li.previous();
-			if (e.id != id) continue;
-			if (e.level == level) return e.image;
-			if (e.level > level) {
-				// if smaller image (larger level) than asked, choose the less smaller
-				if (e.level < lev) {
-					lev = e.level;
-					ee = e;
-				}
-			}
-		}
-		if (null != ee) {
-			cache.remove(ee); // unfortunaelly, removeLastOcurrence is java 1.6 only
-			cache.addLast(ee);
-			return ee.image;
-		}
-		return null;
+		return getBelowFromMap(id, level);
 	}
 
-	/** Find the cached image of the given level or its closest but larger image (smaller level), or null if none found. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#getClosestAbove(long, int)
+	 */
 	public final Image getClosestAbove(final long id, final int level) {
-		if (0 == LINEAR_SEARCH_LIMIT) return getAboveFromMap(id, level);
-		int lev = -1;
-		Entry ee = null;
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		int i = 0;
-		while (li.hasPrevious()) { // images are more likely to be close to the end
-			if (i > LINEAR_SEARCH_LIMIT) {
-				return getAboveFromMap(id, level);
-			}
-			i++;
-			final Entry e = li.previous();
-			if (e.id != id) continue;
-			// if equal level as asked, just return it
-			if (e.level == level) return e.image;
-			// if exactly one above, just return it // may hinder finding an exact one, but potentially cuts down search time a lot
-			// if (e.level == level + 1) return e.image; // WOULD NOT BE THE PERFECT IMAGE if the actual asked level is cached at a previous entry.
-			if (e.level < level) {
-				if (e.level > lev) {
-					lev = e.level;
-					ee = e;
+		return getAboveFromMap(id, level);
+	}
+
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#remove(long, int)
+	 */
+	public final Image remove(final long id, final int level) {
+		final Image[] images = map.get(id);
+		if (null != images) {
+			final ListIterator<Entry> li = cache.listIterator(cache.size());
+			while (li.hasPrevious()) {
+				final Entry e = li.previous();
+				if (id == e.id && level == e.level) {
+					li.remove();
+					for (int i=0; i<images.length; i++) {
+						if (null != images[i]) {
+							images[level] = null; // == e.image
+							return e.image;
+						}
+					}
+					map.remove(id); // empty array
+					return e.image;
 				}
 			}
 		}
-		if (null != ee) {
-			cache.remove(ee);
-			cache.addLast(ee);
-			return ee.image;
-		}
 		return null;
 	}
 
-	/** Remove the Image if found and returns it, without flushing it. Returns null if not found. */
-	public final Image remove(final long id, final int level) {
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) {
-			final Entry e = li.previous();
-			if (id == e.id && level == e.level) {
-				li.remove();
-				return e.image;
-			}
-		}
-		if (use_map) {
-			final Image[] images = map.get(id);
-			if (images == null) return null;
-			images[level] = null;
-		}
-		return null;
-	}
-
-	/** Removes and flushes all images, and shrinks arrays. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#removeAndFlushAll()
+	 */
 	public final void removeAndFlushAll() {
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
 		while (li.hasPrevious()) {
@@ -322,54 +247,12 @@ public class CacheImageMipMaps {
 			e.image.flush();
 		}
 		cache.clear();
-		if (use_map) map.clear();
+		map.clear();
 	}
 
-	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for any id. */
-	public void removeAllPyramids() {
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) {
-			final Entry e = li.previous();
-			if (e.level > 0) {
-				e.image.flush();
-				li.remove();
-			}
-		}
-		if (use_map) {
-			final Iterator<Map.Entry<Long,Image[]>> it = map.entrySet().iterator();
-			while (it.hasNext()) {
-				Map.Entry<Long,Image[]> entry = it.next();
-				final Image[] images = entry.getValue();
-				if (null == images[0]) it.remove();
-				for (int i=1; i<images.length; i++) {
-					images[i] = null;
-				}
-			}
-		}
-	}
-
-	/** Remove all awts associated with a level different than 0 (that means all scaled down versions) for the given id. */
-	public void removePyramid(final long id) {
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) {
-			final Entry e = li.previous();
-			if (id == e.id && e.level > 0) {
-				e.image.flush();
-				li.remove();
-			}
-		}
-		if (use_map) {
-			final Image[] images = map.get(id);
-			if (null != images) {
-				for (int i=1; i<images.length; i++) {
-					images[i] = null;
-				}
-				if (null == images[0]) map.remove(id);
-			}
-		}
-	}
-
-	/** Remove all images that share the same id (but have different levels). */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#remove(long)
+	 */
 	public final ArrayList<Image> remove(final long id) {
 		final ArrayList<Image> al = new ArrayList<Image>();
 		final ListIterator<Entry> li = cache.listIterator(cache.size());
@@ -380,54 +263,49 @@ public class CacheImageMipMaps {
 				li.remove();
 			}
 		}
-		if (use_map) {
-			map.remove(id);
-		}
+		map.remove(id);
 		return al;
 	}
 
-	/** Returns a table of level keys and image values that share the same id (that is, belong to the same Patch). */
-	public final Hashtable<Integer,Image> getAll(final long id) {
-		final Hashtable<Integer,Image> ht = new Hashtable<Integer,Image>();
-		if (use_map) {
-			final Image[] images = map.get(id);
-			if (null != images) {
-				for (int i=0; i<images.length; i++) {
-					if (null != images[i]) {
-						ht.put(i, images[i]);
-					}
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#getAll(long)
+	 */
+	public final Map<Integer,Image> getAll(final long id) {
+		final Map<Integer,Image> ht = new HashMap<Integer,Image>();
+		final Image[] images = map.get(id);
+		if (null != images) {
+			for (int i=0; i<images.length; i++) {
+				if (null != images[i]) {
+					ht.put(i, images[i]);
 				}
-			}
-		} else {
-			final ListIterator<Entry> li = cache.listIterator(cache.size());
-			while (li.hasPrevious()) {
-				final Entry e = li.previous();
-				if (id == e.id) ht.put(e.level, e.image);
 			}
 		}
 		return ht;
 	}
 
-	/** Remove and flush away all images that share the same id. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#removeAndFlush(long)
+	 */
 	public final void removeAndFlush(final long id) {
-		final ListIterator<Entry> li = cache.listIterator(cache.size());
-		while (li.hasPrevious()) {
-			final Entry e = li.previous();
-			if (id == e.id) {
-				e.image.flush();
-				li.remove();
+		if (null != map.remove(id)) {
+			final ListIterator<Entry> li = cache.listIterator(cache.size());
+			while (li.hasPrevious()) {
+				final Entry e = li.previous();
+				if (id == e.id) {
+					e.image.flush();
+					li.remove();
+				}
 			}
 		}
-		if (use_map) map.remove(id);
 	}
 
-	/** Remove the given index and return it, returns null if outside range. */
-	public final Image remove(int i) {
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#remove(int)
+	 */
+	public final Image remove(final int i) {
 		if (i < 0 || i >= cache.size()) return null;
 		final Entry e = cache.remove(i);
-		if (use_map) {
-			nullifyMap(e.id, e.level);
-		}
+		nullifyMap(e.id, e.level);
 		return e.image;
 	}
 
@@ -443,47 +321,50 @@ public class CacheImageMipMaps {
 		}
 	}
 
-	/** Remove the first element and return it. Returns null if none. The underlaying arrays are untouched besides nullifying the proper pointer. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#removeFirst()
+	 */
 	public final Image removeFirst() {
 		if (0 == cache.size()) return null;
 		final Entry e = cache.removeFirst();
-		if (use_map) {
-			nullifyMap(e.id, e.level);
-		}
+		nullifyMap(e.id, e.level);
 		return e.image;
 	}
+	
+	public long removeAndFlushSome(final int n) {
+		long size = 0;
+		for (int i=Math.min(n, cache.size()); i>0; i--) {
+			final Entry e = cache.removeFirst();
+			size += Loader.measureSize(e.image);
+			e.image.flush();
+			nullifyMap(e.id, e.level);
+		}
+		return size;
+	}
 
-	/** Checks if there's any image at all for the given id. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#contains(long)
+	 */
 	public final boolean contains(final long id) {
-		if (use_map) {
-			return map.containsKey(id);
-		} else {
-			final ListIterator<Entry> li = cache.listIterator(cache.size());
-			while (li.hasPrevious()) {
-				final Entry e = li.previous();
-				if (id == e.id) return true;
-			}
-		}
-		return false;
+		return map.containsKey(id);
 	}
 
-	/** Checks if there's any image for the given id and level. */
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#contains(long, int)
+	 */
 	public final boolean contains(final long id, final int level) {
-		if (use_map) {
-			final Image[] images = map.get(id);
-			if (null == images) return false;
-			return level < images.length ? null != images[level] : false;
-		}
-		return -1 != cache.lastIndexOf(new Entry(id, level, null));
+		final Image[] images = map.get(id);
+		if (null == images) return false;
+		return level < images.length ? null != images[level] : false;
 	}
 
+	/* (non-Javadoc)
+	 * @see ini.trakem2.persistence.ImageCache#size()
+	 */
 	public int size() { return cache.size(); }
 
 	public void debug() {
 		System.out.println("cache size: " + cache.size() + ", " + map.size());
 	}
-
-	/** Does nothing. */
-	public void gc() {}
 }
 

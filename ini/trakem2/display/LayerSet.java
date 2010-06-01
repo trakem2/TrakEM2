@@ -1262,7 +1262,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Used by the Layer.setZ method. */
 	protected void reposition(final Layer layer) {
-		if (null == layer || !al_layers.contains(layer)) return;
+		if (null == layer || !idlayers.containsKey(layer.getId())) return;
 		al_layers.remove(layer);
 		addSilently(layer);
 	}
@@ -2441,35 +2441,45 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return m;
 	}
 
-	protected final Map<Integer,TreeSet<Tag>> tags = new HashMap<Integer,TreeSet<Tag>>();
+	/** A set of unique tags, retrievable by their own identity. */
+	protected final Map<Integer,HashMap<Tag,Tag>> tags = new HashMap<Integer,HashMap<Tag,Tag>>();
 
 	{
-		tags.put(KeyEvent.VK_T, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("TODO", KeyEvent.VK_T)})));
-		tags.put(KeyEvent.VK_U, new TreeSet<Tag>(Arrays.asList(new Tag[]{new Tag("Uncertain end", KeyEvent.VK_U)})));
+		final Tag TODO = new Tag("TODO", KeyEvent.VK_T),
+				  UNCERTAIN_END = new Tag("Uncertain end", KeyEvent.VK_U);
+		final HashMap<Tag,Tag> m1 = new HashMap<Tag,Tag>(),
+							   m2 = new HashMap<Tag,Tag>();
+		m1.put(TODO, TODO);
+		m2.put(UNCERTAIN_END, UNCERTAIN_END);
+		tags.put(KeyEvent.VK_T, m1);
+		tags.put(KeyEvent.VK_U, m2);
 	}
 
-	public Tag putTag(final Object tag, final int keyCode) {
+	/** Returns an existing immutable Tag instance if already there, or stores a new one and returns it. */
+	public Tag putTag(final String tag, final int keyCode) {
 		if (null == tag) return null;
-		Tag t;
 		synchronized (tags) {
-			TreeSet<Tag> ts = tags.get(keyCode);
+			HashMap<Tag,Tag> ts = tags.get(keyCode);
 			if (null == ts) {
-				ts = new TreeSet<Tag>();
+				ts = new HashMap<Tag,Tag>();
 				tags.put(keyCode, ts);
 			}
-			if (tag instanceof Tag) t = (Tag)tag; // the keyCode may be different, but doesn't matter.
-			else t = new Tag(tag, keyCode);
-			ts.add(t);
+			final Tag t = new Tag(tag, keyCode);
+			final Tag existing = ts.get(t);
+			if (null == existing) {
+				ts.put(t, t);
+				return t;
+			} else {
+				return existing;
+			}
 		}
-		return t;
 	}
 
 	/** If there aren't any tags for keyCode, returns an empty TreeSet. */
 	public TreeSet<Tag> getTags(final int keyCode) {
 		synchronized (tags) {
-			final TreeSet<Tag> ts = tags.get(keyCode);
-			return null == ts ? new TreeSet<Tag>()
-					  : ts;
+			final HashMap<Tag,Tag> ts = tags.get(keyCode);
+			return new TreeSet<Tag>(null == ts ? Collections.EMPTY_SET : ts.keySet());
 		}
 	}
 
@@ -2478,7 +2488,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		gd.addMessage("Define new tag for key: " + ((char)keyCode));
 		TreeSet<Tag> ts = getTags(keyCode);
 		gd.addStringField("New tag:", "");
-		if (null != ts & ts.size() > 0) {
+		if (null != ts && ts.size() > 0) {
 			String[] names = new String[ts.size()];
 			int next = 0;
 			for (Tag t : ts) names[next++] = t.toString();
@@ -2512,12 +2522,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Removes the tag from the list of possible tags, and then from wherever it has been assigned. The @param tag is duck-typed. */
-	public void removeTag(final Object tag, final int keyCode) {
-		Tag t;
+	public void removeTag(final String tag, final int keyCode) {
+		removeTag(new Tag(tag, keyCode));
+	}
+	public void removeTag(final Tag t) {
 		synchronized (tags) {
-			TreeSet<Tag> ts = tags.get(keyCode);
+			HashMap<Tag,Tag> ts = tags.get(t.getKeyCode());
 			if (null == ts) return;
-			t = new Tag(tag, keyCode);
 			ts.remove(t);
 		}
 		for (final Displayable d : getDisplayables()) {
@@ -2531,19 +2542,18 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public void removeAllTags() {
 		// the easy and unperformant way ... I have better things to do
-		for (final Map.Entry<Integer,TreeSet<Tag>> e : tags.entrySet()) {
-			final int keyCode = e.getKey().intValue();
-			for (final Tag t : e.getValue()) {
-				removeTag(t, keyCode);
+		for (final HashMap<Tag,Tag> m : tags.values()) {
+			for (final Tag t : m.values()) {
+				removeTag(t);
 			}
 		}
 	}
 
 	public String exportTags() {
 		StringBuilder sb = new StringBuilder("<tags>\n");
-		for (final Map.Entry<Integer,TreeSet<Tag>> e : tags.entrySet()) {
+		for (final Map.Entry<Integer,HashMap<Tag,Tag>> e : tags.entrySet()) {
 			final char key = (char)e.getKey().intValue();
-			for (final Tag t : e.getValue()) {
+			for (final Tag t : e.getValue().values()) {
 				sb.append(" <tag key=\"").append(key).append("\" val=\"").append(t.toString()).append("\" />\n");
 			}
 		}
@@ -2551,7 +2561,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public void importTags(String path, boolean replace) {
-		HashMap<Integer,TreeSet<Tag>> backup = new HashMap<Integer,TreeSet<Tag>>(this.tags); // copy!
+		HashMap<Integer,HashMap<Tag,Tag>> backup = new HashMap<Integer,HashMap<Tag,Tag>>(this.tags); // copy!
 		InputStream istream = null;
 		try {
 			if (replace) removeAllTags();
@@ -2576,7 +2586,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private class TagsParser extends DefaultHandler {
 		public void startElement(String uri, String localName, String qName, Attributes attributes) {
 			if (!"tag".equals(qName.toLowerCase())) return;
-			final HashMap m = new HashMap();
+			final HashMap<String,String> m = new HashMap<String,String>();
 			for (int i=attributes.getLength() -1; i>-1; i--) {
 				m.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
 			}

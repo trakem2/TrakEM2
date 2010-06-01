@@ -734,4 +734,23 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 			return label;
 		}
 	}
+	
+	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
+	public void selectNode(final Layer layer) {
+		final DefaultMutableTreeNode node = DNDTree.findNode2(layer, this);
+		project.getLoader().doGUILater(true, new Runnable() {
+			public void run() {
+				// deselect whatever is selected
+				setSelectionPath(null);
+				if (null != node) {
+					final TreePath path = new TreePath(node.getPath());
+					try {
+						scrollPathToVisible(path); // involves repaint, so must be set through invokeAndWait. Why it doesn't do so automatically is beyond me.
+						setSelectionPath(path);
+					} catch (Exception e) {
+						IJError.print(e, true);
+					}
+				}
+		}});
+	}
 }

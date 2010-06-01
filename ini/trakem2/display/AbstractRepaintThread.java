@@ -39,7 +39,7 @@ public abstract class AbstractRepaintThread extends Thread {
 		super(name);
 		this.target = target;
 		this.off = off;
-		setPriority(Thread.NORM_PRIORITY);
+		setPriority(Thread.NORM_PRIORITY + 1);
 		try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 		start();
 	}
@@ -127,10 +127,20 @@ public abstract class AbstractRepaintThread extends Thread {
 				}
 
 				// repaint
+				/*
 				if (null == clipRect) target.repaint(0, 0, 0, target.getWidth(), target.getHeight()); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else target.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-			} catch (Exception e) {
-				e.printStackTrace();
+				*/
+
+				// Crazy idea: paint NOW
+				final java.awt.Graphics g = target.getGraphics();
+				if (null != g) {
+					if (null != clipRect) g.setClip(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+					target.paint(g);
+					g.dispose();
+				}
+			} catch (Throwable t) {
+				t.printStackTrace();
 			}
 		}
 	}

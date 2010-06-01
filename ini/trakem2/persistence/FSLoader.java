@@ -2518,7 +2518,7 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			if (forget_dir_mipmaps) this.dir_mipmaps = null;
-			mawts.removeAllPyramids(); // does not remove level 0 awts (i.e. the 100% images)
+			mawts.removeAndFlushAll();
 			unlock();
 		}
 	}
@@ -2529,7 +2529,6 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			try {
-				//mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
 				// Need to remove ALL now, since level 0 is also included as a mipmap:
 				for (final Image img : mawts.remove(id)) {
 					if (null != img) img.flush();
@@ -2598,7 +2597,8 @@ public final class FSLoader extends Loader {
 	/** Return the closest level to @param level that exists as a file.
 	 *  If no valid path is found for the patch, returns ERROR_PATH_NOT_FOUND.
 	 */
-	public int getClosestMipMapLevel(final Patch patch, int level) {
+	@Override
+	public int getClosestMipMapLevel(final Patch patch, int level, final int max_level) {
 		if (null == dir_mipmaps) return 0;
 		try {
 			final String path = getAbsolutePath(patch);
@@ -2608,8 +2608,7 @@ public final class FSLoader extends Loader {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
 				// find max level that keeps dim over 32 pixels
-				final int lev = getHighestMipMapLevel(Math.min(patch.getWidth(), patch.getHeight()));
-				if (level > lev) return lev;
+				if (level > max_level) return max_level;
 				return level;
 			} else {
 				do {

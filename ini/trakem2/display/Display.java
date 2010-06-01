@@ -46,7 +46,6 @@ import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
-import ini.trakem2.display.graphics.*;
 import ini.trakem2.imaging.StitchingTEM;
 
 import javax.swing.*;
@@ -151,7 +150,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static private Display front = null;
 
 	/** Displays to open when all objects have been reloaded from the database. */
-	static private final Hashtable ht_later = new Hashtable();
+	static private final Hashtable<Display,Object[]> ht_later = new Hashtable<Display,Object[]>();
 
 	/** A thread to handle user actions, for example an event sent from a popup menu. */
 	protected final Dispatcher dispatcher = new Dispatcher("Display GUI Updater");
@@ -160,8 +159,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		/** Unregister the closed Display. */
 		public void windowClosing(WindowEvent we) {
 			final Object source = we.getSource();
-			for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-				Display d = (Display)it.next();
+			for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
+				Display d = it.next();
 				if (source == d.frame) {
 					it.remove();
 					if (d == front) front = null;
@@ -233,7 +232,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	};
 
-	private int last_frame_state = frame.NORMAL;
+	private int last_frame_state = Frame.NORMAL;
 
 	// THIS WHOLE SYSTEM OF LISTENERS IS BROKEN:
 	// * when zooming in, the window growths in width a few pixels.
@@ -249,7 +248,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				int frame_state = d.frame.getExtendedState();
 				if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
 					d.last_frame_state = frame_state;
-					if (d.frame.ICONIFIED != frame_state) d.pack();
+					if (Frame.ICONIFIED != frame_state) d.pack();
 				}
 			}
 		}
@@ -293,7 +292,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						if (0 == count || (1 == count && tab.getComponent(0).getClass().equals(JLabel.class))) {
 						*/ // ALWAYS, because it could be the case that the user changes layer while on one specific tab, and then clicks on the other tab which may not be empty and shows totally the wrong contents (i.e. for another layer)
 
-							ArrayList al = null;
+							ArrayList<?extends Displayable> al = null;
 							JPanel p = null;
 							if (tab == d.scroll_zdispl) {
 								al = d.layer.getParent().getZDisplayables();
@@ -311,7 +310,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								// nothing to do
 								return;
 							} else if (tab == d.scroll_options) {
-								// Choose accordint to tool
+								// Choose according to tool
 								d.updateToolTab();
 								return;
 							}
@@ -400,6 +399,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		public void quit() {
 			go = false;
+			synchronized (this) {
+				notify();
+			}
 		}
 	}
 
@@ -427,7 +429,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			IJError.print(e);
 			return;
 		}
-		project.getLoader().doLater(new Callable() {
+		project.getLoader().doLater(new Callable<Object>() {
 			public Object call() {
 				final Layer current = Display.this.layer;
 				// 1 - Create DisplayCanvas.Screenshot instances for the next 5 and previous 5 layers
@@ -455,7 +457,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (!current.getParent().containsScreenshot(sc)) {
 						sc.init();
 						current.getParent().storeScreenshot(sc);
-						project.getLoader().doLater(new Callable() {
+						project.getLoader().doLater(new Callable<Object>() {
 							public Object call() {
 								sc.createImage();
 								return null;
@@ -588,7 +590,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	/** Reconstruct a Display from an XML entry, to be opened when everything is ready. */
-	public Display(Project project, long id, Layer layer, HashMap ht_attributes) {
+	public Display(Project project, long id, Layer layer, HashMap<String,String> ht_attributes) {
 		super(project, id);
 		if (null == layer) {
 			Utils.log2("Display: need a non-null Layer for id=" + id);
@@ -599,10 +601,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		Point p = new Point(0, 0);
 		int c_alphas = 0xffffffff;
 		int c_alphas_state = 0xffffffff;
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
+			String key = entry.getKey();
+			String data = entry.getValue();
 			if (key.equals("srcrect_x")) { // reflection! Reflection!
 				srcRect.x = Integer.parseInt(data);
 			} else if (key.equals("srcrect_y")) {
@@ -650,10 +651,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** After reloading a project from the database, open the Displays that the project had. */
 	static public Bureaucrat openLater() {
-		final Hashtable ht_later_local;
+		final Hashtable<Display,Object[]> ht_later_local;
 		synchronized (ht_later) {
 			if (0 == ht_later.size()) return null;
-			ht_later_local = new Hashtable(ht_later);
+			ht_later_local = new Hashtable<Display,Object[]>(ht_later);
 			ht_later.keySet().removeAll(ht_later_local.keySet());
 		}
 		final Worker worker = new Worker.Task("Opening displays") {
@@ -661,8 +662,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				try {
 					Thread.sleep(300); // waiting for Swing
 
-		for (Enumeration e = ht_later_local.keys(); e.hasMoreElements(); ) {
-			final Display d = (Display)e.nextElement();
+		for (Enumeration<Display> e = ht_later_local.keys(); e.hasMoreElements(); ) {
+			final Display d = e.nextElement();
 			front = d; // must be set before repainting any ZDisplayable!
 			Object[] props = (Object[])ht_later_local.get(d);
 			if (ControlWindow.isGUIEnabled()) d.makeGUI(d.layer, props);
@@ -673,7 +674,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			// force a repaint if a prePaint was done TODO this should be properly managed with repaints using always the invokeLater, but then it's DOG SLOW
 			if (d.canvas.getMagnification() > 0.499) {
 				SwingUtilities.invokeLater(new Runnable() { public void run() {
-					d.repaint(d.layer);
+					Display.repaint(d.layer);
 					d.project.getLoader().setChanged(false);
 					Utils.log2("A set to false");
 				}});
@@ -932,8 +933,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (magn > 1.0) magn = 1.0;
 			long size = 0;
 			// limit magnification if appropriate
-			for (Iterator it = layer.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
-				final Patch pa = (Patch)it.next();
+			for (final Displayable pa : layer.getDisplayables(Patch.class)) {
 				final Rectangle ba = pa.getBoundingBox();
 				size += (long)(ba.width * ba.height);
 			}
@@ -978,14 +978,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private class ToolbarPanel extends JPanel implements MouseListener {
+	private class ToolbarPanel extends Canvas implements MouseListener {
 		Method drawButton;
 		Field lineType;
 		Field SIZE;
 		Field OFFSET;
 		Toolbar toolbar = Toolbar.getInstance();
 		int size;
-		int offset;
+		//int offset;
 		ToolbarPanel() {
 			setBackground(Color.white);
 			addMouseListener(this);
@@ -999,19 +999,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				OFFSET = Toolbar.class.getDeclaredField("OFFSET");
 				OFFSET.setAccessible(true);
 				size = ((Integer)SIZE.get(null)).intValue();
-				offset = ((Integer)OFFSET.get(null)).intValue();
+				//offset = ((Integer)OFFSET.get(null)).intValue();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
 			// Magic cocktail:
 			Dimension dim = new Dimension(250, size+size);
-			setPreferredSize(dim);
 			setMinimumSize(dim);
+			setPreferredSize(dim);
 			setMaximumSize(dim);
 		}
 		public void update(Graphics g) { paint(g); }
 		public void paint(Graphics g) {
 			try {
+				g.setColor(Color.white);
+				g.fillRect(0, 0, getWidth(), getHeight());
 				int i = 0;
 				for (; i<Toolbar.LINE; i++) {
 					drawButton.invoke(toolbar, g, i);
@@ -1032,6 +1034,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				IJError.print(e);
 			}
 		}
+		/*
 		// Fails: "origin not in parent's hierarchy" ... right.
 		private void showPopup(String name, int x, int y) {
 			try {
@@ -1043,6 +1046,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				IJError.print(t);
 			}
 		}
+		*/
 		public void mousePressed(MouseEvent me) {
 			int x = me.getX();
 			int y = me.getY();
@@ -1066,7 +1070,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			*/
 			Toolbar.getInstance().mousePressed(new MouseEvent(toolbar, me.getID(), System.currentTimeMillis(), me.getModifiers(), x, y, me.getClickCount(), me.isPopupTrigger()));
 			repaint();
-			Display.this.toolChanged(ProjectToolbar.getToolId()); // should fire on its own but it does not (?) TODO
+			Display.toolChanged(ProjectToolbar.getToolId()); // should fire on its own but it does not (?) TODO
 		}
 		public void mouseReleased(MouseEvent me) {}
 		public void mouseClicked(MouseEvent me) {}
@@ -1136,7 +1140,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	public synchronized void setLayer(final Layer layer) {
 		if (!mode.canChangeLayer()) {
-			scroller.setValue(Display.this.layer.getParent().getLayerIndex(Display.this.layer.getId()));
+			scroller.setValue(Display.this.layer.getParent().indexOf(Display.this.layer)); // TODO should be done in EDT
 			return;
 		}
 		if (null == layer || layer == this.layer) return;
@@ -1148,7 +1152,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
 		this.layer = layer;
-		scroller.setValue(layer.getParent().getLayerIndex(layer.getId()));
+		// Below, will fire the event as well, and call stl.set(layer) which calls setLayer with the same layer, and returns.
+		// But just scroller.getModel().setValue(int) will ALSO fire the event. So let it do the loop.
+		scroller.setValue(layer.getParent().indexOf(layer));
 
 		/* // OBSOLETE
 		// update the current Layer pointer in ZDisplayable objects
@@ -1469,8 +1475,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Find all Display instances that contain the layer and close them and remove the Display from the database. */
 	static public void close(final Layer layer) {
-		for (Iterator it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = (Display)it.next();
+		for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
+			Display d = it.next();
 			if (d.isShowing(layer)) {
 				d.remove(false);
 				it.remove();
@@ -1560,7 +1566,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	public void pack() {
 		dispatcher.exec(new Runnable() { public void run() {
 		try {
-			Thread.currentThread().sleep(100);
+			Thread.sleep(100);
 			SwingUtilities.invokeAndWait(new Runnable() { public void run() {
 				frame.pack();
 				navigator.repaint(false); // upate srcRect red frame position/size
@@ -1682,6 +1688,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (repaint_snapshot) navigator.repaint(true);
 	}
 
+	/*
 	private void addToPanel(JPanel panel, int index, DisplayablePanel dp, boolean repaint) {
 		// remove the label
 		if (1 == panel.getComponentCount() && panel.getComponent(0) instanceof JLabel) {
@@ -1692,6 +1699,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.updateComponent(tabs);
 		}
 	}
+	*/
 
 	/** Find the displays that show the given Layer, and remove the given Displayable from the GUI. */
 	static public void remove(final Layer layer, final Displayable displ) {
@@ -1706,7 +1714,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final JScrollPane jsp = ht_tabs.get(displ.getClass());
 			if (null != jsp) {
 				JPanel p = (JPanel)jsp.getViewport().getView();
-				final boolean visible = isPartiallyWithinViewport(jsp, ob);
+				final boolean visible = isPartiallyWithinViewport(jsp.getViewport(), ob);
 				p.remove(ob);
 				if (visible) {
 					Utils.revalidateComponent(p);
@@ -2023,7 +2031,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					// check if at least one of them is of class c
 					// if only one is of class c, set as selected
 					// else show menu
-					for (Iterator it = al.iterator(); it.hasNext(); ) {
+					for (Iterator<?> it = al.iterator(); it.hasNext(); ) {
 						Object ob = it.next();
 						if (ob.getClass() != c) it.remove();
 					}
@@ -2044,16 +2052,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private void choose(final int screen_x_p, final int screen_y_p, final Collection al, final boolean shift_down, final int x_p, final int y_p) {
+	private void choose(final int screen_x_p, final int screen_y_p, final Collection<Displayable> al, final boolean shift_down, final int x_p, final int y_p) {
 		// show a popup on the canvas to choose
 		new Thread() {
 			public void run() {
 				final Object lock = new Object();
 				final DisplayableChooser d_chooser = new DisplayableChooser(al, lock);
 				final JPopupMenu pop = new JPopupMenu("Select:");
-				final Iterator itu = al.iterator();
-				while (itu.hasNext()) {
-					Displayable d = (Displayable)itu.next();
+				for (final Displayable d : al) {
 					JMenuItem menu_item = new JMenuItem(d.toString());
 					menu_item.addActionListener(d_chooser);
 					pop.add(menu_item);
@@ -2236,7 +2242,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private void selectTab(Stack d) { selectTab((ZDisplayable)d); }
 
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
-	private void updateTab(final JPanel tab, final ArrayList al) {
+	private void updateTab(final JPanel tab, final ArrayList<? extends Displayable> al) {
 		if (null == al) return;
 		dispatcher.exec(new Runnable() { public void run() {
 			try {
@@ -2250,8 +2256,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					tab.remove(0);
 				}
 				// In reverse order:
-				for (ListIterator it = al.listIterator(al.size()); it.hasPrevious(); ) {
-					Displayable d = (Displayable)it.previous();
+				for (ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
+					Displayable d = it.previous();
 					DisplayablePanel dp = null;
 					if (next < comp.length) {
 						dp = (DisplayablePanel)comp[next++]; // recycling panels
@@ -2421,11 +2427,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				if (nl == layer) item.setEnabled(false);
 
 				menu = new JMenu("Duplicate, link and send to");
-				ArrayList al = layer.getParent().getLayers();
-				final Iterator it = al.iterator();
 				int i = 1;
-				while (it.hasNext()) {
-					Layer la = (Layer)it.next();
+				for (final Layer la : layer.getParent().getLayers()) {
 					item = new JMenuItem(i + ": z = " + la.getZ()); item.addActionListener(this); menu.add(item); // TODO should label which layers contain Profile instances linked to the one being duplicated
 					if (la == this.layer) item.setEnabled(false);
 					i++;
@@ -2456,7 +2459,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
 				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
 				item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
-				HashSet hs = active.getLinked(Patch.class);
+				HashSet<Displayable> hs = active.getLinked(Patch.class);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false);
 				item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
@@ -2468,9 +2471,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			if (AreaList.class == aclass) {
 				item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
-				ArrayList al = selection.getSelected();
+				ArrayList<?> al = selection.getSelected();
 				int n = 0;
-				for (Iterator it = al.iterator(); it.hasNext(); ) {
+				for (Iterator<?> it = al.iterator(); it.hasNext(); ) {
 					if (it.next().getClass() == AreaList.class) n++;
 				}
 				if (n < 2) item.setEnabled(false);
@@ -2485,7 +2488,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Show tabular view"); item.addActionListener(this); popup.add(item);
-				final Collection<Tree> trees = (Collection<Tree>)(Collection)selection.getSelected(Tree.class);
+				final Collection<Tree<?>> trees = (Collection<Tree<?>>)(Collection<?>)selection.getSelected(Tree.class);
 				JMenu review = new JMenu("Review");
 				final JMenuItem tgenerate = new JMenuItem("Generate review stacks (selected Trees)"); review.add(tgenerate);
 				tgenerate.setEnabled(trees.size() > 0);
@@ -2500,7 +2503,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						dispatcher.exec(new Runnable() {
 							public void run() {
 								int count = 0;
-								for (final Tree t : trees) {
+								for (final Tree<?> t : trees) {
 									Utils.log("Processing " + (++count) + "/" + trees.size());
 									Bureaucrat bu = null;
 									if (ae.getSource() == tgenerate) bu = t.generateAllReviewStacks();
@@ -2516,7 +2519,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				for (JMenuItem c : new JMenuItem[]{tgenerate, tremove}) c.addActionListener(l);
 				tconnectors.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
-						for (final Tree t : trees) TreeConnectorsView.create(t);
+						for (final Tree<?> t : trees) TreeConnectorsView.create(t);
 					}
 				});
 				popup.add(review);
@@ -2542,7 +2545,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							Utils.log("Active object must be a Connector!");
 							return;
 						}
-						final List<Connector> col = (List<Connector>) (List) selection.getSelected(Connector.class);
+						final List<Connector> col = (List<Connector>)(List) selection.getSelected(Connector.class);
 						if (col.size() < 2) {
 							Utils.log("Select more than one Connector!");
 							return;
@@ -2928,6 +2931,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final String command = ae.getActionCommand();
 			final Collection<Displayable> sel = selection.getSelected();
 			if (null == sel || sel.isEmpty()) return;
+			
+			Bureaucrat.createAndStart(new Worker.Task(command) {
+				public void exec() {
+					
+
 			final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
 			final HashSet<Displayable> to_select = new HashSet<Displayable>();
 
@@ -3012,6 +3020,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 
 			selection.selectAll(new ArrayList<Displayable>(to_select));
+			
+				}}, Display.this.project);
 		}
 	}
 
@@ -3359,27 +3369,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Check if a panel for the given Displayable is partially visible in the JScrollPane */
 	public boolean isPartiallyWithinViewport(final Displayable d) {
 		final JScrollPane scroll = ht_tabs.get(d.getClass());
-		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll, ht_panels.get(d));
+		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll.getViewport(), ht_panels.get(d));
 		return false;
 	}
 
 	/** Check if a panel for the given Displayable is at least partially visible in the JScrollPane */
-	private boolean isPartiallyWithinViewport(final JScrollPane scroll, final DisplayablePanel dp) {
+	private boolean isPartiallyWithinViewport(final JViewport view, final DisplayablePanel dp) {
 		if(null == dp) {
 			//Utils.log2("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
 			return false; // to fast for you baby
 		}
-		JViewport view = scroll.getViewport();
-		java.awt.Dimension dimensions = view.getExtentSize();
-		java.awt.Point p = view.getViewPosition();
-		int y = dp.getY();
-		if (   ((y + DisplayablePanel.HEIGHT - p.y) <= dimensions.height && y >= p.y) // completely visible
-		    || ((y + DisplayablePanel.HEIGHT - p.y) >  dimensions.height && y < p.y + dimensions.height) // partially hovering at the bottom
-		    || ((y + DisplayablePanel.HEIGHT) > p.y && y < p.y) // partially hovering at the top
-		) {
-			return true;
-		}
-		return false;
+		final int vheight = view.getExtentSize().height,
+		      	  py = view.getViewPosition().y,
+			  y = dp.getY();
+		// Test if not outside view
+		return !(y + DisplayablePanel.HEIGHT < py || y > py + vheight);
 	}
 
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
@@ -3558,7 +3562,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			scroller.setEnabled(false);
 		} else {
 			scroller.setEnabled(true);
-			scroller.setValues(layer.getParent().getLayerIndex(layer.getId()), 1, 0, size);
+			scroller.setValues(layer.getParent().indexOf(layer), 1, 0, size);
 		}
 		recreateLayerPanels(layer);
 	}
@@ -5320,7 +5324,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return selection;
 	}
 
-	public boolean isSelected(Displayable d) {
+	public final boolean isSelected(final Displayable d) {
 		return selection.contains(d);
 	}
 
@@ -5366,18 +5370,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 
-	/** Check if any display will paint the given Displayable at the given magnification. */
-	static public boolean willPaint(final Displayable displ, final double magnification) {
-		Rectangle box = null; ;
+	/** Check if any display will paint the given Displayable within its srcRect. */
+	static public boolean willPaint(final Displayable displ) {
+		Rectangle box = null;
 		for (final Display d : al_displays) {
-			/* // Can no longer do this check, because 'magnification' is now affected by the Displayable AffineTransform! And thus it would not paint after the prePaint.
-			if (Math.abs(d.canvas.getMagnification() - magnification) > 0.00000001) {
-				continue;
-			}
-			*/
-			if (null == box) box = displ.getBoundingBox(null);
-			if (d.getLayer() == d.layer && d.canvas.getSrcRect().intersects(box)) {
-				return true;
+			if (displ.getLayer() == d.layer) {
+				if (null == box) box = displ.getBoundingBox(null);
+				if (d.canvas.getSrcRect().intersects(box)) {
+					return true;
+				}
 			}
 		}
 		return false;
