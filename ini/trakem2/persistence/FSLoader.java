@@ -556,7 +556,7 @@ public final class FSLoader extends Loader {
 			// reserve memory:
 			n_bytes = estimateImageFileSize(p, 0);
 			try {
-				alterMaxMem(-n_bytes);
+				n_bytes = -alterMaxMem(-n_bytes);
 
 				releaseToFit(n_bytes);
 				imp = openImage(path);
@@ -720,7 +720,7 @@ public final class FSLoader extends Loader {
 		// else, reserve memory and open it:
 		long n_bytes = estimateImageFileSize(patch, 0);
 		// reserve memory:
-		alterMaxMem(-n_bytes);
+		n_bytes = -alterMaxMem(-n_bytes);
 		try {
 			return openImage(original_path);
 		} catch (Throwable t) {
@@ -1038,6 +1038,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
+	@Override
 	public String save(final Project project) {
 		String result = null;
 		if (null == project_file_path) {
@@ -2907,7 +2908,7 @@ public final class FSLoader extends Loader {
 			// reserve memory:
 			n_bytes = stack.estimateImageFileSize();
 			try {
-				alterMaxMem(-n_bytes);
+				n_bytes = -alterMaxMem(-n_bytes);
 
 				releaseToFit(n_bytes);
 				imp = openImage(getAbsolutePath(path));

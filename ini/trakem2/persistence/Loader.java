@@ -504,7 +504,7 @@ abstract public class Loader {
 		return max_memory;
 	}
 
-	/** Maximum vailable memory, in bytes. */
+	/** Maximum available memory, in bytes. */
 	static private final long MAX_MEMORY = RUNTIME.maxMemory() - 128000000; // 128 M always free
 	/** Really available maximum memory, in bytes.
 	 * This value can only be edited under synchronized MAXMEMLOCK.
@@ -512,11 +512,18 @@ abstract public class Loader {
 	static private long max_memory = MAX_MEMORY;
 	static private final Object MAXMEMLOCK = new Object();
 
-	/** Use this method to reserve a chunk of memory (With a negative value) or to return it to the pool (with a positive value.) */
-	static protected void alterMaxMem(final long n_bytes) {
+	/** Use this method to reserve a chunk of memory (With a negative value) or to return it to the pool (with a positive value.)
+	 *  Returns the actual value with which max_memory was altered with. */
+	static protected long alterMaxMem(final long n_bytes) {
 		synchronized (MAXMEMLOCK) {
-			if (max_memory + n_bytes > MAX_MEMORY) max_memory = MAX_MEMORY; // paranoid programming
-			else max_memory += n_bytes;
+			final long sum = max_memory + n_bytes;
+			if (sum > MAX_MEMORY) {
+				max_memory = MAX_MEMORY; // paranoid programming
+				return n_bytes - (sum - MAX_MEMORY);
+			}
+			// else
+			max_memory += n_bytes;
+			return n_bytes;
 		}
 	}
 
@@ -717,9 +724,10 @@ abstract public class Loader {
 			Utils.logAll("Refusing to use " + n_bytes + " as the desirable amount of free memory bytes,\n  considering the lower limit at " + f);
 		} else if (n_bytes > max) {
 			Utils.logAll("Refusing to use a number of minimally free memory bytes larger than max_memory " + max);
-		} else if (n_bytes > max / 2) {
-			Utils.logAll("WARNING you are setting a value of minimally free memory bytes larger than half the maximum memory.");
 		} else {
+			if (n_bytes > max / 2) {
+				Utils.logAll("WARNING you are setting a value of minimally free memory bytes larger than half the maximum memory.");
+			}
 			f = n_bytes;
 		}
 		MIN_FREE_BYTES = f;
@@ -1153,7 +1161,7 @@ abstract public class Loader {
 				synchronized (db_lock) {
 					lock();
 					n_bytes = estimateImageFileSize(p, level);
-					alterMaxMem(-n_bytes);
+					n_bytes = -alterMaxMem(-n_bytes);
 					unlock();
 				}
 
@@ -1337,17 +1345,18 @@ abstract public class Loader {
 
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level, final long n_bytes) {
-		final long size = estimateImageFileSize(p, level);
-		alterMaxMem(-size);
-		unlock();
+		long size = estimateImageFileSize(p, level);
+		size = -alterMaxMem(-size);
 		Image mawt = null;
 		try {
+			unlock();
 			mawt = fetchMipMapAWT(p, level, n_bytes); // locks on db_lock
+			lock();
 		} catch (Throwable e) {
 			IJError.print(e);
+		} finally {
+			alterMaxMem(size);
 		}
-		lock();
-		alterMaxMem(size);
 		return mawt;
 	}
 
@@ -3616,12 +3625,25 @@ while (it.hasNext()) {
 	protected String export(Project project, File fxml) {
 		return export(project, fxml, true);
 	}
+	
+	private final long estimateXMLFileSize(final File fxml) {
+		try {
+			if (fxml.exists()) return Math.min(fxml.length(), Math.max((long)(MAX_MEMORY * 0.6), MIN_FREE_BYTES));
+		} catch (Throwable t) {
+			IJError.print(t, true);
+		}
+		return MIN_FREE_BYTES;
+	}
 
 	/** Exports the project and its images (optional); if export_images is true, it will be asked for confirmation anyway -beware: for FSLoader, images are not exported since it doesn't own them; only their path.*/
 	protected String export(final Project project, final File fxml, boolean export_images) {
-		releaseToFit(MIN_FREE_BYTES);
 		String path = null;
 		if (null == project || null == fxml) return null;
+		
+		long n_bytes = estimateXMLFileSize(fxml);
+		releaseToFit(n_bytes);
+		n_bytes = -alterMaxMem(-n_bytes); // returns negative value as given in the arg, so make positive again
+		
 		try {
 			if (export_images && !(this instanceof FSLoader))  {
 				final YesNoCancelDialog yn = ini.trakem2.ControlWindow.makeYesNoCancelDialog("Export images?", "Export images as well?");
@@ -3706,17 +3728,20 @@ while (it.hasNext()) {
 				}
 			}
 
-		} catch (Exception e) {
-			IJError.print(e);
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			// Release reserved memory
+			alterMaxMem(n_bytes);
 		}
 		ControlWindow.updateTitle(project);
 		return path;
 	}
 
-	static public long countObjects(final LayerSet ls) {
+	static protected long countObjects(final LayerSet ls) {
 		// estimate total number of bytes: large estimate is 500 bytes of xml text for each object
 		int count = 1; // the given LayerSet itself
-		for (Layer la : (ArrayList<Layer>)ls.getLayers()) {
+		for (final Layer la : ls.getLayers()) {
 			count += la.getNDisplayables();
 			for (Object ls2 : la.getDisplayables(LayerSet.class)) { // can't cast ArrayList<Displayable> to ArrayList<LayerSet> ????
 				count += countObjects((LayerSet)ls2);
@@ -3739,8 +3764,6 @@ while (it.hasNext()) {
 
 	/** Exports to an XML file chosen by the user in a dialog if @param xmlpath is null. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
 	public String saveAs(Project project, String xmlpath, boolean export_images) {
-		long size = countObjects(project.getRootLayerSet()) * 500;
-		releaseToFit(size > MIN_FREE_BYTES ? size : MIN_FREE_BYTES);
 		String storage_dir = getStorageFolder();
 		String mipmaps_dir = getMipMapsFolder();
 		// Select a file to export to
