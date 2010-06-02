@@ -232,7 +232,7 @@ abstract public class Loader {
 	static private final void destroyingCache() {
 		synchronized (HEAPLOCK) {
 			// At this point, the number of loaders is that of the remaining ones
-			final long max_bytes = (long)(MAX_MEMORY * heap_fraction) / (v_loaders.size() + 1);
+			final long max_bytes = (long)(MAX_MEMORY * heap_fraction) / v_loaders.size());
 			// Enlarge all others:
 			for (final Loader l : v_loaders) {
 				l.setMaxBytes(max_bytes);
