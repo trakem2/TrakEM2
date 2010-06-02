@@ -698,6 +698,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// Tab 7: tool options
 		this.tool_options = new OptionPanel(); // empty
 		this.scroll_options = makeScrollPane(this.tool_options);
+		this.scroll_options.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		this.addTab("Tool options", this.scroll_options);
 
 		// Tab 8: annotations
