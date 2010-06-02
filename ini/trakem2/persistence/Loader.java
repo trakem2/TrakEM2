@@ -231,6 +231,7 @@ abstract public class Loader {
 	/** Give back to the other loaders the corresponding fraction of the heap that was taken by the destroyed loader. */
 	static private final void destroyingCache() {
 		synchronized (HEAPLOCK) {
+			if (0 == v_loaders.size()) return;
 			// At this point, the number of loaders is that of the remaining ones
 			final long max_bytes = (long)(MAX_MEMORY * heap_fraction) / v_loaders.size();
 			// Enlarge all others:
