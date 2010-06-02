@@ -66,8 +66,6 @@ public class Cache {
 		 *  Returns number of bytes freed, assuming old and new have the same dimensions.
 		 *  If it was null here and img is not null, returns zero: no bytes to free. */
 		final long replace(final Image img, final int level) {
-			long b = 0;
-			try{
 			if (null == images[level]) {
 				if (null != img) {
 					// A: only old is null
@@ -77,7 +75,7 @@ public class Cache {
 				// else, B: both are null
 				return 0; // no bytes were freed (rather, some were used)
 			} else {
-				//long b = 0;
+				long b = 0;
 				if (null == img) {
 					// C: old is not null, and new is null: must return freed bytes
 					n_images--;
@@ -91,9 +89,6 @@ public class Cache {
 					images[level] = img;
 				}
 				return b;
-			}
-			} finally {
-				Utils.log2("replace: null == images[" + level + "] : " + (null == images[level]) + ", null == img : " + (null == img) + ", return: " + b);
 			}
 		}
 
@@ -304,11 +299,9 @@ public class Cache {
 
 	/** Makes up space to fit b, and also drops empty intervals from the head. */
 	private final void fit(final long b) {
-		Utils.log2("bytes before: " + bytes + " and adding " + b + " : " + (bytes + b));
 		bytes += b;
 		if (bytes > max_bytes) {
 			removeAndFlushSome(bytes - max_bytes);
-			Utils.log2("-- after removeAndFlushSome(" + (max_bytes - bytes) + "): " + bytes);
 		}
 	}
 	
@@ -419,10 +412,6 @@ public class Cache {
 	/** Returns the number of released bytes. */
 	public final long removeAndFlushSome(final long min_bytes) {
 		long size = 0;
-		try {
-			Utils.log2("removeAndFlushSome: now: " + this.bytes + ", want to remove: " + min_bytes);
-
-
 		while (intervals.size() > 0) {
 			final HashMap<Long,Pyramid> interval = intervals.getFirst();
 			for (final Iterator<Pyramid> it = interval.values().iterator(); it.hasNext(); ) {
@@ -446,7 +435,6 @@ public class Cache {
 					final long s = p.replace(null, i);
 					size += s;
 					this.bytes -= s;
-					Utils.log2("     this.bytes = " + this.bytes  + "   s: " + s);
 					count--;
 					if (size >= min_bytes) {
 						if (0 == p.n_images) {
@@ -463,10 +451,6 @@ public class Cache {
 			intervals.removeFirst();
 		}
 		return size;
-		
-		} finally {
-			Utils.log2("  == bytes removed: " + size + ", remaining: " + this.bytes);
-		}
 	}
 
 	public final long removeAndFlushSome(int n) {
