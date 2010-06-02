@@ -4324,7 +4324,7 @@ while (it.hasNext()) {
 							// it will also result in an infinie loop.
 							// To prevent it:
 							if (null != awt) {
-								if (p.getProject().getLoader().isCached(p, mag)) {
+								if (!Loader.isSignalImage(awt) && p.getProject().getLoader().isCached(p, mag)) {
 									Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
 								}
 							}
