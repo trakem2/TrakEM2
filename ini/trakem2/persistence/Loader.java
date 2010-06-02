@@ -557,7 +557,7 @@ abstract public class Loader {
 		if (n_bytes > MAX_MEMORY) {
 			Utils.log("WARNING: Can't fit " + n_bytes + " bytes in memory.");
 			// Try anyway
-			releaseAll();
+			releaseAllCaches();
 			return false;
 		}
 		return releaseMemory(n_bytes) >= n_bytes;
