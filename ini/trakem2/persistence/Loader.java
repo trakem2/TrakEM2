@@ -666,12 +666,16 @@ abstract public class Loader {
 
 	/** The minimal number of memory bytes that should always be free. */
 	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
+	
+	/** If true, preloading is disabled. */
+	static private boolean low_memory_conditions = false;
 
 	/** 150 Mb per processor, which is ~2x 67 Mb, the size of a 32-bit 4096x4096 image. */
 	public static long computeDesirableMinFreeBytes() {
 		long f = 150000000 * Runtime.getRuntime().availableProcessors();
 		if (f > MAX_MEMORY / 2) {
 			Utils.logAll("WARNING you are operating with low memory\n  considering the number of CPU cores.\n  Please restart with a higher -Xmx value.");
+			low_memory_conditions = true;
 			return MAX_MEMORY / 2;
 		}
 		return f;
@@ -4297,7 +4301,9 @@ while (it.hasNext()) {
 		if (null != preloader) { preloader.shutdownNow(); preloader = null; }
 	}
 
+	/** Disabled when on low memory condition. */
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
+		if (low_memory_conditions) return;
 		if (null == preloader) setupPreloader(null);
 		synchronized (preloads) {
 			for (final FutureTask fu : preloads) fu.cancel(false);
@@ -4307,7 +4313,9 @@ while (it.hasNext()) {
 			for (final Patch p : patches) preload(p, mag, repaint);
 		}});
 	}
+	/** Returns null when on low memory condition. */
 	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
+		if (low_memory_conditions) return null;
 		final FutureTask[] fu = new FutureTask[1];
 		fu[0] = new FutureTask<Image>(new Callable<Image>() {
 			public Image call() {
