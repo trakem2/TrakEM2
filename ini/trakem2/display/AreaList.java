@@ -810,9 +810,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		if (0 == ht_areas.size()) return "Empty AreaList " + this.toString();
 		Rectangle box = getBoundingBox(null);
 		float scale = 1.0f;
-		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
-			scale /= 2;
-		}
+		project.getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000); // factor of 2, because a mask will be involved
 		double volume = 0;
 		double surface = 0;
 		final int w = (int)Math.ceil(box.width * scale);

@@ -533,6 +533,8 @@ abstract public class Loader {
 		return n_bytes < MAX_MEMORY - getCurrentMemory();
 	}
 
+	/** Ensure there is at least width * height * factor * type{8-bit: 1; 16-bit: 3; 32-bit or RGB: 4}
+	 *  @return true if that much was released. If that much was already free, it will return false. */
 	public final boolean releaseToFit(final int width, final int height, final int type, float factor) {
 		long bytes = width * height;
 		switch (type) {
@@ -552,15 +554,17 @@ abstract public class Loader {
 		return releaseToFit((long)(bytes*factor));
 	}
 
-	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
+	/** Release enough memory so that as many bytes as passed as argument can be loaded.
+	 *  @return true if that many have been released; but if less needed to be released,
+	 *  it will return false. */
 	public final boolean releaseToFit(final long n_bytes) {
 		if (n_bytes > MAX_MEMORY) {
 			Utils.log("WARNING: Can't fit " + n_bytes + " bytes in memory.");
 			// Try anyway
 			releaseAllCaches();
-			return false;
+			return true; // optimism!
 		}
-		return releaseMemory(n_bytes) >= n_bytes;
+		return releaseMemory(n_bytes) >= n_bytes; // will also release from other caches
 	}
 
 	/** Non-locking version (but locking for other loaders). */
@@ -2759,10 +2763,8 @@ while (it.hasNext()) {
 			final long n_bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
 			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
 
-			if (!releaseToFit(n_bytes)) { // locks on it's own
-				Utils.log("Not enough free RAM for a flat image.");
-				recoverOOME();
-			}
+			releaseToFit(n_bytes);
+
 			// go
 
 			BufferedImage bi = null;
@@ -2803,7 +2805,7 @@ while (it.hasNext()) {
 						al_zdispl.add(ob);
 					}
 				}
-				// order ZDisplayables by their stack order
+				// order ZDisplayables by their stack order TODO the code below doesn't do that
 				ArrayList al_zdispl2 = layer.getParent().getZDisplayables();
 				for (Iterator it = al_zdispl2.iterator(); it.hasNext(); ) {
 					Object ob = it.next();

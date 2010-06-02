@@ -909,11 +909,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	 *  The format is either Layer.IMAGEPROCESSOR, Layer.IMAGEPLUS, Layer.PIXELARRAY or Layer.IMAGE.
 	 */
 	public Object grab(final Rectangle r, final double scale, final Class c, final int c_alphas, final int format, final int type) {
-		// check that it will fit in memory
-		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
-			Utils.log("Layer.grab: Cannot fit a flat image of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
-			return null;
-		}
+		//Ensure some memory is free
+		project.getLoader().releaseToFit(r.width, r.height, type, 1.1f);
 		if (IMAGE == format) {
 			return project.getLoader().getFlatAWTImage(this, r, scale, c_alphas, type, c, null, true, Color.black);
 		} else {
