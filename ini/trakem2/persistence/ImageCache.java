@@ -6,10 +6,6 @@ import java.util.Map;
 
 public interface ImageCache {
 
-	/** Replace or put. */
-	public abstract void replace(final long id, final Image image,
-			final int level);
-
 	/** No duplicates allowed: if the id exists it's sent to the end and the image is first flushed (if different), then updated with the new one provided. */
 	public abstract void put(final long id, final Image image, final int level);
 
@@ -28,17 +24,14 @@ public interface ImageCache {
 	/** Removes and flushes all images, and shrinks arrays. */
 	public abstract void removeAndFlushAll();
 
-	/** Remove all images that share the same id (but have different levels). */
-	public abstract ArrayList<Image> remove(final long id);
-
 	/** Returns a table of level keys and image values that share the same id (that is, belong to the same Patch). */
 	public abstract Map<Integer, Image> getAll(final long id);
-
-	/** Remove and flush away all images that share the same id. */
-	public abstract void removeAndFlush(final long id);
 	
 	/** Remove and flush away up to n images, and return the size in bytes of all flushed. */
 	public abstract long removeAndFlushSome(final int n);
+	
+	/** Remove and flush away n_bytes or more, and return the size in bytes of all flushed. */
+	public abstract long removeAndFlushSome(final long n_bytes);
 
 	/** Checks if there's any image at all for the given id. */
 	public abstract boolean contains(final long id);

@@ -209,19 +209,6 @@ public class MAWTCache implements ImageCache {
 		return im;
 	}
 
-	// WARNING: an empty interval may be left behind. Will be cleaned up by removeAndFlushSome.
-	public final ArrayList<Image> remove(final long id) {
-		final ArrayList<Image> a = new ArrayList<Image>();
-		final Pyramid p = pyramids.remove(id);
-		if (null == p) return a;
-		for (int i=0; i<p.images.length; i++) {
-			if (null != p.images[i]) a.add(p.images[i]);
-		}
-		count -= a.size();
-		p.interval.remove(id);
-		return a;
-	}
-
 	public final void removeAndFlushAll() {
 		for (final Pyramid p : pyramids.values()) {
 			for (int i=0; i<p.images.length; i++) {
@@ -243,6 +230,35 @@ public class MAWTCache implements ImageCache {
 			}
 		}
 		p.interval.remove(id);
+	}
+	
+	/** Returns the number of released bytes. */
+	public final long removeAndFlushSome(final long min_bytes) {
+		long size = 0;
+		while (intervals.size() > 0) {
+			final HashMap<Long,Pyramid> interval = intervals.getFirst();
+			for (final Iterator<Pyramid> it = interval.values().iterator(); it.hasNext(); ) {
+				final Pyramid p = it.next();
+				for (int i=0; i<p.images.length; i++) {
+					if (null == p.images[i]) continue;
+					size += Loader.measureSize(p.images[i]);
+					p.replace(null, i);
+					count--;
+					if (size >= min_bytes) {
+						if (0 == p.n_images) {
+							pyramids.remove(p.id);
+							it.remove();
+							if (interval.isEmpty()) intervals.removeFirst();
+						}
+						return size;
+					}
+				}
+				pyramids.remove(p.id);
+				it.remove(); // from the interval
+			}
+			intervals.removeFirst();
+		}
+		return size;
 	}
 
 	public final long removeAndFlushSome(int n) {
@@ -274,12 +290,6 @@ public class MAWTCache implements ImageCache {
 		return size;
 	}
 
-	public final void replace(final long id, final Image image, final int level) {
-		final Pyramid p = pyramids.get(id);
-		if (null == p) return;
-		p.replace(image, level);
-	}
-
 	public int size() {
 		return count;
 	}
@@ -300,7 +310,7 @@ public class MAWTCache implements ImageCache {
 		}
 		Utils.log2("----");
 		// Analytics
-		System.out.print("count is: " + count + ", intervals.size = " + intervals.size() + ", pyr.size = " + pyramids.size());
+		Utils.log2("count is: " + count + ", intervals.size = " + intervals.size() + ", pyr.size = " + pyramids.size());
 		HashMap<Integer,Integer> s = new HashMap<Integer,Integer>();
 		for (HashMap<Long,Pyramid> m : intervals) {
 			int l = m.size();
