@@ -4404,11 +4404,13 @@ while (it.hasNext()) {
 		releaseToFit(IJ.maxMemory() / 2);
 		long start = System.currentTimeMillis();
 		long end = start;
+		long startmem = IJ.currentMemory();
 		for (int i=0; i<3; i++) {
 			System.gc();
 			Thread.yield();
 			end = System.currentTimeMillis();
 			if (end - start > 2000) break; // garbage collection catched and is running.
+			if (IJ.currentMemory() < startmem) break;
 			start = end;
 		}
 	}
