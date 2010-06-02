@@ -68,6 +68,7 @@ public class CacheImagePlus {
 		return Long.MIN_VALUE;
 	}
 
+	/** THIS IS WRONG: the first is the last accessed, not the least accessed, unfortunately. */
 	public final ImagePlus removeFirst() {
 		if (cache.size() > 0) {
 			final Iterator<ImagePlus> it = cache.values().iterator();
