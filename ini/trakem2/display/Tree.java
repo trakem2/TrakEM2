@@ -2522,7 +2522,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						Utils.log("Could not find file " + path);
 						return null;
 					}
-					project.getLoader().releaseMemory(1000000000L); // 1 Gb
+					project.getLoader().releaseToFit(1000000000L); // 1 Gb : can't tell for jpegs and tif-jpg, TODO would have to read the header.
 					Opener op = new Opener();
 					op.setSilentMode(true);
 					final ImagePlus imp = op.openImage(path); // TODO WARNING should go via the Loader
