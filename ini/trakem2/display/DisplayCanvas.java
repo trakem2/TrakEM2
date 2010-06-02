@@ -2484,7 +2484,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 
 
-			// Testing: removed Area.subtract, now need to fill int background
+			// Testing: removed Area.subtract, now need to fill in background
 			g.setColor(Color.black);
 			g.fillRect(0, 0, g_width - r1.x, g_height - r2.y);
 

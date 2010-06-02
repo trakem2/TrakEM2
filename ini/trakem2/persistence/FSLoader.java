@@ -466,7 +466,7 @@ public final class FSLoader extends Loader {
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
 			lock();
-			imp = imps.get(p.getId());
+			imp = mawts.get(p.getId());
 			try {
 				path = getAbsolutePath(p);
 				int i_sl = -1;
@@ -479,7 +479,7 @@ public final class FSLoader extends Loader {
 						if (ia <= imp.getNSlices()) {
 							if (null == imp.getStack() || null == imp.getStack().getPixels(ia)) {
 								// reload (happens when closing a stack that was opened before importing it, and then trying to paint, for example)
-								imps.remove(p.getId());
+								mawts.removeImagePlus(p.getId());
 								imp = null;
 							} else {
 								imp.setSlice(ia);
@@ -521,7 +521,6 @@ public final class FSLoader extends Loader {
 					path = path.substring(0, i_sl);
 				}
 
-				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock(p.getId(), 0);
 			} catch (Exception e) {
 				IJError.print(e);
@@ -535,7 +534,7 @@ public final class FSLoader extends Loader {
 		synchronized (plock) {
 			plock.lock();
 
-			imp = imps.get(p.getId());
+			imp = mawts.get(p.getId());
 			if (null != imp) {
 				// was loaded by a different thread -- TODO the slice of the stack could be wrong!
 				plock.unlock();
@@ -555,16 +554,10 @@ public final class FSLoader extends Loader {
 
 			// reserve memory:
 			n_bytes = estimateImageFileSize(p, 0);
-			try {
-				n_bytes = -alterMaxMem(-n_bytes);
+			releaseToFit(n_bytes);
+			imp = openImage(path);
 
-				releaseToFit(n_bytes);
-				imp = openImage(path);
-
-				preProcess(p, imp);
-			} finally {
-				alterMaxMem(n_bytes);
-			}
+			preProcess(p, imp);
 
 			synchronized (db_lock) {
 				try {
@@ -600,7 +593,7 @@ public final class FSLoader extends Loader {
 							if (-1 != isl) {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
 								final long lid = entry.getKey();
-								imps.put(lid, imp);
+								mawts.put(lid, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 							}
 						}
 						// set proper active slice
@@ -611,7 +604,7 @@ public final class FSLoader extends Loader {
 						// for non-stack images
 						// OBSOLETE and wrong //p.putMinAndMax(imp); // non-destructive contrast: min and max -- WRONG, it's destructive for ColorProcessor and ByteProcessor!
 							// puts the Patch min and max values into the ImagePlus processor.
-						imps.put(p.getId(), imp);
+						mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
 					}
 					// imp is cached, so:
@@ -718,15 +711,11 @@ public final class FSLoader extends Loader {
 		String original_path = patch.getOriginalPath();
 		if (null == original_path) return null;
 		// else, reserve memory and open it:
-		long n_bytes = estimateImageFileSize(patch, 0);
-		// reserve memory:
-		n_bytes = -alterMaxMem(-n_bytes);
+		releaseToFit(estimateImageFileSize(patch, 0));
 		try {
 			return openImage(original_path);
 		} catch (Throwable t) {
 			IJError.print(t);
-		} finally {
-			alterMaxMem(n_bytes);
 		}
 		return null;
 	}
@@ -780,17 +769,7 @@ public final class FSLoader extends Loader {
 				Patch p = (Patch)ob;
 				if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
 				ht_paths.remove(p.getId()); // after removeMipMaps !
-				mawts.removeAndFlush(loid);
-				final ImagePlus imp = imps.remove(loid);
-				if (null != imp) {
-					if (imp.getStackSize() > 1) {
-						if (null == imp.getProcessor()) {}
-						else if (null == imp.getProcessor().getPixels()) {}
-						else Loader.flush(imp); // only once
-					} else {
-						Loader.flush(imp);
-					}
-				}
+				mawts.remove(loid);
 				cannot_regenerate.remove(p);
 				unlock();
 				flushMipMaps(p.getId()); // locks on its own
@@ -1266,7 +1245,7 @@ public final class FSLoader extends Loader {
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
 				Utils.log2("virtual stack: patch path is " + patch_path);
-				releaseMemory();
+				releaseToFit(new File(patch_path).length() * 3);
 				Utils.log2(i + " : " + patch_path);
 				imp_patch_i = openImage(patch_path);
 			} else {
@@ -2371,10 +2350,7 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			try {
-				// Need to remove ALL now, since level 0 is also included as a mipmap:
-				for (final Image img : mawts.remove(id)) {
-					if (null != img) img.flush();
-				}
+				mawts.removeAndFlushPyramid(id);
 			} catch (Exception e) { e.printStackTrace(); }
 			unlock();
 		}
@@ -2492,9 +2468,6 @@ public final class FSLoader extends Loader {
 
 	/** Does the actual fetching of the file. Returns null if the file does not exist. */
 	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
-		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
-		// TODO the x8 is overly exaggerated
-
 		final int max_level = getHighestMipMapLevel(patch);
 
 		final String filename = getInternalFileName(patch);
@@ -2506,6 +2479,9 @@ public final class FSLoader extends Loader {
 		// New style:
 		final String path = new StringBuilder(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
+		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+		// TODO the x8 is overly exaggerated
+		
 		if (patch.hasAlphaChannel()) {
 			return mmio.openWithAlpha(path); // ImageSaver.openJpegAlpha(path);
 		} else {
@@ -2875,13 +2851,13 @@ public final class FSLoader extends Loader {
 		synchronized (db_lock) {
 			lock();
 			try {
-				imp = imps.get(stack.getId());
+				imp = mawts.get(stack.getId());
 				if (null != imp) {
 					return imp;
 				}
 				path = stack.getFilePath();
 				/* not cached */
-				releaseMemory2(); // ensure there is a minimum % of free memory
+				releaseToFit2(new File(path).length() * 3); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
 			} catch (Exception e) {
 				IJError.print(e);
@@ -2895,7 +2871,7 @@ public final class FSLoader extends Loader {
 		synchronized (plock) {
 			plock.lock();
 
-			imp = imps.get( stack.getId());
+			imp = mawts.get( stack.getId());
 			if (null != imp) {
 				// was loaded by a different thread
 				plock.unlock();
@@ -2903,20 +2879,11 @@ public final class FSLoader extends Loader {
 			}
 
 			// going to load:
+			releaseToFit(stack.estimateImageFileSize());
+			imp = openImage(getAbsolutePath(path));
 
+			//preProcess(p, imp);
 
-			// reserve memory:
-			n_bytes = stack.estimateImageFileSize();
-			try {
-				n_bytes = -alterMaxMem(-n_bytes);
-
-				releaseToFit(n_bytes);
-				imp = openImage(getAbsolutePath(path));
-
-				//preProcess(p, imp);
-			} finally {
-				alterMaxMem(n_bytes);
-			}
 
 			synchronized (db_lock) {
 				try {
@@ -2933,7 +2900,7 @@ public final class FSLoader extends Loader {
 //						}
 						return null;
 					} else {
-						imps.put( stack.getId(), imp );
+						mawts.put( stack.getId(), imp, (int)Math.max(stack.getWidth(), stack.getHeight()));
 					}
 
 				} catch (Exception e) {

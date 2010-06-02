@@ -1842,7 +1842,7 @@ public class DBLoader extends Loader {
 	private void addToDatabase(Patch patch) throws Exception {
 		InputStream i_stream = null;
 		try {
-			ImagePlus imp = imps.get(patch.getId());
+			ImagePlus imp = mawts.get(patch.getId());
 			//PreparedStatement st = connection.prepareStatement(new StringBuffer("INSERT INTO ab_patches (id, imp_type, tiff_original) VALUES (").append(patch.getId()).append(',').append(imp.getType()).append(",?)").toString());
 			stmt_add_patch.setLong(1, patch.getId());
 			stmt_add_patch.setInt(2, imp.getType());
@@ -1916,7 +1916,7 @@ public class DBLoader extends Loader {
 		InputStream i_stream2 = null;
 		try {
 			if (update_imp) {
-				ImagePlus imp = imps.get(patch.getId()); // WARNING if the cache is very small relative to the size of the images, this strategy may fail
+				ImagePlus imp = mawts.get(patch.getId()); // WARNING if the cache is very small relative to the size of the images, this strategy may fail
 				i_stream2 = createZippedStream(imp);
 				st.setBinaryStream(i, i_stream2, i_stream2.available());
 				i++; // defensive programming: if later I add any other ..
@@ -1937,14 +1937,7 @@ public class DBLoader extends Loader {
 		//finally:
 		removeFromDatabase((Displayable)patch); // problem: this is not atomic.
 
-		// finally, remove the images from the cache if any
-		//Image snap = snaps.remove(patch.getId());
-		//if (null != snap) snap.flush();
-		//Image awt = awts.remove(patch.getId());
-		//if (null != awt) awt.flush();
-		mawts.removeAndFlush(patch.getId());
-		ImagePlus imp = imps.remove(patch.getId());
-		if (null != imp) flush(imp);
+		mawts.remove(patch.getId());
 	}
 
 	/*  Attribute methods ****************************************************************/
@@ -2595,7 +2588,7 @@ public class DBLoader extends Loader {
 			lock();
 			long id = p.getId();
 			// see if the ImagePlus is cached:
-			ImagePlus imp = imps.get(id);
+			ImagePlus imp = mawts.get(id);
 			if (null != imp) {
 				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) { // may have been flushed by ImageJ, for example when making images from a stack
 					unlock();
@@ -2628,7 +2621,7 @@ public class DBLoader extends Loader {
 					imp = unzipTiff(i_stream, p.getTitle());
 					//sw.elapsed();
 					i_stream.close();
-					imps.put(id, imp);
+					mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 				}
 				r.close();
 				// if the working is not there, fetch the original instead
@@ -2641,7 +2634,7 @@ public class DBLoader extends Loader {
 						imp = unzipTiff(i_stream, p.getTitle()); // will apply the preprocessor plugin to it as well
 						//sw.elapsed();
 						i_stream.close();
-						imps.put(id, imp);
+						mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 					}
 					r.close();
 				}
@@ -2698,7 +2691,7 @@ public class DBLoader extends Loader {
 			return null;
 		}
 		long imp_size = (long)(patch.getWidth() * patch.getHeight() * 4); // assume RGB, thus multiply by 4 (an int has 4 bytes)
-		releaseMemory(MIN_FREE_BYTES > imp_size ? MIN_FREE_BYTES : imp_size);
+		releaseToFit(MIN_FREE_BYTES > imp_size ? MIN_FREE_BYTES : imp_size);
 		ImagePlus imp = null;
 		InputStream i_stream = null;
 		try {
