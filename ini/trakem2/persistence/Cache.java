@@ -70,17 +70,23 @@ public class Cache {
 			try{
 			if (null == images[level]) {
 				if (null != img) {
+					// A: only old is null
 					images[level] = img;
 					n_images++;
 				}
+				// else, B: both are null
 				return 0; // no bytes were freed (rather, some were used)
 			} else {
 				//long b = 0;
 				if (null == img) {
+					// C: old is not null, and new is null: must return freed bytes
 					n_images--;
 					b = Cache.size(images[level]); // some bytes to free
+					images[level].flush();
+					images[level] = null;
 				} else if (img != images[level]) {
-					// Else both are not null, so no bytes to free: one replaces the other as we assume same dimensions
+					// D: both are not null, and are not the same instance:
+					b = Cache.size(images[level]); // some bytes to free
 					images[level].flush();
 					images[level] = img;
 				}
@@ -311,14 +317,14 @@ public class Cache {
 	public final void put(final long id, final Image image, final int level) {
 		Pyramid p = pyramids.get(id);
 		if (null == p) {
-			fit(Cache.size(image));
 			p = new Pyramid(id, image, level);
 			pyramids.put(id, p);
 			append(p);
+			fit(Cache.size(image)); // AFTER adding it
 		} else {
 			update(p);
 			if (0 == p.replace(image, level)) {
-				fit(Cache.size(image));
+				fit(Cache.size(image)); // AFTER adding the image to the empty level
 			}
 		}
 		count++;
@@ -329,10 +335,10 @@ public class Cache {
 	public final void put(final long id, final ImagePlus imp, final int maxdim) {
 		Pyramid p = pyramids.get(id);
 		if (null == p) {
-			fit(Cache.size(imp));
 			p = new Pyramid(id, imp, maxdim);
 			pyramids.put(id, p);
 			append(p);
+			fit(Cache.size(imp)); // AFTER adding it
 		} else {
 			update(p);
 			if (0 == p.replace(imp)) {
