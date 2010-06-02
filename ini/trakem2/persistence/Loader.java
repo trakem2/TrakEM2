@@ -2760,8 +2760,8 @@ while (it.hasNext()) {
 			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
 
 			if (!releaseToFit(n_bytes)) { // locks on it's own
-				Utils.showMessage("Not enough free RAM for a flat image.");
-				return null;
+				Utils.log("Not enough free RAM for a flat image.");
+				recoverOOME();
 			}
 			// go
 
