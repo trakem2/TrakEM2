@@ -170,6 +170,9 @@ public class MAWTCache implements ImageCache {
 	/** Append the key to the last interval, creating a new interval if the last is full.
 	 *  Then set that interval as the key's interval. */
 	private final void append(final Pyramid p) {
+		// May have been removed:
+		if (0 == intervals.size()) intervals.add(last_interval);
+		// Push an new interval if the last one is full:
 		if (last_interval.size() >= MAX_INTERVAL_SIZE) {
 			last_interval = new HashMap<Long,Pyramid>(MAX_INTERVAL_SIZE);
 			intervals.add(last_interval);
