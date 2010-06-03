@@ -257,6 +257,13 @@ public class Project extends DBObject {
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 
+	private boolean mipmaps_only_mode = true; // davi-experimenting
+	public boolean mipmapsOnlyMode() { return mipmaps_only_mode; } // davi-experimenting
+	private boolean no_alpha_masks = true; // davi-experimenting
+	public boolean noAlphaMasks() { return no_alpha_masks; } // davi-experimenting
+	private boolean no_save_patches = false; // davi-experimenting
+	public boolean noSavePatches() { return no_save_patches; } // davi-experimenting
+	
 	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
 	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
@@ -766,7 +773,11 @@ public class Project extends DBObject {
 		if (null == title || title.equals("Project")) {
 			try {
 				return loader.makeProjectName(); // can't use this.id, because the id system is project-centric and thus all FSLoader projects would have the same id.
-			} catch (Exception e) { Utils.log2("Swing again."); }
+			} catch (Exception e) { 
+				// davi-experimenting: it looks like these exceptions get raised when a project is closed & reopened; this occurs on master as well as branches I have twiddled with.
+				// e.printStackTrace(); 
+				Utils.log2("Swing again."); 
+			}
 		}
 		return title;
 	}
@@ -964,7 +975,12 @@ public class Project extends DBObject {
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
-		if (null == thing) return d.getTitle(); // happens if there is no associated node
+		if (null == thing) {
+//			if (d.getTitle().equals("treeline")) {
+				Utils.log2(d.getTitle() + " missing associated ProjectThing, id='" + Long.toString(d.getId()) + "'"); // davi-experimenting
+//			}
+			return d.getTitle(); // happens if there is no associated node
+		}
 		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
 		if (!thing.getType().equals(d.getTitle())) {
@@ -1112,6 +1128,10 @@ public class Project extends DBObject {
 		writer.write(indent);
 		writer.write("<trakem2>\n");
 		final String in = indent + "\t";
+		
+		// davi-experimenting; TODO maybe should make a virtual exportXML method in Loader.java?
+		((FSLoader)this.project.getLoader()).exportXML(writer, in, any);
+		
 		// 2,3 - export the project itself
 		exportXML(writer, in);
 		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
@@ -1157,7 +1177,11 @@ public class Project extends DBObject {
 	/** Export a complete DTD listing to export the project as XML. */
 	public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
-		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
+		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display, user_id_ranges)>\n");
+		
+		// davi-experimenting; TODO maybe should make a virtual exportDTD method in Loader.java?
+		((FSLoader)this.project.getLoader()).exportDTD(sb_header, hs, indent); 
+		
 		// 2 - export user-defined templates
 		//TemplateThing root_tt = (TemplateThing)((DefaultMutableTreeNode)((DefaultTreeModel)template_tree.getModel()).getRoot()).getUserObject();
 		sb_header.append(indent).append("<!ELEMENT ").append("project (").append(root_tt.getType()).append(")>\n");
@@ -1403,6 +1427,9 @@ public class Project extends DBObject {
 		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0, 6, "layers");
 		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
+		gd.addCheckbox("Run in mipmaps-only mode (davi-experimenting)", mipmaps_only_mode);  // davi-experimenting
+		gd.addCheckbox("Don't check for image alpha masks (davi-experimenting)", no_alpha_masks);  // davi-experimenting
+		gd.addCheckbox("Don't save patches (davi-experimenting)", no_save_patches);  // davi-experimenting
 		//
 		gd.showDialog();
 		//
@@ -1475,6 +1502,11 @@ public class Project extends DBObject {
 			setProperty("autosaving_interval", Integer.toString((int)autosaving_interval2));
 			restartAutosaving();
 		}
+
+		this.mipmaps_only_mode = gd.getNextBoolean(); // davi-experimenting
+		this.no_alpha_masks = gd.getNextBoolean(); // davi-experimenting
+		this.no_save_patches = gd.getNextBoolean(); // davi-experimenting
+
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */

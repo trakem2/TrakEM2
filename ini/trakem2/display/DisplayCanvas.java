@@ -1666,6 +1666,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		repaint(true);
 	}
 
+	// necessary because the Display object doesn't respond to keypressed events?
+	public void relayCreateRepeatable() {
+		display.getProject().getProjectTree().createRepeatable();
+	}
+	
 	private int last_keyCode = KeyEvent.VK_ESCAPE;
 	private boolean tagging = false;
 
@@ -1941,6 +1946,16 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				ProjectToolbar.keyPressed(ke);
 				ke.consume();
 				break;
+			case KeyEvent.VK_SEMICOLON: // TODO is this the right place in the method to handle this event?
+				if (ke.isShiftDown()) {
+					display.getProject().getProjectTree().reboundFromRepeated();
+				} else {
+					if (display.getProject().getProjectTree().hasRepeatable()) {
+						relayCreateRepeatable();
+					}
+				}
+				ke.consume();
+				break;
 		}
 
 		if (ke.isConsumed()) return;
@@ -2141,9 +2156,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// Delta of view, in screen pixels:
 			final int px_inc;
 			if ( 0 != (modifiers & MouseWheelEvent.SHIFT_MASK)) {
-				if (0 != (modifiers & MouseWheelEvent.ALT_MASK)) px_inc = 1;
-				else px_inc = 5;
-			} else px_inc = 20;
+				if (0 != (modifiers & MouseWheelEvent.ALT_MASK)) px_inc = 10;
+				else px_inc = 50;
+			} else px_inc = 200;
 			final double inc = px_inc/magnification;
 
 			final Rectangle r = new Rectangle();

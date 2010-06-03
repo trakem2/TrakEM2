@@ -168,7 +168,7 @@ public class FakeImagePlus extends ImagePlus {
 		final Calibration cal = getCalibration();
 		final StringBuilder sb = new StringBuilder(64).append("x=").append(doubleToString(cal.getX(x))).append(' ').append(cal.getUnit())
 		  .append(", y=").append(doubleToString(cal.getY(y))).append(' ').append(cal.getUnit());
-		if (ProjectToolbar.getToolId() <= ProjectToolbar.SELECT) {
+		if (ProjectToolbar.getToolId() <= ProjectToolbar.SELECT && !display.getLayerSet().getProject().mipmapsOnlyMode()) { // davi-experimenting: add mipmapsOnlyMode test (otherwise repair dialog will be triggered when getPixel(x,y) fails)
 			sb.append(", value=");
 			final int[] v = getPixel(x, y);
 			switch (type) {

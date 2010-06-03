@@ -38,6 +38,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
+import ini.trakem2.display.Tree;
 import ini.trakem2.display.YesNoDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.utils.*;
@@ -60,8 +61,12 @@ import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.util.*;
 
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JMenu;
+import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
+
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
@@ -133,7 +138,137 @@ public final class FSLoader extends Loader {
 			crashDetector();
 		}
 	}
-
+	
+	// begin block of davi-experimenting stuff
+	// TODO encapsulate all this chunk of user id range stuff into e.g. a UserIDRanges class?
+	private static class UserIDRange { // "a nested static class has no access to instance-specific data" (per teh interwebs) -- that's what we want here, just a little utility doodad
+		String user_name;
+		long lower_limit = -1;
+		long upper_limit = Long.MAX_VALUE;
+		long max_id_in_range = Long.MIN_VALUE;
+		public UserIDRange(final String new_user_name, final long new_lower_limit, final long new_upper_limit) {
+			this.user_name = new_user_name;
+			this.lower_limit = new_lower_limit;
+			this.upper_limit = new_upper_limit;
+		}
+		public boolean hasRoom() { return max_id_in_range < upper_limit; }
+		public boolean rangesLimitsAreSame(UserIDRange other) {
+			return (this.lower_limit == other.lower_limit && this.upper_limit == other.upper_limit);
+		}
+	}
+	private UserIDRange which_user_id_range = null;
+	private Hashtable<String, UserIDRange> ht_user_id_ranges = null; // if no user_id_range elements are found in project XML, this will be left null 
+	public void setCurrentUser(String user_name) {
+		if (userIDRangesPresent()) {
+			UserIDRange found_user_id_range = ht_user_id_ranges.get(user_name);
+			if (null != found_user_id_range) {
+				which_user_id_range = found_user_id_range;
+				Utils.log2("set current user to '" + user_name + "', id lower_limit=" + Long.toString(found_user_id_range.lower_limit) + ", id upper_limit=" + Long.toString(found_user_id_range.upper_limit) +", max_id_in_range=" + Long.toString(found_user_id_range.max_id_in_range));
+			} else {
+				Utils.log("ERROR: FSLoader.setCurrentUser(" + user_name + ") called against uninitialized ht_user_id_ranges");
+			}
+		} else {
+			Utils.log("ERROR: FSLoader.setCurrentUser(" + user_name + ") has no UserIDRange object for that name");
+		}
+	}
+	// for now, only called at XML load time
+	public void addUserIDRange(final String user_name, final long lower_lim, final long upper_lim) {
+		if (!userIDRangesPresent()) {
+			ht_user_id_ranges = new Hashtable<String, UserIDRange>();
+		}
+		// TODO compare to existing ranges and check for conflict
+		UserIDRange new_user_id_range = new UserIDRange(user_name, lower_lim, upper_lim);
+		ht_user_id_ranges.put(user_name, new_user_id_range);
+		if (new_user_id_range.user_name.equals("_system")) { 
+			setCurrentUser(new_user_id_range.user_name); 
+		}
+		Utils.log2("added new user id range for user_name='" + user_name + "', lower_lim='" + Long.toString(new_user_id_range.lower_limit) + ", upper_lim=" + Long.toString(new_user_id_range.upper_limit));
+	}
+	// TODO how is threading going to work, for this? It is called exclusively from inside the synchronized (db_lock) block in FSLoader.addToDatabase()
+	private void bumpMaxIdInRangesAsNeeded(long id) {
+		if (userIDRangesPresent()) {
+			int count = 0;
+			for (Iterator<Map.Entry<String, UserIDRange>> it = ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<String, UserIDRange> entry = it.next();
+				UserIDRange user_id_range = entry.getValue();
+				if (id >= user_id_range.lower_limit && id <= user_id_range.upper_limit && id > user_id_range.max_id_in_range) {
+					user_id_range.max_id_in_range = id;
+					count++;
+					Utils.log2("incremented max_id_in_range to " + Long.toString(id) + ", for UserIDRange with name='" + user_id_range.user_name + "', lower_limit=" + Long.toString(user_id_range.lower_limit) + ", upper_limit=" + Long.toString(user_id_range.upper_limit));
+				}
+			}
+			// sanity check, this should never happen
+			if (count > 1) {
+				Utils.log("ERROR: FSLoader.bumpMaxIdInRangesAsNeeded(" + Long.toString(id) + ") encountered " + Integer.toString(count) + "matching UserIDRanges!");
+			}
+		}
+	}
+	static public void exportDTD(StringBuilder sb_header, HashSet hs, String indent) {
+		// if (null != ht_user_id_ranges) { TODO have a setting permitting backwards-compatible export?
+			sb_header.append(indent).append("<!ELEMENT user_id_ranges (user_id_range)>\n");
+			sb_header.append(indent).append("<!ATTLIST user_id_ranges current_user_name NMTOKEN #IMPLIED>\n"); // placeholder, not implemented yet
+			sb_header.append(indent).append("<!ELEMENT user_id_range EMPTY>\n");
+			sb_header.append(indent).append("<!ATTLIST user_id_range user_name NMTOKEN #REQUIRED>\n");
+			sb_header.append(indent).append("<!ATTLIST user_id_range lower_lim NMTOKEN #REQUIRED>\n");
+			sb_header.append(indent).append("<!ATTLIST user_id_range upper_lim NMTOKEN #REQUIRED>\n");
+		// }
+	}
+	public void exportXML(final java.io.Writer writer, String indent, Object any) throws Exception {
+		if (userIDRangesPresent()) {
+			final StringBuffer sb_body = new StringBuffer();
+			sb_body.append(indent).append("<user_id_ranges>\n");
+			final String in = indent + "\t";
+			for (Iterator<Map.Entry<String, UserIDRange>> it = ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<String, UserIDRange> entry = it.next();
+				UserIDRange user_id_range = entry.getValue();
+				sb_body.append(in).append("<user_id_range user_name=\"").append(user_id_range.user_name).append("\" ")
+					.append("lower_lim=\"").append(user_id_range.lower_limit).append("\" ")
+					.append("upper_lim=\"").append(user_id_range.upper_limit).append("\"")
+					.append("></user_id_range>\n");
+			}
+			sb_body.append(indent).append("</user_id_ranges>\n");
+			writer.write(sb_body.toString());
+		}
+	}
+	private void userIDRangePicker() {
+		if (userIDRangesPresent() && ht_user_id_ranges.size() > 1) { // > 1, not >0, because "_system" should always be present
+			Set<String> user_names = ((Hashtable<String,UserIDRange>) ht_user_id_ranges.clone()).keySet();
+			if (!user_names.remove("_system")) {
+				Utils.log("WARNING: userIDRangePicker() detected missing _system user");
+			}
+			final Object[] choices = user_names.toArray();
+			// final String[] choices = (String[]) ht_user_id_ranges.keySet().toArray();
+			Arrays.sort(choices);
+			final int cur_choice = which_user_id_range.user_name.equals("_system") ? 0 : Arrays.binarySearch(choices, which_user_id_range.user_name); // ASSUMPTION: shouldn't be able to get here if which_user_id_range is null or not in choices
+			final String choice = (String) JOptionPane.showInputDialog(null, "Your name:", "Who are you?", JOptionPane.QUESTION_MESSAGE, null, choices, choices[cur_choice]);
+			setCurrentUser(choice);
+		}
+	}
+	public boolean userIDRangesPresent() {
+		return (null != ht_user_id_ranges);
+	}
+	/** For each UserIDRange in this loader, see if the other loader has a range with the same name and same upper & lower limits.
+	 */
+	public boolean userIDRangesAreCompatible(FSLoader otherLoader) {
+		if (this == otherLoader) return true; // needed?
+		if (!(this.userIDRangesPresent() && otherLoader.userIDRangesPresent())) {
+			return false;
+		} else {
+			Hashtable<String,UserIDRange> other_ranges = otherLoader.ht_user_id_ranges;
+			for (Iterator<Map.Entry<String, UserIDRange>> it = this.ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<String, UserIDRange> entry = it.next();
+				UserIDRange this_user_id_range = entry.getValue();
+				if (!other_ranges.containsKey(this_user_id_range.user_name)) return false;
+				UserIDRange other_user_id_range = other_ranges.get(this_user_id_range.user_name);
+				if (!(this_user_id_range.lower_limit == other_user_id_range.lower_limit && this_user_id_range.upper_limit == other_user_id_range.upper_limit)) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	// end block of davi-experimenting stuff
+	
 	private String createUNUId(String dir_storage) {
 		synchronized (db_lock) {
 			lock();
@@ -300,6 +435,7 @@ public final class FSLoader extends Loader {
 		// else, good
 		super.v_loaders.add(this);
 		crashDetector();
+		userIDRangePicker();
 		return data;
 	}
 
@@ -419,7 +555,27 @@ public final class FSLoader extends Loader {
 		long nid = -1;
 		synchronized (db_lock) {
 			lock();
-			nid = ++max_id;
+			// davi-experimenting
+			// TODO does this interact correctly with the threading model? Will this work? Probably yes, so long as this remains the only point where these values in which_user_id_range are changed
+			// there are 8 or so calls to getNextId() on every project open that I do not understand -- I think they are for template objects. But they pollute use of these blocks; TODO track this down & accommodate
+			if (null != which_user_id_range) {
+				if (which_user_id_range.hasRoom()) {
+					if (which_user_id_range.max_id_in_range < which_user_id_range.lower_limit) {
+						which_user_id_range.max_id_in_range = which_user_id_range.lower_limit;
+						nid = which_user_id_range.max_id_in_range;
+						// this is the first item created in this range
+						Utils.log2("FSLoader.getNext() returning first id in range of current UserIDRange, user_name='" + which_user_id_range.user_name + "', nid=" + Long.toString(nid)); 
+					} else {
+						nid = ++which_user_id_range.max_id_in_range;
+					}
+					Utils.log2("FSLoader.getNext() returning id=" + Long.toString(nid) + " in UserIDRange.user_name='" + which_user_id_range.user_name + "'; this range has " + Long.toString(which_user_id_range.upper_limit - which_user_id_range.max_id_in_range) + " ids left.");
+					if (nid > max_id) { max_id = nid; }
+				} else {
+					Utils.log("ERROR: current user has no additional ids left in range; using anonymous id (user name=" + which_user_id_range.user_name + "')");
+				}
+			} else if (-1 == nid) {
+				nid = ++max_id;
+			}
 			unlock();
 		}
 		return nid;
@@ -568,7 +724,7 @@ public final class FSLoader extends Loader {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
 							hs_unloadable.add(p);
 						}
-						if (ControlWindow.isGUIEnabled()) {
+						if (ControlWindow.isGUIEnabled() && !p.getProject().mipmapsOnlyMode()) { // davi-experimenting added mipmapsOnlyMode test
 							FilePathRepair.add(p);
 						}
 						removeImageLoadingLock(plock);
@@ -731,6 +887,9 @@ public final class FSLoader extends Loader {
 			if (id > max_id) {
 				max_id = id;
 			}
+			
+			this.bumpMaxIdInRangesAsNeeded(id); // davi-experimenting
+			
 			unlock();
 		}
 		return true;

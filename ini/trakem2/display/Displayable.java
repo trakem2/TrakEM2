@@ -38,6 +38,7 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.graphics.AddARGBComposite;
 import ini.trakem2.display.graphics.ColorYCbCrComposite;
@@ -126,6 +127,22 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** The call back hooks to remove any linked properties in other Displayable instances when this Displayable is removed. */
 	protected Set<Displayable> linked_props_origins = null;
 
+	// begin davi-experimenting block
+	private boolean edited_yn = false; // if reconstructed from XML, edited_yn="true" will override
+	public boolean getEditedYN() { return this.edited_yn; }
+	public void setEditedYN(boolean new_edited_yn, boolean get_conf) { 
+		// this testing & dialog will go away, but for now, need to understand why certain Project objects are getting touched during tracing
+		if (!this.getEditedYN() && new_edited_yn && get_conf) { // edited_yn was false, now it will be true, get the user to confirm this
+			final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "You are about to set edited_yn=\"true\" for " + title + " with id=" + Long.toString(this.getId()) + ". Do you want to allow this?");
+			if (yn.yesPressed()) {
+				edited_yn = new_edited_yn;
+			}
+		} else {
+			edited_yn = new_edited_yn;
+		}
+	}
+	//end davi-experimenting block
+	
 	/** Set a key/valye property pair; to remove a property, set the value to null. */
 	synchronized public boolean setProperty(final String key, final String value) {
 		if (null == key) return false;
@@ -335,6 +352,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		super(project);
 		this.title = title;
 		this.at.translate(x, y);
+		this.edited_yn = true; // davi-experimenting
 	}
 
 	/** Reconstruct a Displayable from the database. */
@@ -345,6 +363,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (null != at) this.at.setTransform(at);
 		this.width = width;
 		this.height = height;
+		// davi-experimenting TODO need to add edited_yn stuff here? I am generally not dealing with database-backed TrakEM2...
 	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
@@ -421,7 +440,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					y = Double.parseDouble(data);
 				} else if (key.equals("rot")) {
 					rot = Double.parseDouble(data);
-				}
+				} else if (key.equals("edited_yn")) this.setEditedYN( data.trim().toLowerCase().equals("true"), false ); // davi-experimenting
 			} catch (Exception ea) {
 				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
@@ -1279,6 +1298,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" title").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" links").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" composite").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" edited_yn").append(" NMTOKEN #IMPLIED>\n"); // davi-experimenting
 		;
 	}
 
@@ -1341,9 +1361,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			Arrays.sort(ids);
 			for (int g=0; g<ids.length; g++) sb_body.append(ids[g]).append(',');
 			sb_body.setLength(sb_body.length()-1); // remove last comma by shifting cursor backwards
-		}
-		
+		}		
 		sb_body.append("\"\n");
+		if (this.getEditedYN()) sb_body.append(in).append("edited_yn=\"true\"\n"); // davi-experimenting
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
@@ -1851,7 +1871,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		synchronized public Displayable getD() { return d; }
 		synchronized DoEdit fullCopy() {
-			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props"});
+			return init(d, new String[]{"data", "width", "height", "locked", "title", "color", "alpha", "visible", "props", "linked_props", "edited_yn"}); // davi-experimenting
 		}
 		/** With the same keys as 'de'. */
 		synchronized DoEdit init(final DoEdit de) {
@@ -1893,6 +1913,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					}
 				}
 			}
+			d.setEditedYN(true, true); // davi-experimenting
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
@@ -2032,12 +2053,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	static abstract protected class DataPackage {
 		protected final float width, height;
+		protected final boolean edited_yn; // davi-experimenting
 		protected final AffineTransform at;
 		protected HashMap<Displayable,HashSet<Displayable>> links = null;
 
 		DataPackage(final Displayable d) {
 			this.width = d.width;
 			this.height = d.height;
+			this.edited_yn = d.getEditedYN(); // davi-experimenting
 			this.at = new AffineTransform(d.at);
 			if (null != d.hs_linked) {
 				this.links = new HashMap<Displayable,HashSet<Displayable>>();
@@ -2053,6 +2076,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		final boolean to1(final Displayable d) {
 			d.width = width;
 			d.height = height;
+			d.setEditedYN(edited_yn, false); // davi-experimenting
 			d.setAffineTransform(at); // updates bucket
 			if (null != links) {
 				HashSet<Displayable> all_links = new HashSet<Displayable>();

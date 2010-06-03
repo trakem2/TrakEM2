@@ -56,6 +56,9 @@ import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
+
+import org.jfree.chart.title.Title;
+
 import java.util.concurrent.Callable;
 
 
@@ -177,7 +180,40 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		return copy;
 	}
+/*
+	public ProjectThing deepCloneAllSameIDs(final Project project) throws Exception { // davi-experimenting 
+		boolean copy_id = true;
+		// Find a template for this in project, otherwise create it
+		TemplateThing tt = project.getTemplateThing(this.template.getType()); // WARNING: not checking if parent/child chain is identical. Just the name.
+		if (null == tt) {
+			tt = this.template.clone(project, copy_id); // deep copy, with children
+			project.addUniqueType(tt);
+		} else {
+			// Check that if this type exists in the target project, it can have the same children
+			assertChildren(tt, this.template);
+		}
+		// Check that the entire child chain is there:
+		ArrayList<String> missing = new ArrayList<String>();
+		for (TemplateThing tn : (Collection<TemplateThing>)this.template.collectAllChildren(new ArrayList())) {
+			if (!project.typeExists(tn.getType())) {
+				missing.add(tn.getType());
+			}
+		}
+		if (!missing.isEmpty()) {
+			throw new Exception("Can't transfer: missing templates " + Utils.toString(missing));
+		}
+		
 
+		// Make a deep copy of this
+		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);
+		if (null != this.al_children) {
+			for (final ProjectThing child : this.al_children) {
+				copy.addChild(child.deepClone(project, copy_id));
+			}
+		}
+		return copy;
+	}
+	*/
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
 	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList<ProjectThing> al_children, HashMap ht_attributes) {
 		// call super constructor
@@ -552,6 +588,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			} else if (project.getLoader() instanceof FSLoader) {
 				addPopupItem("Save", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 				addPopupItem("Save as...", listener, al_items);
+				if (((FSLoader) project.getLoader()).userIDRangesPresent() && Project.getProjects().size() > 1) addPopupItem("Merge many...", listener, al_items); // davi-experimenting
 			}
 		}
 
@@ -617,6 +654,60 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 	}
 
+	/** Creates a sibling node whose graph is identical but whose leaves are empty (i.e. segmentation content is not copied)*/ 
+	synchronized public ArrayList<ProjectThing> createSibling(ArrayList<ProjectThing> al, ProjectThing pt_parent) {
+		final ProjectThing sibling = pt_parent.createChild(this.getType()); if (null == sibling) return null; // TODO warning
+		if (null == al) { // we are in the top-level invocation of this recursive function
+			al = new ArrayList<ProjectThing>(); 
+			String title = this.getTitle();
+			if (!title.contains("#")) { // TODO handle basic type numbering -- this doesn't do it
+				// trim trailing numerals TODO better way?
+				StringBuffer title_buffer = new StringBuffer(title);
+				int title_length = title.length(); // lots of intermediate variables for debugging
+				for (int i = title_length; i >= 0; i--) {
+					char cur_char = title.charAt(i-1);
+					if (Character.isDigit(cur_char)) {
+						// || (Character.toString(title.charAt(i-1)).equals("#"))) { 
+						title_buffer.deleteCharAt(i-1); 
+					} else break;
+				}
+				// give it a unique name based on its progenitor -- the maximum of like-titled objects' numeric suffixes + 1
+				String new_title = title_buffer.toString();
+				ArrayList<ProjectThing> like_titled = this.getRootParent().findChildren(new_title, null, false);
+				int new_title_suffix = 0;
+				if (null != like_titled) {
+					for (Iterator it = like_titled.iterator(); it.hasNext(); ) {
+						ProjectThing pt_like_titled = (ProjectThing) it.next();
+						String pt_title = pt_like_titled.getTitle();
+						int pt_title_length = pt_title.length(); // lots of intermediate variables for debugging
+						StringBuffer sb_like_titled_suffix = new StringBuffer();
+						for (int i = pt_title_length; i >= 0; i--) {
+							char cur_char = pt_title.charAt(i-1);
+							if (Character.isDigit(cur_char)) {
+								// || (Character.toString(title.charAt(i-1)).equals("#"))) { 
+								sb_like_titled_suffix.insert(0, cur_char); 
+							} else break;
+						}
+						if (0 != sb_like_titled_suffix.length()) {
+							int cur_numeric_suffix = Integer.parseInt(sb_like_titled_suffix.toString());
+							if (cur_numeric_suffix > new_title_suffix) new_title_suffix = cur_numeric_suffix;
+						}
+					}
+				}
+				sibling.setTitle(title_buffer.toString() + Integer.toString(new_title_suffix + 1));
+			}
+		}
+		al.add(sibling);
+		final ArrayList children = this.getChildren();
+		if (null != children) {
+			for (Iterator it = children.iterator(); it.hasNext(); ) {
+				ProjectThing pt_child = (ProjectThing)it.next();
+				pt_child.createSibling(al, sibling);
+			}
+		}
+		return al; // not used by the recursion, just a convenience for the top-level caller
+	}
+	
 	public boolean canHaveAsChild(String type) {
 		return null != template.getChildTemplate(type);
 	}

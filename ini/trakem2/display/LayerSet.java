@@ -139,6 +139,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean paint_arrows = true;
 	protected boolean paint_edge_confidence_boxes = true;
 	protected int n_layers_color_cue = -1; // -1 means all
+	protected boolean use_alt_color_cues = true; // davi-experimenting
+	protected double alt_color_cue_desaturation_span = 10; //davi-experimenting
 
 	private Calibration calibration = new Calibration(); // default values
 
@@ -156,6 +158,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		this.parent = parent;
 		this.layer_width = layer_width;
 		this.layer_height = layer_height;
+		this.setEditedYN(false, false); // davi-experimenting -- override Displayable constructor's default behavior; TODO need to do for database-backed, someday?
 		addToDatabase();
 	}
 
@@ -1985,6 +1988,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 						dedits.put(d, edits);
 					}
 					edits.put(current_edit_time, current_edit_step);
+					// davi-experimenting
+					// after the current state of the Displayable has been added to the edit_history, set edited_yn to true. It will only be reset to false after a merge-many operation (to be implemented) or if the user undoes the edit
+					// TODO explore addChangeTreesStep case -- how will this work?
+					// d.edited_yn = true; // looks like this isn't the right place to do it, rather should do it in DoEdit.init
 				}
 
 				// prune if too large

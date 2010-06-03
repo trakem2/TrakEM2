@@ -280,10 +280,21 @@ public class Treeline extends Tree<Float> {
 			// Which color?
 			if (active_layer == this.la) {
 				g.setColor(tree.getColor());
+			} else if (this.la.getParent().use_alt_color_cues) { // use_alt_color_cues is from davi-experimenting
+				double actZ = active_layer.getZ();
+				double thisZ = this.la.getZ();
+				Color local_edge_color = tree.getColor(); // TODO clean this up & reuse with same code in Node.java
+				int delta_color = new Double((actZ - thisZ) / this.la.getParent().alt_color_cue_desaturation_span).intValue();//TODO find & use abs value function
+				int red = local_edge_color.getRed() + delta_color; red = red > 255 ? 255 : red; red = red < 0 ? 0 : red; 
+				int green = local_edge_color.getGreen() + delta_color; green = green > 255 ? 255 : green; green = green < 0 ? 0 : green;
+				int blue = local_edge_color.getBlue()+ delta_color; blue = blue > 255 ? 255 : blue; blue = blue < 0 ? 0 : blue;
+				local_edge_color = new Color(red , green , blue );
+			} else if (active_layer.getZ() > this.la.getZ()) {
+				g.setColor(Color.red);
 			} else {
-				if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
-				else g.setColor(Color.blue);
+				g.setColor(Color.blue);
 			}
+			
 
 			final Composite c = g.getComposite();
 			final float alpha = tree.getAlpha();

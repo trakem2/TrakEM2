@@ -182,7 +182,13 @@ public abstract class Node<T> implements Taggable {
 		//Which edge color?
 		Color local_edge_color = t_color;
 		if (active_layer == this.la) {} // default color
-		else if (actZ > thisZ) {
+		else if (this.la.getParent().use_alt_color_cues) { // use_alt_color_cues is from davi-experimenting
+			int delta_color = new Double((actZ - thisZ) / this.la.getParent().alt_color_cue_desaturation_span).intValue();//TODO find & use abs value function
+			int red = local_edge_color.getRed() + delta_color; red = red > 255 ? 255 : red; red = red < 0 ? 0 : red; 
+			int green = local_edge_color.getGreen() + delta_color; green = green > 255 ? 255 : green; green = green < 0 ? 0 : green;
+			int blue = local_edge_color.getBlue()+ delta_color; blue = blue > 255 ? 255 : blue; blue = blue < 0 ? 0 : blue;
+			local_edge_color = new Color(red , green , blue );
+		} else if (actZ > thisZ) {
 			local_edge_color = Color.red;
 		} else if (actZ < thisZ) local_edge_color = Color.blue;
 
@@ -314,6 +320,25 @@ public abstract class Node<T> implements Taggable {
 			g.fillOval((int)x - 6, (int)y - 6, 11, 11);
 			g.setColor(Color.black);
 			g.drawString("Y", (int)x -4, (int)y + 4); // TODO ensure Font is proper
+		}
+	}
+	
+	/** davi-experimenting, in order to get all nodes in the current layer painted, with the active Tree's nodes painted differently */
+	// slightly contorted, better to just edit method above, but would have ripple-out effects which could lead to merge difficulties down the road
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t, final boolean active) {
+		if (!active && null != parent && null != children && 1 == children.length) { // draw deselected nodes in the current layer in blue
+			final Point2D.Double po = t.transformPoint(this.x, this.y);
+			final float x = (float)((po.x - srcRect.x) * magnification);
+			final float y = (float)((po.y - srcRect.y) * magnification);
+			
+			g.setColor(Color.blue);
+			g.drawRect((int) x - 2, (int) y - 2, 5, 5);
+			g.setColor(Color.black);
+			g.drawRect((int) x - 1, (int) y - 1, 3, 3);
+			g.setColor(Color.blue);
+			g.fillRect((int) x, (int) y, 1, 1);
+		} else { // use the default color pattern 
+			paintHandle(g, srcRect, magnification, t);
 		}
 	}
 

@@ -228,7 +228,7 @@ public class TMLHandler extends DefaultHandler {
 			if (null != od) {
 				pt.setObject(od);
 			} else {
-				Utils.log("#### Failed to find a Displayable for ProjectThing " + pt + " #####");
+				Utils.log("#### Failed to find a Displayable for ProjectThing " + pt + " with id " + Long.toString(pt.getId()) + " #####");
 			}
 		}
 
@@ -376,13 +376,13 @@ public class TMLHandler extends DefaultHandler {
 
 		//Utils.log2("startElement: " + qualified_name);
 		this.counter++;
-		if (0 == counter % 100) { // davi-experimenting: don't talk so much when you have > 600,000 patches to load!
+		if (counter < 50000 || 0 == counter % 100) { // davi-experimenting: don't talk so much when you have > 600,000 patches to load!
 			Utils.showStatus("Loading " + counter, false);
 		}
 		try {
 			// failsafe:
 			qualified_name = qualified_name.toLowerCase();
-
+			
 			final HashMap<String,String> ht_attributes = new HashMap<String,String>();
 			for (int i=attributes.getLength() -1; i>-1; i--) {
 				ht_attributes.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
@@ -424,6 +424,17 @@ public class TMLHandler extends DefaultHandler {
 				thing = root_pt;
 			} else if (qualified_name.startsWith("ict_transform")||qualified_name.startsWith("iict_transform")) {
 				makeCoordinateTransform(qualified_name, ht_attributes);
+			} else if (qualified_name.startsWith("user_id")) { // davi-experimenting
+				if (qualified_name.equals("user_id_ranges")) {
+					// TODO need to do anything here?
+				} else if (qualified_name.equals("user_id_range")) {
+					this.loader.addUserIDRange((String) ht_attributes.get("user_name"), 
+							Long.parseLong((String) ht_attributes.get("lower_lim")), 
+							Long.parseLong((String) ht_attributes.get("upper_lim")));
+					
+				} else {
+					Utils.log("WARNING: unknown XML element \"" + qualified_name + "\"");
+				}
 			} else if (!qualified_name.equals("trakem2")) {
 				// Any abstract object
 				thing = makeProjectThing(qualified_name, ht_attributes);
@@ -816,8 +827,8 @@ public class TMLHandler extends DefaultHandler {
 				last_tree = tline;
 				last_treeline_data = new StringBuilder();
 				last_displayable = tline;
-				ht_displayables.put(oid, tline);
-				ht_zdispl.put(oid, tline);
+				ht_displayables.put(new Long(oid), tline);
+				ht_zdispl.put(new Long(oid), tline);
 				addToLastOpenLayerSet(tline);
 			} else if (type.equals("areatree")) {
 				AreaTree art = new AreaTree(this.project, oid, ht_attributes, ht_links);
@@ -825,8 +836,8 @@ public class TMLHandler extends DefaultHandler {
 				last_areatree = art;
 				last_tree = art;
 				last_displayable = art;
-				ht_displayables.put(oid, art);
-				ht_zdispl.put(oid, art);
+				ht_displayables.put(new Long(oid), art);
+				ht_zdispl.put(new Long(oid), art);
 				addToLastOpenLayerSet(art);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {

@@ -257,6 +257,7 @@ public class DTDParser {
 		if (0 == type.indexOf("t2_")
 		 || type.equals("trakem2")
 		 || type.equals("project")
+		 || type.startsWith("user_id") // davi-experimenting
 		 || 0 == type.indexOf("ict_transform")
 		) return false;
 		

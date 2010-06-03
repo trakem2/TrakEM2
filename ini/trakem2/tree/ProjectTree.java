@@ -25,6 +25,7 @@ package ini.trakem2.tree;
 
 import ij.gui.GenericDialog;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
@@ -62,6 +63,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Collection;
 import java.util.Enumeration;
+import java.util.Map;
 import java.util.Set;
 import java.util.Hashtable;
 import java.util.Collections;
@@ -78,6 +80,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	private DefaultMutableTreeNode selected_node = null;
+	private DefaultMutableTreeNode repeatable_node = null;
+	private DefaultMutableTreeNode selected_before_repeated_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
 		super(project, DNDTree.makeNode(project_thing), new Color(240,230,255)); // new Color(185,156,255));
@@ -105,6 +109,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		JMenu node_menu = new JMenu("Node");
 		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
 		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
+		item = new JMenuItem("Set as repeatable (davi-experimenting)"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SEMICOLON, 0, true)); node_menu.add(item);
 		popup.add(node_menu);
 
 		JMenu send_menu = new JMenu("Send to");
@@ -256,6 +261,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
+				if (repeatable_node == selected_node) {
+					setRepeatableNode(null);
+				}
 				remove(true, thing, selected_node);
 				return;
 			} else if (command.equals("Rename...")) {
@@ -297,6 +305,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// overwrite the xml file of a FSProject
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
 				thing.getProject().getLoader().save(thing.getProject());
+			} else if (command.equals("Merge many...")) { // davi-experimenting
+				mergeManyTask();
 			} else if (command.equals("Info")) {
 				showInfo(thing);
 				return;
@@ -305,7 +315,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			} else if (command.equals("Move down")) {
 				move(selected_node, 1);
 			} else if (command.equals("Sibling project")) {
-				sendToSiblingProjectTask(selected_node);
+				sendToSiblingProjectTask(selected_node);			
+			} else if (command.equals("Set as repeatable (davi-experimenting)")) {
+				setRepeatableNode(selected_node);
+				return;
 			} else {
 				Utils.log("ProjectTree.actionPerformed: don't know what to do with the command: " + command);
 				return;
@@ -499,6 +512,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		//
 		final int flags = ke.getModifiers();
 		switch (ke.getKeyCode()) {
+			case KeyEvent.VK_SEMICOLON:
+				setRepeatableNode(node);
+				ke.consume();
+				break;
 			case KeyEvent.VK_PAGE_UP:
 				move(node, -1);
 				ke.consume(); // in any case
@@ -568,7 +585,52 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		this.setSelectionPath(trp);
 		this.updateUILater();
 	}
+	
+	private void setRepeatableNode(final DefaultMutableTreeNode node) {
+		repeatable_node = node;
+	}
+	
+	public void createRepeatable() {
+		// following code for ProjectTree.actionPerformed "new" command
+		if (!Project.getInstance(this).isInputEnabled()) { Utils.log("Warning: ProjectTree.createRepeatable was invoked when the project tree was not input enabled"); return;}
+		if (null == repeatable_node) { Utils.log("Warning: ProjectTree.createRepeatable was invoked when repeatable_node was null"); return; }
+		final Object ob = repeatable_node.getUserObject();
+		if (!(ob instanceof ProjectThing)) { Utils.log("Warning: ProjectTree.createRepeatable was invoked on a repeatable_node not of type ProjectThing"); return; }
+		final ProjectThing thing = (ProjectThing)ob;
+		if (thing.getRootParent() == thing) { Utils.log("Warning: ProjectTree.createRepeatable was invoked on the root node"); return; } // TODO dunno if this is possible; dunno what to do if it is.
+		
+		selected_before_repeated_node = selected_node;
+		
+		project.getRootLayerSet().addChangeTreesStep();
+		ArrayList nc = thing.createSibling(null, (ProjectThing)thing.getParent());
+		addLeafs((ArrayList<Thing>)nc, new Runnable() {
+			public void run() {
+				project.getRootLayerSet().addChangeTreesStep();
+			}});
+		// This approach is not working -- other nodes added as part of createRepeatable are confusing the issue?
+		// The Restore Selection command is also confused by this. Haven't figured out how to overcome it, so kludge a "selected_before_repeated_node" class variable onto it
+		/*if (null != old_selected_node) {
+			final TreePath old_tree_path = new TreePath(old_selected_node.getPath());
+			// bounce back & forth so that "restore selection" command selects what was selected before createRepeatable was called
+			this.setSelectionPath(old_tree_path);
+			this.scrollPathToVisible(old_tree_path);
+			this.updateUILater();
+		}*/
+	}
+	
+	public boolean hasRepeatable() {
+		return (null != repeatable_node);
+	}
 
+	public void reboundFromRepeated() {
+		Utils.log2("ProjectTree.reboundFromRepeated called");
+		if (null != selected_before_repeated_node) {
+			final TreePath trp = new TreePath(selected_before_repeated_node.getPath());
+			this.scrollPathToVisible(trp);
+			this.setSelectionPath(trp);
+			this.updateUILater();
+		}
+	}
 	/** If the given node is null, it will be searched for. */
 	public boolean remove(final boolean check, final ProjectThing thing, final DefaultMutableTreeNode node) {
 		final Object obd = thing.getObject();
@@ -734,6 +796,15 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 	}
 
+	// davi-experimenting
+	public Bureaucrat mergeManyTask() {
+		return Bureaucrat.createAndStart(new Worker.Task("Merge many") {
+			public void exec() {
+				mergeMany();
+			}
+		}, this.project);
+	}
+	
 	public Bureaucrat sendToSiblingProjectTask(final DefaultMutableTreeNode node) {
 		return Bureaucrat.createAndStart(new Worker.Task("Send to sibling") {
 			public void exec() {
@@ -910,4 +981,500 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 		return false;
 	}
+	
+	// begin davi-experimenting block
+	/** Detect the following categories of event by comparing other open projects to this one:
+	 * 1. creation of: (a) ProjectThings, i.e. ids present in source ProjectTree(s) not present in dest (current project); and (b) DLabels, i.e. oids present in source Displayable(s) not present in dest
+	 * 2. deletion: ids or oids (see above) present in dest and not present in source(s)
+	 * 3. ProjectThing title changes: same ID in source and dest, name different
+	 * 4. Displayable edits: edited_yn = true, overwrite dest displayable with source
+	 * In cases of (1) and (3), IDs are preserved. In no case are links transferred or preserved.
+	 */
+	// Much of this will be derived from sendToSiblingProject, above, and there will be some code in common, but I am not going to touch that method at this time for ease of future merging.
+	// If Albert wants to roll this functionality out more broadly, I will need to remove the 'davi-experimenting' tags in source, and maybe at that time, code-in-common can be factored
+	// out and put in methods.
+	public boolean mergeMany() {
+		ArrayList<Project> ps = Project.getProjects();
+		FSLoader loader = (FSLoader) project.getLoader(); // incompatible cast should never happen since ProjectThing context menu item is only added if type is FSLoader, and that is the only entry point to this code
+		// start off with some sanity checking
+		if (ps.size() < 2) {
+			Utils.log2("ProjectTree.mergeMany() called when less than two projects are open");
+			return false;
+		}
+		ArrayList<Project> other_ps = new ArrayList<Project>(ps);
+		other_ps.remove(this.project);
+		for (final Project p : other_ps) {
+			if (!(p.getLoader() instanceof FSLoader)) {
+				Utils.log("WARNING: mergeMany failed due to incompatible loader type in project '" + ProjectTree.getHumanFacingNameFromProject(p) + "')");
+				return false;
+			}
+			FSLoader other_loader = (FSLoader) p.getLoader();
+			if (!loader.userIDRangesAreCompatible(other_loader)) {
+				Utils.log("WARNING: mergeMany failed due to incompatible user ID ranges between the projects (failed on project: '" + ProjectTree.getHumanFacingNameFromProject(p) + "')");
+				return false; // TODO check Java syntax, does this break from for loop correctly?
+			}
+		}
+		Utils.log2("ProjectTree.mergeMany: all open projects have compatible user ID ranges");
+		
+		// Ask:
+		GenericDialog gd = new GenericDialog("Merge many (davi-experimenting)");
+		boolean propagate_deletions_yn = true;
+		gd.addCheckbox("Propagate deletions?", propagate_deletions_yn);
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		propagate_deletions_yn = gd.getNextBoolean();
+		
+		// TODO check compatibility of (1) templates, when createdThings exist; (2) layers; (3) transformations
+		
+	
+		// there is a probably a nice way to abstract all this out, but it is late and I am not particularly clever
+		Hashtable<Project, ArrayList<Long>> ps_pt_ids = new Hashtable<Project, ArrayList<Long>>(); // ProjectThing ids for each project
+		Hashtable<Project, ArrayList<Long>> ps_dlabel_ids = new Hashtable<Project,ArrayList<Long>>(); // DLabel oids for each project (I *think* these are the only Displayable type I care about that does not have a containing ProjectThing)
+		// lists of creation, edit, and deletion events -- so we can see if the same id occurs in multiple projects and/or event types
+		IDsInProjects created_pt_ids = new IDsInProjects();
+		IDsInProjects created_dlabel_ids = new IDsInProjects();
+		IDsInProjects edited_pt_ids = new IDsInProjects();
+		IDsInProjects edited_dlabel_ids = new IDsInProjects();
+		IDsInProjects deleted_pt_ids = new IDsInProjects();
+		IDsInProjects deleted_dlabel_ids = new IDsInProjects();
+		
+		for (final Project p : ps) {
+			ProjectThing pt = p.getRootProjectThing(); // can be null?
+			ArrayList<Long> al_pt_ids = new ArrayList<Long>();
+			ProjectTree.getChildrenIDsR(pt, al_pt_ids);
+			ps_pt_ids.put(p, al_pt_ids);
+			
+			ArrayList<Long> al_dlabel_ids = new ArrayList<Long>();
+			ArrayList<Displayable> al_dlabels = p.getRootLayerSet().getDisplayables(DLabel.class);
+			for (final Displayable d : al_dlabels) {
+				al_dlabel_ids.add(d.getId());
+			}
+			ps_dlabel_ids.put(p, al_dlabel_ids);
+		}
+		
+		ArrayList<Long> this_pt_ids = ps_pt_ids.get(this.project);
+		ArrayList<Long> this_dlabel_ids = ps_dlabel_ids.get(this.project);
+		for (final Project other_p : other_ps) {
+			// detect ProjectThing creation and edit events
+			ArrayList<Long> other_pt_ids = ps_pt_ids.get(other_p);
+			for (final long other_pt_id : other_pt_ids) {
+				if (!this_pt_ids.contains(other_pt_id)) {
+					// a ProjectThing was created in the other project
+					created_pt_ids.addEntry(other_pt_id, other_p);
+					Utils.log2("found newly created ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				} else {
+					// check for title changes
+					if (!other_p.findById(other_pt_id).getTitle().equals(this.project.findById(other_pt_id).getTitle()) && other_pt_id != 1) { // WARNING "other_pt_id !=1" is a heinous kludge to avoid detecting 'renaming' of the root ProjectThing, which gets its name from the XML file. In other words, filter out differences in project name.
+						edited_pt_ids.addEntry(other_pt_id, other_p);
+						Utils.log2("found retitled ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					} else {
+						// no difference in title, but maybe a difference in the contained Displayable (if any)
+						Object other_p_o = ((ProjectThing) other_p.findById(other_pt_id)).getObject();
+						if (other_p_o instanceof Displayable) {
+							Displayable other_d = (Displayable) other_p_o;
+							if (other_d.getEditedYN()) {
+								edited_pt_ids.addEntry(other_pt_id, other_p);
+								Utils.log2("found edited Displayable in ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+							}
+						}
+					}
+				}
+			}
+			
+			// detect DLabel creation and edit events
+			ArrayList<Long> other_dlabel_ids = ps_dlabel_ids.get(other_p);
+			for (final long other_dlabel_id : other_dlabel_ids) {
+				if (!this_dlabel_ids.contains(other_dlabel_id)) {
+					created_dlabel_ids.addEntry(other_dlabel_id, other_p);
+					Utils.log2("found newly created DLabel '" + other_p.getRootLayerSet().findDisplayable(other_dlabel_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				} else {
+					// check for editing
+					Displayable d = other_p.getRootLayerSet().findDisplayable(other_dlabel_id);
+					if (null == d) {
+						Utils.log2("WARNING: can't find displayable for DLabel oid='" + Long.toString(other_dlabel_id) + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					} else if (d.getEditedYN()) {
+						edited_dlabel_ids.addEntry(other_dlabel_id, other_p);
+						Utils.log2("found edited DLabel '" + other_p.getRootLayerSet().findDisplayable(other_dlabel_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+					}
+				}
+			}
+			
+			// detect deletion events
+			// TODO bug: if mergeMany, then user deletes the most recently created object they created, then creates a new one, the deletion will not be detected; rather, the type, parent, and content may/may not "change".
+			// 			 To deal with this, an 'all time high' attribute in UserIDRange class, DTD, and XML needs to be stored.
+			for (final long this_pt_id : this_pt_ids) {
+				if (!other_pt_ids.contains(this_pt_id)) {
+					// a ProjectThing was deleted in the other project
+					deleted_pt_ids.addEntry(this_pt_id, other_p);
+					Utils.log2("found ProjectThing '" + this.project.findById(this_pt_id).getTitle() + "' was deleted from project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				}
+			}
+			for (final long this_dlabel_id : this_dlabel_ids) {
+				if (!other_dlabel_ids.contains(this_dlabel_id)) {
+					// a ProjectThing was deleted in the other project
+					deleted_dlabel_ids.addEntry(this_dlabel_id, other_p);
+					Utils.log2("found DLabel '" + this.project.findById(this_dlabel_id).getTitle() + "' was deleted from project " + ProjectTree.getHumanFacingNameFromProject(other_p));
+				}
+			}
+		}
+		
+		// ---------------------------
+		// All the events have been detected. Now for each event, check for conflicts and if all is clear, propagate the change back here
+		
+		// TODO check for conflicts -- e.g. edited in one, deleted in another
+		
+		// TODO this code is going to be common between created & deleted events, factor out methods for them both to use?
+		// transfer created ProjectThings and their associated Displayables, if any
+		ArrayList<Long> transferred_pt_ids = new ArrayList<Long>();
+		for (Iterator it = created_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long created_pt_id = (Long) entry.getKey();
+			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_created_ps.size() > 1) {
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(created_pt_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
+				return false;
+			}
+			if (!transferred_pt_ids.contains(created_pt_id)) {
+				Project source_p = al_created_ps.get(0);
+				// The idea here is that all of a newly created object's children must also be newly created. So, starting from an arbitrary newly created leaf, find the topmost newly created branch node
+				// above it, and add recursively from there. This way the child will always find its parent in the new project. Keep track of who has been added in the transferred_ids ArrayList, so as to avoid
+				// modifying the created_pt_ids.ht_ids_in_projects data structure during iteration.
+				long topmost_pt_id = ProjectTree.getTopMostParentR(created_pt_id, source_p, created_pt_ids);
+				if (!this.transferProjectThingR(topmost_pt_id, source_p, transferred_pt_ids)) return false;
+			}
+		}	
+		// and finally remove all the added entries from created_pt_ids?
+		
+		// transfer created DLabels
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> transferred_dlabel_ids = new ArrayList<Long>();
+		for (Iterator it = created_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long created_dlabel_id = (Long) entry.getKey();
+			ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_created_ps.size() > 1) {
+				Utils.log2("WARNING: DLabel with_id=" + Long.toString(created_dlabel_id) + " seems to have been created in multiple projects, skipping it. This may corrupt the overall merge."); // shouldn't happen if UserIDRanges are setup & used properly
+				return false;
+			}
+			if (!transferred_dlabel_ids.contains(created_dlabel_id)) {
+				Project source_p = al_created_ps.get(0);
+				DLabel created_dlabel = (DLabel) source_p.getRootLayerSet().findDisplayable(created_dlabel_id);
+				if (null == created_dlabel) {
+					Utils.log2("WARNING: Can't find DLabel with_id=" + Long.toString(created_dlabel_id) + " in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "'. This may corrupt the overall merge.");
+					return false;
+				}
+				if (!this.transferDisplayable(created_dlabel)) return false;
+			}
+		}
+		
+		// propagate ProjectThing edits
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> propagated_pt_ids = new ArrayList<Long>();
+		for (Iterator it = edited_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long edited_pt_id = (Long) entry.getKey();
+			ArrayList<Project> al_edited_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_edited_ps.size() > 1) {
+				Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(edited_pt_id) + " seems to have been edited in multiple projects, skipping it. This may corrupt the overall merge.");
+				return false;
+			}
+			if (!propagated_pt_ids.contains(edited_pt_id)) {
+				Project source_p = al_edited_ps.get(0);
+				ProjectThing edited_pt = source_p.find(edited_pt_id);
+				if (null == edited_pt) {
+					Utils.log2("WARNING: can't find edited ProjectThing with_id=" + Long.toString(edited_pt_id) + " and name '" + edited_pt.getTitle() + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+					return false;
+				}
+				if (this.propagateProjectThingEdit(edited_pt)) {
+					propagated_pt_ids.add(edited_pt_id);
+				} else return false;
+			}
+		}	
+		// and finally remove all the added entries from edited_pt_ids?
+		
+		// propagate DLabel edits
+		// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+		ArrayList<Long> propagated_dlabel_ids = new ArrayList<Long>();
+		for (Iterator it = edited_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+			Map.Entry entry = (Map.Entry)it.next();
+			long edited_dlabel_id = (Long) entry.getKey();
+			ArrayList<Project> al_edited_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+			if (al_edited_ps.size() > 1) {
+				Utils.log2("WARNING: DLabel with_id=" + Long.toString(edited_dlabel_id) + " seems to have been edited in multiple projects, skipping it. This may corrupt the overall merge.");
+				return false;
+			}
+			if (!propagated_dlabel_ids.contains(edited_dlabel_id)) {
+				Project source_p = al_edited_ps.get(0);
+				Displayable edited_dlabel = (Displayable) source_p.getRootLayerSet().findDisplayable(edited_dlabel_id);
+				if (null == edited_dlabel) {
+					Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(edited_dlabel_id) + " and name '" + edited_dlabel.getTitle() + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+					return false;
+				}
+				Displayable this_dlabel = (Displayable) this.project.getRootLayerSet().findDisplayable(edited_dlabel_id);
+				if (null == this_dlabel) {
+					Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(edited_dlabel_id) + " in dest project '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "', merge may be corrupted.");
+					return false;
+				}
+				if (!this_dlabel.remove(false)) { // don't check with user
+					// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+					Utils.log2("WARNING: removal of Displayable '" + edited_dlabel.getTitle() + "' with id=" + Long.toString(edited_dlabel.getId()) + " failed, merge may be corrupted.");
+					return false; 
+				}
+				if (!this.transferDisplayable(edited_dlabel)) return false;
+			}
+		}	
+		// and finally remove all the added entries from edited_pt_ids?
+		
+		if (propagate_deletions_yn) {
+			// propagate deletions of ProjectThings and their associated Displayables, if any
+			// this iteration code is redundant with above, ugly to recapitulate it... TODO refactor
+			ArrayList<Long> propagated_deleted_pt_ids = new ArrayList<Long>();
+			for (Iterator it = deleted_pt_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				long deleted_pt_id = (Long) entry.getKey();
+				ArrayList<Project> al_created_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+				if (al_created_ps.size() > 1) {
+					Utils.log2("WARNING: ProjectThing with_id=" + Long.toString(deleted_pt_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge."); // this may be a very stupid reason to bail on a merge TODO reevaluate
+					return false;
+				}
+				if (!propagated_deleted_pt_ids.contains(deleted_pt_id)) {
+					Project source_p = al_created_ps.get(0);
+									
+					ProjectThing target_pt = this.project.find(deleted_pt_id);
+					if (null == target_pt) {
+						Utils.log2("WARNING: can't find to-be-deleted ProjectThing with_id=" + Long.toString(deleted_pt_id) + "' in source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted.");
+						return false;
+					}
+					ArrayList<Long> al_deleted_pt_ids = new ArrayList<Long>();
+					ProjectTree.getChildrenIDsR(target_pt, al_deleted_pt_ids);
+					this.remove(false, target_pt, null); // is this all I have to do?
+				}
+			}	
+			// and finally remove all the added entries from created_pt_ids?
+			
+			// propagate deletions of DLabels
+			// this code is redundant with above TODO refactor
+			for (Iterator it = deleted_dlabel_ids.ht_ids_in_projects.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry entry = (Map.Entry)it.next();
+				long deleted_dlabel_id = (Long) entry.getKey();
+				ArrayList<Project> al_deleted_ps = (ArrayList<Project>)entry.getValue(); // all the projects showing this ProjectThing as having been created in
+				if (al_deleted_ps.size() > 1) {
+					Utils.log2("WARNING: DLabel with_id=" + Long.toString(deleted_dlabel_id) + " seems to have been deleted in multiple projects, skipping it. This may corrupt the overall merge.");  // this may be a very stupid reason to bail on a merge TODO reevaluate
+					return false;
+				}
+				Displayable this_dlabel = (Displayable) this.project.getRootLayerSet().findDisplayable(deleted_dlabel_id);
+				if (null == this_dlabel) {
+					Utils.log2("WARNING: can't find edited DLabel with_id=" + Long.toString(deleted_dlabel_id) + " in dest project '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "', merge may be corrupted.");
+					return false;
+				}
+				if (!this_dlabel.remove(false)) { // don't check with user
+					// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+					Utils.log2("WARNING: removal of Displayable '" + this_dlabel.getTitle() + "' with id=" + Long.toString(this_dlabel.getId()) + " failed, merge may be corrupted.");
+					return false; 
+				}
+			}
+			
+			this.project.getTemplateTree().rebuild(); // could have changed
+			this.project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
+			// TODO also need to update all the panes in each Display -- the ZDisplayables, the Labels, etc. -- and the display itself
+		}
+		return true;
+	}
+	
+	// TODO factor out commonalities in error messages and append as suffix
+	
+	
+	private boolean propagateProjectThingEdit(ProjectThing edited_pt) {
+		Project source_p = edited_pt.getProject();
+		Utils.log2("propagating edits in ProjectThing '" + edited_pt.getTitle() + "' with id=" + edited_pt.getId() + " from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "'");
+		ProjectThing this_pt = this.project.find(edited_pt.getId());
+		if (null == this_pt) {
+			Utils.log2("WARNING: can't find ProjectThing with id=" + Long.toString(edited_pt.getId()) + "', title '" + edited_pt.getTitle() + "', source project '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "', merge may be corrupted."); 
+			return false; 
+		}
+		
+		Object edited_pt_ob = edited_pt.getObject();
+		if (edited_pt_ob instanceof Displayable) {
+			Displayable edited_pt_d = (Displayable) edited_pt_ob;
+			if (edited_pt_d.getEditedYN()) {
+				Object this_pt_ob = this_pt.getObject();
+				if ((this_pt_ob instanceof Displayable)) {
+					Displayable this_pt_d = (Displayable) this_pt_ob;
+					if (!this_pt_d.remove(false)) { // don't check with user
+						// TODO BUG -- if you do a transfer, then call mergeMany again, this remove call will fail. 
+						Utils.log2("WARNING: removal of Displayable '" + this_pt_d.getTitle() + "' with id=" + Long.toString(this_pt_d.getId()) + " failed, merge may be corrupted.");
+						return false; 
+					}
+					if (!this.transferDisplayable(edited_pt_d)) return false;
+				} else {
+					Utils.log2("Oddly, the source edited ProjectThing has a Displayable object, whereas the target ProjectThing does not. The merge may be corrupted");
+					return false; 
+				}
+			}
+		}
+		// try doing this after adding the Displayable (if any), in order to get the name right --> doesn't work
+		this_pt.setTitle(edited_pt.getTitle()); // the only ProjectThing attribute that can be edited that we care about
+		// TODO need to set the DefaultMutableNode's object as well, to prevent it from calling Displayable.toString() again and appending another number
+		// --> maybe need to findNode(edited_pt, this), then set its userObject to the name String
+		return true;
+	}
+	
+	// TODO where in here does the displayable get set as the object in its containing ProjectThing, if any?
+	private boolean transferDisplayable(Displayable source_d) {
+		Utils.log2("transferring Displayable '" + source_d.getTitle() + "' from '" + ProjectTree.getHumanFacingNameFromProject(source_d.getProject()) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project));
+		// need to clone the source_pt's displayable, exactly
+		boolean copy_id = true;
+		Displayable this_pt_d = source_d.clone(this.project, copy_id);
+		if (this_pt_d instanceof ZDisplayable) {
+			this.project.getRootLayerSet().add((ZDisplayable) this_pt_d);
+			this.rebuild();
+		} else {
+			// this case handles Profile Displayables and DLabels, which live inside Layer objects
+			long source_d_layer_id = source_d.getLayer().getId();
+			Layer this_dest_layer = this.project.getRootLayerSet().getLayer(source_d_layer_id); // ASSUME layers are the same between the projects
+			if (null == this_dest_layer) {
+				Utils.log2("WARNING: can't find local destination layer with id=" + Long.toString(source_d_layer_id) + " for source Displayable with id=" + Long.toString(source_d.getId()) + " from source project '" + ProjectTree.getHumanFacingNameFromProject(source_d.getProject()) + "', merge may be corrupted.");
+				return false;
+			}
+			this_pt_d.setEditedYN(false, false);
+			this_dest_layer.add(this_pt_d);
+			// Display.repaint(original.getLayer(), displ, 5);
+		}
+		return true;
+	}
+	private boolean transferProjectThing(ProjectThing source_pt) { 
+		Project source_p = source_pt.getProject();
+		Utils.log2("transferring ProjectThing '" + source_pt.getTitle() + "' with id=" + source_pt.getId() + " from '" + ProjectTree.getHumanFacingNameFromProject(source_p) + "' to '" + ProjectTree.getHumanFacingNameFromProject(this.project) + "'");
+		ProjectThing source_pt_parent, this_pt_parent;
+		source_pt_parent = (ProjectThing) source_pt.getParent();	
+		if (null == source_pt_parent) { 
+			Utils.log2("WARNING: source_pt '" + source_pt.getTitle() + "' has null parent, merge may be corrupted."); 
+			return false; 
+		}
+		long this_pt_parent_id = source_pt_parent.getId();
+		this_pt_parent = this.project.find(this_pt_parent_id); 
+		if (null == this_pt_parent) { 
+			Utils.log2("WARNING: can't find parent with id=" + Long.toString(this_pt_parent_id) + "' in current project for ProjectThing '" + source_pt.getTitle() + "', merge may be corrupted."); 
+			return false; 
+		}
+		// /motivated by the ProjectThing.sub
+		// WARNING the templates between the two projects are assumed to be the same TODO check this before running mergeMany
+		String source_pt_tt = source_pt.getTemplate().getType();
+		TemplateThing this_pt_template = (TemplateThing) this.project.getTemplateThing(source_pt_tt); 
+		if (null == this_pt_template) { 
+			Utils.log2("WARNING: can't find template of type '" + source_pt_tt + "' for source ProjectThing with id=" + Long.toString(source_pt.getId()) + " in project '" + source_p.getTitle() + "', merge may be corrupted."); 
+			return false; 
+		}
+		Object source_pt_ob = source_pt.getObject();
+		Object this_pt_ob = source_pt_ob; // if it's not a Displayable, it's a title string, and Strings are immutable, so no fear of it getting changed on us.
+		if (source_pt_ob instanceof Displayable) {
+			Displayable source_pt_d = (Displayable) source_pt_ob;
+			this.transferDisplayable(source_pt_d);
+		}
+		ProjectThing this_pt = new ProjectThing(this_pt_template, this.project, source_pt.getId(), this_pt_ob, new ArrayList(), new HashMap());
+		this_pt_parent.addChild(this_pt, null == this_pt_parent.getChildren() ? 0 : this_pt_parent.getChildren().size());
+		return true;
+	}
+	// TODO this code is going to be common between created & deleted events, factor out methods for them both to use?
+	private boolean transferProjectThingR(long topmost_pt_id, Project source_p, ArrayList<Long> transferred_pt_ids) {
+		if (null == transferred_pt_ids) transferred_pt_ids = new ArrayList<Long>();
+		ProjectThing source_pt = source_p.find(topmost_pt_id);
+		if (!this.transferProjectThing(source_pt)) {
+			return false;
+		}
+		transferred_pt_ids.add(topmost_pt_id);
+		if (null != source_pt.getChildren()) {
+			ArrayList<ProjectThing> source_pt_children = source_pt.getChildren();
+			for (ProjectThing source_pt_child : source_pt_children) {
+				if (!this.transferProjectThingR(source_pt_child.getId(), source_p, transferred_pt_ids)) return false;
+			}
+		}
+		return true;
+	}
+	
+	/** recursively look in the passed-in IDsInProjects structure for parent of passed-in pt_id in Project p */
+	private static long getTopMostParentR(long pt_id, Project p, IDsInProjects ids_in_ps) {
+		// if pt_id's parent is in the list, call getTopMostFromR on the parent; otherwise, return pt_id
+		ProjectThing pt = p.find(pt_id);
+		if (null != pt || !ids_in_ps.entryExists(pt_id, p)) { // only the entry into the function actually needs the second check
+			Thing t = pt.getParent();
+			if (null != t && (t instanceof ProjectThing)) {
+				ProjectThing parent_pt = (ProjectThing) t;
+				long parent_id = parent_pt.getId();
+				if (ids_in_ps.entryExists(parent_id, p)) {
+					return ProjectTree.getTopMostParentR(parent_id, p, ids_in_ps);
+				}
+			}
+			return pt_id;
+		}
+		return -1; // this is an error condition TODO warning
+	}
+	
+	private static String getHumanFacingNameFromProject(Project p) { // a 'real' way to do this, elsewhere?
+		return ((ProjectThing) p.getProjectTree().getRootNode().getUserObject()).getTitle();
+	}
+	/** recursively get all child ProjectThing's ids	 */ // TODO put in ProjectThing?
+	private static void getChildrenIDsR(ProjectThing pt, ArrayList<Long> al_ptids) {
+		if (null != pt) {
+			if (null == al_ptids) al_ptids = new ArrayList<Long>();
+			al_ptids.add(pt.getId()); // why not a type mismatch here, getId() returns long, add expects Long? Some implicit type conversion?
+			ArrayList<ProjectThing> pt_children = pt.getChildren();
+			if (null != pt_children) {
+				for (final ProjectThing child_pt : pt_children) {
+					getChildrenIDsR(child_pt, al_ptids);
+				}
+			}
+		}		
+	}
+	// this hash of arrays could be abstracted for general use...
+	private static class IDsInProjects {
+		Hashtable<Long, ArrayList<Project>> ht_ids_in_projects = new Hashtable<Long, ArrayList<Project>>();
+		public boolean addEntry(long id, Project p) {
+			ArrayList<Project> al_p = null;
+			if (!ht_ids_in_projects.containsKey(id)) {
+				al_p = new ArrayList<Project>();
+				ht_ids_in_projects.put(id, al_p);
+			}
+			al_p = ht_ids_in_projects.get(id);
+			if (al_p.contains(p)) {
+				Utils.log2("WARNING: during call to ProjectTree.IDsInProjects.addEntry, duplicate key='" + Long.toString(id) + "', project='" + (null != p ? p.toString() : "null") + "'");
+				return false;
+			} else {
+				al_p.add(p);
+				return true;
+			}
+		}
+		/**side effect: if this would leave the ArrayList empty, also remove the ht_ids_in_projects <id,ArrayList<project> Hashtable entry */
+		public boolean removeEntry(long id, Project p) {
+			if (!ht_ids_in_projects.containsKey(id)) {
+				Utils.log2("WARNING: during call to ProjectTree.IDsInProjects.removeEntry, missing key='" + Long.toString(id) + "', project='" + (null != p ? p.toString() : "null") + "'");
+				return false;
+			}
+			ArrayList<Project> al_p = ht_ids_in_projects.get(id);
+			if (!al_p.remove(p)) {
+				Utils.log2("WARNING: during call to ProjectTree.IDsInProjects.removeEntry, key'" + Long.toString(id) + "', missing project='" + (null != p ? p.toString() : "null") + "'");
+				return false;
+			}
+			if (al_p.size() == 0) {
+				ht_ids_in_projects.remove(id);
+			}
+			return true;
+		}
+		public boolean entryExists(long id, Project p) {
+			return (ht_ids_in_projects.containsKey(id) && ht_ids_in_projects.get(id).contains(p));
+		}
+	}
+	/** returns null if childThing not found in ProjectTree or if the childOb is the user object of the root ProjectThing in the ProjectTree */
+	public String getParentTitle(Object childOb) {
+		// find the Thing that holds it (code from duplicateChild())
+		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
+		ProjectThing root_thing = (ProjectThing)root.getUserObject();
+		Thing child = root_thing.findChild(childOb);
+		if (null == child) {
+			Utils.log("ProjectTree.getParentTitle: node not found for child " + child);
+			return null;
+		}
+		return child.getParent().getTitle();
+	}
+	// end davi-experimenting block
 }

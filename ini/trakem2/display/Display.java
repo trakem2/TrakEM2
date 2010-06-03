@@ -59,6 +59,7 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Line2D;
+import java.awt.image.BufferedImage;
 import java.awt.event.*;
 import java.util.*;
 import java.util.List;
@@ -72,6 +73,8 @@ import java.util.concurrent.Callable;
 import lenscorrection.DistortionCorrectionTask;
 import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.AffineModel3D;
+
+import ij.process.*;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
@@ -137,6 +140,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private int scroll_step = 1;
 
+	private boolean prepaint = true;
+	private boolean use_alt_color_cues = false;
+	public boolean getPrepaint() { return prepaint; };
+	
 	/** Keep track of all existing Display objects. */
 	static private Vector<Display> al_displays = new Vector<Display>();
 	/** The currently focused Display, if any. */
@@ -467,7 +474,68 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		});
 	}
-
+	/** Export current field of view as a stack accessible to the rest of ImageJ. */
+	/* little script to test, in Jython interpreter:
+	 from ij import IJ, ImageStack, ImagePlus
+	 from ini.trakem2.display import Display, DisplayCanvas
+	 display = Display.getFront()
+	 imp = display.fovToStack(80)
+	 imp.show()
+	 */
+	final public ImagePlus fovToStack(int aheadbehind) {
+		if (mode.getClass() == DefaultMode.class) {
+			final Layer current = Display.this.layer;
+			final ArrayList<DisplayCanvas.Screenshot> s = new ArrayList<DisplayCanvas.Screenshot>();
+			Layer now = current;
+			s.add(canvas.createScreenshot(current));
+			 
+			Layer prev = now.getParent().previous(now);
+			int i = 0;
+			Layer next = now.getParent().next(now);
+			while (now != next && i < aheadbehind) {
+				s.add(canvas.createScreenshot(next));
+				now = next;
+				next = now.getParent().next(now);
+				i++;
+			}
+			now = current;
+			i = 0;
+			while (now != prev && i < aheadbehind) {
+				s.add(0, canvas.createScreenshot(prev));
+				now = prev;
+				prev = now.getParent().previous(now);
+				i++;
+			}
+			
+			ImageStack imgstack = null;
+			for (final DisplayCanvas.Screenshot sc : s) {
+				BufferedImage img = canvas.paintOffscreen(sc.layer, sc.props.g_width, sc.props.g_height, sc.props.srcRect, sc.props.magnification,
+						  this.getActive(), sc.props.c_alphas, null, current.getProject().getLoader(),
+						  sc.props.hm, sc.props.blending_list, sc.props.mode, sc.props.graphics_source, false, sc.al_top);
+				// IJ.wait(1000);
+				if (null == imgstack) { 
+					ImagePlus imp = new ImagePlus("TrakEM2_FOV", img);
+					imgstack = imp.createEmptyStack();
+				}
+				ImageProcessor ip = new ColorProcessor((Image) img); // TODO check image type
+				// ip = ip.convertToByte(false);
+				Utils.log("daviFOVtoStack: adding slice" + sc.props);
+				imgstack.addSlice("daviFOVtoStack", ip);
+			}
+			return new ImagePlus("TrakEM2_FOV", imgstack);
+			/*
+			DisplayCanvas.Screenshot sc = canvas.createScreenshot(current);
+			BufferedImage img = canvas.paintOffscreen(layer, sc.props.g_width, sc.props.g_height, sc.props.srcRect, sc.props.magnification,
+					  this.getActive(), sc.props.c_alphas, null, current.getProject().getLoader(),
+					  sc.props.hm, sc.props.blending_list, sc.props.mode, sc.props.graphics_source, false, sc.al_top);
+			// IJ.wait(1000); // TODO fix this kludge...
+			return new ImagePlus("TrakEM2_FOV", img);
+			*/
+		} else return null;
+		
+		
+	}
+	
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
 	static public void createDisplay(final Project project, final Layer layer) {
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -2791,6 +2859,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate mipmaps (selected images)"); item.addActionListener(this); menu.add(item);
+		if (this.getProject().getProjectTree().hasRepeatable()) {
+			item = new JMenuItem("Repeat item create (davi-experimenting)"); item.addActionListener(this); menu.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SEMICOLON, 0, true));
+		}
 		popup.add(menu);
 
 		menu = new JMenu("Selection");
@@ -2825,6 +2897,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select incoming Connectors"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
+		item = new JMenuItem("Output .dot text (davi-experimenting)"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
 		menu.add(graph);
 		popup.add(menu);
@@ -2858,7 +2931,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return popup;
 	}
 
-	private final class GraphMenuListener implements ActionListener {
+		private final class GraphMenuListener implements ActionListener {
 		public void actionPerformed(ActionEvent ae) {
 			final String command = ae.getActionCommand();
 			final Collection<Displayable> sel = selection.getSelected();
@@ -2871,7 +2944,51 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
 			final HashSet<Displayable> to_select = new HashSet<Displayable>();
 
-			if (command.equals("Select outgoing Connectors")) {
+			
+			if (command.equals("Output .dot text (davi-experimenting)")) {
+				// this case is specific to our project -- we care only about how treelines connect to other treelines, and we know that
+				// every treeline has a parent, whose name we care about.
+				// TODO break this out into a separate file, say ProjectGraph.java
+				class GraphEdge {
+					Treeline origin, target;
+					Connector connector;
+					GraphEdge(Treeline o, Treeline t, Connector c) {
+						this.origin = o;
+						this.target = t;
+						this.connector = c;
+					}
+					String originParentName() {
+						return project.getProjectTree().getParentTitle(this.origin);
+					}
+					String targetParentName() {
+						return project.getProjectTree().getParentTitle(this.target);
+					}
+				}
+				
+				Set<Displayable> in_graph = new HashSet<Displayable>();
+				Set<GraphEdge> edges = new HashSet<GraphEdge>();
+				for (Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins(Treeline.class);
+					if (origins.isEmpty()) continue;
+					in_graph.addAll(origins);
+					// else, add all targets
+					for (Set<Displayable> targets : con.getTargets(Treeline.class)) {
+						in_graph.addAll(targets);
+						for (Displayable t : targets) {
+							for (Displayable o : origins) {
+								edges.add(new GraphEdge((Treeline) o, (Treeline) t, con));
+							}
+						}
+					}
+				}
+				Utils.log2("digraph t2 {");
+				for (GraphEdge ge : edges) {
+					Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
+				}
+				Utils.log2("}");
+				
+				return; // need to return to avoid changing selection
+			} else if (command.equals("Select outgoing Connectors")) {
 				for (final Connector con : connectors) {
 					Set<Displayable> origins = con.getOrigins();
 					origins.retainAll(sel);
@@ -3898,7 +4015,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				burro.addPostTask(new Runnable() { public void run() {
 					Display.this.getLayerSet().addChangeTreesStep();
 				}});
-		} else if (command.equals("Import labels as arealists...")) {
+/*		} else if (command.equals("Scale up (davi-experimenting)")) {
+				Display.this.getLayerSet().addChangeTreesStep();
+				Bureaucrat burro = project.getLoader().scaleUp(layer);
+				if (null != burro)
+					burro.addPostTask(new Runnable() { public void run() {
+						Display.this.getLayerSet().addChangeTreesStep();
+					}});
+*/		} else if (command.equals("Import labels as arealists...")) {
 			Display.this.getLayerSet().addChangeTreesStep();
 			Bureaucrat burro = project.getLoader().importLabelsAsAreaLists(layer, null, Double.MAX_VALUE, 0, 0.4f, false);
 			burro.addPostTask(new Runnable() { public void run() {
@@ -4101,6 +4225,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
 			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
 			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
+			gd.addCheckbox("Prepaint with lower resolution images", prepaint); // option added in davi-experimenting
+			gd.addCheckbox("Alternative layer color cues", layer.getParent().use_alt_color_cues); // davi-experimenting
+			gd.addSlider("Alt color cue desaturation span", 1, 100, layer.getParent().alt_color_cue_desaturation_span); //davi-experimenting
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -4131,6 +4258,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
 			layer.getParent().color_cues = gd.getNextBoolean();
 			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
+			prepaint = gd.getNextBoolean();
+			layer.getParent().use_alt_color_cues = gd.getNextBoolean();
+			layer.getParent().alt_color_cue_desaturation_span = gd.getNextNumber();
 			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
@@ -4687,6 +4817,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			project.getLoader().regenerateMipMaps(getLayerSet().getDisplayables(Patch.class));
 		} else if (command.equals("Regenerate mipmaps (selected images)")) {
 			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
+		} else if (command.equals("Repeat item create (davi-experimenting)")) {
+			canvas.relayCreateRepeatable();
 		} else if (command.equals("Tags...")) {
 			// get a file first
 			File f = Utils.chooseFile(null, "tags", ".xml");
@@ -5634,4 +5766,5 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			la.getParent().addTransformStepWithData(col);
 		}});
 	}
+	
 }
