@@ -2636,7 +2636,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
-			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), true);
 			exe.shutdown();
 			Display.repaint(getLayerSet());
 		}
