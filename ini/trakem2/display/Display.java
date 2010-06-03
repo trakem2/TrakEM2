@@ -4228,6 +4228,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addCheckbox("Prepaint with lower resolution images", prepaint); // option added in davi-experimenting
 			gd.addCheckbox("Alternative layer color cues", layer.getParent().use_alt_color_cues); // davi-experimenting
 			gd.addSlider("Alt color cue desaturation span", 1, 100, layer.getParent().alt_color_cue_desaturation_span); //davi-experimenting
+			gd.addCheckbox("Show inactive nodes", layer.getParent().show_inactive_nodes); // davi-experimenting
 			// --------
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
@@ -4261,6 +4262,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			prepaint = gd.getNextBoolean();
 			layer.getParent().use_alt_color_cues = gd.getNextBoolean();
 			layer.getParent().alt_color_cue_desaturation_span = gd.getNextNumber();
+			layer.getParent().show_inactive_nodes = gd.getNextBoolean();
 			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");

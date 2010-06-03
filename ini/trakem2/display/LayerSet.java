@@ -141,6 +141,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected int n_layers_color_cue = -1; // -1 means all
 	protected boolean use_alt_color_cues = true; // davi-experimenting
 	protected double alt_color_cue_desaturation_span = 10; //davi-experimenting
+	protected boolean show_inactive_nodes = true; // davi-experimenting
 
 	private Calibration calibration = new Calibration(); // default values
 
