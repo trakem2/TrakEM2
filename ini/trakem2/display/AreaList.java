@@ -808,81 +808,13 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	 *  */
 	public String getInfo() {
 		if (0 == ht_areas.size()) return "Empty AreaList " + this.toString();
-		Rectangle box = getBoundingBox(null);
-		float scale = 1.0f;
-		while (!getProject().getLoader().releaseToFit(2 * (long)(scale * (box.width * box.height)) + 1000000)) { // factor of 2, because a mask will be involved
-			scale /= 2;
-		}
-		double volume = 0;
-		double surface = 0;
-		final int w = (int)Math.ceil(box.width * scale);
-		final int h = (int)Math.ceil(box.height * scale);
-		BufferedImage bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-		Graphics2D g = bi.createGraphics();
-		//DataBufferByte buffer = (DataBufferByte)bi.getRaster().getDataBuffer();
-		byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
-
-		// prepare suitable transform
-		AffineTransform aff = (AffineTransform)this.at.clone();
-		AffineTransform aff2 = new AffineTransform();
-		//  A - remove translation
-		aff2.translate(-box.x, -box.y);
-		aff.preConcatenate(aff2);
-		//  B - scale
-		if (1.0f != scale) {
-			aff2.setToIdentity();
-			aff2.translate(box.width/2, box.height/2);
-			aff2.scale(scale, scale);
-			aff2.translate(-box.width/2, -box.height/2);
-			aff.preConcatenate(aff2);
-		}
-		// for each area, measure its area and its perimeter
-		for (final Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
-			// fetch Area
-			Area ob_area = entry.getValue();
-			long lid = entry.getKey();
-			if (UNLOADED == ob_area) ob_area = loadLayer(lid);
-			Area area2 = ob_area.createTransformedArea(aff);
-			// paint the area, filling mode
-			g.setColor(Color.white);
-			g.fill(area2);
-			double n_pix = 0;
-			// count white pixels
-			for (int i=0; i<pixels.length; i++) {
-				if (255 == (pixels[i]&0xff)) n_pix++;
-				// could set the pixel to 0, but I have no idea if that holds properly (or is fast at all) in automatically accelerated images
-			}
-			// debug: show me
-			// new ImagePlus("lid=" + lid, bi).show();
-			//
-
-			double thickness = layer_set.getLayer(lid).getThickness();
-			volume += n_pix * thickness;
-			// reset board (filling all, to make sure there are no rounding surprises)
-			g.setColor(Color.black);
-			g.fillRect(0, 0, w, h);
-			// now measure length of perimeter
-			ArrayList<ArrayList<Point>> al_paths = getPaths(lid);
-			double length = 0;
-			for (final ArrayList<Point> path : al_paths) {
-				Point p2 = path.get(0);
-				for (int i=path.size()-1; i>-1; i--) {
-					Point p1 = path.get(i);
-					length += p1.distance(p2);
-					p1 = p2;
-				}
-			}
-			surface += length * thickness;
-		}
-		// cleanup
-		pixels = null;
-		g = null;
-		bi.flush();
-		// correct scale
-		volume /= scale;
-		surface /= scale;
-		// remove pretentious after-comma digits on return:
-		return new StringBuilder("Volume: ").append(IJ.d2s(volume, 2)).append(" (cubic pixels)\nLateral surface: ").append(IJ.d2s(surface, 2)).append(" (square pixels)\n").toString();
+		final double[] m = measure();
+		return new StringBuilder("Volume: ").append(IJ.d2s(m[0], 2))
+					.append(" Lower Bound Surface: ").append(IJ.d2s(m[1], 2))
+					.append(" Upper Bound Surface Smoothed: ").append(IJ.d2s(m[2], 2))
+					.append(" Upper Bound Surface: ").append(IJ.d2s(m[3], 2))
+					.append(" Maximum diameter: ").append(IJ.d2s(m[4], 2))
+					.toString();
 	}
 
 	/** @param area is expected in world coordinates. */
@@ -1093,7 +1025,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	 *  All measures are approximate.
 	 *  [0] Volume: sum(area * thickness) for all sections
 	 *  [1] Lower Bound Surface: measure area per section, compute radius of circumference of identical area, compute then are of the sides of the truncated cone of height thickness, for each section. Plus top and bottom areas when visiting sections without a painted area.
-	 *  [2] Upper Bound Surface Smooted: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
+	 *  [2] Upper Bound Surface Smoothed: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
 	 *  [3] Upper Bound Surface: measure raw pixelated perimeter lengths per section, multiply by thickness to get lateral area. Plus top and bottoms.
 	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas. */
 	public double[] measure() {

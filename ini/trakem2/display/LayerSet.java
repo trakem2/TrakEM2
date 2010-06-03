@@ -1540,11 +1540,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Utils.log("Invalid first and/or last layers.");
 			return null;
 		}
-		// check that it will fit in memory
-		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
-			Utils.log("LayerSet.grab: Cannot fit an image stack of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
-			return null;
-		}
+		// Ensure some memory is free
+		project.getLoader().releaseToFit(r.width, r.height, type, 1.1f);
 		if (Layer.IMAGEPLUS == format) {
 			ImageStack stack = new ImageStack((int)(r.width*scale), (int)(r.height*scale));
 			for (int i=first; i<=last; i++) {

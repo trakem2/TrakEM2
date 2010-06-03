@@ -231,6 +231,7 @@ abstract public class Loader {
 	/** Give back to the other loaders the corresponding fraction of the heap that was taken by the destroyed loader. */
 	static private final void destroyingCache() {
 		synchronized (HEAPLOCK) {
+			if (0 == v_loaders.size()) return;
 			// At this point, the number of loaders is that of the remaining ones
 			final long max_bytes = (long)(MAX_MEMORY * heap_fraction) / v_loaders.size();
 			// Enlarge all others:
@@ -526,13 +527,11 @@ abstract public class Loader {
 
 	/** Measure whether there are at least 'n_bytes' free. */
 	static final protected boolean enoughFreeMemory(final long n_bytes) {
-		long free = getCurrentMemory();
-		if (free < n_bytes) {
-			return false; }
-		//if (Runtime.getRuntime().freeMemory() < n_bytes + MIN_FREE_BYTES) return false;
-		return n_bytes < MAX_MEMORY - getCurrentMemory();
+		return n_bytes < RUNTIME.freeMemory() + 128000000; // 128 Mb always free
 	}
 
+	/** Ensure there is at least width * height * factor * type{8-bit: 1; 16-bit: 3; 32-bit or RGB: 4}
+	 *  @return true if that much was released. If that much was already free, it will return false. */
 	public final boolean releaseToFit(final int width, final int height, final int type, float factor) {
 		long bytes = width * height;
 		switch (type) {
@@ -552,15 +551,17 @@ abstract public class Loader {
 		return releaseToFit((long)(bytes*factor));
 	}
 
-	/** Release enough memory so that as many bytes as passed as argument can be loaded. */
+	/** Release enough memory so that as many bytes as passed as argument can be loaded.
+	 *  @return true if that many have been released; but if less needed to be released,
+	 *  it will return false. */
 	public final boolean releaseToFit(final long n_bytes) {
 		if (n_bytes > MAX_MEMORY) {
 			Utils.log("WARNING: Can't fit " + n_bytes + " bytes in memory.");
 			// Try anyway
 			releaseAllCaches();
-			return false;
+			return true; // optimism!
 		}
-		return releaseMemory(n_bytes) >= n_bytes;
+		return releaseMemory(n_bytes) >= n_bytes; // will also release from other caches
 	}
 
 	/** Non-locking version (but locking for other loaders). */
@@ -748,6 +749,24 @@ abstract public class Loader {
 		return released;
 	}
 	
+	private final long releaseAndFlushOthers(final long min_free_bytes) {
+		if (1 == v_loaders.size()) return 0;
+		long released = 0;
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+			if (lo == this) continue;
+			synchronized (lo.db_lock) {
+				lo.lock();
+				try {
+					released += lo.mawts.removeAndFlushSome(min_free_bytes);
+					if (released >= min_free_bytes) return released;
+				} finally {
+					lo.unlock();
+				}
+			}
+		}
+		return released;
+	}
+	
 	@Deprecated
 	protected final long releaseMemory2() {
 		return releaseMemory2(MIN_FREE_BYTES, true);
@@ -779,8 +798,24 @@ abstract public class Loader {
 				Thread.yield();
 				// The cache shed less than min_free_bytes, and perhaps the system cannot take more:
 				if (!enoughFreeMemory(min_free_bytes)) {
-					Utils.log("Loader.releaseMemory: empty cache.\nPlease free up some memory.");
+					Utils.log("TrakEM: empty cache -- please free up some memory");
+					if (ij.WindowManager.getWindowCount() != Display.getDisplayCount()) {
+						Utils.log("For example, close other open images.");
+					}
 				}
+			}
+			
+			// The above may decide not to release anything, and thus fail to return and get here.
+			// mawts.ensureFree doesn't take into account actual used memory:
+			// it only considers whether the cache itself has reached its maximum.
+			// So add a sanity check, because other sources of images may interfere.
+			// Since RAM cannot be reliably estimated to be free,
+			// this is a weak attempt at actually releasing min_free_bytes
+			// when there are other images opened AND enoughFreeMemory is false.
+			// The check for other images is a weak reassurance that we are not allucinating.
+			if (!enoughFreeMemory(min_free_bytes) && ij.WindowManager.getWindowCount() != Display.getDisplayCount()) {
+				released += releaseAndFlushOthers(min_free_bytes);
+				if (released < min_free_bytes) released += mawts.removeAndFlushSome(min_free_bytes);
 			}
 		} catch (Throwable e) {
 			IJError.print(e);
@@ -2759,10 +2794,8 @@ while (it.hasNext()) {
 			final long n_bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
 			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
 
-			if (!releaseToFit(n_bytes)) { // locks on it's own
-				Utils.log("Not enough free RAM for a flat image.");
-				recoverOOME();
-			}
+			releaseToFit(n_bytes);
+
 			// go
 
 			BufferedImage bi = null;
@@ -2803,7 +2836,7 @@ while (it.hasNext()) {
 						al_zdispl.add(ob);
 					}
 				}
-				// order ZDisplayables by their stack order
+				// order ZDisplayables by their stack order TODO the code below doesn't do that
 				ArrayList al_zdispl2 = layer.getParent().getZDisplayables();
 				for (Iterator it = al_zdispl2.iterator(); it.hasNext(); ) {
 					Object ob = it.next();

@@ -41,6 +41,10 @@ public class Dispatcher {
 			try {
 				if (swing) SwingUtilities.invokeAndWait(run);
 				else run.run();
+			} catch (InterruptedException ie) {
+				Utils.log2("Sayonara!");
+				// buh! If the EDT dies, JVM is shutting down.
+				// If the dispatcher dies, it's been killed.
 			} catch (Throwable e) {
 				IJError.print(e);
 			}

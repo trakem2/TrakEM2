@@ -208,6 +208,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public final Vector<Display> getDisplays() {
 		return (Vector<Display>)al_displays.clone();
 	}
+	
+	static public final int getDisplayCount() {
+		return al_displays.size();
+	}
 
 	static private MouseListener frame_mouse_listener = new MouseAdapter() {
 		public void mouseReleased(MouseEvent me) {
@@ -698,6 +702,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// Tab 7: tool options
 		this.tool_options = new OptionPanel(); // empty
 		this.scroll_options = makeScrollPane(this.tool_options);
+		this.scroll_options.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		this.addTab("Tool options", this.scroll_options);
 
 		// Tab 8: annotations
