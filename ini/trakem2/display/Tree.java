@@ -1479,7 +1479,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 
 			final boolean untag = null != to_untag;
-			final Node target = untag ? to_untag : to_tag;
+			final Node<?> target = untag ? to_untag : to_tag;
 
 			try {
 
