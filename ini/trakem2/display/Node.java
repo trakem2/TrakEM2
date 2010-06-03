@@ -322,6 +322,25 @@ public abstract class Node<T> implements Taggable {
 			g.drawString("Y", (int)x -4, (int)y + 4); // TODO ensure Font is proper
 		}
 	}
+	
+	/** davi-experimenting, in order to get all nodes in the current layer painted, with the active Tree's nodes painted differently */
+	// slightly contorted, better to just edit method above, but would have ripple-out effects which could lead to merge difficulties down the road
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t, final boolean active) {
+		if (!active && null != parent && null != children && 1 == children.length) { // draw deselected nodes in the current layer in blue
+			final Point2D.Double po = t.transformPoint(this.x, this.y);
+			final float x = (float)((po.x - srcRect.x) * magnification);
+			final float y = (float)((po.y - srcRect.y) * magnification);
+			
+			g.setColor(Color.blue);
+			g.drawRect((int) x - 2, (int) y - 2, 5, 5);
+			g.setColor(Color.black);
+			g.drawRect((int) x - 1, (int) y - 1, 3, 3);
+			g.setColor(Color.blue);
+			g.fillRect((int) x, (int) y, 1, 1);
+		} else { // use the default color pattern 
+			paintHandle(g, srcRect, magnification, t);
+		}
+	}
 
 	/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.
 	 *  Non-recursive, avoids potential stack overflow. */

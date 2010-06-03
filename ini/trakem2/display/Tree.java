@@ -211,7 +211,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 							g.setComposite(c);
 						}
-						if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
+						if (active_layer.getParent().use_alt_color_cues) { // davi-experimenting
+							if (active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this, active);
+						} else { // original one-liner
+							if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
+						}
+						
 					}
 				}
 			}
