@@ -527,11 +527,7 @@ abstract public class Loader {
 
 	/** Measure whether there are at least 'n_bytes' free. */
 	static final protected boolean enoughFreeMemory(final long n_bytes) {
-		long free = getCurrentMemory();
-		if (free < n_bytes) {
-			return false; }
-		//if (Runtime.getRuntime().freeMemory() < n_bytes + MIN_FREE_BYTES) return false;
-		return n_bytes < MAX_MEMORY - getCurrentMemory();
+		return n_bytes < RUNTIME.freeMemory() + 128000000; // 128 Mb always free
 	}
 
 	/** Ensure there is at least width * height * factor * type{8-bit: 1; 16-bit: 3; 32-bit or RGB: 4}
@@ -753,6 +749,24 @@ abstract public class Loader {
 		return released;
 	}
 	
+	private final long releaseAndFlushOthers(final long min_free_bytes) {
+		if (1 == v_loaders.size()) return 0;
+		long released = 0;
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+			if (lo == this) continue;
+			synchronized (lo.db_lock) {
+				lo.lock();
+				try {
+					released += lo.mawts.removeAndFlushSome(min_free_bytes);
+					if (released >= min_free_bytes) return released;
+				} finally {
+					lo.unlock();
+				}
+			}
+		}
+		return released;
+	}
+	
 	@Deprecated
 	protected final long releaseMemory2() {
 		return releaseMemory2(MIN_FREE_BYTES, true);
@@ -784,8 +798,24 @@ abstract public class Loader {
 				Thread.yield();
 				// The cache shed less than min_free_bytes, and perhaps the system cannot take more:
 				if (!enoughFreeMemory(min_free_bytes)) {
-					Utils.log("Loader.releaseMemory: empty cache.\nPlease free up some memory.");
+					Utils.log("TrakEM: empty cache -- please free up some memory");
+					if (ij.WindowManager.getWindowCount() != Display.getDisplayCount()) {
+						Utils.log("For example, close other open images.");
+					}
 				}
+			}
+			
+			// The above may decide not to release anything, and thus fail to return and get here.
+			// mawts.ensureFree doesn't take into account actual used memory:
+			// it only considers whether the cache itself has reached its maximum.
+			// So add a sanity check, because other sources of images may interfere.
+			// Since RAM cannot be reliably estimated to be free,
+			// this is a weak attempt at actually releasing min_free_bytes
+			// when there are other images opened AND enoughFreeMemory is false.
+			// The check for other images is a weak reassurance that we are not allucinating.
+			if (!enoughFreeMemory(min_free_bytes) && ij.WindowManager.getWindowCount() != Display.getDisplayCount()) {
+				released += releaseAndFlushOthers(min_free_bytes);
+				if (released < min_free_bytes) released += mawts.removeAndFlushSome(min_free_bytes);
 			}
 		} catch (Throwable e) {
 			IJError.print(e);
