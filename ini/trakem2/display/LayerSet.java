@@ -2432,15 +2432,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** A set of unique tags, retrievable by their own identity. */
-	protected final Map<Integer,HashMap<Tag,Tag>> tags = new HashMap<Integer,HashMap<Tag,Tag>>();
+	protected final Map<Integer,HashMap<String,Tag>> tags = new HashMap<Integer,HashMap<String,Tag>>();
 
 	{
 		final Tag TODO = new Tag("TODO", KeyEvent.VK_T),
 				  UNCERTAIN_END = new Tag("Uncertain end", KeyEvent.VK_U);
-		final HashMap<Tag,Tag> m1 = new HashMap<Tag,Tag>(),
-							   m2 = new HashMap<Tag,Tag>();
-		m1.put(TODO, TODO);
-		m2.put(UNCERTAIN_END, UNCERTAIN_END);
+		final HashMap<String,Tag> m1 = new HashMap<String,Tag>(),
+							      m2 = new HashMap<String,Tag>();
+		m1.put(TODO.toString(), TODO);
+		m2.put(UNCERTAIN_END.toString(), UNCERTAIN_END);
 		tags.put(KeyEvent.VK_T, m1);
 		tags.put(KeyEvent.VK_U, m2);
 	}
@@ -2449,15 +2449,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public Tag putTag(final String tag, final int keyCode) {
 		if (null == tag) return null;
 		synchronized (tags) {
-			HashMap<Tag,Tag> ts = tags.get(keyCode);
+			HashMap<String,Tag> ts = tags.get(keyCode);
 			if (null == ts) {
-				ts = new HashMap<Tag,Tag>();
+				ts = new HashMap<String,Tag>();
 				tags.put(keyCode, ts);
 			}
 			final Tag t = new Tag(tag, keyCode);
 			final Tag existing = ts.get(t);
 			if (null == existing) {
-				ts.put(t, t);
+				ts.put(t.toString(), t);
 				return t;
 			} else {
 				return existing;
@@ -2468,8 +2468,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** If there aren't any tags for keyCode, returns an empty TreeSet. */
 	public TreeSet<Tag> getTags(final int keyCode) {
 		synchronized (tags) {
-			final HashMap<Tag,Tag> ts = tags.get(keyCode);
-			return new TreeSet<Tag>(null == ts ? Collections.EMPTY_SET : ts.keySet());
+			final HashMap<String,Tag> ts = tags.get(keyCode);
+			return new TreeSet<Tag>(null == ts ? Collections.EMPTY_SET : ts.values());
 		}
 	}
 
@@ -2517,9 +2517,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	public void removeTag(final Tag t) {
 		synchronized (tags) {
-			HashMap<Tag,Tag> ts = tags.get(t.getKeyCode());
+			HashMap<String,Tag> ts = tags.get(t.getKeyCode());
 			if (null == ts) return;
-			ts.remove(t);
+			ts.remove(t.toString());
 		}
 		for (final Displayable d : getDisplayables()) {
 			d.removeTag(t);
@@ -2532,7 +2532,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public void removeAllTags() {
 		// the easy and unperformant way ... I have better things to do
-		for (final HashMap<Tag,Tag> m : tags.values()) {
+		for (final HashMap<String,Tag> m : tags.values()) {
 			for (final Tag t : m.values()) {
 				removeTag(t);
 			}
@@ -2541,7 +2541,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public String exportTags() {
 		StringBuilder sb = new StringBuilder("<tags>\n");
-		for (final Map.Entry<Integer,HashMap<Tag,Tag>> e : tags.entrySet()) {
+		for (final Map.Entry<Integer,HashMap<String,Tag>> e : tags.entrySet()) {
 			final char key = (char)e.getKey().intValue();
 			for (final Tag t : e.getValue().values()) {
 				sb.append(" <tag key=\"").append(key).append("\" val=\"").append(t.toString()).append("\" />\n");
@@ -2551,7 +2551,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public void importTags(String path, boolean replace) {
-		HashMap<Integer,HashMap<Tag,Tag>> backup = new HashMap<Integer,HashMap<Tag,Tag>>(this.tags); // copy!
+		HashMap<Integer,HashMap<String,Tag>> backup = new HashMap<Integer,HashMap<String,Tag>>(this.tags); // copy!
 		InputStream istream = null;
 		try {
 			if (replace) removeAllTags();
