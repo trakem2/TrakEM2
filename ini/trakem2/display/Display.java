@@ -2431,7 +2431,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				tgenerate.setEnabled(trees.size() > 0);
 				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
 				tremove.setEnabled(trees.size() > 0);
-				final JMenuItem tconnectors = new JMenuItem("View table of outgoing/incomming connectors"); review.add(tconnectors);
+				final JMenuItem tconnectors = new JMenuItem("View table of outgoing/incoming connectors"); review.add(tconnectors);
 				ActionListener l = new ActionListener() {
 					public void actionPerformed(final ActionEvent ae) {
 						if (!Utils.check("Really " + ae.getActionCommand())) {
