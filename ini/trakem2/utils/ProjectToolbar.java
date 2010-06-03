@@ -58,7 +58,7 @@ public class ProjectToolbar implements MouseListener {
 	private ProjectToolbar() {}
 
 	/** Set macro buttons for TrakEM2 in ImageJ's toolbar */
-	static public void setProjectToolbar() {
+	static synchronized public void setProjectToolbar() {
 		if (null == instance) instance = new ProjectToolbar();
 		// check if macros are installed already
 		MacroInstaller installer = new MacroInstaller();
