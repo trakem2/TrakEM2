@@ -1552,7 +1552,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								else target.addTag(tag);
 								Display.repaint(layer_set);
 								layer_set.addDataEditStep(Tree.this);
-								updateViewData(untag ? to_untag : to_tag);
+								updateViewData(target);
 							}
 						});
 					}
@@ -1571,7 +1571,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								Display.repaint(layer_set);
 							}
 							layer_set.addDataEditStep(Tree.this);
-							updateViewData(untag ? to_untag : to_tag);
+							updateViewData(target);
 						}
 					});
 
