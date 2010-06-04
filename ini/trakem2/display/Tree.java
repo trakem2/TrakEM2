@@ -1439,8 +1439,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		setLastEdited(active);
 	}
 
-	static private Node to_tag = null;
-	static private Node to_untag = null;
+	static private Node<?> to_tag = null;
+	static private Node<?> to_untag = null;
 	static private boolean show_tag_dialogs = false;
 
 	@Override
@@ -1897,7 +1897,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			tndv.recreate(this.root);
 		}
 	}
-	protected void updateViewData(final Node<T> node) {
+	protected void updateViewData(final Node<?> node) {
 		if (null == tndv) return;
 		synchronized (tndv) {
 			tndv.updateData(node);
@@ -2152,7 +2152,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				Utils.revalidateComponent(frame);
 			}});
 		}
-		void updateData(final Node<T> node) {
+		void updateData(final Node<?> node) {
 			synchronized (nodedata) {
 				nodedata.remove(node);
 			}
