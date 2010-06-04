@@ -3577,15 +3577,16 @@ while (it.hasNext()) {
 				if (!IJ.isWindows()) {
 					if (fxml.exists()) {
 						if (!fxml.delete()) {
-							Utils.logAll("ERROR: could not delete existing XML file!");
+							Utils.logAll("ERROR: could not delete existing XML file!\nYour file was temporarily saved at " + ftmp.getName());
 							return null;
 						}
+						Thread.sleep(300); // wait 300 ms for the filesystem to not hiccup 
 						if (!ftmp.renameTo(fxml)) {
-							Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+							Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 							return null;
 						}
 					} else if (!ftmp.renameTo(fxml)) {
-						Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+						Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 						return null;
 					}
 				}
