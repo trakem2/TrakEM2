@@ -282,10 +282,21 @@ public class TMLHandler extends DefaultHandler {
 
 			// Spawn threads to recreate buckets, starting from the subset of displays to open
 			int n = Runtime.getRuntime().availableProcessors();
-			if (n > 1) n /= 2;
+			switch (n) {
+				case 1:
+					break;
+				case 2:
+				case 3:
+				case 4:
+					n--;
+					break;
+				default:
+					n -= 2;
+					break;
+			}
 			final ExecutorService exec = Utils.newFixedThreadPool(n, "TMLHandler-recreateBuckets");
 
-			final Set<Long> dlids = new HashSet();
+			final Set<Long> dlids = new HashSet<Long>();
 			final LayerSet layer_set = (LayerSet) root_lt.getObject();
 
 			final List<Future> fus = new ArrayList<Future>();
