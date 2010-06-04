@@ -1479,7 +1479,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 
 			final boolean untag = null != to_untag;
-			final Node target = untag ? to_untag : to_tag;
+			final Node<?> target = untag ? to_untag : to_tag;
 
 			try {
 
@@ -2636,7 +2636,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
-			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), true);
 			exe.shutdown();
 			Display.repaint(getLayerSet());
 		}
@@ -2720,11 +2720,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return m;
 	}
 
-	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incomming connectors. */
+	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incoming connectors. */
 	public List<Connector>[] findConnectors() throws Exception {
 		final HashMap<Node<T>,Collection<Displayable>> m = new HashMap<Node<T>,Collection<Displayable>>();
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
-		final ArrayList<Connector> incomming = new ArrayList<Connector>();
+		final ArrayList<Connector> incoming = new ArrayList<Connector>();
 		Process.progressive(root.getSubtreeNodes(),
 				     new TaskFactory<Node<T>,Object>() {
 					 public Callable<Object> create(final Node<T> nd) {
@@ -2734,15 +2734,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								a.transform(Tree.this.at);
 								final Collection<Displayable> col = layer_set.findZDisplayables(Connector.class, nd.la, a, false, false);
 								if (col.isEmpty()) return null;
-								// Outgoing or incomming?
+								// Outgoing or incoming?
 								for (final Connector c : (Collection<Connector>)(Collection)col) {
 									if (c.intersectsOrigin(a)) {
 										synchronized (outgoing) {
 											outgoing.add(c);
 										}
 									} else {
-										synchronized (incomming) {
-											incomming.add(c);
+										synchronized (incoming) {
+											incoming.add(c);
 										}
 									}
 								}
@@ -2750,7 +2750,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							 }
 						 };
 					 }});
-		return (List<Connector>[]) new List[]{outgoing, incomming};
+		return (List<Connector>[]) new List[]{outgoing, incoming};
 	}
 
 	@Override

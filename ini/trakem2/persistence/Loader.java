@@ -4321,11 +4321,27 @@ while (it.hasNext()) {
 	static private ExecutorService preloader = null;
 	static private Collection<FutureTask> preloads = new Vector<FutureTask>();
 
+	static private int num_preloader_threads = Math.min(4, Runtime.getRuntime().availableProcessors() -1);
+	
+	/** Set to zero to disable; maximum recommended is 4 if you have more than 4 CPUs. */
+	static public void setupPreloaderThreads(final int count) {
+		num_preloader_threads = count;
+		if (null != preloader) preloader.shutdownNow();
+		if (num_preloader_threads < 1) {
+			Utils.log("Disabling preloading threads.");
+			num_preloader_threads = 0;
+			return;
+		} else if (num_preloader_threads > 4) {
+			Utils.log("WARNING: setting preloader threads to more than the recommended maximum of " + Math.min(4, Runtime.getRuntime().availableProcessors() -1) + ": " + num_preloader_threads);
+		}
+		preloader = Utils.newFixedThreadPool(num_preloader_threads);
+	}
+	
+	/** Uses maximum 4 concurrent threads: higher thread number does not improve performance. */
 	static public final void setupPreloader(final ControlWindow master) {
+		if (num_preloader_threads < 1) return;
 		if (null == preloader) {
-			int n = Runtime.getRuntime().availableProcessors()-1;
-			if (0 == n) n = 1; // !@#$%^
-			preloader = Utils.newFixedThreadPool(n, "preloader");
+			preloader = Utils.newFixedThreadPool(num_preloader_threads, "preloader");
 		}
 	}
  
@@ -4334,22 +4350,25 @@ while (it.hasNext()) {
 		if (null != preloader) { preloader.shutdownNow(); preloader = null; }
 	}
 
-	/** Disabled when on low memory condition. */
+	/** Disabled when on low memory condition, or when num_preloader_threads is smaller than 1. */
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
-		if (low_memory_conditions) return;
+		if (low_memory_conditions || num_preloader_threads < 1) return;
 		if (null == preloader) setupPreloader(null);
+		else return;
 		synchronized (preloads) {
 			for (final FutureTask fu : preloads) fu.cancel(false);
 		}
 		preloads.clear();
-		preloader.submit(new Runnable() { public void run() {
-			for (final Patch p : patches) preload(p, mag, repaint);
-		}});
+		try {
+			preloader.submit(new Runnable() { public void run() {
+				for (final Patch p : patches) preload(p, mag, repaint);
+			}});
+		} catch (Throwable t) { Utils.log2("Ignoring error with preloading"); }
 	}
 	/** Returns null when on low memory condition. */
 	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
-		if (low_memory_conditions) return null;
-		final FutureTask[] fu = new FutureTask[1];
+		if (low_memory_conditions || num_preloader_threads < 1) return null;
+		final FutureTask<Image>[] fu = (FutureTask<Image>[])new FutureTask[1];
 		fu[0] = new FutureTask<Image>(new Callable<Image>() {
 			public Image call() {
 				//Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
@@ -4383,8 +4402,10 @@ while (it.hasNext()) {
 				return null;
 			}
 		});
-		preloads.add(fu[0]);
-		preloader.submit(fu[0]);
+		try {
+			preloads.add(fu[0]);
+			preloader.submit(fu[0]);
+		} catch (Throwable t) { Utils.log2("Ignoring error with preloading a Patch"); }
 		return fu[0];
 	}
 

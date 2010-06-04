@@ -20,6 +20,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Utils;
@@ -32,15 +33,15 @@ public class TreeConnectorsView {
 	private JFrame frame;
 	private TargetsTableModel outgoing_model = new TargetsTableModel(),
 				  incoming_model = new TargetsTableModel();
-	private Tree tree;
+	private Tree<?> tree;
 
-	public TreeConnectorsView(final Tree tree) {
+	public TreeConnectorsView(final Tree<?> tree) {
 		this.tree = tree;
 		update();
 		createGUI();
 	}
 
-	static public Bureaucrat create(final Tree tree) {
+	static public Bureaucrat create(final Tree<?> tree) {
 		return Bureaucrat.createAndStart(new Worker.Task("Opening connectors table") {
 			public void exec() {
 				new TreeConnectorsView(tree);
@@ -58,7 +59,7 @@ public class TreeConnectorsView {
 			this.i = i;
 			this.targets = new ArrayList<Displayable>(targets);
 		}
-		final Coordinate getCoordinate(int col) {
+		final Coordinate<Node<Float>> getCoordinate(int col) {
 			switch (col) {
 				case 0:
 					return connector.getCoordinateAtOrigin();
@@ -201,8 +202,10 @@ public class TreeConnectorsView {
 					this.rows.add(new Row(c, i++, targets));
 				}
 			}
-			fireTableDataChanged();
-			fireTableStructureChanged();
+			SwingUtilities.invokeLater(new Runnable() {public void run() {
+				fireTableDataChanged();
+				fireTableStructureChanged();
+			}});
 		}
 
 		public int getColumnCount() { return 2; }
