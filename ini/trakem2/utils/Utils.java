@@ -271,7 +271,7 @@ public class Utils implements ij.plugin.PlugIn {
 			return;
 		}
 		System.out.println(msg);
-		if (null != logger) logger.log(msg);
+		if (null != IJ.getInstance() && null != logger) logger.log(msg);
 		if (null != status) status.showStatus(msg);
 	}
 
