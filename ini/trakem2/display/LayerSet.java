@@ -90,11 +90,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	// the possible rotations
 	static public final int R90 = 9;
 	static public final int R270 = 10;
-	// the posible flips
+	// the possible flips
 	static public final int FLIP_HORIZONTAL = 11;
 	static public final int FLIP_VERTICAL = 12;
 
-	// postions in the stack
+	// positions in the stack
 	static public final int TOP = 13;
 	static public final int UP = 14;
 	static public final int DOWN = 15;
