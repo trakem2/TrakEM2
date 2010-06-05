@@ -346,32 +346,41 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		this.width = width;
 		this.height = height;
 	}
+	
+	protected final void xmlError(final String tag, final Object default_value) {
+		Displayable.xmlError(this, tag, default_value);
+	}
+	
+	static protected final void xmlError(final DBObject dbo, final String tag, final Object default_value) {
+		Utils.log("WARNING: missing XML attribute '" + tag + "' in " + dbo.getClass().getSimpleName() + " #" + dbo.getId() + "\n  --> using default value:" + default_value);
+	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
 	public Displayable(final Project project, final long id, final HashMap<String,String> ht, final HashMap<Displayable,String> ht_links) {
 		super(project, id);
-		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
-		for (final Map.Entry<String,String> entry : ht.entrySet()) {
-			final String key = entry.getKey();
-			final String data = entry.getValue();
-			try {
-				if (key.equals("width")) width = Float.parseFloat(data);
-				else if (key.equals("height")) height = Float.parseFloat(data);
-				else if (key.equals("transform")) {
-					final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
-					this.at.setTransform(Double.parseDouble(nums[0]), Double.parseDouble(nums[1]),
-							     Double.parseDouble(nums[2]), Double.parseDouble(nums[3]),
-							     Double.parseDouble(nums[4]), Double.parseDouble(nums[5]));
-					//Utils.log2("at: " + this.at);
-				} else if (key.equals("title")) {
-					if (null != data && !data.toLowerCase().equals("null")) {
-						this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
-					} else this.title = null;
-				}
-				else if (key.equals("style")) {
-					try {
+
+		try {
+			String data;
+			if (null != (data = ht.get("width"))) width = Float.parseFloat(data);
+			else xmlError("width", this.width);
+			if (null != (data = ht.get("height"))) height = Float.parseFloat(data);
+			else xmlError("height", this.height);
+			if (null != (data = ht.get("transform"))) {
+				final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
+				this.at.setTransform(Double.parseDouble(nums[0]), Double.parseDouble(nums[1]),
+						Double.parseDouble(nums[2]), Double.parseDouble(nums[3]),
+						Double.parseDouble(nums[4]), Double.parseDouble(nums[5]));
+			}
+			else xmlError("transform", this.at);
+			if (null != (data = ht.get("title"))) {
+				if (-1 == data.toLowerCase().lastIndexOf("null")) {
+					this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
+				} else this.title = null;
+			} else xmlError("title", this.title);
+			if (null != (data = ht.get("style"))) {
+				try {
 					// 1 - extract alpha
 					int i_start = data.indexOf("stroke-opacity:");
 					if (-1 == i_start) {
@@ -401,42 +410,39 @@ public abstract class Displayable extends DBObject implements Paintable  {
 						Utils.log2("Can't parse color for id=" + id);
 						this.color = Color.yellow;
 					}
-					// avoid recording this key for deletion, for the DLabel to read it
-					continue;
-					} catch (Exception es) {
-						if (null == this.color) this.color = Color.yellow;
-						Utils.log("ERROR at reading style: " + es);
-					}
+				} catch (Exception es) {
+					if (null == this.color) this.color = Color.yellow;
+					Utils.log("ERROR at reading style for #" + this.id + ": " + es);
 				}
-				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
-				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
-				else if (key.equals("links")) {
-					// This is hard one, must be stored until all objects exist and then processed
-					if (null != data && data.length() > 0) ht_links.put(this, data);
-				} else if (key.equals("composite")) {
-						compositeMode = Byte.parseByte(data);
-				} else if (key.equals("x")) {
-					x = Double.parseDouble(data); // this could be done with reflection, but not all, hence this dullness
-				} else if (key.equals("y")) {
-					y = Double.parseDouble(data);
-				} else if (key.equals("rot")) {
-					rot = Double.parseDouble(data);
-				}
-			} catch (Exception ea) {
-				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
-		}
+			// else xmlError("style"); -- style is not essential
+			if (null != (data = ht.get("locked"))) locked = data.trim().toLowerCase().equals("true");
+			if (null != (data = ht.get("visible"))) visible = data.trim().toLowerCase().equals("true");
+			if (null != (data = ht.get("links"))) {
+				// This is hard one, must be stored until all objects exist and then processed
+				if (data.length() > 0) ht_links.put(this, data);
+			}
+			if (null != (data = ht.get("composite"))) compositeMode = Byte.parseByte(data);
 
-		// support old versions:
-		if (this.at.isIdentity() && (0 != x || 0 != y || 0 != rot)) {
-			this.at.translate(x, y);
-			if (0 != rot) {
-				AffineTransform at2 = new AffineTransform();
-				at2.rotate(Math.toRadians(rot), x + width/2, y + height/2);
-				this.at.preConcatenate(at2);
+			// for backward compatibility to VERY old versions
+			if (this.at.isIdentity()) {
+				double x=0, y=0, rot=0;
+				if (null != (data = ht.get("x"))) x = Double.parseDouble(data);
+				if (null != (data = ht.get("y"))) y = Double.parseDouble(data);
+				if (null != (data = ht.get("rot"))) rot = Double.parseDouble(data);
+				if (0 != x || 0 != y || 0 != rot) {
+					this.at.translate(x, y);
+					if (0 != rot) {
+						AffineTransform at2 = new AffineTransform();
+						at2.rotate(Math.toRadians(rot), x + width/2, y + height/2);
+						this.at.preConcatenate(at2);
+					}
+					// scaling in old versions will be lost
+				}
 			}
+		} catch (Exception ea) {
+			Utils.log("ERROR: failed to read XML attributes for #" + this.id + ": " + ea);
 		}
-		// scaling in old versions will be lost
 	}
 
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
@@ -536,14 +542,17 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return getBoundingBox(null);
 	}
 
-	/** Will fill bounding box values into given rectangle  -- only that part of this object showing in the given layer will be included in the box. */
+	/** Will fill bounding box values into given rectangle  -- only that part of this object showing in the given layer will be included in the box.
+	 *  If @param r is null, returns a new Rectangle; else, sets the bounds into @param r and returns it.
+	 *  If there aren't any bounds for this object at @param layer, returns either @param r with zero width and zero height, or a new Rectangle with zero width and zero height.
+	 *  Never returns null. */
 	public Rectangle getBounds(final Rectangle r, final Layer layer) {
 		return getBoundingBox(r);
 	}
 
 	/** Bounding box of the transformed data. Saves one Rectangle allocation, returns the same Rectangle, modified (or a new one if null). */
 	public Rectangle getBoundingBox(final Rectangle r) {
-		return getBounds(null != r ? r : new Rectangle());
+		return getBounds(null == r ? new Rectangle() : r);
 	}
 
 	/** Bounding box of the transformed data (or 0,0,0,0 when no data).

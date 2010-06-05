@@ -23,57 +23,52 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import ij.gui.GenericDialog;
-import ij.measure.Calibration;
 import ij.ImagePlus;
 import ij.ImageStack;
-
+import ij.gui.GenericDialog;
+import ij.measure.Calibration;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
+import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
-import java.util.concurrent.Callable;
-import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.Thing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Arrays;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.Iterator;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Set;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Hashtable;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
 
-import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.InputSource;
-import org.xml.sax.Attributes;
-import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
-import java.io.InputStream;
+import javax.xml.parsers.SAXParserFactory;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.helpers.DefaultHandler;
 
 
 /** A LayerSet is a container for a list of Layer.
@@ -95,11 +90,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	// the possible rotations
 	static public final int R90 = 9;
 	static public final int R270 = 10;
-	// the posible flips
+	// the possible flips
 	static public final int FLIP_HORIZONTAL = 11;
 	static public final int FLIP_VERTICAL = 12;
 
-	// postions in the stack
+	// positions in the stack
 	static public final int TOP = 13;
 	static public final int UP = 14;
 	static public final int DOWN = 15;
@@ -113,8 +108,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
 	static public final String[] ROTATIONS = new String[]{"90 right", "90 left", "Flip horizontally", "Flip vertically"};
 
-	private float layer_width, // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
-				  layer_height;
+	private float layer_width = 5000, // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
+				  layer_height = 5000;
 	private double rot_x;
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
@@ -129,8 +124,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
 
-	/** The scaling applied to the Layers when painting them for presentation as a LayerStack. If -1, automatic mode (default) */
-	private double virtual_scale = -1;
 	/** The maximum size of either width or height when virtuzaling pixel access to the layers.*/
 	private int max_dimension = 1024;
 	private boolean virtualization_enabled = false;
@@ -139,6 +132,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean paint_arrows = true;
 	protected boolean paint_edge_confidence_boxes = true;
 	protected int n_layers_color_cue = -1; // -1 means all
+	protected boolean prepaint = true;
 
 	private Calibration calibration = new Calibration(); // default values
 
@@ -160,7 +154,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Reconstruct from the database. */
-	public LayerSet(Project project, long id, String title, float width, float height, double rot_x, double rot_y, double rot_z, float layer_width, float layer_height, boolean locked, int shapshots_mode, AffineTransform at) {
+	public LayerSet(Project project, long id, String title, float width, float height, double rot_x, double rot_y, double rot_z, float layer_width, float layer_height, boolean locked, int snapshots_mode, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.rot_x = rot_x;
 		this.rot_y = rot_y;
@@ -173,44 +167,37 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Reconstruct from an XML entry. */
-	public LayerSet(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
+	public LayerSet(final Project project, final long id, final HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("layer_width")) {
-				this.layer_width = Float.parseFloat(data);
-			} else if (key.equals("layer_height")) {
-				this.layer_height = Float.parseFloat(data);
-			} else if (key.equals("rot_x")) {
-				this.rot_x = Double.parseDouble(data);
-			} else if (key.equals("rot_y")) {
-				this.rot_y = Double.parseDouble(data);
-			} else if (key.equals("rot_z")) {
-				this.rot_z = Double.parseDouble(data);
-			} else if (key.equals("snapshots_quality")) {
-				snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("snapshots_mode")) {
-				String smode = data.trim();
-				for (int i=0; i<snapshot_modes.length; i++) {
-					if (smode.equals(snapshot_modes[i])) {
-						snapshots_mode = i;
-						break;
-					}
+		String data;
+		if (null != (data = ht_attributes.get("layer_width"))) this.layer_width = Float.parseFloat(data);
+		else xmlError("layer_width", this.layer_width);
+		if (null != (data = ht_attributes.get("layer_height"))) this.layer_height = Float.parseFloat(data);
+		else xmlError("layer_height", this.layer_height);
+		if (null != (data = ht_attributes.get("rot_x"))) this.rot_x = Double.parseDouble(data);
+		else xmlError("rot_x", this.rot_x);
+		if (null != (data = ht_attributes.get("rot_y"))) this.rot_y = Double.parseDouble(data);
+		else xmlError("rot_y", this.rot_y);
+		if (null != (data = ht_attributes.get("rot_z"))) this.rot_y = Double.parseDouble(data);
+		else xmlError("rot_z", this.rot_z);
+		if (null != (data = ht_attributes.get("snapshots_quality"))) snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("snapshots_mode"))) {
+			final String smode = data.trim();
+			for (int i=0; i<snapshot_modes.length; i++) {
+				if (smode.equals(snapshot_modes[i])) {
+					snapshots_mode = i;
+					break;
 				}
-			} else if (key.equals("color_cues")) {
-				color_cues = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("n_layers_color_cue")) {
-				n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
-				if (n_layers_color_cue < -1) n_layers_color_cue = -1;
-			} else if (key.equals("paint_arrows")) {
-				paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("paint_edge_confidence_boxes")) {
-				paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
 			}
-			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
+		if (null != (data = ht_attributes.get("color_cues"))) color_cues = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("n_layers_color_cue"))) {
+			n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
+			if (n_layers_color_cue < -1) n_layers_color_cue = -1;
+		}
+		if (null != (data = ht_attributes.get("paint_arrows"))) paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("paint_edge_confidence_boxes"))) paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("prepaint"))) prepaint = Boolean.valueOf(data.trim().toLowerCase());
 	}
 
 	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
@@ -1138,6 +1125,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("n_layers_color_cue=\"").append(n_layers_color_cue).append("\"\n")
 		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
 		       .append(in).append("paint_edge_confidence_boxes=\"").append(paint_edge_confidence_boxes).append("\"\n")
+		       .append(in).append("prepaint=\"").append(prepaint).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");

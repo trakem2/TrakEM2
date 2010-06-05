@@ -106,20 +106,18 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	public Pipe(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
-		for (final Map.Entry<String,String> entry : ht.entrySet()) {
-			final String key = entry.getKey();
-			final String data = entry.getValue();
-			if (key.equals("d")) {
+		String data;
+		if (null != (data = ht.get("d"))) {
 				// parse the points
 				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				ArrayList al_p_r = new ArrayList();
-				ArrayList al_p_l = new ArrayList();// needs shifting, inserting one point at the beginning if not closed.
+				ArrayList<String> al_p = new ArrayList<String>();
+				ArrayList<String> al_p_r = new ArrayList<String>();
+				ArrayList<String> al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
 				// sequence is: M p[0],p[1] C p_r[0],p_r[1] p_l[0],p_l[1] and repeat without the M, and finishes with the last p[0],p[1]. If closed, appended at the end is p_r[0],p_r[1] p_l[0],p_l[1]
 				// first point:
 				int i_start = data.indexOf('M');
 				int i_end = data.indexOf('C');
-				String point = data.substring(i_start+1, i_end).trim();
+				final String point = data.substring(i_start+1, i_end).trim();
 				al_p.add(point);
 				boolean go = true;
 				while (go) {
@@ -172,19 +170,20 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					p_r[0][i] = Double.parseDouble(sp[0]);
 					p_r[1][i] = Double.parseDouble(sp[1]);
 				}
-			} else if (key.equals("layer_ids")) {
-				// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
-				String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
-				this.p_layer = new long[layer_ids.length];
-				for (int i=0; i<layer_ids.length; i++) {
-					this.p_layer[i] = Long.parseLong(layer_ids[i]);
-				}
-			} else if (key.equals("p_width")) {
-				String[] widths = data.replaceAll(" ", "").trim().split(",");
-				this.p_width = new double[widths.length];
-				for (int i=0; i<widths.length; i++) {
-					this.p_width[i] = Double.parseDouble(widths[i]);
-				}
+		}
+		if(null != (data = ht.get("layer_ids"))) {
+			// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
+			final String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
+			this.p_layer = new long[layer_ids.length];
+			for (int i=0; i<layer_ids.length; i++) {
+				this.p_layer[i] = Long.parseLong(layer_ids[i]);
+			}
+		}
+		if (null != (data = ht.get("p_width"))) {
+			final String[] widths = data.replaceAll(" ", "").trim().split(",");
+			this.p_width = new double[widths.length];
+			for (int i=0; i<widths.length; i++) {
+				this.p_width[i] = Double.parseDouble(widths[i]);
 			}
 		}
 		// finish up

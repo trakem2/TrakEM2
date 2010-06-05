@@ -146,31 +146,23 @@ public final class Patch extends Displayable implements ImageData {
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
-			final String key = entry.getKey();
-			final String data = entry.getValue();
-			if (key.equals("type")) {
-				this.type = Integer.parseInt(data);
-			} else if (key.equals("min")) {
-				this.min = Double.parseDouble(data);
-				hasmin = true;
-			} else if (key.equals("max")) {
-				this.max = Double.parseDouble(data);
-				hasmax = true;
-			} else if (key.equals("o_width")) {
-				this.o_width = Integer.parseInt(data);
-			} else if (key.equals("o_height")) {
-				this.o_height = Integer.parseInt(data);
-			} else if (key.equals("pps")) {
-				String path = data;
-				if (FSLoader.isRelativePath(path)) {
-					path = project.getLoader().getParentFolder() + path;
-				}
-				project.getLoader().setPreprocessorScriptPathSilently(this, path);
-			} else if (key.equals("original_path")) {
-				this.original_path = data;
-			}
+		String data;
+		if (null != (data = ht_attributes.get("type"))) this.type = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("min"))) {
+			this.min = Double.parseDouble(data);
+			hasmin = true;
 		}
+		if (null != (data = ht_attributes.get("max"))) {
+			this.max = Double.parseDouble(data);
+			hasmax = true;
+		}
+		if (null != (data = ht_attributes.get("o_width"))) this.o_width = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("o_height"))) this.o_height = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("pps"))) {
+			if (FSLoader.isRelativePath(data)) data = project.getLoader().getParentFolder() + data;
+			project.getLoader().setPreprocessorScriptPathSilently(this, data);
+		}
+		if (null != (data = ht_attributes.get("original_path"))) this.original_path = data;
 
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
@@ -202,14 +194,13 @@ public final class Patch extends Displayable implements ImageData {
 					// Some values, to survive:
 					min = 0;
 					max = Patch.getMaxMax(this.type);
-					Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+					Utils.log("WARNING could not restore min and max from image file for Patch #" + this.id + ", and they are not present in the XML file.");
 				} else {
 					ip.resetMinAndMax(); // finds automatically reasonable values
 					setMinAndMax(ip.getMin(), ip.getMax());
 				}
 			}
 		}
-		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
 	/** The original width of the pixels in the source image file. */

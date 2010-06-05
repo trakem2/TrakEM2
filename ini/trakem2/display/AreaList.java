@@ -113,7 +113,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Reconstruct from XML. */
-	public AreaList(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
+	public AreaList(final Project project, final long id, HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// read the fill_paint
 		Object ob_data = ht_attributes.get("fill_paint");

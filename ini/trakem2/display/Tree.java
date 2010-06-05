@@ -245,11 +245,20 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Rectangle getBounds(final Rectangle tmp, final Layer layer) {
 		synchronized (node_layer_map) {
 			final Collection<Node<T>> nodes = node_layer_map.get(layer);
-			if (null == nodes) return null;
-			Rectangle r = getBounds(nodes);
-			if (null == r) return null;
-			if (null != tmp) tmp.setRect(r); // it's expected
-			return r;
+			if (null == nodes) {
+				if (null == tmp) return new Rectangle(); // 0 width and 0 height: no data
+				tmp.setBounds(0, 0, 0, 0);
+				return tmp;
+			}
+			final Rectangle r = getBounds(nodes);
+			if (null == tmp) {
+				if (null == r) return new Rectangle();
+				return r;
+			} else {
+				if (null == r) tmp.setRect(0, 0, 0, 0);
+				else tmp.setRect(r);
+				return tmp;
+			}
 		}
 	}
 
