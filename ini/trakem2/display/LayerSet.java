@@ -23,57 +23,52 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import ij.gui.GenericDialog;
-import ij.measure.Calibration;
 import ij.ImagePlus;
 import ij.ImageStack;
-
+import ij.gui.GenericDialog;
+import ij.measure.Calibration;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
+import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
-import java.util.concurrent.Callable;
-import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.Thing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.event.KeyEvent;
-import java.awt.event.MouseEvent;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.HashMap;
-import java.util.Arrays;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import java.util.Iterator;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.Set;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Hashtable;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+import java.util.concurrent.Callable;
 
-import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.InputSource;
-import org.xml.sax.Attributes;
-import javax.xml.parsers.SAXParserFactory;
 import javax.xml.parsers.SAXParser;
-import java.io.InputStream;
+import javax.xml.parsers.SAXParserFactory;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.helpers.DefaultHandler;
 
 
 /** A LayerSet is a container for a list of Layer.
