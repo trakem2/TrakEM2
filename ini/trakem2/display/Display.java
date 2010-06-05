@@ -59,6 +59,7 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Line2D;
+import java.awt.image.BufferedImage;
 import java.awt.event.*;
 import java.util.*;
 import java.util.List;
@@ -915,7 +916,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private class ToolbarPanel extends Canvas implements MouseListener {
+	private class ToolbarPanel extends JPanel implements MouseListener {
 		Method drawButton;
 		Field lineType;
 		Field SIZE;
@@ -947,8 +948,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			setMaximumSize(dim);
 		}
 		public void update(Graphics g) { paint(g); }
-		public void paint(Graphics g) {
+		public void paint(Graphics gr) {
 			try {
+				// Either extend the heavy-weight Canvas, or use an image to paint to.
+				// Otherwise, rearrangements of the layout while painting will result
+				// in incorrectly positioned toolbar buttons.
+				BufferedImage bi = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_RGB);
+				Graphics g = bi.getGraphics();
 				g.setColor(Color.white);
 				g.fillRect(0, 0, getWidth(), getHeight());
 				int i = 0;
@@ -967,6 +973,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				for (; i<18; i++) {
 					drawButton.invoke(toolbar, g, i);
 				}
+				gr.drawImage(bi, 0, 0, null);
+				bi.flush();
+				g.dispose();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
