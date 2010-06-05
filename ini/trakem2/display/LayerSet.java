@@ -132,6 +132,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean paint_arrows = true;
 	protected boolean paint_edge_confidence_boxes = true;
 	protected int n_layers_color_cue = -1; // -1 means all
+	protected boolean prepaint = true;
 
 	private Calibration calibration = new Calibration(); // default values
 
@@ -166,12 +167,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Reconstruct from an XML entry. */
-	public LayerSet(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
+	public LayerSet(final Project project, final long id, final HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("layer_width")) {
 				this.layer_width = Float.parseFloat(data);
 			} else if (key.equals("layer_height")) {
@@ -201,6 +201,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
 			} else if (key.equals("paint_edge_confidence_boxes")) {
 				paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
+			} else if (key.equals("prepaint")) {
+				prepaint = Boolean.valueOf(data.trim().toLowerCase());
 			}
 			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
@@ -1131,6 +1133,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("n_layers_color_cue=\"").append(n_layers_color_cue).append("\"\n")
 		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
 		       .append(in).append("paint_edge_confidence_boxes=\"").append(paint_edge_confidence_boxes).append("\"\n")
+		       .append(in).append("prepaint=\"").append(prepaint).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
