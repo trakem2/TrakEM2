@@ -153,7 +153,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Reconstruct from the database. */
-	public LayerSet(Project project, long id, String title, float width, float height, double rot_x, double rot_y, double rot_z, float layer_width, float layer_height, boolean locked, int shapshots_mode, AffineTransform at) {
+	public LayerSet(Project project, long id, String title, float width, float height, double rot_x, double rot_y, double rot_z, float layer_width, float layer_height, boolean locked, int snapshots_mode, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.rot_x = rot_x;
 		this.rot_y = rot_y;
