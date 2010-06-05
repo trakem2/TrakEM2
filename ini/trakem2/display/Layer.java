@@ -57,8 +57,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	Bucket root = null;
 	private HashMap<Displayable,HashSet<Bucket>> db_map = null;
 
-	private double z;
-	private double thickness;
+	private double z = 0;
+	private double thickness = 0;
 
 	private LayerSet parent;
 
@@ -79,21 +79,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Reconstruct from XML file. */
-	public Layer(Project project, long id, HashMap ht_attributes) {
+	public Layer(final Project project, final long id, HashMap<String,String> ht_attributes) {
 		super(project, id);
 		this.parent = null;
 		// parse data
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("z")) {
-				this.z = Double.parseDouble(data);
-			} else if (key.equals("thickness")) {
-				this.thickness = Double.parseDouble(data);
-			}
-			// all the above could have been done with reflection since the fields have the same name
-		}
+		String data;
+		if (null != (data = ht_attributes.get("z"))) this.z = Double.parseDouble(data);
+		else Displayable.xmlError(this, "z", this.z);
+		if (null != (data = ht_attributes.get("thickness"))) this.thickness = Double.parseDouble(data);
+		else Displayable.xmlError(this, "thickness", this.thickness);
 	}
 
 	/** Creates a new Layer asking for z and thickness, and adds it to the parent and returns it. Returns null if the dialog was canceled.*/

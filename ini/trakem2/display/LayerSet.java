@@ -108,8 +108,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	static public final String[] ANCHORS =  new String[]{"north", "north east", "east", "southeast", "south", "south west", "west", "north west", "center"};
 	static public final String[] ROTATIONS = new String[]{"90 right", "90 left", "Flip horizontally", "Flip vertically"};
 
-	private float layer_width, // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
-				  layer_height;
+	private float layer_width = 5000, // the Displayable.width is for the representation, not for the dimensions of the LayerSet!
+				  layer_height = 5000;
 	private double rot_x;
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
@@ -169,43 +169,35 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Reconstruct from an XML entry. */
 	public LayerSet(final Project project, final long id, final HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
-		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
-			final String key = entry.getKey();
-			final String data = entry.getValue();
-			if (key.equals("layer_width")) {
-				this.layer_width = Float.parseFloat(data);
-			} else if (key.equals("layer_height")) {
-				this.layer_height = Float.parseFloat(data);
-			} else if (key.equals("rot_x")) {
-				this.rot_x = Double.parseDouble(data);
-			} else if (key.equals("rot_y")) {
-				this.rot_y = Double.parseDouble(data);
-			} else if (key.equals("rot_z")) {
-				this.rot_z = Double.parseDouble(data);
-			} else if (key.equals("snapshots_quality")) {
-				snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("snapshots_mode")) {
-				String smode = data.trim();
-				for (int i=0; i<snapshot_modes.length; i++) {
-					if (smode.equals(snapshot_modes[i])) {
-						snapshots_mode = i;
-						break;
-					}
+		String data;
+		if (null != (data = ht_attributes.get("layer_width"))) this.layer_width = Float.parseFloat(data);
+		else xmlError("layer_width", this.layer_width);
+		if (null != (data = ht_attributes.get("layer_height"))) this.layer_height = Float.parseFloat(data);
+		else xmlError("layer_height", this.layer_height);
+		if (null != (data = ht_attributes.get("rot_x"))) this.rot_x = Double.parseDouble(data);
+		else xmlError("rot_x", this.rot_x);
+		if (null != (data = ht_attributes.get("rot_y"))) this.rot_y = Double.parseDouble(data);
+		else xmlError("rot_y", this.rot_y);
+		if (null != (data = ht_attributes.get("rot_z"))) this.rot_y = Double.parseDouble(data);
+		else xmlError("rot_z", this.rot_z);
+		if (null != (data = ht_attributes.get("snapshots_quality"))) snapshots_quality = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("snapshots_mode"))) {
+			final String smode = data.trim();
+			for (int i=0; i<snapshot_modes.length; i++) {
+				if (smode.equals(snapshot_modes[i])) {
+					snapshots_mode = i;
+					break;
 				}
-			} else if (key.equals("color_cues")) {
-				color_cues = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("n_layers_color_cue")) {
-				n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
-				if (n_layers_color_cue < -1) n_layers_color_cue = -1;
-			} else if (key.equals("paint_arrows")) {
-				paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("paint_edge_confidence_boxes")) {
-				paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
-			} else if (key.equals("prepaint")) {
-				prepaint = Boolean.valueOf(data.trim().toLowerCase());
 			}
-			// the above would be trivial in Jython, and can be done by reflection! The problem would be in the parsing, that would need yet another if/else if/ sequence was any field to change or be added.
 		}
+		if (null != (data = ht_attributes.get("color_cues"))) color_cues = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("n_layers_color_cue"))) {
+			n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
+			if (n_layers_color_cue < -1) n_layers_color_cue = -1;
+		}
+		if (null != (data = ht_attributes.get("paint_arrows"))) paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("paint_edge_confidence_boxes"))) paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("prepaint"))) prepaint = Boolean.valueOf(data.trim().toLowerCase());
 	}
 
 	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
