@@ -42,7 +42,6 @@ import ini.trakem2.display.Line3D;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
