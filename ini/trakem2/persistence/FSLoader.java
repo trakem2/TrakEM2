@@ -2493,7 +2493,9 @@ public final class FSLoader extends Loader {
 				default:
 					// For color images: (considers URL as well)
 					IJ.redirectErrorMessages();
-					return patch.createImage(openImagePlus(path)); // considers c_alphas
+					final ImagePlus imp = openImagePlus(path);
+					if (null == imp) return null;
+					return patch.createImage(imp); // considers c_alphas
 			}
 		}
 	}
