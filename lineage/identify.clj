@@ -155,6 +155,8 @@
                          :med (get stats 0)
                          :correct (LineageClassifier/classify stats)}))
                     SATs)))]
+    ; Cleanup thread table
+    (LineageClassifier/flush)
 
     [matches
      (map (fn [match]
