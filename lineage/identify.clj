@@ -398,7 +398,7 @@
               query-vs (let [vs (.asVectorString3D p)]
                          (.calibrate vs (.. p getLayerSet getCalibrationCopy))
                          vs)
-              fids (extract-fiducial-points (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
+              fids (extract-fiducial-points (.getProject p)) ; (first (.. p getProject getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
               vs1 (register-vs query-vs fids (SAT-lib :fids))]
           (match-all SATs vs1 delta direct substring)))
       (report "Cannot identify a null pipe or polyline!"))))
