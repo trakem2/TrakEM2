@@ -235,7 +235,9 @@
     (.addMouseListener table
                        (proxy [MouseAdapter] []
                          (mousePressed [ev]
-                           (clear-agent-errors worker) ; I don't care what it was
+                           (try
+                             (clear-agent-errors worker) ; I don't care what it was
+                             (catch Exception e))
                            (send-off worker
                              (fn [_]
                                (let [match (indexed (.rowAtPoint table (.getPoint ev)))
