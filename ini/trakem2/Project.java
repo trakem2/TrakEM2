@@ -288,7 +288,7 @@ public class Project extends DBObject {
 		// else, relaunch
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
-				save();
+				if (loader.hasChanges()) save();
 			}
 		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
 	}
@@ -693,6 +693,7 @@ public class Project extends DBObject {
 		return "project";
 	}
 
+	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
 		String path = loader.save(this);
