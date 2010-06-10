@@ -608,7 +608,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Reroots at the point closest to the x,y,layer_id world coordinate.
 	 *  @return true on success. */
-	synchronized public boolean reRoot(float x, float y, Layer layer, double magnification) {
+	public boolean reRoot(float x, float y, Layer layer, double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -640,7 +640,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Split the Tree into new Tree at the point closest to the x,y,layer world coordinate.
 	 *  @return null if no node was found near the x,y,layer point with precision dependent on magnification. */
-	synchronized public List<Tree> splitNear(float x, float y, Layer layer, double magnification) {
+	public List<Tree> splitNear(float x, float y, Layer layer, double magnification) {
 		try {
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x, y);
@@ -2423,14 +2423,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	synchronized public Collection<Long> getLayerIds() {
-		final ArrayList<Long> ids = new ArrayList<Long>();
-		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
-		return ids;
+	public Collection<Long> getLayerIds() {
+		synchronized (node_layer_map) {
+			final ArrayList<Long> ids = new ArrayList<Long>(node_layer_map.size());
+			for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
+			return ids;
+		}
 	}
 	@Override
-	synchronized public Collection<Layer> getLayersWithData() {
-		return new ArrayList<Layer>(node_layer_map.keySet());
+	public Collection<Layer> getLayersWithData() {
+		synchronized (node_layer_map) {
+			return new ArrayList<Layer>(node_layer_map.keySet());
+		}
 	}
 
 	/** Returns an empty area when there aren't any nodes in @param layer. */
@@ -2475,53 +2479,55 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Retain the data within the layer range, and through out all the rest. */
 	@Override
-	synchronized public boolean crop(List<Layer> range) {
-		// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
-		final HashSet<Layer> keep = new HashSet<Layer>(range);
-		for (final Iterator<Map.Entry<Layer,Set<Node<T>>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
-			final Map.Entry<Layer,Set<Node<T>>> e = it.next();
-			if (keep.contains(e.getKey())) continue;
-			else {
-				// Else, remove the set of nodes for that layer
-				it.remove();
-				// ... and remove all nodes from their parents, merging their children
-				for (final Node<T> nd : e.getValue()) {
-					// if end node, just remove it from its parent
-					if (null == nd.parent) {
-						// The current root:
-						if (null == nd.children) {
-							this.root = null;
-							continue; // a tree of 1 node
-						} else {
-							// First child as new root:
-							nd.children[0].parent = null; // the new root
-							this.root = nd.children[0];
-							// ... and gets any other children of the root
-							for (int i=1; i<nd.children.length; i++) {
-								nd.children[i].parent = null;
-								nd.children[0].add(nd.children[i], nd.children[i].confidence);
+	public boolean crop(List<Layer> range) {
+		synchronized (node_layer_map) {
+			// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
+			final HashSet<Layer> keep = new HashSet<Layer>(range);
+			for (final Iterator<Map.Entry<Layer,Set<Node<T>>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<Layer,Set<Node<T>>> e = it.next();
+				if (keep.contains(e.getKey())) continue;
+				else {
+					// Else, remove the set of nodes for that layer
+					it.remove();
+					// ... and remove all nodes from their parents, merging their children
+					for (final Node<T> nd : e.getValue()) {
+						// if end node, just remove it from its parent
+						if (null == nd.parent) {
+							// The current root:
+							if (null == nd.children) {
+								this.root = null;
+								continue; // a tree of 1 node
+							} else {
+								// First child as new root:
+								nd.children[0].parent = null; // the new root
+								this.root = nd.children[0];
+								// ... and gets any other children of the root
+								for (int i=1; i<nd.children.length; i++) {
+									nd.children[i].parent = null;
+									nd.children[0].add(nd.children[i], nd.children[i].confidence);
+								}
 							}
-						}
-					} else {
-						// Remove from its parent
-						nd.parent.remove(nd);
-						// ... and handle its children:
-						if (null == nd.children) {
-							// An end point
-							continue;
 						} else {
-							// Else, add all its children to its parent
-							for (int i=0; i<nd.children.length; i++) {
-								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
-								nd.parent.add(nd.children[i], nd.children[i].confidence);
+							// Remove from its parent
+							nd.parent.remove(nd);
+							// ... and handle its children:
+							if (null == nd.children) {
+								// An end point
+								continue;
+							} else {
+								// Else, add all its children to its parent
+								for (int i=0; i<nd.children.length; i++) {
+									nd.children[i].parent = null; // so it can't be rejected when adding it to a node
+									nd.parent.add(nd.children[i], nd.children[i].confidence);
+								}
 							}
 						}
 					}
 				}
 			}
+			clearState();
+			return true;
 		}
-		clearState();
-		return true;
 	}
 
 	/** Open an image in a separate thread and returns the thread. Frees up to 1 Gb for it. */
