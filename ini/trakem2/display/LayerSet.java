@@ -877,6 +877,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				removeFromOffscreens(zd);
 				Display.remove(zd);
 				stack_indices.put(zd, i);
+			} else {
+				Utils.log("LayerSet: not removing: " + zd);
 			}
 			i++;
 			if (stack_indices.size() == zds.size()) break;
@@ -1644,7 +1646,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					nbmsg(la);
 					continue;
 				}
-				Bucket.remove(zd, lb.db_map);
+				Bucket.remove(zd, this, lb.db_map);
 			}
 		}
 	}
@@ -1676,6 +1678,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			*/
 
 			// Direct:
+			final HashSet<Bucket> touched = new HashSet<Bucket>();
 			for (final Map.Entry<ZDisplayable,Integer> e : stack_indices.entrySet()) {
 				final ZDisplayable zd = e.getKey();
 				for (final Long lid : zd.getLayerIds()) {
@@ -1690,11 +1693,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					} else {
 						final int i = e.getValue();
 						for (final Bucket bu : buckets) {
-							bu.remove(i);
+							bu.remove(null, i); // AVOID reindexing
+							touched.add(bu);
 						}
 					}
 				}
 			}
+			for (final Bucket bu : touched) bu.reindex(this); // so it is done only once per Bucket
 		}
 	}
 	/** Used ONLY by move up/down/top/bottom. */

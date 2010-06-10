@@ -835,12 +835,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return al;
 	}
 	/** Check if this Thing directly contains any child of the given object class (including interfaces), and return them all. */
-	public ArrayList findChildrenOfType(final Class c) {
-		ArrayList al = new ArrayList();
+	public<T> ArrayList<T> findChildrenOfType(final Class<T> c) {
+		final ArrayList<T> al = new ArrayList<T>();
 		if (null == al_children) return al;
-		for (ProjectThing pt : al_children) {
+		for (final ProjectThing pt : al_children) {
 			if (c.isInstance(pt.object)) {
-				al.add(pt);
+				al.add((T)pt);
 			}
 		}
 		return al;
@@ -876,6 +876,18 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		return list;
 	}
+	
+	/** Find objects of the given class, as determined by c.isInstance(this.object). */
+	public<T> List<T> findObjects(final Class<T> c) {
+		final ArrayList<T> col = new ArrayList<T>();
+		findObjects(c, col);
+		return col;
+	}
+	private final<T> void findObjects(final Class<T> c, final List<T> col) {
+		if (c.isInstance(this.object)) col.add((T)this.object);
+		if (null == al_children) return;
+		for (final ProjectThing pt : al_children) pt.findObjects(c, col);
+	}
 
 	/** Recursive into children. */
 	public HashSet<ProjectThing> findBasicTypeChildren() {
@@ -883,7 +895,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Recursive into children, and adds this instance as well if it's a basic type. */
-	public HashSet findBasicTypeChildren(HashSet<ProjectThing> hs_basic, HashSet<ProjectThing> hs_visited) {
+	public HashSet<ProjectThing> findBasicTypeChildren(HashSet<ProjectThing> hs_basic, HashSet<ProjectThing> hs_visited) {
 		if (null == hs_basic) hs_basic = new HashSet<ProjectThing>();
 		if (null == hs_visited) hs_visited = new HashSet<ProjectThing>();
 		if (hs_basic.contains(this) || hs_visited.contains(this)) return hs_basic;

@@ -256,7 +256,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
+				project.getRootLayerSet().addChangeTreesStep(); // store old state
 				remove(true, thing, selected_node);
+				project.getRootLayerSet().addChangeTreesStep(); // store new state
 				return;
 			} else if (command.equals("Rename...")) {
 				//if (!Project.isBasicType(thing.getType())) {
@@ -582,10 +584,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	 *  calls softRemove on each Displayable, and does NOT call remove on the Displayable.
 	 *  If a Displayable is not found, it returns it in a set of not found objects.
 	 *  If all are removed, returns an empty set. */
-	public final Set<Displayable> remove(final boolean check, final Set<? extends Displayable> displayables) {
-		boolean b = true;
-		
-		final Enumeration en = ((DefaultMutableTreeNode)getModel().getRoot()).depthFirstEnumeration();
+	public final Set<Displayable> remove(final Set<? extends Displayable> displayables, final DefaultMutableTreeNode top) {
+		final Enumeration en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
 		final HashSet<DefaultMutableTreeNode> to_remove = new HashSet<DefaultMutableTreeNode>();
 		final HashSet<Displayable> remaining = new HashSet<Displayable>(displayables);
 		while (en.hasMoreElements()) {

@@ -292,7 +292,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			return false;
 		}
 		// remove from Bucket before modifying stack index
-		if (null != root) Bucket.remove(displ, db_map);
+		if (null != root) Bucket.remove(displ, this, db_map);
 		// now remove proper, so stack_index hasn't changed yet
 		al_displayables.remove(displ);
 		parent.removeFromOffscreens(this);
@@ -317,7 +317,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			i++;
 			if (stack_indices.size() == ds.size()) break;
 		}
-		if (null != root) root.removeAll(stack_indices);
+		if (null != root) root.removeAll(this, stack_indices);
 		return ds.size() == stack_indices.size();
 	}
 
