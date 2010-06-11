@@ -1034,7 +1034,7 @@ abstract public class Loader {
 		return fetchImage(p, 1.0);
 	}
 
-	/** Fetch a suitable awt.Image for the given mag(nification).
+	/** Fetch a suitable awt.Image for the given magnification.
 	 * If the mag is bigger than 1.0, it will return as if was 1.0.
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
