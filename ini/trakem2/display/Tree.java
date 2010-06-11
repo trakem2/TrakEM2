@@ -1172,8 +1172,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				aff.transform(fps, 0, fps, 0, 1);
 				nd.x = fps[0];
 				nd.y = fps[1];
+				nd.transformData(aff);
 			}
-			transformNodeData(tl);
 			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
 			// Remove from tl pointers
 			tl.root = null; // stolen!
@@ -1191,8 +1191,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		return true;
 	}
-
-	protected void transformNodeData(final Tree<T> t) {}
 
 	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
 	protected Node<T> findNodeNear(float x, float y, final Layer layer, final double magnification) {
