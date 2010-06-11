@@ -45,11 +45,9 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.ZDisplayable;
-import ini.trakem2.tree.Attribute;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.TemplateThing;
-import ini.trakem2.tree.TemplateAttribute;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.tree.TrakEM2MLParser;
 import ini.trakem2.tree.DTDParser;
@@ -819,18 +817,6 @@ public class DBLoader extends Loader {
 		}
 		r.close();
 		return al;
-	}
-
-	// this method is a copy of the getProjectAttributes ... could pass a Constructor as argument and have only one method then.
-	private HashMap getTemplateAttributes(Project project, long thing_id) throws Exception {
-		HashMap ht = new HashMap();
-		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
-		while (r.next()) {
-			String name = r.getString("name");
-			ht.put(name, new TemplateAttribute(name, r.getString("value"), project, r.getLong("id")));
-		}
-		r.close();
-		return ht;
 	}
 
 	/** Fetch all existing projects from the database. */
@@ -1924,41 +1910,6 @@ public class DBLoader extends Loader {
 		removeFromDatabase((Displayable)patch); // problem: this is not atomic.
 
 		mawts.remove(patch.getId());
-	}
-
-	/*  Attribute methods ****************************************************************/
-
-	private void addToDatabase(Attribute attr) throws Exception {
-		Object owner = attr.getOwner();
-		connection.prepareStatement(new StringBuffer("INSERT INTO ab_attributes (id, thing_id, name, value) VALUES (").append(((DBObject)attr).getId()).append(',').append(owner == null ? -1 : ((DBObject)owner).getId()).append(",'").append(attr.getTitle()).append("','").append(attr.getObjectString()).append("')").toString()).executeUpdate();
-	}
-
-	private void updateInDatabase(Attribute attr, String key) throws Exception {
-		StringBuffer sb = new StringBuffer("UPDATE ab_attributes SET ");
-		if (key.equals("object")) {
-			sb.append("value='").append(null == attr.getObject() ? "" : attr.getObjectString()).append("'");
-		} else {
-			Utils.log("Loader.updateInDatabase(Attribute): don't know what to do with key: " + key);
-			return;
-		}
-		sb.append(" WHERE id=").append(((DBObject)attr).getId());
-		connection.prepareStatement(sb.toString()).executeUpdate();
-	}
-
-	private void removeFromDatabase(Attribute attr) throws Exception {
-		connection.prepareStatement("DELETE FROM ab_attributes WHERE id=" + ((DBObject)attr).getId()).execute();
-	}
-
-	/*  TemplateAttribute methods *********************/
-
-	private void addToDatabase(TemplateAttribute attr) throws Exception {
-		addToDatabase((Attribute)attr);
-	}
-	private void updateInDatabase(TemplateAttribute attr, String key) throws Exception {
-			updateInDatabase((Attribute)attr, key);
-	}
-	private void removeFromDatabase(TemplateAttribute attr) throws Exception {
-		removeFromDatabase((Attribute)attr);
 	}
 
 	/* Layer methods ****************************************************************/
