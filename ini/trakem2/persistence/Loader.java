@@ -404,7 +404,7 @@ abstract public class Loader {
 			final ImagePlus cached = mawts.get(id);
 			if (null == cached
 			 || cached != imp
-			 || imp.getProcessor().getPixels() != cached.getProcessor().getPixels()
+			 || (1 == imp.getStackSize() && imp.getProcessor().getPixels() != cached.getProcessor().getPixels())
 			) {
 				mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 			} else {
