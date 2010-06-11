@@ -335,7 +335,7 @@ public class DTDParser {
 					if (null != root_type_name) {
 						Utils.log("WARNING found second DTD root: " + node.name);
 					} else {
-						Utils.log("Found DTD root: " + node.name);
+						Utils.log2("Found DTD root: " + node.name);
 						root_type_name = node.name;
 					}
 				}
