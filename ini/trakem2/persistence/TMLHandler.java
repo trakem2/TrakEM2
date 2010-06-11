@@ -67,7 +67,6 @@ public class TMLHandler extends DefaultHandler {
 	private TemplateThing template_layer_thing = null;
 	private TemplateThing template_layer_set_thing = null;
 	private Project project = null;
-	private LayerSet layer_set = null;
 	private final FSLoader loader;
 	private boolean skip = false;
 	private String base_dir;
