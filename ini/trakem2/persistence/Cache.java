@@ -98,7 +98,7 @@ public class Cache {
 			long b = 0;
 			if (null != this.imp) {
 				if (null == imp) b = Cache.size(this.imp);
-				this.imp.flush();
+				//No need, and would harm for stacks//this.imp.flush();
 			}
 			this.imp = imp;
 			return b;
