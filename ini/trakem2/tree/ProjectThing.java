@@ -69,7 +69,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 	private ArrayList<ProjectThing> al_children = null;
 
-	/** The object holded by this ProjectThing. Can be a simple String when it holds no object. The title of a Thing is the title of the object it holds, or the String itself. The title is always accessed with Object.toString(). */
+	/** The object held by this ProjectThing. Can be a simple String when it holds no object. The title of a Thing is the title of the object it holds, or the String itself. The title is always accessed with Object.toString(). */
 	private Object object;
 
 
