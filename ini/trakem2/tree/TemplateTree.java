@@ -436,10 +436,9 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 			return false;
 		}
 		// process name change in all TemplateThing instances that have it
-		ArrayList al = root.collectAllChildren(new ArrayList());
+		ArrayList<TemplateThing> al = root.collectAllChildren(new ArrayList<TemplateThing>());
 		al.add(root);
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			TemplateThing tet = (TemplateThing)it.next();
+		for (final TemplateThing tet : al) {
 			//Utils.log("\tchecking " + tet.getType() + " " + tet.getId());
 			if (tet.getType().equals(old_name)) tet.rename(new_name);
 		}
