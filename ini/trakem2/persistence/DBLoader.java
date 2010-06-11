@@ -47,7 +47,6 @@ import ini.trakem2.display.Profile;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.Attribute;
 import ini.trakem2.tree.LayerThing;
-import ini.trakem2.tree.ProjectAttribute;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.tree.TemplateAttribute;
@@ -794,7 +793,7 @@ public class DBLoader extends Loader {
 					long id = r.getLong("id");
 					String type = r.getString("type");
 					root = new TemplateThing(type, project, id);
-					root.setup(getChildrenTemplateThings(project, id), getTemplateAttributes(project, id));
+					root.setup(getChildrenTemplateThings(project, id));
 				}
 				r.close();
 			} catch (Exception e) {
@@ -815,7 +814,7 @@ public class DBLoader extends Loader {
 			long id = r.getLong("id");
 			String type = r.getString("type");
 			TemplateThing tt = new TemplateThing(type, project, id);
-			tt.setup(getChildrenTemplateThings(project, id), getTemplateAttributes(project, id));
+			tt.setup(getChildrenTemplateThings(project, id));
 			al.add(tt);
 		}
 		r.close();
@@ -894,7 +893,7 @@ public class DBLoader extends Loader {
 				ResultSet r = connection.prepareStatement("SELECT * FROM ab_things WHERE project_id=" + project.getId() + " AND type='project' AND parent_id=-1").executeQuery(); // -1 signals root
 				if (r.next()) {
 					long id = r.getLong("id");
-					root = new ProjectThing(project_tt, project, id, project, getChildrenProjectThings(project, id, project_tt.getType(), hs_tt, hs_d), getProjectAttributes(project, id));
+					root = new ProjectThing(project_tt, project, id, project, getChildrenProjectThings(project, id, project_tt.getType(), hs_tt, hs_d));
 				}
 				r.close();
 				if (null == root) {
@@ -927,7 +926,7 @@ public class DBLoader extends Loader {
 			if (ob instanceof Displayable) hs_d.put(new Long(((DBObject)ob).getId()), ob);
 			else Utils.log("Loader.getProjectThing: not adding to hs_d: " + ob);
 		}
-		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d), getProjectAttributes(project, id));
+		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d));
 	}
 
 	private ArrayList<ProjectThing> getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap hs_tt, HashMap hs_d) throws Exception {
@@ -945,19 +944,6 @@ public class DBLoader extends Loader {
 		}
 		r.close();
 		return al_children;
-	}
-
-
-	/** Fetch all attributes for the given Thing id. Returns an empty HashMap if none.*/
-	private HashMap getProjectAttributes(Project project, long thing_id) throws Exception {
-		HashMap hs = new HashMap();
-		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
-		while (r.next()) {
-			String name = r.getString("name");
-			hs.put(name, new ProjectAttribute(project, r.getLong("id"), name, r.getString("value"))); // null owner, can't eat his own tail. And the object is a temporary String with the value, which can be an id, etc. and will be resolved with a call to setup(Thing owner)
-		}
-		r.close();
-		return hs;
 	}
 
 	/** Fetch the object if any, which means, if the id corresponds to a basic object, that object will be minimally constructed to be usable and returned. */
@@ -1103,7 +1089,7 @@ public class DBLoader extends Loader {
 		long id = r.getLong("id");
 		String type = r.getString("type");
 		TemplateThing template = type.equals("layer_set") ? layer_set_tt : layer_tt; // if not a "Layer", then it's a "Layer Set"
-		return new LayerThing(template, project, id, r.getString("title"), getLayerThingObject(project, r.getLong("object_id"), template, hs_pt), getChildrenLayerThing(project, id, hs_pt, layer_set_tt, layer_tt), getLayerAttributes(project, id)); // HERE the order of the arguments layer_set_tt and layer_tt was inverted, and it worked??? There was a compensating bug, incredibly enough, in the type.equals(.. above.
+		return new LayerThing(template, project, id, r.getString("title"), getLayerThingObject(project, r.getLong("object_id"), template, hs_pt), getChildrenLayerThing(project, id, hs_pt, layer_set_tt, layer_tt)); // HERE the order of the arguments layer_set_tt and layer_tt was inverted, and it worked??? There was a compensating bug, incredibly enough, in the type.equals(.. above.
 	}
 
 	private ArrayList getChildrenLayerThing(Project project, long parent_id, HashMap hs_pt, TemplateThing layer_set_tt, TemplateThing layer_tt) throws Exception {
@@ -1961,18 +1947,6 @@ public class DBLoader extends Loader {
 
 	private void removeFromDatabase(Attribute attr) throws Exception {
 		connection.prepareStatement("DELETE FROM ab_attributes WHERE id=" + ((DBObject)attr).getId()).execute();
-	}
-	
-	/*  ProjectAttribute methods *********************/
-
-	private void addToDatabase(ProjectAttribute attr) throws Exception {
-		addToDatabase((Attribute)attr);
-	}
-	private void updateInDatabase(ProjectAttribute attr, String key) throws Exception {
-			updateInDatabase((Attribute)attr, key);
-	}
-	private void removeFromDatabase(ProjectAttribute attr) throws Exception {
-		removeFromDatabase((Attribute)attr);
 	}
 
 	/*  TemplateAttribute methods *********************/

@@ -72,7 +72,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	/** The object holded by this ProjectThing. Can be a simple String when it holds no object. The title of a Thing is the title of the object it holds, or the String itself. The title is always accessed with Object.toString(). */
 	private Object object;
 
-	private HashMap ht_attributes;
 
 	/** A new copy with same template, same object and cloned table of same attributes, but no parent and no children. */
 	public Thing shallowCopy() {
@@ -102,9 +101,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		super(pt.project, pt.id);
 		this.template = pt.template;
 		this.object = pt.object;
-		if (null != pt.ht_attributes) {
-			this.ht_attributes = (HashMap) pt.ht_attributes.clone();
-		}
 	}
 
 	/** Create a new ProjectThing of the given type to contain the given Object. The object cannot be null. */
@@ -115,7 +111,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (null == ob) throw new Exception("ProjectThing constructor: Null Object!");
 		if (null == template) throw new Exception("ProjectThing constructor: Null template!");
 		this.template = project.getTemplateThing(template.getType());
-		copyAttributes();
 		this.object = ob;
 		// now, ready:
 		addToDatabase();
@@ -158,7 +153,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		// Check that the entire child chain is there:
 		ArrayList<String> missing = new ArrayList<String>();
-		for (TemplateThing tn : (Collection<TemplateThing>)this.template.collectAllChildren(new ArrayList())) {
+		for (TemplateThing tn : (Collection<TemplateThing>)this.template.collectAllChildren(new ArrayList<TemplateThing>())) {
 			if (!project.typeExists(tn.getType())) {
 				missing.add(tn.getType());
 			}
@@ -179,7 +174,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Reconstruct a ProjectThing from the database, used in  combination with the 'setup' method. */
-	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList<ProjectThing> al_children, HashMap ht_attributes) {
+	public ProjectThing(TemplateThing template, Project project, long id, Object ob, ArrayList<ProjectThing> al_children) {
 		// call super constructor
 		super(project, id);
 		// specifics:
@@ -189,19 +184,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		} else {
 			this.al_children = al_children;
 		}
-		if (null == ht_attributes || ht_attributes.isEmpty()) {
-			this.ht_attributes = null;
-		} else {
-			this.ht_attributes = ht_attributes;
-		}
-		// TEMPORARY: TODO title should be and remain an attribute
-		Object ob_title = ht_attributes.get("title");
-		if (null != ob_title && ob_title instanceof ProjectAttribute) {
-			this.object = (String)((ProjectAttribute)ob_title).getObject();
-			ht_attributes.remove("title");
-		} else {
-			this.object = ob;
-		}
+		
+		this.object = ob;
 	}
 
 	/** Used by the TMLHandler; can be used only once. */
@@ -215,33 +199,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 	/* Tell the attributes and the children who owns them, and then those of the children, recursively. Used when reconstructing from the database. */
 	public void setup() {
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				ProjectAttribute pa = (ProjectAttribute)it.next();
-				// now tell it to resolve its object
-				pa.setup(this);
-			}
-		}
 		if (null != al_children) {
 			for (ProjectThing child : al_children) {
 				child.parent = this;
 				child.setup();
 			}
 		}
-	}
-
-	/** Setup the attributes from the template, if any. */
-	private void copyAttributes() {
-		if (null == template.getAttributes() || template.getAttributes().isEmpty()) {
-			this.ht_attributes = null;
-			return;
-		}
-		this.ht_attributes = new HashMap();
-		for (Iterator it = template.getAttributes().keySet().iterator(); it.hasNext(); ) {
-			String key = (String)it.next();
-			ht_attributes.put(key, new ProjectAttribute(project, key, null, this));
-		}
-		updateInDatabase("attributes");
 	}
 
 	public String toString() {
@@ -299,27 +262,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return !(null == al_children || 0 == al_children.size());
 	}
 
-	public boolean addAttribute(String title, Object object) {
-		if (null == title || null == object) return false;
-		if (title.equals("id")) return true; // no need to store the id as an attribute (but will exists as such in the XML file)
-		if (!template.canHaveAsAttribute(title)) return false;
-		if (null == ht_attributes) ht_attributes = new HashMap();
-		else if (ht_attributes.containsKey(title)) {
-			Utils.log("ProjectThing.addAttribute: " + this + " already has an attribute of type " + title);
-			return false;
-		}
-		ht_attributes.put(title, object);
-		return true;
-	}
-
-	public boolean setAttribute(String type, Object object) {
-		if (null == type || null == object) return false;
-		if (null == ht_attributes || !ht_attributes.containsKey(type)) return false;
-		ProjectAttribute attr = (ProjectAttribute)ht_attributes.get(type);
-		attr.setObject(object);
-		return true;
-	}
-
 	public boolean removeChild(ProjectThing child) {
 		// check that it is contained here
 		if (-1 == al_children.indexOf(child)) {
@@ -346,15 +288,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			for (int i=0; i<children.length; i++) {
 				if (!children[i].remove(false)) {
 					Utils.showMessage("Deletion incomplete, check database, for child: " + children[i]);
-					return false;
-				}
-			}
-		}
-		// remove the attributes
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				if (! ((ProjectAttribute)it.next()).remove(false)) {
-					Utils.showMessage("Deletion incomplete at attributes, check database for thing: " + this);
 					return false;
 				}
 			}
@@ -470,15 +403,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	/** Returns a list of parent types (String), in order, for the given Thing if it exists as a child in the traversed trees. This method returns the first path that it finds, avoiding a check to uniquePathExists(type). */
 	public ArrayList getTemplatePathTo(String type) {
 		return template.getTemplatePathTo(type, new ArrayList());
-	}
-
-	public boolean canHaveAsAttribute(String type) {
-		if (null == type) return false;
-		return template.canHaveAsAttribute(type);
-	}
-
-	public HashMap getAttributes() {
-		return ht_attributes;
 	}
 
 	public String getType() {
@@ -979,14 +903,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			final Boolean b = expanded_states.get(this);
 			if (null != b && Boolean.TRUE.equals(b)) sb_body.append(" expanded=\"true\"");
 		}
-		if (null != ht_attributes && !ht_attributes.isEmpty() ) {
-			sb_body.append('\n');
-			// the rest of the attributes:
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				ProjectAttribute pa = (ProjectAttribute)it.next();
-				sb_body.append(in).append(pa.asXML()).append('\n');
-			}
-		}
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
 			sb_body.append(">\n");
@@ -1000,15 +916,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	public void debug(String indent) {
-		StringBuffer sb_at = new StringBuffer(" (id,"); // 'id' exists regardless
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				ProjectAttribute ta = (ProjectAttribute)it.next();
-				sb_at.append(ta.getTitle()).append(",");
-			}
-		}
-		sb_at.append(")");
-		System.out.println(indent + template.getType() + sb_at.toString());
+		System.out.println(indent + template.getType() + " (id)");
 		if (null != al_children) {
 			if (indent.length() > 20) {
 				System.out.println("INDENT OVER 20 !");
@@ -1087,7 +995,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			if (this.object instanceof DBObject) ob = pr.getRootLayerSet().findById(((DBObject)this.object).getId());
 			else ob = this.object; // String is a final class: no copy protection needed.
 		}
-		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList(), new HashMap());
+		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList<ProjectThing>());
 		if (null != this.al_children) {
 			copy.al_children = new ArrayList<ProjectThing>();
 			for (ProjectThing child : this.al_children) {
@@ -1096,13 +1004,6 @@ public final class ProjectThing extends DBObject implements TitledThing {
 				if (child.object instanceof DBObject && null == cc.object) continue; // don't add: the object was not cloned and thus not found.
 				cc.setParent(this);
 				copy.al_children.add(cc);
-			}
-		}
-		if (null != this.ht_attributes) {
-			copy.ht_attributes = new HashMap();
-			for (Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = it.next();
-				copy.ht_attributes.put(entry.getKey(), ((ProjectAttribute)entry.getValue()).subclone(pr, copy)); // String is a final class ... again, not turtles all the way down.
 			}
 		}
 		return copy;
