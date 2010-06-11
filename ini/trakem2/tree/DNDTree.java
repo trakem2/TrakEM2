@@ -24,15 +24,9 @@ package ini.trakem2.tree;
 
 
 import ini.trakem2.Project;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.tree.ProjectTree;
 
 import javax.swing.JTree;
 import java.util.*;
