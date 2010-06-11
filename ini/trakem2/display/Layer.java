@@ -111,6 +111,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
+	/** Pops up a dialog to choose the first Z coord, the thickness, the number of layers,
+	 *  and whether to skip the creation of any layers whose Z and thickness match
+	 *  that of existing layers.
+	 *  @return The newly created layers. */
 	static public List<Layer> createMany(Project project, LayerSet parent) {
 		if (null == parent) return null;
 		GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
@@ -121,10 +125,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		// start iteration to add layers
-		boolean skip = gd.getNextBoolean();
 		double z = gd.getNextNumber();
 		double thickness = gd.getNextNumber();
 		int n_layers = (int)gd.getNextNumber();
+		boolean skip = gd.getNextBoolean();
 		if (thickness < 0) {
 			Utils.log("Can't create layers with negative thickness");
 			return null;
@@ -140,7 +144,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				// Check if layer exists
 				la = parent.getLayer(z);
 				if (null == la) la = new Layer(project, z, thickness, parent);
-				// else don't create, but use existing
+				else la = null;
 			} else la = new Layer(project, z, thickness, parent);
 			if (null != la) {
 				parent.addSilently(la);
