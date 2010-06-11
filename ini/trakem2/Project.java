@@ -1549,4 +1549,20 @@ public class Project extends DBObject {
 		return true;
 		
 	}
+	
+	/** For undo purposes. */
+	public void setRootProjectThing(final ProjectThing pt, final HashMap<Thing,Boolean> ptree_exp) {
+		this.root_pt = pt;
+		project_tree.set(this.root_pt, ptree_exp);
+	}
+	/** For undo purposes. */
+	public void setRootTemplateThing(final TemplateThing tt, final HashMap<Thing,Boolean> ttree_exp) {
+		this.root_tt = tt;
+		template_tree.set(this.root_tt, ttree_exp);
+	}
+	/** For undo purposes. */
+	public void setRootLayerThing(final LayerThing lt, final HashMap<Thing,Boolean> ltree_exp) {
+		this.root_lt = lt;
+		layer_tree.set(this.root_lt, ltree_exp);
+	}
 }

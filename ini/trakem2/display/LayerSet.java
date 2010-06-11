@@ -34,6 +34,8 @@ import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -2232,6 +2234,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return false;
 		}
 		public boolean apply(int action) {
+			// Replace all trees
+			final Project p = ls.getProject();
+			p.setRootTemplateThing((TemplateThing)this.troot, ttree_exp);
+			p.setRootProjectThing((ProjectThing)this.proot, ptree_exp);
+			p.setRootLayerThing((LayerThing)this.lroot, ltree_exp);
+			
 			// Replace all layers
 			ls.al_layers.clear();
 			ls.al_layers.addAll(this.all_layers);
@@ -2270,12 +2278,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			// Replace all ZDisplayable
 			ls.al_zdispl.clear();
 			ls.al_zdispl.addAll(this.all_zdispl);
-
-			// Replace all trees
-			final Project p = ls.getProject();
-			p.getTemplateTree().set(this.troot, this.ttree_exp);
-			p.getProjectTree().set(this.proot, this.ptree_exp);
-			p.getLayerTree().set(this.lroot, this.ltree_exp);
 
 			// Replace all links
 			for (final Map.Entry<Displayable,Set<Displayable>> e : this.links.entrySet()) {
