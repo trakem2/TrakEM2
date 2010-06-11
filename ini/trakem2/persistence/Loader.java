@@ -254,6 +254,10 @@ abstract public class Loader {
 		}
 	}
 	
+	static public void debug() {
+		Utils.log2("v_loaders: " + Utils.toString(v_loaders));
+	}
+	
 	protected Loader() {
 		// register
 		v_loaders.add(this);

@@ -112,7 +112,6 @@ public final class FSLoader extends Loader {
 	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
 		super(); // register
-		super.v_loaders.remove(this); //will be readded on successful open
 		FSLoader.startStaticServices();
 	}
 
@@ -299,7 +298,6 @@ public final class FSLoader extends Loader {
 			return null;
 		}
 		// else, good
-		super.v_loaders.add(this);
 		crashDetector();
 		return data;
 	}

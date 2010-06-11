@@ -480,7 +480,10 @@ public class Project extends DBObject {
 				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
 			FSLoader loader = new FSLoader(dir_project);
-			if (!loader.isReady()) return null;
+			if (!loader.isReady()) {
+				loader.destroy();
+				return null;
+			}
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 
 			// help the helpless users:
@@ -524,6 +527,7 @@ public class Project extends DBObject {
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openFSProject(path, open_displays);
 		if (null == data) {
+			loader.destroy();
 			return null;
 		}
 		final TemplateThing root_tt = (TemplateThing)data[0];
