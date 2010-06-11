@@ -291,14 +291,26 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public synchronized boolean remove(final Displayable displ) {
-		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) {
+		if (null == displ || null == al_displayables) {
 			Utils.log2("Layer can't remove Displayable " + displ.getId());
 			return false;
 		}
-		// remove from Bucket before modifying stack index
-		if (null != root) Bucket.remove(displ, this, db_map);
-		// now remove proper, so stack_index hasn't changed yet
+		final int old_stack_index = al_displayables.indexOf(displ);
+		if (-1 == old_stack_index) {
+			Utils.log2("Layer.remove: not found: " + displ);
+			return false;
+		}
 		al_displayables.remove(displ);
+		// remove from Bucket AFTER modifying stack index, so it gets reindexed properly
+		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
+		int i = 0;
+		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
+		if (null != root) {
+			for (Bucket bu : db_map.remove(displ)) {
+				bu.remove(displ, old_stack_index, new_stack_indices);
+			}
+		}
+
 		parent.removeFromOffscreens(this);
 		Display.remove(this, displ);
 		return true;
@@ -308,7 +320,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	public synchronized boolean removeAll(final Set<Displayable> ds) {
 		if (null == ds || null == al_displayables) return false;
 		// Ensure list is iterated only once: don't ask for index every time!
-		final ArrayList<Integer> stack_indices = new ArrayList<Integer>(ds.size());
+		final ArrayList<Integer> old_stack_indices = new ArrayList<Integer>(ds.size());
 		int i = 0;
 		for (final Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = it.next();
@@ -316,13 +328,18 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				it.remove();
 				parent.removeFromOffscreens(this);
 				Display.remove(this, d);
-				stack_indices.add(i);
+				old_stack_indices.add(i);
 			}
 			i++;
-			if (stack_indices.size() == ds.size()) break;
+			if (old_stack_indices.size() == ds.size()) break;
 		}
-		if (null != root) root.removeAll(this, stack_indices);
-		return ds.size() == stack_indices.size();
+		// New stack indices:
+		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
+		i = 0;
+		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
+		//
+		if (null != root) root.removeAll(old_stack_indices, new_stack_indices);
+		return ds.size() == old_stack_indices.size();
 	}
 
 	/** Used for reconstruction purposes. */
