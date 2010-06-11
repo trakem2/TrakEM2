@@ -497,12 +497,16 @@ public class Bucket {
 			}
 			return success;
 		} else if (null != map) {
-			if (null == map.remove(old_stack_index)) {
+			final Displayable d2 = map.remove(old_stack_index);
+			if (d != d2) {
 				success = false;
-				Utils.log2("Bucket could not remove Displayable at stack index " + old_stack_index);
-				// search for it
-				for (final Map.Entry<Integer, Displayable> e : map.entrySet()) {
+				// improper removal: re-add d2
+				map.put(old_stack_index, d2);
+				// ... and find d, and remove it
+				for (final Iterator<Map.Entry<Integer,Displayable>> it = map.entrySet().iterator(); it.hasNext(); ) {
+					final Map.Entry<Integer,Displayable> e = it.next();
 					if (e.getValue() == d) {
+						it.remove();
 						Utils.log2("Wanted to remove " + d + " at " + old_stack_index + " BUT found it at index " + e.getKey());
 						break;
 					}
@@ -510,7 +514,7 @@ public class Bucket {
 			}
 			reindex(new_stack_indices);
 		}
-		return success; //true;
+		return success;
 	}
 
 	/** Returns whether the stack index was successfully removed .*/

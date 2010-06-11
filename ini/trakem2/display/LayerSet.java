@@ -1673,7 +1673,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 						recreateBuckets(la, false);
 					}
 					// THERE IS AN ERROR somewhere, but I can't find it.
-					// The code below simply fixes it silently.
+					// The code above simply fixes it silently.
 				}
 			}
 		}
