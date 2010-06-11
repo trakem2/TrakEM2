@@ -2200,7 +2200,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
 				this.table_searchnodes.setModel(this.model_searchnodes);
-				this.frame.pack();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
