@@ -4,12 +4,10 @@ import ij.measure.Calibration;
 import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 
 import java.util.HashMap;
-import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.awt.Point;
@@ -18,7 +16,6 @@ import java.awt.TextField;
 import java.awt.Color;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.event.MouseEvent;
@@ -27,7 +24,6 @@ import java.awt.event.KeyEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.ItemEvent;
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Collection;
 import javax.vecmath.Point3f;
@@ -339,6 +335,21 @@ public class Treeline extends Tree<Float> {
 					}
 					break;
 				}
+			}
+		}
+		
+		@Override
+		protected void transformData(final AffineTransform aff) {
+			switch (aff.getType()) {
+				case AffineTransform.TYPE_IDENTITY:
+				case AffineTransform.TYPE_TRANSLATION:
+					// Radius doesn't change
+					return;
+				default:
+					// Scale the radius as appropriate
+					final float[] fp = new float[]{x, y, x + r, y};
+					aff.transform(fp, 0, fp, 0, 2);
+					r = (float)Math.sqrt(Math.pow(fp[2] - fp[0], 2) + Math.pow(fp[3] - fp[1], 2));
 			}
 		}
 	}

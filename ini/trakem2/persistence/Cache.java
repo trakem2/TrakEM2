@@ -98,7 +98,7 @@ public class Cache {
 			long b = 0;
 			if (null != this.imp) {
 				if (null == imp) b = Cache.size(this.imp);
-				this.imp.flush();
+				//No need, and would harm for stacks//this.imp.flush();
 			}
 			this.imp = imp;
 			return b;
@@ -351,7 +351,7 @@ public class Cache {
 		bytes -= p.replace(null, level);
 		count--;
 		// If at least one level is still not null, keep the pyramid; otherwise drop it
-		if (0 == p.n_images) {
+		if (0 == p.n_images && null == p.imp) {
 			p.interval.remove(id);
 			pyramids.remove(id);
 		}
@@ -375,6 +375,8 @@ public class Cache {
 	public final void remove(final long id) {
 		final Pyramid p = pyramids.remove(id);
 		if (null == p) return;
+		if (null != p.imp) count--;
+		count -= p.n_images;
 		bytes -= p.replace(null); // the imp may need cleanup
 		for (int i=0; i<p.images.length; i++) {
 			bytes -= p.replace(null, i);
@@ -399,6 +401,7 @@ public class Cache {
 	public final void removeAndFlushPyramid(final long id) {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return;
+		count -= p.n_images;
 		bytes -= p.replace(null); // the imp may need cleanup
 		for (int i=0; i<p.images.length; i++) {
 			bytes -= p.replace(null, i);

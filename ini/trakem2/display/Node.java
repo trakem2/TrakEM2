@@ -732,4 +732,7 @@ public abstract class Node<T> implements Taggable {
 	public Point3f asPoint() {
 		return new Point3f(x, y, (float)la.getZ());
 	}
+	
+	/** Apply @param aff to the data, not to the x,y position. */
+	protected void transformData(final AffineTransform aff) {}
 }

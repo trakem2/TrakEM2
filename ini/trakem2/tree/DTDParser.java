@@ -118,11 +118,6 @@ public class DTDParser {
 			}
 			return false;
 		}
-		public void createAttribute(TemplateThing tt) {
-			// ignore id and oid
-			if (name.equals("id") || name.equals("oid")) return;
-			tt.addAttribute(name, null); // lots of XML-specified qualities missing ... TODO
-		}
 	}
 
 	static private class Type {
@@ -172,22 +167,7 @@ public class DTDParser {
 		}
 		*/
 		/** Recursive, but avoids adding children to nested types. The table ht_attributes contains type names as keys, and hashtables of attributes as values. */
-		void createAttributesAndChildren(final TemplateThing parent, final Map<String,Map<String,Attribute>> ht_attributes, final Map<String,DTDParser.Type> ht_types) {
-			// create attributes if any
-			final Map<String,Attribute> ht_attr = ht_attributes.get(name);
-			if (null != ht_attr) {
-				// delete redundant attributes (which overlap with fields or node properties)
-				ht_attr.remove("id"); // built-in to the class
-				ht_attr.remove("oid"); // temporary reference
-				ht_attr.remove("title"); // built-in to the class
-				ht_attr.remove("index"); //obsolete
-				ht_attr.remove("expanded"); // 'remove' doesn't fail when the key is not there
-				// What the above is saying: only user-defined attributes should be preserved
-				for (final Attribute attr : ht_attr.values()) {
-					attr.createAttribute(parent);
-					//Utils.log2(parent.getType() + "  new attr: " + attr.name);
-				}
-			}
+		void createChildren(final TemplateThing parent, final Map<String,DTDParser.Type> ht_types) {
 
 			// create children for it, unless nested
 			if (!parent.isNested() && null != children) {
@@ -205,7 +185,7 @@ public class DTDParser {
 					TemplateThing child = new TemplateThing(tyn);
 					//Utils.log2("DTDParser: created TT " + tyn);
 					parent.addChild(child);
-					ty.createAttributesAndChildren(child, ht_attributes, ht_types);
+					ty.createChildren(child, ht_types);
 				}
 			}
 		}
@@ -355,7 +335,7 @@ public class DTDParser {
 					if (null != root_type_name) {
 						Utils.log("WARNING found second DTD root: " + node.name);
 					} else {
-						Utils.log("Found DTD root: " + node.name);
+						Utils.log2("Found DTD root: " + node.name);
 						root_type_name = node.name;
 					}
 				}
@@ -374,7 +354,7 @@ public class DTDParser {
 
 		// The root is the one and only element of the project node
 		TemplateThing root = new TemplateThing(root_type_name);
-		root_type.createAttributesAndChildren(root, ht_attributes, ht_types); // avoids nested
+		root_type.createChildren(root, ht_types); // avoids nested
 
 		return new TemplateThing[]{root};
 	}

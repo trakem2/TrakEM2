@@ -30,6 +30,9 @@ import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.event.*;
 import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Hashtable;
@@ -97,22 +100,45 @@ public class Search {
 			search_tabs.addKeyListener(kl);
 			search_field = new JTextField(14);
 			search_field.addKeyListener(new VKEnterListener());
+			
+			GridBagLayout gb = new GridBagLayout();
+			GridBagConstraints c = new GridBagConstraints();
+			JPanel all = new JPanel();
+			all.setLayout(gb);
+			all.setPreferredSize(new Dimension(400, 400));
+			
 			JButton b = new JButton("Search");
 			b.addActionListener(new ButtonListener());
 			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Pipes", "Balls", "Layers", "Dissectors", "Polylines", "Treelines", "AreaTrees", "Connectors"});
-			JPanel top = new JPanel();
-			top.add(search_field);
-			top.add(b);
-			top.add(pulldown);
-			top.setMinimumSize(new Dimension(400, 30));
-			top.setMaximumSize(new Dimension(10000, 30));
-			top.setPreferredSize(new Dimension(400, 30));
-			JPanel all = new JPanel();
-			all.setPreferredSize(new Dimension(400, 400));
-			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
-			all.setLayout(bl);
-			all.add(top);
+
+			c.gridx = 0;
+			c.gridy = 0;
+			c.fill = GridBagConstraints.HORIZONTAL;
+			c.weightx = 1;
+			c.insets = new Insets(4, 10, 5, 2);
+			gb.setConstraints(search_field, c);
+			all.add(search_field);
+			
+			c.gridx = 1;
+			c.weightx = 0;
+			c.insets = new Insets(4, 2, 5, 10);
+			gb.setConstraints(b, c);
+			all.add(b);
+			
+			c.gridx = 2;
+			gb.setConstraints(pulldown, c);
+			all.add(pulldown);
+			
+			c.gridx = 0;
+			c.gridy = 1;
+			c.gridwidth = 3;
+			c.weightx = 1;
+			c.weighty = 1;
+			c.fill = GridBagConstraints.BOTH;
+			c.insets = new Insets(0, 0, 0, 0);
+			gb.setConstraints(search_tabs, c);
 			all.add(search_tabs);
+
 			search_frame.getContentPane().add(all);
 			search_frame.pack();
 			javax.swing.SwingUtilities.invokeLater(new Runnable() {
@@ -329,7 +355,7 @@ public class Search {
 		final JScrollPane jsp = makeTable(new DisplayableTableModel(v_obs, v_txt, v_co));
 		search_tabs.addTab(typed_pattern, jsp);
 		search_tabs.setSelectedComponent(jsp);
-		search_frame.pack();
+		//search_frame.pack();
 
 		}}, project);
 	}

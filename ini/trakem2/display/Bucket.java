@@ -87,14 +87,14 @@ public class Bucket {
 		for (final Displayable d : container.getDisplayableList()) {
 			list.put(i, d);
 			i++;
-			final Area a = d.getAreaForBucket(layer); //Bucket.getBounds(d, layer);
+			final Area a = d.getAreaForBucket(layer);
 			if (null != a) areas.put(d, a);
 		}
-		populate(container, layer, db_map, w+w, h+h, w, h, list, areas);
+		populate(container, db_map, w+w, h+h, w, h, list, areas);
 	}
 
 	/** Recursive initialization of buckets. This method is meant to be used as init, when root is null or is made new from scratch. Returns true if not empty. */
-	final private boolean populate(final Bucketable container, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Area> areas) {
+	final private boolean populate(final Bucketable container, final HashMap<Displayable,HashSet<Bucket>> db_map, final int parent_w, final int parent_h, final int max_width, final int max_height, final HashMap<Integer,Displayable> parent_list, final HashMap<Displayable,Area> areas) {
 		if (this.w <= bucket_side || this.h <= bucket_side) {
 			// add displayables, sorted by index
 			map = new TreeMap<Integer,Displayable>();
@@ -138,7 +138,7 @@ public class Bucket {
 					int height = side_h;
 					if (this.y + y + side_h > max_height) height = max_height - this.y - y;
 					final Bucket bu = new Bucket(this.x + x, this.y + y, width, height, bucket_side);
-					if (bu.populate(container, layer, db_map, width, height, max_width, max_height, local_list, areas)) {
+					if (bu.populate(container, db_map, width, height, max_width, max_height, local_list, areas)) {
 						this.empty = false;
 					}
 					children.add(bu);
@@ -483,49 +483,81 @@ public class Bucket {
 	}
 	*/
 
-	/** Returns whether this bucket is empty of Displayable objects. */
-	final private boolean remove2(final int stack_index) {
+	/** Returns whether the stack index was successfully removed.
+	 *  Assumes that 'd' is in this Bucket at old_stack_index. */
+	final private boolean remove2(final Displayable d, final int old_stack_index, final HashMap<Displayable,Integer> new_stack_indices) {
+		boolean success = true;
 		if (null != children) {
 			this.empty = true;
 			for (final Bucket bu : children) {
-				if (!bu.remove2(stack_index)) this.empty = false;
+				if (!bu.remove2(d, old_stack_index, new_stack_indices)) {
+					this.empty = false;
+					success = false;
+				}
 			}
-			return this.empty;
+			return success;
 		} else if (null != map) {
-			if (null == map.remove(stack_index)) Utils.log("Bucket could not remove Displayable at stack index " + stack_index);
+			final Displayable d2 = map.remove(old_stack_index);
+			if (d != d2) {
+				success = false;
+				// improper removal: re-add d2
+				map.put(old_stack_index, d2);
+				// ... and find d, and remove it
+				for (final Iterator<Map.Entry<Integer,Displayable>> it = map.entrySet().iterator(); it.hasNext(); ) {
+					final Map.Entry<Integer,Displayable> e = it.next();
+					if (e.getValue() == d) {
+						it.remove();
+						Utils.log2("Wanted to remove " + d + " at " + old_stack_index + " BUT found it at index " + e.getKey());
+						break;
+					}
+				}
+			}
+			reindex(new_stack_indices);
+		}
+		return success;
+	}
+
+	/** Returns whether the stack index was successfully removed .*/
+	synchronized final boolean remove(final Displayable d, final int old_stack_index, final HashMap<Displayable,Integer> new_stack_indices) {
+		return remove2(d, old_stack_index, new_stack_indices);
+	}
+	
+	/** Returns whether this bucket is empty of Displayable objects. */
+	final private boolean removeAll2(final Collection<Integer> old_stack_indices, final HashMap<Displayable,Integer> new_stack_indices) {
+		if (null != children) {
+			this.empty = true;
+			for (final Bucket bu : children) {
+				if (!bu.removeAll2(old_stack_indices, new_stack_indices)) this.empty = false;
+			}
+		} else if (null != map) {
+			for (final Integer i : old_stack_indices) map.remove(i);
+			reindex(new_stack_indices);
 			return map.isEmpty();
 		}
 		return true;
 	}
-
-	synchronized final void remove(final int stack_index) {
-		remove2(stack_index);
+	
+	synchronized final void removeAll(final Collection<Integer> old_stack_indices, final HashMap<Displayable,Integer> new_stack_indices) {
+		removeAll2(old_stack_indices, new_stack_indices);
 	}
 	
-	/** Returns whether this bucket is empty of Displayable objects. */
-	final private boolean removeAll2(final Collection<Integer> stack_indices) {
+	final void reindex(final HashMap<Displayable,Integer> new_stack_indices) {
+		if (null == new_stack_indices) return;
 		if (null != children) {
-			this.empty = true;
 			for (final Bucket bu : children) {
-				if (!bu.removeAll2(stack_indices)) this.empty = false;
+				bu.reindex(new_stack_indices);
 			}
 		} else if (null != map) {
-			for (final Integer i : stack_indices) map.remove(i);
-			return map.isEmpty();
-		}
-		return true;
-	}
-	
-	synchronized final void removeAll(final Collection<Integer> stack_indices) {
-		removeAll2(stack_indices);
-	}
-
-	static final void remove(final Displayable d, final HashMap<Displayable, HashSet<Bucket>> db_map) {
-		final int stack_index = d.getBucketable().getDisplayableList().indexOf(d);
-		final HashSet<Bucket> hs = db_map.remove(d);
-		if (null == hs) return;
-		for (final Bucket bu : hs) {
-			bu.remove(stack_index);
+			final HashSet<Displayable> hs = new HashSet<Displayable>(this.map.values());
+			this.map.clear();
+			for (final Displayable d : hs) {
+				final Integer i = new_stack_indices.get(d);
+				if (null == i) {
+					Utils.log2("WARNING: Bucket.reindex could not find an index for " + d);
+					continue;
+				}
+				this.map.put(i, d);
+			}
 		}
 	}
 

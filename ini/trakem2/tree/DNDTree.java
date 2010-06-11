@@ -24,15 +24,9 @@ package ini.trakem2.tree;
 
 
 import ini.trakem2.Project;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.tree.ProjectTree;
 
 import javax.swing.JTree;
 import java.util.*;
@@ -49,7 +43,7 @@ import java.awt.dnd.*;
  *
 * Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
  */
-public class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
+public abstract class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
  
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
@@ -186,28 +180,10 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			}
 		}
 
-		// add the attributes first, only for ProjectThing or TemplateThing instances (not LayerThing)
-		if (thing instanceof ProjectThing || thing instanceof TemplateThing) {
-			HashMap ht_attributes = thing.getAttributes();
-			if (null != ht_attributes) {
-				for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-					Map.Entry entry = (Map.Entry)it.next();
-					String key = (String)entry.getKey();
-					if (key.equals("id") || key.equals("title") || key.equals("index") || key.equals("expanded")) {
-						// ignore: the id is internal, and the title is shown in the node itself. The index is ignored.
-						continue;
-					}
-					DefaultMutableTreeNode attr_node = new DefaultMutableTreeNode(entry.getValue());
-					node.add(attr_node);
-				}
-			}
-		}
 		//fill in with children
-		ArrayList al_children = thing.getChildren();
+		ArrayList<? extends Thing> al_children = thing.getChildren();
 		if (null == al_children) return node; // end
-		Iterator it = al_children.iterator();
-		while (it.hasNext()) {
-			Thing child = (Thing)it.next();
+		for (final Thing child : al_children) {
 			node.add(makeNode(child, childless_nested)); // recursive call
 		}
 		return node;
@@ -590,19 +566,22 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		return copy;
 	}
 
-	/** For restoring purposes from an undo step. */
-	public void set(final Thing root, final HashMap<Thing,Boolean> expanded_state) {
+	/** Set the root Thing, and the expanded state of all nodes if @param expanded_state is not null.
+	 *  Used for restoring purposes from an undo step. */
+	public void reset(final HashMap<Thing,Boolean> expanded_state) {
 		// rebuild all nodes, restore their expansion state.
 		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
 		root_node.removeAllChildren();
-		set(root_node, root, expanded_state);
+		set(root_node, getRootThing(), expanded_state);
 		updateUILater();
 	}
+	
+	protected abstract Thing getRootThing();
 
 	/** Recursive */
-	private void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
+	protected void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
 		root.setUserObject(root_thing);
-		final ArrayList<Thing> al_children = root_thing.getChildren();
+		final ArrayList<? extends Thing> al_children = root_thing.getChildren();
 		if (null != al_children) {
 			for (final Thing thing : al_children) {
 				DefaultMutableTreeNode child = new DefaultMutableTreeNode(thing);

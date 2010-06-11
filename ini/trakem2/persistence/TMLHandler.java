@@ -67,7 +67,6 @@ public class TMLHandler extends DefaultHandler {
 	private TemplateThing template_layer_thing = null;
 	private TemplateThing template_layer_set_thing = null;
 	private Project project = null;
-	private LayerSet layer_set = null;
 	private final FSLoader loader;
 	private boolean skip = false;
 	private String base_dir;
@@ -164,7 +163,7 @@ public class TMLHandler extends DefaultHandler {
 		// create Project template
 		this.project_tt = new TemplateThing("project");
 		project_tt.addChild(this.root_tt);
-		project_tt.addAttribute("title", "Project");
+		//TODO//project_tt.addAttribute("title", "Project");
 	}
 
 	public boolean isUnreadable() {
@@ -423,13 +422,14 @@ public class TMLHandler extends DefaultHandler {
 				this.project.setTempLoader(this.loader); // temp, but will be the same anyway
 				this.project.parseXMLOptions(ht_attributes);
 				this.project.addToDatabase(); // register id
+				String title = ht_attributes.get("title");
+				if (null != title) this.project.setTitle(title);
 				// Add all unique TemplateThing types to the project
-				for (Iterator it = root_tt.getUniqueTypes(new HashMap()).values().iterator(); it.hasNext(); ) {
+				for (Iterator<TemplateThing> it = root_tt.getUniqueTypes(new HashMap<String,TemplateThing>()).values().iterator(); it.hasNext(); ) {
 					this.project.addUniqueType((TemplateThing)it.next());
 				}
 				this.project.addUniqueType(this.project_tt);
 				this.root_pt = new ProjectThing(this.project_tt, this.project, this.project);
-				this.root_pt.addAttribute("title", ht_attributes.get("title"));
 				// Add a project pointer to all template things
 				this.root_tt.addToDatabase(this.project);
 				thing = root_pt;
@@ -607,19 +607,14 @@ public class TMLHandler extends DefaultHandler {
 			if (null != eob) {
 				expanded = new Boolean((String)eob);
 			}
-			// abstract object, including profile_list
-			final HashMap<String,ProjectAttribute> ht_attr = new HashMap<String,ProjectAttribute>();
-			for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
-				final String key = (String)entry.getKey();
-				ht_attr.put(key, new ProjectAttribute(this.project, -1, key, entry.getValue()));
-				//Utils.log2("putting key=[" + key + "]=" + data);
-			}
+			String title = ht_attributes.remove("title");
+			
 			TemplateThing tt = this.project.getTemplateThing(type);
 			if (null == tt) {
 				Utils.log("No template for type " + type);
 				return null;
 			}
-			ProjectThing pt = new ProjectThing(tt, this.project, id, type, null, ht_attr);
+			ProjectThing pt = new ProjectThing(tt, this.project, id, null == title ? type : title, null);
 			pt.addToDatabase();
 			ht_pt_expanded.put(pt, expanded);
 			// store the oid vs. pt relationship to fill in the object later.
@@ -880,7 +875,7 @@ public class TMLHandler extends DefaultHandler {
 					set.addSilently(layer);
 					al_layers.add(layer);
 					Object ot = ht_attributes.get("title");
-					return new LayerThing(template_layer_thing, project, -1, (null == ot ? null : (String)ot), layer, null, null);
+					return new LayerThing(template_layer_thing, project, -1, (null == ot ? null : (String)ot), layer, null);
 				}
 			} else if (type.equals("layer_set")) {
 				LayerSet set = new LayerSet(project, oid, ht_attributes, ht_links);
@@ -890,7 +885,7 @@ public class TMLHandler extends DefaultHandler {
 				al_layer_sets.add(set);
 				addToLastOpenLayer(set);
 				Object ot = ht_attributes.get("title");
-				return new LayerThing(template_layer_set_thing, project, -1, (null == ot ? null : (String)ot), set, null, null);
+				return new LayerThing(template_layer_set_thing, project, -1, (null == ot ? null : (String)ot), set, null);
 			} else if (type.equals("calibration")) {
 				// find last open LayerSet if any
 				for (int i = al_layer_sets.size() -1; i>-1; i--) {

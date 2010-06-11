@@ -1583,6 +1583,12 @@ public class Profile extends Displayable implements VectorData {
 		}
 		return null;
 	}
+	
+	/** Does nothing. */
+	@Override
+	public boolean softRemove() {
+		return true;
+	}
 
 	protected boolean remove2(boolean check) {
 		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here

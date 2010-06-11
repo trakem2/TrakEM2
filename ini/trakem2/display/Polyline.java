@@ -580,6 +580,13 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
+			
+			// Check that there are any images -- otherwise may hang. TODO
+			if (layer_set.getDisplayables(Patch.class).isEmpty()) {
+				Utils.log("No images are present!");
+				return;
+			}
+			
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
 			final Worker[] worker = new Worker[2];

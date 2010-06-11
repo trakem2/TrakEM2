@@ -34,6 +34,8 @@ import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
@@ -853,11 +855,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Remove a child. Does not destroy the child nor remove it from the database, only from the LayerSet and the Display. */
 	public boolean remove(final ZDisplayable zdispl) {
-		if (null == zdispl || null == al_zdispl || -1 == al_zdispl.indexOf(zdispl)) return false;
-		// remove from Bucket before modifying stack index
-		removeFromBuckets(zdispl);
-		// now remove proper, so stack_index hasn't changed yet
-		al_zdispl.remove(zdispl);
+		if (null == zdispl || null == al_zdispl) return false;
+		final int old_stack_index = al_zdispl.indexOf(zdispl);
+		if (-1 == old_stack_index) {
+			Utils.log2("LayerSet.remove: Not found: " + zdispl);
+			return false;
+		}
+		al_zdispl.remove(old_stack_index);
+		// remove from Bucket AFTER modifying stack index, so it gets reindexed properly
+		removeFromBuckets(zdispl, old_stack_index);
 		removeFromOffscreens(zdispl);
 		Display.remove(zdispl);
 		return true;
@@ -868,7 +874,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean removeAll(final Set<ZDisplayable> zds) {
 		if (null == zds || null == al_zdispl) return false;
 		// Ensure list is iterated only once: don't ask for index every time!
-		final HashMap<ZDisplayable,Integer> stack_indices = new HashMap<ZDisplayable, Integer>(zds.size());
+		final HashMap<ZDisplayable,Integer> old_stack_indices = new HashMap<ZDisplayable, Integer>(zds.size());
 		int i = 0;
 		for (final Iterator<ZDisplayable> it = al_zdispl.iterator(); it.hasNext(); ) {
 			final ZDisplayable zd = it.next();
@@ -876,13 +882,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				it.remove();
 				removeFromOffscreens(zd);
 				Display.remove(zd);
-				stack_indices.put(zd, i);
+				old_stack_indices.put(zd, i);
+			} else {
+				Utils.log("LayerSet: not removing: " + zd);
 			}
 			i++;
-			if (stack_indices.size() == zds.size()) break;
+			if (old_stack_indices.size() == zds.size()) break;
 		}
-		removeFromBuckets(stack_indices);
-		return zds.size() == stack_indices.size();
+		removeFromBuckets(old_stack_indices);
+		return zds.size() == old_stack_indices.size();
 	}
 
 	public boolean contains(final Layer layer) {
@@ -1634,9 +1642,15 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			}
 		}
 	}
-	final private void removeFromBuckets(final Displayable zd) {
+	final private void removeFromBuckets(final Displayable zd, final int old_stack_index) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return;
+			// pre-build stack index table
+			final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>();
+			int i = 0;
+			for (final ZDisplayable d : al_zdispl) {
+				new_stack_indices.put(d, i++);
+			}
 			for (final Long lid : zd.getLayerIds()) {
 				final Layer la = getLayer(lid);
 				final LayerBucket lb = lbucks.get(la);
@@ -1644,39 +1658,33 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					nbmsg(la);
 					continue;
 				}
-				Bucket.remove(zd, lb.db_map);
+				final Collection<Bucket> buckets = lb.db_map.remove(zd);
+				if (null == buckets) {
+					recreateBuckets(getLayer(lid), false); // regenerate
+				} else {
+					boolean error = false;
+					for (final Bucket bu : buckets) {
+						if (!bu.remove(zd, old_stack_index, new_stack_indices)) { // will reindex the buckets
+							// FIX ERROR TODO
+							error = true;
+							break;
+						}
+					}
+					if (error) {
+						Utils.log2("Fixing buckets for layer " + la);
+						recreateBuckets(la, false);
+					}
+					// THERE IS AN ERROR somewhere, but I can't find it.
+					// The code above simply fixes it silently.
+				}
 			}
 		}
 	}
-	final private void removeFromBuckets(final Map<ZDisplayable,Integer> stack_indices) {
+	final private void removeFromBuckets(final Map<ZDisplayable,Integer> old_stack_indices) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return;
-			
-			/*
-			final Map<Long,Collection<Integer>> m = new HashMap<Long,Collection<Integer>>();
-			for (final Map.Entry<ZDisplayable,Integer> e : stack_indices.entrySet()) {
-				final ZDisplayable zd = e.getKey();
-				for (final Long lid : zd.getLayerIds()) {
-					Collection<Integer> stindices = m.get(lid);
-					if (null == stindices) {
-						stindices = new ArrayList<Integer>();
-						m.put(lid, stindices);
-					}
-					stindices.add(e.getValue());
-				}
-			}
-			for (final Map.Entry<Long,Collection<Integer>> e : m.entrySet()) {
-				final LayerBucket lb = lbucks.get(getLayer(e.getKey()));
-				if (null == lb) {
-					nbmsg(getLayer(e.getKey()));
-					continue;
-				}
-				lb.root.removeAll(e.getValue());
-			}
-			*/
-
-			// Direct:
-			for (final Map.Entry<ZDisplayable,Integer> e : stack_indices.entrySet()) {
+			final HashSet<Bucket> touched = new HashSet<Bucket>();
+			for (final Map.Entry<ZDisplayable,Integer> e : old_stack_indices.entrySet()) {
 				final ZDisplayable zd = e.getKey();
 				for (final Long lid : zd.getLayerIds()) {
 					final LayerBucket lb = lbucks.get(getLayer(lid));
@@ -1690,11 +1698,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					} else {
 						final int i = e.getValue();
 						for (final Bucket bu : buckets) {
-							bu.remove(i);
+							bu.remove(zd, i, null); // AVOID reindexing
+							touched.add(bu);
 						}
 					}
 				}
 			}
+			// pre-build stack index table
+			final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>();
+			int i = 0;
+			for (final ZDisplayable d : al_zdispl) {
+				new_stack_indices.put(d, i++);
+			}
+			for (final Bucket bu : touched) bu.reindex(new_stack_indices); // so it is done only once per Bucket
 		}
 	}
 	/** Used ONLY by move up/down/top/bottom. */
@@ -2218,6 +2234,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return false;
 		}
 		public boolean apply(int action) {
+			// Replace all trees
+			final Project p = ls.getProject();
+			p.resetRootTemplateThing((TemplateThing)this.troot, ttree_exp);
+			p.resetRootProjectThing((ProjectThing)this.proot, ptree_exp);
+			p.resetRootLayerThing((LayerThing)this.lroot, ltree_exp);
+			
 			// Replace all layers
 			ls.al_layers.clear();
 			ls.al_layers.addAll(this.all_layers);
@@ -2256,12 +2278,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			// Replace all ZDisplayable
 			ls.al_zdispl.clear();
 			ls.al_zdispl.addAll(this.all_zdispl);
-
-			// Replace all trees
-			final Project p = ls.getProject();
-			p.getTemplateTree().set(this.troot, this.ttree_exp);
-			p.getProjectTree().set(this.proot, this.ptree_exp);
-			p.getLayerTree().set(this.lroot, this.ltree_exp);
 
 			// Replace all links
 			for (final Map.Entry<Displayable,Set<Displayable>> e : this.links.entrySet()) {
