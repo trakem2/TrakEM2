@@ -24,6 +24,7 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.ImageStack;
 import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
 import ij.process.ByteProcessor;
@@ -1217,8 +1218,6 @@ public final class FSLoader extends Loader {
 			}
 		}
 
-		final boolean virtual = imp_stack.getStack().isVirtual();
-
 		// Double.MAX_VALUE is a flag to indicate "add centered"
 		double pos_x = Double.MAX_VALUE != x ? x : first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
 		double pos_y = Double.MAX_VALUE != y ? y : first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
@@ -1227,6 +1226,11 @@ public final class FSLoader extends Loader {
 		Utils.showProgress(0);
 		Patch previous_patch = null;
 		final int n = imp_stack.getStackSize();
+
+		final ImageStack stack = imp_stack.getStack();
+		final boolean virtual = stack.isVirtual();
+		final VirtualStack vs = virtual ? (VirtualStack)stack : null;
+
 		for (int i=1; i<=n; i++) {
 			Layer layer = first_layer;
 			double z = first_layer.getZ() + (i-1) * thickness;
@@ -1239,7 +1243,7 @@ public final class FSLoader extends Loader {
 
 			ImagePlus imp_patch_i = null;
 			if (virtual) { // because we love inefficiency, every time all this is done again
-				VirtualStack vs = (VirtualStack)imp_stack.getStack();
+				//VirtualStack vs = (VirtualStack)imp_stack.getStack();
 				String vs_dir = vs.getDirectory().replace('\\', '/');
 				if (!vs_dir.endsWith("/")) vs_dir += "/";
 				String iname = vs.getFileName(i);
@@ -1249,12 +1253,12 @@ public final class FSLoader extends Loader {
 				Utils.log2(i + " : " + patch_path);
 				imp_patch_i = openImage(patch_path);
 			} else {
-				ImageProcessor ip = imp_stack.getStack().getProcessor(i);
+				ImageProcessor ip = stack.getProcessor(i);
 				if (as_copy) ip = ip.duplicate();
 				imp_patch_i = new ImagePlus(title + "__slice=" + i, ip);
 			}
 
-			String label = imp_stack.getStack().getSliceLabel(i);
+			String label = stack.getSliceLabel(i);
 			if (null == label) label = "";
 			Patch patch = null;
 			if (as_copy) {
