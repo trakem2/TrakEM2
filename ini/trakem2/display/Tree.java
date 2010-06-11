@@ -641,7 +641,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Split the Tree into new Tree at the point closest to the x,y,layer world coordinate.
 	 *  @return null if no node was found near the x,y,layer point with precision dependent on magnification. */
-	public List<Tree> splitNear(float x, float y, Layer layer, double magnification) {
+	public List<Tree<T>> splitNear(float x, float y, Layer layer, double magnification) {
 		try {
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x, y);
@@ -673,7 +673,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
 				nd.parent = null;
 				// With the found nd, now a root, create a new Tree
-				Tree t = newInstance();
+				Tree<T> t = newInstance();
 				t.addToDatabase();
 				t.root = nd;
 				// ... and fill its cache arrays
@@ -682,7 +682,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				this.calculateBoundingBox(null);
 				t.calculateBoundingBox(null);
 				// Done!
-				return Arrays.asList(new Tree[]{this, t});
+				ArrayList<Tree<T>> a = new ArrayList<Tree<T>>();
+				a.add(this);
+				a.add(t);
+				return a;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
