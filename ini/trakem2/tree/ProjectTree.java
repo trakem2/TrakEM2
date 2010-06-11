@@ -910,4 +910,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 		return false;
 	}
+	
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootProjectThing();
+	}
 }

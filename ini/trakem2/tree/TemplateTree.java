@@ -452,4 +452,9 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		project.getProjectTree().updateUILater();
 		return true;
 	}
+
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootTemplateThing();
+	}
 }

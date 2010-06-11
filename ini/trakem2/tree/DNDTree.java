@@ -43,7 +43,7 @@ import java.awt.dnd.*;
  *
 * Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
  */
-public class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
+public abstract class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
  
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
@@ -566,17 +566,20 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		return copy;
 	}
 
-	/** For restoring purposes from an undo step. */
-	public void set(final Thing root, final HashMap<Thing,Boolean> expanded_state) {
+	/** Set the root Thing, and the expanded state of all nodes if @param expanded_state is not null.
+	 *  Used for restoring purposes from an undo step. */
+	public void reset(final HashMap<Thing,Boolean> expanded_state) {
 		// rebuild all nodes, restore their expansion state.
 		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
 		root_node.removeAllChildren();
-		set(root_node, root, expanded_state);
+		set(root_node, getRootThing(), expanded_state);
 		updateUILater();
 	}
+	
+	protected abstract Thing getRootThing();
 
 	/** Recursive */
-	private void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
+	protected void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
 		root.setUserObject(root_thing);
 		final ArrayList<? extends Thing> al_children = root_thing.getChildren();
 		if (null != al_children) {

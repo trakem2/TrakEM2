@@ -746,4 +746,9 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				}
 		}});
 	}
+	
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootLayerThing();
+	}
 }

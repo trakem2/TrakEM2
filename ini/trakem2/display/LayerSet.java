@@ -2236,9 +2236,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		public boolean apply(int action) {
 			// Replace all trees
 			final Project p = ls.getProject();
-			p.setRootTemplateThing((TemplateThing)this.troot, ttree_exp);
-			p.setRootProjectThing((ProjectThing)this.proot, ptree_exp);
-			p.setRootLayerThing((LayerThing)this.lroot, ltree_exp);
+			p.resetRootTemplateThing((TemplateThing)this.troot, ttree_exp);
+			p.resetRootProjectThing((ProjectThing)this.proot, ptree_exp);
+			p.resetRootLayerThing((LayerThing)this.lroot, ltree_exp);
 			
 			// Replace all layers
 			ls.al_layers.clear();
