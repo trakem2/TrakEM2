@@ -4242,14 +4242,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(active.getClass());
 			if (((Tree)active).canJoin(tlines)) {
 				// Record current state
-				class State {{
-					Set<DoStep> dataedits = new HashSet<DoStep>();
-					for (final Tree tl : tlines) {
-						dataedits.add(new Displayable.DoEdit(tl).init(tl, new String[]{"data"}));
-					}
-					getLayerSet().addChangeTreesStep(dataedits);
-				}};
-				new State();
+				Set<DoStep> dataedits = new HashSet<DoStep>(tlines.size());
+				for (final Tree tl : tlines) {
+					dataedits.add(new Displayable.DoEdit(tl).init(tl, new String[]{"data"}));
+				}
+				getLayerSet().addChangeTreesStep(dataedits);
 				//
 				((Tree)active).join(tlines);
 				for (final Tree tl : tlines) {
@@ -4257,8 +4254,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					tl.remove2(false);
 				}
 				Display.repaint(getLayerSet());
-				// Again, to record current state
-				new State();
+				// Again, to record current state (just the joined tree this time)
+				Set<DoStep> dataedits2 = new HashSet<DoStep>(1);
+				dataedits2.add(new Displayable.DoEdit(active).init(active, new String[]{"data"}));
+				getLayerSet().addChangeTreesStep(dataedits2);
 			}
 		} else if (command.equals("Previous branch point or start")) {
 			if (!(active instanceof Tree)) return;
