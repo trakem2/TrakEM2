@@ -1240,7 +1240,6 @@ public final class Patch extends Displayable implements ImageData {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 		DisplayCanvas dc = (DisplayCanvas)source;
-		final Layer la = dc.getDisplay().getLayer();
 		final Roi roi = dc.getFakeImagePlus().getRoi();
 
 		switch (ke.getKeyCode()) {
@@ -1249,7 +1248,11 @@ public final class Patch extends Displayable implements ImageData {
 				int mod = ke.getModifiers();
 
 				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
-				if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
+				if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
+					// Place the source image, untransformed, into clipboard:
+					ImagePlus imp = getImagePlus();
+					if (null != imp) imp.copy(false);
+				} else if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
 					CoordinateTransformList list = null;
 					if (null != ct) {
 						list = new CoordinateTransformList();
@@ -1270,11 +1273,6 @@ public final class Patch extends Displayable implements ImageData {
 						ip = getImageProcessor();
 					}
 					new ImagePlus(this.title, ip).copy(false);
-				} else if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
-					// On shift down (and no other flags!):
-					// Place the source image, untransformed, into clipboard:
-					ImagePlus imp = getImagePlus();
-					if (null != imp) imp.copy(false);
 				}
 				ke.consume();
 				break;
