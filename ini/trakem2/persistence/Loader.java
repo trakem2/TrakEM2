@@ -1611,7 +1611,7 @@ abstract public class Loader {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
 					Utils.log("Importing " + (sl+1) + "/" + n_slices);
 					int start = sl * n_rows * n_cols;
-					ArrayList cols = new ArrayList();
+					ArrayList<String[]> cols = new ArrayList<String[]>();
 					for (int i=0; i<n_cols; i++) {
 						String[] col = new String[n_rows];
 						for (int j=0; j<n_rows; j++) {
@@ -1744,7 +1744,7 @@ abstract public class Loader {
 		// gather image files:
 		final Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
-		final ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
+		final ArrayList<String[]> cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
 
 		// !@#$%^&*
 		final String dir_ = dir;
