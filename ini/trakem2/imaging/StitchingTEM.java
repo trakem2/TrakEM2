@@ -788,7 +788,7 @@ public class StitchingTEM {
 				int h = ref.getOHeight();
 				sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
 			}
-			if (sc < 0) sc = 25;
+			if (sc <= 0) sc = 25;
 			else if (sc > 100) sc = 100;
 			gd.addSlider("scale (%):", 1, 100, sc);
 			gd.addNumericField( "max/avg displacement threshold: ", mean_factor, 2 );
