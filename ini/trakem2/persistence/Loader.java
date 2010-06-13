@@ -1507,8 +1507,7 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 2); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 2);
 		gd.addCheckbox("link images", false);
-		gd.addCheckbox("montage", true);
-		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		gd.addCheckbox("montage with phase correlation", true);
 		gd.addCheckbox("homogenize_contrast", false);
 
 		gd.showDialog();
@@ -1538,14 +1537,6 @@ abstract public class Loader {
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
-		// Ensure tiles overlap if using SIFT
-		if (StitchingTEM.FREE_RULE == stitching_rule) {
-			if (bt_overlap <= 0) bt_overlap = 1;
-			if (lr_overlap <= 0) lr_overlap = 1;
-		}
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1623,12 +1614,12 @@ abstract public class Loader {
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
 					
-					if (stitch_tiles && null == pc_param && stitching_rule == StitchingTEM.TOP_LEFT_RULE) {
+					if (stitch_tiles && null == pc_param) {
 						pc_param = new StitchingTEM.PhaseCorrelationParam();
 						pc_param.setup(layer);
 					}
 					insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
+						   link_images, stitch_tiles, homogenize_contrast, pc_param, this);
 					
 				}
 			}
@@ -1677,8 +1668,7 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 3); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 3);
 		gd.addCheckbox("link_images", false);
-		gd.addCheckbox("montage", false);
-		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		gd.addCheckbox("montage with phase correlation", false);
 		gd.addCheckbox("homogenize_contrast", true);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1713,14 +1703,6 @@ abstract public class Loader {
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
-		// Ensure tiles overlap if using SIFT
-		if (StitchingTEM.FREE_RULE == stitching_rule) {
-			if (bt_overlap <= 0) bt_overlap = 1;
-			if (lr_overlap <= 0) lr_overlap = 1;
-		}
 
 		//start magic
 		//get ImageJ-openable files that comply with the convention
@@ -1754,12 +1736,12 @@ abstract public class Loader {
 
 		return Bureaucrat.createAndStart(new Worker.Task("Insert grid", true) { public void exec() {
 			StitchingTEM.PhaseCorrelationParam pc_param = null;
-			if (stitch_tiles && stitching_rule == StitchingTEM.TOP_LEFT_RULE) {
+			if (stitch_tiles) {
 				pc_param = new StitchingTEM.PhaseCorrelationParam();
 				pc_param.setup(layer);
 			}
 			insertGrid(layer, dir_, file_, file_names.length, cols, bx, by, bt_overlap_, 
-				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
+				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, pc_param, this);
 		}}, layer.getProject());
 
 		} catch (Exception e) {
@@ -1799,8 +1781,7 @@ abstract public class Loader {
 			final double lr_overlap, 
 			final boolean link_images, 
 			final boolean stitch_tiles, 
-			final boolean homogenize_contrast, 
-			final int stitching_rule,
+			final boolean homogenize_contrast,
 			final StitchingTEM.PhaseCorrelationParam pc_param,
 			final Worker worker)
 	{
@@ -2116,7 +2097,7 @@ abstract public class Loader {
 				// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 				if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 				if (null != worker) worker.setTaskName("Stitching");
-				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule, pc_param).run();
+				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, pc_param).run();
 			}
 
 			// link with images on top, bottom, left and right.
