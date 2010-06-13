@@ -1510,14 +1510,6 @@ abstract public class Loader {
 		gd.addCheckbox("montage", true);
 		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
 		gd.addCheckbox("homogenize_contrast", false);
-		final Component[] c = {
-			//(Component)gd.getSliders().get(gd.getSliders().size()-2),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
-			//(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
-			(Component)gd.getChoices().get(gd.getChoices().size()-1)
-		};
-		//gd.addCheckbox("Apply non-linear deformation", false);
 
 		gd.showDialog();
 
@@ -1941,7 +1933,6 @@ abstract public class Loader {
 					//add new Patch at base bx,by plus the x,y of the grid
 					Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 					if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
-					//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 					addedPatchFrom(path, patch);
 					if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
 					else fus.add(regenerateMipMaps(patch));
