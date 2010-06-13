@@ -1623,7 +1623,7 @@ abstract public class Loader {
 					Layer layer = 0 == sl ? first_layer
 			                                      : first_layer.getParent().getLayer(first_layer.getZ() + first_layer.getThickness() * sl, first_layer.getThickness(), true);
 					
-					if (stitch_tiles && null == pc_param) {
+					if (stitch_tiles && null == pc_param && stitching_rule == StitchingTEM.TOP_LEFT_RULE) {
 						pc_param = new StitchingTEM.PhaseCorrelationParam();
 						pc_param.setup(layer);
 					}
@@ -1754,7 +1754,7 @@ abstract public class Loader {
 
 		return Bureaucrat.createAndStart(new Worker.Task("Insert grid", true) { public void exec() {
 			StitchingTEM.PhaseCorrelationParam pc_param = null;
-			if (stitch_tiles) {
+			if (stitch_tiles && stitching_rule == StitchingTEM.TOP_LEFT_RULE) {
 				pc_param = new StitchingTEM.PhaseCorrelationParam();
 				pc_param.setup(layer);
 			}

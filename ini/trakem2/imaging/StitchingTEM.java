@@ -122,7 +122,7 @@ public class StitchingTEM {
 			final double default_left_right_overlap,
 			final boolean optimize,
 			final int stitching_rule,
-			final PhaseCorrelationParam param_)
+			PhaseCorrelationParam param)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
@@ -132,14 +132,10 @@ public class StitchingTEM {
 			return null;
 		}
 
-		final PhaseCorrelationParam param;
-
-		if (null == param_) {
+		if (null == param && stitching_rule == TOP_LEFT_RULE) {
 			// Launch phase correlation dialog
 			param = new PhaseCorrelationParam();
 			param.setup(patch[0]);
-		} else {
-			param = param_;
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
@@ -157,6 +153,7 @@ public class StitchingTEM {
 
 		switch (stitching_rule) {
 			case StitchingTEM.TOP_LEFT_RULE:
+				
 				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
 			case StitchingTEM.FREE_RULE:
 				final HashSet<Patch> hs = new HashSet<Patch>();
