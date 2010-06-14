@@ -138,8 +138,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private int scroll_step = 1;
 
+	static private final Object DISPLAY_LOCK = new Object();
+
 	/** Keep track of all existing Display objects. */
-	static private Vector<Display> al_displays = new Vector<Display>();
+	static private Set<Display> al_displays = new HashSet<Display>();
 	/** The currently focused Display, if any. */
 	static private Display front = null;
 
@@ -153,12 +155,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		/** Unregister the closed Display. */
 		public void windowClosing(WindowEvent we) {
 			final Object source = we.getSource();
-			for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
-				Display d = it.next();
+			for (final Display d : al_displays) {
 				if (source == d.frame) {
-					it.remove();
-					if (d == front) front = null;
-					d.remove(false); //calls destroy
+					d.remove(false); // calls destroy, which calls removeDisplay
 					break;
 				}
 			}
@@ -207,9 +206,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	};
 
 	static public final Vector<Display> getDisplays() {
-		return (Vector<Display>)al_displays.clone();
+		return new Vector<Display>(al_displays);
 	}
-	
+
 	static public final int getDisplayCount() {
 		return al_displays.size();
 	}
@@ -490,16 +489,48 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			display.frame.pack();
 		}});
 	}
+	
+	//
+	// The only two methods that ever modify the set of al_displays
+	//
+	
+	/** Swap the current al_displays list with a new list that has the @param display in it. */
+	static private final void addDisplay(final Display display) {
+		if (null == display) return;
+		synchronized (DISPLAY_LOCK) {
+			final Set<Display> a = new HashSet<Display>();
+			if (null != al_displays) a.addAll(al_displays);
+			a.add(display);
+			al_displays = a;
+			front = display;
+		}
+	}
 
+	/** Swap the current al_displays list with a new list that lacks the @param dispaly, and set a new front if needed. */
+	static private final void removeDisplay(final Display display) {
+		if (null == display) return;
+		synchronized (DISPLAY_LOCK) {
+			Set<Display> a = new HashSet<Display>(al_displays);
+			a.remove(display);
+			if (null == front || front == display) {
+				if (a.size() > 0) {
+					front = a.iterator().next();
+				} else {
+					front = null;
+				}
+			}
+			al_displays = a;
+		}
+	}
+ 
 	/** A new Display from scratch, to show the given Layer. */
 	public Display(Project project, final Layer layer) {
 		super(project);
-		front = this;
+		addDisplay(this);
 		makeGUI(layer, null);
 		IJ.addEventListener(this);
 		setLayer(layer);
 		this.layer = layer; // after, or it doesn't update properly
-		al_displays.add(this);
 		addToDatabase();
 	}
 
@@ -516,13 +547,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Open a new Display centered around the given Displayable. */
 	public Display(Project project, Layer layer, Displayable displ) {
 		super(project);
-		front = this;
+		addDisplay(this);
 		active = displ;
 		makeGUI(layer, null);
 		IJ.addEventListener(this);
 		setLayer(layer);
 		this.layer = layer; // after set layer!
-		al_displays.add(this);
 		addToDatabase();
 	}
 
@@ -601,12 +631,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		for (Enumeration<Display> e = ht_later_local.keys(); e.hasMoreElements(); ) {
 			final Display d = e.nextElement();
-			front = d; // must be set before repainting any ZDisplayable!
+			addDisplay(d); // must be set as front before repainting any ZDisplayable!
 			Object[] props = (Object[])ht_later_local.get(d);
 			if (ControlWindow.isGUIEnabled()) d.makeGUI(d.layer, props);
 			d.setLayerLater(d.layer, d.layer.get(((Long)props[3]).longValue())); //important to do it after makeGUI
 			if (!ControlWindow.isGUIEnabled()) continue;
-			al_displays.add(d);
+		
 			d.updateFrameTitle(d.layer);
 			// force a repaint if a prePaint was done TODO this should be properly managed with repaints using always the invokeLater, but then it's DOG SLOW
 			if (d.canvas.getMagnification() > 0.499) {
@@ -1350,6 +1380,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Release all resources held by this Display and close the frame. */
 	protected void destroy() {
+		// Set a new front if any and remove from the list of open Displays
+		removeDisplay(this);
+		// Inactivate this Display:
 		dispatcher.quit();
 		canvas.setReceivesInput(false);
 		slt.quit();
@@ -1383,14 +1416,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		//no need, and throws exception//frame.dispose();
 		active = null;
 		if (null != selection) selection.clear();
-		//Utils.log2("destroying selection");
 
-		// below, need for SetLayerThread threads to quit
-		slt.quit();
-		// set a new front if any
-		if (null == front && al_displays.size() > 0) {
-			front = (Display)al_displays.get(al_displays.size() -1);
-		}
 		// repaint layer tree (to update the label color)
 		try {
 			project.getLayerTree().updateUILater(); // works only after setting the front above
@@ -1413,7 +1439,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		al_displays.toArray(d);
 		for (int i=0; i<d.length; i++) {
 			if (d[i].getProject() == project) {
-				al_displays.remove(d[i]);
+				removeDisplay(d[i]);
 				d[i].destroy();
 			}
 		}
@@ -1421,25 +1447,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Find all Display instances that contain the layer and close them and remove the Display from the database. */
 	static public void close(final Layer layer) {
-		for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
-			Display d = it.next();
+		for (final Display d : al_displays) {
 			if (d.isShowing(layer)) {
-				d.remove(false);
-				it.remove();
+				d.remove(false); // calls destroy which calls removeDisplay
 			}
 		}
 	}
 
 	/** Find all Display instances that are showing the layer and either move to the next or previous layer, or close it if none. */
 	static public void remove(final Layer layer) {
-		for (Iterator<Display> it = al_displays.iterator(); it.hasNext(); ) {
-			final Display d = it.next();
+		for (final Display d : al_displays) {
 			if (d.isShowing(layer)) {
 				Layer la = layer.getParent().next(layer);
 				if (layer == la || null == la) la = layer.getParent().previous(layer);
 				if (null == la || layer == la) {
-					d.remove(false);
-					it.remove();
+					d.remove(false); // will call destroy which calls removeDisplay
 				} else {
 					d.slt.set(la);
 				}
@@ -1490,7 +1512,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		updateFrameTitle();
 	}
 
-	static public void repaintSnapshots(final LayerSet set) {
+	static protected void repaintSnapshots(final LayerSet set) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
 			if (d.getLayer().getParent() == set) {
@@ -1499,7 +1521,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		}
 	}
-	static public void repaintSnapshots(final Layer layer) {
+	static protected void repaintSnapshots(final Layer layer) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
 			if (d.getLayer() == layer) {
@@ -1561,7 +1583,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	/** Find the displays that show the given Layer, and add the given Displayable to the GUI and sets it active only in the front Display and only if 'activate' is true. */
-	static public void add(final Layer layer, final Displayable displ, final boolean activate) {
+	static protected void add(final Layer layer, final Displayable displ, final boolean activate) {
 		for (final Display d : al_displays) {
 			if (d.layer == layer) {
 				if (front == d) {
@@ -1574,12 +1596,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	static public void add(final Layer layer, final Displayable displ) {
+	static protected void add(final Layer layer, final Displayable displ) {
 		add(layer, displ, true);
 	}
 
 	/** Add the ZDisplayable to all Displays that show a Layer belonging to the given LayerSet. */
-	static public void add(final LayerSet set, final ZDisplayable zdispl) {
+	static protected void add(final LayerSet set, final ZDisplayable zdispl) {
 		for (final Display d : al_displays) {
 			if (d.layer.getParent() == set) {
 				if (front == d) {
@@ -1593,7 +1615,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	static public void addAll(final Layer layer, final Collection<? extends Displayable> coll) {
+	static protected void addAll(final Layer layer, final Collection<? extends Displayable> coll) {
 		for (final Display d : al_displays) {
 			if (d.layer == layer) {
 				d.addAll(coll);
@@ -1601,11 +1623,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	static public void addAll(final LayerSet set, final Collection<? extends ZDisplayable> coll) {
+	static protected void addAll(final LayerSet set, final Collection<? extends ZDisplayable> coll) {
 		for (final Display d : al_displays) {
 			if (d.layer.getParent() == set) {
 				for (final ZDisplayable zd : coll) {
-					if (front == d) zd.setLayer(d.layer);
+					if (front == d) zd.setLayer(d.layer); // this is obsolete now
 				}
 				d.addAll(coll);
 			}
@@ -2265,14 +2287,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Get the layer of the front Display, or null if none.*/
 	static public Layer getFrontLayer() {
-		if (null == front) return null;
-		return front.layer;
+		Display d = front;
+		if (null == d) return null;
+		return d.layer;
 	}
 
 	/** Get the layer of an open Display of the given Project, or null if none.*/
 	static public Layer getFrontLayer(final Project project) {
-		if (null == front) return null;
-		if (front.project == project) return front.layer;
+		Display df = front;
+		if (null == df) return null;
+		if (df.project == project) return df.layer;
+
 		// else, find an open Display for the given Project, if any
 		for (final Display d : al_displays) {
 			if (d.project == project) {
@@ -2285,8 +2310,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Get a pointer to a Display for @param project, or null if none. */
 	static public Display getFront(final Project project) {
-		if (null == front) return null;
-		if (front.project == project) return front;
+		Display df = front;
+		if (null == df) return null;
+		if (df.project == project) return df;
 		for (final Display d : al_displays) {
 			if (d.project == project) {
 				d.frame.toFront();
@@ -2298,13 +2324,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Return the list of selected Displayable objects of the front Display, or an emtpy list if no Display or none selected. */
 	static public List<Displayable> getSelected() {
-		if (null == front) return new ArrayList<Displayable>();
-		return front.selection.getSelected();
+		Display d = front;
+		if (null == d) return new ArrayList<Displayable>();
+		return d.selection.getSelected();
 	}
 	/** Return the list of selected Displayable objects of class @param c of the front Display, or an emtpy list if no Display or none selected. */
 	static public List<Displayable> getSelected(final Class c) {
-		if (null == front) return new ArrayList<Displayable>();
-		return front.selection.getSelected(c);
+		Display d = front;
+		if (null == d) return new ArrayList<Displayable>();
+		return d.selection.getSelected(c);
 	}
 
 	public boolean isReadOnly() {
@@ -2312,12 +2340,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return false;
 	}
 
-	static public void showPopup(Component c, int x, int y) {
-		if (null != front) front.getPopupMenu().show(c, x, y);
+	static protected void showPopup(Component c, int x, int y) {
+		Display d = front;
+		if (null == d) return;
+		d.getPopupMenu().show(c, x, y);
 	}
 
 	/** Return a context-sensitive popup menu. */
-	public JPopupMenu getPopupMenu() { // called from canvas
+	protected JPopupMenu getPopupMenu() { // called from canvas
 		// get the job canceling dialog
 		if (!canvas.isInputEnabled()) {
 			return project.getLoader().getJobsPopup(this);
