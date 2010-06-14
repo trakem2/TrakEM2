@@ -90,13 +90,7 @@ public class StitchingTEM {
 	static public final int TOP_BOTTOM = 4;
 	static public final int LEFT_RIGHT = 5;
 
-	static public final int TOP_LEFT_RULE = 0;
-	static public final int FREE_RULE = 1;
-
 	static public final float DEFAULT_MIN_R = 0.4f;
-
-	/** available stitching rules */
-	public static final String[] rules = new String[]{"Top left", "Free"};
 		
 
 	/** Returns the same Patch instances with their coordinates modified; the top-left image is assumed to be the first one, and thus serves as reference; so, after the first image, coordinates are ignored for each specific Patch.
@@ -121,8 +115,7 @@ public class StitchingTEM {
 			final double default_bottom_top_overlap,
 			final double default_left_right_overlap,
 			final boolean optimize,
-			final int stitching_rule,
-			final PhaseCorrelationParam param_)
+			PhaseCorrelationParam param)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
@@ -132,14 +125,10 @@ public class StitchingTEM {
 			return null;
 		}
 
-		final PhaseCorrelationParam param;
-
-		if (null == param_) {
+		if (null == param) {
 			// Launch phase correlation dialog
 			param = new PhaseCorrelationParam();
 			param.setup(patch[0]);
-		} else {
-			param = param_;
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
@@ -155,19 +144,7 @@ public class StitchingTEM {
 		Utils.log2("patch layer: " + patch[0].getLayer());
 		patch[0].getLayerSet().addTransformStep(patch[0].getLayer());
 
-		switch (stitching_rule) {
-			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
-			case StitchingTEM.FREE_RULE:
-				final HashSet<Patch> hs = new HashSet<Patch>();
-				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
-				final ArrayList<Patch> fixed = new ArrayList<Patch>();
-				fixed.add(patch[0]);
-				return new Runnable() { public void run() { 
-					AlignTask.alignPatches( new ArrayList<Patch>(hs), fixed );
-				}};
-		}
-		return null;
+		return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
 	}
 	/**
 	 * Stitch array of patches with upper left rule
@@ -788,7 +765,7 @@ public class StitchingTEM {
 				int h = ref.getOHeight();
 				sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
 			}
-			if (sc < 0) sc = 25;
+			if (sc <= 0) sc = 25;
 			else if (sc > 100) sc = 100;
 			gd.addSlider("scale (%):", 1, 100, sc);
 			gd.addNumericField( "max/avg displacement threshold: ", mean_factor, 2 );

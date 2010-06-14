@@ -1507,17 +1507,8 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 2); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 2);
 		gd.addCheckbox("link images", false);
-		gd.addCheckbox("montage", true);
-		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		gd.addCheckbox("montage with phase correlation", true);
 		gd.addCheckbox("homogenize_contrast", false);
-		final Component[] c = {
-			//(Component)gd.getSliders().get(gd.getSliders().size()-2),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
-			//(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
-			(Component)gd.getChoices().get(gd.getChoices().size()-1)
-		};
-		//gd.addCheckbox("Apply non-linear deformation", false);
 
 		gd.showDialog();
 
@@ -1546,14 +1537,6 @@ abstract public class Loader {
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
-		// Ensure tiles overlap if using SIFT
-		if (StitchingTEM.FREE_RULE == stitching_rule) {
-			if (bt_overlap <= 0) bt_overlap = 1;
-			if (lr_overlap <= 0) lr_overlap = 1;
-		}
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1619,7 +1602,7 @@ abstract public class Loader {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
 					Utils.log("Importing " + (sl+1) + "/" + n_slices);
 					int start = sl * n_rows * n_cols;
-					ArrayList cols = new ArrayList();
+					ArrayList<String[]> cols = new ArrayList<String[]>();
 					for (int i=0; i<n_cols; i++) {
 						String[] col = new String[n_rows];
 						for (int j=0; j<n_rows; j++) {
@@ -1636,7 +1619,7 @@ abstract public class Loader {
 						pc_param.setup(layer);
 					}
 					insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
+						   link_images, stitch_tiles, homogenize_contrast, pc_param, this);
 					
 				}
 			}
@@ -1685,8 +1668,7 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 3); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 3);
 		gd.addCheckbox("link_images", false);
-		gd.addCheckbox("montage", false);
-		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		gd.addCheckbox("montage with phase correlation", false);
 		gd.addCheckbox("homogenize_contrast", true);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1721,14 +1703,6 @@ abstract public class Loader {
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
-		// Ensure tiles overlap if using SIFT
-		if (StitchingTEM.FREE_RULE == stitching_rule) {
-			if (bt_overlap <= 0) bt_overlap = 1;
-			if (lr_overlap <= 0) lr_overlap = 1;
-		}
 
 		//start magic
 		//get ImageJ-openable files that comply with the convention
@@ -1752,7 +1726,7 @@ abstract public class Loader {
 		// gather image files:
 		final Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
-		final ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
+		final ArrayList<String[]> cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
 
 		// !@#$%^&*
 		final String dir_ = dir;
@@ -1767,7 +1741,7 @@ abstract public class Loader {
 				pc_param.setup(layer);
 			}
 			insertGrid(layer, dir_, file_, file_names.length, cols, bx, by, bt_overlap_, 
-				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
+				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, pc_param, this);
 		}}, layer.getProject());
 
 		} catch (Exception e) {
@@ -1807,8 +1781,7 @@ abstract public class Loader {
 			final double lr_overlap, 
 			final boolean link_images, 
 			final boolean stitch_tiles, 
-			final boolean homogenize_contrast, 
-			final int stitching_rule,
+			final boolean homogenize_contrast,
 			final StitchingTEM.PhaseCorrelationParam pc_param,
 			final Worker worker)
 	{
@@ -1941,7 +1914,6 @@ abstract public class Loader {
 					//add new Patch at base bx,by plus the x,y of the grid
 					Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 					if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
-					//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 					addedPatchFrom(path, patch);
 					if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
 					else fus.add(regenerateMipMaps(patch));
@@ -2125,7 +2097,7 @@ abstract public class Loader {
 				// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 				if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 				if (null != worker) worker.setTaskName("Stitching");
-				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule, pc_param).run();
+				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, pc_param).run();
 			}
 
 			// link with images on top, bottom, left and right.
