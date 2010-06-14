@@ -1465,7 +1465,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 	}
 	/** returns null if childThing not found in ProjectTree or if the childOb is the user object of the root ProjectThing in the ProjectTree */
-	public String getParentTitle(Object childOb) {
+	public String getRightTitleForGraph(Object childOb) {
 		// find the Thing that holds it (code from duplicateChild())
 		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
 		ProjectThing root_thing = (ProjectThing)root.getUserObject();
@@ -1474,7 +1474,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			Utils.log("ProjectTree.getParentTitle: node not found for child " + child);
 			return null;
 		}
-		return child.getParent().getTitle();
+		Thing parent = child.getParent();
+		Thing relevantThing = parent;
+		if (parent.getType().equals("axon")) {
+			Thing grandparent = parent.getParent();
+			if (grandparent != null && grandparent.getType().equals("neuron")) relevantThing = grandparent;
+		}
+		return relevantThing.getTitle();
 	}
 	// end davi-experimenting block
 }

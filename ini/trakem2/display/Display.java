@@ -2863,6 +2863,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			item = new JMenuItem("Repeat item create (davi-experimenting)"); item.addActionListener(this); menu.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SEMICOLON, 0, true));
 		}
+		item = new JMenuItem("Print graph (davi-experimenting)"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Print graph, convergences only (davi-experimenting)"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Selection");
@@ -2897,7 +2899,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select incoming Connectors"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select downstream targets"); item.addActionListener(gl); graph.add(item);
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
-		item = new JMenuItem("Output .dot text (davi-experimenting)"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
 		menu.add(graph);
 		popup.add(menu);
@@ -2945,50 +2946,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final HashSet<Displayable> to_select = new HashSet<Displayable>();
 
 			
-			if (command.equals("Output .dot text (davi-experimenting)")) {
-				// this case is specific to our project -- we care only about how treelines connect to other treelines, and we know that
-				// every treeline has a parent, whose name we care about.
-				// TODO break this out into a separate file, say ProjectGraph.java
-				class GraphEdge {
-					Treeline origin, target;
-					Connector connector;
-					GraphEdge(Treeline o, Treeline t, Connector c) {
-						this.origin = o;
-						this.target = t;
-						this.connector = c;
-					}
-					String originParentName() {
-						return project.getProjectTree().getParentTitle(this.origin);
-					}
-					String targetParentName() {
-						return project.getProjectTree().getParentTitle(this.target);
-					}
-				}
-				
-				Set<Displayable> in_graph = new HashSet<Displayable>();
-				Set<GraphEdge> edges = new HashSet<GraphEdge>();
-				for (Connector con : connectors) {
-					Set<Displayable> origins = con.getOrigins(Treeline.class);
-					if (origins.isEmpty()) continue;
-					in_graph.addAll(origins);
-					// else, add all targets
-					for (Set<Displayable> targets : con.getTargets(Treeline.class)) {
-						in_graph.addAll(targets);
-						for (Displayable t : targets) {
-							for (Displayable o : origins) {
-								edges.add(new GraphEdge((Treeline) o, (Treeline) t, con));
-							}
-						}
-					}
-				}
-				Utils.log2("digraph t2 {");
-				for (GraphEdge ge : edges) {
-					Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
-				}
-				Utils.log2("}");
-				
-				return; // need to return to avoid changing selection
-			} else if (command.equals("Select outgoing Connectors")) {
+			if (command.equals("Select outgoing Connectors")) {
 				for (final Connector con : connectors) {
 					Set<Displayable> origins = con.getOrigins();
 					origins.retainAll(sel);
@@ -4821,6 +4779,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
 		} else if (command.equals("Repeat item create (davi-experimenting)")) {
 			canvas.relayCreateRepeatable();
+		} else if (command.equals("Print graph, convergences only (davi-experimenting)") || command.equals("Print graph (davi-experimenting)")) {
+			outputGraph(command.equals("Print graph, convergences only (davi-experimenting)"));
 		} else if (command.equals("Tags...")) {
 			// get a file first
 			File f = Utils.chooseFile(null, "tags", ".xml");
@@ -5769,4 +5729,80 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}});
 	}
 	
+	private void outputGraph(boolean convergencesOnly) { // davi-experimenting
+		// this case is specific to our project -- we care only about how treelines connect to other treelines, and we know that
+		// every treeline has a parent, whose name we care about.
+		// TODO break this out into a separate file, say ProjectGraph.java
+		final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
+		
+		class GraphEdge {
+			Treeline origin, target;
+			Connector connector;
+			GraphEdge(Treeline o, Treeline t, Connector c) {
+				this.origin = o;
+				this.target = t;
+				this.connector = c;
+			}
+			String originParentName() {
+				return project.getProjectTree().getRightTitleForGraph(this.origin);
+			}
+			String targetParentName() {
+				return project.getProjectTree().getRightTitleForGraph(this.target);
+			}
+		}
+		
+		class ProjectGraph {
+			Set<GraphEdge> edges = new HashSet<GraphEdge>();
+			HashMap<Displayable, HashSet<GraphEdge>> uniqueTargetEdges = new HashMap<Displayable, HashSet<GraphEdge>>();
+			boolean convergencesOnly;
+			ProjectGraph(boolean convergencesOnly) {
+				this.convergencesOnly = convergencesOnly;
+				for (Connector con : connectors) {
+					Set<Displayable> origins = con.getOrigins(Treeline.class);
+					if (origins.isEmpty()) continue;
+					// else, add all targets
+					for (Set<Displayable> targets : con.getTargets(Treeline.class)) {
+						for (Displayable t : targets) {
+							for (Displayable o : origins) {
+								GraphEdge ge = new GraphEdge((Treeline) o, (Treeline) t, con);
+								edges.add(ge);
+								HashSet<GraphEdge> utes;
+								if (!uniqueTargetEdges.containsKey(t)) {
+									utes = new HashSet<GraphEdge>();
+									utes.add(ge);
+									uniqueTargetEdges.put(t, utes);
+								} else {
+									utes =  uniqueTargetEdges.get(t);
+									boolean isUnique = true;
+									for (GraphEdge ute : utes) {
+										if (ge.origin == ute.origin && ge.target == ute.target) {
+											isUnique = false;
+											continue;
+										}
+									}
+									if (isUnique) {
+										utes.add(ge);
+										uniqueTargetEdges.put(t, utes);
+									}
+								}
+							}
+						}
+					}
+				}
+				
+			}
+			
+			void logGraph() {
+				Utils.log2("digraph t2 {");
+				for (GraphEdge ge : edges) {
+					if (convergencesOnly && uniqueTargetEdges.get(ge.target).size() > 1 || !convergencesOnly)
+						if (!ge.targetParentName().startsWith("inhib"))
+						Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
+				}
+				Utils.log2("}");
+			}
+		}
+		ProjectGraph pg = new ProjectGraph(convergencesOnly);
+		pg.logGraph();
+	} 
 }
