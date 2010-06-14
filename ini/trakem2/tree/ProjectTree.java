@@ -1069,13 +1069,18 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 						Utils.log2("found retitled ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
 					} else {
 						// no difference in title, but maybe a difference in the contained Displayable (if any)
-						Object other_p_o = ((ProjectThing) other_p.findById(other_pt_id)).getObject();
-						if (other_p_o instanceof Displayable) {
-							Displayable other_d = (Displayable) other_p_o;
-							if (other_d.getEditedYN()) {
-								edited_pt_ids.addEntry(other_pt_id, other_p);
-								Utils.log2("found edited Displayable in ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
-							}
+						DBObject other_dbo = other_p.findById(other_pt_id);
+						Displayable other_d = null;
+						if (other_dbo instanceof Connector) { // Connectors do not contain Displayables, but are themselves Displayable
+							other_d = (Displayable) other_dbo;
+						} else {
+							Object other_p_o = ((ProjectThing) other_dbo).getObject();
+							if (other_p_o instanceof Displayable) 
+								other_d = (Displayable) other_p_o;
+						}
+						if (null != other_d && other_d.getEditedYN()) {
+							edited_pt_ids.addEntry(other_pt_id, other_p);
+							Utils.log2("found edited Displayable in ProjectThing '" + other_p.findById(other_pt_id).getTitle() + "' in  project " + ProjectTree.getHumanFacingNameFromProject(other_p));
 						}
 					}
 				}
