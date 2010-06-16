@@ -57,10 +57,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 		if (target instanceof TemplateTree) {
 			return false;
 		}
-		// Can't drag attribute nodes!
-		if (dragged_node.getUserObject() instanceof Attribute) {
-			return false;
-		}
 		// Can't drag a node that contains a Project!
 		if (dragged_node.getUserObject() instanceof ProjectThing && ((ProjectThing)dragged_node.getUserObject()).getObject() instanceof Project) {
 			return false;
@@ -116,14 +112,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 				} else {
 					return true;
 				}
-			} else if (parent_ob instanceof Attribute) {
-				DefaultMutableTreeNode parent_parent = (DefaultMutableTreeNode)parent_node.getParent();
-				if (null == parent_parent) return false; // should not happen
-				// the parent of an Attribute node contains ALWAYS a ProjectThing
-				Thing thing = (Thing)parent_parent.getUserObject();
-				if (thing.canHaveAsAttribute(child_thing.getType() +"_id")) {
-					return true;
-				}
 			}
 		}
 
@@ -143,10 +131,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			if (target instanceof TemplateTree) {
 				return false;
 			}
-			// Can't drag attribute nodes!
-			if (dragged_node.getUserObject() instanceof Attribute) {
-				return false;
-			}
 
 			Thing dragged_thing = null;
 			Object ob = dragged_node.getUserObject();
@@ -160,19 +144,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			Object obp = new_parent_node.getUserObject();
 			if (null != obp && obp instanceof ProjectThing) {
 				new_parent_thing = (ProjectThing)obp;
-			} else if (obp instanceof Attribute) {
-				ProjectThing pt = (ProjectThing)((DefaultMutableTreeNode)new_parent_node.getParent()).getUserObject();
-				if (pt.canHaveAsAttribute(dragged_thing.getType() + "_id")) {
-					project.getRootLayerSet().addChangeTreesStep();
-					pt.setAttribute(dragged_thing.getType() + "_id", dragged_thing);
-					project.getRootLayerSet().addChangeTreesStep();
-				} else {
-					return false;
-				}
-				// repaint the attribute node
-				target.updateUILater();
-				//don't change the nodes of the tree
-				return true;
 			}
 
 			// Prevent adding more profiles to a profile_list if it contains at least one already

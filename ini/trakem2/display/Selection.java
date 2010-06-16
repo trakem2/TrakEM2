@@ -227,7 +227,7 @@ public class Selection {
 		if (al.size() > 0) selectAll(al);
 	}
 
-	protected void selectAll(Collection<? extends Displayable> al) {
+	public void selectAll(Collection<? extends Displayable> al) {
 		synchronized (queue_lock) {
 		try {
 			lock();
@@ -266,84 +266,27 @@ public class Selection {
 
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
-		if (null == active) return true; // nothing to remove
+		if (0 == queue.size()) return true; // nothing to remove
 		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
 		
-		// Sort into Displayable and ZDisplayable
-		final HashSet<ZDisplayable> zds = new HashSet<ZDisplayable>();
-		final HashSet<Displayable> ds = new HashSet<Displayable>();
-
+		final HashSet<Displayable> set = new HashSet<Displayable>(queue.size());
 		synchronized (queue_lock) {
 			try {
 				lock();
 				setPrev(queue);
 				if (null != display) display.setActive(null);
 				this.active = null;
-
-				for (final Displayable d : queue) {
-					if (d instanceof ZDisplayable) {
-						zds.add((ZDisplayable)d);
-					} else {
-						ds.add(d);
-					}
-				}
+				set.addAll(queue);
+				queue.clear();
 			} catch (Exception e) {
 				IJError.print(e);
 			} finally {
 				unlock();
 			}
 		}
+		
+		set.iterator().next().getProject().removeAll(set);
 
-		if (null != display) display.getLayerSet().addChangeTreesStep();
-
-		// remove one by one, skip those that fail and log the error
-		try {
-			if (null != display) display.getProject().getLoader().startLargeUpdate();
-			
-			// Displayable:
-			// 1. First the Profile from the Project Tree, one by one,
-			//    while creating a map of Layer vs Displayable list to remove in that layer:
-			final HashMap<Layer,HashSet<Displayable>> ml = new HashMap<Layer,HashSet<Displayable>>();
-			for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
-				final Displayable d = it.next();
-				if (d.getClass() == Profile.class) {
-					if (!d.remove2(false)) {
-						Utils.log("Could NOT delete " + d);
-						continue;
-					}
-					it.remove(); // remove the Profile
-					continue;
-				}
-				HashSet<Displayable> l = ml.get(d.getLayer());
-				if (null == l) {
-					l = new HashSet<Displayable>();
-					ml.put(d.getLayer(), l);
-				}
-				l.add(d);
-			}
-			// 2. Then the rest, in bulk:
-			if (ml.size() > 0) {
-				for (final Map.Entry<Layer,HashSet<Displayable>> e : ml.entrySet()) {
-					e.getKey().removeAll(e.getValue());
-				}
-			}
-			// ZDisplayable: bulk removal
-			if (zds.size() > 0) {
-				ZDisplayable first = zds.iterator().next();
-				// 1. From the Project Tree:
-				ProjectTree ptree = first.getProject().getProjectTree();
-				Set<Displayable> not_removed = ptree.remove(false, zds);
-				// 2. Then only those successfully removed, from the LayerSet:
-				zds.removeAll(not_removed);
-				first.getLayerSet().removeAll(zds);
-			}
-		} catch (Exception e) {
-			IJError.print(e);
-		} finally {
-			if (null != display) display.getProject().getLoader().commitLargeUpdate();
-		}
-
-		//Display.repaint(display.getLayer(), box, 0);
 		Display.updateSelection(); // from all displays
 
 		if (null != display) display.getLayerSet().addChangeTreesStep();

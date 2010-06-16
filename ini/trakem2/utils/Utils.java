@@ -27,10 +27,8 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Displayable;
-import ini.trakem2.persistence.Loader;
 import ini.trakem2.imaging.FloatProcessorT2;
 import ini.trakem2.vector.VectorString3D;
 import ini.trakem2.plugin.TPlugIn;
@@ -84,7 +82,6 @@ import java.util.Iterator;
 import java.util.Vector;
 import java.util.Calendar;
 import java.lang.Iterable;
-import java.util.Iterator;
 import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
@@ -93,7 +90,6 @@ import java.util.regex.Matcher;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -104,7 +100,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.8a 2010-06-02";
+	static public String version = "0.8c 2010-06-11";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -271,7 +267,7 @@ public class Utils implements ij.plugin.PlugIn {
 			return;
 		}
 		System.out.println(msg);
-		if (null != logger) logger.log(msg);
+		if (null != IJ.getInstance() && null != logger) logger.log(msg);
 		if (null != status) status.showStatus(msg);
 	}
 

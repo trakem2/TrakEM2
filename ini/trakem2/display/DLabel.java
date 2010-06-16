@@ -82,28 +82,24 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** To reconstruct from an XML entry. */
-	public DLabel(Project project, long id, HashMap ht, HashMap ht_links) {
+	public DLabel(final Project project, final long id, final HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// default:
 		int font_size = 12;
 		int font_style = Font.PLAIN;
 		String font_family = "Courier";
 		// parse data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("style")) {
-				String[] s1 = data.split(";");
-				for (int i=0; i<s1.length; i++) {
-					String[] s2 = s1[i].split(":");
-					if (s2[0].equals("font-size")) {
-						font_size = Integer.parseInt(s2[1].trim());
-					} else if (s2[0].equals("font-style")) {
-						font_style = Integer.parseInt(s2[1].trim());
-					} else if (s2[0].equals("font-family")) {
-						font_family = s2[1].trim();
-					}
+		String data;
+		if (null != (data = ht.get("style"))) {
+			final String[] s1 = data.split(";");
+			for (int i=0; i<s1.length; i++) {
+				String[] s2 = s1[i].split(":");
+				if (s2[0].equals("font-size")) {
+					font_size = Integer.parseInt(s2[1].trim());
+				} else if (s2[0].equals("font-style")) {
+					font_style = Integer.parseInt(s2[1].trim());
+				} else if (s2[0].equals("font-family")) {
+					font_family = s2[1].trim();
 				}
 			}
 		}

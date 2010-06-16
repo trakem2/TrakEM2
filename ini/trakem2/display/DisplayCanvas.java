@@ -425,8 +425,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// debug buckets
 			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification, Color.red);
-			//if (null != display.getLayer().getParent().root) display.getLayer().getParent().root.paint(g2d, srcRect, magnification, Color.blue);
-
+			//if (null != display.getLayer().getParent().lbucks.get(display.getLayer()).root) display.getLayer().getParent().lbucks.get(display.getLayer()).root.paint(g2d, srcRect, magnification, Color.blue);
+			
 
 			// reset to identity
 			g2d.setTransform(new AffineTransform());
@@ -2339,7 +2339,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			//Utils.log2("Found target " + target + "\n  with al_top.size() = " + al_top.size());
 
 			if (null == target) {
-				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, true, al_top, true);
+				target = paintOffscreen(layer, g_width, g_height, srcRect, magnification, active, c_alphas, clipRect, loader, hm, blending_list, mode, graphics_source, layer.getParent().prepaint, al_top, true);
 				// Store it:
 				/* CAN'T, may have prePaint in it
 				if (null != sc && display.getProject().getProperty("look_ahead_cache", 0) > 0) {

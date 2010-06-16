@@ -89,7 +89,8 @@ public abstract class Node<T> implements Taggable {
 		this.y = y;
 		this.la = la;
 	}
-	/** To reconstruct from XML, without a layer. */
+	/** To reconstruct from XML, without a layer.
+	 *  WARNING this method doesn't do any error checking. If "x" or "y" are not present in @param attr, it will simply fail with a NumberFormatException. */
 	public Node(final HashMap<String,String> attr) {
 		this.x = Float.parseFloat(attr.get("x"));
 		this.y = Float.parseFloat(attr.get("y"));
@@ -756,4 +757,7 @@ public abstract class Node<T> implements Taggable {
 	public Point3f asPoint() {
 		return new Point3f(x, y, (float)la.getZ());
 	}
+	
+	/** Apply @param aff to the data, not to the x,y position. */
+	protected void transformData(final AffineTransform aff) {}
 }

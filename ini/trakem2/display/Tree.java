@@ -40,6 +40,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
 import java.awt.AlphaComposite;
+import java.awt.Insets;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Point;
@@ -250,11 +251,20 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Rectangle getBounds(final Rectangle tmp, final Layer layer) {
 		synchronized (node_layer_map) {
 			final Collection<Node<T>> nodes = node_layer_map.get(layer);
-			if (null == nodes) return null;
-			Rectangle r = getBounds(nodes);
-			if (null == r) return null;
-			if (null != tmp) tmp.setRect(r); // it's expected
-			return r;
+			if (null == nodes) {
+				if (null == tmp) return new Rectangle(); // 0 width and 0 height: no data
+				tmp.setBounds(0, 0, 0, 0);
+				return tmp;
+			}
+			final Rectangle r = getBounds(nodes);
+			if (null == tmp) {
+				if (null == r) return new Rectangle();
+				return r;
+			} else {
+				if (null == r) tmp.setRect(0, 0, 0, 0);
+				else tmp.setRect(r);
+				return tmp;
+			}
 		}
 	}
 
@@ -604,7 +614,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Reroots at the point closest to the x,y,layer_id world coordinate.
 	 *  @return true on success. */
-	synchronized public boolean reRoot(float x, float y, Layer layer, double magnification) {
+	public boolean reRoot(float x, float y, Layer layer, double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -636,7 +646,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Split the Tree into new Tree at the point closest to the x,y,layer world coordinate.
 	 *  @return null if no node was found near the x,y,layer point with precision dependent on magnification. */
-	synchronized public List<Tree> splitNear(float x, float y, Layer layer, double magnification) {
+	public List<Tree<T>> splitNear(float x, float y, Layer layer, double magnification) {
 		try {
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x, y);
@@ -668,7 +678,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
 				nd.parent = null;
 				// With the found nd, now a root, create a new Tree
-				Tree t = newInstance();
+				Tree<T> t = newInstance();
 				t.addToDatabase();
 				t.root = nd;
 				// ... and fill its cache arrays
@@ -677,7 +687,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				this.calculateBoundingBox(null);
 				t.calculateBoundingBox(null);
 				// Done!
-				return Arrays.asList(new Tree[]{this, t});
+				ArrayList<Tree<T>> a = new ArrayList<Tree<T>>();
+				a.add(this);
+				a.add(t);
+				return a;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -1164,8 +1177,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				aff.transform(fps, 0, fps, 0, 1);
 				nd.x = fps[0];
 				nd.y = fps[1];
+				nd.transformData(aff);
 			}
-			transformNodeData(tl);
 			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
 			// Remove from tl pointers
 			tl.root = null; // stolen!
@@ -1183,8 +1196,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		return true;
 	}
-
-	protected void transformNodeData(final Tree<T> t) {}
 
 	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
 	protected Node<T> findNodeNear(float x, float y, final Layer layer, final double magnification) {
@@ -1444,8 +1455,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		setLastEdited(active);
 	}
 
-	static private Node to_tag = null;
-	static private Node to_untag = null;
+	static private Node<?> to_tag = null;
+	static private Node<?> to_untag = null;
 	static private boolean show_tag_dialogs = false;
 
 	@Override
@@ -1557,6 +1568,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								else target.addTag(tag);
 								Display.repaint(layer_set);
 								layer_set.addDataEditStep(Tree.this);
+								updateViewData(target);
 							}
 						});
 					}
@@ -1575,6 +1587,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								Display.repaint(layer_set);
 							}
 							layer_set.addDataEditStep(Tree.this);
+							updateViewData(target);
 						}
 					});
 
@@ -1900,7 +1913,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			tndv.recreate(this.root);
 		}
 	}
-	protected void updateViewData(final Node<T> node) {
+	protected void updateViewData(final Node<?> node) {
 		if (null == tndv) return;
 		synchronized (tndv) {
 			tndv.updateData(node);
@@ -2090,22 +2103,32 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			});
 			JPanel pane = new JPanel();
 			GridBagLayout gb = new GridBagLayout();
+			pane.setLayout(gb);
 			GridBagConstraints c = new GridBagConstraints();
 			c.gridx = 0;
 			c.gridy = 0;
-			c.weightx = 0;
+			c.weightx = 1;
 			c.gridwidth = 1;
 			c.anchor = GridBagConstraints.NORTH;
+			c.fill = GridBagConstraints.BOTH;
+			c.insets = new Insets(4,10,5,2);
 			gb.setConstraints(search, c);
 			pane.add(search);
 			c.gridx = 1;
+			c.weightx = 0;
+			c.fill = GridBagConstraints.NONE;
+			c.insets = new Insets(4,0,5,10);
 			gb.setConstraints(b, c);
 			pane.add(b);
 			c.gridx = 0;
 			c.gridy = 1;
 			c.gridwidth = 2;
+			c.weighty = 1;
 			c.fill = GridBagConstraints.BOTH;
-			pane.add(new JScrollPane(table_searchnodes));
+			JScrollPane scp = new JScrollPane(table_searchnodes);
+			c.insets = new Insets(0,0,0,0);
+			gb.setConstraints(scp, c);
+			pane.add(scp);
 			tabs.add("Search", pane);
 
 			frame.getContentPane().add(tabs);
@@ -2155,7 +2178,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				Utils.revalidateComponent(frame);
 			}});
 		}
-		void updateData(final Node<T> node) {
+		void updateData(final Node<?> node) {
 			synchronized (nodedata) {
 				nodedata.remove(node);
 			}
@@ -2183,7 +2206,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
 				this.table_searchnodes.setModel(this.model_searchnodes);
-				this.frame.pack();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -2417,14 +2439,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	synchronized public Collection<Long> getLayerIds() {
-		final ArrayList<Long> ids = new ArrayList<Long>();
-		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
-		return ids;
+	public Collection<Long> getLayerIds() {
+		synchronized (node_layer_map) {
+			final ArrayList<Long> ids = new ArrayList<Long>(node_layer_map.size());
+			for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
+			return ids;
+		}
 	}
 	@Override
-	synchronized public Collection<Layer> getLayersWithData() {
-		return new ArrayList<Layer>(node_layer_map.keySet());
+	public Collection<Layer> getLayersWithData() {
+		synchronized (node_layer_map) {
+			return new ArrayList<Layer>(node_layer_map.keySet());
+		}
 	}
 
 	/** Returns an empty area when there aren't any nodes in @param layer. */
@@ -2469,53 +2495,55 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Retain the data within the layer range, and through out all the rest. */
 	@Override
-	synchronized public boolean crop(List<Layer> range) {
-		// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
-		final HashSet<Layer> keep = new HashSet<Layer>(range);
-		for (final Iterator<Map.Entry<Layer,Set<Node<T>>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
-			final Map.Entry<Layer,Set<Node<T>>> e = it.next();
-			if (keep.contains(e.getKey())) continue;
-			else {
-				// Else, remove the set of nodes for that layer
-				it.remove();
-				// ... and remove all nodes from their parents, merging their children
-				for (final Node<T> nd : e.getValue()) {
-					// if end node, just remove it from its parent
-					if (null == nd.parent) {
-						// The current root:
-						if (null == nd.children) {
-							this.root = null;
-							continue; // a tree of 1 node
-						} else {
-							// First child as new root:
-							nd.children[0].parent = null; // the new root
-							this.root = nd.children[0];
-							// ... and gets any other children of the root
-							for (int i=1; i<nd.children.length; i++) {
-								nd.children[i].parent = null;
-								nd.children[0].add(nd.children[i], nd.children[i].confidence);
+	public boolean crop(List<Layer> range) {
+		synchronized (node_layer_map) {
+			// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
+			final HashSet<Layer> keep = new HashSet<Layer>(range);
+			for (final Iterator<Map.Entry<Layer,Set<Node<T>>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<Layer,Set<Node<T>>> e = it.next();
+				if (keep.contains(e.getKey())) continue;
+				else {
+					// Else, remove the set of nodes for that layer
+					it.remove();
+					// ... and remove all nodes from their parents, merging their children
+					for (final Node<T> nd : e.getValue()) {
+						// if end node, just remove it from its parent
+						if (null == nd.parent) {
+							// The current root:
+							if (null == nd.children) {
+								this.root = null;
+								continue; // a tree of 1 node
+							} else {
+								// First child as new root:
+								nd.children[0].parent = null; // the new root
+								this.root = nd.children[0];
+								// ... and gets any other children of the root
+								for (int i=1; i<nd.children.length; i++) {
+									nd.children[i].parent = null;
+									nd.children[0].add(nd.children[i], nd.children[i].confidence);
+								}
 							}
-						}
-					} else {
-						// Remove from its parent
-						nd.parent.remove(nd);
-						// ... and handle its children:
-						if (null == nd.children) {
-							// An end point
-							continue;
 						} else {
-							// Else, add all its children to its parent
-							for (int i=0; i<nd.children.length; i++) {
-								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
-								nd.parent.add(nd.children[i], nd.children[i].confidence);
+							// Remove from its parent
+							nd.parent.remove(nd);
+							// ... and handle its children:
+							if (null == nd.children) {
+								// An end point
+								continue;
+							} else {
+								// Else, add all its children to its parent
+								for (int i=0; i<nd.children.length; i++) {
+									nd.children[i].parent = null; // so it can't be rejected when adding it to a node
+									nd.parent.add(nd.children[i], nd.children[i].confidence);
+								}
 							}
 						}
 					}
 				}
 			}
+			clearState();
+			return true;
 		}
-		clearState();
-		return true;
 	}
 
 	/** Open an image in a separate thread and returns the thread. Frees up to 1 Gb for it. */
@@ -2725,11 +2753,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return m;
 	}
 
-	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incomming connectors. */
+	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incoming connectors. */
 	public List<Connector>[] findConnectors() throws Exception {
 		final HashMap<Node<T>,Collection<Displayable>> m = new HashMap<Node<T>,Collection<Displayable>>();
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
-		final ArrayList<Connector> incomming = new ArrayList<Connector>();
+		final ArrayList<Connector> incoming = new ArrayList<Connector>();
 		Process.progressive(root.getSubtreeNodes(),
 				     new TaskFactory<Node<T>,Object>() {
 					 public Callable<Object> create(final Node<T> nd) {
@@ -2739,15 +2767,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								a.transform(Tree.this.at);
 								final Collection<Displayable> col = layer_set.findZDisplayables(Connector.class, nd.la, a, false, false);
 								if (col.isEmpty()) return null;
-								// Outgoing or incomming?
+								// Outgoing or incoming?
 								for (final Connector c : (Collection<Connector>)(Collection)col) {
 									if (c.intersectsOrigin(a)) {
 										synchronized (outgoing) {
 											outgoing.add(c);
 										}
 									} else {
-										synchronized (incomming) {
-											incomming.add(c);
+										synchronized (incoming) {
+											incoming.add(c);
 										}
 									}
 								}
@@ -2755,7 +2783,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							 }
 						 };
 					 }});
-		return (List<Connector>[]) new List[]{outgoing, incomming};
+		return (List<Connector>[]) new List[]{outgoing, incoming};
 	}
 
 	@Override

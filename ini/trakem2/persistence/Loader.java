@@ -254,6 +254,10 @@ abstract public class Loader {
 		}
 	}
 	
+	static public void debug() {
+		Utils.log2("v_loaders: " + Utils.toString(v_loaders));
+	}
+	
 	protected Loader() {
 		// register
 		v_loaders.add(this);
@@ -404,7 +408,7 @@ abstract public class Loader {
 			final ImagePlus cached = mawts.get(id);
 			if (null == cached
 			 || cached != imp
-			 || imp.getProcessor().getPixels() != cached.getProcessor().getPixels()
+			 || (1 == imp.getStackSize() && imp.getProcessor().getPixels() != cached.getProcessor().getPixels())
 			) {
 				mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 			} else {
@@ -1030,7 +1034,7 @@ abstract public class Loader {
 		return fetchImage(p, 1.0);
 	}
 
-	/** Fetch a suitable awt.Image for the given mag(nification).
+	/** Fetch a suitable awt.Image for the given magnification.
 	 * If the mag is bigger than 1.0, it will return as if was 1.0.
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
@@ -1503,17 +1507,8 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 2); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 2);
 		gd.addCheckbox("link images", false);
-		gd.addCheckbox("montage", true);
-		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		gd.addCheckbox("montage with phase correlation", true);
 		gd.addCheckbox("homogenize_contrast", false);
-		final Component[] c = {
-			//(Component)gd.getSliders().get(gd.getSliders().size()-2),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-2),
-			//(Component)gd.getSliders().get(gd.getSliders().size()-1),
-			(Component)gd.getNumericFields().get(gd.getNumericFields().size()-1),
-			(Component)gd.getChoices().get(gd.getChoices().size()-1)
-		};
-		//gd.addCheckbox("Apply non-linear deformation", false);
 
 		gd.showDialog();
 
@@ -1542,14 +1537,6 @@ abstract public class Loader {
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
-		// Ensure tiles overlap if using SIFT
-		if (StitchingTEM.FREE_RULE == stitching_rule) {
-			if (bt_overlap <= 0) bt_overlap = 1;
-			if (lr_overlap <= 0) lr_overlap = 1;
-		}
 
 		String[] file_names = null;
 		if (null == image_file_names) {
@@ -1615,7 +1602,7 @@ abstract public class Loader {
 					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
 					Utils.log("Importing " + (sl+1) + "/" + n_slices);
 					int start = sl * n_rows * n_cols;
-					ArrayList cols = new ArrayList();
+					ArrayList<String[]> cols = new ArrayList<String[]>();
 					for (int i=0; i<n_cols; i++) {
 						String[] col = new String[n_rows];
 						for (int j=0; j<n_rows; j++) {
@@ -1632,7 +1619,7 @@ abstract public class Loader {
 						pc_param.setup(layer);
 					}
 					insertGrid(layer, dir_, file_, n_rows*n_cols, cols, bx, by, bt_overlap_, lr_overlap_, 
-						   link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
+						   link_images, stitch_tiles, homogenize_contrast, pc_param, this);
 					
 				}
 			}
@@ -1681,8 +1668,7 @@ abstract public class Loader {
 		gd.addNumericField("bottom-top overlap: ", 0, 3); //as asked by Joachim Walter
 		gd.addNumericField("left-right overlap: ", 0, 3);
 		gd.addCheckbox("link_images", false);
-		gd.addCheckbox("montage", false);
-		gd.addChoice("stitching_rule: ", StitchingTEM.rules, StitchingTEM.rules[0]);
+		gd.addCheckbox("montage with phase correlation", false);
 		gd.addCheckbox("homogenize_contrast", true);
 		final Component[] c = {
 			(Component)gd.getSliders().get(gd.getSliders().size()-2),
@@ -1717,14 +1703,6 @@ abstract public class Loader {
 		final boolean link_images = gd.getNextBoolean();
 		final boolean stitch_tiles = gd.getNextBoolean();
 		final boolean homogenize_contrast = gd.getNextBoolean();
-		final int stitching_rule = gd.getNextChoiceIndex();
-		//boolean apply_non_linear_def = gd.getNextBoolean();
-
-		// Ensure tiles overlap if using SIFT
-		if (StitchingTEM.FREE_RULE == stitching_rule) {
-			if (bt_overlap <= 0) bt_overlap = 1;
-			if (lr_overlap <= 0) lr_overlap = 1;
-		}
 
 		//start magic
 		//get ImageJ-openable files that comply with the convention
@@ -1748,7 +1726,7 @@ abstract public class Loader {
 		// gather image files:
 		final Montage montage = new Montage(convention, chars_are_columns);
 		montage.addAll(file_names);
-		final ArrayList cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
+		final ArrayList<String[]> cols = montage.getCols(); // an array of Object[] arrays, of unequal length maybe, each containing a column of image file names
 
 		// !@#$%^&*
 		final String dir_ = dir;
@@ -1763,7 +1741,7 @@ abstract public class Loader {
 				pc_param.setup(layer);
 			}
 			insertGrid(layer, dir_, file_, file_names.length, cols, bx, by, bt_overlap_, 
-				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, stitching_rule, pc_param, this);
+				   lr_overlap_, link_images, stitch_tiles, homogenize_contrast, pc_param, this);
 		}}, layer.getProject());
 
 		} catch (Exception e) {
@@ -1803,8 +1781,7 @@ abstract public class Loader {
 			final double lr_overlap, 
 			final boolean link_images, 
 			final boolean stitch_tiles, 
-			final boolean homogenize_contrast, 
-			final int stitching_rule,
+			final boolean homogenize_contrast,
 			final StitchingTEM.PhaseCorrelationParam pc_param,
 			final Worker worker)
 	{
@@ -1937,7 +1914,6 @@ abstract public class Loader {
 					//add new Patch at base bx,by plus the x,y of the grid
 					Patch patch = new Patch(layer.getProject(), img.getTitle(), bx + x, by + y, img); // will call back and cache the image
 					if (width != rw || height != rh) patch.setDimensions(rw, rh, false);
-					//if (null != nlt_coeffs) patch.setNonLinearCoeffs(nlt_coeffs);
 					addedPatchFrom(path, patch);
 					if (homogenize_contrast) setMipMapsRegeneration(false); // prevent it
 					else fus.add(regenerateMipMaps(patch));
@@ -2121,7 +2097,7 @@ abstract public class Loader {
 				// wait until repainting operations have finished (otherwise, calling crop on an ImageProcessor fails with out of bounds exception sometimes)
 				if (null != Display.getFront()) Display.getFront().getCanvas().waitForRepaint();
 				if (null != worker) worker.setTaskName("Stitching");
-				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, stitching_rule, pc_param).run();
+				StitchingTEM.stitch(pa, cols.size(), bt_overlap, lr_overlap, true, pc_param).run();
 			}
 
 			// link with images on top, bottom, left and right.
@@ -3577,15 +3553,16 @@ while (it.hasNext()) {
 				if (!IJ.isWindows()) {
 					if (fxml.exists()) {
 						if (!fxml.delete()) {
-							Utils.logAll("ERROR: could not delete existing XML file!");
+							Utils.logAll("ERROR: could not delete existing XML file!\nYour file was temporarily saved at " + ftmp.getName());
 							return null;
 						}
+						Thread.sleep(300); // wait 300 ms for the filesystem to not hiccup 
 						if (!ftmp.renameTo(fxml)) {
-							Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+							Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 							return null;
 						}
 					} else if (!ftmp.renameTo(fxml)) {
-						Utils.logAll("ERROR: could not rename .xml.tmp file to .xml!");
+						Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 						return null;
 					}
 				}
@@ -4322,11 +4299,27 @@ while (it.hasNext()) {
 	static private ExecutorService preloader = null;
 	static private Collection<FutureTask> preloads = new Vector<FutureTask>();
 
+	static private int num_preloader_threads = Math.min(4, Runtime.getRuntime().availableProcessors() -1);
+	
+	/** Set to zero to disable; maximum recommended is 4 if you have more than 4 CPUs. */
+	static public void setupPreloaderThreads(final int count) {
+		num_preloader_threads = count;
+		if (null != preloader) preloader.shutdownNow();
+		if (num_preloader_threads < 1) {
+			Utils.log("Disabling preloading threads.");
+			num_preloader_threads = 0;
+			return;
+		} else if (num_preloader_threads > 4) {
+			Utils.log("WARNING: setting preloader threads to more than the recommended maximum of " + Math.min(4, Runtime.getRuntime().availableProcessors() -1) + ": " + num_preloader_threads);
+		}
+		preloader = Utils.newFixedThreadPool(num_preloader_threads);
+	}
+	
+	/** Uses maximum 4 concurrent threads: higher thread number does not improve performance. */
 	static public final void setupPreloader(final ControlWindow master) {
+		if (num_preloader_threads < 1) return;
 		if (null == preloader) {
-			int n = Runtime.getRuntime().availableProcessors()-1;
-			if (0 == n) n = 1; // !@#$%^
-			preloader = Utils.newFixedThreadPool(n, "preloader");
+			preloader = Utils.newFixedThreadPool(num_preloader_threads, "preloader");
 		}
 	}
  
@@ -4335,22 +4328,25 @@ while (it.hasNext()) {
 		if (null != preloader) { preloader.shutdownNow(); preloader = null; }
 	}
 
-	/** Disabled when on low memory condition. */
+	/** Disabled when on low memory condition, or when num_preloader_threads is smaller than 1. */
 	static public void preload(final Collection<Patch> patches, final double mag, final boolean repaint) {
-		if (low_memory_conditions) return;
+		if (low_memory_conditions || num_preloader_threads < 1) return;
 		if (null == preloader) setupPreloader(null);
+		else return;
 		synchronized (preloads) {
 			for (final FutureTask fu : preloads) fu.cancel(false);
 		}
 		preloads.clear();
-		preloader.submit(new Runnable() { public void run() {
-			for (final Patch p : patches) preload(p, mag, repaint);
-		}});
+		try {
+			preloader.submit(new Runnable() { public void run() {
+				for (final Patch p : patches) preload(p, mag, repaint);
+			}});
+		} catch (Throwable t) { Utils.log2("Ignoring error with preloading"); }
 	}
 	/** Returns null when on low memory condition. */
 	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
-		if (low_memory_conditions) return null;
-		final FutureTask[] fu = new FutureTask[1];
+		if (low_memory_conditions || num_preloader_threads < 1) return null;
+		final FutureTask<Image>[] fu = (FutureTask<Image>[])new FutureTask[1];
 		fu[0] = new FutureTask<Image>(new Callable<Image>() {
 			public Image call() {
 				//Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
@@ -4384,8 +4380,10 @@ while (it.hasNext()) {
 				return null;
 			}
 		});
-		preloads.add(fu[0]);
-		preloader.submit(fu[0]);
+		try {
+			preloads.add(fu[0]);
+			preloader.submit(fu[0]);
+		} catch (Throwable t) { Utils.log2("Ignoring error with preloading a Patch"); }
 		return fu[0];
 	}
 

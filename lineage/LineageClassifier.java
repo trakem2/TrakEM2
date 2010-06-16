@@ -50,18 +50,7 @@ public class LineageClassifier
 	// Hashtable's methods are all synchronized
 	static private final Hashtable<Thread,Operator> table = new Hashtable<Thread,Operator>();
 
-	final static private String[] attrs = new String[]{"APD", "CPD", "STD", "MPD", "PM", "LEV", "SIM", "PRX", "PRM", "LR", "TR", "CLASS"};
-
-	/*
-	// For future weka versions, which will have removed FastVector class
-	final static private ArrayList<Attribute> A = new ArrayList<Attribute>(12);
-
-	static {
-		for (int i=0; i<attrs.length; i++) {
-			A.add(new Attribute(attrs[i]));
-		}
-	}
-	*/
+	final static protected String[] attrs = new String[]{"APD", "CPD", "STD", "MPD", "PM", "LEV", "SIM", "PRX", "PRM", "LR", "TR", "CLASS"};
 
 	static private final class Operator {
 		final Classifier c = getClassifier();
@@ -83,15 +72,19 @@ public class LineageClassifier
 	public static final boolean classify(final double[] vector) throws Exception {
 
 		// Obtain or generate a Thread-local instance
-		final Thread t = Thread.currentThread();
-		Operator op = table.get(t);
-		if (null == op) {
-			op = new Operator();
-			table.put(t, op);
+
+		Operator op;
+		synchronized (table) { // avoid clashes within weka
+			final Thread t = Thread.currentThread();
+			op = table.get(t);
+			if (null == op) {
+				op = new Operator();
+				table.put(t, op);
+			}
 		}
 
 		// Future weka versions will use new DenseInstance(1, vector) instead
-		Instance ins = new DenseInstance(1, vector);
+		final Instance ins = new DenseInstance(1, vector);
 		ins.setDataset(op.data);
 		// Was trained to return true or false, represented in weka as 0 or 1
 		return 1 == ((int) Math.round(op.c.classifyInstance(ins)));

@@ -57,8 +57,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	Bucket root = null;
 	private HashMap<Displayable,HashSet<Bucket>> db_map = null;
 
-	private double z;
-	private double thickness;
+	private double z = 0;
+	private double thickness = 0;
 
 	private LayerSet parent;
 
@@ -79,21 +79,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Reconstruct from XML file. */
-	public Layer(Project project, long id, HashMap ht_attributes) {
+	public Layer(final Project project, final long id, HashMap<String,String> ht_attributes) {
 		super(project, id);
 		this.parent = null;
 		// parse data
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("z")) {
-				this.z = Double.parseDouble(data);
-			} else if (key.equals("thickness")) {
-				this.thickness = Double.parseDouble(data);
-			}
-			// all the above could have been done with reflection since the fields have the same name
-		}
+		String data;
+		if (null != (data = ht_attributes.get("z"))) this.z = Double.parseDouble(data);
+		else Displayable.xmlError(this, "z", this.z);
+		if (null != (data = ht_attributes.get("thickness"))) this.thickness = Double.parseDouble(data);
+		else Displayable.xmlError(this, "thickness", this.thickness);
 	}
 
 	/** Creates a new Layer asking for z and thickness, and adds it to the parent and returns it. Returns null if the dialog was canceled.*/
@@ -117,6 +111,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
+	/** Pops up a dialog to choose the first Z coord, the thickness, the number of layers,
+	 *  and whether to skip the creation of any layers whose Z and thickness match
+	 *  that of existing layers.
+	 *  @return The newly created layers. */
 	static public List<Layer> createMany(Project project, LayerSet parent) {
 		if (null == parent) return null;
 		GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
@@ -127,10 +125,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		// start iteration to add layers
-		boolean skip = gd.getNextBoolean();
 		double z = gd.getNextNumber();
 		double thickness = gd.getNextNumber();
 		int n_layers = (int)gd.getNextNumber();
+		boolean skip = gd.getNextBoolean();
 		if (thickness < 0) {
 			Utils.log("Can't create layers with negative thickness");
 			return null;
@@ -146,7 +144,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				// Check if layer exists
 				la = parent.getLayer(z);
 				if (null == la) la = new Layer(project, z, thickness, parent);
-				// else don't create, but use existing
+				else la = null;
 			} else la = new Layer(project, z, thickness, parent);
 			if (null != la) {
 				parent.addSilently(la);
@@ -293,14 +291,26 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public synchronized boolean remove(final Displayable displ) {
-		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) {
+		if (null == displ || null == al_displayables) {
 			Utils.log2("Layer can't remove Displayable " + displ.getId());
 			return false;
 		}
-		// remove from Bucket before modifying stack index
-		if (null != root) Bucket.remove(displ, db_map);
-		// now remove proper, so stack_index hasn't changed yet
+		final int old_stack_index = al_displayables.indexOf(displ);
+		if (-1 == old_stack_index) {
+			Utils.log2("Layer.remove: not found: " + displ);
+			return false;
+		}
 		al_displayables.remove(displ);
+		// remove from Bucket AFTER modifying stack index, so it gets reindexed properly
+		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
+		int i = 0;
+		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
+		if (null != root) {
+			for (Bucket bu : db_map.remove(displ)) {
+				bu.remove(displ, old_stack_index, new_stack_indices);
+			}
+		}
+
 		parent.removeFromOffscreens(this);
 		Display.remove(this, displ);
 		return true;
@@ -310,7 +320,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	public synchronized boolean removeAll(final Set<Displayable> ds) {
 		if (null == ds || null == al_displayables) return false;
 		// Ensure list is iterated only once: don't ask for index every time!
-		final ArrayList<Integer> stack_indices = new ArrayList<Integer>(ds.size());
+		final ArrayList<Integer> old_stack_indices = new ArrayList<Integer>(ds.size());
 		int i = 0;
 		for (final Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = it.next();
@@ -318,13 +328,18 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				it.remove();
 				parent.removeFromOffscreens(this);
 				Display.remove(this, d);
-				stack_indices.add(i);
+				old_stack_indices.add(i);
 			}
 			i++;
-			if (stack_indices.size() == ds.size()) break;
+			if (old_stack_indices.size() == ds.size()) break;
 		}
-		if (null != root) root.removeAll(stack_indices);
-		return ds.size() == stack_indices.size();
+		// New stack indices:
+		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
+		i = 0;
+		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
+		//
+		if (null != root) root.removeAll(old_stack_indices, new_stack_indices);
+		return ds.size() == old_stack_indices.size();
 	}
 
 	/** Used for reconstruction purposes. */

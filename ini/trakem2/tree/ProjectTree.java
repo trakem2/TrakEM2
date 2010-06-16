@@ -261,10 +261,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
+				project.getRootLayerSet().addChangeTreesStep(); // store old state
 				if (repeatable_node == selected_node) {
 					setRepeatableNode(null);
 				}
 				remove(true, thing, selected_node);
+				project.getRootLayerSet().addChangeTreesStep(); // store new state
 				return;
 			} else if (command.equals("Rename...")) {
 				//if (!Project.isBasicType(thing.getType())) {
@@ -644,10 +646,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	 *  calls softRemove on each Displayable, and does NOT call remove on the Displayable.
 	 *  If a Displayable is not found, it returns it in a set of not found objects.
 	 *  If all are removed, returns an empty set. */
-	public final Set<Displayable> remove(final boolean check, final Set<? extends Displayable> displayables) {
-		boolean b = true;
-		
-		final Enumeration en = ((DefaultMutableTreeNode)getModel().getRoot()).depthFirstEnumeration();
+	public final Set<Displayable> remove(final Set<? extends Displayable> displayables, final DefaultMutableTreeNode top) {
+		final Enumeration en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
 		final HashSet<DefaultMutableTreeNode> to_remove = new HashSet<DefaultMutableTreeNode>();
 		final HashSet<Displayable> remaining = new HashSet<Displayable>(displayables);
 		while (en.hasMoreElements()) {
@@ -980,6 +980,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 
 		return false;
+	}
+	
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootProjectThing();
 	}
 	
 	// begin davi-experimenting block
@@ -1376,7 +1381,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			Displayable source_pt_d = (Displayable) source_pt_ob;
 			this.transferDisplayable(source_pt_d);
 		}
-		ProjectThing this_pt = new ProjectThing(this_pt_template, this.project, source_pt.getId(), this_pt_ob, new ArrayList(), new HashMap());
+		ProjectThing this_pt = new ProjectThing(this_pt_template, this.project, source_pt.getId(), this_pt_ob, new ArrayList());
 		this_pt_parent.addChild(this_pt, null == this_pt_parent.getChildren() ? 0 : this_pt_parent.getChildren().size());
 		return true;
 	}

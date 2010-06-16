@@ -98,51 +98,51 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Reconstruct from XML. */
-	public Polyline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public Polyline(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 		// parse specific data
-		for (Iterator it = ht_attr.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("d")) {
-				// parse the points
-				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				// M: Move To
-				// L: Line To
-				// sequence is: M p[0][0],p[1][0] L p[0][1],p[1][1] L p[0][2],p[1][2] ...
-				// first point:
-				int i_start = data.indexOf('M');
-				int i_L = data.indexOf('L', i_start+1);
-				int next = 0;
-				while (-1 != i_L) {
-					if (p[0].length == next) enlargeArrays();
-					// parse the point
-					// 'X'
-					int i_comma = data.indexOf(',', i_start+1);
-					p[0][next] = Double.parseDouble(data.substring(i_start+1, i_comma));
-					// 'Y'
-					i_L = data.indexOf('L', i_comma);
-					int i_end = i_L;
-					if (-1 == i_L) i_end = data.length();
-					p[1][next] = Double.parseDouble(data.substring(i_comma+1, i_end));
-			
-					// prepare next point
-					i_start = i_L;
-					next++;
-				}
-				n_points = next;
-				// scale arrays back, so minimal size and also same size as p_layer
-				p = new double[][]{Utils.copy(p[0], n_points), Utils.copy(p[1], n_points)};
-			} else if (key.equals("layer_ids")) {
-				// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
-				final String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
-				this.p_layer = new long[layer_ids.length];
-				for (int i=0; i<layer_ids.length; i++) {
-					if (i == p_layer.length) enlargeArrays();
-					this.p_layer[i] = Long.parseLong(layer_ids[i]);
-				}
+		final String ps = ht_attr.get("d");
+		if (null != ps) {
+			final String lids = ht_attr.get("layer_ids");
+			if (null == lids) {
+				Utils.log("ERROR: found 'd' but not 'layer_ids' in XML entry of Polyline #" + this.id);
+				return;
+			}
+			// parse the points
+			// parse the SVG points data
+			// M: Move To
+			// L: Line To
+			// sequence is: M p[0][0],p[1][0] L p[0][1],p[1][1] L p[0][2],p[1][2] ...
+			// first point:
+			int i_start = ps.indexOf('M');
+			int i_L = ps.indexOf('L', i_start+1);
+			int next = 0;
+			while (-1 != i_L) {
+				if (p[0].length == next) enlargeArrays();
+				// parse the point
+				// 'X'
+				int i_comma = ps.indexOf(',', i_start+1);
+				p[0][next] = Double.parseDouble(ps.substring(i_start+1, i_comma));
+				// 'Y'
+				i_L = ps.indexOf('L', i_comma);
+				int i_end = i_L;
+				if (-1 == i_L) i_end = ps.length();
+				p[1][next] = Double.parseDouble(ps.substring(i_comma+1, i_end));
+
+				// prepare next point
+				i_start = i_L;
+				next++;
+			}
+			n_points = next;
+			// scale arrays back, so minimal size and also same size as p_layer
+			p = new double[][]{Utils.copy(p[0], n_points), Utils.copy(p[1], n_points)};
+
+			// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
+			final String[] layer_ids = lids.replaceAll(" ", "").trim().split(",");
+			this.p_layer = new long[layer_ids.length];
+			for (int i=0; i<layer_ids.length; i++) {
+				if (i == p_layer.length) enlargeArrays();
+				this.p_layer[i] = Long.parseLong(layer_ids[i]);
 			}
 		}
 	}
@@ -580,6 +580,13 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
+			
+			// Check that there are any images -- otherwise may hang. TODO
+			if (layer_set.getDisplayables(Patch.class).isEmpty()) {
+				Utils.log("No images are present!");
+				return;
+			}
+			
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
 			final Worker[] worker = new Worker[2];

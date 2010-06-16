@@ -44,7 +44,6 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Dimension;
 import java.awt.Rectangle;
@@ -52,7 +51,6 @@ import java.awt.Event;
 import java.awt.Image;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.AlphaComposite;
 import java.awt.Toolkit;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -62,7 +60,6 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.Polygon;
-import java.awt.geom.PathIterator;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
 import java.awt.image.PixelGrabber;
@@ -147,31 +144,23 @@ public final class Patch extends Displayable implements ImageData {
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
-			final String key = entry.getKey();
-			final String data = entry.getValue();
-			if (key.equals("type")) {
-				this.type = Integer.parseInt(data);
-			} else if (key.equals("min")) {
-				this.min = Double.parseDouble(data);
-				hasmin = true;
-			} else if (key.equals("max")) {
-				this.max = Double.parseDouble(data);
-				hasmax = true;
-			} else if (key.equals("o_width")) {
-				this.o_width = Integer.parseInt(data);
-			} else if (key.equals("o_height")) {
-				this.o_height = Integer.parseInt(data);
-			} else if (key.equals("pps")) {
-				String path = data;
-				if (FSLoader.isRelativePath(path)) {
-					path = project.getLoader().getParentFolder() + path;
-				}
-				project.getLoader().setPreprocessorScriptPathSilently(this, path);
-			} else if (key.equals("original_path")) {
-				this.original_path = data;
-			}
+		String data;
+		if (null != (data = ht_attributes.get("type"))) this.type = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("min"))) {
+			this.min = Double.parseDouble(data);
+			hasmin = true;
 		}
+		if (null != (data = ht_attributes.get("max"))) {
+			this.max = Double.parseDouble(data);
+			hasmax = true;
+		}
+		if (null != (data = ht_attributes.get("o_width"))) this.o_width = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("o_height"))) this.o_height = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("pps"))) {
+			if (FSLoader.isRelativePath(data)) data = project.getLoader().getParentFolder() + data;
+			project.getLoader().setPreprocessorScriptPathSilently(this, data);
+		}
+		if (null != (data = ht_attributes.get("original_path"))) this.original_path = data;
 
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
@@ -203,14 +192,13 @@ public final class Patch extends Displayable implements ImageData {
 					// Some values, to survive:
 					min = 0;
 					max = Patch.getMaxMax(this.type);
-					Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+					Utils.log("WARNING could not restore min and max from image file for Patch #" + this.id + ", and they are not present in the XML file.");
 				} else {
 					ip.resetMinAndMax(); // finds automatically reasonable values
 					setMinAndMax(ip.getMin(), ip.getMax());
 				}
 			}
 		}
-		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
 	/** The original width of the pixels in the source image file. */
@@ -274,9 +262,6 @@ public final class Patch extends Displayable implements ImageData {
 	public String set(final ImagePlus new_imp) {
 		synchronized (this) {
 			if (null == new_imp) return null;
-			// flag to mean: this Patch has never been set to any image except the original
-			//    The intention is never to remove the mipmaps of original images
-			boolean first_time = null == original_path;
 			// 0 - set original_path to the current path if there is no original_path recorded:
 			if (isStack()) {
 				for (Patch p : getStackPatches()) {
@@ -360,10 +345,6 @@ public final class Patch extends Displayable implements ImageData {
 
 	public Image createImage() {
 		return adjustChannels(channels, true, null);
-	}
-
-	private Image adjustChannels(int c) {
-		return adjustChannels(c, false, null);
 	}
 
 	public int getChannelAlphas() {
@@ -531,7 +512,6 @@ public final class Patch extends Displayable implements ImageData {
 		Image image = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
 		if (null == image) {
 			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
-			boolean thread = false;
 			if (null == image) {
 				// fetch the smallest image possible
 				//image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
@@ -589,16 +569,14 @@ public final class Patch extends Displayable implements ImageData {
 			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
 			Utils.log2("Removing stack patches: " + ht.size());
-			ArrayList al = new ArrayList();
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Patch p = (Patch)it.next();
+			for (final Patch p : ht.values()) {
 				if (!p.isOnlyLinkedTo(this.getClass())) {
 					Utils.showMessage("At least one slice of the stack (z=" + p.getLayer().getZ() + ") is supporting other data.\nCan't delete.");
 					return false;
 				}
 			}
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Patch p = (Patch)it.next();
+			ArrayList<Layer> layers_to_remove = new ArrayList<Layer>();
+			for (final Patch p : ht.values()) {
 				if (!p.layer.remove(p) || !p.removeFromDatabase()) {
 					Utils.showMessage("Can't delete Patch " + p);
 					return false;
@@ -606,13 +584,12 @@ public final class Patch extends Displayable implements ImageData {
 				p.unlink();
 				p.removeLinkedPropertiesFromOrigins();
 				//no need//it.remove();
-				al.add(p.layer);
+				layers_to_remove.add(p.layer);
 				if (p.layer.isEmpty()) Display.close(p.layer);
 				else Display.repaint(p.layer);
 			}
 			if (delete_empty_layers) {
-				for (Iterator it = al.iterator(); it.hasNext(); ) {
-					Layer la = (Layer)it.next();
+				for (final Layer la : layers_to_remove) {
 					if (la.isEmpty()) {
 						project.getLayerTree().remove(la, false);
 						Display.close(la);
@@ -667,31 +644,7 @@ public final class Patch extends Displayable implements ImageData {
 	public ArrayList<Patch> getStackPatches() {
 		final TreeMap<Double,Patch> ht = new TreeMap<Double,Patch>();
 		getStackPatchesNR(ht);
-		return new ArrayList(ht.values()); // sorted by z
-	}
-
-	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
-	private void getStackPatches(HashMap<Double,Patch> ht) {
-		if (ht.containsKey(this)) return;
-		ht.put(new Double(layer.getZ()), this);
-		if (null != hs_linked && hs_linked.size() > 0) {
-			/*
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable ob = (Displayable)it.next();
-				if (ob instanceof Patch && !ob.layer.equals(this.layer)) {
-					((Patch)ob).getStackPatches(ht);
-				}
-			}
-			*/
-			// avoid stack overflow (with as little as 114 layers ... !!!)
-			Displayable[] d = new Displayable[hs_linked.size()];
-			hs_linked.toArray(d);
-			for (int i=0; i<d.length; i++) {
-				if (d[i] instanceof Patch && d[i].layer.equals(this.layer)) {
-					((Patch)d[i]).getStackPatches(ht);
-				}
-			}
-		}
+		return new ArrayList<Patch>(ht.values()); // sorted by z
 	}
 
 	/** Non-recursive version to avoid stack overflows with "excessive" recursion (I hate java). */
@@ -703,9 +656,9 @@ public final class Patch extends Displayable implements ImageData {
 			list2.clear();
 			for (Patch p : list1) {
 				if (null != p.hs_linked) {
-					for (Iterator it = p.hs_linked.iterator(); it.hasNext(); ) {
+					for (Iterator<?> it = p.hs_linked.iterator(); it.hasNext(); ) {
 						Object ln = it.next();
-						if (ln instanceof Patch) {
+						if (ln.getClass() == Patch.class) {
 							Patch pa = (Patch)ln;
 							if (!ht.containsValue(pa)) {
 								ht.put(pa.layer.getZ(), pa);
@@ -1252,7 +1205,6 @@ public final class Patch extends Displayable implements ImageData {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 		DisplayCanvas dc = (DisplayCanvas)source;
-		final Layer la = dc.getDisplay().getLayer();
 		final Roi roi = dc.getFakeImagePlus().getRoi();
 
 		switch (ke.getKeyCode()) {
@@ -1261,7 +1213,11 @@ public final class Patch extends Displayable implements ImageData {
 				int mod = ke.getModifiers();
 
 				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
-				if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
+				if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
+					// Place the source image, untransformed, into clipboard:
+					ImagePlus imp = getImagePlus();
+					if (null != imp) imp.copy(false);
+				} else if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
 					CoordinateTransformList list = null;
 					if (null != ct) {
 						list = new CoordinateTransformList();
@@ -1282,11 +1238,6 @@ public final class Patch extends Displayable implements ImageData {
 						ip = getImageProcessor();
 					}
 					new ImagePlus(this.title, ip).copy(false);
-				} else if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
-					// On shift down (and no other flags!):
-					// Place the source image, untransformed, into clipboard:
-					ImagePlus imp = getImagePlus();
-					if (null != imp) imp.copy(false);
 				}
 				ke.consume();
 				break;
@@ -1498,7 +1449,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		project.getLoader().setPreprocessorScriptPath(this, path);
 
-		if (null != old_path || null != path || !path.equals(old_path)) {
+		if (null != old_path || null != path) {
 			// Update dimensions
 			ImagePlus imp = getImagePlus(); // transformed by the new preprocessor script, if any
 			final int w = imp.getWidth();

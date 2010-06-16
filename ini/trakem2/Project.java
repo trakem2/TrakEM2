@@ -45,6 +45,7 @@ import ini.trakem2.display.Profile;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.Treeline;
 import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.FSLoader;
@@ -75,7 +76,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.Vector;
 import java.util.concurrent.ScheduledFuture;
@@ -295,7 +298,7 @@ public class Project extends DBObject {
 		// else, relaunch
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
-				save();
+				if (loader.hasChanges()) save();
 			}
 		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
 	}
@@ -484,7 +487,10 @@ public class Project extends DBObject {
 				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
 			FSLoader loader = new FSLoader(dir_project);
-			if (!loader.isReady()) return null;
+			if (!loader.isReady()) {
+				loader.destroy();
+				return null;
+			}
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 
 			// help the helpless users:
@@ -528,6 +534,7 @@ public class Project extends DBObject {
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openFSProject(path, open_displays);
 		if (null == data) {
+			loader.destroy();
 			return null;
 		}
 		final TemplateThing root_tt = (TemplateThing)data[0];
@@ -700,6 +707,7 @@ public class Project extends DBObject {
 		return "project";
 	}
 
+	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
 		String path = loader.save(this);
@@ -1512,5 +1520,89 @@ public class Project extends DBObject {
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */
 	public String getUNUId() {
 		return loader.getUNUId();
+	}
+	
+	/** Calls Project.removeAll(col, null) */
+	public final boolean removeAll(final Set<Displayable> col) {
+		return removeAll(col, null);
+	}
+	/** Remove any set of Displayable objects from the Layer, LayerSet and Project Tree as necessary.
+	 *  ASSUMES there aren't any nested LayerSet objects in @param col. */
+	public final boolean removeAll(final Set<Displayable> col, final DefaultMutableTreeNode top_node) {
+		// 0. Sort into Displayable and ZDisplayable
+		final Set<ZDisplayable> zds = new HashSet<ZDisplayable>();
+		final List<Displayable> ds = new ArrayList<Displayable>();
+		for (final Displayable d : col) {
+			if (d instanceof ZDisplayable) {
+				zds.add((ZDisplayable)d);
+			} else {
+				ds.add(d);
+			}
+		}
+		
+		// Displayable:
+		// 1. First the Profile from the Project Tree, one by one,
+		//    while creating a map of Layer vs Displayable list to remove in that layer:
+		final HashMap<Layer,Set<Displayable>> ml = new HashMap<Layer,Set<Displayable>>();
+		for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
+			if (d.getClass() == Profile.class) {
+				if (!project_tree.remove(false, findProjectThing(d), null)) { // like Profile.remove2
+					Utils.log("Could NOT delete " + d);
+					continue;
+				}
+				it.remove(); // remove the Profile
+				continue;
+			}
+			// The map of Layer vs Displayable list
+			Set<Displayable> l = ml.get(d.getLayer());
+			if (null == l) {
+				l = new HashSet<Displayable>();
+				ml.put(d.getLayer(), l);
+			}
+			l.add(d);
+		}
+		// 2. Then the rest, in bulk:
+		if (ml.size() > 0) {
+			for (final Map.Entry<Layer,Set<Displayable>> e : ml.entrySet()) {
+				e.getKey().removeAll(e.getValue());
+			}
+		}
+		// 3. ZDisplayable: bulk removal
+		if (zds.size() > 0) {
+			// 1. From the Project Tree:
+			Set<Displayable> not_removed = project_tree.remove(zds, top_node);
+			// 2. Then only those successfully removed, from the LayerSet:
+			zds.removeAll(not_removed);
+			layer_set.removeAll(zds);
+		}
+		
+		// TODO
+		return true;
+		
+	}
+	
+	/** For undo purposes. */
+	public void resetRootProjectThing(final ProjectThing pt, final HashMap<Thing,Boolean> ptree_exp) {
+		this.root_pt = pt;
+		project_tree.reset(ptree_exp);
+	}
+	/** For undo purposes. */
+	public void resetRootTemplateThing(final TemplateThing tt, final HashMap<Thing,Boolean> ttree_exp) {
+		this.root_tt = tt;
+		template_tree.reset(ttree_exp);
+	}
+	/** For undo purposes. */
+	public void resetRootLayerThing(final LayerThing lt, final HashMap<Thing,Boolean> ltree_exp) {
+		this.root_lt = lt;
+		layer_tree.reset(ltree_exp);
+	}
+
+	public TemplateThing getRootTemplateThing() {
+		return root_tt;
+	}
+	
+	public LayerThing getRootLayerThing() {
+		return root_lt;
 	}
 }

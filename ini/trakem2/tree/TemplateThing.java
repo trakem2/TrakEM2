@@ -37,8 +37,7 @@ public final class TemplateThing extends DBObject implements Thing {
 
 	private String type;
 	private TemplateThing parent = null;
-	private ArrayList al_children = null;
-	private HashMap ht_attributes = null;
+	private ArrayList<TemplateThing> al_children = null;
 	/** The string or numeric value, if any, contained in the XML file between the opening and closing tags. */
 	private String value = null;
 
@@ -50,9 +49,6 @@ public final class TemplateThing extends DBObject implements Thing {
 	private TemplateThing(final TemplateThing tt) {
 		super(tt.project, tt.id);
 		this.type = tt.type;
-		if (null != tt.ht_attributes) {
-			this.ht_attributes = (HashMap) tt.ht_attributes.clone();
-		}
 	}
 
 	/** Create a new non-database-stored TemplateThing. */
@@ -74,21 +70,15 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** For reconstruction purposes. */
-	public void setup(ArrayList al_children, HashMap ht_attributes) {
+	public void setup(ArrayList<TemplateThing> al_children) {
 		if (null == al_children || 0 == al_children.size()) {
 			this.al_children = null;
 		} else {
 			this.al_children = al_children;
 			//set parent
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				TemplateThing child = (TemplateThing)it.next();
+			for (final TemplateThing child : al_children) {
 				child.parent = this;
 			}
-		}
-		if (null == ht_attributes || ht_attributes.isEmpty()) {
-			this.ht_attributes = null;
-		} else {
-			this.ht_attributes = ht_attributes;
 		}
 	}
 
@@ -97,15 +87,8 @@ public final class TemplateThing extends DBObject implements Thing {
 		this.project = project;
 		this.id = project.getLoader().getNextId();
 		super.addToDatabase();
-		if (null != ht_attributes && !ht_attributes.isEmpty()) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				TemplateAttribute ta = (TemplateAttribute)it.next();
-				ta.addToDatabase(project);
-			}
-		}
 		if (null == al_children || al_children.isEmpty()) return;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			TemplateThing child = (TemplateThing)it.next();
+		for (final TemplateThing child : al_children) {
 			child.addToDatabase(project);
 		}
 	}
@@ -167,12 +150,12 @@ public final class TemplateThing extends DBObject implements Thing {
 			// but then there wouldn't be a sequential order.
 		}
 		//Utils.log2("Added child of type " + ((TemplateThing)child).type);
-		al_children.add(child);
+		al_children.add((TemplateThing)child);
 		child.setParent(this);
 		return true;
 	}
 
-	public ArrayList getChildren() {
+	public ArrayList<TemplateThing> getChildren() {
 		return al_children;
 	}
 
@@ -246,32 +229,6 @@ public final class TemplateThing extends DBObject implements Thing {
 		return al;
 	}
 
-	public boolean addAttribute(String title, Object contents) {
-		if (null == title/* || null == contents*/) return false;
-		if (title.equals("id")) return true; // no need to store the id as an attribute (but will exists as such in the XML file)
-		if (null == ht_attributes) ht_attributes = new HashMap();
-		if (null == ht_attributes.get(title)) {
-			ht_attributes.put(title, new TemplateAttribute(title, contents));
-			return true;
-		} else {
-			Utils.log("TemplateThing.addAttribute: I already have such an attribute.");
-			return false;
-		}
-	}
-
-	public HashMap getAttributes() {
-		return ht_attributes;
-	}
-
-	public boolean canHaveAsAttribute(String type) {
-		if (null == type) return false;
-		if (null == ht_attributes) return false;
-		if (ht_attributes.containsKey(type)) {
-			return true;
-		}
-		return false;
-	}
-
 	/** Returns null always, for TemplateThings don't hold any real object. */
 	public Object getObject() {
 		return null;
@@ -319,11 +276,10 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children. */
-	public ArrayList collectAllChildren(final ArrayList al) {
+	public ArrayList<TemplateThing> collectAllChildren(final ArrayList<TemplateThing> al) {
 		if (null == al_children) return al;
 		al.addAll(al_children);
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (final TemplateThing tt : al_children) {
 			tt.collectAllChildren(al);
 		}
 		return al;
@@ -362,15 +318,6 @@ public final class TemplateThing extends DBObject implements Thing {
 						Utils.showMessage("Deletion incomplete, check database, for child: " + ob.toString());
 						return false;
 					}
-				}
-			}
-		}
-		// remove the attributes
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				if (! ((TemplateAttribute)it.next()).remove(false)) {
-					Utils.showMessage("Deletion incomplete at attributes, check database for thing: " + this);
-					return false;
 				}
 			}
 		}
@@ -456,13 +403,6 @@ public final class TemplateThing extends DBObject implements Thing {
 		}
 		sb_header.append(">\n");
 		sb_header.append(indent).append("<!ATTLIST ").append(tag).append(" id NMTOKEN #REQUIRED>\n"); // 'id' exists separate from the other attributes
-		if (null != ht_attributes && !ht_attributes.isEmpty() ){
-			// the rest of the attributes:
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				TemplateAttribute ta = (TemplateAttribute)it.next();
-				sb_header.append("\t<!ATTLIST ").append(tag).append(" ").append(ta.getTitle()).append(" NMTOKEN #REQUIRED>\n");
-			}
-		}
 		// if it's a basic type it can contain a DBObject
 		if (project.isBasicType(type)) {
 			sb_header.append(indent).append("<!ATTLIST ").append(tag).append(" oid NMTOKEN #REQUIRED>\n");
@@ -502,14 +442,6 @@ public final class TemplateThing extends DBObject implements Thing {
 		}
 		// 1 - opening tag with attributes:
 		sb_body.append(indent).append("<").append(type).append(" id=\"").append(id).append("\"");
-		if (null != ht_attributes && !ht_attributes.isEmpty() ){
-			// the rest of the attributes:
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				TemplateAttribute ta = (TemplateAttribute)it.next();
-				sb_body.append(" ").append(ta.getTitle()).append("=\"").append(ta.getObject().toString()).append("\"");
-				if (write_attr) sb_header.append("\t<!ATTLIST ").append(type).append(" ").append(ta.getTitle()).append(" NMTOKEN #REQUIRED>\n");
-			}
-		}
 		sb_body.append(">\n");
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
@@ -522,15 +454,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	public void debug(String indent) {
-		StringBuffer sb_at = new StringBuffer(" (id,"); // 'id' exists regardless
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				TemplateAttribute ta = (TemplateAttribute)it.next();
-				sb_at.append(ta.getTitle()).append(",");
-			}
-		}
-		sb_at.append(")");
-		System.out.println(indent + this.type + sb_at.toString());
+		System.out.println(indent + this.type + " (id)");
 		if (null != al_children) {
 			if (isNested()) {
 				System.out.println(indent + "-- Nested type.");
@@ -540,14 +464,14 @@ public final class TemplateThing extends DBObject implements Thing {
 				System.out.println("INDENT OVER 20 !");
 				return;
 			}
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((TemplateThing)it.next()).debug(indent + "\t");
+			for (final TemplateThing tt : al_children) {
+				tt.debug(indent + "\t");
 			}
 		}
 	}
 
 	public boolean isExpanded() {
-		return project.getLayerTree().isExpanded(this); // TODO this is wrong! Or, at least, missleading
+		return project.getLayerTree().isExpanded(this); // TODO this is wrong! Or, at least, misleading
 	}
 
 	/** Return information on this node and its object. */
@@ -561,14 +485,6 @@ public final class TemplateThing extends DBObject implements Thing {
 		final TemplateThing copy = new TemplateThing(this.type, pr, nid);
 		copy.project = pr;
 		copy.addToDatabase();
-		// clone attributes
-		if (null != ht_attributes) {
-			copy.ht_attributes = new HashMap();
-			for (final Iterator<Map.Entry> it = this.ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-				final Map.Entry entry = it.next();
-				copy.ht_attributes.put(entry.getKey(), ((TemplateAttribute)entry.getValue()).clone(pr, copy_id)); // String is a final class ... again, not turtles all the way down.
-			}
-		}
 		// clone children
 		if (null == al_children) return copy;
 		for (final Iterator it = al_children.iterator(); it.hasNext(); ) {

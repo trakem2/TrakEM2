@@ -23,13 +23,10 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 
 public interface Thing {
 
 	public boolean canHaveAsChild(Thing thing);
-	
-	public boolean canHaveAsAttribute(String type);
 	
 	public String getType();
 
@@ -37,11 +34,9 @@ public interface Thing {
 
 	public String toString();
 
-	public HashMap getAttributes();
-
 	public boolean hasChildren();
 
-	public ArrayList getChildren();
+	public ArrayList<? extends Thing> getChildren();
 
 	public Object getObject();
 
