@@ -47,6 +47,7 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.imaging.StitchingTEM;
+import ini.trakem2.analysis.TEMCAGraph; // davi-experimenting
 
 import javax.swing.*;
 import javax.swing.text.Document;
@@ -75,7 +76,6 @@ import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.AffineModel3D;
 
 import ij.process.*;
-
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
 
@@ -2900,7 +2900,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_SEMICOLON, 0, true));
 		}
 		item = new JMenuItem("Print graph (davi-experimenting)"); item.addActionListener(this); menu.add(item);
-		item = new JMenuItem("Print graph, convergences only (davi-experimenting)"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Selection");
@@ -4814,8 +4813,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			project.getLoader().regenerateMipMaps(selection.getSelected(Patch.class));
 		} else if (command.equals("Repeat item create (davi-experimenting)")) {
 			canvas.relayCreateRepeatable();
-		} else if (command.equals("Print graph, convergences only (davi-experimenting)") || command.equals("Print graph (davi-experimenting)")) {
-			outputGraph(command.equals("Print graph, convergences only (davi-experimenting)"));
+		} else if (command.equals("Print graph (davi-experimenting)")) {
+			outputGraph();
 		} else if (command.equals("Tags...")) {
 			// get a file first
 			File f = Utils.chooseFile(null, "tags", ".xml");
@@ -5764,80 +5763,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}});
 	}
 	
-	private void outputGraph(boolean convergencesOnly) { // davi-experimenting
-		// this case is specific to our project -- we care only about how treelines connect to other treelines, and we know that
-		// every treeline has a parent, whose name we care about.
-		// TODO break this out into a separate file, say ProjectGraph.java
-		final Collection<Connector> connectors = (Collection<Connector>) (Collection) getLayerSet().getZDisplayables(Connector.class);
+	private void outputGraph() { // davi-experimenting
+		GenericDialog gd = new GenericDialog("Merge many (davi-experimenting)");
+		boolean convergences_only = false;
+		boolean hide_inhib = false;
+		boolean show_all_physio = true;
+		gd.addCheckbox("Convergences only?", convergences_only);
+		gd.addCheckbox("Hide inhibitory?", hide_inhib);
+		gd.addCheckbox("Show all physiologically characterized cells?", show_all_physio);
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		convergences_only = gd.getNextBoolean();
+		hide_inhib = gd.getNextBoolean();
+		show_all_physio = gd.getNextBoolean();
 		
-		class GraphEdge {
-			Treeline origin, target;
-			Connector connector;
-			GraphEdge(Treeline o, Treeline t, Connector c) {
-				this.origin = o;
-				this.target = t;
-				this.connector = c;
-			}
-			String originParentName() {
-				return project.getProjectTree().getRightTitleForGraph(this.origin);
-			}
-			String targetParentName() {
-				return project.getProjectTree().getRightTitleForGraph(this.target);
-			}
-		}
-		
-		class ProjectGraph {
-			Set<GraphEdge> edges = new HashSet<GraphEdge>();
-			HashMap<Displayable, HashSet<GraphEdge>> uniqueTargetEdges = new HashMap<Displayable, HashSet<GraphEdge>>();
-			boolean convergencesOnly;
-			ProjectGraph(boolean convergencesOnly) {
-				this.convergencesOnly = convergencesOnly;
-				for (Connector con : connectors) {
-					Set<Displayable> origins = con.getOrigins(Treeline.class);
-					if (origins.isEmpty()) continue;
-					// else, add all targets
-					for (Set<Displayable> targets : con.getTargets(Treeline.class)) {
-						for (Displayable t : targets) {
-							for (Displayable o : origins) {
-								GraphEdge ge = new GraphEdge((Treeline) o, (Treeline) t, con);
-								edges.add(ge);
-								HashSet<GraphEdge> utes;
-								if (!uniqueTargetEdges.containsKey(t)) {
-									utes = new HashSet<GraphEdge>();
-									utes.add(ge);
-									uniqueTargetEdges.put(t, utes);
-								} else {
-									utes =  uniqueTargetEdges.get(t);
-									boolean isUnique = true;
-									for (GraphEdge ute : utes) {
-										if (ge.origin == ute.origin && ge.target == ute.target) {
-											isUnique = false;
-											continue;
-										}
-									}
-									if (isUnique) {
-										utes.add(ge);
-										uniqueTargetEdges.put(t, utes);
-									}
-								}
-							}
-						}
-					}
-				}
-				
-			}
-			
-			void logGraph() {
-				Utils.log2("digraph t2 {");
-				for (GraphEdge ge : edges) {
-					if (convergencesOnly && uniqueTargetEdges.get(ge.target).size() > 1 || !convergencesOnly)
-						if (!ge.targetParentName().startsWith("inhib"))
-						Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
-				}
-				Utils.log2("}");
-			}
-		}
-		ProjectGraph pg = new ProjectGraph(convergencesOnly);
-		pg.logGraph();
+		TEMCAGraph tg = new TEMCAGraph(this.project);
+		tg.logDotGraph(convergences_only, hide_inhib, show_all_physio);
 	} 
 }

@@ -155,6 +155,9 @@ public final class FSLoader extends Loader {
 		public boolean rangesLimitsAreSame(UserIDRange other) {
 			return (this.lower_limit == other.lower_limit && this.upper_limit == other.upper_limit);
 		}
+		public boolean inRange(long id) {
+			return (lower_limit <= id && upper_limit >= id);
+		}
 	}
 	private UserIDRange which_user_id_range = null;
 	private Hashtable<String, UserIDRange> ht_user_id_ranges = null; // if no user_id_range elements are found in project XML, this will be left null 
@@ -266,6 +269,19 @@ public final class FSLoader extends Loader {
 			}
 		}
 		return true;
+	}
+	/** returns null if id not in a ht_user_id_ranges or if the id was not in any existing range **/
+	public String userNameFromID(long id) {
+		if (userIDRangesPresent()) {
+			for (Iterator<Map.Entry<String, UserIDRange>> it = ht_user_id_ranges.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<String, UserIDRange> entry = it.next();
+				UserIDRange user_id_range = entry.getValue();
+				if (user_id_range.inRange(id)) return user_id_range.user_name;
+			}
+			Utils.log("WARNING: userNameFromID could not find user for id='" + id + "', returning null");
+		} 
+		Utils.log("WARNING: userNameFromID called when userIDRangesPresent() is false, returning null");
+		return null;
 	}
 	// end block of davi-experimenting stuff
 	
