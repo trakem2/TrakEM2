@@ -5764,20 +5764,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 	
 	private void outputGraph() { // davi-experimenting
-		GenericDialog gd = new GenericDialog("Merge many (davi-experimenting)");
-		boolean convergences_only = false;
-		boolean hide_inhib = false;
-		boolean show_all_physio = true;
-		gd.addCheckbox("Convergences only?", convergences_only);
-		gd.addCheckbox("Hide inhibitory?", hide_inhib);
-		gd.addCheckbox("Show all physiologically characterized cells?", show_all_physio);
-		gd.showDialog();
-		if (gd.wasCanceled()) return;
-		convergences_only = gd.getNextBoolean();
-		hide_inhib = gd.getNextBoolean();
-		show_all_physio = gd.getNextBoolean();
-		
 		TEMCAGraph tg = new TEMCAGraph(this.project);
-		tg.logDotGraph(convergences_only, hide_inhib, show_all_physio);
+		tg.logDotGraph(this);
 	} 
 }

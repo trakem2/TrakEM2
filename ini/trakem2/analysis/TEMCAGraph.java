@@ -1,14 +1,21 @@
 package ini.trakem2.analysis;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
+import javax.swing.JOptionPane;
+
+import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.display.Connector;
+import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Treeline;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
 
 //This class is specific to the Harvard TEMCA project -- we care only about how treelines connect to other treelines, and we know that
@@ -95,7 +102,44 @@ public final class TEMCAGraph {
 	// N.b. 'convergencesOnly' is somewhat of a misnomer -- this will
 	// also output hits from tuned cell to tuned cell, even if the post-synaptic tuned cell is not otherwise converged upon.
 	// TODO break this out into a separate file, say ProjectGraph.java
-	public void logDotGraph(boolean convergences_only, boolean hide_inhib, boolean show_all_physio) {
+	public void logDotGraph(Display display) {
+		GenericDialog gd = new GenericDialog("Merge many (davi-experimenting)");
+		boolean convergences_only = false;
+		boolean hide_inhib = false;
+		boolean show_all_physio = true;
+		boolean add_to_selection = false;
+		boolean restrict_by_user = false;
+		String restrict_by_user_name = null;
+		Set<String> user_names = null;
+		FSLoader loader = null;
+		gd.addCheckbox("Convergences only?", convergences_only);
+		gd.addCheckbox("Hide inhibitory?", hide_inhib);
+		gd.addCheckbox("Show all physiologically characterized cells?", show_all_physio);
+		gd.addCheckbox("Add connections to selection?", add_to_selection);
+		if (project.getLoader() instanceof FSLoader && ((FSLoader) project.getLoader()).userIDRangesPresent()) {
+			loader = (FSLoader) project.getLoader();
+			 user_names = loader.getUserNames();
+			if (null != user_names) {
+				gd.addCheckbox("Restrict connections by user?", restrict_by_user);
+				final String[] choices = user_names.toArray(new String[0]);
+				// final String[] choices = (String[]) ht_user_id_ranges.keySet().toArray();
+				Arrays.sort(choices);
+				final int cur_choice = loader.getCurrentUserName().equals("_system") ? 0 : Arrays.binarySearch(choices, loader.getCurrentUserName()); // ASSUMPTION: shouldn't be able to get here if which_user_id_range is null or not in choices
+				gd.addChoice("User", choices, loader.getCurrentUserName());
+			}
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		convergences_only = gd.getNextBoolean();
+		hide_inhib = gd.getNextBoolean();
+		show_all_physio = gd.getNextBoolean();
+		add_to_selection = gd.getNextBoolean();
+		if (null != user_names) {
+			restrict_by_user = gd.getNextBoolean();
+			restrict_by_user_name = gd.getNextChoice();
+		}
+		
+		
 		Utils.log2("digraph t2 {");
 		if (show_all_physio) { // TODO if show_all_physio is false, still output the cell name and color if the cell is in the graph anyway
 			for (String cell_name : physio_cells.keySet()) {
@@ -104,9 +148,22 @@ public final class TEMCAGraph {
 			}
 		}
 		for (GraphEdge ge : edges) {
-			if (convergences_only && uniqueTargetEdges.get(ge.target).size() > 1 || !convergences_only || (show_all_physio && isPhysio(ge.originParentName()) && isPhysio(ge.targetParentName())))
-				if (!hide_inhib || !ge.targetParentName().startsWith("inhib"))
-				Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
+			if (convergences_only && uniqueTargetEdges.get(ge.target).size() > 1 || 
+					!convergences_only || 
+					(show_all_physio && isPhysio(ge.originParentName()) && isPhysio(ge.targetParentName()))) {
+				if ((!hide_inhib || !ge.targetParentName().startsWith("inhib"))) {
+					if (restrict_by_user) {
+						String connector_user_name = loader.userNameFromID(ge.connector.getId());
+						if (!connector_user_name.equals(restrict_by_user_name)) {
+							continue;
+						}
+					}
+					Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
+					if (add_to_selection) {
+						display.getSelection().add(ge.connector);
+					}
+				}
+			}
 		}
 		Utils.log2("}");
 	}

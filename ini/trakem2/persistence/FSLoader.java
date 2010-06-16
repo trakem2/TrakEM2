@@ -234,11 +234,8 @@ public final class FSLoader extends Loader {
 		}
 	}
 	private void userIDRangePicker() {
-		if (userIDRangesPresent() && ht_user_id_ranges.size() > 1) { // > 1, not >0, because "_system" should always be present
-			Set<String> user_names = ((Hashtable<String,UserIDRange>) ht_user_id_ranges.clone()).keySet();
-			if (!user_names.remove("_system")) {
-				Utils.log("WARNING: userIDRangePicker() detected missing _system user");
-			}
+		Set<String> user_names = this.getUserNames();
+		if (null != user_names) {
 			final Object[] choices = user_names.toArray();
 			// final String[] choices = (String[]) ht_user_id_ranges.keySet().toArray();
 			Arrays.sort(choices);
@@ -249,6 +246,24 @@ public final class FSLoader extends Loader {
 	}
 	public boolean userIDRangesPresent() {
 		return (null != ht_user_id_ranges);
+	}
+	/** returns null if no user_id_ranges or if only the _system user exists **/
+	public Set<String> getUserNames() {
+		if (userIDRangesPresent() && ht_user_id_ranges.size() > 1) { // > 1, not >0, because "_system" should always be present
+			Set<String> user_names = ((Hashtable<String,UserIDRange>) ht_user_id_ranges.clone()).keySet();
+			if (!user_names.remove("_system")) {
+				Utils.log("WARNING: userIDRangePicker() detected missing _system user");
+			}
+			return user_names;
+		}
+		return null;
+	}
+	/** returns null if which_user_id_range is null **/
+	public String getCurrentUserName() {
+		if (null!= which_user_id_range) {
+			return which_user_id_range.user_name;
+		}
+		return null;
 	}
 	/** For each UserIDRange in this loader, see if the other loader has a range with the same name and same upper & lower limits.
 	 */
