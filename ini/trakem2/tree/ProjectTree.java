@@ -588,8 +588,19 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		this.updateUILater();
 	}
 	
+	// begin davi-experimenting block
 	private void setRepeatableNode(final DefaultMutableTreeNode node) {
 		repeatable_node = node;
+		
+		// just for log message:
+		String log_msg = "ProjectTree.setRepeatableNode called";
+		Object obp = repeatable_node.getUserObject();
+		ProjectThing pt;
+		if (null != obp && obp instanceof ProjectThing) {
+			pt = (ProjectThing)obp;
+			log_msg = log_msg + " on ProjectThing " + pt.getTitle();
+		}
+		Utils.log2(log_msg);
 	}
 	
 	public void createRepeatable() {
@@ -633,6 +644,76 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			this.updateUILater();
 		}
 	}
+	
+	// modeled after DefaultTreeTransferHandler.java executeDrop()
+	public boolean repeatableCanAcceptSelection(Selection s) {
+		if (!this.hasRepeatable()) return false;
+		ProjectThing new_parent_thing = null;
+		Object obp = repeatable_node.getUserObject();
+		if (null != obp && obp instanceof ProjectThing) {
+			new_parent_thing = (ProjectThing)obp;
+		} else return false;
+		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
+		ProjectThing root_thing = (ProjectThing)root.getUserObject();
+		
+		ArrayList<Displayable> ald = s.getSelected();
+		if (ald.size() > 0) {
+			for (Displayable d : ald) {
+				Thing child = root_thing.findChild(d);
+				if (null == child) { 
+					Utils.log("WARNING: repeatableCanAcceptSelection cannot find selected object " + d + " in object hierarchy"); 
+					return false; 
+				}
+				if (!new_parent_thing.canHaveAsChild(child)) return false;
+			}
+		} else return false;
+		return true;
+	}
+	
+	public boolean moveSelectionToRepeatable(Selection s) { // TODO make undo-able
+		if (!this.repeatableCanAcceptSelection(s)) {
+			Utils.log2("WARNING: moveSelectionToRepeatable called, but repeatable cannot accept the selection"); return false;
+		}
+		ProjectThing new_parent_thing = (ProjectThing) repeatable_node.getUserObject(); // type checking handled by repeatableCanAcceptSelection() call
+		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
+		ProjectThing root_thing = (ProjectThing)root.getUserObject();
+		DefaultMutableTreeNode dragged_node = null;
+		
+		ArrayList<Displayable> ald = s.getSelected();
+		if (ald.size() > 0) {
+			for (Displayable d : ald) {
+				Thing child = root_thing.findChild(d);
+				// derived from DefaultTreeTransferHandler:
+				ProjectThing p_dragged_thing = (ProjectThing)child;
+				ProjectThing old_parent = (ProjectThing)p_dragged_thing.getParent();
+				if (null != old_parent) {
+					if (!old_parent.removeChild(p_dragged_thing)) {
+						return false;
+					}
+				}
+				if (!new_parent_thing.addChild(p_dragged_thing)) {
+					// on failure, restore
+					old_parent.addChild(p_dragged_thing);
+					return false;
+				}
+				// on success, edit the tree:
+				dragged_node = findNode(child, this);
+				if (null == dragged_node) {
+					Utils.log2("WARNING: ProjectTree.moveSelectionToRepeatable findNode could not find child " + p_dragged_thing.getTitle());
+					return false;
+				}
+				dragged_node.removeFromParent();
+				((DefaultTreeModel)this.getModel()).insertNodeInto(dragged_node,repeatable_node,repeatable_node.getChildCount());
+			}
+		}
+		TreePath treePath = new TreePath(dragged_node.getPath());
+		this.scrollPathToVisible(treePath);
+		this.setSelectionPath(treePath);
+		DNDTree.expandNode(this, repeatable_node);
+		return true;
+	}
+	// end davi-experimenting block
+	
 	/** If the given node is null, it will be searched for. */
 	public boolean remove(final boolean check, final ProjectThing thing, final DefaultMutableTreeNode node) {
 		final Object obd = thing.getObject();

@@ -144,7 +144,7 @@ public final class TEMCAGraph {
 		if (show_all_physio) { // TODO if show_all_physio is false, still output the cell name and color if the cell is in the graph anyway
 			for (String cell_name : physio_cells.keySet()) {
 				String cell_color = physio_cells.get(cell_name);
-				Utils.log2("\t\"" + cell_name + "\" [color=" + cell_color + "\";");
+				Utils.log2("\t\"" + cell_name + "\" [color=" + cell_color + "];");
 			}
 		}
 		for (GraphEdge ge : edges) {
@@ -158,7 +158,13 @@ public final class TEMCAGraph {
 							continue;
 						}
 					}
-					Utils.log2("\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\";");
+					String origin_parent_name = ge.originParentName();
+					String edge_line = "\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\"";
+					if (physio_cells.containsKey(origin_parent_name)) {
+						edge_line = edge_line + " [color=" + physio_cells.get(origin_parent_name) + "]";
+					}
+					edge_line = edge_line + ";";
+					Utils.log2(edge_line);
 					if (add_to_selection) {
 						display.getSelection().add(ge.connector);
 					}

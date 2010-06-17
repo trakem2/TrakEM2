@@ -2936,6 +2936,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
 		menu.add(graph);
+		if (this.getProject().getProjectTree().repeatableCanAcceptSelection(selection)) { // davi-experimenting
+			item = new JMenuItem("Move selected to repeatable (davi-experimenting)"); item.addActionListener(this); menu.add(item);
+		}
 		popup.add(menu);
 
 		menu = new JMenu("Tool");
@@ -4832,6 +4835,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			getLayerSet().importTags(new StringBuilder(ff[0]).append('/').append(ff[1]).toString(), 1 == gd.getNextChoiceIndex());
+		} else if (command.equals("Move selected to repeatable (davi-experimenting)")) {
+			getProject().getProjectTree().moveSelectionToRepeatable(selection);
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
