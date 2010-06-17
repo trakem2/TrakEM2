@@ -5389,6 +5389,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// hide deselected
 		final ArrayList all = layer.getParent().getZDisplayables(); // a copy
 		all.addAll(layer.getDisplayables());
+		// begin davi-experimenting block: add all DLabels to the ArrayList (from Search.find) TODO make work for nested LayerSets
+		for (Layer cur_layer : layer.getParent().getLayers()) {
+			for (Displayable ob : cur_layer.getDisplayables()) {
+				if (ob.getClass() == DLabel.class) {
+					all.add(ob);
+				}
+			}
+		} // end davi-experimenting
 		all.removeAll(selection.getSelected());
 		if (not_images) all.removeAll(layer.getDisplayables(Patch.class));
 		for (final Displayable d : (ArrayList<Displayable>)all) {
