@@ -123,20 +123,25 @@ public class Search {
 			c.insets = new Insets(4, 10, 5, 2);
 			gb.setConstraints(search_field, c);
 			all.add(search_field);
-			all.add(r); // davi-experimenting TODO post-merge fix this
+			
 			c.gridx = 1;
+			c.weightx = 0;
+			c.insets = new Insets(4, 2, 5, 10);
+			all.add(r); // davi-experimenting TODO post-merge fix this
+			
+			c.gridx = 2;
 			c.weightx = 0;
 			c.insets = new Insets(4, 2, 5, 10);
 			gb.setConstraints(b, c);
 			all.add(b);
 			
-			c.gridx = 2;
+			c.gridx = 3;
 			gb.setConstraints(pulldown, c);
 			all.add(pulldown);
 			
 			c.gridx = 0;
 			c.gridy = 1;
-			c.gridwidth = 3;
+			c.gridwidth = 4;
 			c.weightx = 1;
 			c.weighty = 1;
 			c.fill = GridBagConstraints.BOTH;
