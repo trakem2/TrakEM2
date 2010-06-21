@@ -1,5 +1,6 @@
 package ini.trakem2.analysis;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -26,7 +27,6 @@ public final class TEMCAGraph {
 	protected Set<GraphEdge> edges = new HashSet<GraphEdge>();
 	// If A synapses onto B twice, this should not count as a convergence; rather, a convergence is when A --> B and C --> B. Use this HashMap to keep a count of unique pre- and post-synaptic object pairs.
 	protected HashMap<Displayable, HashSet<GraphEdge>> uniqueTargetEdges = new HashMap<Displayable, HashSet<GraphEdge>>();
-	protected HashMap<String, String> physio_cells = new HashMap<String, String>(); // name, color
 	
 	class GraphEdge {
 		Treeline origin, target;
@@ -47,19 +47,7 @@ public final class TEMCAGraph {
 	public TEMCAGraph(Project p) {
 		this.project = p;
 		final Collection<Connector> connectors = (Collection<Connector>) (Collection) p.getRootLayerSet().getZDisplayables(Connector.class);
-		physio_cells.put("10blue", "blue");
-		physio_cells.put("11green", "green");
-		physio_cells.put("13green", "green");
-		physio_cells.put("14green", "green");
-//		physio_cells.put("15orange", "blue"); // the astrocyte
-		physio_cells.put("16blue", "blue");
-		physio_cells.put("17orange", "orange");
-		physio_cells.put("18green", "green");
-		physio_cells.put("19orange", "orange");
-		physio_cells.put("20red", "red");
-		physio_cells.put("21green", "green");
-		physio_cells.put("23orange", "orange");
-		physio_cells.put("45white", "grey");
+		
 		
 		for (Connector con : connectors) {
 			Set<Displayable> origins = con.getOrigins(Treeline.class);
@@ -95,8 +83,28 @@ public final class TEMCAGraph {
 		}
 	}
 	
-	protected boolean isPhysio(String name) {
-		return physio_cells.containsKey(name);
+	private static String physioOrnamentFromColor(String color) {
+		return " [style=filled fillcolor=" + color + " color=" + color + " shape=box]";
+	}
+	
+	private static String inhibOrnamentFromColor(String color) {
+		return " [style=filled fillcolor=" + color + " color=" + color + " shape=box]";
+	}
+	
+	private static String inhibFragmentOrnamentFromColor(String color) {
+		return " [color=" + color + "]";
+	}
+	
+	private static String pyrOrnamentFromColor(String color) {
+		return " [style=filled fillcolor=pink color=" + color + " shape=box]";
+	}
+	
+	private static String pyrFragmentOrnamentFromColor(String color) {
+		return " [color=" + color + "]";
+	}
+	
+	private static String apicalOrnamentFromColor(String color){
+		return " [style=filled fillcolor=pink color=" + color + " shape=box]";
 	}
 	
 	// N.b. 'convergencesOnly' is somewhat of a misnomer -- this will
@@ -139,18 +147,46 @@ public final class TEMCAGraph {
 			restrict_by_user_name = gd.getNextChoice();
 		}
 		
+
+		HashMap<String, String> physio_cells = new HashMap<String, String>(); // name, color
+		physio_cells.put("10blue", "blue");
+		physio_cells.put("11green", "green");
+		physio_cells.put("13green", "green");
+		physio_cells.put("14green", "green");
+//		physio_cells.put("15orange", "orange"); // the astrocyte
+		physio_cells.put("16blue", "blue");
+		physio_cells.put("17orange", "orange");
+		physio_cells.put("18green", "green");
+		physio_cells.put("19orange", "orange");
+		physio_cells.put("20red", "red");
+		physio_cells.put("21green", "green");
+		physio_cells.put("22red", "red");
+		physio_cells.put("23orange", "orange");
+		physio_cells.put("45white", "grey");
 		
-		Utils.log2("digraph t2 {");
-		if (show_all_physio) { // TODO if show_all_physio is false, still output the cell name and color if the cell is in the graph anyway
+		
+
+		HashMap<String, String> dot_nodes = new HashMap<String, String>(); // name, ornament
+		
+		long n_physio=0;
+		long n_pyr=0; 
+		long n_pyr_frag=0; 
+		long n_inhib=0; 
+		long n_inhib_frag=0; 
+		long n_apical=0;
+		
+		if (show_all_physio) {
 			for (String cell_name : physio_cells.keySet()) {
-				String cell_color = physio_cells.get(cell_name);
-				Utils.log2("\t\"" + cell_name + "\" [color=" + cell_color + "];");
+				dot_nodes.put(cell_name, physioOrnamentFromColor(physio_cells.get(cell_name)));
+				n_physio++;
 			}
 		}
+		
+		ArrayList<String> edge_lines = new ArrayList<String>();
 		for (GraphEdge ge : edges) {
 			if (convergences_only && uniqueTargetEdges.get(ge.target).size() > 1 || 
 					!convergences_only || 
-					(show_all_physio && isPhysio(ge.originParentName()) && isPhysio(ge.targetParentName()))) {
+					(show_all_physio && physio_cells.containsKey(ge.originParentName()) && physio_cells.containsKey(ge.targetParentName()))) {
 				if ((!hide_inhib || !ge.targetParentName().startsWith("inhib"))) {
 					if (restrict_by_user) {
 						String connector_user_name = loader.userNameFromID(ge.connector.getId());
@@ -159,17 +195,56 @@ public final class TEMCAGraph {
 						}
 					}
 					String origin_parent_name = ge.originParentName();
-					String edge_line = "\t\"" + ge.originParentName() + "\" -> \"" + ge.targetParentName() + "\"";
+					String target_parent_name = ge.targetParentName();
+					String edge_line = "\t\"" + origin_parent_name + "\" -> \"" + target_parent_name + "\"";
 					if (physio_cells.containsKey(origin_parent_name)) {
 						edge_line = edge_line + " [color=" + physio_cells.get(origin_parent_name) + "]";
-					}
+						if (!dot_nodes.containsKey(origin_parent_name)) { // in case show_all_physio is false, still output node as a physio cell
+							dot_nodes.put(origin_parent_name, physioOrnamentFromColor(physio_cells.get(origin_parent_name)));
+						}
+					} 
 					edge_line = edge_line + ";";
-					Utils.log2(edge_line);
+					edge_lines.add(edge_line);
+					
+					if (!dot_nodes.containsKey(target_parent_name)) {
+						if (target_parent_name.startsWith("inhib_dendrite"))	{
+							dot_nodes.put(target_parent_name, inhibFragmentOrnamentFromColor("grey"));
+							n_inhib_frag++;
+						} else if (target_parent_name.startsWith("inhib"))	{
+							dot_nodes.put(target_parent_name, inhibOrnamentFromColor("grey"));
+							n_inhib++;
+						} else if (target_parent_name.startsWith("pyr")) {
+							dot_nodes.put(target_parent_name, pyrOrnamentFromColor("magenta"));
+							n_pyr++;
+						} else if (target_parent_name.startsWith("dendrite")) {
+							dot_nodes.put(target_parent_name, pyrFragmentOrnamentFromColor("magenta"));
+							n_pyr_frag++;
+						} else if (target_parent_name.startsWith("apical")) {
+							dot_nodes.put(target_parent_name, apicalOrnamentFromColor("magenta"));
+							n_apical++;
+						} else {
+							dot_nodes.put(target_parent_name, "");
+							Utils.log("WARNING: TEMCAGraph.logDotGraph encountered uncategorized node '" + target_parent_name + "'");
+						}
+					}
+					
 					if (add_to_selection) {
 						display.getSelection().add(ge.connector);
 					}
 				}
 			}
+		}
+		
+		Utils.log2("/* logDotGraph:\n\tn_physio=" + n_physio + "\n\tn_pyr=" + n_pyr + "\n\tn_pyr_frag=" + n_pyr_frag + "\n\tn_inhib=" + n_inhib + "\n\tn_inhib_frag=" + n_inhib_frag + "\n\tn_apical=" + n_apical + "\n*/");
+		
+		Utils.log2("digraph t2 {");
+		
+		for (String dot_node_name : dot_nodes.keySet()) {
+			String ornament = dot_nodes.get(dot_node_name);
+			Utils.log2("\t\"" + dot_node_name + "\"" + ornament + ";");
+		}
+		for (String edge_line : edge_lines) {
+			Utils.log2(edge_line);
 		}
 		Utils.log2("}");
 	}
