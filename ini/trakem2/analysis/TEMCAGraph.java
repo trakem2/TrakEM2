@@ -117,6 +117,9 @@ public final class TEMCAGraph {
 		boolean show_all_physio = true;
 		boolean add_to_selection = false;
 		boolean restrict_by_user = false;
+		boolean add_only_physio_cons_to_sel = false;
+		boolean add_only_non_physio_cons_to_sel = false;
+		
 		String restrict_by_user_name = null;
 		Set<String> user_names = null;
 		FSLoader loader = null;
@@ -124,16 +127,18 @@ public final class TEMCAGraph {
 		gd.addCheckbox("Hide inhibitory?", hide_inhib);
 		gd.addCheckbox("Show all physiologically characterized cells?", show_all_physio);
 		gd.addCheckbox("Add connections to selection?", add_to_selection);
+		final String[] selection_list = {"No limit", "Physiologically characterized cells", "Non-physiologically characterized objects"};
+		gd.addChoice("Limit selection addition by postsynaptic type:", selection_list, "No limit");
 		if (project.getLoader() instanceof FSLoader && ((FSLoader) project.getLoader()).userIDRangesPresent()) {
 			loader = (FSLoader) project.getLoader();
 			 user_names = loader.getUserNames();
 			if (null != user_names) {
 				gd.addCheckbox("Restrict connections by user?", restrict_by_user);
-				final String[] choices = user_names.toArray(new String[0]);
+				final String[] user_name_list = user_names.toArray(new String[0]);
 				// final String[] choices = (String[]) ht_user_id_ranges.keySet().toArray();
-				Arrays.sort(choices);
-				final int cur_choice = loader.getCurrentUserName().equals("_system") ? 0 : Arrays.binarySearch(choices, loader.getCurrentUserName()); // ASSUMPTION: shouldn't be able to get here if which_user_id_range is null or not in choices
-				gd.addChoice("User", choices, loader.getCurrentUserName());
+				Arrays.sort(user_name_list);
+				final int cur_choice = loader.getCurrentUserName().equals("_system") ? 0 : Arrays.binarySearch(user_name_list, loader.getCurrentUserName()); // ASSUMPTION: shouldn't be able to get here if which_user_id_range is null or not in choices
+				gd.addChoice("User", user_name_list, loader.getCurrentUserName());
 			}
 		}
 		gd.showDialog();
@@ -142,6 +147,14 @@ public final class TEMCAGraph {
 		hide_inhib = gd.getNextBoolean();
 		show_all_physio = gd.getNextBoolean();
 		add_to_selection = gd.getNextBoolean();
+		if (add_to_selection) {
+			int limit = gd.getNextChoiceIndex();
+			if (1 == limit) {
+				add_only_physio_cons_to_sel = true;
+			} else if (2 == limit) {
+				add_only_non_physio_cons_to_sel = true;
+			}
+		}
 		if (null != user_names) {
 			restrict_by_user = gd.getNextBoolean();
 			restrict_by_user_name = gd.getNextChoice();
@@ -229,7 +242,11 @@ public final class TEMCAGraph {
 					}
 					
 					if (add_to_selection) {
-						display.getSelection().add(ge.connector);
+						if ((!add_only_physio_cons_to_sel && !add_only_non_physio_cons_to_sel) ||
+							(add_only_physio_cons_to_sel && physio_cells.containsKey(target_parent_name)) || 
+							(add_only_non_physio_cons_to_sel && !physio_cells.containsKey(target_parent_name))) {
+								display.getSelection().add(ge.connector);
+						}
 					}
 				}
 			}
