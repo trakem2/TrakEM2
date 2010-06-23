@@ -911,7 +911,7 @@ abstract public class Loader {
 			return 0; // survive
 		}
 
-		final int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 eaxctly
+		final int level = (int)(0.0001 + Math.log(1/mag) / Math.log(2)); // compensating numerical instability: 1/0.25 should be 2 exactly
 		final int max_level = getHighestMipMapLevel(size);
 		/*
 		if (max_level > 6) {
@@ -4358,7 +4358,7 @@ while (it.hasNext()) {
 							// 1. In low memory conditions, where the awt is immediately thrown out of the cache,
 							// this may result in an infinite loop.
 							// 2. When regenerating, if the awt is not yet done and thus not cached,
-							// it will also result in an infinie loop.
+							// it will also result in an infinite loop.
 							// To prevent it:
 							if (null != awt) {
 								if (!Loader.isSignalImage(awt) && p.getProject().getLoader().isCached(p, mag)) {
