@@ -306,9 +306,11 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		int i = 0;
 		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
 		if (null != root) {
-			for (Bucket bu : db_map.remove(displ)) {
-				bu.remove(displ, old_stack_index, new_stack_indices);
-			}
+			final Collection<Bucket> bus = db_map.remove(displ);
+			// bus may be null if the object, like a profile, didn't have any data and was deleted while empty
+			if (null != bus)
+				for (Bucket bu : bus)
+					bu.remove(displ, old_stack_index, new_stack_indices);
 		}
 
 		parent.removeFromOffscreens(this);
