@@ -922,7 +922,7 @@ abstract public class Loader {
 
 		/*
 		int level = 0;
-		double scale;	static private ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() ); 
+		double scale;
 		while (true) {
 			scale = 1 / Math.pow(2, level);
 			//Utils.log2("scale, mag, level: " + scale + ", " + mag + ", " + level);
