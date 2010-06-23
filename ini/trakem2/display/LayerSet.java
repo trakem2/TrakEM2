@@ -1659,7 +1659,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					continue;
 				}
 				final Collection<Bucket> buckets = lb.db_map.remove(zd);
-				if (null == buckets) {
+				if (null == buckets) { // TODO the buckets for d could be null as well if d didn't have any data, i.e true == d.isDeletable()
 					recreateBuckets(getLayer(lid), false); // regenerate
 				} else {
 					boolean error = false;
