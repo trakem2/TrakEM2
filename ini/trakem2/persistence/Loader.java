@@ -4365,7 +4365,7 @@ while (it.hasNext()) {
 							// To prevent it:
 							if (null != awt) {
 								if (!Loader.isSignalImage(awt) && p.getProject().getLoader().isCached(p, mag)) {
-									Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, false); // not the navigator
+									Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, true, false); // not the navigator
 								}
 							}
 							return awt;
