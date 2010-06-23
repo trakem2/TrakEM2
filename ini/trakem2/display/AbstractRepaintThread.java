@@ -135,7 +135,8 @@ public abstract class AbstractRepaintThread extends Thread {
 				// Crazy idea: paint NOW
 				final java.awt.Graphics g = target.getGraphics();
 				if (null != g) {
-					if (null != clipRect) g.setClip(clipRect.x, clipRect.y, clipRect.width, clipRect.height);
+					// Ensure full clip rect
+					g.setClip(0, 0, target.getWidth(), target.getHeight());
 					target.paint(g);
 					g.dispose();
 				}
