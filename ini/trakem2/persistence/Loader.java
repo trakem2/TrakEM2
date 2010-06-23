@@ -960,10 +960,11 @@ abstract public class Loader {
 
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			try {
 				lock();
-				return mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
+				return mawts.contains(p.getId(), level);
 			} catch (Exception e) {
 				IJError.print(e);
 				return false;
@@ -986,9 +987,10 @@ abstract public class Loader {
 	/** Above or equal in size. */
 	public Image getCachedClosestAboveImage(final Patch p, final double mag) {
 		Image awt = null;
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
+			awt = mawts.getClosestAbove(p.getId(), level);
 			unlock();
 		}
 		return awt;
@@ -997,9 +999,10 @@ abstract public class Loader {
 	/** Below, not equal. */
 	public Image getCachedClosestBelowImage(final Patch p, final double mag) {
 		Image awt = null;
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
+			awt = mawts.getClosestBelow(p.getId(), level);
 			unlock();
 		}
 		return awt;
