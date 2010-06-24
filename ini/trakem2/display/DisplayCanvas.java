@@ -1521,6 +1521,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 * repainted, remaking the offscreen images.
 	 */
 	public void repaint(Displayable displ, int extra) {
+		repaint(displ, extra, update_graphics);
+	}
+	public void repaint(Displayable displ, int extra, boolean update_graphics) {
 		if (null != displ) {
 			Rectangle r = displ.getBoundingBox();
 			r.x = (int) ((r.x - srcRect.x) * magnification) - extra;

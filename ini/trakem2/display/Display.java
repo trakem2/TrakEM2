@@ -1713,12 +1713,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		repaint(layer, displ, r, extra, true);
 	}
 
-	/** Find the displays that show the given Layer, and repaint the given Displayable. */
+	/** Find the displays that show the given Layer, and repaint the given Displayable; does NOT update graphics for the offscreen image. */
 	static public void repaint(final Layer layer, final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator) {
+		repaint(layer, displ, r, extra, false, repaint_navigator);
+	}
+
+	/**
+	 * @param layer   The layer to repaint
+	 * @param r       The Rectangle to repaint, in world coordinates (aka pixel coordinates or canvas coordinates).
+	 * @param extra   The number of pixels to pad @param r with.
+	 * @param update_graphics Whether to recreate the offscreen image of the canvas, which is necessary for images.
+	 * @param repaint_navigator Whether to repaint the navigator.
+	 */
+	static public void repaint(final Layer layer, final Displayable displ, final Rectangle r, final int extra, final boolean update_graphics, final boolean repaint_navigator) {
 		if (repaint_disabled) return;
 		for (final Display d : al_displays) {
 			if (layer == d.layer) {
-				d.repaint(displ, r, extra, repaint_navigator, false);
+				d.repaint(displ, r, extra, repaint_navigator, update_graphics);
 			}
 		}
 	}
@@ -1728,14 +1739,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		repaint(d.getLayer(), d, d.getBoundingBox(null), 5, true);
 	}
 
-	/** Repaint as much as the bounding box around the given Displayable, or the r if not null. */
-	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, final boolean update_graphics) {
+	/** Repaint as much as the bounding box around the given Displayable, or the r if not null.
+	 *  @param update_graphics will be made true if the @param displ is a Patch or it's not the active Displayable. */
+	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
-		if (update_graphics || displ.getClass() == Patch.class || displ != active) {
-			canvas.setUpdateGraphics(true);
-		}
-		if (null != r) canvas.repaint(r, extra);
-		else canvas.repaint(displ, extra);
+		update_graphics = (update_graphics || displ.getClass() == Patch.class || displ != active); 
+		if (null != r) canvas.repaint(r, extra, update_graphics);
+		else canvas.repaint(displ, extra, update_graphics);
 		if (repaint_navigator) {
 			DisplayablePanel dp = ht_panels.get(displ);
 			if (null != dp) dp.repaint(); // is null when creating it, or after deleting it

@@ -1690,6 +1690,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						ke.consume();
 						return;
 					}
+					break;
 			}
 		}
 		} finally {

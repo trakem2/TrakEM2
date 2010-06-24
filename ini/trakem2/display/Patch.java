@@ -518,7 +518,7 @@ public final class Patch extends Displayable implements ImageData {
 				image = project.getLoader().fetchImage(this, sc/4);
 			}
 			// painting a smaller image, will need to repaint with the proper one
-			if (!Loader.NOT_FOUND.equals(image)) {
+			if (!Loader.isSignalImage(image)) {
 				// use the lower resolution image, but ask to repaint it on load
 				Loader.preload(this, sc, true);
 			}
