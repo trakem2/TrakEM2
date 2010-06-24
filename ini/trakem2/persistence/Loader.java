@@ -248,9 +248,14 @@ abstract public class Loader {
 	private final void setMaxBytes(final long max_bytes) {
 		synchronized (db_lock) {
 			lock();
-			mawts.setMaxBytes(max_bytes);
-			Utils.log2("Cache max bytes: " + mawts.getMaxBytes());
-			unlock();
+			try {
+				mawts.setMaxBytes(max_bytes);
+				Utils.log2("Cache max bytes: " + mawts.getMaxBytes());
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
 	}
 	
@@ -404,17 +409,22 @@ abstract public class Loader {
 		if (null == imp || null == imp.getProcessor()) return;
 		synchronized (db_lock) {
 			lock();
-			final long id = p.getId();
-			final ImagePlus cached = mawts.get(id);
-			if (null == cached
-			 || cached != imp
-			 || (1 == imp.getStackSize() && imp.getProcessor().getPixels() != cached.getProcessor().getPixels())
-			) {
-				mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
-			} else {
-				mawts.get(id); // send to the end
+			try {
+				final long id = p.getId();
+				final ImagePlus cached = mawts.get(id);
+				if (null == cached
+						|| cached != imp
+						|| (1 == imp.getStackSize() && imp.getProcessor().getPixels() != cached.getProcessor().getPixels())
+				) {
+					mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
+				} else {
+					mawts.get(id); // send to the end
+				}
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
 			}
-			unlock();
 		}
 	}
 
@@ -422,26 +432,41 @@ abstract public class Loader {
 	public void cacheImagePlus(long id, ImagePlus imp) {
 		synchronized (db_lock) {
 			lock();
-			mawts.put(id, imp, Math.max(imp.getWidth(), imp.getHeight()));
-			unlock();
+			try {
+				mawts.put(id, imp, Math.max(imp.getWidth(), imp.getHeight()));
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
 	}
 
 	public void decacheImagePlus(long id) {
 		synchronized (db_lock) {
 			lock();
-			mawts.removeImagePlus(id);
-			unlock();
+			try {
+				mawts.removeImagePlus(id);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
 	}
 
 	public void decacheImagePlus(final long[] id) {
 		synchronized (db_lock) {
 			lock();
-			for (int i=0; i<id.length; i++) {
-				mawts.removeImagePlus(id[i]);
+			try {
+				for (int i=0; i<id.length; i++) {
+					mawts.removeImagePlus(id[i]);
+				}
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
 			}
-			unlock();
 		}
 	}
 
@@ -763,6 +788,8 @@ abstract public class Loader {
 				try {
 					released += lo.mawts.removeAndFlushSome(min_free_bytes);
 					if (released >= min_free_bytes) return released;
+				} catch (Throwable t) {
+					handleCacheError(t);
 				} finally {
 					lo.unlock();
 				}
@@ -789,7 +816,11 @@ abstract public class Loader {
 				
 			// Then from here
 			if (0 != mawts.size()) {
-				released += mawts.ensureFree(min_free_bytes);
+				try {
+					released += mawts.ensureFree(min_free_bytes);
+				} catch (Throwable t) {
+					handleCacheError(t);
+				}
 				if (released >= min_free_bytes) return released;
 			}
 
@@ -839,10 +870,11 @@ abstract public class Loader {
 			lock();
 			try {
 				mawts.removeAndFlushAll();
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
 			}
-			unlock();
 		}
 	}
 
@@ -857,9 +889,8 @@ abstract public class Loader {
 				if (null != mawts) {
 					mawts.removeAndFlushAll();
 				}
-			} catch (Exception e) {
-				unlock();
-				IJError.print(e);
+			} catch (Throwable t) {
+				IJError.print(t);
 			} finally {
 				unlock();
 			}
@@ -870,29 +901,40 @@ abstract public class Loader {
 	public void decacheAWT(final long id) {
 		synchronized (db_lock) {
 			lock();
-			mawts.removeAndFlushPyramid(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
-			unlock();
-		}
-	}
-
-	public Image getCachedAWT(final long id, final int level) {
-		synchronized (db_lock) {
 			try {
-				lock();
-				return mawts.get(id, level);
+				mawts.removeAndFlushPyramid(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
+			} catch (Throwable t) {
+				handleCacheError(t);
 			} finally {
 				unlock();
 			}
 		}
 	}
+
+	public Image getCachedAWT(final long id, final int level) {
+		synchronized (db_lock) {
+			lock();
+			try {
+				return mawts.get(id, level);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
+		}
+		return null;
+	}
 	
 	public void cacheAWT( final long id, final Image awt) {
 		synchronized (db_lock) {
 			lock();
-			if (null != awt) {
-				mawts.put(id, awt, 0);
+			try {
+				if (null != awt) mawts.put(id, awt, 0);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
 			}
-			unlock();
 		}
 	} 
 
@@ -949,8 +991,8 @@ abstract public class Loader {
 			try {
 				lock();
 				return null != mawts.get(p.getId());
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 				return false;
 			} finally {
 				unlock();
@@ -960,12 +1002,13 @@ abstract public class Loader {
 
 	/** Returns true if there is a cached awt image for the given mag and Patch id. */
 	public boolean isCached(final Patch p, final double mag) {
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			try {
 				lock();
-				return mawts.contains(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
-			} catch (Exception e) {
-				IJError.print(e);
+				return mawts.contains(p.getId(), level);
+			} catch (Throwable t) {
+				handleCacheError(t);
 				return false;
 			} finally {
 				unlock();
@@ -974,35 +1017,49 @@ abstract public class Loader {
 	}
 
 	public Image getCached(final long id, final int level) {
-		Image awt = null;
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestAbove(id, level);
-			unlock();
+			try {
+				return mawts.getClosestAbove(id, level);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
-		return awt;
+		return null;
 	}
 
 	/** Above or equal in size. */
 	public Image getCachedClosestAboveImage(final Patch p, final double mag) {
-		Image awt = null;
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestAbove(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
-			unlock();
+			try {
+				return mawts.getClosestAbove(p.getId(), level);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
-		return awt;
+		return null;
 	}
 
 	/** Below, not equal. */
 	public Image getCachedClosestBelowImage(final Patch p, final double mag) {
-		Image awt = null;
+		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			lock();
-			awt = mawts.getClosestBelow(p.getId(), Loader.getMipMapLevel(mag, maxDim(p)));
-			unlock();
+			try {
+				return mawts.getClosestBelow(p.getId(), level);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
-		return awt;
+		return null;
 	}
 
 	protected final class ImageLoadingLock extends Lock {
@@ -1288,12 +1345,16 @@ abstract public class Loader {
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
 	public ImagePlus getCachedImagePlus(final long id) {
 		synchronized(db_lock) {
-			ImagePlus imp = null;
 			lock();
-			imp = mawts.get(id);
-			unlock();
-			return imp;
+			try {
+				return mawts.get(id);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
+		return null;
 	}
 
 	abstract public ImagePlus fetchImagePlus(Patch p);
@@ -3760,8 +3821,8 @@ while (it.hasNext()) {
 				Utils.log2("decaching " + id);
 				if (Long.MIN_VALUE == id) return;
 				mawts.removeAndFlushPyramid(id);
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 			} finally {
 				unlock();
 			}
@@ -3974,13 +4035,15 @@ while (it.hasNext()) {
 	public boolean isSnapPaintable(final long id) {
 		synchronized (db_lock) {
 			lock();
-			if (mawts.contains(id)) {
+			try {
+				return mawts.contains(id);
+			} catch (Throwable t) {
+				handleCacheError(t);
+				return false;
+			} finally {
 				unlock();
-				return true;
 			}
-			unlock();
 		}
-		return false;
 	}
 
 	/** If mipmaps regeneration is enabled or not. */
@@ -4065,11 +4128,27 @@ while (it.hasNext()) {
 			// flush away any loaded mipmap for the id
 			synchronized (db_lock) {
 				lock();
-				mawts.removeAndFlushPyramid(p.getId());
-				unlock();
+				try {
+					mawts.removeAndFlushPyramid(p.getId());
+				} catch (Throwable t) {
+					handleCacheError(t);
+				} finally {
+					unlock();
+				}
 			}
 			// when reloaded, the channels will be adjusted
 		//}
+	}
+	
+	/** Must be called within the context of the db_lock. */
+	final protected void handleCacheError(final Throwable t) {
+		Utils.log("ERROR with image cache!");
+		IJError.print(t);
+		try {
+			mawts.removeAndFlushAll();
+		} catch (Throwable tt) {
+			Utils.log("FAILED to recover image cache error: " + tt + "\nPlease save and reopen project!");
+		}
 	}
 
 	static public ImageProcessor scaleImage(final ImagePlus imp, double mag, final boolean quality) {

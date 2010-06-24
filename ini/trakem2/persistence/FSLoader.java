@@ -465,8 +465,8 @@ public final class FSLoader extends Loader {
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
 			lock();
-			imp = mawts.get(p.getId());
 			try {
+				imp = mawts.get(p.getId());
 				path = getAbsolutePath(p);
 				int i_sl = -1;
 				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
@@ -521,8 +521,8 @@ public final class FSLoader extends Loader {
 				}
 
 				plock = getOrMakeImageLoadingLock(p.getId(), 0);
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 				return null;
 			} finally {
 				unlock();
@@ -764,16 +764,20 @@ public final class FSLoader extends Loader {
 			final long loid = ob.getId();
 			Utils.log2("removing " + Project.getName(ob.getClass()) + " " + ob);
 			if (ob.getClass() == Patch.class) {
-				// STRATEGY change: images are not owned by the FSLoader.
-				Patch p = (Patch)ob;
-				if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
-				ht_paths.remove(p.getId()); // after removeMipMaps !
-				mawts.remove(loid);
-				cannot_regenerate.remove(p);
-				unlock();
-				flushMipMaps(p.getId()); // locks on its own
-				touched_mipmaps.remove(p);
-				return true;
+				try {
+					// STRATEGY change: images are not owned by the FSLoader.
+					Patch p = (Patch)ob;
+					if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
+					ht_paths.remove(p.getId()); // after removeMipMaps !
+					mawts.remove(loid);
+					cannot_regenerate.remove(p);
+					unlock();
+					flushMipMaps(p.getId()); // locks on its own
+					touched_mipmaps.remove(p);
+					return true;
+				} catch (Throwable t) {
+					handleCacheError(t);
+				}
 			}
 			unlock();
 		}
@@ -2342,9 +2346,14 @@ public final class FSLoader extends Loader {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
 			lock();
-			if (forget_dir_mipmaps) this.dir_mipmaps = null;
-			mawts.removeAndFlushAll();
-			unlock();
+			try {
+				if (forget_dir_mipmaps) this.dir_mipmaps = null;
+				mawts.removeAndFlushAll();
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
 	}
 
@@ -2355,8 +2364,11 @@ public final class FSLoader extends Loader {
 			lock();
 			try {
 				mawts.removeAndFlushPyramid(id);
-			} catch (Exception e) { e.printStackTrace(); }
-			unlock();
+			} catch (Throwable t) {
+				handleCacheError(t);
+			} finally {
+				unlock();
+			}
 		}
 	}
 
@@ -2865,8 +2877,8 @@ public final class FSLoader extends Loader {
 				/* not cached */
 				releaseToFit2(new File(path).length() * 3); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 				return null;
 			} finally {
 				unlock();
