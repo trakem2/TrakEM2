@@ -1093,6 +1093,8 @@ public final class Patch extends Displayable implements ImageData {
 		if (null == ct) return null;
 		
 		final ImageProcessor source = getImageProcessor();
+		
+		if (null == source) return null; // some error occurred
 
 		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
 
