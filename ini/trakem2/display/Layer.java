@@ -38,17 +38,13 @@ import java.util.List;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.Collection;
 
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.Image;
 
 public final class Layer extends DBObject implements Bucketable, Comparable<Layer> {
 
