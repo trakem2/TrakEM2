@@ -271,12 +271,15 @@ public class Search {
 			if (dbo instanceof Displayable) {
 				d = (Displayable)dbo;
 			}
-			String txt = null != d ?
-				  dbo.getProject().getMeaningfulTitle(d)
-				: dbo.getTitle();
+			String txt;
+			String meaningful_title = null;
+			if (null == d || Patch.class == d.getClass()) txt = dbo.getTitle();
+			else {
+				txt = meaningful_title = dbo.getProject().getMeaningfulTitle(d);
+			}
+
 			if (null == txt || 0 == txt.trim().length()) continue;
 			matched = pat.matcher(txt).matches();
-			long id = dbo.getId();
 			if (!matched && null != d) {
 				// Search also in its annotation
 				txt = d.getAnnotation();
@@ -332,7 +335,7 @@ public class Search {
 					for (final Tag tag : tags) {
 						if (pat.matcher(tag.toString()).matches()) {
 							v_obs.add(dbo);
-							v_txt.add(new StringBuilder(tag.toString()).append(" (").append(dbo.toString()).append(')').toString());
+							v_txt.add(new StringBuilder(tag.toString()).append(" (").append(null == meaningful_title ? dbo.toString() : meaningful_title).append(')').toString());
 							v_co.add(createCoordinate((Tree)dbo, nd));
 						}
 					}
