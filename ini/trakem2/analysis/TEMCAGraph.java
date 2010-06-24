@@ -17,6 +17,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Treeline;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.Utils;
 
 //This class is specific to the Harvard TEMCA project -- we care only about how treelines connect to other treelines, and we know that
@@ -46,14 +47,36 @@ public final class TEMCAGraph {
 	
 	public TEMCAGraph(Project p) {
 		this.project = p;
-		final Collection<Connector> connectors = (Collection<Connector>) (Collection) p.getRootLayerSet().getZDisplayables(Connector.class);
-		
+	}
+	
+	private void analyzeGraph(boolean core_only) {
+		Collection<Connector> connectors = (Collection<Connector>) (Collection) project.getRootLayerSet().getZDisplayables(Connector.class);
 		
 		for (Connector con : connectors) {
+			if (core_only && !isCore(con)) continue;
 			Set<Displayable> origins = con.getOrigins(Treeline.class);
+			if (core_only) {
+				Set<Displayable> core_origins = new HashSet<Displayable>();
+				for (Displayable origin_d : origins) {
+					if (isCore(origin_d)) core_origins.add(origin_d);
+				}
+				origins = core_origins;
+			}
 			if (origins.isEmpty()) continue;
 			// else, add all targets
-			for (Set<Displayable> targets : con.getTargets(Treeline.class)) {
+			ArrayList<Set<Displayable>> target_sets = (ArrayList) con.getTargets(Treeline.class);
+			if (core_only) {
+				ArrayList<Set<Displayable>> core_target_sets = new ArrayList<Set<Displayable>>();
+				for (Set<Displayable> target_set : target_sets) {
+					HashSet<Displayable> core_target_set = new HashSet<Displayable>();
+					for (Displayable target_d : target_set) {
+						if (isCore(target_d)) core_target_set.add(target_d);
+					}
+					core_target_sets.add(core_target_set);
+				}
+				target_sets = core_target_sets;
+			}
+			for (Set<Displayable> targets : target_sets) {
 				for (Displayable t : targets) {
 					for (Displayable o : origins) {
 						GraphEdge ge = new GraphEdge((Treeline) o, (Treeline) t, con);
@@ -82,7 +105,6 @@ public final class TEMCAGraph {
 			}
 		}
 	}
-	
 	private static String physioOrnamentFromColor(String color) {
 		return " [style=filled fillcolor=" + color + " color=" + color + " shape=box]";
 	}
@@ -107,12 +129,35 @@ public final class TEMCAGraph {
 		return " [style=filled fillcolor=pink color=" + color + " shape=box]";
 	}
 	
+	// run up the project hierarchy looking for string "core" in a containing ProjectThing's title; if found, return true.
+	// derived from Project.getMeaningfulTitle(d)
+	private boolean isCore(Displayable d) {
+		ProjectThing thing = (ProjectThing)project.getRootProjectThing().findChild(d);
+		if (null == thing) {
+			Utils.log("WARNING: " + d.getTitle() + " missing associated ProjectThing, id='" + Long.toString(d.getId()) + "'");
+			return false;
+		}
+
+		if (thing.getTitle().contains("core")) return true;
+
+		ProjectThing parent = (ProjectThing)thing.getParent();
+		while (null != parent) {
+			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) return false;
+			if (parent.getTitle().contains("core")) return true;
+			parent = (ProjectThing)parent.getParent();
+		}
+		
+		Utils.log("WARNING: TEMCAGraph.isCore() reached code that should be inaccessible");
+		return false;
+	}
 	// N.b. 'convergencesOnly' is somewhat of a misnomer -- this will
 	// also output hits from tuned cell to tuned cell, even if the post-synaptic tuned cell is not otherwise converged upon.
 	// TODO break this out into a separate file, say ProjectGraph.java
 	public void logDotGraph(Display display) {
-		GenericDialog gd = new GenericDialog("Merge many (davi-experimenting)");
-		boolean convergences_only = false;
+		GenericDialog gd = new GenericDialog("Analyze TEMCA graph");
+		boolean core_only = true;
+		boolean convergences_only = true;
 		boolean hide_inhib = false;
 		boolean show_all_physio = true;
 		boolean add_to_selection = false;
@@ -123,6 +168,7 @@ public final class TEMCAGraph {
 		String restrict_by_user_name = null;
 		Set<String> user_names = null;
 		FSLoader loader = null;
+		gd.addCheckbox("Core only?", convergences_only);
 		gd.addCheckbox("Convergences only?", convergences_only);
 		gd.addCheckbox("Hide inhibitory?", hide_inhib);
 		gd.addCheckbox("Show all physiologically characterized cells?", show_all_physio);
@@ -143,6 +189,8 @@ public final class TEMCAGraph {
 		}
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
+		core_only = gd.getNextBoolean();
+		analyzeGraph(core_only);
 		convergences_only = gd.getNextBoolean();
 		hide_inhib = gd.getNextBoolean();
 		show_all_physio = gd.getNextBoolean();
