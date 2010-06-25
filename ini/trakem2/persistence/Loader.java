@@ -430,6 +430,7 @@ abstract public class Loader {
 
 	/** Cache any ImagePlus, as long as a unique id is assigned to it there won't be problems; use getNextId to obtain a unique id. */
 	public void cacheImagePlus(long id, ImagePlus imp) {
+		if (null == imp || null == imp.getProcessor()) return;
 		synchronized (db_lock) {
 			lock();
 			try {
@@ -926,10 +927,11 @@ abstract public class Loader {
 	}
 	
 	public void cacheAWT( final long id, final Image awt) {
+		if (null == awt) return;
 		synchronized (db_lock) {
 			lock();
 			try {
-				if (null != awt) mawts.put(id, awt, 0);
+				mawts.put(id, awt, 0);
 			} catch (Throwable t) {
 				handleCacheError(t);
 			} finally {
@@ -1203,8 +1205,8 @@ abstract public class Loader {
 						} else {
 							return mawt;
 						}
-					} catch (Exception e) {
-						IJError.print(e);
+					} catch (Throwable t) {
+						handleCacheError(t);
 					} finally {
 						removeImageLoadingLock(plock);
 						unlock();
@@ -1303,8 +1305,8 @@ abstract public class Loader {
 					//Utils.log2("Created mawt from scratch.");
 					return mawt;
 				}
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 			} finally {
 				removeImageLoadingLock(plock);
 				unlock();
