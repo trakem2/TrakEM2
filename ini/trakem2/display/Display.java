@@ -29,6 +29,8 @@ import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
@@ -67,6 +69,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.Writer;
 import java.io.File;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 
@@ -942,6 +945,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void repaintToolbar() {
 		for (final Display d : al_displays) {
+			if (null == d.toolbar_panel) continue; // not yet ready
 			d.toolbar_panel.repaint();
 		}
 	}
@@ -3158,41 +3162,49 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		public void actionPerformed(ActionEvent ae) {
 			final String command = ae.getActionCommand();
 			Bureaucrat.createAndStart(new Worker.Task("Setting preprocessor script") { public void exec() {
-			if (command.equals("Set preprocessor script layer-wise...")) {
-				Collection<Layer> ls = getLayerList("Set preprocessor script");
-				if (null == ls) return;
-				String path = getScriptPath();
-				if (null == path) return;
-				setScriptPathToLayers(ls, path);
-			} else if (command.equals("Set preprocessor script (selected images)...")) {
-				if (selection.isEmpty()) return;
-				String path = getScriptPath();
-				if (null == path) return;
-				setScriptPath(selection.getSelected(Patch.class), path);
-			} else if (command.equals("Remove preprocessor script layer-wise...")) {
-				Collection<Layer> ls = getLayerList("Remove preprocessor script");
-				if (null == ls) return;
-				setScriptPathToLayers(ls, null);
-			} else if (command.equals("Remove preprocessor script (selected images)...")) {
-				if (selection.isEmpty()) return;
-				setScriptPath(selection.getSelected(Patch.class), null);
+			try{
+				if (command.equals("Set preprocessor script layer-wise...")) {
+					Collection<Layer> ls = getLayerList("Set preprocessor script");
+					if (null == ls) return;
+					String path = getScriptPath();
+					if (null == path) return;
+					setScriptPathToLayers(ls, path);
+				} else if (command.equals("Set preprocessor script (selected images)...")) {
+					if (selection.isEmpty()) return;
+					String path = getScriptPath();
+					if (null == path) return;
+					setScriptPath(selection.getSelected(Patch.class), path);
+				} else if (command.equals("Remove preprocessor script layer-wise...")) {
+					Collection<Layer> ls = getLayerList("Remove preprocessor script");
+					if (null == ls) return;
+					setScriptPathToLayers(ls, null);
+				} else if (command.equals("Remove preprocessor script (selected images)...")) {
+					if (selection.isEmpty()) return;
+					setScriptPath(selection.getSelected(Patch.class), null);
+				}
+			} catch (Exception e) {
+				IJError.print(e);
 			}
 			}}, Display.this.project);
 		}
-		private void setScriptPathToLayers(final Collection<Layer> ls, final String script) {
+		private void setScriptPathToLayers(final Collection<Layer> ls, final String script) throws Exception {
+			final ArrayList<Displayable> ds = new ArrayList<Displayable>();
 			for (final Layer la : ls) {
 				if (Thread.currentThread().isInterrupted()) return;
-				setScriptPath(la.getDisplayables(Patch.class), script);
+				ds.addAll(la.getDisplayables(Patch.class));
 			}
+			setScriptPath(ds, script); // no lazy sequences ...
 		}
 		/** Accepts null script, to remove it if there. */
-		private void setScriptPath(final Collection<Displayable> list, final String script) {
-			for (final Displayable d : list) {
-				if (Thread.currentThread().isInterrupted()) return;
-				Patch p = (Patch) d;
-				p.setPreprocessorScriptPath(script);
-				p.updateMipMaps();
-			}
+		private void setScriptPath(final Collection<Displayable> list, final String script) throws Exception {
+			Process.progressive(list, new TaskFactory<Displayable,Object>() {
+				public Object process(final Displayable d) {
+					Patch p = (Patch) d;
+					p.setPreprocessorScriptPath(script);
+					p.updateMipMaps();
+					return null;
+				}
+			}, Math.min(4, Runtime.getRuntime().availableProcessors() -1));
 		}
 		private Collection<Layer> getLayerList(String title) {
 			final GenericDialog gd = new GenericDialog(title);
