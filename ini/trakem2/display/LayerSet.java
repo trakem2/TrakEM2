@@ -1777,17 +1777,14 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final HashMap<Layer,LayerBucket> m = new HashMap<Layer,LayerBucket>();
 		try {
 			Process.progressive(layers, new TaskFactory<Layer,Object>() {
-				public Callable<Object> create(final Layer layer) {
-					return new Callable<Object>() {
-						public Object call() {
-							LayerBucket lb = new LayerBucket(layer);
-							synchronized (m) {
-								m.put(layer, lb);
-							}
-							if (layer_buckets && null != layer.root) layer.recreateBuckets();
-							return null;
-						}
-					};
+				@Override
+				public Object process(final Layer layer) {
+					LayerBucket lb = new LayerBucket(layer);
+					synchronized (m) {
+						m.put(layer, lb);
+					}
+					if (layer_buckets && null != layer.root) layer.recreateBuckets();
+					return null;
 				}
 			}, Process.NUM_PROCESSORS -1); // works even when there is only 1 core, since it checks and fixes the '0' processors request
 		} catch (Exception e) {

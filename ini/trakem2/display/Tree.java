@@ -2731,54 +2731,49 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Map<Node<T>,Collection<Displayable>> findIntersecting(final Class c) throws Exception {
 		final HashMap<Node<T>,Collection<Displayable>> m = new HashMap<Node<T>,Collection<Displayable>>();
 		Process.progressive(root.getSubtreeNodes(),
-				     new TaskFactory<Node<T>,Object>() {
-					 public Callable<Object> create(final Node<T> nd) {
-						 return new Callable<Object>() {
-							 public Object call() {
-								final Area a = nd.getArea();
-								a.transform(Tree.this.at);
-								final Collection<Displayable> col = layer_set.find(c, nd.la, a, false, true);
-								if (col.isEmpty()) return null;
-								synchronized (m) {
-									m.put(nd, col);
-								}
-								return null;
-							 }
-						 };
-					 }});
+							new TaskFactory<Node<T>,Object>() {
+								@Override
+					 			public Object process(final Node<T> nd) {
+					 				final Area a = nd.getArea();
+					 				a.transform(Tree.this.at);
+					 				final Collection<Displayable> col = layer_set.find(c, nd.la, a, false, true);
+					 				if (col.isEmpty()) return null;
+					 				synchronized (m) {
+					 					m.put(nd, col);
+					 				}
+					 				return null;
+					 			}
+					 		});
 		return m;
 	}
 
 	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incoming connectors. */
 	public List<Connector>[] findConnectors() throws Exception {
-		final HashMap<Node<T>,Collection<Displayable>> m = new HashMap<Node<T>,Collection<Displayable>>();
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
 		final ArrayList<Connector> incoming = new ArrayList<Connector>();
 		Process.progressive(root.getSubtreeNodes(),
 				     new TaskFactory<Node<T>,Object>() {
-					 public Callable<Object> create(final Node<T> nd) {
-						 return new Callable<Object>() {
-							 public Object call() {
-								final Area a = nd.getArea();
-								a.transform(Tree.this.at);
-								final Collection<Displayable> col = layer_set.findZDisplayables(Connector.class, nd.la, a, false, false);
-								if (col.isEmpty()) return null;
-								// Outgoing or incoming?
-								for (final Connector c : (Collection<Connector>)(Collection)col) {
-									if (c.intersectsOrigin(a)) {
-										synchronized (outgoing) {
-											outgoing.add(c);
-										}
-									} else {
-										synchronized (incoming) {
-											incoming.add(c);
-										}
+						@Override
+					 	public Object process(final Node<T> nd) {
+							final Area a = nd.getArea();
+							a.transform(Tree.this.at);
+							final Collection<Displayable> col = layer_set.findZDisplayables(Connector.class, nd.la, a, false, false);
+							if (col.isEmpty()) return null;
+							// Outgoing or incoming?
+							for (final Connector c : (Collection<Connector>)(Collection)col) {
+								if (c.intersectsOrigin(a)) {
+									synchronized (outgoing) {
+										outgoing.add(c);
+									}
+								} else {
+									synchronized (incoming) {
+										incoming.add(c);
 									}
 								}
-								return null;
-							 }
-						 };
-					 }});
+							}
+							return null;
+						}
+					 });
 		return (List<Connector>[]) new List[]{outgoing, incoming};
 	}
 
