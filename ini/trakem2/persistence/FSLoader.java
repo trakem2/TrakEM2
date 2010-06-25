@@ -48,7 +48,6 @@ import ini.trakem2.imaging.FloatProcessorT2;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
 import java.awt.image.PixelGrabber;
 import java.awt.RenderingHints;
@@ -75,7 +74,6 @@ import javax.xml.parsers.SAXParser;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
@@ -83,7 +81,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
 
 
