@@ -443,13 +443,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			}
 			if (null != (data = ht.get("composite"))) compositeMode = Byte.parseByte(data);
 
+			if (null != (data = ht.get("edited_yn"))) this.setEditedYN( data.trim().toLowerCase().equals("true"), false ); // davi-experimenting
+
 			// for backward compatibility to VERY old versions
 			if (this.at.isIdentity()) {
 				double x=0, y=0, rot=0;
 				if (null != (data = ht.get("x"))) x = Double.parseDouble(data);
 				if (null != (data = ht.get("y"))) y = Double.parseDouble(data);
 				if (null != (data = ht.get("rot"))) rot = Double.parseDouble(data);
-				if (null != (data = ht.get("edited_yn"))) this.setEditedYN( data.trim().toLowerCase().equals("true"), false ); // davi-experimenting
 
 				if (0 != x || 0 != y || 0 != rot) {
 					this.at.translate(x, y);
