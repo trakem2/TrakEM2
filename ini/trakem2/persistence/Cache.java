@@ -355,7 +355,7 @@ public class Cache {
 	/** Remove only the ImagePlus, if there. */
 	public final ImagePlus removeImagePlus(final long id) {
 		final Pyramid p = pyramids.get(id);
-		if (null == p.imp) return null;
+		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
 		bytes -= p.replace(null);
 		count--;
