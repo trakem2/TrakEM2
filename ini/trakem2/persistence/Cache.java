@@ -4,9 +4,7 @@ import ij.ImagePlus;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Image;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
@@ -34,11 +32,6 @@ import java.util.TreeMap;
  */
 public class Cache {
 	
-	
-	// TODO: keep internal count of the total number of bytes in the Cache
-	// and on put, ensure that it's not beyond a given maximum.
-	
-	
 	private final class Pyramid {
 		private final Image[] images;
 		private HashMap<Long,Pyramid> interval = null;
@@ -46,6 +39,7 @@ public class Cache {
 		private ImagePlus imp;
 		private int n_images; // counts non-null instances in images array
 
+		/** ASSUMES that @param image is not null. */
 		Pyramid(final long id, final Image image, final int level) {
 			this.id = id;
 			this.images = new Image[maxLevel(image, level)];
