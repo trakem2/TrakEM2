@@ -1297,7 +1297,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
-	public void parseXMLOptions(final HashMap ht_attributes) {
+	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.

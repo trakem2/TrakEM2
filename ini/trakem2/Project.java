@@ -1309,12 +1309,11 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	public void parseXMLOptions(final HashMap ht_attributes) {
+	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
-		for (final Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry prop = (Map.Entry)it.next();
+		for (Map.Entry<String,String> prop : ht_attributes.entrySet()) {
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
 	}
