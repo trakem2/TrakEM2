@@ -1271,7 +1271,7 @@ public class Project extends DBObject {
 			// copy template
 			pr.root_tt = this.root_tt.clone(pr, true);
 			pr.template_tree = new TemplateTree(pr, pr.root_tt);
-			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap());
+			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap<String,TemplateThing>());
 			TemplateThing project_template = new TemplateThing("project");
 			project_template.addChild(pr.root_tt);
 			pr.ht_unique_tt.put("project", project_template);
