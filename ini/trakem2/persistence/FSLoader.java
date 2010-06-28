@@ -123,7 +123,8 @@ public final class FSLoader extends Loader {
 
 	private String unuid = null;
 
-	/** Used to create a new project, NOT from an XML file. */
+	/** Used to create a new project, NOT from an XML file.
+	 *  Throws an Exception if the loader cannot read and write to the storage folder. */
 	public FSLoader(final String storage_folder) throws Exception {
 		this();
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
@@ -323,10 +324,6 @@ public final class FSLoader extends Loader {
 
 	static public final Project getOpenProject(final String project_file_path) {
 		return getOpenProject(project_file_path, null);
-	}
-
-	public boolean isReady() {
-		return null != ht_paths;
 	}
 
 	static private void startStaticServices() {

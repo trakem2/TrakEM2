@@ -274,9 +274,6 @@ abstract public class Loader {
 		Utils.log2("cache size: " + mawts.getMaxBytes());
 	}
 
-	/** When the loader has completed its initialization, it should return true on this method. */
-	abstract public boolean isReady();
-
 	/** To be called within a synchronized(db_lock) */
 	protected final void lock() {
 		//Utils.printCaller(this, 7);

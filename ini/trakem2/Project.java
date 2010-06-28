@@ -467,6 +467,7 @@ public class Project extends DBObject {
 	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
 	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {
 		if (Utils.wrongImageJVersion()) return null;
+		FSLoader loader = null;
 		try {
 			String dir_project = storage_folder;
 			if (null == dir_project || !new File(dir_project).isDirectory()) {
@@ -479,11 +480,8 @@ public class Project extends DBObject {
 				}
 				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
-			FSLoader loader = new FSLoader(dir_project);
-			if (!loader.isReady()) {
-				loader.destroy();
-				return null;
-			}
+			loader = new FSLoader(dir_project);
+
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 
 			// help the helpless users:
@@ -511,6 +509,7 @@ public class Project extends DBObject {
 			return project;
 		} catch (Exception e) {
 			IJError.print(e);
+			if (null != loader) loader.destroy();
 		}
 		return null;
 	}
