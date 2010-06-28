@@ -91,10 +91,10 @@ import java.io.ObjectOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
+import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Hashtable;
 import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
@@ -1069,8 +1069,9 @@ abstract public class Loader {
 		ImageLoadingLock(final String key) { this.key = key; }
 	}
 
-	/** Table of dynamic locks, a single one per Patch if any. */
-	private final Hashtable<String,ImageLoadingLock> ht_plocks = new Hashtable<String,ImageLoadingLock>();
+	/** Table of dynamic locks, a single one per Patch if any.
+	 *  Access is synchronized by db_lock. */
+	private final Map<String,ImageLoadingLock> ht_plocks = new HashMap<String,ImageLoadingLock>();
 
 	protected final ImageLoadingLock getOrMakeImageLoadingLock(final long id, final int level) {
 		final String key = new StringBuilder().append(id).append('.').append(level).toString();
@@ -3703,7 +3704,7 @@ while (it.hasNext()) {
 		String mipmaps_dir = getMipMapsFolder();
 		// Select a file to export to
 		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, null, ".xml") : new File(xmlpath);
-		Hashtable<Long,String> copy = null;
+		Map<Long,String> copy = null;
 		if (null == fxml) return null;
 		else {
 			copy = getPathsCopy();
@@ -3720,8 +3721,8 @@ while (it.hasNext()) {
 	}
 
 	protected void makeAllPathsRelativeTo(final String xml_path, final Project project) {}
-	protected Hashtable<Long,String> getPathsCopy() { return null; }
-	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
+	protected Map<Long,String> getPathsCopy() { return null; }
+	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 
 	/** Meant to be overriden -- as is, will call saveAs(project, path, export_images = getClass() != FSLoader.class ). */
 	public String saveAs(String path, boolean overwrite) {
@@ -4617,7 +4618,7 @@ while (it.hasNext()) {
 	}
 
 	/** Table of preprocessor scripts. */
-	private Hashtable<Patch,String> preprocessors = new Hashtable<Patch,String>();
+	private Map<Patch,String> preprocessors = Collections.synchronizedMap(new HashMap<Patch,String>());
 
 	/** Set a preprocessor script that will be executed on the ImagePlus of the Patch when loading it, before TrakEM2 sees it at all. Does NOT automatically regenerate mipmaps.
 	 *  To remove the script, set it to null. */

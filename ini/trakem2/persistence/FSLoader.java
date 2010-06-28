@@ -58,7 +58,16 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FilenameFilter;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 
 import javax.swing.JMenuItem;
 import javax.swing.JMenu;
@@ -89,7 +98,7 @@ public final class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
+	private final Map<Long,String> ht_paths = Collections.synchronizedMap(new HashMap<Long,String>());
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -1096,8 +1105,10 @@ public final class FSLoader extends Loader {
 		return ht_paths.get(patch.getId());
 	}
 
-	protected Hashtable<Long,String> getPathsCopy() {
-		return (Hashtable<Long,String>) ht_paths.clone();
+	protected Map<Long,String> getPathsCopy() {
+		synchronized (ht_paths) {
+			return Collections.synchronizedMap(new HashMap<Long,String>(ht_paths));
+		}
 	}
 
 	/** Try to make all paths in ht_paths be relative to the given xml_path.
@@ -1126,7 +1137,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 	}
-	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
+	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
 		synchronized (db_lock) {
 			try {
 				lock();
@@ -2457,8 +2468,9 @@ public final class FSLoader extends Loader {
 		return 0;
 	}
 
-	/** A temporary list of Patch instances for which a pyramid is being generated. */
-	final private Hashtable<Patch,Future<Boolean>> regenerating_mipmaps = new Hashtable<Patch,Future<Boolean>>();
+	/** A temporary list of Patch instances for which a pyramid is being generated.
+	 *  Access is synchronized by gm_lock. */
+	final private Map<Patch,Future<Boolean>> regenerating_mipmaps = new HashMap<Patch,Future<Boolean>>();
 
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
