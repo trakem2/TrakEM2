@@ -315,8 +315,11 @@ public final class FSLoader extends Loader {
 		final Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
 		for (int i=0; i<lo.length; i++) {
 			if (lo[i].equals(caller)) continue;
-			if (lo[i] instanceof FSLoader && ((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
-				return Project.findProject(lo[i]);
+			if (lo[i] instanceof FSLoader) {
+				if (null == ((FSLoader)lo[i]).project_file_path) continue; // not saved
+				if (((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
+					return Project.findProject(lo[i]);
+				}
 			}
 		}
 		return null;
