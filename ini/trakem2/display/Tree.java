@@ -1692,6 +1692,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 					break;
 			}
+		} else if ( 0 != (modifiers & KeyEvent.SHIFT_MASK) ) {
+			switch (keyCode) {
+			case KeyEvent.VK_CLOSE_BRACKET:
+				c = findNearAndGetNext(po.x, po.y, layer, dc.getMagnification());
+				display.animateBrowsingTo(c);
+				display.center(c);
+				ke.consume();
+				return;
+			case KeyEvent.VK_OPEN_BRACKET:
+				c = findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification());
+				display.animateBrowsingTo(c);
+				display.center(c);
+				ke.consume();
+				return;
+			}
 		}
 		} finally {
 			if (null != nd) setLastVisited(nd);
