@@ -185,6 +185,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	public void add(final Displayable displ, final boolean update_displays, final boolean update_db) {
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
+		if (displ.getProject() != this.project)
+			throw new IllegalArgumentException("Layer rejected a Displayable: belongs to a different project.");
 
 		int i=-1, j=-1;
 		final Displayable[] d = new Displayable[al_displayables.size()];

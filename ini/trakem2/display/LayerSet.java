@@ -266,6 +266,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Add a new Layer, inserted according to its Z. */
 	public void add(final Layer layer) {
+		if (layer.getProject() != this.project)
+			throw new IllegalArgumentException("LayerSet rejected a Layer: belongs to a different project.");
+
 		if (null != idlayers.get(layer.getId())) return;
 		final double z = layer.getZ();
 		final int n = al_layers.size();
@@ -805,6 +808,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			Utils.log2("LayerSet: not adding zdispl");
 			return;
 		}
+		if (zdispl.getProject() != this.project)
+			throw new IllegalArgumentException("LayerSet rejected a ZDisplayable: belongs to a different project.");
+
 		al_zdispl.add(zdispl); // at the top
 
 		zdispl.setLayerSet(this);
