@@ -992,6 +992,7 @@ final public class AlignTask
 			Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 			
 			alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false, false, false ); // Will consider graphs and hide/delete tiles when all cross-layer graphs are found.
+			if (Thread.currentThread().isInterrupted()) return;
 			
 			/* connect to the previous layer */
 			
@@ -1026,6 +1027,7 @@ final public class AlignTask
 			
 			/* graphs in the current layer */
 			final List< Set< Tile< ? > > > currentLayerGraphs = AbstractAffineTile2D.identifyConnectedGraphs( csCurrentLayerTiles );
+			if (Thread.currentThread().isInterrupted()) return;
 			
 //			/* TODO just for visualization */
 //			for ( final Set< Tile< ? > > graph : currentLayerGraphs )
@@ -1046,6 +1048,7 @@ final public class AlignTask
 			final HashMap< Set< Tile< ? > >, Set< Tile< ? > > > graphGraphs = new HashMap< Set<Tile<?>>, Set<Tile<?>> >();
 			for ( final Set< Tile< ? > > graph : graphs )
 			{
+				if (Thread.currentThread().isInterrupted()) return;
 				final Set< Tile< ?  > > previousLayerGraph = new HashSet< Tile< ? > >();
 				for ( final Tile< ? > tile : previousLayerTiles )
 				{
@@ -1078,6 +1081,7 @@ final public class AlignTask
 			{
 				for ( final Set< Tile< ? > > previousLayerGraph : previousLayerGraphs )
 				{
+					if (Thread.currentThread().isInterrupted()) return;
 					alignGraphs( cp, layer, previousLayer, currentLayerGraph, previousLayerGraph );
 					
 					/* TODO this is pointless data shuffling just for type incompatibility---fix this at the root */
@@ -1099,6 +1103,7 @@ final public class AlignTask
 			//AbstractAffineTile2D.pairTiles( previousLayerTiles, csCurrentLayerTiles, crossLayerTilePairs );
 			
 			Align.connectTilePairs( cp, csCurrentLayerTiles, crossLayerTilePairs, Runtime.getRuntime().availableProcessors() );
+			if (Thread.currentThread().isInterrupted()) return;
 			
 //			for ( final AbstractAffineTile2D< ? >[] tilePair : crossLayerTilePairs )
 //			{
@@ -1125,6 +1130,7 @@ final public class AlignTask
 			
 			/* optimize */
 			Align.optimizeTileConfiguration( pcp, allTiles, allFixedTiles );
+			if (Thread.currentThread().isInterrupted()) return;
 			
 			for ( AbstractAffineTile2D< ? > t : allTiles )
 				t.getPatch().setAffineTransform( t.getModel().createAffine() );
