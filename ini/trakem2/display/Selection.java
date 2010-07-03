@@ -285,6 +285,8 @@ public class Selection {
 			}
 		}
 		
+		if (null != display) display.getLayerSet().addChangeTreesStep();
+		
 		set.iterator().next().getProject().removeAll(set);
 
 		Display.updateSelection(); // from all displays
