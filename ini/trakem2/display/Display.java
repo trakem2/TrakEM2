@@ -4108,7 +4108,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				return;
 			}
 			final Collection<Displayable> col = la.getParent().addTransformStepWithData(Arrays.asList(new Layer[]{la}));
-			Bureaucrat burro = AlignTask.alignPatchesTask(patches, Arrays.asList(new Patch[]{patches.get(0)}));
+			// find any locked patches
+			final ArrayList<Patch> fixed = new ArrayList<Patch>();
+			for (final Patch p : patches) {
+				if (p.isLocked2()) fixed.add(p);
+			}
+			if (fixed.isEmpty()) fixed.add(patches.get(0));
+			Bureaucrat burro = AlignTask.alignPatchesTask(patches, fixed);
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().enlargeToFit(patches);
 				la.getParent().addTransformStepWithData(col);
