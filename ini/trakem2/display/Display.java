@@ -2527,6 +2527,29 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Last edited point"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
 				popup.add(go);
+				
+				final String[] name = new String[]{AreaTree.class.getSimpleName(), Treeline.class.getSimpleName()};
+				if (Treeline.class == aclass) {
+					String a = name[0];
+					name[0] = name[1];
+					name[1] = a;
+				}
+				item = new JMenuItem("Duplicate " + name[0] + " to " + name[1]);
+				item.addActionListener(new ActionListener() {
+					public void actionPerformed(ActionEvent e) {
+						Bureaucrat.createAndStart(new Worker.Task("Converting") {
+							public void exec() {
+								try {
+									Tree.duplicateAs(selection.getSelected(), Class.forName("ini.trakem2.display." + name[1]));
+								} catch (Exception e) {
+									IJError.print(e);
+								}
+							}
+						}, getProject());
+					}
+				});
+				popup.add(item);
+				
 				popup.addSeparator();
 			} else if (Connector.class == aclass) {
 				item = new JMenuItem("Merge"); item.addActionListener(new ActionListener() {

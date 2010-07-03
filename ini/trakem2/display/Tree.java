@@ -2805,4 +2805,17 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		return p;
 	}
+
+	/** Takes a collection of Tree instances and creates duplicate siblings of the target class.
+	 *  Will ignore any non-tree Displayable instances in the Collection.
+	 *  The duplicated trees are added to the ProjectTree as siblings of the originals, and to the LayerSet.
+	 *  @return The map of original trees vs copies in target class form. */
+	public static Map<Tree<?>,Tree<?>> duplicateAs(final Collection<Displayable> col, final Class target) {
+		final HashMap<Tree<?>,Tree<?>> m = new HashMap<Tree<?>, Tree<?>>();
+		for (final Displayable d : col) {
+			if (!(d instanceof Tree<?>)) continue;
+			final Tree<?> tree = (Tree<?>)d;
+		}
+		return m;
+	}
 }
