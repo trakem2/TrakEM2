@@ -1134,8 +1134,9 @@ final public class AlignTask
 		
 		List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( allTiles );
 		
-		final List< AbstractAffineTile2D< ? > > interestingTiles;
-		if ( largestGraphOnly )
+		final List< AbstractAffineTile2D< ? > > interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		
+		if ( largestGraphOnly && ( hideDisconnectedTiles || deleteDisconnectedTiles ) )
 		{
 			if ( Thread.currentThread().isInterrupted() ) return;
 			
@@ -1146,22 +1147,26 @@ final public class AlignTask
 				if ( largestGraph == null || largestGraph.size() < graph.size() )
 					largestGraph = graph;
 			
-			interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+			final Set<AbstractAffineTile2D<?>> tiles_to_keep = new HashSet<AbstractAffineTile2D<?>>();
+			
 			for ( Tile< ? > t : largestGraph )
-				interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
+				tiles_to_keep.add( ( AbstractAffineTile2D< ? > )t );
 			
 			if ( hideDisconnectedTiles )
 				for ( AbstractAffineTile2D< ? > t : allTiles )
-					if ( !interestingTiles.contains( t ) )
+					if ( !tiles_to_keep.contains( t ) )
 						t.getPatch().setVisible( false );
 			if ( deleteDisconnectedTiles )
 				for ( AbstractAffineTile2D< ? > t : allTiles )
-					if ( !interestingTiles.contains( t ) )
+					if ( !tiles_to_keep.contains( t ) )
 						t.getPatch().remove( false );
+			
+			interestingTiles.addAll(tiles_to_keep);
 		}
 		else
-			interestingTiles = new ArrayList< AbstractAffineTile2D<?> >( allTiles );
-			
+			interestingTiles.addAll( allTiles );
+
+
 		if ( deform )
 		{
 			/* ############################################ */
