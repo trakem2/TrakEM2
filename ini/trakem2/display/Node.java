@@ -652,6 +652,11 @@ public abstract class Node<T> implements Taggable {
 			return false;
 		}
 	}
+	
+	protected final void copyProperties(final Node<?> nd) {
+		this.confidence = nd.confidence;
+		this.tags = nd.getTagsCopy();
+	}
 
 	synchronized private final Object getTagsCopy() {
 		if (null == this.tags) return null;

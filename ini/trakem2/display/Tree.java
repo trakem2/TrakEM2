@@ -2810,12 +2810,101 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	 *  Will ignore any non-tree Displayable instances in the Collection.
 	 *  The duplicated trees are added to the ProjectTree as siblings of the originals, and to the LayerSet.
 	 *  @return The map of original trees vs copies in target class form. */
-	public static Map<Tree<?>,Tree<?>> duplicateAs(final Collection<Displayable> col, final Class target) {
+	public static<A extends Tree<?>> Map<Tree<?>,Tree<?>> duplicateAs(final Collection<Displayable> col, final Class<A> target) throws Exception {
 		final HashMap<Tree<?>,Tree<?>> m = new HashMap<Tree<?>, Tree<?>>();
 		for (final Displayable d : col) {
-			if (!(d instanceof Tree<?>)) continue;
-			final Tree<?> tree = (Tree<?>)d;
-		}
+			if (target.isInstance(d)) {
+				Utils.log(d + " is already of class " + target.getSimpleName());
+				continue;
+			}
+			if (!(d instanceof Tree<?>)) {
+				Utils.log("Ignoring " + d + ": not a Tree subclass");
+				continue;
+			}
+			final Tree<?> src = (Tree<?>)d;
+			if (null == src.root) {
+				Utils.log("Ignoring empty tree " + src);
+				continue;
+			}
+			if (Treeline.class == target) {
+				/*
+				// Specific for a target Treeline:
+				
+				final Treeline t = new Treeline(src.project, src.title);
+				t.at.setTransform(src.at);
+				
+				final Map<Node<?>,Treeline.RadiusNode> rel = new HashMap<Node<?>,Treeline.RadiusNode>();
+				final LinkedList<Node<?>> todo = new LinkedList<Node<?>>();
+				//t.root = new Treeline.RadiusNode(src.root.x, src.root.y, src.root.la);
+				todo.add(src.root);
+				while (!todo.isEmpty()) {
+					final Node<?> a = todo.removeLast();
+					// Put all children nodes to the end of the todo list
+					if (null != a.children)
+						for (final Node<?> child : a.children)
+							todo.add(child);
+					// Copy the content of the 'a' node
+					Treeline.RadiusNode copy = new Treeline.RadiusNode(a.x, a.y, a.la);
+					copy.copyProperties(a);
+					// Store relationship between original and copy
+					rel.put(a, copy);
+					// Find parent if any
+					if (null == a.parent) continue;
+					// .. and if found, add the copy to the copied parent:
+					rel.get(a.parent).add(copy, copy.confidence);
+				}
+				*/
+				
+				m.put(src, copyAs(src, Treeline.class, Treeline.RadiusNode.class));
+			} else if (AreaTree.class == target) {
+				m.put(src, copyAs(src, AreaTree.class, AreaTree.AreaNode.class));
+			} else {
+				Utils.log("Ignoring " + src);
+			}
+			
+			final Tree<?> copy = m.get(src);
+			if (null != copy) {
+				src.layer_set.add(copy);
+				src.project.getProjectTree().addSibling(src, copy);
+			}
+ 		}
 		return m;
+	}
+	
+	/** Can copy a Treeline to an AreaTree and viceversa.
+	 *  Copies the transform, the nodes (with tags and confidence), and the color. The transparency, locked stated and links are not copied. */
+	static public<A extends Tree<?>, B extends Node<?>> A copyAs(final Tree<?> src, final Class<A> tree_class, final Class<B> node_class) throws Exception {
+		final A t = tree_class.getConstructor(Project.class, String.class).newInstance(src.project, src.title);
+		t.at.setTransform(src.at);
+		t.color = src.color;
+		
+		final Map<Node<?>,B> rel = new HashMap<Node<?>,B>();
+		final LinkedList<Node<?>> todo = new LinkedList<Node<?>>();
+		//t.root = new Treeline.RadiusNode(src.root.x, src.root.y, src.root.la);
+		todo.add(src.root);
+		while (!todo.isEmpty()) {
+			final Node<?> a = todo.removeLast();
+			// Put all children nodes to the end of the todo list
+			if (null != a.children)
+				for (final Node<?> child : a.children)
+					todo.add(child);
+			// Copy the content of the 'a' node
+			final B copy = node_class.getConstructor(Float.TYPE, Float.TYPE, Layer.class).newInstance(a.x, a.y, a.la);
+			copy.copyProperties(a);
+			// Store relationship between original and copy
+			rel.put(a, copy);
+			// Find parent if any
+			if (null == a.parent) {
+				// Set the copy as the root
+				t.root = (Node)copy; // need to cast
+				continue;
+			}
+			// .. and if found, add the copy to the copied parent:
+			rel.get(a.parent).add((Node)copy, copy.confidence); // TODO no other way than to cast?
+		}
+		// create internals
+		t.cacheSubtree((Collection)t.root.getSubtreeNodes());
+		for (final Layer la : t.node_layer_map.keySet()) t.calculateBoundingBox(la);
+		return t;
 	}
 }

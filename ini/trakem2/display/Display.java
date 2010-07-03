@@ -2534,13 +2534,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					name[0] = name[1];
 					name[1] = a;
 				}
-				item = new JMenuItem("Duplicate " + name[0] + " to " + name[1]);
+				item = new JMenuItem("Duplicate " + name[0] + " as " + name[1]);
 				item.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent e) {
 						Bureaucrat.createAndStart(new Worker.Task("Converting") {
 							public void exec() {
 								try {
-									Tree.duplicateAs(selection.getSelected(), Class.forName("ini.trakem2.display." + name[1]));
+									getLayerSet().addChangeTreesStep();
+									Tree.duplicateAs(selection.getSelected(), Treeline.class == aclass ? AreaTree.class : Treeline.class);
+									getLayerSet().addChangeTreesStep();
 								} catch (Exception e) {
 									IJError.print(e);
 								}
