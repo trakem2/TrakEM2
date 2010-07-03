@@ -188,7 +188,7 @@ final public class AlignTask
 		
 		final Align.ParamOptimize p = Align.paramOptimize.clone();
 
-		alignPatches( p, patches, fixedPatches );
+		alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 	}
 
 	/** Montage each layer independently, with SIFT.
@@ -218,12 +218,18 @@ final public class AlignTask
 				deleteDisconnectedTiles = gd.getNextBoolean();
 				
 				final Align.ParamOptimize p = Align.paramOptimize.clone();
-				montageLayers(p, layers);
+				montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 			}
 		}, layers.get(0).getProject());
 	}
 
-	final static public void montageLayers(final Align.ParamOptimize p, final List<Layer> layers) {
+	final static public void montageLayers(
+			final Align.ParamOptimize p,
+			final List<Layer> layers,
+			final boolean tilesAreInPlace,
+			final boolean largestGraphOnly,
+			final boolean hideDisconnectedTiles,
+			final boolean deleteDisconnectedTiles ) {
 		int i = 0;
 		for (final Layer layer : layers) {
 			if (Thread.currentThread().isInterrupted()) return;
@@ -238,7 +244,7 @@ final public class AlignTask
 			Utils.log("====\nMontaging layer " + layer);
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
-			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>());
+			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 			Display.repaint(layer);
 		}
 	}
@@ -649,7 +655,11 @@ final public class AlignTask
 	final static public void alignPatches(
 			final Align.ParamOptimize p,
 			final List< Patch > patches,
-			final List< Patch > fixedPatches )
+			final List< Patch > fixedPatches,
+			final boolean tilesAreInPlace,
+			final boolean largestGraphOnly,
+			final boolean hideDisconnectedTiles,
+			final boolean deleteDisconnectedTiles )
 	{
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
@@ -657,7 +667,7 @@ final public class AlignTask
 
 		transformPatchesAndVectorData(patches, new Runnable() {
 			public void run() {
-				alignTiles( p, tiles, fixedTiles, tilesAreInPlace, largestGraphOnly );
+				alignTiles( p, tiles, fixedTiles, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 				Display.repaint();
 			}
 		});
@@ -668,7 +678,9 @@ final public class AlignTask
 			final List< AbstractAffineTile2D< ? > > tiles,
 			final List< AbstractAffineTile2D< ? > > fixedTiles,
 			final boolean tilesAreInPlace,
-			final boolean largestGraphOnly )
+			final boolean largestGraphOnly,
+			final boolean hideDisconnectedTiles,
+			final boolean deleteDisconnectedTiles )
 	{
 		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
 		if ( tilesAreInPlace )
@@ -979,7 +991,7 @@ final public class AlignTask
 			final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 			Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 			
-			alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false );
+			alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false, false, false ); // Will consider graphs and hide/delete tiles when all cross-layer graphs are found.
 			
 			/* connect to the previous layer */
 			
@@ -1184,7 +1196,7 @@ final public class AlignTask
 				/* add a fixed tile only if there was a Patch selected */
 				allFixedTiles.addAll( fixedTiles );
 				
-				alignTiles( p, currentLayerTiles, fixedTiles, true, false );
+				alignTiles( p, currentLayerTiles, fixedTiles, true, false, false, false ); // will consider graphs and hide/delete tiles when all cross-layer graphs are found
 				
 				/* for each independent graph do an independent transform */
 				final List< Set< Tile< ? > > > currentLayerGraphs = AbstractAffineTile2D.identifyConnectedGraphs( currentLayerTiles );
@@ -1369,7 +1381,7 @@ final public class AlignTask
 		List<Patch> fixedSlices = new ArrayList<Patch>();
 		fixedSlices.add(slice);
 
-		alignPatches( p, slices, fixedSlices );
+		alignPatches( p, slices, fixedSlices, false, false, false, false );
 
 		Display.repaint();
 
