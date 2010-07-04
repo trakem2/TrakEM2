@@ -2219,8 +2219,8 @@ while (it.hasNext()) {
 	 * Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
 	 * The text file can contain comments that start with the # sign.<br />
 	 * Images will be imported in parallel, using as many cores as your machine has.<br />
-	 * @param calibration transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
-	 * @param scale Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
+	 * @param calibration_ transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
+	 * @param scale_ Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
 	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_) {
 		// check parameters: ask for good ones if necessary
