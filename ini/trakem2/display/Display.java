@@ -34,6 +34,7 @@ import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
 import ini.trakem2.imaging.Segmentation;
@@ -2858,6 +2859,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Adjust fast-marching parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Show layers as orthoslices in 3D"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -4082,6 +4084,41 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			Display3D.addFatPoint("Current 2D Position", getLayerSet(), p.x, p.y, layer.getZ(), 10, Color.magenta);
+		} else if (command.equals("Show layers as orthoslices in 3D")) {
+			GenericDialog gd = new GenericDialog("Options");
+			Roi roi = canvas.getFakeImagePlus().getRoi();
+			Rectangle r = null == roi ? getLayerSet().get2DBounds() : roi.getBounds();
+			gd.addMessage("ROI 2D bounds:");
+			gd.addNumericField("x:", r.x, 0, 30, "pixels");
+			gd.addNumericField("y:", r.y, 0, 30, "pixels");
+			gd.addNumericField("width:", r.width, 0, 30, "pixels");
+			gd.addNumericField("height:", r.height, 0, 30, "pixels");
+			gd.addMessage("Layers to include:");
+			Utils.addLayerRangeChoices(layer, gd);
+			gd.addMessage("Constrain dimensions to:");
+			gd.addNumericField("max width and height:", getLayerSet().getPixelsMaxDimension(), 0, 30, "pixels");
+			gd.addMessage("Options:");
+			final String[] types = {"Greyscale", "Color RGB"};
+			gd.addChoice("Image type:", types, types[0]);
+			gd.addCheckbox("Invert images", false);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			int x = (int)gd.getNextNumber(),
+			    y = (int)gd.getNextNumber(),
+			    width = (int)gd.getNextNumber(),
+			    height = (int)gd.getNextNumber();
+			final int first = gd.getNextChoiceIndex(),
+					  last = gd.getNextChoiceIndex();
+			final List<Layer> layers = getLayerSet().getLayers(first, last);
+			final int max_dim = (int)gd.getNextNumber();
+			float scale = 1;
+			if (max_dim < Math.max(width, height)) {
+				scale = max_dim / (float)Math.max(width, height);
+			}
+			final int type = 0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY8 : ImagePlus.COLOR_RGB;
+			final boolean invert = gd.getNextBoolean();
+			final LayerStack stack = new LayerStack(layers, new Rectangle(x, y, width, height), scale, type, Patch.class, max_dim, invert);
+			Display3D.showOrthoslices(stack.getImagePlus(), "LayerSet [" + x + "," + y + "," + width + "," + height + "] " + first + "--" + last, x, y, scale, layers.get(0));
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();

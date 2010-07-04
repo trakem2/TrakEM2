@@ -565,6 +565,22 @@ public final class Display3D {
 					                          0,    0, 0, 1}));
 	}
 
+	static public void showOrthoslices(final ImagePlus imp, final String title, final int wx, final int wy, final float scale2D, final Layer first) {
+		Display3D d3d = get(first.getParent());
+		d3d.universe.removeContent(title);
+		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, 1);
+		Content ct = d3d.universe.getContent(title);
+		Calibration cal = imp.getCalibration();
+		Transform3D t = new Transform3D(new double[]{1, 0, 0, wx * cal.pixelWidth * scale2D,
+													 0, 1, 0, wy * cal.pixelHeight * scale2D,
+													 0, 0, scale2D, first.getZ() * cal.pixelWidth * scale2D, // not pixelDepth!
+													 0, 0, 0, 1});
+												// why scale2D has to be there at all reflects a horrible underlying setting of the calibration, plus of the scaling in the Display3D.
+		Utils.log(t);
+		ct.applyTransform(t);
+		ct.setLocked(true);
+	}
+
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
 	 *  If the PatchStack is already of the right type, it is returned,
 	 *  otherwise a copy is made in the proper type.
