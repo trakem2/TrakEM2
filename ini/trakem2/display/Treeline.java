@@ -204,7 +204,7 @@ public class Treeline extends Tree<Float> {
 			this.r = radius;
 		}
 		/** To reconstruct from XML, without a layer. */
-		public RadiusNode(final HashMap attr) {
+		public RadiusNode(final HashMap<String,String> attr) {
 			super(attr);
 			String sr = (String)attr.get("r");
 			this.r = null == sr ? 0 : Float.parseFloat(sr);
