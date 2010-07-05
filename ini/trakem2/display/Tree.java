@@ -692,7 +692,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return null;
 	}
 
-	protected void cacheSubtree(final Collection<Node<T>> nodes) {
+	protected void cacheSubtree(final Iterable<Node<T>> nodes) {
 		cache(nodes, end_nodes, node_layer_map);
 	}
 	protected void clearCache() {
@@ -705,7 +705,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Take @param nodes and add them to @param end_nodes and @param node_layer_map as appropriate. */
-	private final void cache(final Collection<Node<T>> nodes, final Collection<Node<T>> end_nodes, final Map<Layer,Set<Node<T>>> node_layer_map) {
+	private final void cache(final Iterable<Node<T>> nodes, final Collection<Node<T>> end_nodes, final Map<Layer,Set<Node<T>>> node_layer_map) {
 		for (final Node<T> child : nodes) {
 			if (null == child.children) end_nodes.add(child);
 			Set<Node<T>> nds = node_layer_map.get(child.la);
