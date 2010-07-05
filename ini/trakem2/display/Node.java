@@ -764,7 +764,9 @@ public abstract class Node<T> implements Taggable {
 		public NodeIterator(final Node<I> first) {
 			this.next = first;
 		}
-		public Node<I> next() { return next; }
+		@Override
+		public boolean hasNext() { return null != next; }
+		@Override
 		public void remove() {}
 	}
 
@@ -774,25 +776,26 @@ public abstract class Node<T> implements Taggable {
 			super(first);
 			todo.add(first);
 		}
+		@Override
+		public boolean hasNext() { return todo.size() > 0; }
 	}
 	
 	/** For a given starting node, iterates over the complete set of children nodes, recursively and breadth-first. */
 	static public class BreadthFirstSubtreeIterator<I> extends SubtreeIterator<I> {
-		final LinkedList<Node<I>> todo = new LinkedList<Node<I>>();
 		public BreadthFirstSubtreeIterator(final Node<I> first) {
 			super(first);
-			todo.add(first);
 		}
-		public boolean hasNext() {
+		@Override
+		public Node<I> next() {
 			if (todo.isEmpty()) {
 				next = null;
-				return false;
+				return null;
 			}
 			next = todo.removeFirst();
 			if (null != next.children) {
 				for (int i=0; i<next.children.length; i++) todo.add(next.children[i]);
 			}
-			return true;
+			return next;
 		}
 	}
 	
@@ -801,12 +804,20 @@ public abstract class Node<T> implements Taggable {
 		public SlabIterator(final Node<I> first) {
 			super(first);
 		}
-		public boolean hasNext() {
-			if (todo.isEmpty()) return false; // reached an end node
-			next = todo.removeFirst();
-			if (null == next.children || next.children.length > 1) return false;
+		@Override
+		public Node<I> next() {
+			if (todo.isEmpty()) {
+				next = null;
+				return null; // reached an end node or branch node
+			}
+			final Node<I> next = todo.removeFirst();
+			if (null == next.children || next.children.length > 1) {
+				this.next = null;
+				return next; // reached an end node or branch node
+			}
 			todo.add(next.children[0]);
-			return true;
+			this.next = next;
+			return next;
 		}
 	}
 
