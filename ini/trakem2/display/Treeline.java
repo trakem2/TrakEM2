@@ -661,6 +661,10 @@ public class Treeline extends Tree<Float> {
 
 	@Override
 	public void keyPressed(KeyEvent ke) {
+		if (isTagging()) {
+			super.keyPressed(ke);
+			return;
+		}
 		final int tool = ProjectToolbar.getToolId();
 		try {
 			if (ProjectToolbar.PEN == tool) {

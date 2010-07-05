@@ -1452,6 +1452,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	static private Node<?> to_tag = null;
 	static private Node<?> to_untag = null;
 	static private boolean show_tag_dialogs = false;
+	
+	protected boolean isTagging() { return null != to_tag || null != to_untag; }
 
 	@Override
 	public void keyPressed(KeyEvent ke) {
