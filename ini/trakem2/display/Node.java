@@ -1,5 +1,8 @@
 package ini.trakem2.display;
 
+import java.lang.reflect.InvocationTargetException;
+import java.util.AbstractCollection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +23,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.geom.Point2D;
 
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.Project;
@@ -318,9 +322,10 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 
-	/** Returns the nodes belonging to the subtree of this node, including the node itself as the root.
+	/** Returns a lazy read-only Collection of the nodes belonging to the subtree of this node, including the node itself as the root.
 	 *  Non-recursive, avoids potential stack overflow. */
-	public final List<Node<T>> getSubtreeNodes() {
+	public final Collection<Node<T>> getSubtreeNodes() {
+		/*
 		final List<Node<T>> nodes = new ArrayList<Node<T>>();
 		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
 		todo.add(this);
@@ -336,6 +341,14 @@ public abstract class Node<T> implements Taggable {
 		}
 
 		return nodes;
+		*/
+		
+		return new NodeCollection(this, BreadthFirstSubtreeIterator.class);
+	}
+	
+	/** Returns a lazy read-only Collection of the nodes from this node up to the next branch node or end node, inclusive. */
+	public final Collection<Node<T>> getSlabNodes() {
+		return new NodeCollection(this, SlabIterator.class);
 	}
 
 	/** Only this node, not any of its children. */
@@ -740,4 +753,126 @@ public abstract class Node<T> implements Taggable {
 	
 	/** Apply @param aff to the data, not to the x,y position. */
 	protected void transformData(final AffineTransform aff) {}
+
+
+	
+	// ==================== Node Iterators
+	
+	/** Stateful abstract Node iterator. */
+	protected abstract class NodeIterator implements Iterator<Node<T>> {
+		Node<T> next;
+		NodeIterator(final Node<T> first) {
+			this.next = first;
+		}
+		public Node<T> next() { return next; }
+		public void remove() {}
+	}
+
+	protected abstract class SubtreeIterator extends NodeIterator {
+		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
+		SubtreeIterator(final Node<T> first) {
+			super(first);
+			todo.add(first);
+		}
+	}
+	
+	/** For a given starting node, iterates over the complete set of children nodes, recursively and breadth-first. */
+	protected class BreadthFirstSubtreeIterator extends SubtreeIterator {
+		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
+		BreadthFirstSubtreeIterator(final Node<T> first) {
+			super(first);
+			todo.add(first);
+		}
+		public boolean hasNext() {
+			if (todo.isEmpty()) return false;
+			next = todo.removeFirst();
+			if (null != next.children) {
+				for (int i=0; i<next.children.length; i++) todo.add(next.children[i]);
+			}
+			return !todo.isEmpty();
+		}
+	}
+	
+	/** For a given starting node, iterates all the way to the next end node or branch node, inclusive. */
+	protected class SlabIterator extends SubtreeIterator {
+		SlabIterator(final Node<T> first) {
+			super(first);
+		}
+		public boolean hasNext() {
+			if (todo.isEmpty()) return false; // reached an end node
+			next = todo.removeFirst();
+			if (null == next.children || next.children.length > 1) return false;
+			todo.add(next.children[0]);
+			return true;
+		}
+	}
+
+	/** Read-only Collection with a very expensive size().
+	 *  It is meant for traversing Node subtrees.  */
+	protected class NodeCollection extends AbstractCollection<Node<T>> {
+		final Node<T> first;
+		final Class<?> type;
+
+		NodeCollection(final Node<T> first, final Class<?> type) {
+			this.first = first;
+			this.type = type;
+		}
+		@Override
+		public Iterator<Node<T>> iterator() {
+			try {
+				return (Iterator<Node<T>>) type.getConstructor(Node.class).newInstance(first);
+			} catch (NoSuchMethodException nsme) { IJError.print(nsme); }
+			  catch (InvocationTargetException ite) { IJError.print(ite); }
+			  catch (IllegalAccessException iae) { IJError.print(iae); }
+			  catch (InstantiationException ie) { IJError.print(ie); }
+			return null;
+		}
+
+		/** WARNING: O(n) operation: will traverse the whole collection. */
+		@Override
+		public int size() {
+			int count = 0;
+			final Iterator<Node<T>> it = iterator();
+			while (it.hasNext()) count++;
+			return count;
+		}
+	}
+	
+	// ============= Operations on collections of nodes
+	
+	/** An operation to be applied to a specific Node. */
+	static public interface Operation {
+		public void apply(final Node<?> nd) throws Exception;
+	}
+	
+	protected void apply(final Operation op, final Iterator<Node<T>> nodes) throws Exception {
+		while (nodes.hasNext()) op.apply(nodes.next());
+	}
+
+	/** Apply @param op to this Node and all its subtree nodes. */
+	public void applyToSubtree(final Operation op) throws Exception {
+		apply(op, new BreadthFirstSubtreeIterator(this));
+		/*
+		final Node<?> first = this;
+		apply(op, new Iterable<Node<?>>() {
+			public Iterator<Node<?>> iterator() {
+				return new NodeIterator(first) {
+					public final boolean hasNext() {
+						if (null == next.children) return false;
+						else if (1 == next.children.length) {
+							next = next.children[0];
+							return true;
+						}
+						return false;
+					}
+				};
+			}
+		});
+		*/
+	}
+	
+	/** Apply @param op to this Node and all its subtree nodes until reaching a branch node or end node, inclusive. */
+	public void applyToSlab(final Operation op) throws Exception {
+		apply(op, new SlabIterator(this));
+	}
 }
