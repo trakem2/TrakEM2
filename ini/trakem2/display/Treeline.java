@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.gui.GenericDialog;
 import ini.trakem2.Project;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
@@ -674,8 +675,12 @@ public class Treeline extends Tree<Float> {
 
 				switch (ke.getKeyCode()) {
 					case KeyEvent.VK_O:
+						layer_set.addDataEditStep(this);
 						if (askAdjustRadius(p.x, p.y, layer, dc.getMagnification())) {
 							ke.consume();
+							layer_set.addDataEditStep(this); // current state
+						} else {
+							layer_set.removeLastUndoStep(); // dialog canceled
 						}
 						break;
 				}
@@ -715,6 +720,8 @@ public class Treeline extends Tree<Float> {
 			unit = null;
 			gd.addNumericField("Radius:", nd.getData(), 2, 10, "pixels");
 		}
+		final String[] choices = {"this node only", "nodes until next branch or end node", "entire subtree"};
+		gd.addChoice("Apply to:", choices, choices[0]);
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		double radius = gd.getNextNumber();
@@ -726,7 +733,34 @@ public class Treeline extends Tree<Float> {
 			// convert radius from units to pixels
 			radius = radius / cal.pixelWidth;
 		}
-		nd.setData((float)radius);
+		final float r = (float)radius;
+		final Node.Operation<Float> op = new Node.Operation<Float>() {
+			@Override
+			public void apply(Node<Float> node) throws Exception {
+				node.setData(r);
+			}
+		};
+		// Apply to:
+		try {
+			switch (gd.getNextChoiceIndex()) {
+				case 0:
+					// Just the node
+					nd.setData(r);
+					break;
+				case 1:
+					// All the way to the next branch or end point
+					nd.applyToSlab(op);
+					break;
+				case 2:
+					// To the entire subtree of nodes
+					nd.applyToSubtree(op);
+					break;
+				default:
+					return false;
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 
 		calculateBoundingBox(layer);
 		Display.repaint(layer_set);
