@@ -343,12 +343,12 @@ public abstract class Node<T> implements Taggable {
 		return nodes;
 		*/
 		
-		return new NodeCollection(this, BreadthFirstSubtreeIterator.class);
+		return new NodeCollection<T>(this, BreadthFirstSubtreeIterator.class);
 	}
 	
 	/** Returns a lazy read-only Collection of the nodes from this node up to the next branch node or end node, inclusive. */
 	public final Collection<Node<T>> getSlabNodes() {
-		return new NodeCollection(this, SlabIterator.class);
+		return new NodeCollection<T>(this, SlabIterator.class);
 	}
 
 	/** Only this node, not any of its children. */
@@ -759,43 +759,46 @@ public abstract class Node<T> implements Taggable {
 	// ==================== Node Iterators
 	
 	/** Stateful abstract Node iterator. */
-	protected abstract class NodeIterator implements Iterator<Node<T>> {
-		Node<T> next;
-		NodeIterator(final Node<T> first) {
+	static public abstract class NodeIterator<I> implements Iterator<Node<I>> {
+		Node<I> next;
+		public NodeIterator(final Node<I> first) {
 			this.next = first;
 		}
-		public Node<T> next() { return next; }
+		public Node<I> next() { return next; }
 		public void remove() {}
 	}
 
-	protected abstract class SubtreeIterator extends NodeIterator {
-		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
-		SubtreeIterator(final Node<T> first) {
+	static public abstract class SubtreeIterator<I> extends NodeIterator<I> {
+		final LinkedList<Node<I>> todo = new LinkedList<Node<I>>();
+		public SubtreeIterator(final Node<I> first) {
 			super(first);
 			todo.add(first);
 		}
 	}
 	
 	/** For a given starting node, iterates over the complete set of children nodes, recursively and breadth-first. */
-	protected class BreadthFirstSubtreeIterator extends SubtreeIterator {
-		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
-		BreadthFirstSubtreeIterator(final Node<T> first) {
+	static public class BreadthFirstSubtreeIterator<I> extends SubtreeIterator<I> {
+		final LinkedList<Node<I>> todo = new LinkedList<Node<I>>();
+		public BreadthFirstSubtreeIterator(final Node<I> first) {
 			super(first);
 			todo.add(first);
 		}
 		public boolean hasNext() {
-			if (todo.isEmpty()) return false;
+			if (todo.isEmpty()) {
+				next = null;
+				return false;
+			}
 			next = todo.removeFirst();
 			if (null != next.children) {
 				for (int i=0; i<next.children.length; i++) todo.add(next.children[i]);
 			}
-			return !todo.isEmpty();
+			return true;
 		}
 	}
 	
 	/** For a given starting node, iterates all the way to the next end node or branch node, inclusive. */
-	protected class SlabIterator extends SubtreeIterator {
-		SlabIterator(final Node<T> first) {
+	public class SlabIterator<I> extends SubtreeIterator<I> {
+		public SlabIterator(final Node<I> first) {
 			super(first);
 		}
 		public boolean hasNext() {
@@ -809,18 +812,18 @@ public abstract class Node<T> implements Taggable {
 
 	/** Read-only Collection with a very expensive size().
 	 *  It is meant for traversing Node subtrees.  */
-	protected class NodeCollection extends AbstractCollection<Node<T>> {
-		final Node<T> first;
+	static public class NodeCollection<I> extends AbstractCollection<Node<I>> {
+		final Node<I> first;
 		final Class<?> type;
 
-		NodeCollection(final Node<T> first, final Class<?> type) {
+		NodeCollection(final Node<I> first, final Class<?> type) {
 			this.first = first;
 			this.type = type;
 		}
 		@Override
-		public Iterator<Node<T>> iterator() {
+		public Iterator<Node<I>> iterator() {
 			try {
-				return (Iterator<Node<T>>) type.getConstructor(Node.class).newInstance(first);
+				return (Iterator<Node<I>>) type.getConstructor(Node.class).newInstance(first);
 			} catch (NoSuchMethodException nsme) { IJError.print(nsme); }
 			  catch (InvocationTargetException ite) { IJError.print(ite); }
 			  catch (IllegalAccessException iae) { IJError.print(iae); }
@@ -832,7 +835,7 @@ public abstract class Node<T> implements Taggable {
 		@Override
 		public int size() {
 			int count = 0;
-			final Iterator<Node<T>> it = iterator();
+			final Iterator<Node<I>> it = iterator();
 			while (it.hasNext()) count++;
 			return count;
 		}
@@ -841,17 +844,17 @@ public abstract class Node<T> implements Taggable {
 	// ============= Operations on collections of nodes
 	
 	/** An operation to be applied to a specific Node. */
-	static public interface Operation {
-		public void apply(final Node<?> nd) throws Exception;
+	static public interface Operation<I> {
+		public void apply(final Node<I> nd) throws Exception;
 	}
 	
-	protected void apply(final Operation op, final Iterator<Node<T>> nodes) throws Exception {
+	protected final void apply(final Operation<T> op, final Iterator<Node<T>> nodes) throws Exception {
 		while (nodes.hasNext()) op.apply(nodes.next());
 	}
 
 	/** Apply @param op to this Node and all its subtree nodes. */
-	public void applyToSubtree(final Operation op) throws Exception {
-		apply(op, new BreadthFirstSubtreeIterator(this));
+	public void applyToSubtree(final Operation<T> op) throws Exception {
+		apply(op, new BreadthFirstSubtreeIterator<T>(this));
 		/*
 		final Node<?> first = this;
 		apply(op, new Iterable<Node<?>>() {
@@ -872,7 +875,7 @@ public abstract class Node<T> implements Taggable {
 	}
 	
 	/** Apply @param op to this Node and all its subtree nodes until reaching a branch node or end node, inclusive. */
-	public void applyToSlab(final Operation op) throws Exception {
-		apply(op, new SlabIterator(this));
+	public void applyToSlab(final Operation<T> op) throws Exception {
+		apply(op, new SlabIterator<T>(this));
 	}
 }
