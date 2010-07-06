@@ -646,8 +646,26 @@ public class Utils implements ij.plugin.PlugIn {
 		if (1 == b.length()) b = "0" + b;
 		return new String[]{r, g, b};
 	}
+	
+	static public final String asHexRGBColor(final Color color) {
+		final StringBuilder sb = new StringBuilder(6);
+		Utils.asHexRGBColor(sb, color);
+		return sb.toString();
+	}
+	static public final void asHexRGBColor(final StringBuilder sb, final Color color) {
+		final int c = color.getRGB();
+		String r = Integer.toHexString(((c&0x00FF0000)>>16));
+		if (1 == r.length()) sb.append('0');
+		sb.append(r);
+		String g = Integer.toHexString(((c&0x0000FF00)>>8));
+		if (1 == g.length()) sb.append('0');
+		sb.append(g);
+		String b = Integer.toHexString((c&0x000000FF));
+		if (1 == b.length()) sb.append('0');
+		sb.append(b);
+	}
 
-	static public final Color getRGBColorFromHex(String hex) {
+	static public final Color getRGBColorFromHex(final String hex) {
 		if (hex.length() < 6) return null;
 		return new Color(Integer.parseInt(hex.substring(0, 2), 16), // parse in hexadecimal radix
 				 Integer.parseInt(hex.substring(2, 4), 16),
