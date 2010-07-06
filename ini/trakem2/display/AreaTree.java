@@ -22,12 +22,14 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
 
 public class AreaTree extends Tree<Area> implements AreaContainer {
@@ -473,7 +475,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return box;
 	}
 
-	public List<Point3f> generateMesh(final double scale, final int resample) {
+	public MeshData generateMesh(final double scale, final int resample) {
 		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
 			for (final Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {
@@ -484,7 +486,16 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				areas.put(e.getKey(), a);
 			}
 		}
-		return AreaUtils.generateTriangles(this, scale, resample, areas);
+		final List<Point3f> ps = AreaUtils.generateTriangles(this, scale, resample, areas);
+		
+		final List<Color3f> colors = new ArrayList<Color3f>();
+		// Determine colors by proximity to a node, since there isn't any other way.
+		// TODO
+		Utils.log("WARNING: AreaTree multicolor 3D mesh is not yet implemented.");
+		final Color3f cf = new Color3f(this.color);
+		for (int i=0; i<ps.size(); i++) colors.add(cf);
+		
+		return new MeshData(ps, colors);
 	}
 
 	public void debug() {

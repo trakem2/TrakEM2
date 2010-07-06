@@ -27,7 +27,10 @@ import java.awt.event.ItemEvent;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collection;
+
+import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
+import javax.vecmath.Tuple3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.AxisAngle4f;
@@ -546,7 +549,8 @@ public class Treeline extends Tree<Float> {
 	}
 	*/
 
-	public List<Point3f> generateMesh(double scale_, int parallels) {
+	/** Returns a list of two lists: the List<Point3f> and the corresponding List<Color3f>. */
+	public MeshData generateMesh(double scale_, int parallels) {
 		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
 		//
 		// TODO:
@@ -582,6 +586,10 @@ public class Treeline extends Tree<Float> {
 		final Transform3D t = new Transform3D();
 		final AxisAngle4f aa = new AxisAngle4f();
 
+		final List<Color3f> colors = new ArrayList<Color3f>();
+		final Color3f cf = new Color3f(this.color);
+		final HashMap<Color,Color3f> cached_colors = new HashMap<Color,Color3f>();
+		cached_colors.put(this.color, cf);
 
 		for (final Set<Node<Float>> nodes : node_layer_map.values()) {
 			for (final Node<Float> nd : nodes) {
@@ -597,40 +605,65 @@ public class Treeline extends Tree<Float> {
 					v.z = v.z * r + z;
 					ps.add(v);
 				}
-				// Tube from parent to child
-				if (null == nd.parent) continue;
-
-				po = null;
-
-				// parent:
-				Point2D.Double pp = transformPoint(nd.parent.x, nd.parent.y);
-				final float parx = (float)pp.x * pixelWidthScaled;
-				final float pary = (float)pp.y * pixelWidthScaled;
-				final float parz = (float)nd.parent.la.getZ() * pixelWidthScaled * sign;
-				final float parr = ((RadiusNode)nd.parent).r * pixelWidthScaled; // TODO r is not transformed by the AffineTransform
-
-				// the vector perpendicular to the plane is 0,0,1
-				// the vector from parent to child is:
-				Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
-				Vector3f cross = new Vector3f();
-				cross.cross(vpc, vplane);
-				cross.normalize(); // not needed?
-				aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
-				t.set(aa);
 				
+				int n_verts = ico.size();
+				
+				// Tube from parent to child
+				// Check if a 3D volume representation is necessary for this segment
+				if (null != nd.parent && 0 != nd.parent.getData() && 0 != nd.getData()) {
 
-				final List<Point3f> parent_verts = transform(t, plane, parx, pary, parz, parr);
-				final List<Point3f> child_verts = transform(t, plane, x, y, z, r);
+					po = null;
 
-				for (int i=1; i<parallels; i++) {
-					addTriangles(ps, parent_verts, child_verts, i-1, i);
+					// parent:
+					Point2D.Double pp = transformPoint(nd.parent.x, nd.parent.y);
+					final float parx = (float)pp.x * pixelWidthScaled;
+					final float pary = (float)pp.y * pixelWidthScaled;
+					final float parz = (float)nd.parent.la.getZ() * pixelWidthScaled * sign;
+					final float parr = ((RadiusNode)nd.parent).r * pixelWidthScaled; // TODO r is not transformed by the AffineTransform
+
+					// the vector perpendicular to the plane is 0,0,1
+					// the vector from parent to child is:
+					Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
+					Vector3f cross = new Vector3f();
+					cross.cross(vpc, vplane);
+					cross.normalize(); // not needed?
+					aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
+					t.set(aa);
+
+
+					final List<Point3f> parent_verts = transform(t, plane, parx, pary, parz, parr);
+					final List<Point3f> child_verts = transform(t, plane, x, y, z, r);
+
+					for (int i=1; i<parallels; i++) {
+						addTriangles(ps, parent_verts, child_verts, i-1, i);
+						n_verts += 6;
+					}
+					// faces from last to first:
+					addTriangles(ps, parent_verts, child_verts, parallels -1, 0);
+					n_verts += 6;
 				}
-				// faces from last to first:
-				addTriangles(ps, parent_verts, child_verts, parallels -1, 0);
+
+				// Colors for each segment:
+				Color3f c;
+				if (null == nd.color) {
+					c = cf;
+				} else {
+					c = cached_colors.get(nd.color);
+					if (null == c) {
+						c = new Color3f(nd.color);
+						cached_colors.put(nd.color, c);
+					}
+				}
+				while (n_verts > 0) {
+					n_verts--;
+					colors.add(c);
+				}
 			}
 		}
+		
+		Utils.log2("Treeline MeshData lists of same length: " + (ps.size() == colors.size()));
 
-		return ps;
+		return new MeshData(ps, colors);
 	}
 
 	static private final void addTriangles(final List<Point3f> ps, final List<Point3f> parent_verts, final List<Point3f> child_verts, final int i0, final int i1) {

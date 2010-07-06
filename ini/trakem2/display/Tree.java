@@ -83,6 +83,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
@@ -532,11 +533,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	static private final void closeNodeXML(final StringBuilder indent, final StringBuilder sb) {
 		sb.append(indent).append("</t2_node>\n");
 	}
+	
+	/** @see generateSkeleton */
+	@Deprecated
+	public List<Point3f> generateTriangles(double scale_, int parallels, int resample) {
+		return generateSkeleton(scale_, parallels, resample).verts;
+	}
 
 	/** @return a CustomLineMesh.PAIRWISE list for a LineMesh. */
-	public List<Point3f> generateTriangles(double scale_, int parallels, int resample) {
+	public MeshData generateSkeleton(double scale_, int parallels, int resample) {
 		if (null == root) return null;
 		final ArrayList<Point3f> list = new ArrayList<Point3f>();
+		final ArrayList<Color3f> colors = new ArrayList<Color3f>();
 
 		// Simulate recursion
 		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
@@ -556,6 +564,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		//
 		// The method, by the way, is very parallelizable: each is independent.
 
+		final HashMap<Color,Color3f> cached_colors = new HashMap<Color, Color3f>();
+		final Color3f cf = new Color3f(this.color);
+		cached_colors.put(this.color, cf);
+		
 		boolean go = true;
 		while (go) {
 			final Node<T> node = todo.removeFirst();
@@ -579,13 +591,26 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// Create a line to the parent
 				list.add(points.get(node.parent));
 				list.add(p);
+				if (null == node.color) {
+					colors.add(cf);
+					colors.add(cf); // twice: a line segment
+				} else {
+					Color3f c = cached_colors.get(node.color);
+					if (null == c) {
+						c = new Color3f(node.color);
+						cached_colors.put(node.color, c);
+					}
+					colors.add(c);
+					colors.add(c); // twice: a line segment
+				}
 				if (go && node.parent != todo.getFirst().parent) {
 					// node.parent point no longer needed (last child just processed)
 					points.remove(node.parent);
 				}
 			}
 		}
-		return list;
+		Utils.log2("Skeleton MeshData lists of same length: " + (list.size() == colors.size()));
+		return new MeshData(list, colors);
 	}
 
 	@Override
@@ -2986,5 +3011,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		t.cacheSubtree((Collection)t.root.getSubtreeNodes());
 		for (final Layer la : t.node_layer_map.keySet()) t.calculateBoundingBox(la);
 		return t;
+	}
+	
+	/** One color per vertex. */
+	static public class MeshData {
+		final public List<Color3f> colors;
+		final public List<Point3f> verts;
+		public MeshData(final List<Point3f> v, final List<Color3f> c) {
+			this.verts = v;
+			this.colors = c;
+		}
 	}
 }

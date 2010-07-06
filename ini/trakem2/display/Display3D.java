@@ -671,7 +671,7 @@ public final class Display3D {
 				try {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
-		final List triangles;
+		final List<Point3f> triangles;
 		boolean no_culling_ = false; // don't show back faces when false
 
 		final Class c;
@@ -689,7 +689,9 @@ public final class Display3D {
 			else line_mesh_mode = Integer.MAX_VALUE; // disabled
 		}
 
-		List extra_triangles = null;
+		List<Point3f> extra_triangles = null;
+		List<Color3f> triangle_colors = null,
+					  extra_triangle_colors = null;
 
 		int rs = resample;
 		if (displ instanceof AreaContainer) {
@@ -708,15 +710,23 @@ public final class Display3D {
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (displ instanceof Tree) {
 			// A 3D wire skeleton, using CustomLineMesh
-			triangles = ((Tree)displ).generateTriangles(scale, 12, 1);
+			final Tree.MeshData skeleton = ((Tree<?>)displ).generateSkeleton(scale, 12, 1);
+			triangles = skeleton.verts;
+			triangle_colors = skeleton.colors;
 			if (displ instanceof Treeline) {
-				extra_triangles = ((Treeline)displ).generateMesh(scale, 12);
+				final Tree.MeshData tube = ((Treeline)displ).generateMesh(scale, 12);
+				extra_triangles = tube.verts;
+				extra_triangle_colors = tube.colors;
 			} else if (displ instanceof AreaTree) {
-				extra_triangles = ((AreaTree)displ).generateMesh(scale, rs);
+				final Tree.MeshData mesh = ((AreaTree)displ).generateMesh(scale, rs);
+				extra_triangles = mesh.verts;
+				extra_triangle_colors = mesh.colors;
 			}
 			if (null != extra_triangles && extra_triangles.isEmpty()) extra_triangles = null; // avoid issues with MultiMesh
 		} else if (Connector.class == c) {
-			triangles = ((Connector)displ).generateMesh(scale, 12);
+			final Tree.MeshData octopus = ((Connector)displ).generateMesh(scale, 12);
+			triangles = octopus.verts;
+			triangle_colors = octopus.colors;
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 			no_culling_ = true;
@@ -794,14 +804,18 @@ public final class Display3D {
 					//ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
 					cm = new CustomTriangleMesh(triangles, c3, 0);
 				}
+				
+				if (null != triangle_colors) cm.setColor(triangle_colors);
 
 				//if (null == ct) return null;
 				if (null == cm) return null;
 
-				if (null == extra_triangles) {
+				if (null == extra_triangles || 0 == extra_triangles.size()) {
 					ct = universe.createContent(cm, title);
 				} else {
-				        ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, new CustomTriangleMesh(extra_triangles, c3, 0)})), title);
+					final CustomTriangleMesh extra = new CustomTriangleMesh(extra_triangles, c3, 0);
+					if (null != extra_triangle_colors) extra.setColor(extra_triangle_colors);
+					ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, extra})), title);
 				}
 
 				// Set general content properties
