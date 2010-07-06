@@ -125,7 +125,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Area>> to_paint, final Tree<Area> tree, final AffineTransform to_screen) {
 			if (active_layer != this.la || null == aw) return true; // yes, paint the edges
 
-			aw.paint(g, to_screen, ((AreaTree)tree).fill_paint, tree.getColor());
+			aw.paint(g, to_screen, ((AreaTree)tree).fill_paint, null == this.color ? tree.getColor() : this.color);
 
 			return true;
 		}

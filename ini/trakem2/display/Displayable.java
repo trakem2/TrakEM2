@@ -1121,7 +1121,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return gd;
 	}
 
-	private abstract class SliderListener implements AdjustmentListener, TextListener {
+	protected abstract class SliderListener implements AdjustmentListener, TextListener {
 		public void adjustmentValueChanged(AdjustmentEvent ae) { update(); }
 		public void textValueChanged(TextEvent te) { update(); }
 		abstract public void update();

@@ -25,11 +25,13 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.gui.GenericDialog;
 import ij.gui.StackWindow;
 import ij.io.FileSaver;
 import ij.io.Opener;
 
 import ini.trakem2.Project;
+import ini.trakem2.display.Displayable.SliderListener;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.utils.Bureaucrat;
@@ -44,6 +46,7 @@ import java.awt.Insets;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Point;
+import java.awt.Scrollbar;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
@@ -1692,11 +1695,77 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						return;
 					}
 					break;
+				case KeyEvent.VK_C:
+					if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
+						nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
+						if (null != nd && adjustNodeColors(nd)) {
+							ke.consume();
+							return;
+						}
+					}
+					break;
 			}
 		}
 		} finally {
 			if (null != nd) setLastVisited(nd);
 		}
+	}
+
+	private boolean adjustNodeColors(final Node<T> nd) {
+		GenericDialog gd = new GenericDialog("Node colors");
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
+		final Scrollbar red = (Scrollbar)gd.getSliders().get(0);
+		final Scrollbar green = (Scrollbar)gd.getSliders().get(1);
+		final Scrollbar blue = (Scrollbar)gd.getSliders().get(2);
+		final Color original = nd.color; // may be null
+		final SliderListener slc = new SliderListener() {
+			public void update() {
+				nd.setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
+				Display.repaint();
+			}
+		};
+		red.addAdjustmentListener(slc);
+		green.addAdjustmentListener(slc);
+		blue.addAdjustmentListener(slc);
+		final String[] choices = {"this node only", "nodes until next branch or end node", "entire subtree"};
+		gd.addChoice("Apply to:", choices, choices[0]);
+		gd.showDialog();
+		if (gd.wasCanceled()) {
+			nd.setColor(original);
+			Display.repaint();
+			return false;
+		}
+		try {
+			layer_set.addDataEditStep(this);
+			final Color c;
+			if (null == nd.getColor()) c = new Color(red.getValue(), green.getValue(), blue.getValue());
+			else c = nd.getColor(); // was dynamically adjusted
+			switch (gd.getNextChoiceIndex()) {
+				case 0:
+					// this node only: already done
+					return true;
+				case 1:
+					// the downstream slab:
+					for (final Node<T> node : new Node.NodeCollection<T>(nd, Node.SlabIterator.class)) {
+						node.setColor(c);
+					}
+					return true;
+				case 2:
+					// the entire subtree:
+					for (final Node<T> node: new Node.NodeCollection<T>(nd, Node.BreadthFirstSubtreeIterator.class)) {
+						node.setColor(c);
+					}
+					return true;
+				default:
+					layer_set.removeLastUndoStep();
+			}
+		} finally {
+			layer_set.addDataEditStep(this);
+			Display.repaint();
+		}
+		return true;
 	}
 
 	@Override

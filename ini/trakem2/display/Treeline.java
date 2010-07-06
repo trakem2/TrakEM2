@@ -276,7 +276,7 @@ public class Treeline extends Tree<Float> {
 
 			// Which color?
 			if (active_layer == this.la) {
-				g.setColor(tree.getColor());
+				g.setColor(null == this.color ? tree.getColor() : this.color);
 			} else {
 				if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
 				else g.setColor(Color.blue);

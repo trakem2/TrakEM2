@@ -41,6 +41,10 @@ public abstract class Node<T> implements Taggable {
 	protected float x, y;
 	public float getX() { return x; }
 	public float getY() { return y; }
+	
+	protected Color color;
+	public Color getColor() { return this.color; }
+	public void setColor(final Color c) { this.color = c; }
 
 	/** The confidence value of the edge towards the parent;
 	 *  in other words, how much this node can be trusted to continue from its parent node.
@@ -184,8 +188,9 @@ public abstract class Node<T> implements Taggable {
 
 		final double actZ = active_layer.getZ();
 		final double thisZ = this.la.getZ();
-		//Which edge color?
-		Color local_edge_color = t_color;
+		final Color node_color = null == this.color ? t_color : this.color; 
+		// Which edge color?
+		Color local_edge_color = node_color;
 		if (active_layer == this.la) {} // default color
 		else if (actZ > thisZ) {
 			local_edge_color = Color.red;
@@ -247,8 +252,8 @@ public abstract class Node<T> implements Taggable {
 								g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
 								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
 							} else if (child.la == active_layer) {
-								// Distal half in the Displayable color
-								g.setColor(t_color);
+								// Distal half in the Displayable or Node color
+								g.setColor(node_color);
 								g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
 								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
 								// Proximal half in either red or blue:
