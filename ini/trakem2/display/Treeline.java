@@ -207,7 +207,7 @@ public class Treeline extends Tree<Float> {
 		/** To reconstruct from XML, without a layer. */
 		public RadiusNode(final HashMap<String,String> attr) {
 			super(attr);
-			String sr = (String)attr.get("r");
+			final String sr = (String)attr.get("r");
 			this.r = null == sr ? 0 : Float.parseFloat(sr);
 		}
 
@@ -364,9 +364,10 @@ public class Treeline extends Tree<Float> {
 		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
+	/** Export the radius only if it is larger than zero. */
 	@Override
 	protected boolean exportXMLNodeAttributes(final StringBuilder indent, final StringBuilder sb, final Node<Float> node) {
-		sb.append(" r=\"").append(node.getData()).append('\"');
+		if (node.getData() > 0) sb.append(" r=\"").append(node.getData()).append('\"');
 		return true;
 	}
 	

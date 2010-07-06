@@ -24,9 +24,11 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 
+import java.awt.Color;
 import java.awt.event.KeyEvent;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
@@ -100,6 +102,7 @@ public class TMLHandler extends DefaultHandler {
 	final private LinkedList<Node<?>> nodes = new LinkedList<Node<?>>();
 	final private Map<Long,List<Node<?>>> node_layer_table = new HashMap<Long,List<Node<?>>>();
 	final private Map<Tree<?>,Node<?>> tree_root_nodes = new HashMap<Tree<?>,Node<?>>();
+	final private Map<Color,Collection<Node<?>>> node_colors = new HashMap<Color,Collection<Node<?>>>();
 	private StringBuilder last_treeline_data = null;
 	private Displayable last_displayable = null;
 	private StringBuilder last_annotation = null;
@@ -256,15 +259,22 @@ public class TMLHandler extends DefaultHandler {
 			Utils.log("ERROR: node_layer_table is not empty!");
 		}
 		// 5 - Assign root nodes to Treelines, now that all nodes have a layer
-		for (final Map.Entry e : tree_root_nodes.entrySet()) {
+		for (final Map.Entry<Tree<?>,Node<?>> e : tree_root_nodes.entrySet()) {
 			if (null == e.getValue()) {
 				//Utils.log2("Ignoring, applies to new Treeline format only.");
 				continue;
 			}
 			// Can't compile with <?>
-			((Tree)e.getKey()).setRoot((Node)e.getValue()); // will generate node caches of each Treeline
+			e.getKey().setRoot((Node)e.getValue()); // will generate node caches of each Treeline
 		}
 		tree_root_nodes.clear();
+		// Assign colors to nodes
+		for (final Map.Entry<Color,Collection<Node<?>>> e : node_colors.entrySet()) {
+			for (final Node<?> nd : e.getValue()) {
+				nd.setColor(e.getKey());
+			}
+		}
+		node_colors.clear();
 
 		// 6 - Run legacy operations
 		for (final Runnable r : legacy) {
@@ -715,7 +725,19 @@ public class TMLHandler extends DefaultHandler {
 				if (null == last_root_node) {
 					last_root_node = node;
 				} else {
-					((Node)nodes.getLast()).add(node, Byte.parseByte((String)ht_attributes.get("c")));
+					final String sconf = ht_attributes.get("c");
+					((Node)nodes.getLast()).add(node, null == sconf ? Node.MAX_EDGE_CONFIDENCE : Byte.parseByte(sconf));
+				}
+				// color?
+				final String scolor = ht_attributes.get("color");
+				if (null != scolor) {
+					final Color color = Utils.getRGBColorFromHex(scolor);
+					Collection<Node<?>> nodes = node_colors.get(color);
+					if (null == nodes) {
+						nodes = new ArrayList<Node<?>>();
+						node_colors.put(color, nodes);
+					}
+					nodes.add(node);
 				}
 				// Put node into stack of nodes (to be removed on closing the tag)
 				nodes.add(node);

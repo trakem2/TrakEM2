@@ -427,7 +427,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** One day, java will get tail-call optimization (i.e. no more stack overflow errors) and I will laugh at this function. */
-	private final void exportXML(final Tree tree, final String indent_base, final StringBuilder sb, final Node<T> root) {
+	private final void exportXML(final Tree<T> tree, final String indent_base, final StringBuilder sb, final Node<T> root) {
 		// Simulating recursion
 		//
 		// write depth-first, closing as children get written
@@ -477,13 +477,22 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		return sb;
 	}
-	private final void dataNodeXML(final Tree tree, final StringBuilder indent, final StringBuilder sb, final Node<T> node) {
+	private final void dataNodeXML(final Tree<T> tree, final StringBuilder indent, final StringBuilder sb, final Node<T> node) {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)
 		  .append("\" y=\"").append(node.y)
 		  .append("\" lid=\"").append(node.la.getId()).append('\"');
 		;
-		if (null != node.parent) sb.append(" c=\"").append(node.parent.getConfidence(node)).append('\"');
+		if (null != node.parent) {
+			final byte conf = node.getConfidence();
+			if (Node.MAX_EDGE_CONFIDENCE != conf) sb.append(" c=\"").append(conf).append('\"');
+		}
+		if (null != node.color) {
+			sb.append(" color=\"");
+			Utils.asHexRGBColor(sb, node.color);
+			sb.append('\"');
+		}
+
 		tree.exportXMLNodeAttributes(indent, sb, node); // may not add anything
 		sb.append(">\n");
 		// ... so accumulated potentially extra chars are 3: \">\n
