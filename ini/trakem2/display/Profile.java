@@ -1425,20 +1425,19 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Takes a profile_list, scans for its Profile children, makes sublists of continuous profiles (if they happen to be branched), and then creates triangles for them using weighted vector strings. */
-	static public List generateTriangles(final ProjectThing pt, final double scale) {
+	static public List<Point3f> generateTriangles(final ProjectThing pt, final double scale) {
 		if (!pt.getType().equals("profile_list")) {
 			Utils.log2("Profile: ignoring unhandable ProjectThing type.");
 			return null;
 		}
-		ArrayList al = pt.getChildren(); // should be sorted by Z already
+		ArrayList<ProjectThing> al = pt.getChildren(); // should be sorted by Z already
 		if (al.size() < 2) {
 			Utils.log("profile_list " + pt + " has less than two profiles: can't render in 3D.");
 			return null;
 		}
 		// collect all Profile
 		final HashSet hs = new HashSet();
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Thing child = (Thing)it.next();
+		for (final ProjectThing child : al) {
 			Object ob = child.getObject();
 			if (ob instanceof Profile) {
 				hs.add(ob);
@@ -1465,7 +1464,7 @@ public class Profile extends Displayable implements VectorData {
 		// collect starts and ends
 		final HashSet hs_bases = new HashSet();
 		final HashSet hs_done = new HashSet();
-		final List triangles = new ArrayList();
+		final List<Point3f> triangles = new ArrayList<Point3f>();
 		do {
 			Profile base = null;
 			// choose among existing bases

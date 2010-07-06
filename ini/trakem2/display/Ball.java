@@ -904,7 +904,7 @@ public class Ball extends ZDisplayable implements VectorData {
 
 
 	/** Put all balls as a single 'mesh'; the returned list contains all faces as three consecutive Point3f. The mesh is also translated by x,y,z of this Displayable.*/
-	public List generateTriangles(final double scale, final double[][][] globe) {
+	public List<Point3f> generateTriangles(final double scale, final double[][][] globe) {
 		try {
 			Class c = Class.forName("javax.vecmath.Point3f");
 		} catch (ClassNotFoundException cnfe) {
@@ -913,7 +913,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		}
 		final Calibration cal = layer_set.getCalibrationCopy();
 		// modify the globe to fit each ball's radius and x,y,z position
-		final ArrayList list = new ArrayList();
+		final ArrayList<Point3f> list = new ArrayList<Point3f>();
 		// transform points
 		// local pointers, since they may be transformed
 		double[][] p = this.p;
