@@ -491,6 +491,7 @@ public class Project extends DBObject {
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
+				layer.recreateBuckets();
 				Display.createDisplay(project, layer);
 			}
 			try {
