@@ -2128,6 +2128,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (dragging) return; // prevent unexpected mouse wheel movements
 		final int modifiers = mwe.getModifiers();
 		final int rotation = mwe.getWheelRotation();
+		final int tool = ProjectToolbar.getToolId();
 		if (0 != (modifiers & Utils.getControlModifier())) {
 			if (!zoom_and_pan) return;
 			// scroll zoom under pointer
@@ -2196,8 +2197,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.setSrcRect(r.x, r.y, w, h);
 			display.repaintAll2();
 
-		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && AreaContainer.class.isInstance(display.getActive())) {
-			final int tool = ProjectToolbar.getToolId();
+		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && ProjectToolbar.PEN != tool && AreaContainer.class.isInstance(display.getActive())) {
 			final int sign = rotation > 0 ? 1 : -1;
 			if (ProjectToolbar.BRUSH == tool) {
 				int brushSize_old = ProjectToolbar.getBrushSize();
