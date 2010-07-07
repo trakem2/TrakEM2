@@ -1488,7 +1488,14 @@ public class Project extends DBObject {
 	public String getUNUId() {
 		return loader.getUNUId();
 	}
-	
+
+	/** Removes an object from this Project. */
+	public final boolean remove(final Displayable d) {
+		final Set<Displayable> s = new HashSet<Displayable>();
+		s.add(d);
+		return removeAll(s);
+	}
+
 	/** Calls Project.removeAll(col, null) */
 	public final boolean removeAll(final Set<Displayable> col) {
 		return removeAll(col, null);
