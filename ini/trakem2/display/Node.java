@@ -156,7 +156,6 @@ public abstract class Node<T> implements Taggable {
 
 		// Else, rearrange arrays:
 		final Node<T>[] ch = (Node<T>[])new Node[children.length-1];
-		final byte[] co = new byte[children.length-1];
 		System.arraycopy(children, 0, ch, 0, k);
 		System.arraycopy(children, k+1, ch, k, children.length - k -1);
 		children = ch;
