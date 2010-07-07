@@ -752,7 +752,7 @@ public class AreaWrapper {
 			ke.consume();
 			return;
 		}
-		if (KeyEvent.VK_M == keyCode) {
+		if (KeyEvent.VK_M == keyCode && ProjectToolbar.getToolId() == ProjectToolbar.BRUSH) {
 			AreaWrapper.controller_key = keyCode;
 			ke.consume();
 			return;
