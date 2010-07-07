@@ -883,7 +883,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		exportXML(sb_body, indent, (HashMap<Thing,Boolean>)any);
 	}
 
-	public void exportXML(final StringBuilder sb_body, final String indent, final HashMap<Thing,Boolean> expanded_states) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final HashMap<? extends Thing,Boolean> expanded_states) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		final String in = indent + "\t";
 		// 1 - opening tag with attributes:
