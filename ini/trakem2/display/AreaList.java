@@ -23,72 +23,55 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
+import fiji.geom.AreaCalculations;
 import ij.IJ;
-import ij.gui.OvalRoi;
-import ij.gui.Roi;
-import ij.gui.ShapeRoi;
-import ij.gui.PolygonRoi;
-import ij.gui.Toolbar;
-import ij.gui.GenericDialog;
-import ij.io.FileSaver;
-import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.FloatPolygon;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.gui.GenericDialog;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
+import ij.process.ByteProcessor;
+import ij.process.ImageProcessor;
 import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.AreaUtils;
-import ini.trakem2.utils.OptionPanel;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 import ini.trakem2.vector.VectorString2D;
-import ini.trakem2.vector.VectorString3D;
-import ini.trakem2.imaging.Segmentation;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Rectangle;
+import java.awt.Composite;
+import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Polygon;
-import java.awt.Container;
-import java.awt.Component;
-import java.awt.event.MouseEvent;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.util.*;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.geom.GeneralPath;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
-import java.awt.geom.Point2D;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-import java.awt.Shape;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
 import java.io.File;
-
-import amira.AmiraMeshEncoder;
-import amira.AmiraParameters;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import javax.vecmath.Point3f;
 
-import java.awt.Dimension;
-import javax.swing.JPanel;
-import javax.swing.JRadioButton;
-import javax.swing.ButtonGroup;
-import javax.swing.JLabel;
-
-import fiji.geom.AreaCalculations;
+import amira.AmiraMeshEncoder;
 
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 
