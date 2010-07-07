@@ -528,7 +528,6 @@ public class AreaWrapper {
 
 		if (ProjectToolbar.BRUSH == tool) {
 			if (null != AreaWrapper.controller_key) {
-				Utils.log("controller_key is not null!");
 				return;
 			}
 			if (me.isShiftDown()) {
@@ -611,8 +610,6 @@ public class AreaWrapper {
 						bmin = new Area(polygon);
 					}
 				}
-				
-				Utils.log2(intersecting.size(), polygon, bmin);
 
 				if (null != bmin) {
 					try {
