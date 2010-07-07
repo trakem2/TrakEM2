@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
+/** For all methods, if the number of processors given as argument is zero or larger than the maximum available plus 2,
+ *  the number of processors will be adjusted to fall within the range [1, max+2]. */
 public class Process {
 
 	static private final int MIN_AHEAD = 4;
