@@ -2,6 +2,7 @@ package ini.trakem2.display;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.AbstractCollection;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -846,14 +847,45 @@ public abstract class Node<T> implements Taggable {
 			  catch (InstantiationException ie) { IJError.print(ie); }
 			return null;
 		}
-
+		/** Override to avoid calling size(). */
+		@Override
+		public boolean isEmpty() {
+			return null == first;
+		}
 		/** WARNING: O(n) operation: will traverse the whole collection. */
 		@Override
 		public int size() {
 			int count = 0;
 			final Iterator<Node<I>> it = iterator();
-			while (it.hasNext()) count++;
+			while (it.hasNext()) {
+				count++;
+				it.next();
+			}
 			return count;
+		}
+		/** Override to avoid calling size(), which would iterate the whole list just for that. */
+		@Override
+		public Node<I>[] toArray() {
+			Node[] a = new Node[10];
+			int next = 0;
+			for (final Iterator<Node<I>> it = iterator(); it.hasNext(); ) {
+				if (10 == next) {
+					Node[] b = new Node[a.length + 10];
+					System.arraycopy(a, 0, b, 0, a.length);
+				}
+				a[next++] = it.next();
+			}
+			return next < a.length ? Arrays.copyOf(a, next) : a;
+		}
+		@Override
+		public<T> T[] toArray(T[] a) {
+			Node<I>[] b = toArray();
+			if (a.length < b.length) {
+				return (T[])b;
+			}
+			System.arraycopy(b, 0, a, 0, b.length);
+			a[b.length] = null; // null-terminate
+			return a;
 		}
 	}
 	
