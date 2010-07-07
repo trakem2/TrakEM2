@@ -453,4 +453,16 @@ public class Connector extends Treeline {
 		}
 		return box;
 	}
+	
+	/** If the root node (the origin) does not remain within the range, this Connector is left empty. */
+	@Override
+	public boolean crop(List<Layer> range) {
+		if (null == root) return true; // it's empty already
+		if (!range.contains(root.la)) {
+			this.root = null;
+			clearCache();
+			return true;
+		}
+		return super.crop(range);
+	}
 }

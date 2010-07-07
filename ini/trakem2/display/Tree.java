@@ -2632,6 +2632,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							}
 						} else {
 							// Remove from its parent
+							Node<T> nd_parent = nd.parent; //cached, since the statement below will nullify it
 							nd.parent.remove(nd);
 							// ... and handle its children:
 							if (null == nd.children) {
@@ -2641,7 +2642,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								// Else, add all its children to its parent
 								for (int i=0; i<nd.children.length; i++) {
 									nd.children[i].parent = null; // so it can't be rejected when adding it to a node
-									nd.parent.add(nd.children[i], nd.children[i].confidence);
+									nd_parent.add(nd.children[i], nd.children[i].confidence);
 								}
 							}
 						}

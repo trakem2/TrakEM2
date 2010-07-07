@@ -1366,10 +1366,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public Displayable clone(final Project pr, final boolean copy_id) {
-		return clone(pr, (Layer)al_layers.get(0), (Layer)al_layers.get(al_layers.size()-1), new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight())), false, copy_id);
+		final Rectangle roi = new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight()));
+		final LayerSet copy = (LayerSet) clone(pr, al_layers.get(0), al_layers.get(al_layers.size()-1), roi, false, copy_id);
+		try {
+			LayerSet.cloneInto(this, al_layers.get(0), al_layers.get(al_layers.size()-1), pr, copy, roi, copy_id);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		return copy;
 	}
 
-	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle. */
+	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle;
+	 *  does NOT copy the ZDisplayable, which may be copied using the LayerSet.cloneInto method. */
 	public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
 		// obtain a LayerSet
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
@@ -1377,23 +1386,46 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		copy.setCalibration(getCalibrationCopy());
 		copy.snapshots_quality = this.snapshots_quality;
 		// copy objects that intersect the roi, from within the given range of layers
-		final java.util.List<Layer> range = ((ArrayList<Layer>)al_layers.clone()).subList(indexOf(first), indexOf(last) +1);
+		final java.util.List<Layer> range = new ArrayList<Layer>(al_layers).subList(indexOf(first), indexOf(last) +1);
 		Utils.log2("range.size() : " + range.size());
 		for (Layer layer : range) {
 			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
 			copy.addSilently(layercopy);
 			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
 		}
+		return copy;
+	}
+
+	static public void cloneInto(final LayerSet src, Layer src_first, Layer src_last,
+								 final Project pr, final LayerSet copy, Rectangle roi, boolean copy_id)
+	throws Exception {
 		// copy ZDisplayable objects if they intersect the roi, and translate them properly
 		final AffineTransform trans = new AffineTransform();
 		trans.translate(-roi.x, -roi.y);
-		for (ZDisplayable zd : find(first, last, new Area(roi))) {
+		final List<Layer> range = copy.getLayers();
+		List<Layer> src_range = null;
+		if (0 == range.size()) throw new Exception("Cannot cloneInto for a range of zero layers!");
+		for (final ZDisplayable zd : src.find(range.get(0), range.get(range.size()-1), new Area(roi))) {
+			if (src.project != pr && zd instanceof Tree<?>) {
+				// Special in-cloning + crop + out-cloning for Tree instances, since they hold Layer pointers
+				// 1. Clone within same project, with ALL layers present
+				ZDisplayable src_zd_copy = (ZDisplayable)zd.clone(src.project, true); // NOTICE I use src.project, not pr! And also reuse same id -- this is a throwaway.
+				// 2. Crop to the desired range, using the range from the original project
+				if (null == src_range) src_range = new ArrayList<Layer>(src.al_layers).subList(src.indexOf(src_first), src.indexOf(src_last) +1);
+				src_zd_copy.crop(src_range);
+				// 3. Clone the cropped Tree
+				ZDisplayable zdcopy = (ZDisplayable)src_zd_copy.clone(pr, copy_id);
+				zdcopy.getAffineTransform().preConcatenate(trans);
+				copy.addSilently(zdcopy);
+				continue;
+			}
+			// Else, normally:
 			ZDisplayable zdcopy = (ZDisplayable)zd.clone(pr, copy_id);
 			zdcopy.getAffineTransform().preConcatenate(trans);
 			copy.addSilently(zdcopy); // must be added before attempting to crop it, because crop needs a LayerSet ref.
 			if (zdcopy.crop(range)) {
 				if (zdcopy.isDeletable()) {
-					zdcopy.remove2(false); // from trees and all.
+					pr.remove(zdcopy);
 					Utils.log("Skipping empty " + zdcopy);
 				}
 			} else {
@@ -1402,7 +1434,6 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		// fix links:
 		copy.linkPatchesR();
-		return (Displayable)copy;
 	}
 
 	/** Create a virtual layer stack that acts as a virtual ij.ImageStack, in RGB and set to a scale of max_dimension / Math.max(layer_width, layer_height). */

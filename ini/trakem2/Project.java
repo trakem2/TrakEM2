@@ -1278,7 +1278,9 @@ public class Project extends DBObject {
 			// create the layers templates
 			pr.createLayerTemplates();
 			// copy LayerSet and all involved Displayable objects
+			// (A two-step process to provide the layer_set pointer and all Layer pointers to the ZDisplayable to copy and crop.)
 			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
+			LayerSet.cloneInto(this.layer_set, first, last, pr, pr.layer_set, roi, true);
 			// create layer tree
 			pr.root_lt = new LayerThing(Project.layer_set_template, pr, pr.layer_set);
 			pr.layer_tree = new LayerTree(pr, pr.root_lt);

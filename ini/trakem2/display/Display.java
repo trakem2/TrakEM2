@@ -4703,6 +4703,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Utils.log2("first, last: " + first + ", " + last);
 			}
 			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
+			if (null == sub) {
+				Utils.log("ERROR: failed to create subproject.");
+				return;
+			}
 			final LayerSet subls = sub.getRootLayerSet();
 			Display.createDisplay(sub, subls.getLayer(0));
 		} else if (command.startsWith("Image stack under selected Arealist")) {
