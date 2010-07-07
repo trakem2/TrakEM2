@@ -152,9 +152,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}});
 	}
 
-	public void rename(ProjectThing thing) {
-		Object ob = thing.getObject();
-		String old_title = null;
+	public void rename(final ProjectThing thing) {
+		final Object ob = thing.getObject();
+		final String old_title;
 		if (null == ob) old_title = thing.getType();
 		else if (ob instanceof DBObject) old_title = ((DBObject)ob).getTitle();
 		else old_title = ob.toString();
@@ -163,9 +163,18 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		gd.addStringField("New name: ", old_title, 40);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
-		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 		String title = gd.getNextString();
+		if (null == title) {
+			Utils.log("WARNING: avoided setting the title to null for " + thing);
+			return;
+		}
 		title = title.replace('"', '\'').trim(); // avoid XML problems - could also replace by double '', then replace again by " when reading.
+		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
+		if (title.length() == 0) {
+			// Set the title to the template type
+			thing.setTitle(thing.getTemplate().getType());
+			return;
+		}
 		thing.setTitle(title);
 		this.updateUILater();
 		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));

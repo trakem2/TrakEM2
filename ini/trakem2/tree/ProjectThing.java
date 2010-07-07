@@ -342,7 +342,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public void setTitle(String title) {
 		// A Thing has a title as the object when it has no object, because the object gives it the title (the Thing only defines the type)
 		if (null == title || title.length() < 1) {
-			if (object != null && object instanceof String) this.object = null; // reset title
+			if (object != null && object instanceof String) this.object = template.getType(); // reset title
 			return;
 		}
 		if (null == object || object instanceof String) {
@@ -890,7 +890,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		final String tag = template.getType().replace(' ','_');
 		sb_body.append(indent).append('<').append(tag).append(" id=\"").append(id).append('"');
 		// the object id if any
-		if (object.getClass() == String.class) {
+		if (null == object || object.getClass() == String.class) {
 				if (!template.getType().equals(object)) {
 					sb_body.append(" title=\"").append((String)object).append('"');
 				}
