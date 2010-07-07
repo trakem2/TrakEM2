@@ -42,6 +42,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
 import java.awt.AlphaComposite;
+import java.awt.Event;
 import java.awt.Insets;
 import java.awt.Color;
 import java.awt.Composite;
@@ -1737,15 +1738,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						return;
 					}
 					break;
-				case KeyEvent.VK_C:
-					if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
-						nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
-						if (null != nd && adjustNodeColors(nd)) {
-							ke.consume();
-							return;
-						}
-					}
-					break;
+			}
+		}
+		if (ProjectToolbar.PEN == ProjectToolbar.getToolId() && 0 == (modifiers ^ Event.SHIFT_MASK) && KeyEvent.VK_C == keyCode) {
+			nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
+			if (null != nd && adjustNodeColors(nd)) {
+				ke.consume();
+				return;
 			}
 		}
 		} finally {
