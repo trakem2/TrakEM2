@@ -338,37 +338,35 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
 	public boolean calculateBoundingBox(final Layer la) {
-		// forget it if this has been done once already, for at the moment it would work only for translations, not any other types of transforms. TODO: need to fix this somehow, generates repainting problems.
-		//if (this.at.getType() != AffineTransform.TYPE_TRANSLATION) return false; // meaning, there's more bits in the type than just the translation
-		// check preconditions
-		if (0 == ht_areas.size()) return false;
-		Area[] area = new Area[ht_areas.size()];
-		Map.Entry[] entry = new Map.Entry[area.length];
-		ht_areas.entrySet().toArray(entry);
-		ht_areas.values().toArray(area);
-		Rectangle[] b = new Rectangle[area.length];
-		Rectangle box = null;
-		for (int i=0; i<area.length; i++) {
-			b[i] = area[i].getBounds();
-			if (null == box) box = (Rectangle)b[i].clone();
-			else box.add(b[i]);
-		}
-		if (null == box) return false; // empty AreaList
-		final AffineTransform atb = new AffineTransform();
-		atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
-		for (int i=0; i<area.length; i++) {
-			entry[i].setValue(area[i].createTransformedArea(atb));
-		}
-		//this.translate(box.x, box.y);
-		this.at.translate(box.x, box.y);
-		this.width = box.width;
-		this.height = box.height;
-		updateInDatabase("transform+dimensions");
-		updateBucket(la);
-		if (0 != box.x || 0 != box.y) {
+		try {
+			// check preconditions
+			if (0 == ht_areas.size()) return false;
+			Area[] area = new Area[ht_areas.size()];
+			Map.Entry[] entry = new Map.Entry[area.length];
+			ht_areas.entrySet().toArray(entry);
+			ht_areas.values().toArray(area);
+			Rectangle[] b = new Rectangle[area.length];
+			Rectangle box = null;
+			for (int i=0; i<area.length; i++) {
+				b[i] = area[i].getBounds();
+				if (null == box) box = (Rectangle)b[i].clone();
+				else box.add(b[i]);
+			}
+			if (null == box || 0 == box.x || 0 == box.y) return false; // empty AreaList
+			final AffineTransform atb = new AffineTransform();
+			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
+			for (int i=0; i<area.length; i++) {
+				entry[i].setValue(area[i].createTransformedArea(atb));
+			}
+			//this.translate(box.x, box.y);
+			this.at.translate(box.x, box.y);
+			this.width = box.width;
+			this.height = box.height;
+			updateInDatabase("transform+dimensions");
 			return true;
+		} finally {
+			updateBucket(la);
 		}
-		return false;
 	}
 
 	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {

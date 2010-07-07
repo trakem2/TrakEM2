@@ -277,28 +277,36 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	protected boolean calculateBoundingBox(final Layer la) {
-		if (null == root) {
-			this.at.setToIdentity();
-			this.width = 0;
-			this.height = 0;
+		try {
+			if (null == root) {
+				this.at.setToIdentity();
+				this.width = 0;
+				this.height = 0;
+				return false;
+			}
+
+			final Rectangle box = getPaintingBounds();
+
+			this.width = box.width;
+			this.height = box.height;
+
+			if (0 == box.x && 0 == box.y) {
+				// No need to translate
+				return false;
+			}
+			
+			synchronized (node_layer_map) {
+				// now readjust points to make min_x,min_y be the x,y
+				for (final Collection<Node<T>> nodes : node_layer_map.values()) {
+					for (final Node<T> nd : nodes) {
+						nd.translate(-box.x, -box.y); }}
+			}
+			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+
 			return true;
+		} finally {
+			updateBucket(la);
 		}
-
-		final Rectangle box = getPaintingBounds();
-
-		this.width = box.width;
-		this.height = box.height;
-
-		synchronized (node_layer_map) {
-			// now readjust points to make min_x,min_y be the x,y
-			for (final Collection<Node<T>> nodes : node_layer_map.values()) {
-				for (final Node<T> nd : nodes) {
-					nd.translate(-box.x, -box.y); }}
-		}
-		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-
-		updateBucket(la);
-		return true;
 	}
 
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */

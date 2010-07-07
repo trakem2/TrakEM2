@@ -608,6 +608,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (null == box) {
 			// no items
 			this.width = this.height = 0;
+			updateBucket(la);
 			return null;
 		}
 		// edit the AffineTransform

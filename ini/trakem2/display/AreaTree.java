@@ -231,38 +231,47 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	public boolean calculateBoundingBox(final Layer la) {
-		if (null == root) return false;
-		Rectangle box = null;
-		synchronized (node_layer_map) {
-			for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
-				for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
-					if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-					else box.add((int)nd.x, (int)nd.y);
-					if (null != nd.aw) box.add(nd.aw.getArea().getBounds());
+		try {
+			if (null == root) {
+				this.at.setToIdentity();
+				this.width = 0;
+				this.height = 0;
+				return false;
+			}
+
+			Rectangle box = null;
+			synchronized (node_layer_map) {
+				for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
+					for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
+						if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
+						else box.add((int)nd.x, (int)nd.y);
+						if (null != nd.aw) box.add(nd.aw.getArea().getBounds());
+					}
 				}
 			}
-		}
-		
-		this.width = box.width;
-		this.height = box.height;
 
-		if (0 == box.x && 0 == box.y) {
+			this.width = box.width;
+			this.height = box.height;
+
+			if (0 == box.x && 0 == box.y) {
+				// No need to translate
+				return false;
+			}
+
+			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
+
+			// now readjust points to make min_x,min_y be the x,y
+			for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
+				for (final Node<Area> nd : nodes) {
+					nd.translate(-box.x, -box.y); // just the x,y itself
+					nd.getData().transform(aff);
+				}}
+			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+
 			return true;
+		} finally {
+			updateBucket(la);
 		}
-
-		final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
-
-		// now readjust points to make min_x,min_y be the x,y
-		for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
-			for (final Node<Area> nd : nodes) {
-				nd.translate(-box.x, -box.y); // just the x,y itself
-				nd.getData().transform(aff);
-			}}
-		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-
-		updateBucket(la);
-
-		return true;
 	}
 
 	private AreaNode findEventReceiver(final Collection<Node<Area>> nodes, final int lx, final int ly, final Layer layer, final double mag, final InputEvent ie) {
