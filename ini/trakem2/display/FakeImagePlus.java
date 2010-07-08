@@ -125,21 +125,6 @@ public class FakeImagePlus extends ImagePlus {
 				for (final Patch p : (Collection<Patch>)under) {
 					if (!p.isVisible()) continue;
 					FakeImagePlus.this.type = p.getType(); // for proper value string display
-					// TODO: edit here when adding layer mipmaps
-					if (!p.isStack() && ImagePlus.COLOR_256 != p.getType() && Math.max(p.getWidth(), p.getHeight()) * mag >= 1024) {
-						// Gather the ImagePlus: will be faster than using a PixelGrabber on an awt image
-						Point2D.Double po = p.inverseTransformPoint(x, y);
-						ImageProcessor ip = p.getImageProcessor();
-						if (null != ip) {
-							if (ImagePlus.GRAY32 == FakeImagePlus.this.type) {
-								// a value encoded with Float.floatToIntBits
-								return new int[]{ip.getPixel((int)po.x, (int)po.y), 0, 0, 0};
-							} else {
-								return ip.getPixel((int)po.x, (int)po.y, null != iArray && ImagePlus.COLOR_256 == FakeImagePlus.this.type && 3 == iArray.length ? new int[4] : iArray);
-							}
-						}
-						else break; // otherwise it would be showing a pixel for an image region that is not visible.
-					}
 					return p.getPixel(mag, x, y, iArray);
 				}
 			}
