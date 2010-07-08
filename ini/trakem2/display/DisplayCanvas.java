@@ -1348,14 +1348,16 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		public void run() {
 			while (go) {
-				MouseEvent me = null;
-				synchronized (this) {
-					try { this.wait(); } catch (Exception e) {}
-					if (!go) return;
-					me = this.me;
-					this.me = null;
+				MouseEvent me = this.me;
+				if (null != me) {
+					try { mouseMoved(me); } catch (Exception e) { IJError.print(e); }
 				}
-				try { mouseMoved(me); } catch (Exception e) { IJError.print(e); }
+				// Wait only if the event has not changed
+				synchronized (this) {
+					if (me == this.me) {
+						try { this.wait(); } catch (Exception e) {}
+					}
+				}
 			}
 		}
 		private void mouseMoved(MouseEvent me) {
