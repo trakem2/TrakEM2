@@ -320,7 +320,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				// create a new Display
 				DBObject dbo = (DBObject)thing.getObject();
 				if (thing.getType().equals("layer_set") && null == ((LayerSet)dbo).getParent()) return; // the top level LayerSet
-				new Display(dbo.getProject(), thing.getType().equals("layer") ? (Layer)dbo : ((LayerSet)dbo).getParent());
+				Display.createDisplay(dbo.getProject(), thing.getType().equals("layer") ? (Layer)dbo : ((LayerSet)dbo).getParent());
 				return;
 			} else if (command.equals("Show centered in Display")) {
 				LayerSet ls = (LayerSet)thing.getObject();
