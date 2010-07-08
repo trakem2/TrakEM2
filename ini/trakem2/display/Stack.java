@@ -677,4 +677,7 @@ public class Stack extends ZDisplayable implements ImageData
 	public boolean remove2(boolean check) {
 		return remove(check);
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) { return true; }
 }

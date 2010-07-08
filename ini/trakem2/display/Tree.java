@@ -2600,7 +2600,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	/** Retain the data within the layer range, and through out all the rest. */
+	/** Retain the data within the layer range, and through out all the rest.
+	 *  Does NOT call calculateBoundingBox or updateBucket; that is your responsibility. */
 	@Override
 	public boolean crop(List<Layer> range) {
 		synchronized (node_layer_map) {

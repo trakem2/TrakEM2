@@ -391,6 +391,12 @@ public class Ball extends ZDisplayable implements VectorData {
 		index = -1;
 		repaint(true, layer);
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(Layer la) {
+		calculateBoundingBox(true, la);
+		return true;
+	}
 
 	/** Uses the @param layer to update a specific Bucket for that layer. */
 	private void calculateBoundingBox(boolean adjust_position, Layer la) {

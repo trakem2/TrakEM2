@@ -842,8 +842,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		is_new_point = false;
 		index = index_r = index_l = -1;
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) {
+		return calculateBoundingBox(true, la);
+	}
 
-	synchronized protected void calculateBoundingBox(final boolean adjust_position, final Layer la) {
+	synchronized protected boolean calculateBoundingBox(final boolean adjust_position, final Layer la) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
@@ -851,7 +856,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (0 == n_points) {
 			this.width = this.height = 0;
 			updateBucket(la);
-			return;
+			return true;
 		}
 		// get perimeter of the tube, without the transform
 		final Polygon pol = Pipe.getRawPerimeter(p_i, p_width_i);
@@ -895,6 +900,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		updateInDatabase("dimensions");
 
 		updateBucket(la);
+		return true;
 	}
 
 	/**Release all memory resources taken by this object.*/

@@ -844,12 +844,17 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		is_new_point = false;
 		index = -1;
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) {
+		return calculateBoundingBox(true, la);
+	}
 
-	synchronized protected void calculateBoundingBox(final boolean adjust_position, final Layer la) {
+	synchronized protected boolean calculateBoundingBox(final boolean adjust_position, final Layer la) {
 		if (0 == n_points) {
 			this.width = this.height = 0;
 			updateBucket(la);
-			return;
+			return true;
 		}
 		final double[] m = calculateDataBoundingBox();
 
@@ -868,6 +873,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		updateInDatabase("dimensions");
 
 		updateBucket(la);
+		return true;
 	}
 
 	/** Returns min_x, min_y, max_x, max_y. */

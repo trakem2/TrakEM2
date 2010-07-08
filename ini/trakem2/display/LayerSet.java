@@ -1414,9 +1414,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				if (null == src_range) src_range = new ArrayList<Layer>(src.al_layers).subList(src.indexOf(src_first), src.indexOf(src_last) +1);
 				src_zd_copy.crop(src_range);
 				// 3. Clone the cropped Tree
-				ZDisplayable zdcopy = (ZDisplayable)src_zd_copy.clone(pr, copy_id);
-				zdcopy.getAffineTransform().preConcatenate(trans);
-				copy.addSilently(zdcopy);
+				Tree<?> tcopy = (Tree<?>)src_zd_copy.clone(pr, copy_id);
+				tcopy.getAffineTransform().preConcatenate(trans);
+				copy.addSilently(tcopy);
+				tcopy.calculateBoundingBox(null); // for all layers. Will update buckets.
 				continue;
 			}
 			// Else, normally:
@@ -1427,6 +1428,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				if (zdcopy.isDeletable()) {
 					pr.remove(zdcopy);
 					Utils.log("Skipping empty " + zdcopy);
+				} else {
+					zdcopy.calculateBoundingBox(null); // null means update buckets for all layers
 				}
 			} else {
 				Utils.log("Could not crop " + zd);

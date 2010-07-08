@@ -595,12 +595,16 @@ public class Dissector extends ZDisplayable implements VectorData {
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
-		bbox = calculateBoundingBox(la);
+		calculateBoundingBox(la, bbox);
+	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) {
+		return calculateBoundingBox(la, null);
 	}
 
 	/** Make points as local as possible, and set the width and height. */
-	private Rectangle calculateBoundingBox(Layer la) {
-		Rectangle box = null;
+	private boolean calculateBoundingBox(final Layer la, Rectangle box) {
 		for (Item item : al_items) {
 			if (null == box) box = item.getBoundingBox();
 			else box.add(item.getBoundingBox());
@@ -609,7 +613,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			// no items
 			this.width = this.height = 0;
 			updateBucket(la);
-			return null;
+			return true;
 		}
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
@@ -621,7 +625,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			for (Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
 		updateBucket(la);
-		return box;
+		return true;
 	}
 
 	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {

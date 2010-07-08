@@ -201,4 +201,6 @@ public abstract class ZDisplayable extends Displayable {
 			getBucketable().updateBucket(this, layer);
 		}
 	}
+	
+	abstract protected boolean calculateBoundingBox(final Layer la);
 }
