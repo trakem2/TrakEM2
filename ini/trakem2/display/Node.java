@@ -868,9 +868,10 @@ public abstract class Node<T> implements Taggable {
 			Node[] a = new Node[10];
 			int next = 0;
 			for (final Iterator<Node<I>> it = iterator(); it.hasNext(); ) {
-				if (10 == next) {
+				if (a.length == next) {
 					Node[] b = new Node[a.length + 10];
 					System.arraycopy(a, 0, b, 0, a.length);
+					a = b;
 				}
 				a[next++] = it.next();
 			}
