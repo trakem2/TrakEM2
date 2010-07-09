@@ -884,11 +884,11 @@ public abstract class Node<T> implements Taggable {
 				return (T[])b;
 			}
 			System.arraycopy(b, 0, a, 0, b.length);
-			a[b.length] = null; // null-terminate
+			if (a.length > b.length) a[b.length] = null; // null-terminate
 			return a;
 		}
 	}
-	
+
 	// ============= Operations on collections of nodes
 	
 	/** An operation to be applied to a specific Node. */
