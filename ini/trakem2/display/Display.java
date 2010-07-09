@@ -2355,7 +2355,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return false;
 	}
 
-	static protected void showPopup(Component c, int x, int y) {
+	protected void showPopup(Component c, int x, int y) {
 		Display d = front;
 		if (null == d) return;
 		d.getPopupMenu().show(c, x, y);
