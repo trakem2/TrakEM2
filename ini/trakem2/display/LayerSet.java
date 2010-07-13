@@ -2510,8 +2510,19 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public TreeSet<Tag> getTags(final int keyCode) {
 		synchronized (tags) {
 			final HashMap<String,Tag> ts = tags.get(keyCode);
-			return new TreeSet<Tag>(null == ts ? Collections.EMPTY_SET : ts.values());
+			return new TreeSet<Tag>(null == ts ? Collections.EMPTY_SET :
+												 KeyEvent.VK_R == keyCode ? filterReviewTags(ts.values()) :
+													 						ts.values());
 		}
+	}
+	
+	private final Collection<Tag> filterReviewTags(final Collection<Tag> ts) {
+		final ArrayList<Tag> a = new ArrayList<Tag>();
+		for (final Tag tag : ts) {
+			if ('#' == tag.toString().charAt(0)) continue;
+			else a.add(tag);
+		}
+		return a;
 	}
 
 	protected Tag askForNewTag(final int keyCode) {
