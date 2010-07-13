@@ -1627,4 +1627,19 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 	}
+
+	static public final boolean ensure(final String filepath) {
+		return ensure(new File(filepath));
+	}
+	
+	static public final boolean ensure(final File f) {
+		final File parent = f.getParentFile();
+		if (!parent.exists()) {
+			if (!parent.mkdirs()) {
+				Utils.log("FAILED to create directories " + parent.getAbsolutePath());
+				return false;
+			}
+		}
+		return true;
+	}
 }
