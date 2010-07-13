@@ -3623,15 +3623,11 @@ while (it.hasNext()) {
 			// On success, rename .xml.tmp to .xml
 			if (!IJ.isWindows()) {
 				try {
-					if (fxml.exists()) {
-						try {
-							Thread.sleep(300); // wait 300 ms for the filesystem to not hiccup 
-						} catch (InterruptedException ie) {} // could happen when ImageJ is quitting
-						if (!ftmp.renameTo(fxml)) {
-							Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
-							return null;
-						}
-					} else if (!ftmp.renameTo(fxml)) {
+					try {
+						Thread.sleep(300); // wait 300 ms for the filesystem to not hiccup 
+					} catch (InterruptedException ie) {} // could happen when ImageJ is quitting
+
+					if (!ftmp.renameTo(fxml)) {
 						Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 						return null;
 					}
