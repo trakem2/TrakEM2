@@ -2747,27 +2747,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					//
 					todo.add(new Runnable() {
 						public void run() {
-							try {
-								ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0), 1.0, ImagePlus.COLOR_RGB);
-								imp.setTitle(imp.getTitle() + tag.toString());
-								File fdir = new File(getReviewTagPath(tag));
-								synchronized (dirsync) {
-									File parent = fdir.getParentFile();
-									if (!parent.exists()) {
-										if (!parent.mkdirs()) {
-											Utils.log("FAILED to create directories " + parent.getAbsolutePath()
-											+ "\nNOT created review stack for " + tag.toString());
-											return;
-										}
-									}
+							String filepath = getReviewTagPath(tag);
+							synchronized (dirsync) {
+								if (!Utils.ensure(filepath)) {
+									Utils.log("Did NOT create review stack for tag " + tag);
+									return;
 								}
-								ij.IJ.redirectErrorMessages();
-								new FileSaver(imp).saveAsZip(fdir.getAbsolutePath());
-							} catch (Exception e) {
-								IJError.print(e);
-								Utils.log("\nERROR: NOT created review stack for " + tag.toString());
-								return;
 							}
+							createReviewStack(nd.findPreviousBranchOrRootPoint(), nd, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
 						}
 					});
 				}
@@ -2785,6 +2772,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}}, getProject());
 	}
 
+	/** The behavior is undefined if @param last is not a descendant of @param first. */
+	public void createReviewStack(final Node<T> first, final Node<T> last, final Tag tag, final String filepath, final int width, final int height, final double magnification, final int image_type) {
+		try {
+			ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(first, last, width, height, magnification), magnification, image_type);
+			imp.setTitle(imp.getTitle() + tag.toString());
+			ij.IJ.redirectErrorMessages();
+			new FileSaver(imp).saveAsZip(filepath);
+		} catch (Exception e) {
+			IJError.print(e);
+			Utils.log("\nERROR: NOT created review stack for " + tag.toString());
+			return;
+		}
+	}
+	
+	
 	private String getReviewTagPath(Tag tag) {
 		// Remove the "#" from the tag name
 		return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
@@ -3030,5 +3032,53 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			this.verts = v;
 			this.colors = c;
 		}
+	}
+	
+	/** @return null if no node is near @param x, @param y */ 
+	public Bureaucrat generateReviewStackForSlab(final float x, final float y, final Layer layer, final double magnification) {
+		final Collection<Node<T>> nodes;
+		synchronized (node_layer_map) {
+			nodes = node_layer_map.get(layer);
+		}
+		if (null == nodes) {
+			Utils.log("No nodes in layer " + layer);
+			return null;
+		}
+		final Node<T> node = findClosestNodeW(nodes, x, y, magnification);
+		if (null == node) {
+			Utils.log("Could not find any node! Zoom in for better precision.");
+			return null;
+		}
+		return generateReviewStackForSlab(node);
+	}
+
+	/** Generate a review stack from the previous branch node or root, to the next branch node or end node. */
+	public Bureaucrat generateReviewStackForSlab(final Node<T> node) {
+		return Bureaucrat.createAndStart(new Worker.Task("Create review stack") {
+			public void exec() {
+				final Node<T> first = node.findPreviousBranchOrRootPoint();
+				final Node<T> last = node.findNextBranchOrEndPoint();
+				// Check if 'last' already has a review tag
+				final Set<Tag> tags = last.getTags();
+				String name = "#R-slab-1";
+				if (null != tags && !tags.isEmpty()) {
+					final ArrayList<Integer> a = new ArrayList<Integer>();
+					for (Tag t : tags) {
+						if (t.toString().startsWith("#R-slab-")) {
+							a.add(Integer.parseInt(t.toString().substring(7)));
+						}
+					}
+					if (a.isEmpty()) name += 1;
+					else {
+						Collections.sort(a);
+						name = name + (a.get(a.size()-1) + 1);
+					}
+				}
+				final Tag tag = new Tag(name, KeyEvent.VK_R);
+				last.addTag(tag);
+				final String filepath = getReviewTagPath(tag);
+				Utils.ensure(filepath);
+				createReviewStack(first, last, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
+			}}, project);
 	}
 }
