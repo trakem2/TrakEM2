@@ -356,12 +356,10 @@ public class AreaWrapper {
 			// create brush
 			while (paint) {
 				// detect mouse up
-				/*
-				if (0 == (flags & leftClick)) { // I think this never happens
+				if (0 == (flags & leftClick)) { // I think this never happens, but there have been reports.
 					quit();
 					return;
 				}
-				*/
 				final Point p = dc.getCursorLoc(); // as offscreen coords
 				if (p.equals(previous_p) /*|| (null != previous_p && p.distance(previous_p) < brush_size/5) */) {
 					try { Thread.sleep(3); } catch (InterruptedException ie) {}
@@ -381,7 +379,7 @@ public class AreaWrapper {
 								// no modifiers, just add
 								area.add(slash);
 							} else {
-								// with alt down, substract
+								// with alt down, subtract
 								area.subtract(slash);
 							}
 							points.add(p);
@@ -665,22 +663,19 @@ public class AreaWrapper {
 		}
 	}
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		final int tool = ProjectToolbar.getToolId();
-		if (ProjectToolbar.BRUSH == tool) {
-			if (null != AreaWrapper.controller_key) {
-				// finish
-				AreaWrapper.controller_key = null;
-				return;
-			}
-			if (null != this.painter) {
-				this.painter.quit();
-				this.painter = null;
-			}
-		} else if (ProjectToolbar.PENCIL == tool) {
-			if (null != blowcommander) {
-				blowcommander.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
-				blowcommander = null;
-			}
+		// No matter what tool, ensure that moving and brushing operations are always terminated:
+		if (null != AreaWrapper.controller_key) {
+			// finish
+			AreaWrapper.controller_key = null;
+			return;
+		}
+		if (null != this.painter) {
+			this.painter.quit();
+			this.painter = null;
+		}
+		if (null != blowcommander) {
+			blowcommander.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
+			blowcommander = null;
 		}
 
 		if (null != post_mouseReleased_tasks) {
