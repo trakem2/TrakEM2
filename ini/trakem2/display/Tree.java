@@ -2727,7 +2727,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		// Find all end nodes and branch nodes
 		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
 		// Generate a fly-through stack from each found node to its previous branch point or root
-		final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		final int nproc = Runtime.getRuntime().availableProcessors();
+		final ExecutorService exe = Executors.newFixedThreadPool(Math.min(1, Math.max(4, nproc)));
+		// Above, use maximum 4 threads. I/O bound operations don't deal well with more.
+		
 		// Disable window
 		final TreeNodesDataView tndv = Tree.this.tndv;
 		if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
