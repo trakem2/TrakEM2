@@ -3610,14 +3610,23 @@ while (it.hasNext()) {
 				sb_header = null;
 				project.exportXML(writer, "", patches_dir);
 				writer.flush(); // make sure all buffered chars are written
-				// On success, rename .xml.tmp to .xml
-				if (!IJ.isWindows()) {
+			} catch (Exception e) {
+				Utils.log("FAILED to write to the file at " + fxml);
+				IJError.print(e);
+				path = null;
+				return null;
+			} finally {
+				writer.close();
+				writer = null;
+			}
+
+			// On success, rename .xml.tmp to .xml
+			if (!IJ.isWindows()) {
+				try {
 					if (fxml.exists()) {
-						if (!fxml.delete()) {
-							Utils.logAll("ERROR: could not delete existing XML file!\nYour file was temporarily saved at " + ftmp.getName());
-							return null;
-						}
-						Thread.sleep(300); // wait 300 ms for the filesystem to not hiccup 
+						try {
+							Thread.sleep(300); // wait 300 ms for the filesystem to not hiccup 
+						} catch (InterruptedException ie) {} // could happen when ImageJ is quitting
 						if (!ftmp.renameTo(fxml)) {
 							Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 							return null;
@@ -3626,18 +3635,17 @@ while (it.hasNext()) {
 						Utils.logAll("ERROR: could not rename " + ftmp.getName() + " to " + fxml.getName());
 						return null;
 					}
+				} catch (Exception e) {
+					Utils.log("FAILED to save the file at " + fxml);
+					IJError.print(e);
+					path = null;
+					return null;
 				}
-				// On successful renaming, then:
-				setChanged(false);
-				path = fxml.getAbsolutePath().replace('\\', '/');
-			} catch (Exception e) {
-				Utils.log("FAILED to save the file at " + fxml);
-				IJError.print(e);
-				path = null;
-			} finally {
-				writer.close();
-				writer = null;
 			}
+
+			// On successful renaming, then:
+			setChanged(false);
+			path = fxml.getAbsolutePath().replace('\\', '/');
 
 			// Remove the patches_dir if empty (can happen when doing a "save" on a FSLoader project if no new Patch have been created that have no path.
 			if (export_images) {
