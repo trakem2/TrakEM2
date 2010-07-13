@@ -274,7 +274,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final int n = al_layers.size();
 		int i = 0;
 		for (; i<n; i++) {
-			Layer l = (Layer)al_layers.get(i);
+			Layer l = al_layers.get(i);
 			if (l.getZ() < z) continue;
 			break;
 		}
@@ -293,7 +293,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private void debug() {
 		Utils.log("LayerSet debug:");
 		for (int i=0; i<al_layers.size(); i++)
-			Utils.log(i + " : " + ((Layer)al_layers.get(i)).getZ());
+			Utils.log(i + " : " + al_layers.get(i).getZ());
 	}
 
 	public Layer getParent() {
@@ -417,7 +417,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// collect all Displayable and ZDisplayable objects
 		final ArrayList al = new ArrayList();
 		for (int i=al_layers.size() -1; i>-1; i--) {
-			al.addAll(((Layer)al_layers.get(i)).getDisplayables());
+			al.addAll(al_layers.get(i).getDisplayables());
 		}
 		al.addAll(al_zdispl);
 
@@ -608,7 +608,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		// collect all Displayable and ZDisplayable objects
 		ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i=al_layers.size() -1; i>-1; i--) {
-			al.addAll(((Layer)al_layers.get(i)).getDisplayables());
+			al.addAll(al_layers.get(i).getDisplayables());
 		}
 		al.addAll(al_zdispl);
 
@@ -666,7 +666,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		// delete all layers
 		while (0 != al_layers.size()) {
-			if (!((DBObject)al_layers.get(0)).remove(false)) {
+			if (!al_layers.get(0).remove(false)) {
 				Utils.showMessage("LayerSet id= " + id + " : Deletion incomplete, check database.");
 				return false;
 			}
@@ -743,7 +743,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find a layer by index, or null if none. */
 	public Layer getLayer(final int i) {
-		if (i >=0 && i < al_layers.size()) return (Layer)al_layers.get(i);
+		if (i >=0 && i < al_layers.size()) return al_layers.get(i);
 		return null;
 	}
 
@@ -783,11 +783,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Returns null if none has the given z and thickness. If 'create' is true and no layer is found, a new one with the given Z is created and added to the LayerTree. */
 	public Layer getLayer(double z, double thickness, boolean create) {
-		Iterator it = al_layers.iterator();
+		Iterator<Layer> it = al_layers.iterator();
 		Layer layer = null;
 		double error = 0.0000001; // TODO adjust to an optimal
 		while (it.hasNext()) {
-			Layer l = (Layer)it.next();
+			Layer l = it.next();
 			if (error > Math.abs(l.getZ() - z) && error > Math.abs(l.getThickness() - thickness)) { // floating point is still not a solved problem.
 				//Utils.log("LayerSet.getLayer: found layer with z=" + l.getZ());
 				layer = l;
@@ -961,7 +961,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final int i = indexOf(layer);
 		if (al_layers.size() -1 == i || -1 == i) return;
 		layer.remove(d);
-		((Layer)(al_layers.get(i +1))).add(d);
+		(al_layers.get(i +1)).add(d);
 	}
 	/** Move the given Displayable to the previous layer if possible. */
 	public void moveUp(final Layer layer, final Displayable d) {
@@ -1063,7 +1063,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Returns the distance from the first layer's Z to the last layer's Z. */
 	public double getDepth() {
 		if (null == al_layers || al_layers.isEmpty()) return 0;
-		return ((Layer)al_layers.get(al_layers.size() -1)).getZ() - ((Layer)al_layers.get(0)).getZ();
+		return al_layers.get(al_layers.size() -1).getZ() - al_layers.get(0).getZ();
 	}
 
 	/** Return all the Displayable objects from all the layers of this LayerSet. Does not include the ZDisplayables. */
@@ -1244,8 +1244,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	public void destroy() {
-		for (Iterator it = al_layers.iterator(); it.hasNext(); ) {
-			Layer layer = (Layer)it.next();
+		for (Iterator<Layer> it = al_layers.iterator(); it.hasNext(); ) {
+			Layer layer = it.next();
 			layer.destroy();
 		}
 		for (Iterator it = al_zdispl.iterator(); it.hasNext(); ) {
@@ -1267,9 +1267,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Get up to 'n' layers before and after the given layers. */
-	public ArrayList getNeighborLayers(final Layer layer, final int n) {
+	public ArrayList<Layer> getNeighborLayers(final Layer layer, final int n) {
 		final int i_layer = indexOf(layer);
-		final ArrayList al = new ArrayList();
+		final ArrayList<Layer> al = new ArrayList<Layer>();
 		if (-1 == i_layer) return al;
 		int start = i_layer - n;
 		if (start < 0) start = 0;
@@ -1581,7 +1581,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (Layer.IMAGEPLUS == format) {
 			ImageStack stack = new ImageStack((int)(r.width*scale), (int)(r.height*scale));
 			for (int i=first; i<=last; i++) {
-				Layer la = (Layer)al_layers.get(i);
+				Layer la = al_layers.get(i);
 				Utils.log2("c is " + c);
 				ImagePlus imp = project.getLoader().getFlatImage(la, r, scale, c_alphas, type, c, null, true);
 				if (null != imp) try {
@@ -1599,7 +1599,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		} else if (Layer.IMAGE == format) {
 			final Image[] image = new Image[last - first + 1];
 			for (int i=first, j=0; i<=last; i++, j++) {
-				image[j] = project.getLoader().getFlatAWTImage((Layer)al_layers.get(i), r, scale, c_alphas, type, c, null, true, Color.black);
+				image[j] = project.getLoader().getFlatAWTImage(al_layers.get(i), r, scale, c_alphas, type, c, null, true, Color.black);
 			}
 			return image;
 		}
