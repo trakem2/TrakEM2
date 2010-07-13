@@ -515,16 +515,7 @@ public class AreaWrapper {
 	public void mousePressed(final MouseEvent me, Layer la, final int x_p_w, final int y_p_w, final double mag, final List<Runnable> post_tasks) {
 		this.post_mouseReleased_tasks = post_tasks;
 
-		// transform the x_p, y_p to the local coordinates
-		int x_p = x_p_w;
-		int y_p = y_p_w;
-		if (!source.getAffineTransform().isIdentity()) {
-			final Point2D.Double p = source.inverseTransformPoint(x_p_w, y_p_w);
-			x_p = (int)p.x;
-			y_p = (int)p.y;
-		}
-
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.BRUSH == tool) {
 			if (null != AreaWrapper.controller_key) {
