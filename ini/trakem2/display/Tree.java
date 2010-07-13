@@ -1861,15 +1861,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return flyThrough(root, marked, width, height, magnification, type, dir);
 	}
 
-	public LinkedList<Region> generateRegions(final Node<T> first, final Node<T> last, final int width, final int height, final double magnification) {
-		final LinkedList<Region> regions = new LinkedList<Region>();
+	public LinkedList<Region<Node<T>>> generateRegions(final Node<T> first, final Node<T> last, final int width, final int height, final double magnification) {
+		final LinkedList<Region<Node<T>>> regions = new LinkedList<Region<Node<T>>>();
 		Node<T> node = last;
 		float[] fps = new float[2];
 		while (null != node) {
 			fps[0] = node.x;
 			fps[1] = node.y;
 			this.at.transform(fps, 0, fps, 0, 1);
-			regions.addFirst(new Region(new Rectangle((int)fps[0] - width/2,
+			regions.addFirst(new Region<Node<T>>(new Rectangle((int)fps[0] - width/2,
 							          (int)fps[1] - height/2,
 								  width, height),
 						    node.la,

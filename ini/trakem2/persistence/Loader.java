@@ -4696,17 +4696,17 @@ while (it.hasNext()) {
 	}
 
 	/** Returns an ImageStack, one slice per region. */
-	public ImagePlus createFlyThrough(final List<Region> regions, final double magnification, final int type, final String dir) {
+	public<I> ImagePlus createFlyThrough(final List<? extends Region<I>> regions, final double magnification, final int type, final String dir) {
 		final ExecutorService ex = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "fly-through");
 		List<Future<ImagePlus>> fus = new ArrayList<Future<ImagePlus>>();
-		for (final Region r : regions) {
+		for (final Region<I> r : regions) {
 			fus.add(ex.submit(new Callable<ImagePlus>() {
 				public ImagePlus call() {
 					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black);
 				}
 			}));
 		}
-		Region r = regions.get(0);
+		Region<I> r = regions.get(0);
 		int w = (int)(r.r.width * magnification),
 		    h = (int)(r.r.height * magnification),
 		    size = regions.size();
@@ -4738,13 +4738,13 @@ while (it.hasNext()) {
 	}
 
 	/** Each slice is generated on demand. */
-	public ImagePlus createLazyFlyThrough(final List<Region> regions, final double magnification, final int type) {
-		final Region first = regions.get(0);
+	public<I> ImagePlus createLazyFlyThrough(final List<? extends Region<I>> regions, final double magnification, final int type) {
+		final Region<I> first = regions.get(0);
 		int w = (int)(first.r.width * magnification),
 		    h = (int)(first.r.height * magnification);
 		final LazyVirtualStack stack = new LazyVirtualStack(w, h, regions.size());
 
-		for (final Region r : regions) {
+		for (final Region<I> r : regions) {
 			stack.addSlice(new Callable<ImageProcessor>() {
 				public ImageProcessor call() {
 					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black).getProcessor();
