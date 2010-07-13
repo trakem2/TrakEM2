@@ -2132,6 +2132,28 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 				});
 			}
+			Node<T> getNode(int row) {
+				return ((NodeTableModel)this.getModel()).nodes.get(row);
+			}
+			String getNodeTags(int row) {
+				NodeTableModel m = (NodeTableModel)this.getModel();
+				Node<T> nd = m.nodes.get(row);
+				return m.getNodeData(nd).tags;
+			}
+			String getReviewTags(int row) {
+				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				Set<Tag> tags = nd.getTags();
+				if (null == tags) return null;
+				StringBuilder sb = new StringBuilder();
+				for (Tag t : tags) {
+					if (t.toString().startsWith("#R")) {
+						sb.append(t.toString()).append(", ");
+					}
+				}
+				if (0 == sb.length()) return null;
+				sb.setLength(sb.length() -2);
+				return sb.toString();
+			}
 			void go(int row) {
 				Display.centerAt(Tree.this.createCoordinate(((NodeTableModel)this.getModel()).nodes.get(row)));
 			}
