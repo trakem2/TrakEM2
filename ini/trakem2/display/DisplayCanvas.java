@@ -443,8 +443,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						break;
 					case ProjectToolbar.PENCIL:
 						Composite co = g2d.getComposite();
-						g2d.setXORMode(active.getColor());
-						if (IJ.isWindows()) g2d.setColor(active.getColor());
+						if (IJ.isWindows()) g2d.setColor(Color.yellow);
+						else g2d.setXORMode(Color.yellow); // XOR on yellow for best contrast
 						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
 							     (int)((yMouse -srcRect.y -Segmentation.fmp.height/2) * magnification),
 							     (int)(Segmentation.fmp.width  * magnification),
