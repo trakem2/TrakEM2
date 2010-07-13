@@ -2632,8 +2632,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			for (int i=attributes.getLength() -1; i>-1; i--) {
 				m.put(attributes.getQName(i).toLowerCase(), attributes.getValue(i));
 			}
-			final String key = (String)m.get("key"),
-				     content = (String)m.get("val");
+			final String key = m.get("key"),
+				     content = m.get("val");
 			if (null == key || key.length() > 1 || Character.isDigit(key.charAt(0)) || null == content) {
 				Utils.log("Ignoring invalid tag with key '" + key + "' and value '" + content + "'");
 				return;
