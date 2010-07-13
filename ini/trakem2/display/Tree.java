@@ -2107,7 +2107,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 										}
 										removeReviews();
 									}
-									else if (rm_review == src) removeReview(row);
+									else if (rm_review == src) {
+										if (Utils.check("Really remove review stack for " + getReviewTags(row))) {
+											removeReview(row);
+										}
+									}
 								}
 							};
 							go.addActionListener(listener);
