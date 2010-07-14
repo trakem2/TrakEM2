@@ -43,6 +43,7 @@ import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
 import java.awt.AlphaComposite;
+import java.awt.Component;
 import java.awt.Event;
 import java.awt.Insets;
 import java.awt.Color;
@@ -102,6 +103,8 @@ import java.awt.GridBagConstraints;
 import javax.swing.JPanel;
 import javax.swing.JTable;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+
 import java.awt.event.KeyAdapter;
 import java.awt.event.MouseAdapter;
 
@@ -2004,13 +2007,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null == root) return null;
 		return project.getLoader().doLater(new Callable<JFrame>() { public JFrame call() {
 			synchronized (Tree.this) {
-				if (null == tndv) {
-					tndv = new TreeNodesDataView(root);
-					return tndv.frame;
-				} else {
-					tndv.show();
-					return tndv.frame;
+				try {
+					if (null == tndv) {
+						tndv = new TreeNodesDataView(root);
+						return tndv.frame;
+					} else {
+						tndv.show();
+						return tndv.frame;
+					}
+				} catch (Exception e) {
+					IJError.print(e);
 				}
+				return null;
 			}
 		}});
 	}
@@ -2056,10 +2064,25 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				       model_allnodes,
 				       model_searchnodes;
 		private final HashMap<Node<T>,NodeData> nodedata = new HashMap<Node<T>,NodeData>();
+		private final HashSet<Integer> visited_reviews = new HashSet<Integer>();
 
 		TreeNodesDataView(final Node<T> root) {
 			create(root);
 			createGUI();
+		}
+		private final class CustomCellRenderer extends DefaultTableCellRenderer {
+			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+				final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+				// Colorize visited review cells
+				if (8 == column && visited_reviews.contains(row)) {
+					c.setForeground(Color.white);
+					c.setBackground(Color.green);
+				} else {
+					c.setForeground(Color.black);
+					c.setBackground(Color.white);
+				}
+				return c;
+			}
 		}
 		private final class Table extends JTable {
 			private int last_sorted_column = -1;
@@ -2083,13 +2106,20 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						if (2 == me.getClickCount()) {
 							go(row);
 						} else if (Utils.isPopupTrigger(me)) {
+							if (!project.isInputEnabled()) {
+								Utils.showMessage("Please wait until the current task completes!");
+								return;
+							}
 							JPopupMenu popup = new JPopupMenu();
 							final JMenuItem go = new JMenuItem("Go"); popup.add(go);
 							final JMenuItem review = new JMenuItem("Review"); popup.add(review);
+							review.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0, true));
 							final JMenuItem rm_review = new JMenuItem("Remove review stack"); popup.add(rm_review);
 							popup.addSeparator();
 							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
 							final JMenuItem rm_reviews = new JMenuItem("Remove all reviews"); popup.add(rm_reviews);
+							popup.addSeparator();
+							final JMenuItem clear_visited_reviews = new JMenuItem("Clear visited reviews"); popup.add(clear_visited_reviews);
 							//
 							ActionListener listener = new ActionListener() {
 								public void actionPerformed(ActionEvent ae) {
@@ -2113,6 +2143,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 											removeReview(row);
 										}
 									}
+									else if (clear_visited_reviews == src) {
+										visited_reviews.clear();
+										repaint();
+									}
 								}
 							};
 							go.addActionListener(listener);
@@ -2122,16 +2156,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							rm_review.setEnabled(hasReviewTag(row));
 							generate.addActionListener(listener);
 							rm_reviews.addActionListener(listener);
+							clear_visited_reviews.addActionListener(listener);
 							popup.show(Table.this, me.getX(), me.getY());
 						}
 					}
 				});
 				this.addKeyListener(new KeyAdapter() {
 					public void keyPressed(KeyEvent ke) {
-						if (ke.getKeyCode() == KeyEvent.VK_G) {
-							final int row = getSelectedRow();
+						final int keyCode = ke.getKeyCode();
+						final int row = getSelectedRow();
+						if (keyCode == KeyEvent.VK_G) {
 							if (-1 != row) go(row);
-						} else if (ke.getKeyCode() == KeyEvent.VK_W && (0 == (Utils.getControlModifier() ^ ke.getModifiers()))) {
+						} else if (keyCode == KeyEvent.VK_R && 0 == ke.getModifiers()) {
+							// If there is a review stack, open it
+							if (-1 != row) review(row);
+						} else if (keyCode == KeyEvent.VK_W && (0 == (Utils.getControlModifier() ^ ke.getModifiers()))) {
 							frame.dispose();
 						}
 					}
@@ -2194,6 +2233,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					Utils.log("Node without review tag!");
 					return;
 				}
+				visited_reviews.add(row);
 				// Find a stack for the review tag, and open it
 				Tree.this.openImage(getReviewTagPath(review_tag), nd);
 			}
@@ -2301,6 +2341,20 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			this.table_endnodes.setModel(this.model_endnodes);
 			this.table_allnodes.setModel(this.model_allnodes);
 			this.table_searchnodes.setModel(this.model_searchnodes);
+			
+
+			try {
+				CustomCellRenderer ccr = new CustomCellRenderer();
+				setCellRenderer(table_branchnodes, ccr);
+				setCellRenderer(table_endnodes, ccr);
+				setCellRenderer(table_allnodes, ccr);
+				setCellRenderer(table_searchnodes, ccr);
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+		}
+		void setCellRenderer(JTable t, DefaultTableCellRenderer ccr) {
+			t.setDefaultRenderer(t.getColumnClass(8), ccr);
 		}
 		void recreate(final Node<T> root) {
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
@@ -2348,7 +2402,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	private final class NodeData {
 		final double x, y, z;
-		final String data, tags, conf;
+		final String data, tags, conf, reviews;
 		NodeData(final Node<T> nd) {
 			final float[] fp = new float[]{nd.x, nd.y};
 			Tree.this.at.transform(fp, 0, fp, 0, 1);
@@ -2371,15 +2425,19 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			//
 			final Set<Tag> ts = nd.getTags();
 			if (null != ts) {
-				if (1 == ts.size()) this.tags = ts.iterator().next().toString();
-				else {
-					final StringBuilder sb = new StringBuilder();
-					for (final Tag t : ts) sb.append(t.toString()).append(", ");
-					sb.setLength(sb.length() -2);
-					this.tags = sb.toString();
+				final StringBuilder sb = new StringBuilder();
+				final StringBuilder sbr = new StringBuilder();
+				for (final Tag t : ts) {
+					String s = t.toString();
+					if ('#' == s.charAt(0) && 'R' == s.charAt(1)) sbr.append(s).append(", ");
+					else sb.append(s).append(", ");
 				}
+				if (sb.length() > 0) sb.setLength(sb.length() -2);
+				if (sbr.length() > 0) sbr.setLength(sbr.length() - 2);
+				this.tags = sb.toString();
+				this.reviews = sbr.toString();
 			} else {
-				this.tags = "";
+				this.tags = this.reviews = "";
 			}
 		}
 	}
@@ -2408,11 +2466,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				case 5: return "Edge confidence";
 				case 6: return getDataName();
 				case 7: return "Tags";
+				case 8: return "Reviews";
 				default: return null; // should be an error
 			}
 		}
 		public int getRowCount() { return nodes.size(); }
-		public int getColumnCount() { return 8; }
+		public int getColumnCount() { return 9; }
 		public Object getRawValueAt(int row, int col) {
 			if (0 == nodes.size()) return null;
 			final Node<T> nd = nodes.get(row);
@@ -2425,6 +2484,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				case 5: return getNodeData(nd).conf;
 				case 6: return getNodeData(nd).data;
 				case 7: return getNodeData(nd).tags;
+				case 8: return getNodeData(nd).reviews;
 				default: return null;
 			}
 		}
@@ -2457,7 +2517,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 					Object val1 = getRawValueAt(nodes.indexOf(nd1), col);
 					Object val2 = getRawValueAt(nodes.indexOf(nd2), col);
-					if (7 == col) {
+					if (col > 6) { // 7 and 8 are tags
 						// Replace empty strings with a row of z
 						val1 = fixStrings(val1);
 						val2 = fixStrings(val2);
@@ -2762,35 +2822,34 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final TreeNodesDataView tndv = Tree.this.tndv;
 		if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
 		try {
-			int next = 0;
-			final List<Runnable> todo = new ArrayList<Runnable>();
-			final List<Future> fus = new ArrayList<Future>();
+			final List<Future<?>> fus = new ArrayList<Future<?>>();
 			final Object dirsync = new Object();
-			for (final Map.Entry<Layer,Set<Node<T>>> e : node_layer_map.entrySet()) {
-				for (final Node<T> nd : e.getValue()) {
-					if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
-					if (Thread.currentThread().isInterrupted()) return;
-					++next;
-					final Tag tag = new Tag("#R-" + next, KeyEvent.VK_R);
-					nd.addTag(tag);
-					updateViewData(nd);
-					//
-					todo.add(new Runnable() {
-						public void run() {
-							String filepath = getReviewTagPath(tag);
-							synchronized (dirsync) {
-								if (!Utils.ensure(filepath)) {
-									Utils.log("Did NOT create review stack for tag " + tag);
-									return;
-								}
+			
+			final Node<T>[] be = new Node.NodeCollection<T>(root, Node.BranchAndEndNodeIterator.class).toArray();
+			final Runnable[] rs = new Runnable[be.length];
+			final int n_digits = Integer.toString(be.length).length();
+			for (int i=0; i<be.length; i++) {
+				if (Thread.currentThread().isInterrupted()) return;
+				final Tag tag = new Tag("#R-" + Utils.zeroPad((i+1), n_digits), KeyEvent.VK_R);
+				final Node<T> nd = be[i];
+				nd.addTag(tag);
+				updateViewData(nd);
+				rs[i] = new Runnable() {
+					public void run() {
+						String filepath = getReviewTagPath(tag);
+						synchronized (dirsync) {
+							if (!Utils.ensure(filepath)) {
+								Utils.log("Did NOT create review stack for tag " + tag);
+								return;
 							}
-							createReviewStack(nd.findPreviousBranchOrRootPoint(), nd, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
 						}
-					});
-				}
+						createReviewStack(nd.findPreviousBranchOrRootPoint(), nd, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
+					}
+				};
 			}
+			Display.repaint(getLayerSet());
 			// Now that all tags exists (and will get painted), generate the stacks
-			for (final Runnable r : todo) fus.add(exe.submit(r));
+			for (int i=0; i<rs.length; i++) fus.add(exe.submit(rs[i]));
 			Utils.wait(fus);
 		} catch (Exception e) {
 			IJError.print(e);
