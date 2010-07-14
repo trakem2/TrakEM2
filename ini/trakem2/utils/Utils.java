@@ -1632,6 +1632,7 @@ public class Utils implements ij.plugin.PlugIn {
 		return ensure(new File(filepath));
 	}
 	
+	/** Ensure the file can be written to. Will create parent directories if necessary. */
 	static public final boolean ensure(final File f) {
 		final File parent = f.getParentFile();
 		if (!parent.exists()) {
@@ -1639,6 +1640,9 @@ public class Utils implements ij.plugin.PlugIn {
 				Utils.log("FAILED to create directories " + parent.getAbsolutePath());
 				return false;
 			}
+		} else if (!parent.canWrite()) {
+			Utils.log("Cannot write to parent directory " + parent.getAbsolutePath());
+			return false;
 		}
 		return true;
 	}
