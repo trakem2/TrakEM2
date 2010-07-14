@@ -2149,10 +2149,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 											return;
 										}
 										removeReviews();
+										visited_reviews.clear();
 									}
 									else if (rm_review == src) {
 										if (Utils.check("Really remove review stack for " + getReviewTags(row))) {
-											removeReview(row);
+											removeReview(row); // will remove the node from visited_reviews
 										}
 									}
 									else if (clear_visited_reviews == src) {
@@ -2264,7 +2265,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			private void removeReview(final int row) {
 				final Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				if (null == nd) return;
-				Tree.this.removeReview(nd);
+				if (Tree.this.removeReview(nd)) {
+					visited_reviews.remove(nd);
+				}
 			}
 		}
 		void show() {
