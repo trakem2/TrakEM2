@@ -1888,7 +1888,7 @@ abstract public class Loader {
 			}
 
 			// Accumulate mipmap generation tasks
-			final ArrayList<Future> fus = new ArrayList<Future>();
+			final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 
 			startLargeUpdate();
 			for (int i=0; i<cols.size(); i++) {
@@ -2304,7 +2304,7 @@ while (it.hasNext()) {
 					// 2 - set a base dir path if necessary
 					String base_dir = null;
 
-					final Vector<Future> fus = new Vector<Future>(); // to wait on mipmap regeneration
+					final Vector<Future<?>> fus = new Vector<Future<?>>(); // to wait on mipmap regeneration
 
 					final LayerSet layer_set = base_layer.getParent();
 					final double z_zero = base_layer.getZ();
@@ -2322,7 +2322,7 @@ while (it.hasNext()) {
 							break;
 					}
 					final ExecutorService ex = Utils.newFixedThreadPool(np, "import-images");
-					final List<Future> imported = new ArrayList<Future>();
+					final List<Future<?>> imported = new ArrayList<Future<?>>();
 					final Worker wo = this;
 
 					final String script_path;
@@ -2425,7 +2425,7 @@ while (it.hasNext()) {
 						// If loaded twice as many, wait for mipmaps to finish
 						// Otherwise, images would end up loaded twice for no reason
 						if (0 == (i % (NP+NP))) {
-							final ArrayList<Future> a = new ArrayList<Future>(NP+NP);
+							final ArrayList<Future<?>> a = new ArrayList<Future<?>>(NP+NP);
 							synchronized (fus) { // .add is also synchronized, it's a Vector
 								int k = 0;
 								while (!fus.isEmpty() && k < NP) {
@@ -4273,7 +4273,7 @@ while (it.hasNext()) {
 						finishedWorking();
 						return;
 					}
-					ArrayList<Future> fus = new ArrayList<Future>();
+					ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					for (final Displayable d : patches) {
 						if (d.getClass() != Patch.class) continue;
 						Patch p = (Patch)d;
@@ -4667,7 +4667,7 @@ while (it.hasNext()) {
 	public Bureaucrat maskBordersLayerWise(final Collection<Layer> layers, final int left, final int top, final int right, final int bottom) {
 		return Bureaucrat.createAndStart(new Worker.Task("Crop borders") {
 			public void exec() {
-				ArrayList<Future> fus = new ArrayList<Future>();
+				ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 				for (final Layer layer : layers) {
 					fus.addAll(maskBorders(left, top, right, bottom, layer.getDisplayables(Patch.class)));
 				}
@@ -4687,8 +4687,8 @@ while (it.hasNext()) {
 
 	/** Make the border have an alpha of zero.
 	 *  @return the list of Future that represent the regeneration of the mipmaps of each Patch. */
-	public ArrayList<Future> maskBorders(final int left, final int top, final int right, final int bottom, final Collection<Displayable> patches) {
-		ArrayList<Future> fus = new ArrayList<Future>();
+	public ArrayList<Future<?>> maskBorders(final int left, final int top, final int right, final int bottom, final Collection<Displayable> patches) {
+		ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 		for (final Displayable d : patches) {
 			if (d.getClass() != Patch.class) continue;
 			Patch p = (Patch) d;

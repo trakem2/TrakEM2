@@ -366,8 +366,8 @@ final public class AlignTask
 		// Parallelize! This operation can be insanely expensive
 		final int nproc = Runtime.getRuntime().availableProcessors();
 		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "AlignTask-createTransformPropertiesTable");
-		final List<Future> dtasks = new ArrayList<Future>();
-		final List<Future> ltasks = new ArrayList<Future>();
+		final List<Future<?>> dtasks = new ArrayList<Future<?>>();
+		final List<Future<?>> ltasks = new ArrayList<Future<?>>();
 		final Thread current = Thread.currentThread();
 
 		try {
@@ -503,8 +503,7 @@ final public class AlignTask
 		 final LayerSet target_layerset) 		/* The LayerSet in which the vdata and the transformed images exist. */
 	{
 		final ExecutorService exec = Utils.newFixedThreadPool("AlignTask-transformVectorData");
-		final Collection<Future> fus = new ArrayList<Future>();
-		final Thread current = Thread.currentThread();
+		final Collection<Future<?>> fus = new ArrayList<Future<?>>();
 
 		final HashMap<Long,Layer> lidm = new HashMap<Long,Layer>();
 		for (final Long lid : rd.src_layer_lids_used) {

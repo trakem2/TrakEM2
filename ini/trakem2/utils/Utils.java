@@ -1422,8 +1422,8 @@ public class Utils implements ij.plugin.PlugIn {
 		return sb.subSequence(start-1, end+2).toString();
 	}
 
-	static public final void wait(final Collection<Future> fus) {
-		for (final Future fu : fus) {
+	static public final void wait(final Collection<Future<?>> fus) {
+		for (final Future<?> fu : fus) {
 			if (null != fu) try {
 				fu.get(); // wait until done
 			} catch (Exception e) {

@@ -308,8 +308,8 @@ public class TMLHandler extends DefaultHandler {
 			final Set<Long> dlids = new HashSet<Long>();
 			final LayerSet layer_set = (LayerSet) root_lt.getObject();
 
-			final List<Future> fus = new ArrayList<Future>();
-			final List<Future> fus2 = new ArrayList<Future>();
+			final List<Future<?>> fus = new ArrayList<Future<?>>();
+			final List<Future<?>> fus2 = new ArrayList<Future<?>>();
 
 			for (final HashMap ht_attributes : al_displays) {
 				Object ob = ht_attributes.get("layer_id");

@@ -480,7 +480,7 @@ final public class AlignLayersTask
 					transf.set(warp.getIntervals(), warp.getDirectDeformationCoefficientsX(), warp.getDirectDeformationCoefficientsY(),
 	                		imp2.getWidth(), imp2.getHeight());
 
-					final ArrayList<Future> fus = new ArrayList<Future>();
+					final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					
 					for ( final Displayable disp : layer2.getDisplayables( Patch.class ) )
 					{

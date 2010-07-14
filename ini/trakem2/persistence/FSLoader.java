@@ -2180,7 +2180,7 @@ public final class FSLoader extends Loader {
 				this.setAsBackground(true);
 				Utils.log2("starting mipmap generation ..");
 				try {
-					ArrayList<Future> fus = new ArrayList<Future>();
+					final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					for (final Displayable displ : patches) {
 						if (displ.getClass() != Patch.class) continue;
 						Patch pa = (Patch)displ;
@@ -3008,7 +3008,7 @@ public final class FSLoader extends Loader {
 		return Bureaucrat.createAndStart(new Worker.Task("Updating mipmaps format") {
 			public void exec() {
 				try {
-					final List<Future> fus = new ArrayList<Future>();
+					final List<Future<?>> fus = new ArrayList<Future<?>>();
 					final String ext = MIPMAP_FORMATS[old_format];
 					for (Layer la : project.getRootLayerSet().getLayers()) {
 						for (Displayable p : la.getDisplayables(Patch.class)) {
