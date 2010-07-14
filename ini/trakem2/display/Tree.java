@@ -2078,8 +2078,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					c.setForeground(Color.white);
 					c.setBackground(Color.green);
 				} else {
-					c.setForeground(Color.black);
-					c.setBackground(Color.white);
+					if (isSelected) {
+						setForeground(table.getSelectionForeground());
+			            setBackground(table.getSelectionBackground());
+					} else {
+						c.setForeground(Color.black);
+						c.setBackground(Color.white);
+					}
 				}
 				return c;
 			}
