@@ -617,6 +617,18 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return sb.toString();
 	}
+	
+	/** Zero-pad a number, so that '1' becomes '001' if n_digits is 3. */
+	static public final String zeroPad(final int i, final int n_digits) {
+		final StringBuilder sb = new StringBuilder();
+		sb.append(i);
+		int len = sb.length();
+		while (len < n_digits) {
+			sb.insert(0, '0');
+			len++;
+		}
+		return sb.toString();
+	}
 
 	static public final boolean check(final String msg) {
 		YesNoCancelDialog dialog = new YesNoCancelDialog(IJ.getInstance(), "Execute?", msg);
