@@ -2064,7 +2064,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				       model_allnodes,
 				       model_searchnodes;
 		private final HashMap<Node<T>,NodeData> nodedata = new HashMap<Node<T>,NodeData>();
-		private final HashSet<Integer> visited_reviews = new HashSet<Integer>();
+		private final HashSet<Node<T>> visited_reviews = new HashSet<Node<T>>();
 
 		TreeNodesDataView(final Node<T> root) {
 			create(root);
@@ -2074,7 +2074,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 				final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 				// Colorize visited review cells
-				if (8 == column && visited_reviews.contains(row)) {
+				if (8 == column && visited_reviews.contains(((NodeTableModel)table.getModel()).nodes.get(row))) {
 					c.setForeground(Color.white);
 					c.setBackground(Color.green);
 				} else {
@@ -2238,7 +2238,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					Utils.log("Node without review tag!");
 					return;
 				}
-				visited_reviews.add(row);
+				visited_reviews.add(nd);
 				// Find a stack for the review tag, and open it
 				Tree.this.openImage(getReviewTagPath(review_tag), nd);
 			}
@@ -2330,6 +2330,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					default: branchnodes.add(nd); break;
 				}
 			}
+			// Remove nodes no longer present:
+			visited_reviews.retainAll(allnodes);
 
 			// Swap:
 			this.branchnodes = branchnodes;
