@@ -716,7 +716,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					return null;
 				}
 				// Cache the children of 'nd'
-				Collection<Node<T>> subtree_nodes = nd.getSubtreeNodes();
+				Collection<Node<T>> subtree_nodes = new ArrayList<Node<T>>(nd.getSubtreeNodes());
+				// Remove any review stacks for the nodes in the subtree
+				for (final Node<T> node : subtree_nodes) {
+					removeReview(node);
+				}
 				// Remove all children nodes of found node 'nd' from the Tree cache arrays:
 				removeNode(nd, subtree_nodes);
 				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
@@ -1222,6 +1226,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				nd.x = fps[0];
 				nd.y = fps[1];
 				nd.transformData(aff);
+				// Remove review stack if any
+				removeReview(nd);
 			}
 			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
 			// Remove from tl pointers
@@ -2832,16 +2838,22 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			final List<Future<?>> fus = new ArrayList<Future<?>>();
 			final Object dirsync = new Object();
 			
-			final Node<T>[] be = new Node.NodeCollection<T>(root, Node.BranchAndEndNodeIterator.class).toArray();
-			final Runnable[] rs = new Runnable[be.length];
-			final int n_digits = Integer.toString(be.length).length();
-			for (int i=0; i<be.length; i++) {
+			final ArrayList<Node<T>> be_nodes = new ArrayList<Node<T>>();
+			// Remove all reviews, if any
+			for (final Node<T> nd : root.getSubtreeNodes()) {
+				removeReview(nd);
+				if (1 != nd.getChildrenCount()) be_nodes.add(nd);
+			}
+
+			final Runnable[] rs = new Runnable[be_nodes.size()];
+			final int n_digits = Integer.toString(rs.length).length();
+			int k = 0;
+			for (final Node<T> nd : be_nodes) {
 				if (Thread.currentThread().isInterrupted()) return;
-				final Tag tag = new Tag("#R-" + Utils.zeroPad((i+1), n_digits), KeyEvent.VK_R);
-				final Node<T> nd = be[i];
+				final Tag tag = new Tag("#R-" + Utils.zeroPad(k+1, n_digits), KeyEvent.VK_R);
 				nd.addTag(tag);
 				updateViewData(nd);
-				rs[i] = new Runnable() {
+				rs[k] = new Runnable() {
 					public void run() {
 						String filepath = getReviewTagPath(tag);
 						synchronized (dirsync) {
@@ -2853,6 +2865,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						createReviewStack(nd.findPreviousBranchOrRootPoint(), nd, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
 					}
 				};
+				k++;
 			}
 			Display.repaint(getLayerSet());
 			// Now that all tags exists (and will get painted), generate the stacks
@@ -2901,8 +2914,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
 							return false;
 						}
-					} else {
-						Utils.log("No review file exists for " + s);
 					}
 					// Remove tag:
 					nd.removeTag(tag);
