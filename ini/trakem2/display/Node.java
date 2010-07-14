@@ -912,7 +912,7 @@ public abstract class Node<T> implements Taggable {
 		/** Override to avoid calling size(), which would iterate the whole list just for that. */
 		@Override
 		public Node<I>[] toArray() {
-			Node[] a = new Node[10];
+			Node<I>[] a = (Node<I>[])new Node[10];
 			int next = 0;
 			for (final Iterator<Node<I>> it = iterator(); it.hasNext(); ) {
 				if (a.length == next) {
@@ -925,10 +925,10 @@ public abstract class Node<T> implements Taggable {
 			return next < a.length ? Arrays.copyOf(a, next) : a;
 		}
 		@Override
-		public<T> T[] toArray(T[] a) {
+		public<Y> Y[] toArray(Y[] a) {
 			Node<I>[] b = toArray();
 			if (a.length < b.length) {
-				return (T[])b;
+				return (Y[])b;
 			}
 			System.arraycopy(b, 0, a, 0, b.length);
 			if (a.length > b.length) a[b.length] = null; // null-terminate
