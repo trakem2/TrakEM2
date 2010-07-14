@@ -4741,7 +4741,7 @@ while (it.hasNext()) {
 		return new ImagePlus("Fly-Through", stack);
 	}
 
-	/** Each slice is generated on demand. */
+	/** Each slice is generated on demand, one slice per Region instance. */
 	public<I> ImagePlus createLazyFlyThrough(final List<? extends Region<I>> regions, final double magnification, final int type) {
 		final Region<I> first = regions.get(0);
 		int w = (int)(first.r.width * magnification),
