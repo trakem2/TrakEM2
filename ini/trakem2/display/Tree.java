@@ -2130,7 +2130,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
 							final JMenuItem rm_reviews = new JMenuItem("Remove all reviews"); popup.add(rm_reviews);
 							popup.addSeparator();
-							final JMenuItem clear_visited_reviews = new JMenuItem("Clear visited reviews"); popup.add(clear_visited_reviews);
+							final JMenuItem mark_as_reviewed = new JMenuItem("Mark selected as reviewed"); popup.add(mark_as_reviewed);
+							final JMenuItem clear_visited_reviews = new JMenuItem("Unmark all reviewed"); popup.add(clear_visited_reviews);
 							//
 							ActionListener listener = new ActionListener() {
 								public void actionPerformed(ActionEvent ae) {
@@ -2158,6 +2159,17 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 										visited_reviews.clear();
 										repaint();
 									}
+									else if (mark_as_reviewed == src) {
+										// Get multiple selection
+										final NodeTableModel m = (NodeTableModel)getModel();
+										for (final int row : getSelectedRows()) {
+											final Node<T> nd = m.nodes.get(row);
+											if (!"".equals(m.getNodeData(nd).reviews)) {
+												visited_reviews.add(nd);
+											}
+										}
+										repaint();
+									}
 								}
 							};
 							go.addActionListener(listener);
@@ -2168,6 +2180,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							generate.addActionListener(listener);
 							rm_reviews.addActionListener(listener);
 							clear_visited_reviews.addActionListener(listener);
+							mark_as_reviewed.addActionListener(listener);
 							popup.show(Table.this, me.getX(), me.getY());
 						}
 					}
