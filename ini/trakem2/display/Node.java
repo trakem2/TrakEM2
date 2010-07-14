@@ -804,6 +804,53 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 	
+	static public abstract class FilteredIterator<I> extends SubtreeIterator<I> {
+		public FilteredIterator(final Node<I> first) {
+			super(first);
+			prepareNext();
+		}
+		public abstract boolean accept(final Node<I> node);
+		
+		private final void prepareNext() {
+			while (todo.size() > 0) {
+				final Node<I> nd = todo.removeFirst();
+				if (null != nd.children) {
+					for (int i=0; i<nd.children.length; i++) todo.add(nd.children[i]);
+				}
+				if (accept(nd)) {
+					next = nd;
+					return;
+				}
+			}
+			next = null;
+		}
+
+		@Override
+		public boolean hasNext() { return null != next; }
+			
+		@Override
+		public Node<I> next() {
+			try {
+				return next;
+			} finally {
+				prepareNext();
+			}
+			//final Node<I> node = next;
+			//prepareNext();
+			//return node;
+		}
+	}
+
+	static public class BranchAndEndNodeIterator<I> extends FilteredIterator<I> {
+		public BranchAndEndNodeIterator(final Node <I> first) {
+			super(first);
+		}
+		@Override
+		public boolean accept(final Node<I> node) {
+			return 1 != node.getChildrenCount();
+		}
+	}
+
 	/** For a given starting node, iterates all the way to the next end node or branch node, inclusive. */
 	public class SlabIterator<I> extends SubtreeIterator<I> {
 		public SlabIterator(final Node<I> first) {
