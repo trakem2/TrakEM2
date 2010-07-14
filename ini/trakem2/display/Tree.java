@@ -34,6 +34,7 @@ import ini.trakem2.Project;
 import ini.trakem2.display.Displayable.SliderListener;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -2754,7 +2755,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
 		// Generate a fly-through stack from each found node to its previous branch point or root
 		final int nproc = Runtime.getRuntime().availableProcessors();
-		final ExecutorService exe = Executors.newFixedThreadPool(Math.min(1, Math.max(4, nproc)));
+		final ExecutorService exe = Executors.newFixedThreadPool(Math.max(1, Math.min(4, nproc)));
 		// Above, use maximum 4 threads. I/O bound operations don't deal well with more.
 		
 		// Disable window
