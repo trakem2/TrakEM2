@@ -610,7 +610,7 @@ public class Treeline extends Tree<Float> {
 				
 				// Tube from parent to child
 				// Check if a 3D volume representation is necessary for this segment
-				if (null != nd.parent && 0 != nd.parent.getData() && 0 != nd.getData()) {
+				if (null != nd.parent && (0 != nd.parent.getData() || 0 != nd.getData())) {
 
 					po = null;
 
