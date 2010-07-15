@@ -367,7 +367,7 @@ public class AreaWrapper {
 					// Ignoring point off srcRect
 					continue;
 				}
-				accumulator.submit(new Runnable() {
+				final Runnable task = new Runnable() {
 					public void run() {
 						final AffineTransform aff = new AffineTransform(1, 0, 0, 1, p.x, p.y);
 						aff.concatenate(at_inv);
@@ -391,7 +391,18 @@ public class AreaWrapper {
 							r_old = copy;
 						}
 					}
-				});
+				};
+				
+				try {
+					accumulator.submit(task);
+				} catch (Throwable t) {
+					// will happen when quit() calls accumulator.shutdown(),
+					// which will then refuse to run any task.
+					// Only the jobs completed up to this time point
+					// will be finished, so the trace may finish earlier
+					// than the mouse release point in slow computers.
+					return;
+				}
 
 				previous_p = p;
 			}
