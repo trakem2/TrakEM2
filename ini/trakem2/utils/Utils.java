@@ -136,8 +136,7 @@ public class Utils implements ij.plugin.PlugIn {
 		public final void log(final String msg) {
 			try {
 				synchronized (cache) {
-					if (0 != cache.length()) cache.append('\n');
-					cache.append(msg);
+					cache.append(msg).append('\n');
 				}
 				synchronized (this) { notify(); }
 			} catch (Exception e) {
@@ -145,20 +144,30 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 		public void run() {
+			final StringBuilder sb = new StringBuilder();
 			while (!isInterrupted()) {
 				try {
-					String msg = null;
-					int len = 0;
-					synchronized (cache) { len = cache.length(); } 
-					while (len > 0) {
+					final long start = System.currentTimeMillis();
+					// Accumulate messages for one second
+					do {
 						synchronized (cache) {
-							if (0 != cache.length()) msg = cache.toString();
-							cache.setLength(0);
+							if (cache.length() > 0) {
+								sb.append(cache);
+								cache.setLength(0);
+							}
 						}
-						if (null != msg) IJ.log(msg);
-						synchronized (cache) { len = cache.length(); }
+					} while (System.currentTimeMillis() - start < 1000); 
+
+					// ... then, if any, update the log window:
+					if (sb.length() > 0) {
+						IJ.log(sb.toString());
+						sb.setLength(0);
 					}
-					synchronized (this) { wait(); }
+					synchronized (this) {
+						if (0 == cache.length()) try {
+							wait();
+						} catch (InterruptedException ie) {}
+					}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
@@ -170,8 +179,8 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Avoid waiting on the AWT thread repainting ImageJ's status bar.
 	    Waits 100 ms before printing the status message; if too many status messages are being sent, the last one overrides all. */
 	static private final class StatusDispatcher extends Thread {
-		private String msg = null;
-		private double progress = -1;
+		private volatile String msg = null;
+		private volatile double progress = -1;
 		public StatusDispatcher() {
 			super("T2-Status-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
@@ -207,26 +216,32 @@ public class Utils implements ij.plugin.PlugIn {
 				try {
 					String msg = null;
 					double progress = -1;
-					while (null != this.msg || -1 != this.progress) {
-						synchronized (this) {
-							// Acquire and reset
+					synchronized (this) {
+						// Acquire and reset
+						if (null != this.msg) {
 							msg = this.msg;
 							this.msg = null;
+						}
+						if (-1 != this.progress) {
 							progress = this.progress;
 							this.progress = -1;
 						}
-						if (null != msg) {
-							IJ.showStatus(msg);
-							msg = null;
-						}
-						if (-1 != progress) {
-							IJ.showProgress(progress);
-							progress = -1;
-						}
 					}
+
+					// Execute within the context of this Thread
+					if (null != msg) {
+						IJ.showStatus(msg);
+						msg = null;
+					}
+					if (-1 != progress) IJ.showProgress(progress);
+
 					// allow some time for overwriting of messages
 					Thread.sleep(100);
-					synchronized (this) { try { wait(); } catch (InterruptedException ie) {} }
+					synchronized (this) {
+						if (null == this.msg && -1 == this.progress) {
+							try { wait(); } catch (InterruptedException ie) {}
+						}
+					}
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
