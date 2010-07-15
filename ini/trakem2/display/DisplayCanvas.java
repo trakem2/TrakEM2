@@ -563,7 +563,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public void mousePressed(MouseEvent me) {
 
-		this.flags = me.getModifiers();
+		super.flags = me.getModifiers();
 
 		x_p = x_d = srcRect.x + (int) (me.getX() / magnification); // offScreenX(me.getX());
 		y_p = y_d = srcRect.y + (int) (me.getY() / magnification); // offScreenY(me.getY());
@@ -737,6 +737,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public void mouseDragged(MouseEvent me) {
+
+		super.flags = me.getModifiers();
+
 		// ban if beyond bounds:
 		if (x_p < srcRect.x || y_p < srcRect.y || x_p > srcRect.x + srcRect.width || y_p > srcRect.y + srcRect.height) {
 			return;
@@ -751,8 +754,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (popup) return;
 
 		dragging = true;
-
-		this.flags = me.getModifiers();
 
 		x_d_old = x_d;
 		y_d_old = y_d;
@@ -885,6 +886,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public void mouseReleased(MouseEvent me) {
+		
+		super.flags = me.getModifiers();
+		
 		boolean dragging2 = dragging;
 		dragging = false;
 		if (popup) {
@@ -949,10 +953,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		*/
 
-		this.flags = me.getModifiers();
-		flags &= ~InputEvent.BUTTON1_MASK; // make sure button 1 bit is not set (FOR AreaList brush-like)
-		flags &= ~InputEvent.BUTTON2_MASK; // make sure button 2 bit is not set
-		flags &= ~InputEvent.BUTTON3_MASK; // make sure button 3 bit is not set
+		super.flags &= ~InputEvent.BUTTON1_MASK; // make sure button 1 bit is not set (FOR AreaList brush-like)
+		super.flags &= ~InputEvent.BUTTON2_MASK; // make sure button 2 bit is not set
+		super.flags &= ~InputEvent.BUTTON3_MASK; // make sure button 3 bit is not set
 
 		int x_r = srcRect.x + (int)(me.getX() / magnification);
 		int y_r = srcRect.y + (int)(me.getY() / magnification);
@@ -1362,6 +1365,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		private void mouseMoved(MouseEvent me) {
 			if (null == me) return;
+			
+			DisplayCanvas.super.flags = me.getModifiers();
+			
 			if (input_disabled || display.getMode().isDragging()) return;
 
 			xMouse = (int)(me.getX() / magnification) + srcRect.x;
