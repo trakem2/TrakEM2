@@ -1356,6 +1356,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (nd == last_edited) last_edited = null;
 		if (nd == last_visited) last_visited = null;
 		removeFromLinkLater(nd);
+		removeReview(nd);
 	}
 
 	protected void clearState() {
