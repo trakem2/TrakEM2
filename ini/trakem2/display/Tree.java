@@ -2261,6 +2261,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				visited_reviews.add(nd);
 				// Find a stack for the review tag, and open it
 				Tree.this.openImage(getReviewTagPath(review_tag), nd);
+				repaint();
 			}
 			private void removeReview(final int row) {
 				final Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
@@ -2268,6 +2269,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				if (Tree.this.removeReview(nd)) {
 					visited_reviews.remove(nd);
 				}
+				Display.repaint(getLayerSet());
 			}
 		}
 		void show() {
