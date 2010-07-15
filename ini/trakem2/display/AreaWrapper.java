@@ -138,8 +138,8 @@ public class AreaWrapper {
 		private final Area brush;
 		final private int leftClick=16, alt=9;
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
-		final private int flags = dc.getModifiers();
-		final private boolean adding = (0 == (flags & alt));
+		final private int flags;
+		final private boolean adding;
 		private final Layer la;
 		private final AffineTransform at, at_inv;
 		private final Object arealock = new Object();
@@ -148,12 +148,14 @@ public class AreaWrapper {
 		private final ScheduledFuture<?> composition;
 		private final Runnable interpolator;
 
-		Painter(Area area, double mag, Layer la, AffineTransform at) throws Exception {
+		Painter(Area area, double mag, Layer la, AffineTransform at, final int flags) throws Exception {
 			super("AreaWrapper.Painter");
 			setPriority(Thread.NORM_PRIORITY);
 			this.la = la;
 			this.at = at;
 			this.at_inv = at.createInverse();
+			this.flags = flags;
+			this.adding = (0 == (flags & alt));
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
 			if (adding) {
@@ -352,7 +354,8 @@ public class AreaWrapper {
 			// create brush
 			while (paint) {
 				// detect mouse up (don't use 'flags': was recorded on starting up)
-				if (0 == (dc.getModifiers() & leftClick)) { // I think this never happens, but there have been reports.
+				if (0 == (this.flags & leftClick)) { // I think this never happens, but there have been reports.
+					Utils.log2("--------->>  Quit brushing from inside loop");
 					quit();
 					return;
 				}
@@ -612,7 +615,7 @@ public class AreaWrapper {
 			} else {
 				if (null != this.painter) this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
 				try {
-					this.painter = new Painter(area, mag, la, source.getAffineTransformCopy());
+					this.painter = new Painter(area, mag, la, source.getAffineTransformCopy(), me.getModifiers());
 				} catch (Exception e) {
 					Utils.log2("Oops: " + e);
 				}

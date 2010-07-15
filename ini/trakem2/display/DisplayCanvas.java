@@ -953,7 +953,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 		*/
 
-		super.flags &= ~InputEvent.BUTTON1_MASK; // make sure button 1 bit is not set (FOR AreaList brush-like)
+		super.flags &= ~InputEvent.BUTTON1_MASK; // make sure button 1 bit is not set
 		super.flags &= ~InputEvent.BUTTON2_MASK; // make sure button 2 bit is not set
 		super.flags &= ~InputEvent.BUTTON3_MASK; // make sure button 3 bit is not set
 
