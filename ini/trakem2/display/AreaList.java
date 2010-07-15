@@ -285,6 +285,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	private AreaWrapper aw = null;
 	private Long lid = null;
 
+	@Override
 	public void mousePressed(final MouseEvent me, final Layer la, final int x_p_w, final int y_p_w, final double mag) {
 		lid = la.getId(); // isn't this.layer pointing to the current layer always? It *should*
 		Object ob = ht_areas.get(new Long(lid));
@@ -320,12 +321,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}}}));
 		aw.setSource(null);
 	}
+	@Override
 	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == aw) return;
 		aw.setSource(this);
 		aw.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		aw.setSource(null);
 	}
+	@Override
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		if (null == aw) return;
 		aw.setSource(this);
