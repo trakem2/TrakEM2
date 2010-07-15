@@ -1329,8 +1329,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private MouseMovedThread mouse_moved = new MouseMovedThread();
 
 	private class MouseMovedThread extends Thread {
-		private MouseEvent me = null;
-		private boolean go = true;
+		private volatile MouseEvent me = null;
 		MouseMovedThread() {
 			super("T2-mouseMoved");
 			setDaemon(true);
@@ -1346,11 +1345,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 		}
 		void quit() {
-			go = false;
+			interrupt();
 			synchronized (this) { notify(); }
 		}
 		public void run() {
-			while (go) {
+			while (!isInterrupted()) {
 				MouseEvent me = this.me;
 				if (null != me) {
 					try { mouseMoved(me); } catch (Exception e) { IJError.print(e); }

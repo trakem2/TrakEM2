@@ -2675,7 +2675,7 @@ public class DBLoader extends Loader {
 		private final Connection connection;
 		private final LoggingInputStream lis;
 		private java.awt.Dialog dialog;
-		private boolean quit = false;
+		private volatile boolean quit = false;
 		private Label time;
 		private Label speed;
 		private Label bytes;

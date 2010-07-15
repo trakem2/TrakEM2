@@ -30,7 +30,6 @@ import java.util.LinkedList;
 
 public abstract class AbstractRepaintThread extends Thread {
 
-	private boolean quit = false;
 	final protected AbstractOffscreenThread off;
 	private final java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
 	private final Component target;
@@ -71,7 +70,7 @@ public abstract class AbstractRepaintThread extends Thread {
 
 	/** Will gracefully kill this thread by breaking its infinite wait-for-event loop, and also call cancel on all registered offscreen threads. */
 	public void quit() {
-		this.quit = true;
+		interrupt();
 		// notify and finish
 		synchronized (events) {
 			events.notify();
@@ -79,7 +78,7 @@ public abstract class AbstractRepaintThread extends Thread {
 	}
 
 	public void run() {
-		while (!quit) {
+		while (!isInterrupted()) {
 			try {
 				// wait until anyone issues a repaint event
 				synchronized (events) {
@@ -88,7 +87,7 @@ public abstract class AbstractRepaintThread extends Thread {
 					}
 				}
 
-				if (quit) {
+				if (isInterrupted()) {
 					off.interrupt();
 					return; // finish
 				}

@@ -367,7 +367,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	private class ToFront extends Thread {
-		JFrame frame;
+		private final JFrame frame;
 		ToFront(JFrame frame) {
 			this.frame = frame;
 			start();

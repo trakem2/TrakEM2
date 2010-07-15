@@ -350,8 +350,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private class SetLayerThread extends Thread {
 
-		private boolean go = true;
-		private Layer layer;
+		private volatile Layer layer;
 		private final Lock lock = new Lock();
 
 		SetLayerThread() {
@@ -380,7 +379,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 
 		public void run() {
-			while (go) {
+			while (!isInterrupted()) {
 				while (null == this.layer) {
 					synchronized (this) {
 						try { wait(); } catch (InterruptedException ie) {}
@@ -392,14 +391,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					this.layer = null;
 				}
 				//
-				if (!go) return; // after nullifying layer
+				if (isInterrupted()) return; // after nullifying layer
 				//
 				setAndWait(layer);
 			}
 		}
 
 		public void quit() {
-			go = false;
+			interrupt();
 			synchronized (this) {
 				notify();
 			}

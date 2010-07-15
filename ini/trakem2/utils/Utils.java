@@ -123,7 +123,6 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Avoid waiting on the AWT thread repainting ImageJ's log window. */
 	static private final class LogDispatcher extends Thread {
 		private final StringBuilder cache = new StringBuilder();
-		private boolean go = true;
 		public LogDispatcher() {
 			super("T2-Log-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
@@ -131,7 +130,7 @@ public class Utils implements ij.plugin.PlugIn {
 			start();
 		}
 		public final void quit() {
-			go = false;
+			interrupt();
 			synchronized (this) { notify(); }
 		}
 		public final void log(final String msg) {
@@ -146,7 +145,7 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 		public void run() {
-			while (go) {
+			while (!isInterrupted()) {
 				try {
 					String msg = null;
 					int len = 0;
@@ -172,7 +171,6 @@ public class Utils implements ij.plugin.PlugIn {
 	    Waits 100 ms before printing the status message; if too many status messages are being sent, the last one overrides all. */
 	static private final class StatusDispatcher extends Thread {
 		private String msg = null;
-		private boolean go = true;
 		private double progress = -1;
 		public StatusDispatcher() {
 			super("T2-Status-Dispatcher");
@@ -181,7 +179,7 @@ public class Utils implements ij.plugin.PlugIn {
 			start();
 		}
 		public final void quit() {
-			go = false;
+			interrupt();
 			synchronized (this) { notify(); }
 		}
 		public final void showStatus(final String msg) {
@@ -205,7 +203,7 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 		public void run() {
-			while (go) {
+			while (!isInterrupted()) {
 				try {
 					String msg = null;
 					double progress = -1;
@@ -228,7 +226,7 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 					// allow some time for overwriting of messages
 					Thread.sleep(100);
-					synchronized (this) { wait(); }
+					synchronized (this) { try { wait(); } catch (InterruptedException ie) {} }
 				} catch (Exception e) {
 					e.printStackTrace();
 				}

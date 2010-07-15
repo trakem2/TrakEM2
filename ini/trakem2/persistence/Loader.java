@@ -597,8 +597,8 @@ abstract public class Loader {
 	}
 
 	final static private class GCRunner extends Thread {
-		private boolean run = false;
-		private long initial = Long.MAX_VALUE;
+		private volatile boolean run = false;
+		private volatile long initial = Long.MAX_VALUE;
 		final private int MAX_ITERATIONS = 3;
 		GCRunner() {
 			super("GCRunner");

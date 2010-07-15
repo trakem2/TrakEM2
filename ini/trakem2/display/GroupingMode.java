@@ -307,7 +307,7 @@ public abstract class GroupingMode implements Mode {
 
 	protected abstract class SimpleThread extends Thread
 	{
-		private boolean updateAgain = false;
+		private volatile boolean updateAgain = false;
 
 		SimpleThread() {
 			setPriority(Thread.NORM_PRIORITY);

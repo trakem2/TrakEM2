@@ -28,8 +28,8 @@ import ini.trakem2.utils.IJError;
 /** To be used in combination with the AbstractRepaintThread, as a thread to create graphics offscreen.*/
 public abstract class AbstractOffscreenThread extends Thread {
 
-	protected RepaintProperties rp = null;
-	private AtomicBoolean mustRepaint = new AtomicBoolean(false);
+	protected volatile RepaintProperties rp = null;
+	private final AtomicBoolean mustRepaint = new AtomicBoolean(false);
 
 	AbstractOffscreenThread(String name) {
 		super(name);

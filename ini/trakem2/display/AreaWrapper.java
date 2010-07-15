@@ -132,9 +132,8 @@ public class AreaWrapper {
 		/** The list of all painted points. */
 		private final LinkedList<Point> points = new LinkedList<Point>();
 		/** The last point on which a paint event was done. */
-		private Point previous_p = null;
-		private boolean paint = true;
-		private int brush_size; // the diameter
+		private volatile Point previous_p = null;
+		private final int brush_size; // the diameter
 		private final Area brush;
 		final private int leftClick=16, alt=9;
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
@@ -264,12 +263,13 @@ public class AreaWrapper {
 		}
 
 		final void quit() {
-			if (!this.paint) return; // already quit
-			this.paint = false;
-			// Make interpolated points affect add or subtract operations
-			synchronized (this) {
-				try {
+			//if (!this.paint) return; // already quit
+			//this.paint = false;
+			if (isInterrupted()) return;
+			interrupt();
 
+			// Make interpolated points affect add or subtract operations
+			try {
 				accumulator.shutdownNow();
 				composition.cancel(true);
 				composer.shutdown();
@@ -340,9 +340,8 @@ public class AreaWrapper {
 				}
 				// else do nothing, the subtract is already done
 
-				} catch (Exception ee) {
-					IJError.print(ee);
-				}
+			} catch (Exception ee) {
+				IJError.print(ee);
 			}
 		}
 		final Area getTmpArea() {
@@ -352,7 +351,7 @@ public class AreaWrapper {
 		/** For best smoothness, each mouse dragged event should be captured!*/
 		public void run() {
 			// create brush
-			while (paint) {
+			while (!isInterrupted()) {
 				// detect mouse up (don't use 'flags': was recorded on starting up)
 				if (0 == (this.flags & leftClick)) { // I think this never happens, but there have been reports.
 					Utils.log2("--------->>  Quit brushing from inside loop");
