@@ -6,18 +6,15 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.geom.PathIterator;
-import java.awt.geom.GeneralPath;
 import java.awt.geom.Area;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Point;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.HashMap;
-import java.util.Set;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 
