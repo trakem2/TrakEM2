@@ -139,13 +139,13 @@ public class AreaWrapper {
 		final private int leftClick=16, alt=9;
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags = dc.getModifiers();
-		private boolean adding = (0 == (flags & alt));
+		final private boolean adding = (0 == (flags & alt));
 		private final Layer la;
 		private final AffineTransform at, at_inv;
 		private final Object arealock = new Object();
 		private final ExecutorService accumulator;
 		private final ScheduledExecutorService composer;
-		private final ScheduledFuture composition;
+		private final ScheduledFuture<?> composition;
 		private final Runnable interpolator;
 
 		Painter(Area area, double mag, Layer la, AffineTransform at) throws Exception {
@@ -285,7 +285,6 @@ public class AreaWrapper {
 				}
 
 				if (adding) {
-					adding = false;
 					this.target_area.add(area);
 
 					// now, depending on paint mode, alter the new target area:
@@ -352,8 +351,8 @@ public class AreaWrapper {
 		public void run() {
 			// create brush
 			while (paint) {
-				// detect mouse up
-				if (0 == (flags & leftClick)) { // I think this never happens, but there have been reports.
+				// detect mouse up (don't use 'flags': was recorded on starting up)
+				if (0 == (dc.getModifiers() & leftClick)) { // I think this never happens, but there have been reports.
 					quit();
 					return;
 				}
@@ -362,7 +361,7 @@ public class AreaWrapper {
 					try { Thread.sleep(3); } catch (InterruptedException ie) {}
 					continue;
 				}
-				if (!la.contains(p.x, p.y, 0)) {
+				if (!dc.getSrcRect().contains(p.x, p.y)) {
 					// Ignoring point off srcRect
 					continue;
 				}
@@ -661,14 +660,14 @@ public class AreaWrapper {
 	}
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		// No matter what tool, ensure that moving and brushing operations are always terminated:
+		if (null != this.painter) {
+			this.painter.quit();
+			this.painter = null;
+		}
 		if (null != AreaWrapper.controller_key) {
 			// finish
 			AreaWrapper.controller_key = null;
 			return;
-		}
-		if (null != this.painter) {
-			this.painter.quit();
-			this.painter = null;
 		}
 		if (null != blowcommander) {
 			blowcommander.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
