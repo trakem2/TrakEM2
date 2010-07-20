@@ -170,7 +170,7 @@ public final class FSLoader extends Loader {
 		try {
 			if (f.exists()) {
 				// crashed!
-				askAndExecMipmapRegeneration("TrakEM2 detected a crash!");
+				notifyMipMapsOutOfSynch();
 			} else {
 				if (!f.createNewFile() && !dir_mipmaps.startsWith("http:")) {
 					Utils.showMessage("WARNING: could NOT create crash detection system:\nCannot write to mipmaps folder.");
@@ -1382,7 +1382,7 @@ public final class FSLoader extends Loader {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
 			if (null != this.dir_mipmaps && ControlWindow.isGUIEnabled() && null != IJ.getInstance()) {
-				askAndExecMipmapRegeneration(null);
+				notifyMipMapsOutOfSynch();
 			}
 		}
 		// fix
@@ -1408,32 +1408,9 @@ public final class FSLoader extends Loader {
 		}
 	}
 
-	private void askAndExecMipmapRegeneration(final String msg) {
-		Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
-		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?\nWhen in doubt say 'no', and do it later if necessary from popup 'Project' submenu.");
-		if (yn.yesPressed()) {
-			final Loader lo = this;
-			new Thread() {
-				{ setPriority(Thread.NORM_PRIORITY); }
-				public void run() {
-					try {
-						// wait while parsing the rest of the XML file
-						while (!v_loaders.contains(lo)) {
-							Thread.sleep(1000);
-						}
-						Project pj = Project.findProject(lo);
-						// Submit a task for each Patch:
-						for (final Displayable patch : pj.getRootLayerSet().getDisplayables(Patch.class)) {
-							synchronized (gm_lock) {
-								// May have been queued for regeneration when trying to display it, hence it will be labeled as touched.
-								if (touched_mipmaps.contains((Patch)patch)) continue;
-							}
-							((FSLoader)lo).regenerateMipMaps((Patch)patch);
-						}
-					} catch (Exception e) {}
-				}
-			}.start();
-		}
+	private void notifyMipMapsOutOfSynch() {
+		Utils.log2("'ok' dialog to explain that mipmaps may be in disagreement with the XML file."); // tip for headless runners whose program gets "stuck"
+		Utils.showMessage("TrakEM2 detected a crash", "TrakEM2 detected a crash. Image mipmap files may be out of synch.\n\nIf you where editing images when the crash occurred,\nplease right-click and run 'Project - Regenerate all mipmaps'");
 	}
 
 	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
