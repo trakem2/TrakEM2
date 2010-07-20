@@ -450,6 +450,10 @@ public class Utils implements ij.plugin.PlugIn {
 		if (!ControlWindow.isGUIEnabled()) System.out.println(msg);
 		else IJ.showMessage(msg);
 	}
+	static public final void showMessage(String title, String msg) {
+		if (!ControlWindow.isGUIEnabled()) System.out.println(title + "\n" + msg);
+		else IJ.showMessage(title, msg);
+	}
 
 	/** Runs the showMessage in a separate Thread. */
 	static public final void showMessageT(final String msg) {
