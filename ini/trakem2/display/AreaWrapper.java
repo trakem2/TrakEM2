@@ -273,7 +273,9 @@ public class AreaWrapper {
 				accumulator.shutdownNow();
 				composition.cancel(true);
 				composer.shutdown();
-				composer.awaitTermination(30, TimeUnit.SECONDS);
+				try {
+					composer.awaitTermination(30, TimeUnit.SECONDS);
+				} catch (InterruptedException ie) {} // proceed in any case
 
 				if (points.size() > 1) {
 					// one last time:
