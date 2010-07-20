@@ -548,7 +548,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private boolean popup = false;
 
-	private boolean locked = false; // TODO temporary!
+	private boolean locked = false;
 
 	private int tmp_tool = -1;
 
@@ -712,18 +712,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		switch (tool) {
 		case ProjectToolbar.SELECT:
+			// gather initial box (for repainting purposes)
+			box = display.getMode().getRepaintBounds();
 			// check if the active is usable:
 			// check if the selection contains locked objects
 			if (selection.isLocked()) {
 				locked = true;
 				return;
 			}
-			if (selection.isEmpty()) {
-				locked = true;
-				return;
-			}
-			// gather initial box (for repainting purposes)
-			box = display.getMode().getRepaintBounds();
 			display.getMode().mousePressed(me, x_p, y_p, magnification);
 			break;
 		default: // the PEN and PENCIL tools, and any other custom tool
@@ -733,12 +729,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			invalidateVolatile();
 			break;
 		}
-		//Utils.log("locked: " + locked + " popup: " + popup + " input_disabled2: " + input_disabled2);
 	}
 
 	public void mouseDragged(MouseEvent me) {
 
 		super.flags = me.getModifiers();
+
+		if (popup) return;
 
 		// ban if beyond bounds:
 		if (x_p < srcRect.x || y_p < srcRect.y || x_p > srcRect.x + srcRect.width || y_p > srcRect.y + srcRect.height) {
@@ -746,12 +743,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 
 		Selection selection = display.getSelection();
-		if (locked && !selection.isEmpty()) {
-			Utils.log("Selection is locked.");
+		if (ProjectToolbar.SELECT == ProjectToolbar.getToolId() && locked) {
+			Utils.log2("Selection is locked.");
 			return;
 		}
-
-		if (popup) return;
 
 		dragging = true;
 
@@ -891,6 +886,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		
 		boolean dragging2 = dragging;
 		dragging = false;
+		boolean locked2 = locked;
+		locked = false;
+
 		if (popup) {
 			popup = false;
 			return;
@@ -933,17 +931,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}
 
-		if (locked) {
-			locked = false;
-			if (dragging2) {
-				String msg = "\nRight-click and select\"";
-				if (null != display.getActive()) {
-					msg += display.getActive().getClass() == Patch.class ? "Unlock" : "Unlink";
+		if (locked2) {
+			if (ProjectToolbar.SELECT == tool) {
+				if (dragging2) {
+					Utils.showMessage("Selection is locked!");
 				}
-				msg += "\" first.";
-				Utils.showMessage("Selection is locked or contains links to a locked object." + msg);
+				return;
 			}
-			return;
 		}
 
 		// pan with middle mouse like in inkscape
