@@ -353,8 +353,8 @@ public class AreaWrapper {
 			// create brush
 			while (!isInterrupted()) {
 				// detect mouse up (don't use 'flags': was recorded on starting up)
-				if (0 == (this.flags & leftClick)) { // I think this never happens, but there have been reports.
-					Utils.log2("--------->>  Quit brushing from inside loop");
+				if (0 == (dc.getModifiers() & leftClick)) {
+					//Utils.log2("--------->>  Quit brushing from inside loop");
 					quit();
 					return;
 				}
