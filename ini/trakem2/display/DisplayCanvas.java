@@ -1359,8 +1359,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		private void mouseMoved(MouseEvent me) {
 			if (null == me) return;
 			
-			DisplayCanvas.super.flags = me.getModifiers();
-			
 			if (input_disabled || display.getMode().isDragging()) return;
 
 			xMouse = (int)(me.getX() / magnification) + srcRect.x;
@@ -1368,7 +1366,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final Displayable active = display.getActive();
 
 			// only when no mouse buttons are down
-			final int flags = me.getModifiers(); // override, the super fails for some reason
+			final int flags = DisplayCanvas.super.flags;
 			if (0 == (flags & InputEvent.BUTTON1_MASK)
 			/* && 0 == (flags & InputEvent.BUTTON2_MASK) */ // this is the alt key down ..
 			 && 0 == (flags & InputEvent.BUTTON3_MASK)
@@ -1416,9 +1414,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);
 				Utils.showStatus(sb.toString(), false);
-			} else {
-				// set xMouse, yMouse, and print pixel value
-				DisplayCanvas.super.mouseMoved(me);
 			}
 		}
 	}
@@ -1428,7 +1423,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public void mouseMoved(final MouseEvent me) {
+		super.flags = me.getModifiers();
 		mouse_moved.dispatch(me);
+		if (!me.isShiftDown())
+			DisplayCanvas.super.mouseMoved(me);
 	}
 
 	/** Zoom in using the current mouse position, or the center if the mouse is out. */
