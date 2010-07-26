@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.InputEvent;
 
 import ini.trakem2.display.Layer;
 import ini.trakem2.imaging.Segmentation;
@@ -135,7 +136,8 @@ public class AreaWrapper {
 		private volatile Point previous_p = null;
 		private final int brush_size; // the diameter
 		private final Area brush;
-		final private int leftClick=16, alt=9;
+		final private int leftClick = InputEvent.BUTTON1_MASK;
+		final private int alt = (InputEvent.ALT_MASK|InputEvent.SHIFT_MASK);
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
 		final private int flags;
 		final private boolean adding;
