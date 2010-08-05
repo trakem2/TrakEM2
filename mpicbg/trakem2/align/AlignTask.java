@@ -31,6 +31,7 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
+import mpicbg.models.Transforms;
 import mpicbg.trakem2.align.Align.ParamOptimize;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -915,16 +916,34 @@ final public class AlignTask
 				return false;
 			}
 
+			boolean again = false;
 			try
 			{
-				modelFound = model.filterRansac(
-						candidates,
-						inliers,
-						1000,
-						cp.maxEpsilon,
-						cp.minInlierRatio,
-						3 * model.getMinNumMatches(),
-						3 );
+				do
+				{
+					again = false;
+					modelFound = model.filterRansac(
+								candidates,
+								inliers,
+								1000,
+								p.maxEpsilon,
+								p.minInlierRatio,
+								3 * model.getMinNumMatches(),
+								3 );
+					if ( modelFound && p.rejectIdentity )
+					{
+						final ArrayList< Point > points = new ArrayList< Point >();
+						PointMatch.sourcePoints( inliers, points );
+						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+						{
+							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+							candidates.removeAll( inliers );
+							inliers.clear();
+							again = true;
+						}
+					}
+				}
+				while ( again );
 			}
 			catch ( NotEnoughDataPointsException e )
 			{

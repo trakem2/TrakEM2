@@ -33,9 +33,11 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
+import mpicbg.models.Transforms;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
@@ -79,6 +81,12 @@ public class Align
 		
 		public float correspondenceWeight = 1;
 		
+		/**
+		 * Ignore identity transform up to a given tolerance
+		 */
+		public boolean rejectIdentity = false;
+		public float identityTolerance = 0.5f;
+		
 		public Param()
 		{
 			sift.maxOctaveSize = 600;
@@ -95,6 +103,8 @@ public class Align
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
 			gd.addNumericField( "inlier_ratio :", minInlierRatio, 2 );
 			gd.addChoice( "expected_transformation :", modelStrings, modelStrings[ expectedModelIndex ] );
+			gd.addCheckbox( "ignore constant background", rejectIdentity );
+			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 			
 			gd.addMessage( "Alignment:" );
 			gd.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
@@ -110,6 +120,10 @@ public class Align
 			maxEpsilon = ( float )gd.getNextNumber();
 			minInlierRatio = ( float )gd.getNextNumber();
 			expectedModelIndex = gd.getNextChoiceIndex();
+			
+			rejectIdentity = gd.getNextBoolean();
+			identityTolerance = ( float )gd.getNextNumber();
+			
 			desiredModelIndex = gd.getNextChoiceIndex();
 			
 			correspondenceWeight = ( float )gd.getNextNumber();
@@ -148,6 +162,9 @@ public class Align
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
 			p.expectedModelIndex = expectedModelIndex;
+			p.rejectIdentity = rejectIdentity;
+			p.identityTolerance = identityTolerance;
+			
 			p.desiredModelIndex = desiredModelIndex;
 			
 			p.correspondenceWeight = correspondenceWeight;
@@ -174,7 +191,9 @@ public class Align
 				( rod == p.rod ) &&
 				( maxEpsilon == p.maxEpsilon ) &&
 				( minInlierRatio == p.minInlierRatio ) &&
-				( expectedModelIndex == p.expectedModelIndex );
+				( expectedModelIndex == p.expectedModelIndex ) &&
+				( rejectIdentity == p.rejectIdentity ) &&
+				( identityTolerance == p.identityTolerance );
 //			&& ( desiredModelIndex == p.desiredModelIndex );
 		}
 	}
@@ -249,6 +268,8 @@ public class Align
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
 			p.expectedModelIndex = expectedModelIndex;
+			p.rejectIdentity = rejectIdentity;
+			p.identityTolerance = identityTolerance;
 			
 			p.desiredModelIndex = desiredModelIndex;
 			p.maxIterations = maxIterations;
@@ -440,16 +461,34 @@ public class Align
 					}
 		
 					boolean modelFound;
+					boolean again = false;
 					try
 					{
-						modelFound = model.filterRansac(
-								candidates,
-								inliers,
-								1000,
-								p.maxEpsilon,
-								p.minInlierRatio,
-								Math.max( 7, 3 * model.getMinNumMatches() ),
-								3 );
+						do
+						{
+							again = false;
+							modelFound = model.filterRansac(
+									candidates,
+									inliers,
+									1000,
+									p.maxEpsilon,
+									p.minInlierRatio,
+									Math.max( 7, 3 * model.getMinNumMatches() ),
+									3 );
+							if ( modelFound && p.rejectIdentity )
+							{
+								final ArrayList< Point > points = new ArrayList< Point >();
+								PointMatch.sourcePoints( inliers, points );
+								if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+								{
+									IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+									candidates.removeAll( inliers );
+									inliers.clear();
+									again = true;
+								}
+							}
+						}
+						while ( again );
 					}
 					catch ( NotEnoughDataPointsException e )
 					{
