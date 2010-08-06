@@ -926,15 +926,15 @@ final public class AlignTask
 								candidates,
 								inliers,
 								1000,
-								p.maxEpsilon,
-								p.minInlierRatio,
+								cp.maxEpsilon,
+								cp.minInlierRatio,
 								3 * model.getMinNumMatches(),
 								3 );
-					if ( modelFound && p.rejectIdentity )
+					if ( modelFound && cp.rejectIdentity )
 					{
 						final ArrayList< Point > points = new ArrayList< Point >();
 						PointMatch.sourcePoints( inliers, points );
-						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+						if ( Transforms.isIdentity( model, points, cp.identityTolerance ) )
 						{
 							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
 							candidates.removeAll( inliers );
