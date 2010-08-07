@@ -215,6 +215,12 @@ public class Align
 		 */
 		public int maxPlateauwidth = 200;
 		
+		/**
+		 * Filter outliers
+		 */
+		public boolean filterOutliers = false;
+		public float meanFactor = 3.0f;
+		
 		@Override
 		public void addFields( final GenericDialog gd )
 		{
@@ -222,6 +228,8 @@ public class Align
 			
 			gd.addNumericField( "maximal_iterations :", maxIterations, 0 );
 			gd.addNumericField( "maximal_plateauwidth :", maxPlateauwidth, 0 );
+			gd.addCheckbox( "filter outliers", filterOutliers );
+			gd.addNumericField( "mean_factor :", meanFactor, 2 );
 		}
 		
 		@Override
@@ -231,6 +239,8 @@ public class Align
 			
 			maxIterations = ( int )gd.getNextNumber();
 			maxPlateauwidth = ( int )gd.getNextNumber();
+			filterOutliers = gd.getNextBoolean();
+			meanFactor = ( float )gd.getNextNumber();
 			
 			return !gd.invalidNumber();
 		}
@@ -274,6 +284,8 @@ public class Align
 			p.desiredModelIndex = desiredModelIndex;
 			p.maxIterations = maxIterations;
 			p.maxPlateauwidth = maxPlateauwidth;
+			p.filterOutliers = filterOutliers;
+			p.meanFactor = meanFactor;
 			
 			return p;
 		}
@@ -283,7 +295,9 @@ public class Align
 			return
 				super.equals( p ) &&
 				( maxIterations == p.maxIterations ) &&
-				( maxPlateauwidth == p.maxPlateauwidth );
+				( maxPlateauwidth == p.maxPlateauwidth ) &&
+				( filterOutliers == p.filterOutliers ) &&
+				( meanFactor == p.meanFactor );
 		}
 	}
 	
@@ -801,7 +815,10 @@ public class Align
 		
 		try
 		{
-			tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
+			if ( p.filterOutliers )
+				tc.optimizeAndFilter( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth, p.meanFactor );
+			else
+				tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
 		}
 		catch ( Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
 	}
