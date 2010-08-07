@@ -956,7 +956,7 @@ A:				for ( final AbstractAffineTile2D< ? > t : tiles )
 					{
 						if ( p.getDistance() >= e.max )
 						{
-							final AbstractAffineTile2D< ? > o = t.findConnectedTile( p );
+							final Tile< ? > o = t.findConnectedTile( p );
 							t.removeConnectedTile( o );
 							o.removeConnectedTile( t );
 							//Utils.log2( "Removing bad match from configuration, error = " + e.max );

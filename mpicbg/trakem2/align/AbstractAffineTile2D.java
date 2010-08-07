@@ -90,30 +90,6 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 		virtualMatches.clear();
 	}
 	
-	/**
-	 * Try to find the tile which is connected by a particular
-	 * {@link PointMatch}.
-	 * 
-	 * Note that this method searches only the known connected tiles to limit
-	 * the cost of that anyway expensive search.
-	 * 
-	 * @param match
-	 * 
-	 * @return connectedTile or null
-	 */
-	final public AbstractAffineTile2D< ? > findConnectedTile( PointMatch match )
-	{
-		final Point p = match.getP2();
-		for ( final mpicbg.models.Tile< ? > t : connectedTiles )
-		{
-			for ( final PointMatch m : t.getMatches() )
-			{
-				if ( p == m.getP1() ) return ( AbstractAffineTile2D< ? > )t;
-			}
-		}
-		return null;
-	}
-	
 	abstract protected void initModel();
 	
 	public AbstractAffineTile2D( final A model, final Patch patch )
