@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.LinkedList;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -32,7 +31,6 @@ import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.models.Transforms;
-import mpicbg.trakem2.align.Align.ParamOptimize;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
@@ -44,7 +42,6 @@ import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ini.trakem2.Project;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
@@ -53,7 +50,6 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.VectorData;
 import ini.trakem2.display.VectorDataTransform;
-import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
@@ -63,7 +59,6 @@ import ini.trakem2.utils.Utils;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Methods collection to be called from the GUI for alignment tasks.
@@ -928,7 +923,7 @@ final public class AlignTask
 								1000,
 								cp.maxEpsilon,
 								cp.minInlierRatio,
-								3 * model.getMinNumMatches(),
+								cp.minNumInliers,
 								3 );
 					if ( modelFound && cp.rejectIdentity )
 					{
@@ -965,7 +960,7 @@ final public class AlignTask
 				Display.repaint( layer1 );
 			}
 			else
-				IJ.log( "No model found for graphs in layer \"" + layer1.getTitle() + "\" and \"" + layer2.getTitle() + "\"." );
+				IJ.log( "No model found for graphs in layer \"" + layer1.getTitle() + "\" and \"" + layer2.getTitle() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 		}
 		
 		return modelFound;

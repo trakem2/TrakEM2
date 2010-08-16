@@ -215,7 +215,7 @@ final public class AlignLayersTask
 		List< PointMatch > candidates = new ArrayList< PointMatch >();
 		List< PointMatch > inliers = new ArrayList< PointMatch >();
 		
-		AffineTransform a = new AffineTransform();
+		final AffineTransform a = new AffineTransform();
 		
 		int s = 0;
 		for ( final Layer layer : layerRange )
@@ -288,7 +288,7 @@ final public class AlignLayersTask
 									1000,
 									p.maxEpsilon,
 									p.minInlierRatio,
-									3 * model.getMinNumMatches(),
+									p.minNumInliers,
 									3 );
 						if ( modelFound && p.rejectIdentity )
 						{
@@ -325,7 +325,10 @@ final public class AlignLayersTask
 					Display.repaint( layer );
 				}
 				else
-					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor." );
+				{
+					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					a.setToIdentity();
+				}
 			}
 			IJ.showProgress( ++s, layerRange.size() );
 		}
@@ -470,7 +473,7 @@ final public class AlignLayersTask
 									1000,
 									p.maxEpsilon,
 									p.minInlierRatio,
-									3 * model.getMinNumMatches(),
+									p.minNumInliers,
 									3 );
 						if ( modelFound && p.rejectIdentity )
 						{
@@ -565,7 +568,7 @@ final public class AlignLayersTask
 					Display.repaint( layer2 );
 				}
 				else
-					IJ.log( "No model found for layer \"" + layer2.getTitle() + "\" and its predecessor." );
+					IJ.log( "No model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			}
 			IJ.showProgress( ++s, layerRange.size() );	
 		}
