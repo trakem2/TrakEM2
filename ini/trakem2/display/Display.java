@@ -3803,7 +3803,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Apply transform propagating to last layer")) {
 			if (mode.getClass() == AffineTransformMode.class || mode.getClass() == NonLinearTransformMode.class) {
 				final LayerSet ls = getLayerSet();
-				final HashSet<Layer> subset = new HashSet<Layer>(ls.getLayers(ls.indexOf(Display.this.layer)+1, ls.size())); // +1 to exclude current layer
+				final HashSet<Layer> subset = new HashSet<Layer>(ls.getLayers(ls.indexOf(Display.this.layer)+1, ls.size()-1)); // +1 to exclude current layer
 				if (mode.getClass() == AffineTransformMode.class) ((AffineTransformMode)mode).applyAndPropagate(subset);
 				else if (mode.getClass() == NonLinearTransformMode.class) ((NonLinearTransformMode)mode).apply(subset);
 				setMode(new DefaultMode(Display.this));

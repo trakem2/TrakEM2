@@ -23,6 +23,7 @@ import ij.process.ImageProcessor;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
@@ -138,13 +139,7 @@ final public class AlignLayersTask
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
 				if (index < cref.getSelectedIndex()) cref.select(index);
 			}
-		});		
-
-		Align.param.addFields( gd );
-		gd.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
-		
-		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "propagate after last transform", propagateTransform );
+		});
 		
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
@@ -152,11 +147,22 @@ final public class AlignLayersTask
 		final int first = gd.getNextChoiceIndex();
 		final int ref = gd.getNextChoiceIndex();
 		final int last = gd.getNextChoiceIndex();
+
+		final GenericDialog gd2 = new GenericDialog( "Align Layers" );
 		
-		Align.param.readFields( gd );
+		Align.param.addFields( gd2 );
+		gd2.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
 		
-		useBUnwarpJ = gd.getNextBoolean();
-		propagateTransform = gd.getNextBoolean();
+		gd2.addMessage( "Miscellaneous:" );
+		gd2.addCheckbox( "propagate after last transform", propagateTransform );
+		
+		gd2.showDialog();
+		if ( gd2.wasCanceled() ) return;
+		
+		Align.param.readFields( gd2 );
+		
+		useBUnwarpJ = gd2.getNextBoolean();
+		propagateTransform = gd2.getNextBoolean();
 		
 		if (useBUnwarpJ && !elasticParam.showDialog()) return;
 
@@ -334,9 +340,13 @@ final public class AlignLayersTask
 		}
 		if ( propagateTransform )
 		{
-			for (Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
-				AlignTask.transformPatchesAndVectorData(la, a);
-			}
+			final LayerSet layerSet = l.getParent();
+			if ( last > first && last < layerSet.size() - 2 )
+				for ( final Layer la : layerSet.getLayers( last + 1, layerSet.size() - 1 ) )
+					AlignTask.transformPatchesAndVectorData( la, a );
+			else if ( first > last && last > 0 )
+				for ( final Layer la : layerSet.getLayers( 0, last - 1 ) )
+					AlignTask.transformPatchesAndVectorData( la, a );
 		}
 	}
 	
