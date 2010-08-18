@@ -82,7 +82,7 @@ public abstract class AbstractRepaintThread extends Thread {
 			try {
 				// wait until anyone issues a repaint event
 				synchronized (events) {
-					if (0 == events.size()) {
+					if (0 == events.size() && !isInterrupted()) {
 						try { events.wait(); } catch (InterruptedException ie) {}
 					}
 				}
