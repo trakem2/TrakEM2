@@ -197,15 +197,21 @@ public class Bureaucrat extends Thread {
 			IJError.print(ie);
 		}
 		// wait for all others in a separate thread, then clear progress bar
+		Thread.yield();
 		final ThreadGroup tg = getThreadGroup();
-		if (null == tg) return; // will be null if all threads of the former group have died
+		if (null == tg) {
+			Utils.log2("All threads related to the task died.");
+			return; // will be null if all threads of the former group have died
+		}
 		new Thread() { public void run() {
 			try {
 				// Reasonable effort to join all threads
 				Thread[] t = new Thread[tg.activeCount() * 2];
 				int len = tg.enumerate(t);
 				for (int i=0; i<len && i<t.length; i++) {
+					Utils.log2("Joining thread: " + t[i]);
 					try { t[i].join(); } catch (InterruptedException ie) {}
+					Utils.log2("... thread died: " + t[i]);
 				}
 			} catch (Exception e) {
 				IJError.print(e);
