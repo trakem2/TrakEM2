@@ -35,8 +35,6 @@ import java.util.SortedMap;
 import java.util.Comparator;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 import java.awt.Component;
 import java.awt.geom.AffineTransform;
@@ -60,6 +58,7 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 
 import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AlignTask;
 import ij.gui.GenericDialog;
 
 import java.io.File;
@@ -228,7 +227,7 @@ public class ManualAlignMode implements Mode {
 			//Utils.log2("lm is " + lm);
 			if (null != lm) {
 				lm.set(index, x_d, y_d);
-				display.repaint();
+				Display.repaint();
 			}
 		}
 	}
@@ -335,7 +334,7 @@ public class ManualAlignMode implements Mode {
 		}
 
 		if (n_landmarks < min) {
-			Utils.showMessage("Need at least " + min + " landmarks for a " + Align.param.modelStrings[model_index] + " model");
+			Utils.showMessage("Need at least " + min + " landmarks for a " + Align.Param.modelStrings[model_index] + " model");
 			return false;
 		}
 
@@ -346,13 +345,15 @@ public class ManualAlignMode implements Mode {
 		// Match in pairs.
 
 		// So, get two submaps: from ref_layer to first, and from ref_layer to last
-		SortedMap<Layer,Landmarks> first_chunk = new TreeMap<Layer,Landmarks>(sorted.headMap(ref_layer)); // strictly lower Z than ref_layer
-		first_chunk.put(ref_layer, m.get(ref_layer)); // .. so add ref_layer
+		final SortedMap<Layer,Landmarks> first_chunk_ = new TreeMap<Layer,Landmarks>(sorted.headMap(ref_layer)); // strictly lower Z than ref_layer
+		first_chunk_.put(ref_layer, m.get(ref_layer)); // .. so add ref_layer
 
-		SortedMap<Layer,Landmarks> second_chunk = sorted.tailMap(ref_layer); // equal or larger Z than ref_layer
+		final SortedMap<Layer,Landmarks> second_chunk = sorted.tailMap(ref_layer); // equal or larger Z than ref_layer
 
+		final SortedMap<Layer,Landmarks> first_chunk;
+		
 		// Reverse order of first_chunk
-		if (first_chunk.size() > 1) {
+		if (first_chunk_.size() > 1) {
 			SortedMap<Layer,Landmarks> fc = new TreeMap<Layer,Landmarks>(new Comparator<Layer>() {
 				public boolean equals(Object ob) {
 					return this == ob;
@@ -365,11 +366,28 @@ public class ManualAlignMode implements Mode {
 					else return 0;
 				}
 			});
-			fc.putAll(first_chunk);
+			fc.putAll(first_chunk_);
 			first_chunk = fc;
+		} else {
+			first_chunk = first_chunk_;
 		}
 
-		LayerSet ls = ref_layer.getParent();
+		final LayerSet ls = ref_layer.getParent();
+
+		// Gather all Patch instances that will be affected
+		final ArrayList<Patch> patches = new ArrayList<Patch>();
+		for (final Layer la : m.keySet()) patches.addAll(la.getAll(Patch.class));
+		if (propagate_to_first && first_chunk.size() > 1)
+			for (final Layer la : ls.getLayers().subList(0, ls.indexOf(first_chunk.lastKey())))
+				patches.addAll(la.getAll(Patch.class));
+		if (propagate_to_last && second_chunk.size() > 1)
+			for (final Layer la : ls.getLayers().subList(ls.indexOf(second_chunk.lastKey()) + 1, ls.size()))
+				patches.addAll(la.getAll(Patch.class));
+		
+
+		// Transform segmentations along with patches
+		AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
+
 
 		// Apply!
 
@@ -397,6 +415,8 @@ public class ManualAlignMode implements Mode {
 
 		// Store current state
 		ls.addTransformStep();
+
+		}});
 
 
 		}}, display.getProject());
@@ -519,7 +539,7 @@ public class ManualAlignMode implements Mode {
 			if (sizes.size() > 1) {
 				Utils.log("WARNING: different number of landmarks in at least one layer.");
 			}
-			display.repaint();
+			Display.repaint();
 
 		} catch (Throwable t) {
 			IJError.print(t);
