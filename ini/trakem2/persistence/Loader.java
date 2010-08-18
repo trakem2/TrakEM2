@@ -3604,19 +3604,21 @@ while (it.hasNext()) {
 			// See this amazingly old bug (1998): http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=4017593
 
 			final File ftmp = IJ.isWindows() ? fxml : new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
-			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(ftmp)), "8859_1");
+			final FileOutputStream fos = new FileOutputStream(ftmp);
+			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(fos), "8859_1");
 			try {
 				writer.write(sb_header.toString());
 				sb_header = null;
 				project.exportXML(writer, "", patches_dir);
 				writer.flush(); // make sure all buffered chars are written
+				fos.getFD().sync(); // ensure the file is synch'ed with the file system, given that we are going to rename it after closing it.
 			} catch (Exception e) {
 				Utils.log("FAILED to write to the file at " + fxml);
 				IJError.print(e);
 				path = null;
 				return null;
 			} finally {
-				writer.close();
+				writer.close(); // flushes and closes the FileOutputStream as well
 				writer = null;
 			}
 
