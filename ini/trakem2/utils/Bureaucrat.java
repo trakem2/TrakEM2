@@ -198,6 +198,7 @@ public class Bureaucrat extends Thread {
 		}
 		// wait for all others in a separate thread, then clear progress bar
 		final ThreadGroup tg = getThreadGroup();
+		if (null == tg) return; // will be null if all threads of the former group have died
 		new Thread() { public void run() {
 			try {
 				// Reasonable effort to join all threads
