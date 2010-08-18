@@ -173,12 +173,12 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 
 		@Override
-		public void apply(final VectorDataTransform vdt) {
+		public void apply(final VectorDataTransform vlocal) {
 			// transform the point itself
-			super.apply(vdt);
+			super.apply(vlocal);
 			// ... and the area
 			if (null == aw) return;
-			M.apply(vdt, aw.getArea());
+			M.apply(vlocal, aw.getArea());
 		}
 		
 		@Override
