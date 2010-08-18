@@ -1061,7 +1061,7 @@ abstract public class Loader {
 		return null;
 	}
 
-	protected final class ImageLoadingLock extends Lock {
+	protected final class ImageLoadingLock {
 		final String key;
 		ImageLoadingLock(final String key) { this.key = key; }
 	}
@@ -1137,15 +1137,12 @@ abstract public class Loader {
 		// 2 - check if the exact file is present for the desired level
 		if (level >= 0 && isMipMapsEnabled()) {
 			synchronized (plock) {
-				plock.lock();
-
 				synchronized (db_lock) {
 					lock();
 					mawt = mawts.get(id, level);
 					unlock();
 				}
 				if (null != mawt) {
-					plock.unlock();
 					return mawt; // was loaded by a different thread
 				}
 
@@ -1208,7 +1205,6 @@ abstract public class Loader {
 					} finally {
 						removeImageLoadingLock(plock);
 						unlock();
-						plock.unlock();
 					}
 				}
 			}
@@ -1243,6 +1239,7 @@ abstract public class Loader {
 				lock();
 				plock = getOrMakeImageLoadingLock(p.getId(), level);
 			} catch (Exception e) {
+				if (null != plock) removeImageLoadingLock(plock); // TODO there may be a flaw in the image loading locks: when removing it, if it had been acquired by another thread, then a third thread will create it new. The image loading locks should count the number of threads that have them, and remove themselves when zero.
 				return NOT_FOUND;
 			} finally {
 				unlock();
@@ -1250,24 +1247,22 @@ abstract public class Loader {
 		}
 
 		synchronized (plock) {
-			try {
-				plock.lock();
-
-				// Check if a previous call made it while waiting:
-				mawt = mawts.getClosestAbove(id, level);
-				if (null != mawt) {
-					synchronized (db_lock) {
-						lock();
-						removeImageLoadingLock(plock);
-						unlock();
-					}
-					return mawt;
+			// Check if a previous call made it while waiting:
+			mawt = mawts.getClosestAbove(id, level);
+			if (null != mawt) {
+				synchronized (db_lock) {
+					lock();
+					removeImageLoadingLock(plock);
+					unlock();
 				}
+				return mawt;
+			}
+		}
 
-				// Else, create the mawt:
-				plock.unlock();
-				Patch.PatchImage pai = p.createTransformedImage();
-				plock.lock();
+		try {
+			// Else, create the mawt:
+			Patch.PatchImage pai = p.createTransformedImage();
+			synchronized (plock) {
 				if (null != pai && null != pai.target) {
 					final ImageProcessor ip = pai.target;
 					ip.setMinAndMax(p.getMin(), p.getMax());
@@ -1279,19 +1274,17 @@ abstract public class Loader {
 					pai = null;
 					if (null != alpha_mask) {
 						mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
-								       embedAlpha((int[])ip.convertToRGB().getPixels(),
-										  (byte[])alpha_mask.getPixels(),
-										  null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+								embedAlpha((int[])ip.convertToRGB().getPixels(),
+										(byte[])alpha_mask.getPixels(),
+										null == outside_mask ? null : (byte[])outside_mask.getPixels()));
 					} else {
 						mawt = ip.createImage();
 					}
 				}
-			} catch (Exception e) {
-				Utils.log2("Could not create an image for Patch " + p);
-				mawt = null;
-			} finally {
-				plock.unlock();
 			}
+		} catch (Exception e) {
+			Utils.log2("Could not create an image for Patch " + p);
+			mawt = null;
 		}
 
 		synchronized (db_lock) {

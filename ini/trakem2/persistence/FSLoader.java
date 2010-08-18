@@ -537,12 +537,9 @@ public final class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			plock.lock();
-
 			imp = mawts.get(p.getId());
 			if (null != imp) {
 				// was loaded by a different thread -- TODO the slice of the stack could be wrong!
-				plock.unlock();
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						return imp.getProcessor();
@@ -578,7 +575,6 @@ public final class FSLoader extends Loader {
 						}
 						removeImageLoadingLock(plock);
 						unlock();
-						plock.unlock();
 						return null;
 					}
 					// update all clients of the stack, if any
@@ -619,7 +615,6 @@ public final class FSLoader extends Loader {
 					IJError.print(e);
 				}
 				unlock();
-				plock.unlock();
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						return ip; // not imp.getProcessor because after unlocking the slice may have changed for stacks.
@@ -2873,12 +2868,10 @@ public final class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			plock.lock();
-
 			imp = mawts.get( stack.getId());
 			if (null != imp) {
 				// was loaded by a different thread
-				plock.unlock();
+				// TODO will the ImageLoadingLock be removed by the other thread? It will, I think.
 				return imp;
 			}
 
@@ -2912,7 +2905,6 @@ public final class FSLoader extends Loader {
 				} finally {
 					removeImageLoadingLock(plock);
 					unlock();
-					plock.unlock();
 				}
 
 				return imp;
