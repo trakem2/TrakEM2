@@ -740,8 +740,8 @@ public abstract class Node<T> implements Taggable {
 		this.x = fp[0];
 		this.y = fp[1];
 	}
-	public void apply(final VectorDataTransform vdt) {
-		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
+	public void apply(final VectorDataTransform vlocal) {
+		for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
 			// Apply only the first one that contains the point
 			if (rt.roi.contains(x, y)) {
 				final float[] fp = new float[]{x, y};
