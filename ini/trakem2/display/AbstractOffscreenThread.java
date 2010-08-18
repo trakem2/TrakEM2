@@ -49,10 +49,10 @@ public abstract class AbstractOffscreenThread extends Thread {
 	public void run() {
 		while (!isInterrupted()) {
 			try {
-				if (mustRepaint.getAndSet(false)) {
-					paint();
-				} else {
-					synchronized (this) {
+				synchronized (this) {
+					if (mustRepaint.getAndSet(false)) {
+						paint();
+					} else {
 						try { wait(); } catch (InterruptedException ie) {}
 					}
 				}
