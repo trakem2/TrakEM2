@@ -17,9 +17,12 @@
 package mpicbg.trakem2.transform;
 
 import java.awt.Rectangle;
+import java.util.ArrayList;
 import java.util.Set;
 
+import mpicbg.models.AffineModel2D;
 import mpicbg.models.CoordinateTransform;
+import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.PointMatch;
 
 /**
@@ -77,5 +80,53 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 		final int h = ( int )fh;
 		
 		boundingBox = new Rectangle( ( int )xMin, ( int )yMin, ( w == fw ? w : w + 1 ), ( h == fh ? h : h + 1 ) );
+	}
+	
+//	@Override
+	/**
+	 * Catch non-invertible locations outside of the meshes boundaries and
+	 * transfer them with the affine defined by the `closest' affine (the affine
+	 * whose summed up control points distances to location are smallest). 
+	 */
+	public void applyInverseInPlace( final float[] location ) throws NoninvertibleModelException
+	{
+		assert location.length == 2 : "2d transform meshs can be applied to 2d points only.";
+		
+		final Set< AffineModel2D > s = av.keySet();
+		for ( final AffineModel2D ai : s )
+		{
+			final ArrayList< PointMatch > pm = av.get( ai );
+			if ( isInConvexTargetPolygon( pm, location ) )
+			{
+				ai.applyInverseInPlace( location );
+				return;
+			}
+		}
+		
+		/* not in the mesh, find the closest affine */
+		float dMin = Float.MAX_VALUE;
+		AffineModel2D closestAffine = new AffineModel2D();
+		final float x = location[ 0 ];
+		final float y = location[ 1 ];
+		for ( final AffineModel2D ai : s )
+		{
+			final ArrayList< PointMatch > pm = av.get( ai );
+			float d = 0;
+			for ( final PointMatch p : pm )
+			{
+				final float[] w = p.getP2().getW();
+				final float dx = w[ 0 ] - x;
+				final float dy = w[ 1 ] - y;
+				d += Math.sqrt( dx * dx + dy * dy );
+			}
+			if ( d < dMin )
+			{
+				dMin = d;
+				closestAffine = ai;
+			}
+		}
+		closestAffine.applyInverseInPlace( location );
+		
+		throw new NoninvertibleModelException( "Mesh external location ( " + x + ", " + y + " ) transferred to ( " + location[ 0 ] + ", " + location[ 1 ] + " ) by closest affine." );
 	}
 }
