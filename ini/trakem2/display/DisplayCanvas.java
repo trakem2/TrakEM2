@@ -1355,7 +1355,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						me = null;
 						this.me = null;
 						// Wait until there is a new event
-						try { this.wait(); } catch (Exception e) {}
+						try { wait(); } catch (Exception e) {}
 					}
 				}
 			}
