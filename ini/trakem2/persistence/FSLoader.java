@@ -2871,7 +2871,11 @@ public final class FSLoader extends Loader {
 			imp = mawts.get( stack.getId());
 			if (null != imp) {
 				// was loaded by a different thread
-				// TODO will the ImageLoadingLock be removed by the other thread? It will, I think.
+				synchronized (db_lock) {
+					lock();
+					removeImageLoadingLock(plock);
+					unlock();
+				}
 				return imp;
 			}
 
