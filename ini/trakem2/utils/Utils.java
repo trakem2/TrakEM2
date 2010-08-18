@@ -131,14 +131,14 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		public final void quit() {
 			interrupt();
-			synchronized (this) { notify(); }
+			synchronized (cache) { cache.notify(); }
 		}
 		public final void log(final String msg) {
 			try {
 				synchronized (cache) {
 					cache.append(msg).append('\n');
+					cache.notify();
 				}
-				synchronized (this) { notify(); }
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -148,7 +148,7 @@ public class Utils implements ij.plugin.PlugIn {
 			while (!isInterrupted()) {
 				try {
 					final long start = System.currentTimeMillis();
-					// Accumulate messages for one second
+					// Accumulate messages for about one second
 					do {
 						synchronized (cache) {
 							if (cache.length() > 0) {
@@ -156,6 +156,7 @@ public class Utils implements ij.plugin.PlugIn {
 								cache.setLength(0);
 							}
 						}
+						try { Thread.sleep(100); } catch (InterruptedException ie) { return; }
 					} while (System.currentTimeMillis() - start < 1000); 
 
 					// ... then, if any, update the log window:
@@ -163,10 +164,10 @@ public class Utils implements ij.plugin.PlugIn {
 						IJ.log(sb.toString());
 						sb.setLength(0);
 					}
-					synchronized (this) {
-						if (0 == cache.length()) try {
-							wait();
-						} catch (InterruptedException ie) {}
+					synchronized (cache) {
+						if (0 == cache.length()) {
+							try { cache.wait(); } catch (InterruptedException ie) {}
+						}
 					}
 				} catch (Exception e) {
 					e.printStackTrace();
