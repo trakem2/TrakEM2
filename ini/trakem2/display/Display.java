@@ -3233,7 +3233,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				public Object process(final Displayable d) {
 					Patch p = (Patch) d;
 					p.setPreprocessorScriptPath(script);
-					p.updateMipMaps();
+					p.updateMipMaps(); // don't wait for mipmap regeneration
 					return null;
 				}
 			}, Math.min(4, Runtime.getRuntime().availableProcessors() -1));
