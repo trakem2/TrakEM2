@@ -1351,6 +1351,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// Wait only if the event has not changed
 				synchronized (this) {
 					if (me == this.me) {
+						// Release the pointer
+						me = null;
+						this.me = null;
+						// Wait until there is a new event
 						try { this.wait(); } catch (Exception e) {}
 					}
 				}
