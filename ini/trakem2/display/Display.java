@@ -2057,7 +2057,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				synchronized(lock) {
 					do {
 						try {
-							lock.wait();
+							lock.wait(); // lock.notify() is never called! How can this work at all? TODO I need to understand this.
 						} catch (InterruptedException ie) {}
 					} while (d_chooser.isWaiting() && pop.isShowing());
 				}
