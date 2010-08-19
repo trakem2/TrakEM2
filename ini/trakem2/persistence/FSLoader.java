@@ -2814,7 +2814,6 @@ public final class FSLoader extends Loader {
 				}
 				path = stack.getFilePath();
 				/* not cached */
-				releaseToFit2(new File(path).length() * 3); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
 			} catch (Throwable t) {
 				handleCacheError(t);
