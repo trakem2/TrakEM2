@@ -57,52 +57,59 @@ public class Cache {
 		}
 
 		/** Accepts a null @param img.
-		 *  Returns number of bytes freed (as a positive number; or negative if the new image is larger).
+		 *  Returns number of bytes used/free (positive/negative)
 		 *  If it was null here and img is not null, returns zero: no bytes to free. */
 		final long replace(final Image img, final int level) {
 			if (null == images[level]) {
-				if (null != img) {
-					// A: only old is null
-					images[level] = img;
-					n_images++;
-				}
-				// else, B: both are null
-				return 0; // no bytes were freed (rather, some were used)
+				if (null == img) return 0; // A: both null
+				// B: only old is null
+				images[level] = img;
+				n_images++;
+				return Cache.size(img); // some bytes used
 			} else {
-				long b = 0;
 				if (null == img) {
 					// C: old is not null, and new is null: must return freed bytes
 					n_images--;
-					b = Cache.size(images[level]); // some bytes to free
+					long b = -Cache.size(images[level]); // some bytes to free
 					images[level].flush();
 					images[level] = null;
+					return b;
 				} else if (img != images[level]) {
 					// D: both are not null, and are not the same instance:
-					b = Cache.size(images[level]) - Cache.size(img); // some bytes to free or to be added
+					long b = Cache.size(img) - Cache.size(images[level]); // some bytes to free or to be added
 					images[level].flush();
 					images[level] = img;
+					return b;
 				}
-				return b;
+				return 0;
 			}
 		}
 
-		/** Returns the number of bytes freed. */
+		/** Returns the number of bytes used/free (positive/negative). */
 		final long replace(final ImagePlus imp) {
-			if (null != imp && this.imp == imp) {
-				if (this.imp.getType() == imp.getType() && this.imp.getWidth() == imp.getWidth() && this.imp.getHeight() == imp.getHeight()) {
-					return 0; // ImageProcessor is identical
+			if (null == imp) {
+				if (null == this.imp) return 0; // A: both null
+				// B: this.imp is not null; some bytes to be free
+				long b = -Cache.size(this.imp);
+				this.imp = imp; // nullifying
+				return b;
+			} else {
+				// imp is not null:
+				if (null == this.imp) {
+					// C: this.imp is null; some bytes to be used
+					this.imp = imp;
+					return Cache.size(imp);
+				} else {
+					// D: both not null
+					if (this.imp.getType() == imp.getType() && this.imp.getWidth() == imp.getWidth() && this.imp.getHeight() == imp.getHeight()) {
+						this.imp = imp;
+						return 0; // ImageProcessor is of identical dimensions
+					}
+					// else:
+					this.imp = imp;
+					return Cache.size(imp) - Cache.size(this.imp); // ImageProcessor may be different
 				}
-				return Cache.size(this.imp) - Cache.size(imp); // ImageProcessor may be different
 			}
-			long b = 0;
-			if (null != this.imp) {
-				if (null == imp) b = Cache.size(this.imp);
-				//No need, and would harm for stacks and others: should NEVER be done
-				//this.imp.flush();
-			}
-			this.imp = imp;
-			return b;
-			// no need to do anything else. If the dimensions of the mipmaps had changed, it would have been decached first.
 		}
 	}
 	
@@ -171,6 +178,12 @@ public class Cache {
 	
 	public Cache(final long max_bytes) {
 		this.max_bytes = max_bytes;
+	}
+	
+	private final void addBytes(final long b) {
+		this.bytes += b;
+		Utils.log2("Added " + b + " and then: bytes = " + this.bytes);
+		Utils.printCaller(this, 3);
 	}
 	
 	public void setMaxBytes(final long max_bytes) {
@@ -300,7 +313,7 @@ public class Cache {
 
 	/** Makes up space to fit b, and also drops empty intervals from the head. */
 	private final void fit(final long b) {
-		bytes += b;
+		addBytes(b);
 		if (bytes > max_bytes) {
 			removeAndFlushSome(bytes - max_bytes);
 		}
@@ -319,9 +332,7 @@ public class Cache {
 		} else {
 			update(p);
 			if (null == p.images[level]) count++;
-			long b = p.replace(image, level);
-			if (b > 0) fit(b);
-			else bytes += b; // b is negative or zero
+			fit(p.replace(image, level));
 		}
 	}
 	
@@ -338,9 +349,7 @@ public class Cache {
 		} else {
 			update(p);
 			if (null == p.imp) count++;
-			long b = p.replace(imp);
-			if (b > 0) fit(b);
-			else bytes += b; // b is negative or zero
+			fit(p.replace(imp));
 		}
 	}
 
@@ -352,7 +361,7 @@ public class Cache {
 		if (null == p) return null;
 		final Image im = p.images[level];
 		if (null != im) {
-			bytes -= p.replace(null, level);
+			addBytes(p.replace(null, level));
 			count--;
 		}
 		// If at least one level is still not null, keep the pyramid; otherwise drop it
@@ -368,7 +377,7 @@ public class Cache {
 		final Pyramid p = pyramids.get(id);
 		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
-		bytes -= p.replace(null);
+		addBytes(p.replace(null));
 		count--;
 		if (0 == p.n_images) {
 			p.interval.remove(id);
@@ -381,12 +390,13 @@ public class Cache {
 		final Pyramid p = pyramids.remove(id);
 		if (null == p) return;
 		if (null != p.imp) {
-			bytes -= p.replace(null); // the imp may need cleanup
+			addBytes(p.replace(null)); // the imp may need cleanup
 			count--;
 		}
 		count -= p.n_images;
 		for (int i=0; i<p.images.length; i++) {
-			bytes -= p.replace(null, i);
+			if (null == p.images[i]) continue;
+			addBytes(p.replace(null, i));
 		}
 		p.interval.remove(id);
 	}
@@ -410,7 +420,8 @@ public class Cache {
 		if (null == p) return;
 		count -= p.n_images;
 		for (int i=0; i<p.images.length; i++) {
-			bytes -= p.replace(null, i);
+			if (null == p.images[i]) continue;
+			addBytes(p.replace(null, i));
 		}
 		if (null == p.imp) {
 			pyramids.remove(id);
@@ -427,8 +438,8 @@ public class Cache {
 				final Pyramid p = it.next();
 				if (null != p.imp) {
 					final long s = p.replace(null); // the imp may need cleanup
-					size += s;
-					this.bytes -= s;
+					size -= s;
+					addBytes(s);
 					count--;
 					if (size >= min_bytes) {
 						if (0 == p.n_images) {
@@ -442,8 +453,8 @@ public class Cache {
 				for (int i=0; i<p.images.length && p.n_images > 0; i++) {
 					if (null == p.images[i]) continue;
 					final long s = p.replace(null, i);
-					size += s;
-					this.bytes -= s;
+					size -= s;
+					addBytes(s);
 					count--;
 					if (size >= min_bytes) {
 						if (0 == p.n_images) {
@@ -470,8 +481,8 @@ public class Cache {
 				final Pyramid p = it.next();
 				if (null != p.imp) {
 					final long s = p.replace(null);
-					size += s;
-					this.bytes -= s;
+					size -= s;
+					addBytes(s);
 					p.replace(null); // the imp may need cleanup
 					n--;
 					count--;
@@ -487,8 +498,8 @@ public class Cache {
 				for (int i=0; i<p.images.length; i++) {
 					if (null == p.images[i]) continue;
 					final long s = p.replace(null, i);
-					size += s;
-					this.bytes -= s;
+					size -= s;
+					addBytes(s);
 					n--;
 					count--;
 					if (0 == n) {
@@ -526,6 +537,9 @@ public class Cache {
 			for (Map.Entry<Long,Pyramid> e : new TreeMap<Long,Pyramid>(m).entrySet()) {
 				Pyramid p = e.getValue();
 				Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + "; imp: " + e.getValue().imp);
+				int[] levels = new int[p.images.length];
+				for (int k=0; k<levels.length; k++) levels[k] = null == p.images[k] ? 0 : 1;
+				Utils.log2("      levels: " + Utils.toString(levels));
 			}
 		}
 		Utils.log2("----");
