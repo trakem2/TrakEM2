@@ -128,7 +128,6 @@ abstract public class Loader {
 
 	// Only one thread at a time is to use the connection and cache
 	protected final Object db_lock = new Object();
-	private boolean db_busy = false;
 
 	protected Opener opener = new Opener();
 
