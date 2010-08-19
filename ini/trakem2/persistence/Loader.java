@@ -658,6 +658,20 @@ abstract public class Loader {
 		}
 	}
 
+	public void printCache() {
+		synchronized (db_lock) {
+			mawts.debug();
+		}
+	}
+	
+	static public void printCaches() {
+		int i = 1;
+		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+			Utils.log2("Loader " + (i++) + ":");
+			lo.mawts.debug();
+		}
+	}
+
 	/** The minimal number of memory bytes that should always be free. */
 	public static long MIN_FREE_BYTES = computeDesirableMinFreeBytes();
 	
