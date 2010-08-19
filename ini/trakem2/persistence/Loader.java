@@ -747,7 +747,9 @@ abstract public class Loader {
 		long released = 0;
 		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			if (lo == this) continue;
-			released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
+			synchronized (lo.db_lock) {
+				released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
+			}
 			if (released >= min_free_bytes) return released;
 		}
 		return released;
@@ -825,7 +827,7 @@ abstract public class Loader {
 				if (released < min_free_bytes) released += mawts.removeAndFlushSome(min_free_bytes);
 			}
 		} catch (Throwable e) {
-			IJError.print(e);
+			handleCacheError(e);
 		}
 		return released;
 	}
