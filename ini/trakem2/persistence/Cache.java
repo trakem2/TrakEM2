@@ -159,7 +159,8 @@ public class Cache {
 	
 	private final HashMap<Long,Pyramid> pyramids = new HashMap<Long,Pyramid>();
 	private final LinkedList<HashMap<Long,Pyramid>> intervals = new LinkedList<HashMap<Long,Pyramid>>();
-	private int count = 0;
+	private int count = 0; // if the cache is empty, this count must be 0;
+						   // if not empty, then it counts the number of images stored (not of pyramids)
 	private long bytes = 0,
 				 max_bytes = 0; // negative values are ok
 	
@@ -309,13 +310,13 @@ public class Cache {
 			pyramids.put(id, p);
 			append(p);
 			fit(Cache.size(image)); // AFTER adding it
+			count++;
 		} else {
 			update(p);
 			if (0 == p.replace(image, level)) {
 				fit(Cache.size(image)); // AFTER adding the image to the empty level
 			}
 		}
-		count++;
 	}
 	
 	/** @param maxdim is max(width, height) of the Patch wrapping @param imp;
@@ -327,13 +328,13 @@ public class Cache {
 			pyramids.put(id, p);
 			append(p);
 			fit(Cache.size(imp)); // AFTER adding it
+			count++;
 		} else {
 			update(p);
 			if (0 == p.replace(imp)) {
 				fit(Cache.size(imp));
 			}
 		}
-		count++;
 	}
 
 
