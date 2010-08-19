@@ -557,11 +557,6 @@ abstract public class Loader {
 		return releaseMemory(n_bytes) >= n_bytes; // will also release from other caches
 	}
 
-	/** Non-locking version (but locking for other loaders). */
-	protected final boolean releaseToFit2(final long n_bytes) {
-		return releaseMemory2(n_bytes, true) >= n_bytes;
-	}
-
 	final static private class GCRunner extends Thread {
 		private volatile boolean run = false;
 		private volatile long initial = Long.MAX_VALUE;
