@@ -57,7 +57,7 @@ public class Cache {
 		}
 
 		/** Accepts a null @param img.
-		 *  Returns number of bytes freed, assuming old and new have the same dimensions.
+		 *  Returns number of bytes freed (as a positive number; or negative if the new image is larger).
 		 *  If it was null here and img is not null, returns zero: no bytes to free. */
 		final long replace(final Image img, final int level) {
 			if (null == images[level]) {
@@ -78,7 +78,7 @@ public class Cache {
 					images[level] = null;
 				} else if (img != images[level]) {
 					// D: both are not null, and are not the same instance:
-					b = Cache.size(images[level]); // some bytes to free
+					b = Cache.size(images[level]) - Cache.size(img); // some bytes to free or to be added
 					images[level].flush();
 					images[level] = img;
 				}
@@ -86,9 +86,14 @@ public class Cache {
 			}
 		}
 
-		/** Returns the number of bytes freed, assuming old and new have the same dimensions. */
+		/** Returns the number of bytes freed. */
 		final long replace(final ImagePlus imp) {
-			if (this.imp == imp) return 0; // assumes ImageProcessor has not changed in size
+			if (null != imp && this.imp == imp) {
+				if (this.imp.getType() == imp.getType() && this.imp.getWidth() == imp.getWidth() && this.imp.getHeight() == imp.getHeight()) {
+					return 0; // ImageProcessor is identical
+				}
+				return Cache.size(this.imp) - Cache.size(imp); // ImageProcessor may be different
+			}
 			long b = 0;
 			if (null != this.imp) {
 				if (null == imp) b = Cache.size(this.imp);
@@ -313,9 +318,10 @@ public class Cache {
 			count++;
 		} else {
 			update(p);
-			if (0 == p.replace(image, level)) {
-				fit(Cache.size(image)); // AFTER adding the image to the empty level
-			}
+			if (null == p.images[level]) count++;
+			long b = p.replace(image, level);
+			if (b > 0) fit(b);
+			else bytes += b; // b is negative or zero
 		}
 	}
 	
@@ -331,9 +337,10 @@ public class Cache {
 			count++;
 		} else {
 			update(p);
-			if (0 == p.replace(imp)) {
-				fit(Cache.size(imp));
-			}
+			if (null == p.imp) count++;
+			long b = p.replace(imp);
+			if (b > 0) fit(b);
+			else bytes += b; // b is negative or zero
 		}
 	}
 
@@ -344,8 +351,10 @@ public class Cache {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return null;
 		final Image im = p.images[level];
-		bytes -= p.replace(null, level);
-		count--;
+		if (null != im) {
+			bytes -= p.replace(null, level);
+			count--;
+		}
 		// If at least one level is still not null, keep the pyramid; otherwise drop it
 		if (0 == p.n_images && null == p.imp) {
 			p.interval.remove(id);
@@ -371,16 +380,18 @@ public class Cache {
 	public final void remove(final long id) {
 		final Pyramid p = pyramids.remove(id);
 		if (null == p) return;
-		if (null != p.imp) count--;
+		if (null != p.imp) {
+			bytes -= p.replace(null); // the imp may need cleanup
+			count--;
+		}
 		count -= p.n_images;
-		bytes -= p.replace(null); // the imp may need cleanup
 		for (int i=0; i<p.images.length; i++) {
 			bytes -= p.replace(null, i);
 		}
 		p.interval.remove(id);
 	}
 	
-	/** Flush all mipmaps and imps. */
+	/** Flush all mipmaps, and forget all mipmaps and imps. */
 	public final void removeAndFlushAll() {
 		for (final Pyramid p : pyramids.values()) {
 			p.replace(null); // the imp may need cleanup
@@ -398,7 +409,6 @@ public class Cache {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return;
 		count -= p.n_images;
-		bytes -= p.replace(null); // the imp may need cleanup
 		for (int i=0; i<p.images.length; i++) {
 			bytes -= p.replace(null, i);
 		}
@@ -506,14 +516,16 @@ public class Cache {
 		Utils.log2("@@@@@@@@@@ START");
 		Utils.log2("pyramids: " + pyramids.size());
 		for (Map.Entry<Long,Pyramid> e : new TreeMap<Long,Pyramid>(pyramids).entrySet()) {
-			Utils.log2("p id:" + e.getKey() + " value: " + e.getValue().images.length + " imp: " + e.getValue().imp);
+			Pyramid p = e.getValue();
+			Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + ";  imp: " + e.getValue().imp);
 		}
 		Utils.log2("----");
 		int i = 0;
 		for (HashMap<Long,Pyramid> m : intervals) {
 			Utils.log2("interval " + (++i));
 			for (Map.Entry<Long,Pyramid> e : new TreeMap<Long,Pyramid>(m).entrySet()) {
-				Utils.log2("p id:" + e.getKey() + " value: " + e.getValue().images.length + " imp: " + e.getValue().imp);
+				Pyramid p = e.getValue();
+				Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + "; imp: " + e.getValue().imp);
 			}
 		}
 		Utils.log2("----");
