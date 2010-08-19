@@ -3205,14 +3205,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (selection.isEmpty()) return;
 					String path = getScriptPath();
 					if (null == path) return;
-					setScriptPath(selection.getSelected(Patch.class), path);
+					setScriptPath(selection.get(Patch.class), path);
 				} else if (command.equals("Remove preprocessor script layer-wise...")) {
 					Collection<Layer> ls = getLayerList("Remove preprocessor script");
 					if (null == ls) return;
 					setScriptPathToLayers(ls, null);
 				} else if (command.equals("Remove preprocessor script (selected images)...")) {
 					if (selection.isEmpty()) return;
-					setScriptPath(selection.getSelected(Patch.class), null);
+					setScriptPath(selection.get(Patch.class), null);
 				}
 			} catch (Exception e) {
 				IJError.print(e);
