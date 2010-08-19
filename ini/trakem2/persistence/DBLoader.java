@@ -123,7 +123,6 @@ public class DBLoader extends Loader {
 	public DBLoader() {
 		super(); // register
 		synchronized (db_lock) {
-			lock();
 			//check for data
 			if (null == this.db_host || null == this.db_port || null == this.db_name || null == this.db_user || null == this.db_pw) {
 				GenericDialog gd = new GenericDialog("Login");
@@ -137,7 +136,6 @@ public class DBLoader extends Loader {
 				tf.setEchoChar('*');
 				gd.showDialog();
 				if (gd.wasCanceled()) {
-					unlock();
 					return;
 				}
 				db_host = gd.getNextString();
@@ -156,13 +154,11 @@ public class DBLoader extends Loader {
 				} catch (ClassNotFoundException cnfe) {
 					driver_loaded = false;
 					Utils.log("Loader: could not load "+Driver.class.getName()+": " + cnfe);
-					unlock();
 					return;
 				}
 			}
 
 			if (!connectToDatabase()) {
-				unlock();
 				return;
 			}
 
@@ -235,12 +231,10 @@ public class DBLoader extends Loader {
 					connection.prepareStatement(query_projects).execute();
 					Utils.log("Created table ab_projects in database " + db_name);
 				} else {
-					unlock(); // to enable inserts
 					if (!upgradeProjectsTable()) {
 						Utils.showMessage("Can't proceed without an upgraded 'ab_projects' table");
 						return;
 					}
-					lock();
 				}
 				// create table ab_layers if it does not exist
 				if (!table_layers_exists) {
@@ -358,19 +352,16 @@ public class DBLoader extends Loader {
 				}
 
 			} catch (SQLException sqle) {
-				unlock();
 				Utils.log("Loader: Database problems, can't check and/or create tables.");
 				disconnect();
 				IJError.print(sqle);
 				return;
 			} catch (Exception e) {
-				unlock();
 				Utils.log("Loader: Database problems, can't check tables!");
 				disconnect();
 				IJError.print(e);
 				return;
 			}
-			unlock();
 		}
 	}
 
@@ -476,22 +467,17 @@ public class DBLoader extends Loader {
 	/**Find out whether the connection is up. */
 	public boolean isConnected() {
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null != connection && connection.isClosed()) {
 					connection = null;
-					unlock();
 					return false;
 				} else if (null == connection) {
-					unlock();
 					return false;
 				}
 			}catch(SQLException sqle) {
 				IJError.print(sqle);
-				unlock();
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
@@ -499,16 +485,13 @@ public class DBLoader extends Loader {
 	/**Disconnect from the database. */
 	public void disconnect() {
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null != connection) connection.close();
 				//Utils.log("Loader: Disconnected.");
 			} catch (SQLException sqle) {
 				Utils.log("Loader: Can't close connection to database:\n " + sqle);
-				unlock();
 				return;
 			}
-			unlock();
 		}
 	}
 
@@ -519,7 +502,6 @@ public class DBLoader extends Loader {
 			return -System.currentTimeMillis(); // an improbable negative id to be repeated, ensures uniqueness
 		}
 		synchronized (db_lock) {
-			lock();
 			long id = Long.MIN_VALUE;
 			try {
 				String query = "SELECT nextval('ab_ids')";
@@ -531,7 +513,6 @@ public class DBLoader extends Loader {
 			} catch (SQLException sqle) {
 				IJError.print(sqle);
 			}
-			unlock();
 			return id;
 		}
 	}
@@ -783,7 +764,6 @@ public class DBLoader extends Loader {
 			*/
 
 			// New way: TemplateThing instances are saved in the ab_things table
-			lock();
 			try {
 				// fetch TemplateThings, which have no stored object.
 				ResultSet r = connection.prepareStatement("SELECT * FROM ab_things WHERE project_id=" + project.getId() + " AND parent_id=-1 AND object_id=-1").executeQuery(); // signature of the root TemplateThing is parent_id=-1 and object_id=-1
@@ -796,10 +776,8 @@ public class DBLoader extends Loader {
 				r.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 		}
 		return root;
 	}
@@ -822,10 +800,8 @@ public class DBLoader extends Loader {
 	/** Fetch all existing projects from the database. */
 	public Project[] getProjects() {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			Project[] projects = null;
@@ -840,10 +816,8 @@ public class DBLoader extends Loader {
 				al_projects.toArray(projects);
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return projects;
 		}
 	}
@@ -864,10 +838,8 @@ public class DBLoader extends Loader {
 	/** Get all the Thing objects, recursively, for the root, and their corresponding encapsulated objects. Also, fills in the given ArrayList with all loaded Displayable objects. */
 	public ProjectThing getRootProjectThing(Project project, TemplateThing root_tt, TemplateThing project_tt, HashMap hs_d) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recursive things such as neurite_branch)
@@ -884,15 +856,12 @@ public class DBLoader extends Loader {
 				r.close();
 				if (null == root) {
 					Utils.log("Loader.getRootProjectThing: can't find it for project id=" + project.getId());
-					unlock();
 					return null;
 				}
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return root;
 		}
 	}
@@ -1024,10 +993,8 @@ public class DBLoader extends Loader {
 	/** Fetches the root LayerSet, fills it with children (recursively) and uses the profiles, pipes, etc., from the project_thing. Will reconnect the links and open Displays for the layers that have one. */
 	public LayerThing getRootLayerThing(Project project, ProjectThing project_thing, TemplateThing layer_set_tt, TemplateThing layer_tt) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			HashMap hs_pt = new HashMap();
@@ -1042,7 +1009,6 @@ public class DBLoader extends Loader {
 				r.close();
 				if (null == root) {
 					Utils.log("Loader.getRootLayerThing: can't find it for project id=" + project.getId());
-					unlock();
 					return null;
 				}
 
@@ -1063,10 +1029,8 @@ public class DBLoader extends Loader {
 				rl.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return root;
 		}
 	}
@@ -1241,12 +1205,10 @@ public class DBLoader extends Loader {
 	/** Get the bezier points from the database for the given profile but as a triple array of points, that is, three arrays with 2 arrays (x and y) each. */
 	public double[][][] fetchBezierArrays(long id) {
 		synchronized (db_lock) {
-			lock();
 			// TODO: cache! add/check
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1262,10 +1224,8 @@ public class DBLoader extends Loader {
 
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return toBezierArrays(p);
 		}
 	}
@@ -1294,11 +1254,9 @@ public class DBLoader extends Loader {
 
 	public Area fetchArea(long area_list_id, long layer_id) {
 		synchronized(db_lock) {
-			lock();
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1317,20 +1275,17 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			unlock();
 			return area;
 		}
 	}
 
 	public ArrayList fetchPipePoints(long id) {
 		synchronized (db_lock) {
-			lock();
 
 			// TODO: cache! add/check
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1355,22 +1310,18 @@ public class DBLoader extends Loader {
 				r.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return al;
 		}
 	}
 
 	public ArrayList fetchBallPoints(long id) {
 		synchronized (db_lock) {
-			lock();
 			// TODO: cache! add/check
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1391,10 +1342,8 @@ public class DBLoader extends Loader {
 				r.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return al;
 		}
 	}
@@ -1414,10 +1363,8 @@ public class DBLoader extends Loader {
 	/* GENERIC, from DBObject calls */
 	public boolean addToDatabase(DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return false;
 			}
 			try {
@@ -1432,7 +1379,6 @@ public class DBLoader extends Loader {
 						Method method = getClass().getDeclaredMethod("addToDatabase", new Class[]{interfaces[i]});
 						method.invoke(this, new Object[]{ob});
 						// on success, end, to ensure only one invocation
-						unlock();
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException and InvocationTargetException
 						Utils.log("Loader: Not for " + interfaces[i] + " : " + e);
@@ -1440,7 +1386,6 @@ public class DBLoader extends Loader {
 					}
 				}
 				Utils.log("Loader: no method for addToDatabase(" + ob.getClass().getName() + ")");
-				unlock();
 				return false;
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1448,20 +1393,16 @@ public class DBLoader extends Loader {
 					Exception next = ((SQLException)e).getNextException();
 					if (null != next) { IJError.print(next); }
 				}
-				unlock();
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
 
 	public boolean updateInDatabase(DBObject ob, String key) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return false;
 			}
 			try {
@@ -1475,7 +1416,6 @@ public class DBLoader extends Loader {
 						Method method = getClass().getDeclaredMethod("updateInDatabase", new Class[]{interfaces[i], key.getClass()});
 						method.invoke(this, new Object[]{ob, key});
 						// on success, end, to ensure only one invocation
-						unlock();
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException
 						Utils.debug("Loader: Not for " + interfaces[i]);
@@ -1483,10 +1423,8 @@ public class DBLoader extends Loader {
 					}
 				}
 				Utils.log("Loader: no method for updateInDatabase(" + ob.getClass().getName() + ")");
-				unlock();
 				return false;
 			} catch (Exception e) {
-				unlock();
 				IJError.print(e);
 				if (e instanceof SQLException) { 
 					Exception next = ((SQLException)e).getNextException();
@@ -1494,7 +1432,6 @@ public class DBLoader extends Loader {
 				}
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
@@ -1506,10 +1443,8 @@ public class DBLoader extends Loader {
 
 	public boolean removeFromDatabase(DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return false;
 			}
 			try {
@@ -1523,14 +1458,12 @@ public class DBLoader extends Loader {
 						Method method = getClass().getDeclaredMethod("removeFromDatabase", new Class[]{interfaces[i]});
 						method.invoke(this, new Object[]{ob});
 						// on success, end, to ensure only one invocation
-						unlock();
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException
 						Utils.log("Loader: Not for " + interfaces[i]);
 					}
 				}
 				Utils.log("Loader: no method for removeFromDatabase(" + ob.getClass().getName() + ")");
-				unlock();
 				return false;
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1538,10 +1471,8 @@ public class DBLoader extends Loader {
 					Exception next = ((SQLException)e).getNextException();
 					if (null != next) { IJError.print(next); }
 				}
-				unlock();
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
@@ -2038,9 +1969,7 @@ public class DBLoader extends Loader {
 
 		PreparedStatement statement = connection.prepareStatement(sb.toString());
 		if (update_points) {
-			unlock();
 			statement.setObject(1, makePGpolygon(profile.getBezierArrays()));
-			lock();
 		}
 		statement.executeUpdate();
 	}
@@ -2380,9 +2309,7 @@ public class DBLoader extends Loader {
 				// remove exisiting paths for this layer_id
 				connection.createStatement().executeUpdate(new StringBuffer("DELETE FROM ab_area_paths WHERE area_list_id=").append(arealist.getId()).append(" AND layer_id=").append(layer_id).toString());
 				// add new paths
-				unlock();
 				ArrayList al_paths = arealist.getPaths(layer_id);
-				lock();
 				for (Iterator it = al_paths.iterator(); it.hasNext(); ) {
 					PreparedStatement ps = connection.prepareStatement(new StringBuffer("INSERT INTO ab_area_paths (area_list_id, layer_id, polygon) VALUES (").append(arealist.getId()).append(',').append(layer_id).append(",?)").toString());
 					ps.setObject(1, makePGpolygon((ArrayList)it.next()));
@@ -2510,13 +2437,11 @@ public class DBLoader extends Loader {
 
 	public ImagePlus fetchImagePlus(Patch p) {
 		synchronized (db_lock) {
-			lock();
 			long id = p.getId();
 			// see if the ImagePlus is cached:
 			ImagePlus imp = mawts.get(id);
 			if (null != imp) {
 				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) { // may have been flushed by ImageJ, for example when making images from a stack
-					unlock();
 					return imp;
 				} else {
 					flush(imp); // can't hurt
@@ -2526,7 +2451,6 @@ public class DBLoader extends Loader {
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -2568,24 +2492,20 @@ public class DBLoader extends Loader {
 					// OBSOLETE and wrong -- but then this whole class is obsolete// p.putMinAndMax(imp);
 				}
 			} catch (Exception e) {
-				unlock();
 				IJError.print(e);
 				if (null != i_stream) {
 					try { i_stream.close(); } catch (Exception ie) { IJError.print(ie); }
 				}
 				return null;
 			}
-			unlock();
 			return imp;
 		}
 	}
 
 	public Object[] fetchLabel(DLabel label) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			Object[] ob = null;
@@ -2601,11 +2521,9 @@ public class DBLoader extends Loader {
 				}
 				r.close();
 			} catch (Exception e) {
-				unlock();
 				IJError.print(e);
 				return null;
 			}
-			unlock();
 			return ob;
 		}
 	}

@@ -143,7 +143,6 @@ public final class FSLoader extends Loader {
 
 	private String createUNUId(String dir_storage) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null == dir_storage) dir_storage = System.getProperty("user.dir") + "/";
 				return new StringBuilder(64).append(System.currentTimeMillis()).append('.')
@@ -152,8 +151,6 @@ public final class FSLoader extends Loader {
 							   .toString();
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -423,9 +420,7 @@ public final class FSLoader extends Loader {
 	public long getNextId() {
 		long nid = -1;
 		synchronized (db_lock) {
-			lock();
 			nid = ++max_id;
-			unlock();
 		}
 		return nid;
 	}
@@ -470,7 +465,6 @@ public final class FSLoader extends Loader {
 		long n_bytes = 0;
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
-			lock();
 			try {
 				imp = mawts.get(p.getId());
 				path = getAbsolutePath(p);
@@ -491,10 +485,8 @@ public final class FSLoader extends Loader {
 								switch (format) {
 									case Layer.IMAGEPROCESSOR:
 										ip = imp.getStack().getProcessor(ia);
-										unlock();
 										return ip;
 									case Layer.IMAGEPLUS:
-										unlock();
 										return imp;
 									default:
 										Utils.log("FSLoader.fetchImage: Unknown format " + format);
@@ -502,14 +494,12 @@ public final class FSLoader extends Loader {
 								}
 							}
 						} else {
-							unlock();
 							return null; // beyond bonds!
 						}
 					}
 				}
 				// for non-stack images
 				if (null != imp) {
-					unlock();
 					switch (format) {
 						case Layer.IMAGEPROCESSOR:
 							return imp.getProcessor();
@@ -530,8 +520,6 @@ public final class FSLoader extends Loader {
 			} catch (Throwable t) {
 				handleCacheError(t);
 				return null;
-			} finally {
-				unlock();
 			}
 		}
 
@@ -563,8 +551,6 @@ public final class FSLoader extends Loader {
 
 			synchronized (db_lock) {
 				try {
-					lock();
-
 					if (null == imp) {
 						if (!hs_unloadable.contains(p)) {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
@@ -574,7 +560,6 @@ public final class FSLoader extends Loader {
 							FilePathRepair.add(p);
 						}
 						removeImageLoadingLock(plock);
-						unlock();
 						return null;
 					}
 					// update all clients of the stack, if any
@@ -614,7 +599,6 @@ public final class FSLoader extends Loader {
 				} catch (Exception e) {
 					IJError.print(e);
 				}
-				unlock();
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						return ip; // not imp.getProcessor because after unlocking the slice may have changed for stacks.
@@ -725,13 +709,11 @@ public final class FSLoader extends Loader {
 	 */
 	public boolean addToDatabase(final DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			setChanged(true);
 			final long id = ob.getId();
 			if (id > max_id) {
 				max_id = id;
 			}
-			unlock();
 		}
 		return true;
 	}
@@ -759,7 +741,6 @@ public final class FSLoader extends Loader {
 
 	public boolean removeFromDatabase(final DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			setChanged(true);
 			// remove from the hashtable
 			final long loid = ob.getId();
@@ -772,7 +753,6 @@ public final class FSLoader extends Loader {
 					ht_paths.remove(p.getId()); // after removeMipMaps !
 					mawts.remove(loid);
 					cannot_regenerate.remove(p);
-					unlock();
 					flushMipMaps(p.getId()); // locks on its own
 					touched_mipmaps.remove(p);
 					return true;
@@ -780,7 +760,6 @@ public final class FSLoader extends Loader {
 					handleCacheError(t);
 				}
 			}
-			unlock();
 		}
 		return true;
 	}
@@ -903,7 +882,6 @@ public final class FSLoader extends Loader {
 	/** For the Patch and for any associated slices if the patch is part of a stack. */
 	private void updatePaths(final Patch patch, final String path, final boolean is_stack) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				// ensure the old path is cached in the Patch, to get set as the original if there is no original.
 				if (is_stack) {
@@ -921,8 +899,6 @@ public final class FSLoader extends Loader {
 				}
 			} catch (Throwable e) {
 				IJError.print(e);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -1111,7 +1087,6 @@ public final class FSLoader extends Loader {
 	protected void makeAllPathsRelativeTo(final String xml_path, final Project project) {
 		synchronized (db_lock) {
 			try {
-				lock();
 				this.dir_storage = FSLoader.makeRelativePath(xml_path, this.dir_storage);
 				this.dir_mipmaps = FSLoader.makeRelativePath(xml_path, this.dir_mipmaps);
 				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
@@ -1127,23 +1102,18 @@ public final class FSLoader extends Loader {
 				}
 			} catch (Throwable t) {
 				IJError.print(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
 	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
 		synchronized (db_lock) {
 			try {
-				lock();
 				this.dir_mipmaps = mipmaps_folder;
 				this.dir_storage = storage_folder;
 				ht_paths.clear();
 				ht_paths.putAll(copy);
 			} catch (Throwable t) {
 				IJError.print(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -2189,28 +2159,23 @@ public final class FSLoader extends Loader {
 	private final String getLevelDir(final String dir_mipmaps, final int level) {
 		// synch, so that multithreaded generateMipMaps won't collide trying to create dirs
 		synchronized (db_lock) {
-			lock();
 			final String path = new StringBuilder(dir_mipmaps).append(level).append('/').toString();
 			if (isURL(dir_mipmaps)) {
-				unlock();
 				return path;
 			}
 			final File file = new File(path);
 			if (file.exists() && file.isDirectory()) {
-				unlock();
 				return path;
 			}
 			// else, create it
 			try {
 				file.mkdir();
-				unlock();
 				return path;
 			} catch (Exception e) {
 				IJError.print(e);
+				return null;
 			}
-			unlock();
 		}
-		return null;
 	}
 
 	/** Returns the near-unique folder for the project hosted by this FSLoader. */
@@ -2325,14 +2290,11 @@ public final class FSLoader extends Loader {
 	public void flushMipMaps(boolean forget_dir_mipmaps) {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (forget_dir_mipmaps) this.dir_mipmaps = null;
 				mawts.removeAndFlushAll();
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -2341,13 +2303,10 @@ public final class FSLoader extends Loader {
 	public void flushMipMaps(final long id) {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.removeAndFlushPyramid(id);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -2848,7 +2807,6 @@ public final class FSLoader extends Loader {
 		long n_bytes = 0;
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
-			lock();
 			try {
 				imp = mawts.get(stack.getId());
 				if (null != imp) {
@@ -2861,8 +2819,6 @@ public final class FSLoader extends Loader {
 			} catch (Throwable t) {
 				handleCacheError(t);
 				return null;
-			} finally {
-				unlock();
 			}
 		}
 
@@ -2872,9 +2828,7 @@ public final class FSLoader extends Loader {
 			if (null != imp) {
 				// was loaded by a different thread
 				synchronized (db_lock) {
-					lock();
 					removeImageLoadingLock(plock);
-					unlock();
 				}
 				return imp;
 			}
@@ -2888,8 +2842,6 @@ public final class FSLoader extends Loader {
 
 			synchronized (db_lock) {
 				try {
-					lock();
-
 					if (null == imp) {
 						if (!hs_unloadable.contains(stack)) {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for stack  " + stack + "  at path " + path);
@@ -2908,7 +2860,6 @@ public final class FSLoader extends Loader {
 					IJError.print(e);
 				} finally {
 					removeImageLoadingLock(plock);
-					unlock();
 				}
 
 				return imp;

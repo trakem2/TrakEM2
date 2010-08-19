@@ -247,14 +247,11 @@ abstract public class Loader {
 
 	private final void setMaxBytes(final long max_bytes) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.setMaxBytes(max_bytes);
 				Utils.log2("Cache max bytes: " + mawts.getMaxBytes());
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -272,22 +269,6 @@ abstract public class Loader {
 
 		Utils.log2("MAX_MEMORY: " + MAX_MEMORY);
 		Utils.log2("cache size: " + mawts.getMaxBytes());
-	}
-
-	/** To be called within a synchronized(db_lock) */
-	protected final void lock() {
-		//Utils.printCaller(this, 7);
-		//while (db_busy) { try { db_lock.wait(); } catch (InterruptedException ie) {} }
-		//db_busy = true;
-	}
-
-	/** To be called within a synchronized(db_lock) */
-	protected final void unlock() {
-		//Utils.printCaller(this, 7);
-		//if (db_busy) {
-		//	db_busy = false;
-		//	db_lock.notifyAll();
-		//}
 	}
 
 	/** Release all memory and unregister itself. Child Loader classes should call this method in their destroy() methods. */
@@ -389,23 +370,19 @@ abstract public class Loader {
 	/** Add to the cache, or if already there, make it be the last (to be flushed the last). */
 	public void cache(final Displayable d, final ImagePlus imp) {
 		synchronized (db_lock) {
-			lock();
 			final long id = d.getId(); // each Displayable has a unique id for each database, not for different databases, that's why the cache is NOT shared.
 			if (Patch.class == d.getClass()) {
-				unlock();
 				cache((Patch)d, imp);
 				return;
 			} else {
 				Utils.log("Loader.cache: don't know how to cache: " + d);
 			}
-			unlock();
 		}
 	}
 
 	public void cache(final Patch p, final ImagePlus imp) {
 		if (null == imp || null == imp.getProcessor()) return;
 		synchronized (db_lock) {
-			lock();
 			try {
 				final long id = p.getId();
 				final ImagePlus cached = mawts.get(id);
@@ -419,8 +396,6 @@ abstract public class Loader {
 				}
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -429,41 +404,32 @@ abstract public class Loader {
 	public void cacheImagePlus(long id, ImagePlus imp) {
 		if (null == imp || null == imp.getProcessor()) return;
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.put(id, imp, Math.max(imp.getWidth(), imp.getHeight()));
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
 
 	public void decacheImagePlus(long id) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.removeImagePlus(id);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
 
 	public void decacheImagePlus(final long[] id) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				for (int i=0; i<id.length; i++) {
 					mawts.removeImagePlus(id[i]);
 				}
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -754,13 +720,10 @@ abstract public class Loader {
 	public final long releaseMemory(final long min_free_bytes) {
 		synchronized (db_lock) {
 			try {
-				lock();
 				return releaseMemory2(min_free_bytes, true);
 			} catch (Throwable e) {
 				IJError.print(e);
 				return 0;
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -782,14 +745,11 @@ abstract public class Loader {
 		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
 			if (lo == this) continue;
 			synchronized (lo.db_lock) {
-				lo.lock();
 				try {
 					released += lo.mawts.removeAndFlushSome(min_free_bytes);
 					if (released >= min_free_bytes) return released;
 				} catch (Throwable t) {
 					handleCacheError(t);
-				} finally {
-					lo.unlock();
 				}
 			}
 		}
@@ -865,13 +825,10 @@ abstract public class Loader {
 	/** Empties the caches. */
 	public void releaseAll() {
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.removeAndFlushAll();
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -879,7 +836,6 @@ abstract public class Loader {
 	private void destroyCache() {
 		synchronized (db_lock) {
 			try {
-				lock();
 				ImageJ ij = IJ.getInstance();
 				if (null != ij && ij.quitting()) {
 					return;
@@ -889,8 +845,6 @@ abstract public class Loader {
 				}
 			} catch (Throwable t) {
 				IJError.print(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -898,26 +852,20 @@ abstract public class Loader {
 	/** Removes from the cache all awt images bond to the given id. */
 	public void decacheAWT(final long id) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.removeAndFlushPyramid(id); // where are my lisp macros! Wrapping any function in a synch/lock/unlock could be done crudely with reflection, but what a pain
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
 
 	public Image getCachedAWT(final long id, final int level) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				return mawts.get(id, level);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -926,13 +874,10 @@ abstract public class Loader {
 	public void cacheAWT( final long id, final Image awt) {
 		if (null == awt) return;
 		synchronized (db_lock) {
-			lock();
 			try {
 				mawts.put(id, awt, 0);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	} 
@@ -988,13 +933,10 @@ abstract public class Loader {
 	public boolean isImagePlusCached(final Patch p) {
 		synchronized (db_lock) {
 			try {
-				lock();
 				return null != mawts.get(p.getId());
 			} catch (Throwable t) {
 				handleCacheError(t);
 				return false;
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -1004,26 +946,20 @@ abstract public class Loader {
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			try {
-				lock();
 				return mawts.contains(p.getId(), level);
 			} catch (Throwable t) {
 				handleCacheError(t);
 				return false;
-			} finally {
-				unlock();
 			}
 		}
 	}
 
 	public Image getCached(final long id, final int level) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				return mawts.getClosestAbove(id, level);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -1033,13 +969,10 @@ abstract public class Loader {
 	public Image getCachedClosestAboveImage(final Patch p, final double mag) {
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
-			lock();
 			try {
 				return mawts.getClosestAbove(p.getId(), level);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -1049,13 +982,10 @@ abstract public class Loader {
 	public Image getCachedClosestBelowImage(final Patch p, final double mag) {
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
-			lock();
 			try {
 				return mawts.getClosestBelow(p.getId(), level);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -1111,7 +1041,6 @@ abstract public class Loader {
 		ImageLoadingLock plock = null;
 
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null == mawts) {
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
@@ -1127,8 +1056,6 @@ abstract public class Loader {
 				}
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				unlock();
 			}
 		}
 
@@ -1138,9 +1065,7 @@ abstract public class Loader {
 		if (level >= 0 && isMipMapsEnabled()) {
 			synchronized (plock) {
 				synchronized (db_lock) {
-					lock();
 					mawt = mawts.get(id, level);
-					unlock();
 				}
 				if (null != mawt) {
 					return mawt; // was loaded by a different thread
@@ -1160,7 +1085,6 @@ abstract public class Loader {
 
 				synchronized (db_lock) {
 					try {
-						lock();
 						if (null != mawt) {
 							//Utils.log2("returning exact mawt from file for level " + level);
 							if (REGENERATING != mawt) {
@@ -1204,7 +1128,6 @@ abstract public class Loader {
 						handleCacheError(t);
 					} finally {
 						removeImageLoadingLock(plock);
-						unlock();
 					}
 				}
 			}
@@ -1215,8 +1138,6 @@ abstract public class Loader {
 
 		synchronized (db_lock) {
 			try {
-				lock();
-
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
 				mawt = mawts.getClosestAbove(id, level);
 				if (null != mawt) {
@@ -1225,8 +1146,6 @@ abstract public class Loader {
 				}
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				unlock();
 			}
 		}
 
@@ -1236,13 +1155,10 @@ abstract public class Loader {
 
 		synchronized (db_lock) {
 			try {
-				lock();
 				plock = getOrMakeImageLoadingLock(p.getId(), level);
 			} catch (Exception e) {
 				if (null != plock) removeImageLoadingLock(plock); // TODO there may be a flaw in the image loading locks: when removing it, if it had been acquired by another thread, then a third thread will create it new. The image loading locks should count the number of threads that have them, and remove themselves when zero.
 				return NOT_FOUND;
-			} finally {
-				unlock();
 			}
 		}
 
@@ -1251,9 +1167,7 @@ abstract public class Loader {
 			mawt = mawts.getClosestAbove(id, level);
 			if (null != mawt) {
 				synchronized (db_lock) {
-					lock();
 					removeImageLoadingLock(plock);
-					unlock();
 				}
 				return mawt;
 			}
@@ -1289,7 +1203,6 @@ abstract public class Loader {
 
 		synchronized (db_lock) {
 			try {
-				lock();
 				if (null != mawt) {
 					mawts.put(id, mawt, level);
 					Display.repaintSnapshot(p);
@@ -1300,7 +1213,6 @@ abstract public class Loader {
 				handleCacheError(t);
 			} finally {
 				removeImageLoadingLock(plock);
-				unlock();
 			}
 		}
 
@@ -1325,26 +1237,20 @@ abstract public class Loader {
 	/** Must be called within synchronized db_lock. */
 	private final Image fetchMipMapAWT2(final Patch p, final int level, final long n_bytes) {
 		try {
-			unlock();
 			return fetchMipMapAWT(p, level, n_bytes); // locks on db_lock
 		} catch (Throwable e) {
 			IJError.print(e);
 			return null;
-		} finally {
-			lock();
 		}
 	}
 
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
 	public ImagePlus getCachedImagePlus(final long id) {
 		synchronized(db_lock) {
-			lock();
 			try {
 				return mawts.get(id);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -3814,7 +3720,6 @@ while (it.hasNext()) {
 	/** Throw away all awts that depend on this image, so that they will be recreated next time they are needed. */
 	public void decache(final ImagePlus imp) {
 		synchronized(db_lock) {
-			lock();
 			try {
 				final long id = mawts.seqFindId(imp);
 				Utils.log2("decaching " + id);
@@ -3822,8 +3727,6 @@ while (it.hasNext()) {
 				mawts.removeAndFlushPyramid(id);
 			} catch (Throwable t) {
 				handleCacheError(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -4033,14 +3936,11 @@ while (it.hasNext()) {
 	/** Check if an awt exists to paint as a snap. */
 	public boolean isSnapPaintable(final long id) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				return mawts.contains(id);
 			} catch (Throwable t) {
 				handleCacheError(t);
 				return false;
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -4091,21 +3991,16 @@ while (it.hasNext()) {
 			// reuse any loaded mipmaps
 			Map<Integer,Image> ht = null;
 			synchronized (db_lock) {
-				lock();
 				ht = mawts.getAll(p.getId());
-				unlock();
 			}
 			for (Map.Entry<Integer,Image> entry : ht.entrySet()) {
 				// key is level, value is awt
 				final int level = entry.getKey();
 				PatchLoadingLock plock = null;
 				synchronized (db_lock) {
-					lock();
 					plock = getOrMakePatchLoadingLock(p, level);
-					unlock();
 				}
 				synchronized (plock) {
-					plock.lock(); // block loading of this file
 					Image awt = null;
 					try {
 						awt = p.adjustChannels(entry.getValue());
@@ -4114,25 +4009,19 @@ while (it.hasNext()) {
 						if (null == awt) continue;
 					}
 					synchronized (db_lock) {
-						lock();
 						mawts.replace(p.getId(), awt, level);
 						removePatchLoadingLock(plock);
-						unlock();
 					}
-					plock.unlock();
 				}
 			}
 		} else {
 		*/
 			// flush away any loaded mipmap for the id
 			synchronized (db_lock) {
-				lock();
 				try {
 					mawts.removeAndFlushPyramid(p.getId());
 				} catch (Throwable t) {
 					handleCacheError(t);
-				} finally {
-					unlock();
 				}
 			}
 			// when reloaded, the channels will be adjusted
