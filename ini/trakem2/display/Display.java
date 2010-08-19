@@ -3220,23 +3220,26 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}}, Display.this.project);
 		}
 		private void setScriptPathToLayers(final Collection<Layer> ls, final String script) throws Exception {
-			final ArrayList<Displayable> ds = new ArrayList<Displayable>();
+			final ArrayList<Patch> ds = new ArrayList<Patch>();
 			for (final Layer la : ls) {
 				if (Thread.currentThread().isInterrupted()) return;
-				ds.addAll(la.getDisplayables(Patch.class));
+				ds.addAll(la.getAll(Patch.class));
 			}
 			setScriptPath(ds, script); // no lazy sequences ...
 		}
 		/** Accepts null script, to remove it if there. */
-		private void setScriptPath(final Collection<Displayable> list, final String script) throws Exception {
-			Process.progressive(list, new TaskFactory<Displayable,Object>() {
-				public Object process(final Displayable d) {
-					Patch p = (Patch) d;
+		private void setScriptPath(final Collection<Patch> list, final String script) throws Exception {
+			Process.progressive(list, new TaskFactory<Patch,Object>() {
+				public Object process(final Patch p) {
 					p.setPreprocessorScriptPath(script);
-					p.updateMipMaps(); // don't wait for mipmap regeneration
+					try {
+						p.updateMipMaps().get(); // wait for mipmap regeneration so that the processed image is in cache for mipmap regeneration
+					} catch (Throwable t) {
+						IJError.print(t);
+					}
 					return null;
 				}
-			}, Math.min(4, Runtime.getRuntime().availableProcessors() -1));
+			}, Math.max(1, Runtime.getRuntime().availableProcessors() -1));
 		}
 		private Collection<Layer> getLayerList(String title) {
 			final GenericDialog gd = new GenericDialog(title);
