@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -653,6 +654,19 @@ public class Selection {
 			if (c.isInstance(d)) al.add(d);
 		}
 		return al;
+	}
+
+	/** Returns a list of selected Displayable of class c only.*/
+	public <T extends Displayable> List<T> get(final Class<T> c) {
+		final ArrayList<T> a = new ArrayList<T>();
+		if (Displayable.class == c) {
+			a.addAll((Collection<T>)queue);
+			return a;
+		}
+		for (final Displayable d : queue) {
+			if (c.isInstance(d)) a.add((T)d);
+		}
+		return a;
 	}
 
 	/** Returns the subset of selected objects of Class c, in the proper order according to the Layer.indexOf or the LayerSet.indexOf.
