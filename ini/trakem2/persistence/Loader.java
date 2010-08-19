@@ -723,30 +723,24 @@ abstract public class Loader {
 		if (null == img) return 0;
 		return img.getWidth(null) * img.getHeight(null) * 4 + 100;
 	}
+	
+	/** A lock to acquire before freeing any memory. This lock is shared across all loaders.
+	 *  Synchronzing on this lock, any number of loaders cannot deadlock on each other
+	 *  by trying to free each other.*/
+	static private final Object CROSSLOCK = new Object();
 
 	/** Free up to @param min_free_bytes. Locks on db_lock. */
 	public final long releaseMemory(final long min_free_bytes) {
-		synchronized (db_lock) {
-			try {
-				return releaseMemory2(min_free_bytes, true);
-			} catch (Throwable e) {
-				IJError.print(e);
-				return 0;
+		synchronized (CROSSLOCK) {
+			synchronized (db_lock) {
+				try {
+					return releaseMemory2(min_free_bytes);
+				} catch (Throwable e) {
+					IJError.print(e);
+					return 0;
+				}
 			}
 		}
-	}
-
-	private final long releaseOthers(final long min_free_bytes) {
-		if (1 == v_loaders.size()) return 0;
-		long released = 0;
-		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
-			if (lo == this) continue;
-			synchronized (lo.db_lock) {
-				released += lo.releaseMemory2(min_free_bytes, false); // locking on the other Loader's db_lock
-			}
-			if (released >= min_free_bytes) return released;
-		}
-		return released;
 	}
 	
 	private final long releaseAndFlushOthers(final long min_free_bytes) {
@@ -759,7 +753,7 @@ abstract public class Loader {
 					released += lo.mawts.removeAndFlushSome(min_free_bytes);
 					if (released >= min_free_bytes) return released;
 				} catch (Throwable t) {
-					handleCacheError(t);
+					lo.handleCacheError(t);
 				}
 			}
 		}
@@ -768,19 +762,17 @@ abstract public class Loader {
 	
 	@Deprecated
 	protected final long releaseMemory2() {
-		return releaseMemory2(MIN_FREE_BYTES, true);
+		return releaseMemory2(MIN_FREE_BYTES);
 	}
 
 	/** Non-locking version (but locks on the other Loader's db_lock).
 	 *  @return How much memory was actually removed, in bytes. */
-	protected final long releaseMemory2(final long min_free_bytes, final boolean release_others) {
+	private final long releaseMemory2(final long min_free_bytes) {
 		long released = 0;
 		try {
 			// First from other loaders, if any
-			if (release_others) {
-				released += releaseOthers(min_free_bytes);
-				if (released >= min_free_bytes) return released;
-			}
+			released += releaseAndFlushOthers(min_free_bytes);
+			if (released >= min_free_bytes) return released;
 				
 			// Then from here
 			if (0 != mawts.size()) {
