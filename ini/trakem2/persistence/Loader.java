@@ -3731,7 +3731,7 @@ while (it.hasNext()) {
 		}
 	}
 
-	protected final void preProcess(final Patch p, ImagePlus imp) {
+	protected final void preProcess(final Patch p, ImagePlus imp, final long image_n_bytes) {
 		if (null == p) return;
 		try {
 			String path = preprocessors.get(p);
@@ -3750,12 +3750,14 @@ while (it.hasNext()) {
 				// Prepare image for pre-processing
 				imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
 			}
+			// Free 10 times the memory taken by the image, as a gross estimate of memory consumption by the script
+			releaseToFit(Math.min(10 * image_n_bytes, MAX_MEMORY / 4));
 			// Run the script
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
 			// Update Patch image properties:
 			if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
 				cache(p, imp);
-				p.updatePixelProperties();
+				p.updatePixelProperties(imp);
 			} else {
 				Utils.log("ERROR: preprocessor script failed to create a valid image:"
 						+ "\n  ImageProcessor: " + imp.getProcessor()

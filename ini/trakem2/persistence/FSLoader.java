@@ -547,7 +547,7 @@ public final class FSLoader extends Loader {
 			releaseToFit(n_bytes);
 			imp = openImage(path);
 
-			preProcess(p, imp);
+			preProcess(p, imp, n_bytes);
 
 			synchronized (db_lock) {
 				try {

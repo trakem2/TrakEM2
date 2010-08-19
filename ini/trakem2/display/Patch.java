@@ -230,8 +230,8 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Update type, original dimensions and min,max from the ImagePlus.
 	 *  This is automatically done after a preprocessor script has modified the image. */
-	public void updatePixelProperties() {
-		readProps(getImagePlus());
+	public void updatePixelProperties(final ImagePlus imp) {
+		readProps(imp);
 	}
 
 	/** Update type, original dimensions and min,max from the given ImagePlus. */
