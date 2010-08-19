@@ -182,8 +182,8 @@ public class Cache {
 	
 	private final void addBytes(final long b) {
 		this.bytes += b;
-		Utils.log2("Added " + b + " and then: bytes = " + this.bytes);
-		Utils.printCaller(this, 3);
+		//Utils.log2("Added " + b + " and then: bytes = " + this.bytes);
+		//Utils.printCaller(this, 3);
 	}
 	
 	public void setMaxBytes(final long max_bytes) {
