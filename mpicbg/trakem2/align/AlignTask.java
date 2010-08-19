@@ -264,7 +264,9 @@ final public class AlignTask
 		public final void applyInPlace(final float[] p) {
 			try {
 				ict.applyInverseInPlace(p);
-			} catch (NoninvertibleModelException e) { e.printStackTrace(); }
+			} catch (NoninvertibleModelException e) {
+				Utils.log2("Point outside mesh: " + p[0] + ", " + p[1]);
+			}
 		}
 		public final void applyInverseInPlace(final float[] p) {
 			ict.applyInPlace(p);
