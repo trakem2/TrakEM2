@@ -344,18 +344,19 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		try {
 			// check preconditions
 			if (0 == ht_areas.size()) return false;
-			Area[] area = new Area[ht_areas.size()];
-			Map.Entry[] entry = new Map.Entry[area.length];
-			ht_areas.entrySet().toArray(entry);
+			final Area[] area = new Area[ht_areas.size()];
 			ht_areas.values().toArray(area);
-			Rectangle[] b = new Rectangle[area.length];
+			final Rectangle[] b = new Rectangle[area.length];
 			Rectangle box = null;
 			for (int i=0; i<area.length; i++) {
 				b[i] = area[i].getBounds();
 				if (null == box) box = (Rectangle)b[i].clone();
 				else box.add(b[i]);
 			}
-			if (null == box || 0 == box.x || 0 == box.y) return false; // empty AreaList
+			if (null == box || 0 == box.width || 0 == box.height) return false; // empty AreaList
+			
+			final Map.Entry[] entry = new Map.Entry[area.length];
+			ht_areas.entrySet().toArray(entry);
 			final AffineTransform atb = new AffineTransform();
 			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
 			for (int i=0; i<area.length; i++) {
