@@ -116,11 +116,7 @@ public class AreaWrapper {
 
 		if (null != this.painter) {
 			try {
-				final Area tmp = this.painter.getTmpArea();
-				if (null != tmp) {
-					if (fill) g.fill(tmp.createTransformedArea(aff));
-					else      g.draw(tmp.createTransformedArea(aff)); // won't be perfect except on mouse release
-				}
+				this.painter.paint(g, aff, fill);
 			} catch (Exception e) {}
 		}
 	}
@@ -143,7 +139,8 @@ public class AreaWrapper {
 		final private boolean adding;
 		private final Layer la;
 		private final AffineTransform at, at_inv;
-		private final Object arealock = new Object();
+		private final Object arealock = new Object(),
+							 pointslock = new Object();
 		private final ExecutorService accumulator;
 		private final ScheduledExecutorService composer;
 		private final ScheduledFuture<?> composition;
@@ -177,7 +174,7 @@ public class AreaWrapper {
 				public void run() {
 					final ArrayList<Point> ps;
 					final int n_points;
-					synchronized (arealock) {
+					synchronized (pointslock) {
 						n_points = points.size();
 						if (0 == n_points) return;
 						ps = new ArrayList<Point>(points);
@@ -265,6 +262,17 @@ public class AreaWrapper {
 			start();
 		}
 
+		/** Paint only if area is not the target_area. */
+		private final void paint(final Graphics2D g, final AffineTransform aff, final boolean fill) {
+			if (area == target_area) return;
+			if (null != area) {
+				synchronized (arealock) {
+					if (fill) g.fill(area.createTransformedArea(aff));
+					else      g.draw(area.createTransformedArea(aff)); // won't be perfect except on mouse release
+				}
+			}
+		}
+
 		final void quit() {
 			//if (!this.paint) return; // already quit
 			//this.paint = false;
@@ -278,44 +286,57 @@ public class AreaWrapper {
 				composer.shutdown();
 				try {
 					composer.awaitTermination(30, TimeUnit.SECONDS);
+					accumulator.awaitTermination(30, TimeUnit.SECONDS); // must wait until the threads have actually died
 				} catch (InterruptedException ie) {} // proceed in any case
-
+				
+				// From now on, synchronizing on arealock should not be necessary:
+				//   no other threads are operating on the areas.
+				// But paranoid programming requires that I used it anyway.
+				
 				if (points.size() > 1) {
 					// one last time:
 					interpolator.run();
 				} else {
 					// Just one point: no interpolation needed
 					// merge the temporary Area, if any, with the general one
-					if (adding) this.target_area.add(area);
+					if (adding) {
+						synchronized (arealock) {
+							this.target_area.add(area);
+						}
+					}
 					// If subtracting, it was already done
 					return;
 				}
 
 				if (adding) {
-					this.target_area.add(area);
+					synchronized (arealock) {
+						this.target_area.add(area);
 
-					// now, depending on paint mode, alter the new target area:
+						// now, depending on paint mode, alter the new target area:
 
-					if (PAINT_OVERLAP == PP.paint_mode) {
-						// Nothing happens with PAINT_OVERLAP, default mode.
-					} else {
-						final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(src.getAffineTransform()).getBounds(), true);
+						if (PAINT_OVERLAP == PP.paint_mode) {
+							// Nothing happens with PAINT_OVERLAP, default mode.
+						} else {
+							final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(src.getAffineTransform()).getBounds(), true);
 
-						// prepare undo step:
-						final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
+							// prepare undo step:
+							final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
 
-						for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
-							final Displayable d = e.getKey();
-							if (src == d) continue;
-							for (final Area a : e.getValue()) {
-								if (this.area == a) continue;
-								AffineTransform aff;
-								switch (PP.paint_mode) {
+							for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
+								final Displayable d = e.getKey();
+								if (src == d) continue;
+								for (final Area a : e.getValue()) {
+									if (this.area == a) continue;
+									AffineTransform aff;
+									switch (PP.paint_mode) {
 									case PAINT_ERODE:
 										// subtract this target_area from any other Area that overlaps with it
 										aff = new AffineTransform(this.at);
 										aff.preConcatenate(d.at.createInverse());
-										final Area ta = target_area.createTransformedArea(aff);
+										final Area ta;
+										synchronized (arealock) {
+											ta = target_area.createTransformedArea(aff);
+										}
 										if (a.getBounds().intersects(ta.getBounds())) {
 											ops.put(d, new Runnable() { public void run() { a.subtract(ta); }});
 										}
@@ -332,14 +353,17 @@ public class AreaWrapper {
 									default:
 										Utils.log2("Can't handle paint mode " + PP.paint_mode);
 										break;
+									}
 								}
 							}
-						}
 
-						if (null != ops && ops.size() > 0) {
-							src.getLayerSet().addDataEditStep(ops.keySet());
-							for (final Runnable r : ops.values()) r.run();
-							something_eroded = true;
+							if (null != ops && ops.size() > 0) {
+								src.getLayerSet().addDataEditStep(ops.keySet());
+								for (final Runnable r : ops.values()) {
+									r.run();
+								}
+								something_eroded = true;
+							}
 						}
 					}
 				}
@@ -348,10 +372,6 @@ public class AreaWrapper {
 			} catch (Exception ee) {
 				IJError.print(ee);
 			}
-		}
-		final Area getTmpArea() {
-			if (area != target_area) return area;
-			return null;
 		}
 		/** For best smoothness, each mouse dragged event should be captured!*/
 		public void run() {
@@ -385,6 +405,8 @@ public class AreaWrapper {
 								// with alt down, subtract
 								area.subtract(slash);
 							}
+						}
+						synchronized (pointslock) {
 							points.add(p);
 						}
 						final Rectangle copy = new Rectangle(p.x - brush_size/2, p.y - brush_size/2, brush_size, brush_size);
