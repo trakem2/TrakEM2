@@ -19,6 +19,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.InputEvent;
 
+import fiji.geom.AreaCalculations;
 import ini.trakem2.display.Layer;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.M;
@@ -303,9 +304,10 @@ public class AreaWrapper {
 						synchronized (arealock) {
 							this.target_area.add(area);
 						}
+					} else {
+						// If subtracting, it was already done
+						return;
 					}
-					// If subtracting, it was already done
-					return;
 				}
 
 				if (adding) {
@@ -318,7 +320,7 @@ public class AreaWrapper {
 							// Nothing happens with PAINT_OVERLAP, default mode.
 						} else {
 							final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(src.getAffineTransform()).getBounds(), true);
-
+							
 							// prepare undo step:
 							final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
 
@@ -334,11 +336,15 @@ public class AreaWrapper {
 										aff = new AffineTransform(this.at);
 										aff.preConcatenate(d.at.createInverse());
 										final Area ta;
+										final Rectangle ta_bounds;
 										synchronized (arealock) {
 											ta = target_area.createTransformedArea(aff);
+											ta_bounds = ta.getBounds();
 										}
-										if (a.getBounds().intersects(ta.getBounds())) {
-											ops.put(d, new Runnable() { public void run() { a.subtract(ta); }});
+										if (a.getBounds().intersects(ta_bounds)) {
+											ops.put(d, new Runnable() { public void run() {
+												a.subtract(ta);
+											}});
 										}
 										break;
 									case PAINT_EXCLUDE:
@@ -650,7 +656,9 @@ public class AreaWrapper {
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 				}
 			} else {
-				if (null != this.painter) this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
+				if (null != this.painter) {
+					this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
+				}
 				try {
 					this.painter = new Painter(area, mag, la, source.getAffineTransformCopy(), me.getModifiers());
 				} catch (Exception e) {
