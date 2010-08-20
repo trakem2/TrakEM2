@@ -148,6 +148,7 @@ public class AreaWrapper {
 		private final ScheduledExecutorService composer;
 		private final ScheduledFuture<?> composition;
 		private final Runnable interpolator;
+		private final Displayable src = AreaWrapper.this.source; // local pointer copy
 
 		Painter(Area area, double mag, Layer la, AffineTransform at, final int flags) throws Exception {
 			super("AreaWrapper.Painter");
@@ -298,14 +299,14 @@ public class AreaWrapper {
 					if (PAINT_OVERLAP == PP.paint_mode) {
 						// Nothing happens with PAINT_OVERLAP, default mode.
 					} else {
-						final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(source.getAffineTransform()).getBounds(), true);
+						final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(src.getAffineTransform()).getBounds(), true);
 
 						// prepare undo step:
 						final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
 
 						for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
 							final Displayable d = e.getKey();
-							if (source == d) continue;
+							if (src == d) continue;
 							for (final Area a : e.getValue()) {
 								if (this.area == a) continue;
 								AffineTransform aff;
@@ -336,7 +337,7 @@ public class AreaWrapper {
 						}
 
 						if (null != ops && ops.size() > 0) {
-							source.getLayerSet().addDataEditStep(ops.keySet());
+							src.getLayerSet().addDataEditStep(ops.keySet());
 							for (final Runnable r : ops.values()) r.run();
 							something_eroded = true;
 						}
