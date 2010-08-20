@@ -21,6 +21,7 @@ import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -382,8 +383,12 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		if (null != receiver) {
 			receiver.getData(); // create the AreaWrapper if not there already
 			receiver.aw.setSource(this);
-			receiver.aw.mousePressed(me, la, x_p, y_p, mag);
-			calculateBoundingBox(la);
+			receiver.aw.mousePressed(me, la, x_p, y_p, mag, Arrays.asList(new Runnable[]{
+					new Runnable() {
+						public void run() {
+							calculateBoundingBox(la);
+						}}}));
+
 			receiver.aw.setSource(null);
 
 			setLastEdited(receiver);
@@ -415,7 +420,6 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		if (null == receiver) return;
 		receiver.aw.setSource(this);
 		receiver.aw.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
-		calculateBoundingBox(la);
 		receiver.aw.setSource(null);
 
 		updateViewData(receiver);
