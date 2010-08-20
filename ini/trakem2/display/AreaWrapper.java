@@ -19,7 +19,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.InputEvent;
 
-import fiji.geom.AreaCalculations;
 import ini.trakem2.display.Layer;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.M;
