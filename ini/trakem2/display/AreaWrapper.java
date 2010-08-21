@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AreaWrapper {
 
@@ -272,12 +273,20 @@ public class AreaWrapper {
 				}
 			}
 		}
+		
+		final AtomicBoolean quitted = new AtomicBoolean(false);
 
-		final void quit() {
+		/** This method must be called exactly and only once.*/
+		final synchronized void quit() {
 			//if (!this.paint) return; // already quit
 			//this.paint = false;
 			if (isInterrupted()) return;
 			interrupt();
+
+			// isInterrupted() is not enough of a check because it's not synchronized (or for other reasons), so use:
+			if (quitted.getAndSet(true)) {
+				return;
+			}
 
 			// Make interpolated points affect add or subtract operations
 			try {
@@ -289,11 +298,16 @@ public class AreaWrapper {
 					accumulator.awaitTermination(30, TimeUnit.SECONDS); // must wait until the threads have actually died
 				} catch (InterruptedException ie) {} // proceed in any case
 				
-				// From now on, synchronizing on arealock should not be necessary:
+				// From now on, synchronizing on arealock and pointslock should not be necessary:
 				//   no other threads are operating on the areas.
 				// But paranoid programming requires that I used it anyway.
 				
-				if (points.size() > 1) {
+				final int psize;
+				synchronized (pointslock) {
+					psize = points.size();
+				}
+
+				if (psize > 1) {
 					// one last time:
 					interpolator.run();
 				} else {
