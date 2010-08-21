@@ -1769,6 +1769,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	
 	static protected class DoEdits implements DoStep {
 		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
+		HashSet<DoStep> dependents = null;
 		DoEdits(final Set<? extends Displayable> col) {
 			for (final Displayable d : col) {
 				edits.add(new DoEdit(d));
@@ -1784,6 +1785,13 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			// Order matters: (but it shouldn't!) TODO
 			for (; it1.hasNext() && it2.hasNext(); ) {
 				if ( ! it1.next().isIdenticalTo(it2.next())) return false;
+			}
+			if (null != dependents && null != other.dependents) {
+				if (dependents.size() != other.dependents.size()) return false;
+				// Order matters:
+				for (Iterator<DoStep> s1 = dependents.iterator(), s2 = other.dependents.iterator(); s1.hasNext(); ) {
+					if (!s1.next().isIdenticalTo(s2.next())) return false;
+				}
 			}
 			return true;
 		}
@@ -1801,7 +1809,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					failed = true;
 				}
 			}
+
+			// Invoke dependents
+			if (null != dependents) for (DoStep step : dependents) failed = !step.apply(action) || failed;
+
 			return !failed;
+		}
+		public void addDependents(final Collection<DoStep> dep) {
+			if (null == this.dependents) this.dependents = new HashSet<DoStep>();
+			this.dependents.addAll(dep);
 		}
 	}
 
@@ -1964,7 +1980,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 	}
 
-	protected class DoTransforms implements DoStep {
+	static protected class DoTransforms implements DoStep {
 		final private HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
 		final HashSet<Layer> layers = new HashSet<Layer>();
 
