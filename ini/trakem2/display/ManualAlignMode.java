@@ -26,6 +26,7 @@ import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Font;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Collection;
@@ -373,16 +374,25 @@ public class ManualAlignMode implements Mode {
 		}
 
 		final LayerSet ls = ref_layer.getParent();
+		
+		final Collection<Layer> affected_layers = new HashSet<Layer>(m.keySet());
 
 		// Gather all Patch instances that will be affected
 		final ArrayList<Patch> patches = new ArrayList<Patch>();
 		for (final Layer la : m.keySet()) patches.addAll(la.getAll(Patch.class));
-		if (propagate_to_first && first_chunk.size() > 1)
-			for (final Layer la : ls.getLayers().subList(0, ls.indexOf(first_chunk.lastKey())))
+		if (propagate_to_first && first_chunk.size() > 1) {
+			final Collection<Layer> affected = ls.getLayers().subList(0, ls.indexOf(first_chunk.lastKey()));
+			for (final Layer la : affected) {
 				patches.addAll(la.getAll(Patch.class));
-		if (propagate_to_last && second_chunk.size() > 1)
-			for (final Layer la : ls.getLayers().subList(ls.indexOf(second_chunk.lastKey()) + 1, ls.size()))
+			}
+			affected_layers.addAll(affected);
+		}
+		if (propagate_to_last && second_chunk.size() > 1) {
+			final Collection<Layer> affected = ls.getLayers().subList(ls.indexOf(second_chunk.lastKey()) + 1, ls.size());
+			for (final Layer la : affected) {
 				patches.addAll(la.getAll(Patch.class));
+			}
+		}
 		
 
 		// Transform segmentations along with patches
@@ -391,8 +401,40 @@ public class ManualAlignMode implements Mode {
 
 		// Apply!
 
-		// Setup undo
-		ls.addTransformStep();
+
+		// TODO: when adding non-linear transforms, use this single line for undo instead of all below:
+		// (these transforms may be non-linear as well, which alter mipmaps.)
+		//ls.addTransformStepWithData(affected_layers);
+	
+		
+		// Setup undo:
+		// Find all images in the range of affected layers,
+		// plus all Displayable of those layers (but Patch instances in a separate DoTransforms step,
+		//   to avoid adding a "data" undo for them, which would recreate mipmaps when undone).
+		// plus all ZDisplayable that paint in those layers
+		final HashSet<Displayable> ds = new HashSet<Displayable>();
+		final ArrayList<Displayable> patches = new ArrayList<Displayable>();
+		for (final Layer layer : affected_layers) {
+			for (final Displayable d : layer.getDisplayables()) {
+				if (d.getClass() == Patch.class) {
+					patches.add(d);
+				} else {
+					ds.add(d);
+				}
+			}
+		}
+		for (final ZDisplayable zd : ls.getZDisplayables()) {
+			for (final Layer layer : affected_layers) {
+				if (zd.paintsAt(layer)) {
+					ds.add((Displayable)zd);
+					break;
+				}
+			}
+		}
+		Displayable.DoEdits step = ls.addTransformStepWithData(ds);
+		ArrayList<DoStep> a = new ArrayList<DoStep>();
+		a.add(new Displayable.DoTransforms().addAll(patches));
+		step.addDependents(a);
 
 		if (first_chunk.size() > 1) {
 			AffineTransform aff = align(first_chunk, model);
@@ -414,7 +456,10 @@ public class ManualAlignMode implements Mode {
 		Display.repaint();
 
 		// Store current state
-		ls.addTransformStep();
+		Displayable.DoEdits step2 = ls.addTransformStepWithData(ds);
+		ArrayList<DoStep> a2 = new ArrayList<DoStep>();
+		a2.add(new Displayable.DoTransforms().addAll(patches));
+		step2.addDependents(a);
 
 		}});
 
