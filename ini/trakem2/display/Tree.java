@@ -3272,7 +3272,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			//
 			if (1 == path.size()) {
 				fpB[0] = fpA[0];
-				fpB[1] = fpB[1];
+				fpB[1] = fpA[1];
 			}
 			//
 			while (it.hasNext()) {
