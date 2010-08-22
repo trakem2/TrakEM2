@@ -27,6 +27,7 @@ import ij.gui.*;
 import ij.io.OpenDialog;
 import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.parallel.Process;
@@ -2534,6 +2535,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
 				popup.add(go);
 				
+				JMenu tmeasure = new JMenu("Measure");
+				JMenuItem dist_to_root = new JMenuItem("Distance from this node to root"); tmeasure.add(dist_to_root);
+				JMenuItem dist_to_tag = new JMenuItem("Distance from this node to all nodes tagged as..."); tmeasure.add(dist_to_tag);
+				JMenuItem dist_to_mark = new JMenuItem("Distance from this node to the marked node"); tmeasure.add(dist_to_mark);
+				final ActionListener tma = getTreePathMeasureListener((Tree<?>)active);
+				for (JMenuItem mi : new JMenuItem[]{dist_to_root, dist_to_tag, dist_to_mark}) {
+					mi.addActionListener(tma);
+				}
+				popup.add(tmeasure);
+				
 				final String[] name = new String[]{AreaTree.class.getSimpleName(), Treeline.class.getSimpleName()};
 				if (Treeline.class == aclass) {
 					String a = name[0];
@@ -2941,6 +2952,55 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private ActionListener getTreePathMeasureListener(final Tree tree) {
+		return new ActionListener() {
+			public void actionPerformed(ActionEvent ae) {
+				final String command = ae.getActionCommand();
+				Point p = getCanvas().consumeLastPopupPoint();
+				Node clicked = tree.findClosestNodeW(p.x, p.y, getLayer(), canvas.getMagnification());
+				if (null == clicked) {
+					Calibration cal = getLayerSet().getCalibration();
+					Utils.log("No node found at " + p.x * cal.pixelWidth + ", " + p.y * cal.pixelHeight);
+					return;
+				}
+				ResultsTable rt = null;
+				if (command.equals("Distance from this node to root")) {
+					rt = tree.measurePathDistance(clicked, tree.getRoot(), null);
+				} else if (command.equals("Distance from this node to the marked node")) {
+					if (null == tree.getMarked()) {
+						Utils.log("No marked node!");
+						return;
+					}
+					rt = tree.measurePathDistance(clicked, tree.getMarked(), null);
+				} else if (command.equals("Distance from this node to all nodes tagged as...")) {
+					final Set<Tag> tags = tree.findTags();
+					if (tags.isEmpty()) {
+						Utils.log("The nodes of the tree '" + tree + "' don't have any tags!");
+						return;
+					}
+					TreeMap<String,Tag> sm = new TreeMap<String,Tag>();
+					for (final Tag t : tags) sm.put(t.toString(), t);
+					final String[] stags = new String[sm.size()];
+					sm.keySet().toArray(stags);
+					GenericDialog gd = new GenericDialog("Choose tag");
+					gd.addChoice("Tag:", stags, stags[0]);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					// So we have a Tag:
+					final Tag tag = sm.get(gd.getNextChoice());
+					// Measure distance to each node that has the tag
+					for (final Node nd : (Collection<Node>)tree.getRoot().getSubtreeNodes()) {
+						if (nd.hasTag(tag)) {
+							rt = tree.measurePathDistance(clicked, nd, rt);
+						}
+					}
+				}
+				if (null == rt) Utils.log("No nodes found!");
+				else rt.show("Tree path measurements");
+			}
+		};
 	}
 
 	private final class GraphMenuListener implements ActionListener {
