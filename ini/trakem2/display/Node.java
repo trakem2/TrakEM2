@@ -5,6 +5,7 @@ import java.util.AbstractCollection;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -429,6 +430,44 @@ public abstract class Node<T> implements Taggable {
 	public final int getChildrenCount() {
 		if (null == children) return 0;
 		return children.length;
+	}
+	/** Traverse the tree from this node all the way to the root node,
+	 *  and count how many nodes apart this node is from the root node:
+	 *  that is the degree.
+	 *  Thanks to Johannes Schindelin.
+	 */
+	public final int computeDegree() {
+	    int result = 0;
+	    for (Node<T> node = this; node != null; node = node.parent)
+	        result++;
+	    return result;
+	}
+	/** Obtain the (only) list from node a to node b,
+	 *  including both a (the first element) and b (the last element).
+	 *  Thanks to Johannes Schindelin.
+	 */
+	public List<Node<T>> getPath(Node<T> a, Node<T> b) {
+	    int degreeA = a.computeDegree(),
+	    	degreeB = b.computeDegree();
+	    final List<Node<T>> listA = new ArrayList<Node<T>>(),
+	    					listB = new ArrayList<Node<T>>();
+	    // Traverse upstream the parent chain until finding nodes of the same degree
+	    for (; degreeB > degreeA; degreeB--, b = b.parent)
+	        listB.add(b);
+	    for (; degreeA > degreeB; degreeA--, a = a.parent)
+	        listA.add(a);
+	    // Traverse upstream the parent chain until finding a common parent node
+	    for (; a != b; a = a.parent, b = b.parent) {
+	        listA.add(a);
+	        listB.add(b);
+	    }
+	    // Add that common parent node
+	    listA.add(a);
+	    // add all in reverse
+	    for (final ListIterator<Node<T>> it = listB.listIterator(listB.size()); it.hasPrevious(); ) {
+	    	listA.add(it.previous());
+	    }
+	    return listA;
 	}
 	/** Assumes this is NOT a graph with cycles. Non-recursive to avoid stack overflows. */
 	final void setRoot() {
