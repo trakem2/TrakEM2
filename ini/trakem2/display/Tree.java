@@ -3247,10 +3247,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			return new Point3f(fpB[0], fpB[1], (float)(path.get(path.size()-1).la.getZ() * cal.pixelWidth));
 		}
 		/** @throws an Exception if a path cannot be found between @param a and @param b. */
-		public MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b) throws Exception {
-			this.path = Node.findPath(a, b);
-			if (path.size() < 2) {
-				throw new Exception("Could not find a path between nodes " + a + " and " + b);
+		public MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b) {
+			if (a == b) {
+				this.path = new ArrayList<Node<I>>();
+				this.path.add(a);
+			} else {
+				this.path = Node.findPath(a, b);
 			}
 			this.cal = tree.layer_set.getCalibrationCopy();
 			this.tree = tree;
@@ -3267,6 +3269,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			//
 			firstx = fpA[0];
 			firsty = fpA[1];
+			//
+			if (1 == path.size()) {
+				fpB[0] = fpA[0];
+				fpB[1] = fpB[1];
+			}
 			//
 			while (it.hasNext()) {
 				Node<?> second = it.next();
