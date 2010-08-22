@@ -1359,6 +1359,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		setLastVisited(nd);
 	}
 	protected void setLastVisited(Node<T> nd) { this.last_visited = nd; }
+	
+	public Node<T> getMarked() {
+		return marked;
+	}
 
 	protected void fireNodeRemoved(final Node<T> nd) {
 		if (nd == marked) marked = null;
