@@ -928,6 +928,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Expects world coords; with precision depending on magnification. */
+	public Node<T> findClosestNodeW(final float wx, final float wy, final Layer layer, final double magnification) {
+		if (null == root) return null;
+		synchronized (node_layer_map) {
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
+			if (null == nodes) return null;
+			return findClosestNodeW(nodes, wx, wy, magnification);
+		}
+	}
+
+	/** Expects world coords; with precision depending on magnification. */
 	public Node<T> findClosestNodeW(final Collection<Node<T>> nodes, final float wx, final float wy, final double magnification) {
 		float lx = wx,
 		      ly = wy;
@@ -956,7 +966,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return min_dist < d ? nd : null;
 	}
 
-	/** Find the spatially closest node, in calibrated coords. */
+	/** Find the spatially closest node, in calibrated coords; expects local coords. */
 	public Node<T> findNearestNode(final float lx, final float ly, final Layer layer) {
 		synchronized (node_layer_map) {
 			final Set<Node<T>> nodes = node_layer_map.get(layer);
