@@ -3221,6 +3221,119 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				createReviewStack(first, last, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
 			}}, project);
 	}
+	
+	static public final class MeasurePathDistance<I> {
+		private double dist = 0;
+		private int branch_points = 0;
+		final private float[] fpA = new float[2],
+							  fpB = new float[2];
+		final private float firstx,
+							firsty;
+		final private List<Node<I>> path;
+		final private Calibration cal;
+		final private Tree<I> tree;
+		final private Node<I> a, b;
+		
+		public double getDistance() { return dist; }
+		public List<Node<I>> getPath() { return path; }
+		public int getBranchNodesInPath() { return branch_points; }
+		public Point3f getFirstNodeCoordinates() {
+			return new Point3f(firstx, firsty, (float)(path.get(0).la.getZ() * cal.pixelWidth));
+		}
+		public Point3f getLastNodeCoordiantes() {
+			if (1 == path.size()) {
+				return getFirstNodeCoordinates();
+			}
+			return new Point3f(fpB[0], fpB[1], (float)(path.get(path.size()-1).la.getZ() * cal.pixelWidth));
+		}
+		/** @throws an Exception if a path cannot be found between @param a and @param b. */
+		public MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b) throws Exception {
+			this.path = Node.findPath(a, b);
+			if (path.size() < 2) {
+				throw new Exception("Could not find a path between nodes " + a + " and " + b);
+			}
+			this.cal = tree.layer_set.getCalibrationCopy();
+			this.tree = tree;
+			this.a = a;
+			this.b = b;
+			final Iterator<Node<I>> it = path.iterator();
+			//
+			Node<?> first = it.next();
+			if (first.getChildrenCount() > 1) branch_points++;
+			fpA[0] = first.x;
+			fpA[1] = first.y;
+			tree.at.transform(fpA, 0, fpA, 0, 1);
+			double zA = first.la.getZ();
+			//
+			firstx = fpA[0];
+			firsty = fpA[1];
+			//
+			while (it.hasNext()) {
+				Node<?> second = it.next();
+				if (second.getChildrenCount() > 1) branch_points++;
+				fpB[0] = second.x;
+				fpB[1] = second.y;
+				tree.at.transform(fpB, 0, fpB, 0, 1);
+				double zB = second.la.getZ();
+				dist += Math.sqrt(Math.pow((fpB[0] - fpA[0]) * cal.pixelWidth, 2)
+						+ Math.pow((fpB[1] - fpA[1]) * cal.pixelHeight, 2)
+						+ Math.pow((zB - zA) * cal.pixelWidth, 2));
+				// prepare next iteration
+				first = second;
+				fpA[0] = fpB[0];
+				fpA[1] = fpB[1];
+				zA = zB;
+			}
+		}
+		/** Reuses @param rt unless it is null, in which case it creates a new one. */
+		public ResultsTable show(ResultsTable rt) {
+			if (null == rt) rt = Utils.createResultsTable("Tree path measurements", new String[]{"id", "XA", "YA", "Layer A", "XB", "YB", "Layer B", "distance", "N nodes", "N branch points"});
+			rt.incrementCounter();
+			rt.addLabel("units", cal.getUnit());
+			rt.addValue(0, tree.id);
+			rt.addValue(1, firstx);
+			rt.addValue(2, firsty);
+			rt.addValue(3, tree.layer_set.indexOf(a.la) + 1); // 1-based, not zero-based!
+			rt.addValue(4, fpB[0]);
+			rt.addValue(5, fpB[1]);
+			rt.addValue(6, tree.layer_set.indexOf(b.la) + 1);
+			rt.addValue(7, dist);
+			rt.addValue(8, path.size());
+			rt.addValue(9, branch_points);
+			return rt;
+		}
+	}
+
+	/** Reuses @param rt unless it is null, in which case it creates a new one.
+	 *  Will check if both nodes belong to this tree.
+	 *  @return The used ResultsTable instance. */
+	public ResultsTable measurePathDistance(final Node<T> a, final Node<T> b, ResultsTable rt) {
+		synchronized (node_layer_map) {
+			// Do both nodes belong to this Tree?
+			Set<Node<T>> nodes1 = node_layer_map.get(a.la);
+			if (null == nodes1 || !nodes1.contains(a)) {
+				Utils.log("Tree.measurePathDistance: node " + a + " does not belong to tree " + this);
+				return rt;
+			}
+			Set<Node<T>> nodes2 = node_layer_map.get(b.la);
+			if (null == nodes2 || !nodes2.contains(b)) {
+				Utils.log("Tree.measurePathDistance: node " + b + " does not belong to tree " + this);
+				return rt;
+			}
+			try {
+				return new MeasurePathDistance<T>(this, a, b).show(rt);
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+			return rt;
+		}
+	}
+	/** Measure the distance, in calibrated units, between nodes a and b of this tree.
+	 *  Does not check if the nodes really belong to this tree. */
+	public double measurePathDistance(final Node<T> a, final Node<T> b) throws Exception {
+		return new MeasurePathDistance<T>(this, a, b).getDistance();
+	}
+
 	/** Search all nodes for unique tags and returns them. */
 	public Set<Tag> findTags() {
 		final HashSet<Tag> tags = new HashSet<Tag>();
