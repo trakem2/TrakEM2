@@ -723,6 +723,11 @@ public abstract class Node<T> implements Taggable {
 		System.arraycopy(t1, 0, t2, 0, t1.length);
 		return t2;
 	}
+	
+	synchronized public boolean hasTag(final Tag t) {
+		if (null == this.tags) return false;
+		return getTags().contains(t);
+	}
 
 	/** @return a shallow copy of the tags set, if any, or null. */
 	synchronized public Set<Tag> getTags() {
