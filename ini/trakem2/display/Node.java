@@ -446,11 +446,11 @@ public abstract class Node<T> implements Taggable {
 	 *  including both a (the first element) and b (the last element).
 	 *  Thanks to Johannes Schindelin.
 	 */
-	public List<Node<T>> getPath(Node<T> a, Node<T> b) {
+	public static List<Node<?>> getPath(Node<?> a, Node<?> b) {
 	    int degreeA = a.computeDegree(),
 	    	degreeB = b.computeDegree();
-	    final List<Node<T>> listA = new ArrayList<Node<T>>(),
-	    					listB = new ArrayList<Node<T>>();
+	    final List<Node<?>> listA = new ArrayList<Node<?>>(),
+	    					listB = new ArrayList<Node<?>>();
 	    // Traverse upstream the parent chain until finding nodes of the same degree
 	    for (; degreeB > degreeA; degreeB--, b = b.parent)
 	        listB.add(b);
@@ -464,7 +464,7 @@ public abstract class Node<T> implements Taggable {
 	    // Add that common parent node
 	    listA.add(a);
 	    // add all in reverse
-	    for (final ListIterator<Node<T>> it = listB.listIterator(listB.size()); it.hasPrevious(); ) {
+	    for (final ListIterator<Node<?>> it = listB.listIterator(listB.size()); it.hasPrevious(); ) {
 	    	listA.add(it.previous());
 	    }
 	    return listA;
