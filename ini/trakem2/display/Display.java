@@ -4335,6 +4335,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Part subtree")) {
 			if (!(active instanceof Tree)) return;
+			if (!Utils.check("Really part the subtree?")) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			List<ZDisplayable> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
@@ -4369,6 +4370,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			final List<Tree> tlines = (List<Tree>) (List) selection.getSelected(active.getClass());
 			if (((Tree)active).canJoin(tlines)) {
+				if (!Utils.check("Join these " + tlines.size() + " trees into the tree " + active + " ?")) return;
 				// Record current state
 				Set<DoStep> dataedits = new HashSet<DoStep>(tlines.size());
 				for (final Tree tl : tlines) {
