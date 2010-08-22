@@ -3221,4 +3221,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				createReviewStack(first, last, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
 			}}, project);
 	}
+	/** Search all nodes for unique tags and returns them. */
+	public Set<Tag> findTags() {
+		final HashSet<Tag> tags = new HashSet<Tag>();
+		synchronized (node_layer_map) {
+			for (final Set<Node<T>> nodes : node_layer_map.values()) {
+				for (final Node<T> node : nodes) {
+					final Set<Tag> t = node.getTags();
+					if (null == t) continue;
+					tags.addAll(t);
+				}
+			}
+		}
+		return tags;
+	}
 }
