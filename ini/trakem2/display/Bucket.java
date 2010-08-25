@@ -23,7 +23,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.TreeMap;
 import java.util.Collection;
 import java.util.Map;
@@ -31,7 +30,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Set;
 
 import java.awt.Rectangle;
 import java.awt.geom.Area;
