@@ -431,10 +431,14 @@ public class ManualAlignMode implements Mode {
 				}
 			}
 		}
-		Displayable.DoEdits step = ls.addTransformStepWithData(ds);
-		ArrayList<DoStep> a = new ArrayList<DoStep>();
-		a.add(new Displayable.DoTransforms().addAll(patches));
-		step.addDependents(a);
+		if (ds.size() > 0) {
+			Displayable.DoEdits step = ls.addTransformStepWithData(ds);
+			if (patches.size() > 0) {
+				ArrayList<DoStep> a = new ArrayList<DoStep>();
+				a.add(new Displayable.DoTransforms().addAll(patches));
+				step.addDependents(a);
+			}
+		}
 
 		if (first_chunk.size() > 1) {
 			AffineTransform aff = align(first_chunk, model);
@@ -456,10 +460,14 @@ public class ManualAlignMode implements Mode {
 		Display.repaint();
 
 		// Store current state
-		Displayable.DoEdits step2 = ls.addTransformStepWithData(ds);
-		ArrayList<DoStep> a2 = new ArrayList<DoStep>();
-		a2.add(new Displayable.DoTransforms().addAll(patches));
-		step2.addDependents(a);
+		if (ds.size() > 0) {
+			Displayable.DoEdits step2 = ls.addTransformStepWithData(ds);
+			if (patches.size() > 0) {
+				ArrayList<DoStep> a2 = new ArrayList<DoStep>();
+				a2.add(new Displayable.DoTransforms().addAll(patches));
+				step2.addDependents(a2);
+			}
+		}
 
 		}});
 
