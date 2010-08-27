@@ -21,6 +21,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyAdapter;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.lang.reflect.Field;
 
 public class OptionPanel extends JPanel {
@@ -46,6 +48,24 @@ public class OptionPanel extends JPanel {
 			try {
 				Setter s = setters.get(source);
 				if (null != s) s.setFrom(source);
+			} catch (Throwable t) {
+				Utils.logAll("Invalid value " + ((JTextField)source).getText());
+			}
+		}
+	};
+	
+	private MouseWheelListener mwl = new MouseWheelListener() {
+		@Override
+		public void mouseWheelMoved(MouseWheelEvent mwe) {
+			Component source = (Component) mwe.getSource();
+			try {
+				Setter s = setters.get(source);
+				if (s instanceof NumericalSetter) {
+					if (null != s) {
+						// Update the value of the field and also of the JTextField
+						((JTextField)source).setText(((NumericalSetter)s).setFrom(source, mwe.getWheelRotation()).toString());
+					}
+				}
 			} catch (Throwable t) {
 				Utils.logAll("Invalid value " + ((JTextField)source).getText());
 			}
@@ -141,6 +161,7 @@ public class OptionPanel extends JPanel {
 		numeric_fields.add(tval);
 		addField(tval, setter);
 		tval.addKeyListener(kl);
+		tval.addMouseWheelListener(mwl);
 		return tval;
 	}
 
@@ -243,8 +264,30 @@ public class OptionPanel extends JPanel {
 		}
 		abstract public Object getValue(Component source);
 	}
+	
+	static abstract public class NumericalSetter extends Setter {
+		public NumericalSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public NumericalSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
+		public Object setFrom(Component source, int inc) throws Exception {
+			Field f = ob.getClass().getDeclaredField(field);
+			f.setAccessible(true);
+			Object val = getValue(source, inc);
+			f.set(ob, val);
 
-	static public class IntSetter extends Setter {
+			Utils.log2("set value of " + field + " to " + f.get(ob));
+			
+			if (null != reaction) reaction.run();
+			
+			return val;
+		}
+		abstract protected Object getValue(Component source, int inc);
+	}
+
+	static public class IntSetter extends NumericalSetter {
 		public IntSetter(Object ob, String field) {
 			super(ob, field);
 		}
@@ -254,9 +297,12 @@ public class OptionPanel extends JPanel {
 		public Object getValue(Component source) {
 			return (int) Double.parseDouble(((JTextField)source).getText());
 		}
+		protected Object getValue(Component source, int inc) {
+			return ((int) Double.parseDouble(((JTextField)source).getText())) + inc;
+		}
 	}
 
-	static public class DoubleSetter extends Setter {
+	static public class DoubleSetter extends NumericalSetter {
 		public DoubleSetter(Object ob, String field) {
 			super(ob, field);
 		}
@@ -266,9 +312,12 @@ public class OptionPanel extends JPanel {
 		public Object getValue(Component source) {
 			return Double.parseDouble(((JTextField)source).getText());
 		}
+		protected Object getValue(Component source, int inc) {
+			return Double.parseDouble(((JTextField)source).getText()) + inc;
+		}
 	}
 	
-	static public class FloatSetter extends Setter {
+	static public class FloatSetter extends NumericalSetter {
 		public FloatSetter(Object ob, String field) {
 			super(ob, field);
 		}
@@ -277,6 +326,9 @@ public class OptionPanel extends JPanel {
 		}
 		public Object getValue(Component source) {
 			return Float.parseFloat(((JTextField)source).getText());
+		}
+		public Object getValue(Component source, int inc) {
+			return Float.parseFloat(((JTextField)source).getText()) + inc;
 		}
 	}
 
