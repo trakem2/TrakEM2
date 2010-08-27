@@ -10,9 +10,12 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.text.JTextComponent;
 import javax.swing.JTextField;
+
+import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Map;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyListener;
@@ -219,9 +222,14 @@ public class OptionPanel extends JPanel {
 	static abstract public class Setter {
 		protected final Object ob;
 		protected final String field;
+		protected Runnable reaction;
 		public Setter(Object ob, String field) {
 			this.ob = ob;
 			this.field = field;
+		}
+		public Setter(Object ob, String field, Runnable reaction) {
+			this(ob, field);
+			this.reaction = reaction;
 		}
 		/** Will set the field if no exception is thrown when reading it. */
 		public void setFrom(Component source) throws Exception {
@@ -230,6 +238,8 @@ public class OptionPanel extends JPanel {
 			f.set(ob, getValue(source));
 
 			Utils.log2("set value of " + field + " to " + f.get(ob));
+			
+			if (null != reaction) reaction.run();
 		}
 		abstract public Object getValue(Component source);
 	}
@@ -237,6 +247,9 @@ public class OptionPanel extends JPanel {
 	static public class IntSetter extends Setter {
 		public IntSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public IntSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return (int) Double.parseDouble(((JTextField)source).getText());
@@ -247,14 +260,32 @@ public class OptionPanel extends JPanel {
 		public DoubleSetter(Object ob, String field) {
 			super(ob, field);
 		}
+		public DoubleSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
 		public Object getValue(Component source) {
 			return Double.parseDouble(((JTextField)source).getText());
+		}
+	}
+	
+	static public class FloatSetter extends Setter {
+		public FloatSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public FloatSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
+		public Object getValue(Component source) {
+			return Float.parseFloat(((JTextField)source).getText());
 		}
 	}
 
 	static public class BooleanSetter extends Setter {
 		public BooleanSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public BooleanSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return ((JCheckBox)source).isSelected();
@@ -265,6 +296,9 @@ public class OptionPanel extends JPanel {
 		public StringSetter(Object ob, String field) {
 			super(ob, field);
 		}
+		public StringSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
 		public Object getValue(Component source) {
 			return ((JTextComponent)source).getText();
 		}
@@ -273,6 +307,9 @@ public class OptionPanel extends JPanel {
 	static public class ChoiceIntSetter extends Setter {
 		public ChoiceIntSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public ChoiceIntSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return ((JComboBox)source).getSelectedIndex();
@@ -283,6 +320,9 @@ public class OptionPanel extends JPanel {
 		public ChoiceStringSetter(Object ob, String field) {
 			super(ob, field);
 		}
+		public ChoiceStringSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
 		public Object getValue(Component source) {
 			return ((JComboBox)source).getSelectedItem().toString();
 		}
@@ -291,6 +331,9 @@ public class OptionPanel extends JPanel {
 	static public class ChoiceObjectSetter extends Setter {
 		public ChoiceObjectSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public ChoiceObjectSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return ((JComboBox)source).getSelectedItem();
