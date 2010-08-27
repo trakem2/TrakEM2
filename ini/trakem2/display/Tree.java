@@ -1214,19 +1214,17 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public boolean join(final List<? extends Tree<T>> ts) {
 		if (!canJoin(ts)) return false;
 		// Preconditions passed: all Tree in ts have a marked node and are of the same kind
-
-		final AffineTransform at_inv;
-		try {
-			at_inv = this.at.createInverse();
-		} catch (NoninvertibleTransformException nite) {
-			IJError.print(nite);
-			return false;
-		}
-
 		for (final Tree<T> tl : ts) {
 			if (this == tl) continue;
 			tl.marked.setRoot();
 			// transform nodes from there to here
+			final AffineTransform at_inv;
+			try {
+				at_inv = this.at.createInverse();
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return false;
+			}
 			final AffineTransform aff = new AffineTransform(tl.at); // 1 - to world coords
 			aff.preConcatenate(at_inv);		// 2 - to this local coords
 			final float[] fps = new float[2];
@@ -1240,7 +1238,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// Remove review stack if any
 				removeReview(nd);
 			}
-			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
+			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE); // will calculateBoundingBox, hence at_inv has to be recomputed every time
 			// Remove from tl pointers
 			tl.root = null; // stolen!
 			tl.setLastMarked(null);
@@ -1250,8 +1248,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 			tl.end_nodes.clear();
 		}
-
-		calculateBoundingBox(null);
 
 		// Don't clear this.marked
 
