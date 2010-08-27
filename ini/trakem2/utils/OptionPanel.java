@@ -266,11 +266,18 @@ public class OptionPanel extends JPanel {
 	}
 	
 	static abstract public class NumericalSetter extends Setter {
+		protected int min = Integer.MIN_VALUE,
+					  max = Integer.MAX_VALUE;
 		public NumericalSetter(Object ob, String field) {
 			super(ob, field);
 		}
 		public NumericalSetter(Object ob, String field, Runnable reaction) {
 			super(ob, field, reaction);
+		}
+		public NumericalSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction);
+			this.min = min;
+			this.max = max;
 		}
 		public Object setFrom(Component source, int inc) throws Exception {
 			Field f = ob.getClass().getDeclaredField(field);
@@ -294,11 +301,17 @@ public class OptionPanel extends JPanel {
 		public IntSetter(Object ob, String field, Runnable reaction) {
 			super(ob, field, reaction);
 		}
+		public IntSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction, min, max);
+		}
 		public Object getValue(Component source) {
 			return (int) Double.parseDouble(((JTextField)source).getText());
 		}
 		protected Object getValue(Component source, int inc) {
-			return ((int) Double.parseDouble(((JTextField)source).getText())) + inc;
+			int val = ((int) Double.parseDouble(((JTextField)source).getText())) + inc;
+			if (val < this.min) return this.min;
+			if (val > this.max) return this.max;
+			return val;
 		}
 	}
 
@@ -309,11 +322,17 @@ public class OptionPanel extends JPanel {
 		public DoubleSetter(Object ob, String field, Runnable reaction) {
 			super(ob, field, reaction);
 		}
+		public DoubleSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction, min, max);
+		}
 		public Object getValue(Component source) {
 			return Double.parseDouble(((JTextField)source).getText());
 		}
 		protected Object getValue(Component source, int inc) {
-			return Double.parseDouble(((JTextField)source).getText()) + inc;
+			double val = Double.parseDouble(((JTextField)source).getText()) + inc;
+			if (val < this.min) return (double)this.min;
+			if (val > this.max) return (double)this.max;
+			return val;
 		}
 	}
 	
@@ -324,11 +343,17 @@ public class OptionPanel extends JPanel {
 		public FloatSetter(Object ob, String field, Runnable reaction) {
 			super(ob, field, reaction);
 		}
+		public FloatSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction, min, max);
+		}
 		public Object getValue(Component source) {
 			return Float.parseFloat(((JTextField)source).getText());
 		}
 		public Object getValue(Component source, int inc) {
-			return Float.parseFloat(((JTextField)source).getText()) + inc;
+			float val = Float.parseFloat(((JTextField)source).getText()) + inc;
+			if (val < this.min) return (float)this.min;
+			if (val > this.max) return (float)this.max;
+			return val;
 		}
 	}
 
