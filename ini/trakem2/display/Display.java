@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import fiji.geom.AreaCalculations;
 import ij.*;
 import ij.gui.*;
 import ij.io.OpenDialog;
@@ -2859,6 +2860,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Mask image borders (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Mask image borders (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Split images under polyline ROI"); item.addActionListener(this); adjust_menu.add(item);
+		Roi roi = canvas.getFakeImagePlus().getRoi();
+		if (null == roi || roi.getType() != Roi.POLYLINE) item.setEnabled(false);
 		popup.add(adjust_menu);
 
 		JMenu script = new JMenu("Script");
@@ -4763,6 +4767,94 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});
+		} else if (command.equals("Split images under polyline ROI")) {
+			Roi roi = canvas.getFakeImagePlus().getRoi();
+			if (null == roi) return;
+			if (roi.getType() != Roi.POLYLINE) {
+				Utils.showMessage("Need a polyline ROI, not just any ROI!");
+				return;
+			}
+			if (!Utils.check("Really split images under the polyline ROI?")) {
+				return;
+			}
+			// OK identify images whose contour intersects the ROI
+			final Set<Displayable> col = new HashSet<Displayable>();
+			PolygonRoi proi = (PolygonRoi)roi;
+			int[] x = proi.getXCoordinates(),
+				  y = proi.getYCoordinates();
+			Rectangle b = proi.getBounds();
+			for (int i=0; i<x.length; i++) {
+				col.addAll(getLayer().find(Patch.class, x[i] + b.x, y[i] + b.y, true));
+			}
+			
+			if (col.isEmpty()) {
+				Utils.showMessage("No images intersect the ROI!");
+				return;
+			}
+			// Create the area that will be "one half"
+			// and overlay it in the display, repaint, and ask for "yes/no" to continue.
+			
+			for (int i=1; i<proi.getNCoordinates(); i++) {
+				for (int k=i+2; k<proi.getNCoordinates(); k++) { // skip the immediate next segment
+					// check if the two segments intersect
+					if (null != M.computeSegmentsIntersection(x[i-1], y[i-1], x[i], y[i],
+															  x[k-1], y[k-1], x[k], y[k])) {
+						Utils.showMessage("Cannot split images with a polygon ROI that intersects itself!");
+						return;
+					}
+				}					
+			}
+			final Area[] as = M.splitArea(new Area(getLayerSet().get2DBounds()), proi, getLayerSet().get2DBounds());
+			Color[] c = new Color[]{Color.blue, Color.red};
+			int i = 0;
+			for (Area a : as) {
+				//Utils.log2("Added overlay " + i + " with color " + c[i] + " and area " + AreaCalculations.area(a.getPathIterator(null)));
+				getLayer().getOverlay().add(a, c[i++], null, true, false, 0.4f);
+			}
+			Display.repaint(getLayer());
+			
+			final YesNoDialog yn = new YesNoDialog(frame, "Check", "Does the splitting match your expectations?\nPush 'yes' to split the images.", false);
+			yn.setModal(false);
+			for (WindowListener wl : yn.getWindowListeners()) yn.removeWindowListener(wl);
+			yn.setClosingTask(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						// Remove overlay shapes
+						for (Area a : as) {
+							getLayer().getOverlay().remove(a);
+						}
+						if (!yn.yesPressed()) {
+							Utils.log("Pushed 'no'");
+							return;
+						}
+						// Split intersecting patches
+						// Duplicate each intersecting patch, and assign a[0] to the original and a[1] to the copy, as mask.
+						Bureaucrat.createAndStart(new Worker.Task("Spliting images") {
+							public void exec() {
+								final Roi r1 = new ShapeRoi(as[0]),
+										  r2 = new ShapeRoi(as[1]);
+								ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
+								for (final Patch p : (Collection<Patch>)(Collection)col) {
+									Patch copy = (Patch) p.clone(p.getProject(), false);
+									p.getLayer().add(copy);
+									p.addAlphaMask(r1, 0);
+									copy.addAlphaMask(r2, 0);
+									fus.add(p.updateMipMaps());
+									fus.add(copy.updateMipMaps());
+								}
+								Utils.wait(fus);
+							}
+						}, project);
+					} catch (Throwable t) {
+						IJError.print(t);
+					} finally {
+						yn.dispose();
+						Display.repaint(getLayer());
+					}
+				}
+			});
+			yn.setVisible(true);
 		} else if (command.equals("Duplicate")) {
 			// only Patch and DLabel, i.e. Layer-only resident objects that don't exist in the Project Tree
 			final HashSet<Class> accepted = new HashSet<Class>();
