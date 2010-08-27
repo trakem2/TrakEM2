@@ -258,7 +258,7 @@ public class OptionPanel extends JPanel {
 			f.setAccessible(true);
 			f.set(ob, getValue(source));
 
-			Utils.log2("set value of " + field + " to " + f.get(ob));
+			//Utils.log2("set value of " + field + " to " + f.get(ob));
 			
 			if (null != reaction) reaction.run();
 		}
