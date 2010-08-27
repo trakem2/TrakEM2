@@ -28,6 +28,7 @@ import ij.io.OpenDialog;
 import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.parallel.Process;
@@ -76,6 +77,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 
 import lenscorrection.DistortionCorrectionTask;
+import mpicbg.ij.clahe.FastFlat;
 import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.AffineModel3D;
 
@@ -110,6 +112,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private OptionPanel tool_options;
 	private JScrollPane scroll_options;
+
+	private OptionPanel filter_options;
+	private JScrollPane scroll_filter_options;
 
 	static protected int scrollbar_width = 0;
 
@@ -561,7 +566,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	/** Reconstruct a Display from an XML entry, to be opened when everything is ready. */
-	public Display(Project project, long id, Layer layer, HashMap<String,String> ht_attributes) {
+	public Display(Project project, long id, Layer layer, HashMap<String,String> ht) {
 		super(project, id);
 		if (null == layer) {
 			Utils.log2("Display: need a non-null Layer for id=" + id);
@@ -572,46 +577,68 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		Point p = new Point(0, 0);
 		int c_alphas = 0xffffffff;
 		int c_alphas_state = 0xffffffff;
-		for (final Map.Entry<String,String> entry : ht_attributes.entrySet()) {
-			String key = entry.getKey();
-			String data = entry.getValue();
-			if (key.equals("srcrect_x")) { // reflection! Reflection!
-				srcRect.x = Integer.parseInt(data);
-			} else if (key.equals("srcrect_y")) {
-				srcRect.y = Integer.parseInt(data);
-			} else if (key.equals("srcrect_width")) {
-				srcRect.width = Integer.parseInt(data);
-			} else if (key.equals("srcrect_height")) {
-				srcRect.height = Integer.parseInt(data);
-			} else if (key.equals("magnification")) {
-				magnification = Double.parseDouble(data);
-			} else if (key.equals("x")) {
-				p.x = Integer.parseInt(data);
-			} else if (key.equals("y")) {
-				p.y = Integer.parseInt(data);
-			} else if (key.equals("c_alphas")) {
-				try {
-					c_alphas = Integer.parseInt(data);
-				} catch (Exception ex) {
-					c_alphas = 0xffffffff;
-				}
-			} else if (key.equals("c_alphas_state")) {
-				try {
-					c_alphas_state = Integer.parseInt(data);
-				} catch (Exception ex) {
-					IJError.print(ex);
-					c_alphas_state = 0xffffffff;
-				}
-			} else if (key.equals("scroll_step")) {
-				try {
-					setScrollStep(Integer.parseInt(data));
-				} catch (Exception ex) {
-					IJError.print(ex);
-					setScrollStep(1);
-				}
+		String data = ht.get("srcrect_x");
+		if (null != data) srcRect.x = Integer.parseInt(data);
+		data = ht.get("srcrect_y");
+		if (null != data) srcRect.y = Integer.parseInt(data);
+		data = ht.get("srcrect_width");
+		if (null != data) srcRect.width = Integer.parseInt(data);
+		data = ht.get("srcrect_height");
+		if (null != data) srcRect.height = Integer.parseInt(data);
+		data = ht.get("magnification");
+		if (null != data) magnification = Double.parseDouble(data);
+		data = ht.get("x");
+		if (null != data) p.x = Integer.parseInt(data);
+		data = ht.get("y");
+		if (null != data) p.y = Integer.parseInt(data);
+		data = ht.get("c_alphas");
+		if (null != data) {
+			try {
+				c_alphas = Integer.parseInt(data);
+			} catch (Exception ex) {
+				c_alphas = 0xffffffff;
 			}
-			// TODO the above is insecure, in that data is not fully checked to be within bounds.
 		}
+		data = ht.get("c_alphas_state");
+		if (null != data) {
+			try {
+				c_alphas_state = Integer.parseInt(data);
+			} catch (Exception ex) {
+				IJError.print(ex);
+				c_alphas_state = 0xffffffff;
+			}
+		}
+		data = ht.get("scroll_step");
+		if (null != data) {
+			try {
+				setScrollStep(Integer.parseInt(data));
+			} catch (Exception ex) {
+				IJError.print(ex);
+				setScrollStep(1);
+			}
+		}
+		data = ht.get("filter_enabled");
+		if (null != data) filter_enabled = Boolean.parseBoolean(data);
+		data = ht.get("filter_min_max_enabled");
+		if (null != data) filter_min_max_enabled = Boolean.parseBoolean(data);
+		data = ht.get("filter_min");
+		if (null != data) filter_min = Integer.parseInt(data);
+		data = ht.get("filter_max");
+		if (null != data) filter_max = Integer.parseInt(data);
+		data = ht.get("filter_invert");
+		if (null != data) filter_invert = Boolean.parseBoolean(data);
+		data = ht.get("filter_clahe_enabled");
+		if (null != data) filter_clahe_enabled = Boolean.parseBoolean(data);
+		data = ht.get("filter_clahe_block_size");
+		if (null != data) filter_clahe_block_size = Integer.parseInt(data);
+		data = ht.get("filter_clahe_histogram_bins");
+		if (null != data) filter_clahe_histogram_bins = Integer.parseInt(data);
+		data = ht.get("filter_clahe_max_slope");
+		if (null != data) filter_clahe_max_slope = Float.parseFloat(data);
+
+		// TODO the above is insecure, in that data is not fully checked to be within bounds.
+		
+		
 		Object[] props = new Object[]{p, new Double(magnification), srcRect, new Long(layer.getId()), new Integer(c_alphas), new Integer(c_alphas_state)};
 		synchronized (ht_later) {
 			Display.ht_later.put(this, props);
@@ -747,7 +774,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.annot_label = new JLabel("(No selected object)");
 		this.annot_panel = makeAnnotationsPanel(this.annot_editor, this.annot_label);
 		this.addTab("Annotations", this.annot_panel);
-
+		
+		// Tab 9: filter options
+		this.filter_options = createFilterOptionPanel();
+		this.scroll_filter_options = makeScrollPane(this.filter_options);
+		this.scroll_filter_options.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+		this.addTab("Live filter", this.scroll_filter_options);
 
 		this.ht_tabs = new Hashtable<Class,JScrollPane>();
 		this.ht_tabs.put(Patch.class, scroll_patches);
@@ -5318,6 +5350,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			 .append(indent).append("<!ATTLIST t2_display scroll_step NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display c_alphas NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display c_alphas_state NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_enabled NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_min_max_enabled NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_min NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_max NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_invert NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_clahe_enabled NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_clahe_block_size NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_clahe_histogram_bins NMTOKEN #REQUIRED>\n")
+			 .append(indent).append("<!ATTLIST t2_display filter_clahe_max_slope NMTOKEN #REQUIRED>\n")
 		;
 	}
 	/** Export all displays of the given project as XML entries. */
@@ -5341,6 +5382,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			       .append(in).append("srcrect_width=\"").append(srcRect.width).append("\"\n")
 			       .append(in).append("srcrect_height=\"").append(srcRect.height).append("\"\n")
 			       .append(in).append("scroll_step=\"").append(d.scroll_step).append("\"\n")
+			       .append(in).append("filter_enabled=\"").append(d.filter_enabled).append("\"\n")
+			       .append(in).append("filter_min_max_enabled=\"").append(d.filter_min_max_enabled).append("\"\n")
+			       .append(in).append("filter_min=\"").append(d.filter_min).append("\"\n")
+			       .append(in).append("filter_max=\"").append(d.filter_max).append("\"\n")
+			       .append(in).append("filter_invert=\"").append(d.filter_invert).append("\"\n")
+			       .append(in).append("filter_clahe_enabled=\"").append(d.filter_clahe_enabled).append("\"\n")
+			       .append(in).append("filter_clahe_block_size=\"").append(d.filter_clahe_block_size).append("\"\n")
+			       .append(in).append("filter_clahe_histogram_bins=\"").append(d.filter_clahe_histogram_bins).append("\"\n")
+			       .append(in).append("filter_clahe_max_slope=\"").append(d.filter_clahe_max_slope).append("\"\n")
 			;
 			sb_body.append(indent).append("/>\n");
 		}
@@ -5396,6 +5446,69 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			} catch (Exception e) {} // may fail when changing tools while opening a Display
 		}
 	}
+
+	/* Filter the Display images */
+	private boolean filter_enabled = false,
+					filter_invert = false,
+					filter_clahe_enabled = false,
+					filter_min_max_enabled = false;
+	private int filter_clahe_block_size = 127,
+				filter_clahe_histogram_bins = 256,
+				filter_min = 0,
+				filter_max = 255;
+	private float filter_clahe_max_slope = 3;
+
+	public boolean isLiveFilteringEnabled() { return filter_enabled; }
+	
+	private OptionPanel createFilterOptionPanel() {
+		OptionPanel fop = new OptionPanel();
+		Runnable reaction = new Runnable() {
+			public void run() {
+				Display.repaint(getLayer());
+			}
+		};
+		fop.addCheckbox("Live filters enabled", filter_enabled, new OptionPanel.BooleanSetter(this, "filter_enabled", reaction));
+		fop.addMessage("Contrast:");
+		fop.addCheckbox("Min/Max enabled", filter_min_max_enabled, new OptionPanel.BooleanSetter(this, "filter_min_max_enabled", reaction));
+		fop.addNumericField("Min:", filter_min, 0, new OptionPanel.IntSetter(this, "filter_min", reaction, 0, 255));
+		fop.addNumericField("Max:", filter_max, 0, new OptionPanel.IntSetter(this, "filter_max", reaction, 0, 255));
+		fop.addCheckbox("Invert", filter_invert, new OptionPanel.BooleanSetter(this, "filter_invert", reaction));
+		fop.addMessage("CLAHE options:");
+		fop.addCheckbox("CLAHE enabled", filter_clahe_enabled, new OptionPanel.BooleanSetter(this, "filter_clahe_enabled", reaction));
+		fop.addNumericField("block size:", filter_clahe_block_size, 0, new OptionPanel.IntSetter(this, "filter_clahe_block_size", reaction, 1, Integer.MAX_VALUE));
+		fop.addNumericField("histogram bins:", filter_clahe_histogram_bins, 0, new OptionPanel.IntSetter(this, "filter_clahe_histogram_bins", reaction, 1, Integer.MAX_VALUE));
+		fop.addNumericField("max slope:", filter_clahe_max_slope, 2, new OptionPanel.FloatSetter(this, "filter_clahe_max_slope", reaction, 0, Integer.MAX_VALUE));
+		return fop;
+	}
+	
+	protected Image applyFilters(final Image img) {
+		if (!filter_enabled) return img;
+		return applyFilters(new ImagePlus("filtered", img)).getProcessor().createImage();
+	}
+
+	protected ImagePlus applyFilters(final ImageProcessor ip) {
+		ImagePlus imp = new ImagePlus("filtered", ip);
+		applyFilters(imp);
+		return imp;
+	}
+
+	protected ImagePlus applyFilters(final ImagePlus imp) {
+		// Currently the order is hard-coded
+		// 0: enabled?
+		if (!filter_enabled) return imp;
+		// 1: min/max?
+		if (filter_min_max_enabled) imp.getProcessor().setMinAndMax(filter_min, filter_max);
+		// 2: invert?
+		if (filter_invert) imp.getProcessor().invert();
+		// 3: CLAHE?
+		if (filter_clahe_enabled) {
+			FastFlat.run(imp, filter_clahe_block_size, filter_clahe_histogram_bins, filter_clahe_max_slope, null);
+		}
+
+		return imp;
+	}
+
+	/////
 
 	public Selection getSelection() {
 		return selection;

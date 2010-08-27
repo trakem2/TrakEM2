@@ -2507,36 +2507,47 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// adjust:
 			first_non_patch = paintables.size() - (al_paint.size() - first_non_patch);
-
+			
 			// Determine painting mode
 			if (Display.REPAINT_SINGLE_LAYER == mode) {
-				// Direct painting mode, with prePaint abilities
-				int i = 0;
-				for (final Paintable d : paintables) {
-					i++;
-					if (i == first_non_patch) {
-						//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-						g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
-						//Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
-						g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-						//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
-						g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+				if (display.isLiveFilteringEnabled()) {
+					paintWithFiltering(g, al_paint, paintables, first_non_patch, g_width, g_height, active, c_alphas, layer, true);
+				} else {
+					// Direct painting mode, with prePaint abilities
+					int i = 0;
+					for (final Paintable d : paintables) {
+						i++;
+						if (i == first_non_patch) {
+							//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+							g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
+							//Object text_antialias = g.getRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING);
+							g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+							//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
+							g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+						}
+						if (prepaint) d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
+						else d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 					}
-					if (prepaint) d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
-					else d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 				}
 			} else if (Display.REPAINT_MULTI_LAYER == mode) {
-				// TODO rewrite to avoid calling the list twice
-				final Collection<? extends Paintable> paintable_patches = graphics_source.asPaintable(al_paint);
 				// paint first the current layer Patches only (to set the background)
 				// With prePaint capabilities:
-				if (prepaint) {
-					for (final Paintable d : paintable_patches) {
-						d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
-					}
+				if (display.isLiveFilteringEnabled()) {
+					paintWithFiltering(g, al_paint, paintables, first_non_patch, g_width, g_height, active, c_alphas, layer, false);
 				} else {
-					for (final Paintable d : paintable_patches) {
-						d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
+					int i = 0;
+					if (prepaint) {
+						for (final Paintable d : paintables) {
+							if (first_non_patch == i) break;
+							d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
+							i++;
+						}
+					} else {
+						for (final Paintable d : paintables) {
+							if (first_non_patch == i) break;
+							d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
+							i++;
+						}
 					}
 				}
 
@@ -2562,11 +2573,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					try {
 						g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
-						g.drawImage(bi, 0, 0, null);
+						g.drawImage(display.applyFilters(bi), 0, 0, null);
 					} catch (Throwable t) {
 						Utils.log("Could not use composite mode for layer overlays! Your graphics card may not support it.");
 						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
 						g.drawImage(bi, 0, 0, null);
+						IJError.print(t);
 					} 
 					bi.flush();
 				}
@@ -2585,10 +2597,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 				// TODO this loop should be reading from the paintable_patches and paintables, since they length/order *could* have changed
 				//      And yes this means iterating and checking the Class of each.
-				for (final Displayable d : al_paint.subList(paintable_patches.size(), al_paint.size())) {
+				for (int i = first_non_patch; i < al_paint.size(); i++) {
+					final Displayable d = al_paint.get(i);
 					d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
 				}
-			} else { // Display.REPAINT_RGB_LAYER == mode
+			} else if(Display.REPAINT_RGB_LAYER == mode) {
 				// TODO rewrite to avoid calling the list twice
 				final Collection<? extends Paintable> paintable_patches = graphics_source.asPaintable(al_paint);
 				//
@@ -2626,6 +2639,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				g.setTransform(new AffineTransform());
 				final ColorProcessor cp = new ColorProcessor(g_width, g_height, pix);
 				if (display.invert_colors) cp.invert();
+				display.applyFilters(cp);
 				final Image img = cp.createImage();
 				g.drawImage(img, 0, 0, null);
 				img.flush();
@@ -2664,6 +2678,64 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			IJError.print(e);
 		}
 		return null;
+	}
+	
+	private final void paintWithFiltering(final Graphics2D g, final ArrayList<Displayable> al_paint,
+										  final Collection<? extends Paintable> paintables,
+										  final int first_non_patch,
+										  final int g_width, final int g_height,
+										  final Displayable active, final int c_alphas,
+										  final Layer layer, final boolean paint_non_images) {
+		// Determine the type of the image: if any Patch is of type COLOR_RGB or COLOR_256, use RGB
+		int type = BufferedImage.TYPE_BYTE_GRAY;
+		search: for (final Displayable d : al_paint) {
+			if (d.getClass() == Patch.class) {
+				switch (((Patch)d).getType()) {
+					case ImagePlus.COLOR_256:
+					case ImagePlus.COLOR_RGB:
+						type = BufferedImage.TYPE_INT_ARGB;
+						break search;
+				}
+			}
+		}
+
+		// Paint all patches to an image
+		final BufferedImage bi = new BufferedImage(g_width, g_height, type);
+		final Graphics2D gpre = bi.createGraphics();
+		gpre.setTransform(atc);
+		int i = 0;
+		for (final Paintable p : paintables) {
+			if (i == first_non_patch) break;
+			p.paint(gpre, srcRect, magnification, p == active, c_alphas, layer);
+			i++;
+		}
+		gpre.dispose();
+		final ImagePlus imp = new ImagePlus("filtered", type == BufferedImage.TYPE_BYTE_GRAY ? new ByteProcessor(bi) : new ColorProcessor(bi));
+		bi.flush();
+
+		display.applyFilters(imp);
+
+		// Paint the filtered image
+		final AffineTransform aff = g.getTransform();
+		g.setTransform(new AffineTransform()); // reset
+		g.drawImage(imp.getProcessor().createImage(), 0, 0, null);
+		// Paint the remaining elements if any
+		if (paint_non_images && first_non_patch != paintables.size()) {
+			g.setTransform(aff); // restore srcRect and magnification
+			g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
+			g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+			g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+			i = 0;
+			for (final Paintable p : paintables) {
+				if (i < first_non_patch) {
+					i++;
+					continue;
+				}
+				p.paint(g, srcRect, magnification, p == active, c_alphas, layer);
+				i++;
+			}
+		}
+
 	}
 
 	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()
