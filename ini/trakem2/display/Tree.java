@@ -697,6 +697,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				x = (float)po.x;
 				y = (float)po.y;
 			}
+			ArrayList<Tree<T>> a;
 			synchronized (node_layer_map) {
 				// Search within the nodes in layer
 				Set<Node<T>> nodes = node_layer_map.get(layer);
@@ -732,14 +733,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// ... and fill its cache arrays
 				t.cacheSubtree(subtree_nodes); // includes nd itself
 				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
-				this.calculateBoundingBox(null);
 				t.calculateBoundingBox(null);
 				// Done!
-				ArrayList<Tree<T>> a = new ArrayList<Tree<T>>();
+				a = new ArrayList<Tree<T>>();
 				a.add(this);
 				a.add(t);
-				return a;
 			}
+			this.calculateBoundingBox(null); // outside synch
+			return a;
 		} catch (Exception e) {
 			IJError.print(e);
 		}
@@ -1244,7 +1245,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			tl.root = null; // stolen!
 			tl.setLastMarked(null);
 			// Remove from tl cache
-			tl.node_layer_map.clear();
+			synchronized (tl.node_layer_map) {
+				tl.node_layer_map.clear();
+			}
 			tl.end_nodes.clear();
 		}
 
@@ -2586,7 +2589,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	synchronized protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
-		final Set<Node<T>> nodes = node_layer_map.remove(la);
+		final Set<Node<T>> nodes;
+		synchronized (node_layer_map) {
+			nodes = node_layer_map.remove(la);
+		}
 		if (null == nodes) return true;
 		final List<Tree> siblings = new ArrayList<Tree>();
 		for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
@@ -2645,13 +2651,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		mpicbg.models.CoordinateTransform chain = null;
 		synchronized (node_layer_map) {
 			if (null == root) return true;
 			final Set<Node<T>> nodes = node_layer_map.get(la);
 			if (null == nodes || nodes.isEmpty()) return true;
 			AffineTransform inverse = this.at.createInverse();
 			final Area localroi = roi.createTransformedArea(inverse);
-			mpicbg.models.CoordinateTransform chain = null;
 			for (final Node<T> nd : nodes) {
 				if (nd.intersects(localroi)) {
 					if (null == chain) {
@@ -2660,8 +2666,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				nd.apply(chain, roi);
 			}
-			if (null != chain) calculateBoundingBox(la);
 		}
+		if (null != chain) calculateBoundingBox(la);
 		return true;
 	}
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
@@ -2673,8 +2679,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			for (final Node<T> nd : nodes) {
 				nd.apply(vlocal);
 			}
-			calculateBoundingBox(vdt.layer);
 		}
+		calculateBoundingBox(vdt.layer);
 		return true;
 	}
 
@@ -3160,7 +3166,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		// create internals
 		t.cacheSubtree((Collection)t.root.getSubtreeNodes());
-		for (final Layer la : t.node_layer_map.keySet()) t.calculateBoundingBox(la);
+		Set<Layer> set;
+		synchronized (t.node_layer_map) {
+			set = t.node_layer_map.keySet();
+		}
+		for (final Layer la : set) t.calculateBoundingBox(la);
 		return t;
 	}
 	
