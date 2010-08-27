@@ -37,6 +37,7 @@ import ij.plugin.filter.ThresholdToSelection;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
@@ -777,7 +778,7 @@ public final class Patch extends Displayable implements ImageData {
 		;
 	}
 
-	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
+	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, o_width, o_height, type, false, min, max, (AffineTransform)at.clone());
@@ -1242,126 +1243,13 @@ public final class Patch extends Displayable implements ImageData {
 				// fill mask with current ROI using 
 				Utils.log2("VK_F: roi is " + roi);
 				if (null != roi && M.isAreaROI(roi)) {
-					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
-					startedWorking();
-					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
-					boolean is_new = false;
-					if (null == mask) {
-						mask = new ByteProcessor(o_width, o_height);
-						mask.setValue(255);
-						mask.fill();
-						is_new = true;
-					}
-					try {
-						// a roi local to the image bounding box
-						//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
-						//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
-
-						final Area a = M.areaInInts(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
-
-						// Fix problems with ShapeRoi: cannot accept negative boundaries, or sometimes boundaries beyond the image border; if so, ImageProcessor could not fill(getMask())
-						Rectangle ab = a.getBounds();
-						if (ab.x < 0 || ab.y < 0 || ab.x + ab.width >= o_width || ab.y + ab.height >= o_height) {
-							// Restrict ROI to within the Patch local bounds:
-							a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
-							ab = a.getBounds();
-							if (ab.x < 0 && ab.y >= 0) {
-								// My opinion: #$%^&!@
-								// Let's fix it in whatever way possible: note the +1 added to the width!
-								a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
-								ab = a.getBounds();
-								if (ab.x < 0) {
-									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X coordinates.");
-									Utils.log("Roi bounds after intersecting: " + a.getBounds());
-									return;
-								}
-							} else if (ab.x >= 0 && ab.y < 0) {
-								// The Y does not need a +1 to the height (the X needed it to the width, see above)
-								a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
-								ab = a.getBounds();
-								if (ab.y < 0) {
-									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative Y coordinates.");
-									Utils.log("Roi bounds after intersecting: " + a.getBounds());
-									return;
-								}
-							} else if (ab.x < 0 && ab.y < 0) {
-								Area out = new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2), o_height));
-								out.add(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
-								a.subtract(out);
-								ab = a.getBounds();
-								if (ab.x < 0 && ab.y >= 0) {
-									// Condition never seen so far, but just in case
-									// Note the +1 for the Rectangle's width
-									a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
-									ab = a.getBounds();
-								}
-								if (ab.x >= 0 && ab.y < 0) {
-									// Condition never seen so far, but just in case
-									a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
-									ab = a.getBounds();
-								}
-								if (ab.x < 0 || ab.y < 0) {
-									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X or Y coordinates.");
-									Utils.log("Roi bounds after intersecting: " + a.getBounds());
-									return;
-								}
-							}
+					Bureaucrat.createAndStart(new Worker.Task("Filling image mask") {
+						public void exec() {
+							addAlphaMask(roi, ProjectToolbar.getForegroundColorValue());
+							try { updateMipMaps().get(); } catch (Throwable t) { IJError.print(t); } // wait
+							Display.repaint();
 						}
-
-						if (M.isEmpty(a)) {
-							Utils.log("ROI does not intersect the active image!");
-							return;
-						}
-
-						final ShapeRoi sroi = new ShapeRoi(a);
-						Utils.log2(sroi);
-						Utils.log2(sroi.getBounds());
-
-						if (null != ct) {
-							// inverse the coordinate transform
-							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
-							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
-
-							ByteProcessor rmask = new ByteProcessor((int)o_width, (int)o_height);
-
-							if (is_new) {
-								rmask.setColor(Toolbar.getForegroundColor());
-							} else {
-								rmask.setValue(255);
-							}
-							rmask.setRoi(sroi);
-							rmask.fill(sroi.getMask());  // Note: using fill(sroi) directly also fails on occasions.
-
-							ByteProcessor inv_mask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
-
-							if (is_new) {
-								mask = inv_mask;
-								// done!
-							} else {
-								// Blend
-								rmask = null;
-								inv_mask.setMinAndMax(255, 255);
-								final byte[] b1 = (byte[]) mask.getPixels();
-								final byte[] b2 = (byte[]) inv_mask.getPixels();
-								final int color = mask.getBestIndex(Toolbar.getForegroundColor());
-								for (int i=0; i<b1.length; i++) {
-									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
-								}
-							}
-						} else {
-							mask.setRoi(sroi);
-							mask.setColor(Toolbar.getForegroundColor());
-							mask.fill(sroi.getMask());
-						}
-					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
-					setAlphaMask(mask);
-					updateMipMaps().get(); // wait
-					Display.repaint();
-					} catch (Exception e) {
-						IJError.print(e);
-					} finally {
-						finishedWorking();
-					}}}, project);
+					}, project);
 				}
 				// capturing:
 				ke.consume();
@@ -1472,6 +1360,124 @@ public final class Patch extends Displayable implements ImageData {
 				preTransform(aff, false);
 			}
 		}
+	}
+
+	/** Add the given roi, in world coords, to the alpha mask, using the given fill value. */
+	public void addAlphaMask(final Roi roi, final int value) {
+		if (null == roi || !M.isAreaROI(roi)) return;
+		ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
+		boolean is_new = false;
+		if (null == mask) {
+			mask = new ByteProcessor(o_width, o_height);
+			mask.setValue(255);
+			mask.fill();
+			is_new = true;
+		}
+		try {
+			// a roi local to the image bounding box
+			//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
+			//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+
+			final Area a = M.areaInInts(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+
+			// Fix problems with ShapeRoi: cannot accept negative boundaries, or sometimes boundaries beyond the image border; if so, ImageProcessor could not fill(getMask())
+			Rectangle ab = a.getBounds();
+			if (ab.x < 0 || ab.y < 0 || ab.x + ab.width >= o_width || ab.y + ab.height >= o_height) {
+				// Restrict ROI to within the Patch local bounds:
+				a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
+				ab = a.getBounds();
+				if (ab.x < 0 && ab.y >= 0) {
+					// My opinion: #$%^&!@
+					// Let's fix it in whatever way possible: note the +1 added to the width!
+					a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+					ab = a.getBounds();
+					if (ab.x < 0) {
+						Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X coordinates.");
+						Utils.log("Roi bounds after intersecting: " + a.getBounds());
+						return;
+					}
+				} else if (ab.x >= 0 && ab.y < 0) {
+					// The Y does not need a +1 to the height (the X needed it to the width, see above)
+					a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+					ab = a.getBounds();
+					if (ab.y < 0) {
+						Utils.log("ERROR: could not create a proper ShapeRoi: there are negative Y coordinates.");
+						Utils.log("Roi bounds after intersecting: " + a.getBounds());
+						return;
+					}
+				} else if (ab.x < 0 && ab.y < 0) {
+					Area out = new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2), o_height));
+					out.add(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+					a.subtract(out);
+					ab = a.getBounds();
+					if (ab.x < 0 && ab.y >= 0) {
+						// Condition never seen so far, but just in case
+						// Note the +1 for the Rectangle's width
+						a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
+						ab = a.getBounds();
+					}
+					if (ab.x >= 0 && ab.y < 0) {
+						// Condition never seen so far, but just in case
+						a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
+						ab = a.getBounds();
+					}
+					if (ab.x < 0 || ab.y < 0) {
+						Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X or Y coordinates.");
+						Utils.log("Roi bounds after intersecting: " + a.getBounds());
+						return;
+					}
+				}
+			}
+
+			if (M.isEmpty(a)) {
+				Utils.log("ROI does not intersect the active image!");
+				return;
+			}
+
+			final ShapeRoi sroi = new ShapeRoi(a);
+			Utils.log2(sroi);
+			Utils.log2(sroi.getBounds());
+
+			if (null != ct) {
+				// inverse the coordinate transform
+				final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+				final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+
+				ByteProcessor rmask = new ByteProcessor((int)o_width, (int)o_height);
+
+				if (is_new) {
+					rmask.setColor(Toolbar.getForegroundColor());
+				} else {
+					rmask.setValue(255);
+				}
+				rmask.setRoi(sroi);
+				rmask.fill(sroi.getMask());  // Note: using fill(sroi) directly also fails on occasions.
+
+				ByteProcessor inv_mask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
+
+				if (is_new) {
+					mask = inv_mask;
+					// done!
+				} else {
+					// Blend
+					rmask = null;
+					inv_mask.setMinAndMax(255, 255);
+					final byte[] b1 = (byte[]) mask.getPixels();
+					final byte[] b2 = (byte[]) inv_mask.getPixels();
+					int color = value;
+					if (color < 0) color = 0;
+					if (color > 255) color = 255;
+					for (int i=0; i<b1.length; i++) {
+						b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
+					}
+				}
+			} else {
+				mask.setRoi(sroi);
+				mask.setColor(Toolbar.getForegroundColor());
+				mask.fill(sroi.getMask());
+			}
+		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+		setAlphaMask(mask);
 	}
 
 	public String getPreprocessorScriptPath() {
