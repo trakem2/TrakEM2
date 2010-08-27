@@ -1676,4 +1676,9 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return true;
 	}
+
+	/** 0.3 * R + 0.6 * G + 0.1 * B */
+	public static final int luminance(Color c) {
+		return (int)(c.getRed() * 0.3f + c.getGreen() * 0.6f + c.getBlue() * 0.1f + 0.5f);
+	}
 }
