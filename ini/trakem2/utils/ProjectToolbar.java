@@ -33,6 +33,7 @@ import java.awt.event.KeyEvent;
 import java.io.File;
 
 import java.lang.reflect.Field;
+import java.awt.Color;
 import java.awt.PopupMenu;
 import java.awt.MenuItem;
 import java.awt.ItemSelectable;
@@ -281,5 +282,10 @@ public class ProjectToolbar implements MouseListener {
 			default:
 				return false;
 		}
+	}
+	
+	/** The luminance of the foreground color. */
+	static public final int getForegroundColorValue() {
+		return Utils.luminance(Toolbar.getForegroundColor());
 	}
 }
