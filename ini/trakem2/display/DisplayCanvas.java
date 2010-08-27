@@ -2516,7 +2516,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// Direct painting mode, with prePaint abilities
 					int i = 0;
 					for (final Paintable d : paintables) {
-						i++;
 						if (i == first_non_patch) {
 							//Object antialias = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
 							g.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
@@ -2527,6 +2526,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						}
 						if (prepaint) d.prePaint(g, srcRect, magnification, d == active, c_alphas, layer);
 						else d.paint(g, srcRect, magnification, d == active, c_alphas, layer);
+						i++;
 					}
 				}
 			} else if (Display.REPAINT_MULTI_LAYER == mode) {
