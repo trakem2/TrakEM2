@@ -663,7 +663,7 @@ public final class Display3D {
 
 	/** Returns a function that returns a Content object.
 	 *  Does NOT add the Content to the universe; it merely creates it. */
-	private Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
+	public Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = 1.0; // OBSOLETE
 		return new Callable<Content>() {
 			public Content call() {
