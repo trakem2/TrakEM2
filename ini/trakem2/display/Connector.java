@@ -231,35 +231,40 @@ public class Connector extends Treeline {
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class<?> c) {
 		if (null == root) return new HashSet<Displayable>();
-		return getUnder(root, c);
+		return getUnder(root, c, false);
 	}
 
-	private final Set<Displayable> getUnder(final Node<Float> node, final Class<?> c) {
+	private final Set<Displayable> getUnder(final Node<Float> node, final Class<?> c, final boolean instance_of) {
 		final Area a = node.getArea();
 		a.transform(this.at);
-		final HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, true));
+		final HashSet<Displayable> targets = new HashSet<Displayable>(layer_set.find(c, node.la, a, false, instance_of));
 		targets.remove(this);
 		return targets;
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins() {
-		return getOrigins(Displayable.class);
+		if (null == root) return new HashSet<Displayable>();
+		return getUnder(root, Displayable.class, true);
 	}
 
-	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
-	public List<Set<Displayable>> getTargets(final Class<?> c) {
+	private final List<Set<Displayable>> getTargets(final Class<?> c, final boolean instance_of) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
 		for (final Node<Float> nd : root.getChildrenNodes()) {
-			al.add(getUnder(nd, c));
+			al.add(getUnder(nd, c, instance_of));
 		}
 		return al;
 	}
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
+	public List<Set<Displayable>> getTargets(final Class<?> c) {
+		return getTargets(c, false);
+	}
+
+	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets() {
-		return getTargets(Displayable.class);
+		return getTargets(Displayable.class, true);
 	}
 
 	public int getTargetCount() {
