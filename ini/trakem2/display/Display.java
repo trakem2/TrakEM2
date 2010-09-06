@@ -4783,10 +4783,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			int[] x = proi.getXCoordinates(),
 				  y = proi.getYCoordinates();
 			Rectangle b = proi.getBounds();
-			for (int i=0; i<x.length; i++) {
-				col.addAll(getLayer().find(Patch.class, x[i] + b.x, y[i] + b.y, true));
+			Polygon[] pols = new Polygon[proi.getNCoordinates() -1];
+			for (int i=0; i<pols.length; i++) {
+				pols[i] = new Polygon(new int[]{x[i], x[i] + 1, x[i+1], x[i+1] + 1},
+									  new int[]{y[i], y[i], y[i+1], y[i+1]}, 4);
 			}
-			
+			for (final Patch p : getLayer().getAll(Patch.class)) {
+				if (!p.isVisible()) continue;
+				final Area a = p.getArea();
+				for (int i=0; i<pols.length; i++) {
+					Area c = new Area(pols[i]);
+					c.intersect(a);
+					if (M.isEmpty(c)) continue;
+					// Else, add it:
+					col.add(p);
+					break;
+				}
+			}
+
 			if (col.isEmpty()) {
 				Utils.showMessage("No images intersect the ROI!");
 				return;
@@ -4825,7 +4839,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							getLayer().getOverlay().remove(a);
 						}
 						if (!yn.yesPressed()) {
-							Utils.log("Pushed 'no'");
+							Utils.log2("Pushed 'no'");
 							return;
 						}
 						// Split intersecting patches
