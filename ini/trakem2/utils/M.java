@@ -684,8 +684,8 @@ public final class M {
 
 		int[] x = proi.getXCoordinates(),
 			  y = proi.getYCoordinates();
-		Rectangle rb = proi.getBounds();
-		int len = proi.getNCoordinates();
+		final Rectangle rb = proi.getBounds();
+		final int len = proi.getNCoordinates();
 		int x0 = x[0] + rb.x;
 		int y0 = y[0] + rb.y;
 		int xN = x[len -1] + rb.x;
@@ -717,28 +717,57 @@ public final class M {
 		}
 		// Create new Area 'b' with which to intersect Area 'a':
 		int[] xb, yb;
-		if (1 == Math.abs(min_iN - min_i0)) {
-			xb = new int[len +2];
-			yb = new int[len +2];
-			xb[len] = corners[min_iN][0];
-			yb[len] = corners[min_iN][1];
-			xb[len+1] = corners[min_i0][0];
-			yb[len+1] = corners[min_i0][1];
+		int l,
+		    i1,
+		    i2 = -1;
+		// 0 1 2 3: when there difference is 2, there is a point in between
+		if (2 != Math.abs(min_iN - min_i0)) {
+			l = len +4;
+			xb = new int[l];
+			yb = new int[l];
+			// -4 and -1 will be the drifted corners
+			i1 = -4;
+			xb[l-4] = corners[min_iN][0];
+			yb[l-4] = corners[min_iN][1];
+			xb[l-3] = corners[min_iN][0];
+			yb[l-3] = corners[min_iN][1];
+			xb[l-2] = corners[min_i0][0];
+			yb[l-2] = corners[min_i0][1];
+			xb[l-1] = corners[min_i0][0];
+			yb[l-1] = corners[min_i0][1];
 		} else {
-			xb = new int[len +3];
-			yb = new int[len +3];
-			xb[len] = corners[min_iN][0];
-			yb[len] = corners[min_iN][1];
-			xb[len+1] = corners[(min_iN + min_i0) / 2][0];
-			yb[len+1] = corners[(min_iN + min_i0) / 2][1];
-			xb[len+2] = corners[min_i0][0];
-			yb[len+2] = corners[min_i0][1];
+			l = len +5;
+			xb = new int[l];
+			yb = new int[l];
+			// -5 and -1 will be the drifted corners
+			i1 = -5;
+			xb[l-5] = corners[min_iN][0];
+			yb[l-5] = corners[min_iN][1];
+			xb[l-4] = corners[min_iN][0];
+			yb[l-4] = corners[min_iN][1];
+			xb[l-3] = corners[(min_iN + min_i0) / 2][0];
+			yb[l-3] = corners[(min_iN + min_i0) / 2][1];
+			xb[l-2] = corners[min_i0][0];
+			yb[l-2] = corners[min_i0][1];
+			xb[l-1] = corners[min_i0][0];
+			yb[l-1] = corners[min_i0][1];
 		}
-		// Correct for proi bounds
+		// Enter polyline points, corrected for proi bounds
 		for (int k=0; k<len; k++) {
 			xb[k] = x[k] + rb.x;
 			yb[k] = y[k] + rb.y;
 		}
+		// Drift corners to closest point on the sides
+		// Last:
+		int dx = Math.abs(xb[l+i1] - (x[len-1] + rb.x)),
+		    dy = Math.abs(yb[l+i1] - (y[len-1] + rb.y));
+		if (dy < dx) xb[l+i1] = x[len-1] + rb.x;
+		else yb[l+i1] = y[len-1] + rb.y;
+		// First:
+		dx = Math.abs(xb[l+i2] - (x[0] + rb.x));
+		dy = Math.abs(yb[l+i2] - (y[0] + rb.y));
+		if (dy < dx) xb[l+i2] = x[0] + rb.x;
+		else yb[l+i2] = y[0] + rb.y;
 
 		Area b = new Area(new Polygon(xb, yb, xb.length));
 		Area c = new Area(world);
