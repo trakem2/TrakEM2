@@ -689,6 +689,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			Utils.log2("Could not find a template for class " + sibling.getClass());
 			return null;
 		}
+		if (!parent.getTemplate().canHaveAsChild(tt)) {
+			// DONE BELOW: parent.getTemplate().addChild(tt);
+			if (null == parent.getProject().getTemplateTree().addNewChildType(parent, tt.getType())) {
+				return null;
+			}
+			Utils.log2("Added template " + tt.getType() + " as child of " + parent.getTemplate().getType());
+		}
 		ProjectThing pt;
 		try {
 			pt = new ProjectThing(tt, sibling.getProject(), sibling);
@@ -696,7 +703,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			IJError.print(e);
 			return null;
 		}
-		parent.addChild(pt);
+		if (!parent.addChild(pt)) {
+			Utils.log2("Could not add sibling!");
+			return null;
+		}
 
 		DefaultMutableTreeNode node = new DefaultMutableTreeNode(pt);
 		int index = enode.getParent().getIndex(enode);
