@@ -2417,12 +2417,18 @@ public final class FSLoader extends Loader {
 
 	final Set<Patch> cannot_regenerate = Collections.synchronizedSet(new HashSet<Patch>());
 
-	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Frees n_bytes * 8 memory on its own. */
+	/** Loads the file containing the scaled image corresponding to the given level
+	 *  (or the maximum possible level, if too large)
+	 *  and returns it as an awt.Image, or null if not found.
+	 *  Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing.
+	 *  Does NOT release memory, avoiding locking on the db_lock. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
-	/** Does the actual fetching of the file. Returns null if the file does not exist. */
+	/** Does the actual fetching of the file. Returns null if the file does not exist.
+	 *  Does NOT pre-release memory from the cache;
+	 *  call releaseToFit to do that. */
 	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
 		final int max_level = getHighestMipMapLevel(patch);
 
@@ -2435,7 +2441,7 @@ public final class FSLoader extends Loader {
 		// New style:
 		final String path = new StringBuilder(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
-		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+		//releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 		// TODO the x8 is overly exaggerated
 		
 		if (patch.hasAlphaChannel()) {
@@ -2456,7 +2462,7 @@ public final class FSLoader extends Loader {
 		}
 	}
 
-	/** Will lock on db_lock to free memory. */
+	/** Will NOT free memory. */
 	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
@@ -2485,7 +2491,7 @@ public final class FSLoader extends Loader {
 				// Regenerate in the case of not asking for an image under 32x32
 				double scale = 1 / Math.pow(2, level);
 				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
-					// regenerate
+					// regenerate in a separate thread
 					regenerateMipMaps(patch);
 					return REGENERATING;
 				}
