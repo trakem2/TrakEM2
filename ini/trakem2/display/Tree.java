@@ -3119,11 +3119,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			} else {
 				Utils.log("Ignoring " + src);
 			}
-			
 			final Tree<?> copy = m.get(src);
 			if (null != copy) {
 				src.layer_set.add(copy);
-				src.project.getProjectTree().addSibling(src, copy);
+				if (null == src.project.getProjectTree().addSibling(src, copy)) {
+					Utils.log("Could not add " + src.getClass().getSimpleName() + " as " + target.getSimpleName());
+					m.remove(src);
+					src.layer_set.remove(copy);
+				}
 			}
  		}
 		return m;
@@ -3132,7 +3135,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Can copy a Treeline to an AreaTree and viceversa.
 	 *  Copies the transform, the nodes (with tags and confidence), and the color. The transparency, locked stated and links are not copied. */
 	static public<A extends Tree<?>, B extends Node<?>> A copyAs(final Tree<?> src, final Class<A> tree_class, final Class<B> node_class) throws Exception {
-		final A t = tree_class.getConstructor(Project.class, String.class).newInstance(src.project, src.title);
+		final String title = "copy of " + src.title + " #" + src.id;
+		final A t = tree_class.getConstructor(Project.class, String.class).newInstance(src.project, title);
 		t.at.setTransform(src.at);
 		t.color = src.color;
 		

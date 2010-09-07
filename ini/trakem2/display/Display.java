@@ -2591,8 +2591,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							public void exec() {
 								try {
 									getLayerSet().addChangeTreesStep();
-									Tree.duplicateAs(selection.getSelected(), Treeline.class == aclass ? AreaTree.class : Treeline.class);
-									getLayerSet().addChangeTreesStep();
+									Map<Tree<?>,Tree<?>> m = Tree.duplicateAs(selection.getSelected(), Treeline.class == aclass ? AreaTree.class : Treeline.class);
+									if (m.isEmpty()) {
+										getLayerSet().removeLastUndoStep();
+									} else {
+										getLayerSet().addChangeTreesStep();
+									}
 								} catch (Exception e) {
 									IJError.print(e);
 								}
