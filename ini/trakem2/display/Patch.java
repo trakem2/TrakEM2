@@ -1150,9 +1150,9 @@ public final class Patch extends Displayable implements ImageData {
 		final Patch.PatchImage pi = createCoordinateTransformedImage();
 		if (null != pi) return pi;
 		// else, a new one with the untransformed, original image (a duplicate):
-		project.getLoader().releaseToFit(o_width, o_height, type, 3);
 		final ImageProcessor ip = getImageProcessor();
 		if (null == ip) return null;
+		project.getLoader().releaseToFit(o_width, o_height, type, 3);
 		return new PatchImage(ip.duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
