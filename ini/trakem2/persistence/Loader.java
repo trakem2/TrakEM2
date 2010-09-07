@@ -725,7 +725,7 @@ abstract public class Loader {
 	}
 	
 	/** A lock to acquire before freeing any memory. This lock is shared across all loaders.
-	 *  Synchronzing on this lock, any number of loaders cannot deadlock on each other
+	 *  Synchronizing on this lock, any number of loaders cannot deadlock on each other
 	 *  by trying to free each other.*/
 	static private final Object CROSSLOCK = new Object();
 
@@ -1072,13 +1072,15 @@ abstract public class Loader {
 				if (null != mawt) {
 					return mawt; // was loaded by a different thread
 				}
+			}
+			
+			final long n_bytes = estimateImageFileSize(p, level);
+			
+			// going to load:
+			releaseToFit(n_bytes * 8);
 
-				// going to load:
-				
-				long n_bytes = estimateImageFileSize(p, level);
-
+			synchronized (plock) {
 				try {
-					// Locks on db_lock to release memory when needed
 					mawt = fetchMipMapAWT(p, level, n_bytes);
 				} catch (Throwable t) {
 					IJError.print(t);
@@ -1107,7 +1109,7 @@ abstract public class Loader {
 								boolean newly_cached = false;
 								if (null == mawt) {
 									// reload existing scaled file
-									mawt = fetchMipMapAWT2(p, lev, n_bytes); // overestimating n_bytes
+									mawt = fetchMipMapAWT(p, lev, n_bytes); // overestimating n_bytes
 									if (null != mawt) {
 										mawts.put(id, mawt, lev);
 										newly_cached = true; // means: cached was false, now it is
@@ -1235,16 +1237,6 @@ abstract public class Loader {
 
 	/** Does nothing unless overriden. */
 	public boolean removeAlphaMask(final Patch p) { return false; }
-
-	/** Must be called within synchronized db_lock. */
-	private final Image fetchMipMapAWT2(final Patch p, final int level, final long n_bytes) {
-		try {
-			return fetchMipMapAWT(p, level, n_bytes); // locks on db_lock
-		} catch (Throwable e) {
-			IJError.print(e);
-			return null;
-		}
-	}
 
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
 	public ImagePlus getCachedImagePlus(final long id) {
