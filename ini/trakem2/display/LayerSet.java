@@ -2809,4 +2809,27 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		Utils.log2("No buckets for layer " + la);
 	}
 
+	/** Get all Displayable or ZDisplayable of the given class. */
+	public<T extends Displayable> List<T> getAll(Class<T> c) {
+		final ArrayList<T> al = new ArrayList<T>();
+		if (null == c) return al;
+		if (ZDisplayable.class == c) {
+			al.addAll((Collection<T>)al_zdispl);
+		} else if (ZDisplayable.class.isAssignableFrom(c)) {
+			for (final ZDisplayable d : al_zdispl) {
+				if (d.getClass() == c) al.add((T)d);
+			}
+		} else if (Displayable.class == c) {
+			for (final Layer la : al_layers) {
+				al.addAll((Collection<T>)la.getDisplayables());
+			}
+			al.addAll((Collection<T>)al_zdispl);
+		} else if (Displayable.class.isAssignableFrom(c)) {
+			for (final Layer la : al_layers) {
+				al.addAll(la.getAll(c));
+			}
+		}
+		return al;
+	}
+
 }
