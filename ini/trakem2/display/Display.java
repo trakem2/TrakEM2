@@ -37,6 +37,7 @@ import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.analysis.Graph;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
@@ -2903,6 +2904,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Fly through selected Treeline/AreaTree"); item.addActionListener(this); menu.add(item);
 		item.setEnabled(null != active && Tree.class.isInstance(active));
 		item = new JMenuItem("Tags..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Connectivity graph..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -5050,6 +5052,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			getLayerSet().importTags(new StringBuilder(ff[0]).append('/').append(ff[1]).toString(), 1 == gd.getNextChoiceIndex());
+		} else if (command.equals("Connectivity graph...")) {
+			Bureaucrat.createAndStart(new Worker.Task("Connectivity graph") {
+				public void exec() {
+					Graph.extractAndShowGraph(getLayerSet());
+				}
+			}, getProject());
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
