@@ -102,7 +102,7 @@ public class Graph {
 				if (!ls.contains(c[i])) states[i] = false;
 			} else if (!ls.containsDisplayable(c[i])) states[i] = false;
 		}
-		gd.addCheckboxGroup(types.length, 1, types, states, new String[]{"Types"});
+		gd.addCheckboxGroup(types.length, 1, types, states, new String[]{"Include only:"});
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
 		HashSet<Class<Displayable>> only = new HashSet<Class<Displayable>>();
