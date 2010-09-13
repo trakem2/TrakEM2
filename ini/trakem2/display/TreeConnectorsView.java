@@ -198,7 +198,7 @@ public class TreeConnectorsView {
 			this.rows = new ArrayList<Row>(connectors.size());
 			for (final Connector c : connectors) {
 				int i = 0;
-				for (final Set<Displayable> targets : c.getTargets(VectorData.class)) {
+				for (final Set<Displayable> targets : c.getTargets(VectorData.class, true)) {
 					this.rows.add(new Row(c, i++, targets));
 				}
 			}
