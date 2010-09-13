@@ -248,7 +248,7 @@ public class Connector extends Treeline {
 		return getUnder(root, Displayable.class, true);
 	}
 
-	private final List<Set<Displayable>> getTargets(final Class<?> c, final boolean instance_of) {
+	public List<Set<Displayable>> getTargets(final Class<?> c, final boolean instance_of) {
 		final List<Set<Displayable>> al = new ArrayList<Set<Displayable>>();
 		if (null == root || !root.hasChildren()) return al;
 		for (final Node<Float> nd : root.getChildrenNodes()) {
