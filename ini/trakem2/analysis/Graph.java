@@ -49,6 +49,7 @@ public class Graph {
 				continue;
 			}
 			for (final Displayable origin : origins) {
+				if (Thread.currentThread().isInterrupted()) return null;
 				if (null != only && !only.contains(origin.getClass())) continue;
 				seen.add(origin);
 				for (final Set<Displayable> targets : target_lists) {
@@ -78,6 +79,7 @@ public class Graph {
 	/** Extract the graph based on connectors; leave @param only null to include all types. */
 	static public final <T extends Displayable> void extractAndShowGraph(final LayerSet ls, final Set<Class<T>> only) {
 		final Map<String,StringBuilder> m = Graph.extractGraph(ls, only);
+		if (null == m) return;
 		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			new TextWindow("Graph", m.get("xml").toString(), 500, 500);
 			TextWindow tw = new TextWindow("SIF", m.get("sif").toString(), 500, 500);
