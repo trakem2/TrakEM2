@@ -106,27 +106,27 @@ public final class TEMCAGraph {
 		}
 	}
 	private static String physioOrnamentFromColor(String color) {
-		return " [style=filled fillcolor=" + color + " color=" + color + " shape=box]";
+		return " [style=filled fillcolor=\"" + color + "\" color=\"" + color + "\" shape=box]";
 	}
 	
 	private static String inhibOrnamentFromColor(String color) {
-		return " [style=filled fillcolor=" + color + " color=" + color + " shape=box]";
+		return " [style=filled fillcolor=\"" + color + "\" color=\"" + color + "\" shape=box]";
 	}
 	
 	private static String inhibFragmentOrnamentFromColor(String color) {
-		return " [color=" + color + "]";
+		return " [color=\"" + color + "\"]";
 	}
 	
 	private static String pyrOrnamentFromColor(String color) {
-		return " [style=filled fillcolor=pink color=" + color + " shape=box]";
+		return " [style=filled fillcolor=pink color=\"" + color + "\" shape=box]";
 	}
 	
 	private static String pyrFragmentOrnamentFromColor(String color) {
-		return " [color=" + color + "]";
+		return " [color=\"" + color + "\"]";
 	}
 	
 	private static String apicalOrnamentFromColor(String color){
-		return " [style=filled fillcolor=pink color=" + color + " shape=box]";
+		return " [style=filled fillcolor=pink color=\"" + color + "\" shape=box]";
 	}
 	
 	// run up the project hierarchy looking for string "core" in a containing ProjectThing's title; if found, return true.
@@ -209,20 +209,21 @@ public final class TEMCAGraph {
 		}
 		
 
+		// TODO should actually get the color from the treeline stroke
 		HashMap<String, String> physio_cells = new HashMap<String, String>(); // name, color
-		physio_cells.put("10blue", "blue");
-		physio_cells.put("11green", "green");
-		physio_cells.put("13green", "green");
-		physio_cells.put("14green", "green");
+		physio_cells.put("10blue", "#2900d6");
+		physio_cells.put("11green", "#00f50a");
+		physio_cells.put("13green", "#00e01f");
+		physio_cells.put("14green", "#00e01f");
 //		physio_cells.put("15orange", "orange"); // the astrocyte
-		physio_cells.put("16blue", "blue");
-		physio_cells.put("17orange", "orange");
-		physio_cells.put("18green", "green");
-		physio_cells.put("19orange", "orange");
-		physio_cells.put("20red", "red");
-		physio_cells.put("21green", "green");
-		physio_cells.put("22red", "red");
-		physio_cells.put("23orange", "orange");
+		physio_cells.put("16blue", "#001fe0");
+		physio_cells.put("17orange", "#ffb800");
+		physio_cells.put("18green", "#47ff00");
+		physio_cells.put("19orange", "#ff9900");
+		physio_cells.put("20red", "#e0001f");
+		physio_cells.put("21green", "#1fff00");
+		physio_cells.put("22red", "#ffff00");
+		physio_cells.put("23orange", "#ff8f00");
 		physio_cells.put("45white", "grey");
 		
 		
@@ -259,7 +260,7 @@ public final class TEMCAGraph {
 					String target_parent_name = ge.targetParentName();
 					String edge_line = "\t\"" + origin_parent_name + "\" -> \"" + target_parent_name + "\"";
 					if (physio_cells.containsKey(origin_parent_name)) {
-						edge_line = edge_line + " [color=" + physio_cells.get(origin_parent_name) + "]";
+						edge_line = edge_line + " [color=\"" + physio_cells.get(origin_parent_name) + "\"]";
 						if (!dot_nodes.containsKey(origin_parent_name)) { // in case show_all_physio is false, still output node as a physio cell
 							dot_nodes.put(origin_parent_name, physioOrnamentFromColor(physio_cells.get(origin_parent_name)));
 						}
