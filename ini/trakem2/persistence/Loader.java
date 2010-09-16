@@ -208,39 +208,11 @@ abstract public class Loader {
 				Utils.log("WARNING setting a heap fraction larger than recommended 0.4: " + fraction);
 			}
 			Loader.heap_fraction = fraction;
-			for (final Loader l : v_loaders) l.setMaxBytes((long)(MAX_MEMORY * fraction) / v_loaders.size());
-		}
-	}
-	
-	/** When a new Loader is created, its cache gets as maximum byte size the MAXMEMORY * heap_fraction,
-	 * divided by the total number of existing loaders. */
-	static private final long creatingNewCache() {
-		synchronized (HEAPLOCK) {
-			Utils.log2("Number of previous loaders: " + v_loaders.size());
-			// At this point, v_loaders doesn't have this loader yet, so add 1:
-			final long max_bytes = (long)(MAX_MEMORY * heap_fraction) / (v_loaders.size() + 1);
-			// Set all other loaders' cache size as well, throwing out images if needed:
-			for (final Loader l : v_loaders) {
-				l.setMaxBytes(max_bytes);
-			}
-			return max_bytes;
-		}
-	}
-	
-	/** Give back to the other loaders the corresponding fraction of the heap that was taken by the destroyed loader. */
-	static private final void destroyingCache() {
-		synchronized (HEAPLOCK) {
-			if (0 == v_loaders.size()) return;
-			// At this point, the number of loaders is that of the remaining ones
-			final long max_bytes = (long)(MAX_MEMORY * heap_fraction) / v_loaders.size();
-			// Enlarge all others:
-			for (final Loader l : v_loaders) {
-				l.setMaxBytes(max_bytes);
-			}
+			for (final Loader l : v_loaders) l.setMaxBytes((long)(MAX_MEMORY * fraction));
 		}
 	}
 
-	transient protected final Cache mawts = new Cache(creatingNewCache());
+	transient protected final Cache mawts = new Cache((long)(MAX_MEMORY * heap_fraction));
 	
 	static transient protected Vector<Loader> v_loaders = new Vector<Loader>(); // Vector: synchronized
 
@@ -277,13 +249,10 @@ abstract public class Loader {
 		}
 		Utils.showStatus("Releasing all memory ...", false);
 		destroyCache();
-		Project p = Project.findProject(this);
 		
 		// First remove from list:
 		v_loaders.remove(this);
-		// Then:
-		Loader.destroyingCache();
-		
+
 		exec.shutdownNow();
 		guiExec.quit();
 		gcrunner.interrupt();
