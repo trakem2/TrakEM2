@@ -408,7 +408,7 @@ public class Bucket {
 				if (null != d) a.add(d);
 			}
 			// re-add range with new stack_index keys
-			for (final Displayable d : a) map.put(new_stack_indices.get(d), d); // TODO occasional NullPointerException when using move to top!
+			for (final Displayable d : a) map.put(new_stack_indices.get(d), d);
 		}
 	}
 

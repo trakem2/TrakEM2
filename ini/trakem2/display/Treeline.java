@@ -40,7 +40,7 @@ import java.awt.geom.Point2D;
 import java.awt.Composite;
 import java.awt.AlphaComposite;
 
-public class Treeline extends Tree<Float> implements Arbor {
+public class Treeline extends Tree<Float> {
 
 	static protected float last_radius = -1;
 
