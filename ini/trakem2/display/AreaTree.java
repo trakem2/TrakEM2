@@ -32,7 +32,7 @@ import java.util.Set;
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
 
-public class AreaTree extends Tree<Area> implements AreaContainer {
+public class AreaTree extends Tree<Area> implements Arbor, AreaContainer {
 
 	private boolean fill_paint = true;
 
