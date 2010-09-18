@@ -30,7 +30,6 @@ import java.util.Collection;
 
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
-import javax.vecmath.Tuple3f;
 import javax.vecmath.Vector3f;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.AxisAngle4f;
