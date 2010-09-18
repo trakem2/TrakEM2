@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.lang.reflect.Modifier;
 
 import javax.vecmath.Point3f;
 
@@ -230,8 +231,12 @@ public class Connector extends Treeline {
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class<?> c) {
+		final int m = c.getModifiers();
+		return getOrigins(c, Modifier.isAbstract(m) || Modifier.isInterface(m));
+	}
+	public Set<Displayable> getOrigins(final Class<?> c, final boolean instance_of) {
 		if (null == root) return new HashSet<Displayable>();
-		return getUnder(root, c, false);
+		return getUnder(root, c, instance_of);
 	}
 
 	private final Set<Displayable> getUnder(final Node<Float> node, final Class<?> c, final boolean instance_of) {
@@ -259,7 +264,8 @@ public class Connector extends Treeline {
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
 	public List<Set<Displayable>> getTargets(final Class<?> c) {
-		return getTargets(c, false);
+		final int m = c.getModifiers();
+		return getTargets(c, Modifier.isAbstract(m) || Modifier.isInterface(m));
 	}
 
 	/** Returns the list of sets of visible Displayable objects under each target, or an empty list if none. */
