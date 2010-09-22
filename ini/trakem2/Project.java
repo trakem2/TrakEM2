@@ -704,10 +704,6 @@ public class Project extends DBObject {
 		return loader;
 	}
 
-	public String getType() {
-		return "project";
-	}
-
 	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
