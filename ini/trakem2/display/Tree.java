@@ -31,10 +31,8 @@ import ij.io.FileSaver;
 import ij.io.Opener;
 
 import ini.trakem2.Project;
-import ini.trakem2.display.Displayable.SliderListener;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
-import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -3141,7 +3139,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final A t = tree_class.getConstructor(Project.class, String.class).newInstance(src.project, title);
 		t.at.setTransform(src.at);
 		t.color = src.color;
-		
+		t.width = src.width;
+		t.height = src.height;
+
 		final Map<Node<?>,B> rel = new HashMap<Node<?>,B>();
 		final LinkedList<Node<?>> todo = new LinkedList<Node<?>>();
 		//t.root = new Treeline.RadiusNode(src.root.x, src.root.y, src.root.la);
@@ -3172,10 +3172,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		synchronized (t.node_layer_map) {
 			set = t.node_layer_map.keySet();
 		}
-		for (final Layer la : set) t.calculateBoundingBox(la);
 		return t;
 	}
-	
+
 	/** One color per vertex. */
 	static public class MeshData {
 		final public List<Color3f> colors;
@@ -3185,7 +3184,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			this.colors = c;
 		}
 	}
-	
+
 	/** @return null if no node is near @param x, @param y */ 
 	public Bureaucrat generateReviewStackForSlab(final float x, final float y, final Layer layer, final double magnification) {
 		final Collection<Node<T>> nodes;
