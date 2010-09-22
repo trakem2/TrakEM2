@@ -709,7 +709,7 @@ public abstract class Node<T> implements Taggable {
 			return false;
 		}
 	}
-	
+
 	protected final void copyProperties(final Node<?> nd) {
 		this.confidence = nd.confidence;
 		this.tags = nd.getTagsCopy();
@@ -723,7 +723,7 @@ public abstract class Node<T> implements Taggable {
 		System.arraycopy(t1, 0, t2, 0, t1.length);
 		return t2;
 	}
-	
+
 	synchronized public boolean hasTag(final Tag t) {
 		if (null == this.tags) return false;
 		return getTags().contains(t);
