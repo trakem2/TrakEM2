@@ -3008,7 +3008,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public List<Connector>[] findConnectors() throws Exception {
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
 		final ArrayList<Connector> incoming = new ArrayList<Connector>();
-		Process.progressive(root.getSubtreeNodes(),
+		if (null != root) {
+			Process.progressive(root.getSubtreeNodes(),
 				     new TaskFactory<Node<T>,Object>() {
 						@Override
 					 	public Object process(final Node<T> nd) {
@@ -3031,6 +3032,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							return null;
 						}
 					 });
+		}
 		return (List<Connector>[]) new List[]{outgoing, incoming};
 	}
 
