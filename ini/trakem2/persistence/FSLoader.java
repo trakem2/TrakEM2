@@ -39,7 +39,6 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
-import ini.trakem2.display.YesNoDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
