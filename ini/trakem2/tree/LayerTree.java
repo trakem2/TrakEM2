@@ -49,6 +49,7 @@ import java.util.HashSet;
 
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -731,7 +732,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
 	public void selectNode(final Layer layer) {
 		final DefaultMutableTreeNode node = DNDTree.findNode2(layer, this);
-		project.getLoader().doGUILater(true, new Runnable() {
+		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				// deselect whatever is selected
 				setSelectionPath(null);

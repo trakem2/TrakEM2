@@ -253,12 +253,12 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			Utils.log2("DNDTree.selectNode: null ob?");
 			return;
 		}
-		// deselect whatever is selected
-		tree.setSelectionPath(null);
-		// check first:
-		if (null == ob) return;
-		tree.project.getLoader().doGUILater(true, new Runnable() {
+		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
+				// deselect whatever is selected
+				tree.setSelectionPath(null);
+				// check first:
+				if (null == ob) return;
 				final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
 				if (null != node) {
 					final TreePath path = new TreePath(node.getPath());
@@ -283,7 +283,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */
 	public void updateUILater() {
-		project.getLoader().doGUILater(true, new Runnable() {
+		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				//try { Thread.sleep(200); } catch (InterruptedException ie) {}
 				try {

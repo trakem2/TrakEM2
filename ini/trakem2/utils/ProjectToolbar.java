@@ -39,6 +39,8 @@ import java.awt.MenuItem;
 import java.awt.ItemSelectable;
 import java.awt.event.ItemEvent;
 
+import javax.swing.SwingUtilities;
+
 import ini.trakem2.display.Display;
 
 public class ProjectToolbar implements MouseListener {
@@ -190,8 +192,10 @@ public class ProjectToolbar implements MouseListener {
 		}
 	}
 
-	static public void setTool(int t) {
-		Toolbar.getInstance().setTool(t);
+	static public void setTool(final int t) {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Toolbar.getInstance().setTool(t);
+		}});
 		Display.repaintToolbar();
 	}
 

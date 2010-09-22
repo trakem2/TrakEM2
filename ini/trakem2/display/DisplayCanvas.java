@@ -1257,9 +1257,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 
 		setMagnification(newMag);
-		display.repaintAll2(); // this repaint includes this canvas's repaint
-		// as well, but also the navigator, etc.
-		// repaint();
+		display.repaintAll2(); // this repaint includes this canvas's repaint, but updates the navigator without update_graphics
 		display.updateInDatabase("srcRect");
 	}
 

@@ -53,6 +53,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
+import java.awt.EventQueue;
 import java.awt.FontMetrics;
 import java.awt.Font;
 import java.awt.MenuBar;
@@ -1063,11 +1064,15 @@ public class Utils implements ij.plugin.PlugIn {
 		//c.invalidate();
 		//c.validate();
 		// ALL that was needed: to put it into the swing repaint queue ... couldn't they JUST SAY SO
-		SwingUtilities.invokeLater(new Runnable() {
-			public void run() {
-				c.repaint();
-			}
-		});
+		if (EventQueue.isDispatchThread()) {
+			c.repaint();
+		} else {
+			SwingUtilities.invokeLater(new Runnable() {
+				public void run() {
+					c.repaint();
+				}
+			});
+		}
 	}
 	/** Like calling pack() on a Frame but on a Component. */
 	static public final void revalidateComponent(final Component c) {

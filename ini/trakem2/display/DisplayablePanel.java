@@ -30,6 +30,8 @@ import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import javax.swing.SwingUtilities;
+
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseAdapter;
@@ -40,7 +42,6 @@ import java.awt.Dimension;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.util.Collection;
-import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -144,11 +145,13 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	}
 
 	public void setActive(final boolean active) {
-		if (active) {
-			setBackground(Color.cyan);
-		} else {
-			setBackground(Color.white);
-		}
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			if (active) {
+				setBackground(Color.cyan);
+			} else {
+				setBackground(Color.white);
+			}
+		}});
 	}
 
 	public void paint(final Graphics g) {
@@ -165,6 +168,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		super.paint(g);
 	}
 
+	@Override
 	public void setBackground(Color c) {
 		super.setBackground(c);
 		if (null != titles) {
@@ -230,25 +234,29 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 			display.dispatcher.exec(new Runnable() {
 				public void run() {
 					JCheckBox source = (JCheckBox) me.getSource();
-					if (source.equals(c)) {
+					if (source == c) {
 						if (!source.isSelected()) {
 							d.setVisible(true);
 						} else {
 							// Prevent hiding when transforming
 							if (Display.isTransforming(d)) {
 								Utils.showStatus("Transforming! Can't change visibility.", false);
-								c.setSelected(true);
+								SwingUtilities.invokeLater(new Runnable() { public void run() {
+									c.setSelected(true);
+								}});
 								return;
 							}
 							d.setVisible(false);
 						}
-					} else if (source.equals(c_locked)) {
+					} else if (source == c_locked) {
 						final String[] members = new String[]{"locked"};
 						if (!source.isSelected()) {
 							// Prevent locking while transforming
 							if (Display.isTransforming(d)) {
 								Utils.logAll("Transforming! Can't lock.");
-								c_locked.setSelected(false);
+								SwingUtilities.invokeLater(new Runnable() { public void run() {
+									c_locked.setSelected(false);
+								}});
 								return;
 							}
 							d.getLayerSet().addDataEditStep(d, members);
@@ -265,12 +273,14 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 							lg.remove(d); // not this one!
 							Display.updateCheckboxes(lg, LOCK_STATE, d.isLocked2());
 						}
-					} else if (source.equals(c_linked)) {
+					} else if (source == c_linked) {
 						// Prevent linking/unlinking while transforming
 						if (Display.isTransforming(d)) {
 							Utils.logAll("Transforming! Can't modify linking state.");
+							SwingUtilities.invokeLater(new Runnable() { public void run() {
 								c_linked.setSelected(d.isLinked());
-								return;
+							}});
+							return;
 						}
 
 						final Set<Displayable> hs;
@@ -289,7 +299,9 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 								d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
 							} else {
 								// Nothing to link, restore icon
-								c_linked.setSelected(false);
+								SwingUtilities.invokeLater(new Runnable() { public void run() {
+									c_linked.setSelected(false);
+								}});
 							}
 						} else {
 							hs = d.getLinkedGroup(null);
@@ -316,15 +328,11 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	}
 
 	public void mousePressed(final MouseEvent me) {
-		display.dispatcher.exec(new Runnable() { public void run() {
-
 		if (display.isTransforming()) return;
 		display.select(d, me.isShiftDown());
 		if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
 			display.getPopupMenu().show(DisplayablePanel.this, me.getX(), me.getY());
 		}
-
-		}});
 	}
 
 	public void mouseReleased(MouseEvent me) {}

@@ -22,7 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import fiji.geom.AreaCalculations;
 import ij.*;
 import ij.gui.*;
 import ij.io.OpenDialog;
@@ -74,7 +73,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.io.Writer;
 import java.io.File;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 
@@ -981,7 +979,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void repaintToolbar() {
 		for (final Display d : al_displays) {
 			if (null == d.toolbar_panel) continue; // not yet ready
-			d.toolbar_panel.repaint();
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				d.toolbar_panel.repaint();
+			}});
 		}
 	}
 
@@ -1155,21 +1155,28 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	public synchronized void setLayer(final Layer layer) {
 		if (!mode.canChangeLayer()) {
-			scroller.setValue(Display.this.layer.getParent().indexOf(Display.this.layer)); // TODO should be done in EDT
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				scroller.setValue(Display.this.layer.getParent().indexOf(Display.this.layer)); // TODO should be done in EDT
+			}});
 			return;
 		}
 		if (null == layer || layer == this.layer) return;
-		translateLayerColors(this.layer, layer);
-		if (tabs.getSelectedComponent() == scroll_layers) {
-			SwingUtilities.invokeLater(new Runnable() { public void run() {
+		
+		final Layer current_layer = layer;
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			translateLayerColors(current_layer, layer);
+			if (tabs.getSelectedComponent() == scroll_layers) {
 				scrollToShow(scroll_layers, layer_panels.get(layer));
-			}});
-		}
-		final boolean set_zdispl = null == Display.this.layer || layer.getParent() != Display.this.layer.getParent();
+			}
+		}});
+
 		this.layer = layer;
-		// Below, will fire the event as well, and call stl.set(layer) which calls setLayer with the same layer, and returns.
-		// But just scroller.getModel().setValue(int) will ALSO fire the event. So let it do the loop.
-		scroller.setValue(layer.getParent().indexOf(layer));
+		
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			// Below, will fire the event as well, and call stl.set(layer) which calls setLayer with the same layer, and returns.
+			// But just scroller.getModel().setValue(int) will ALSO fire the event. So let it do the loop.
+			scroller.setValue(layer.getParent().indexOf(layer));
+		}});
 
 		/* // OBSOLETE
 		// update the current Layer pointer in ZDisplayable objects
@@ -1178,7 +1185,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		*/
 
-		updateVisibleTab(set_zdispl);
+		updateVisibleTab(null == current_layer || layer.getParent() != current_layer.getParent());
 
 		updateFrameTitle(layer); // to show the new 'z'
 		// select the Layer in the LayerTree
@@ -1202,19 +1209,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		if (-1 != sel_next && sel.size() > 0) select(sel.get(sel_next), true);
 
-		// repaint everything
+		// trigger repaints
 		navigator.repaint(true);
 		canvas.repaint(true);
 
-		// repaint tabs (hard as hell)
-		Utils.updateComponent(tabs);
-		// @#$%^! The above works half the times, so explicit repaint as well:
-		Component c = tabs.getSelectedComponent();
-		if (null == c) {
-			c = scroll_patches;
-			tabs.setSelectedComponent(scroll_patches);
-		}
-		Utils.updateComponent(c);
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			// repaint tabs (hard as hell)
+			Utils.updateComponent(tabs);
+			// @#$%^! The above works half the times, so explicit repaint as well:
+			Component c = tabs.getSelectedComponent();
+			if (null == c) {
+				c = scroll_patches;
+				tabs.setSelectedComponent(scroll_patches);
+			}
+			Utils.updateComponent(c);
+		}});
 
 		// update the coloring in the ProjectTree
 		project.getProjectTree().updateUILater();
@@ -1343,7 +1352,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	public void setTransparencySlider(final float transp) {
 		if (transp >= 0.0f && transp <= 1.0f) {
 			// fire event
-			transp_slider.setValue((int)(transp * 100));
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				transp_slider.setValue((int)(transp * 100));
+			}});
 		}
 	}
 
@@ -1390,13 +1401,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Find all Display instances that contain the layer and repaint them, in the Swing GUI thread. */
 	static public void update(final Layer layer) {
 		if (null == layer) return;
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
-			for (final Display d : al_displays) {
-				if (d.isShowing(layer)) {
-					d.repaintAll();
-				}
+		for (final Display d : al_displays) {
+			if (d.isShowing(layer)) {
+				d.repaintAll();
 			}
-		}});
+		}
 	}
 
 	static public void update(final LayerSet set) {
@@ -1406,15 +1415,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Find all Display instances showing a Layer of this LayerSet, and update the dimensions of the navigator and canvas and snapshots, and repaint, in the Swing GUI thread. */
 	static public void update(final LayerSet set, final boolean update_canvas_dimensions) {
 		if (null == set) return;
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
-			for (final Display d : al_displays) {
-				if (d.layer.getParent() == set) {
-					d.updateSnapshots();
-					if (update_canvas_dimensions) d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
-					d.repaintAll();
-				}
+		for (final Display d : al_displays) {
+			if (d.layer.getParent() == set) {
+				d.updateSnapshots();
+				if (update_canvas_dimensions) d.canvas.setDimensions(set.getLayerWidth(), set.getLayerHeight());
+				d.repaintAll();
 			}
-		}});
+		}
 	}
 
 	/** Release all resources held by this Display and close the frame. */
@@ -1571,14 +1578,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	public void pack() {
-		dispatcher.exec(new Runnable() { public void run() {
-		try {
-			Thread.sleep(100);
-			SwingUtilities.invokeAndWait(new Runnable() { public void run() {
-				frame.pack();
-				navigator.repaint(false); // upate srcRect red frame position/size
-			}});
-		} catch (Exception e) { IJError.print(e); }
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			frame.pack();
+			navigator.repaint(false); // update srcRect red frame position/size
 		}});
 	}
 
@@ -1716,21 +1718,19 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private void remove(final Displayable displ) {
-		DisplayablePanel ob = ht_panels.remove(displ);
+		final DisplayablePanel ob = ht_panels.remove(displ);
 		if (null != ob) {
 			final JScrollPane jsp = ht_tabs.get(displ.getClass());
 			if (null != jsp) {
-				JPanel p = (JPanel)jsp.getViewport().getView();
-				final boolean visible = isPartiallyWithinViewport(jsp.getViewport(), ob);
-				p.remove(ob);
-				if (visible) {
-					Utils.revalidateComponent(p);
-				}
+				SwingUtilities.invokeLater(new Runnable() { public void run() {
+					JPanel p = (JPanel)jsp.getViewport().getView();
+					final boolean visible = isPartiallyWithinViewport(jsp.getViewport(), ob);
+					p.remove(ob);
+					if (visible) Utils.revalidateComponent(p);
+				}});
 			}
 		}
-		if (null == active || !selection.contains(displ)) {
-			canvas.setUpdateGraphics(true);
-		}
+		canvas.setUpdateGraphics(true);
 		repaint(displ, null, 5, true, false);
 		// from Selection.deleteAll this method is called ... but it's ok: same thread, no locking problems.
 		selection.remove(displ);
@@ -1786,8 +1786,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null != r) canvas.repaint(r, extra, update_graphics);
 		else canvas.repaint(displ, extra, update_graphics);
 		if (repaint_navigator) {
-			DisplayablePanel dp = ht_panels.get(displ);
-			if (null != dp) dp.repaint(); // is null when creating it, or after deleting it
+			final DisplayablePanel dp = ht_panels.get(displ);
+			if (null != dp) {
+				SwingUtilities.invokeLater(new Runnable() { public void run() {
+					dp.repaint(); // is null when creating it, or after deleting it
+				}});
+			}
 			navigator.repaint(true); // everything
 		}
 	}
@@ -1980,7 +1984,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			} else if (active.linkPatches()) {
 				// Locking state changed:
 				glinked = active.getLinkedGroup(null);
-				updateCheckboxes(glinked, DisplayablePanel.LOCK_STATE, true);
+				Display.updateCheckboxes(glinked, DisplayablePanel.LOCK_STATE, true);
 			}
 			// Update link icons:
 			Display.updateCheckboxes(null == glinked ? active.getLinkedGroup(null) : glinked, DisplayablePanel.LINK_STATE);
@@ -2002,7 +2006,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				selection.remove(d);
 				//Utils.log2("Display.select: removing from a selection");
 			} else {
-				//Utils.log2("Display.select: activing within a selection");
+				//Utils.log2("Display.select: activating within a selection");
 				selection.setActive(d);
 			}
 		} else {
@@ -2072,6 +2076,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private void choose(final int screen_x_p, final int screen_y_p, final Collection<Displayable> al, final boolean shift_down, final int x_p, final int y_p) {
 		// show a popup on the canvas to choose
 		new Thread() {
+			{ setPriority(Thread.NORM_PRIORITY); }
 			public void run() {
 				final Object lock = new Object();
 				final DisplayableChooser d_chooser = new DisplayableChooser(al, lock);
@@ -2082,17 +2087,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					pop.add(menu_item);
 				}
 
-				new Thread() {
-					public void run() {
-						pop.show(canvas, screen_x_p, screen_y_p);
-					}
-				}.start();
+				SwingUtilities.invokeLater(new Runnable() { public void run() {
+					pop.show(canvas, screen_x_p, screen_y_p);
+				}});
 
 				//now wait until selecting something
 				synchronized(lock) {
 					do {
 						try {
-							lock.wait(); // lock.notify() is never called! How can this work at all? TODO I need to understand this.
+							lock.wait();
 						} catch (InterruptedException ie) {}
 					} while (d_chooser.isWaiting() && pop.isShowing());
 				}
@@ -2261,42 +2264,40 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** A method to update the given tab, creating a new DisplayablePanel for each Displayable present in the given ArrayList, and storing it in the ht_panels (which is cleared first). */
 	private void updateTab(final JPanel tab, final ArrayList<? extends Displayable> al) {
 		if (null == al) return;
-		dispatcher.exec(new Runnable() { public void run() {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			try {
-			if (0 == al.size()) {
-				tab.removeAll();
-			} else {
-				Component[] comp = tab.getComponents();
-				int next = 0;
-				if (1 == comp.length && comp[0].getClass() == JLabel.class) {
-					next = 1;
-					tab.remove(0);
-				}
-				// In reverse order:
-				for (ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
-					Displayable d = it.previous();
-					DisplayablePanel dp = null;
+				if (0 == al.size()) {
+					tab.removeAll();
+				} else {
+					Component[] comp = tab.getComponents();
+					int next = 0;
+					if (1 == comp.length && comp[0].getClass() == JLabel.class) {
+						next = 1;
+						tab.remove(0);
+					}
+					// In reverse order:
+					for (ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
+						Displayable d = it.previous();
+						DisplayablePanel dp = null;
+						if (next < comp.length) {
+							dp = (DisplayablePanel)comp[next++]; // recycling panels
+							dp.set(d);
+						} else {
+							dp = new DisplayablePanel(Display.this, d);
+							tab.add(dp);
+						}
+						ht_panels.put(d, dp);
+					}
 					if (next < comp.length) {
-						dp = (DisplayablePanel)comp[next++]; // recycling panels
-						dp.set(d);
-					} else {
-						dp = new DisplayablePanel(Display.this, d);
-						tab.add(dp);
-					}
-					ht_panels.put(d, dp);
-				}
-				if (next < comp.length) {
-					// remove from the end, to avoid potential repaints of other panels
-					for (int i=comp.length-1; i>=next; i--) {
-						tab.remove(i);
+						// remove from the end, to avoid potential repaints of other panels
+						for (int i=comp.length-1; i>=next; i--) {
+							tab.remove(i);
+						}
 					}
 				}
-			}
-			if (null != Display.this.active) scrollToShow(Display.this.active);
+				Utils.updateComponent(tabs);
+				if (null != Display.this.active) scrollToShow(Display.this.active);
 			} catch (Throwable e) { IJError.print(e); }
-
-			// invokeLater:
-			Utils.updateComponent(tabs);
 		}});
 	}
 
@@ -3475,7 +3476,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
 	private void scrollToShow(final Displayable d) {
 		if (!(tabs.getSelectedComponent() instanceof JScrollPane)) return;
-		dispatcher.execSwing(new Runnable() { public void run() {
 		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
 		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
 			scrollToShow(scroll_zdispl, ht_panels.get(d));
@@ -3489,30 +3489,31 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (Profile.class == c && scroll == scroll_profiles) {
 			scrollToShow(scroll_profiles, ht_panels.get(d));
 		}
-		}});
 	}
 
 	private void scrollToShow(final JScrollPane scroll, final JPanel dp) {
 		if (null == dp) return;
-		JViewport view = scroll.getViewport();
-		Point current = view.getViewPosition();
-		Dimension extent = view.getExtentSize();
-		int panel_y = dp.getY();
-		if ((panel_y + DisplayablePanel.HEIGHT - current.y) <= extent.height && panel_y >= current.y) {
-			// it's completely visible already
-			return;
-		} else {
-			// scroll just enough
-			// if it's above, show at the top
-			if (panel_y - current.y < 0) {
-				view.setViewPosition(new Point(0, panel_y));
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			JViewport view = scroll.getViewport();
+			Point current = view.getViewPosition();
+			Dimension extent = view.getExtentSize();
+			int panel_y = dp.getY();
+			if ((panel_y + DisplayablePanel.HEIGHT - current.y) <= extent.height && panel_y >= current.y) {
+				// it's completely visible already
+				return;
+			} else {
+				// scroll just enough
+				// if it's above, show at the top
+				if (panel_y - current.y < 0) {
+					view.setViewPosition(new Point(0, panel_y));
+				}
+				// if it's below (even if partially), show at the bottom
+				else if (panel_y + 50 > current.y + extent.height) {
+					view.setViewPosition(new Point(0, panel_y - extent.height + 50));
+					//Utils.log("Display.scrollToShow: panel_y: " + panel_y + "   current.y: " + current.y + "  extent.height: " + extent.height);
+				}
 			}
-			// if it's below (even if partially), show at the bottom
-			else if (panel_y + 50 > current.y + extent.height) {
-				view.setViewPosition(new Point(0, panel_y - extent.height + 50));
-				//Utils.log("Display.scrollToShow: panel_y: " + panel_y + "   current.y: " + current.y + "  extent.height: " + extent.height);
-			}
-		}
+		}});
 	}
 
 	/** Update the title of the given Displayable in its DisplayablePanel, if any. */
@@ -3556,8 +3557,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			scale = new StringBuilder(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
 		}
 		final Calibration cal = layer.getParent().getCalibration();
-		String title = new StringBuilder().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
-		frame.setTitle(title);
+		final String title = new StringBuilder().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			frame.setTitle(title);
+		}});
 		// fix the title for the FakeImageWindow and thus the WindowManager listing in the menus
 		canvas.getFakeImagePlus().setTitle(title);
 	}
@@ -3581,6 +3584,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	/** Should be invoked within event dispatch thread. */
 	private final void translateLayerColors(final Layer current, final Layer other) {
 		if (current == other) return;
 		if (layer_channels.size() > 0) {
@@ -3641,16 +3645,18 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private void updateLayerScroller(Layer layer) {
-		int size = layer.getParent().size();
-		if (size <= 1) {
-			scroller.setValues(0, 1, 0, 0);
-			scroller.setEnabled(false);
-		} else {
-			scroller.setEnabled(true);
-			scroller.setValues(layer.getParent().indexOf(layer), 1, 0, size);
-		}
-		recreateLayerPanels(layer);
+	private void updateLayerScroller(final Layer layer) {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			int size = layer.getParent().size();
+			if (size <= 1) {
+				scroller.setValues(0, 1, 0, 0);
+				scroller.setEnabled(false);
+			} else {
+				scroller.setEnabled(true);
+				scroller.setValues(layer.getParent().indexOf(layer), 1, 0, size);
+			}
+			recreateLayerPanels(layer);
+		}});
 	}
 
 	// Can't use this.layer, may still be null. User argument instead.
@@ -3689,11 +3695,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private void updateSnapshots() {
-		Enumeration<DisplayablePanel> e = ht_panels.elements();
-		while (e.hasMoreElements()) {
-			e.nextElement().repaint();
-		}
-		Utils.updateComponent(tabs.getSelectedComponent());
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Enumeration<DisplayablePanel> e = ht_panels.elements();
+			while (e.hasMoreElements()) {
+				e.nextElement().repaint();
+			}
+			Utils.updateComponent(tabs.getSelectedComponent());
+		}});
 	}
 
 	static public void updatePanel(Layer layer, final Displayable displ) {
@@ -3733,10 +3741,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private void updatePanelIndex(final Displayable d) {
-		updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(),
-			  ZDisplayable.class.isAssignableFrom(d.getClass()) ?
-			     layer.getParent().getZDisplayables()
-			   : layer.getDisplayables(d.getClass()));
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(),
+					ZDisplayable.class.isAssignableFrom(d.getClass()) ?
+							layer.getParent().getZDisplayables()
+							: layer.getDisplayables(d.getClass()));
+		}});
 	}
 
 	/** Repair possibly missing panels and other components by simply resetting the same Layer */
@@ -5405,9 +5415,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */
 	static public void updateCheckboxes(final Displayable displ, final int cb, final boolean state) {
 		for (final Display d : al_displays) {
-			DisplayablePanel dp = d.ht_panels.get(displ);
+			final DisplayablePanel dp = d.ht_panels.get(displ);
 			if (null != dp) {
-				dp.updateCheckbox(cb, state);
+				SwingUtilities.invokeLater(new Runnable() { public void run() {
+					dp.updateCheckbox(cb, state);
+				}});
 			}
 		}
 	}
@@ -5417,12 +5429,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		final Project p = displs.iterator().next().getProject();
 		for (final Display d : al_displays) {
 			if (d.getProject() != p) continue;
-			for (final Displayable displ : displs) {
-				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) {
-					dp.updateCheckbox(cb, state);
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				for (final Displayable displ : displs) {
+					DisplayablePanel dp = d.ht_panels.get(displ);
+					if (null != dp) {
+						dp.updateCheckbox(cb, state);
+					}
 				}
-			}
+			}});
 		}
 	}
 	/** Update the checkbox @param cb state to an appropriate value for each Displayable. Assumes all Displayable objects belong to one specific project. */
@@ -5431,12 +5445,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		final Project p = displs.iterator().next().getProject();
 		for (final Display d : al_displays) {
 			if (d.getProject() != p) continue;
-			for (final Displayable displ : displs) {
-				DisplayablePanel dp = d.ht_panels.get(displ);
-				if (null != dp) {
-					dp.updateCheckbox(cb);
+			SwingUtilities.invokeLater(new Runnable() { public void run() {
+				for (final Displayable displ : displs) {
+					DisplayablePanel dp = d.ht_panels.get(displ);
+					if (null != dp) {
+						dp.updateCheckbox(cb);
+					}
 				}
-			}
+			}});
 		}
 	}
 
@@ -5917,7 +5933,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		ProjectToolbar.setTool(ProjectToolbar.SELECT);
 		this.mode = mode;
 		canvas.repaint(true);
-		scroller.setEnabled(mode.canChangeLayer());
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			scroller.setEnabled(mode.canChangeLayer());
+		}});
 	}
 
 	public Mode getMode() {

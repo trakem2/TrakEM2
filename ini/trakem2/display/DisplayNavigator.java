@@ -37,18 +37,20 @@ import java.awt.Rectangle;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseEvent;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Set;
+
 import ini.trakem2.utils.*;
-import java.awt.geom.AffineTransform;
 import java.awt.GraphicsConfiguration;
 
 public final class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
 	private Display display;
 	private Layer layer;
-	private HashSet hs_painted = new HashSet();
+	private Set<Displayable> hs_painted = Collections.synchronizedSet(new HashSet<Displayable>());
 	static private final int SIDE = 250;
 	private BufferedImage image = null;
 	private boolean redraw_displayables = true;
@@ -86,7 +88,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		//check if layer has changed
 		if (this.layer != display.getLayer()) {
 			this.layer = display.getLayer();
-			this.hs_painted.clear();
 		}
 
 		scale = Math.min(SIDE / display.getLayer().getLayerWidth(), SIDE / display.getLayer().getLayerHeight());
@@ -199,6 +200,8 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 					g.setColor(Color.black);
 					g.fillRect(0, 0, SIDE, SIDE);
 				}
+				
+				hs_painted.clear();
 
 				// check if disabled
 				if (2 != snapshots_mode) {
@@ -208,7 +211,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 					g.scale(scale, scale);
 
-					final ArrayList al = display.getLayer().getDisplayables();
+					final ArrayList<Displayable> al = display.getLayer().getDisplayables();
 					final int size = al.size();
 					boolean zd_done = false;
 					for (int i=0; i<size; i++) {
@@ -219,7 +222,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 						if (!zd_done && DLabel.class == c) {
 							zd_done = true;
 							// paint ZDisplayables before the labels (i.e. text labels on top)
-							final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
+							final Iterator<ZDisplayable> itz = display.getLayer().getParent().getZDisplayables().iterator();
 							while (itz.hasNext()) {
 								ZDisplayable zd = (ZDisplayable)itz.next();
 								if (!zd.isVisible()) continue;

@@ -521,13 +521,15 @@ public class Search {
 	/** Repaint (refresh the text in the cells) only if any of the selected tabs in any of the search frames contains the given object in its rows. */
 	static public void repaint(final Object ob) {
 		if (null == instance) return;
-		final int selected = instance.search_tabs.getSelectedIndex();
-		if (-1 == selected) return;
-		java.awt.Component c = instance.search_tabs.getComponentAt(selected);
-		JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
-		DisplayableTableModel data = (DisplayableTableModel)table.getModel();
-		if (data.contains(ob)) {
-			Utils.updateComponent(instance.search_frame);
-		}
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			final int selected = instance.search_tabs.getSelectedIndex();
+			if (-1 == selected) return;
+			java.awt.Component c = instance.search_tabs.getComponentAt(selected);
+			JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
+			DisplayableTableModel data = (DisplayableTableModel)table.getModel();
+			if (data.contains(ob)) {
+				Utils.updateComponent(instance.search_frame);
+			}
+		}});
 	}
 }

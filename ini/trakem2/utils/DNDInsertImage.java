@@ -31,6 +31,9 @@ import java.io.BufferedReader;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+
+import javax.swing.SwingUtilities;
+
 import ij.gui.GenericDialog;
 import ij.IJ;
 import ij.ImagePlus;
@@ -51,9 +54,11 @@ public class DNDInsertImage implements DropTargetListener {
 
 	public void destroy() {
 		// is there any way to really destroy it?
-		dt.setActive(false);
-		display.getCanvas().setDropTarget(null);
-		dt.setComponent(null);
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			dt.setActive(false);
+			display.getCanvas().setDropTarget(null);
+			dt.setComponent(null);
+		}});
 	}
 
 	public void dragEnter(DropTargetDragEvent e) {
