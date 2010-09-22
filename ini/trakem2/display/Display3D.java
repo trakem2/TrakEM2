@@ -814,7 +814,13 @@ public final class Display3D {
 					ct = universe.createContent(cm, title);
 				} else {
 					final CustomTriangleMesh extra = new CustomTriangleMesh(extra_triangles, c3, 0);
-					if (null != extra_triangle_colors) extra.setColor(extra_triangle_colors);
+					if (null != extra_triangle_colors) {
+						// Set mesh properties for double-sided triangles
+						PolygonAttributes pa = extra.getAppearance().getPolygonAttributes();
+						pa.setCullFace(PolygonAttributes.CULL_NONE);
+						pa.setBackFaceNormalFlip(true);
+						extra.setColor(extra_triangle_colors);
+					}
 					ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, extra})), title);
 				}
 
