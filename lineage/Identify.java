@@ -32,7 +32,7 @@ public class Identify implements TPlugIn {
 
 	/**
 	 * Takes 2 arg (the Pipe or Polyline and the lib-name)
-	 * or 4 args: Line3D pipe, String lib-name, double delta, boolean direct and boolean substring
+	 * or 5 args: Line3D pipe, String lib-name, double delta, boolean direct and boolean substring
 	 */
 	static public Object identify(Object... args) {
 		try {
