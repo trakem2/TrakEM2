@@ -596,7 +596,6 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	public void keyPressed(final KeyEvent ke) {
-		dispatcher.exec(new Runnable() { public void run() {
 		if (!ke.getSource().equals(DNDTree.this) || !Project.getInstance(DNDTree.this).isInputEnabled()) {
 			ke.consume();
 			return;
@@ -604,12 +603,10 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		int key_code = ke.getKeyCode();
 		switch (key_code) {
 			case KeyEvent.VK_S:
-				Project p = Project.getInstance(DNDTree.this);
-				p.getLoader().save(p);
+				project.save();
 				ke.consume();
 				break;
 		}
-		}});
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}

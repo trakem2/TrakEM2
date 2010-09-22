@@ -87,6 +87,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
@@ -291,7 +292,14 @@ public class Project extends DBObject {
 		// else, relaunch
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
-				if (loader.hasChanges()) save();
+				try {
+					SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						if (loader.hasChanges()) save();
+					}});
+				} catch (Throwable e) {
+					Utils.log("*** Autosaver failed:");
+					IJError.print(e);
+				}
 			}
 		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
 	}
