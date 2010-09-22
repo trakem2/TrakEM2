@@ -116,7 +116,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 	public void mousePressed(final MouseEvent me) {
 		super.dispatcher.execSwing(new Runnable() { public void run() {
-		if (!me.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
+		if (!me.getSource().equals(ProjectTree.this) || !project.isInputEnabled()) {
 			return;
 		}
 		final int x = me.getX();
@@ -187,7 +187,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public void mouseClicked(MouseEvent me) { }
 
 	public void actionPerformed(final ActionEvent ae) {
-		if (!Project.getInstance(this).isInputEnabled()) return;
+		if (!project.isInputEnabled()) return;
 		super.dispatcher.exec(new Runnable() { public void run() {
 		try {
 			if (null == selected_node) return;
@@ -497,7 +497,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		super.keyPressed(ke);
 		if (ke.isConsumed()) return;
 		super.dispatcher.execSwing(new Runnable() { public void run() {
-		if (!ke.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
+		if (!ke.getSource().equals(ProjectTree.this) || !project.isInputEnabled()) {
 			return;
 		}
 		// get the first selected node only

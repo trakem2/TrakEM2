@@ -596,7 +596,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	public void keyPressed(final KeyEvent ke) {
-		if (!ke.getSource().equals(DNDTree.this) || !Project.getInstance(DNDTree.this).isInputEnabled()) {
+		if (!ke.getSource().equals(DNDTree.this) || !project.isInputEnabled()) {
 			ke.consume();
 			return;
 		}

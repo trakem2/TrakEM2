@@ -1212,16 +1212,6 @@ public class Project extends DBObject {
 		return "trakem2_" + root_tt.getType();
 	}
 
-	/** Find an instance containing the given tree. */
-	static public Project getInstance(final DNDTree ob) {
-		for (final Project project : al_open_projects) {
-			if (project.layer_tree.equals(ob)) return project;
-			if (project.project_tree.equals(ob)) return project;
-			if (project.template_tree.equals(ob)) return project;
-		}
-		return null;
-	}
-
 	/** Returns a user-understandable name for the given class. */
 	static public String getName(final Class<?> c) {
 		String name = c.getName();
