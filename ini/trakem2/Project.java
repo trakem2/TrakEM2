@@ -1223,7 +1223,7 @@ public class Project extends DBObject {
 	}
 
 	/** Returns a user-understandable name for the given class. */
-	static public String getName(final Class c) {
+	static public String getName(final Class<?> c) {
 		String name = c.getName();
 		name = name.substring(name.lastIndexOf('.') + 1);
 		if (name.equals("DLabel")) return "Label";
