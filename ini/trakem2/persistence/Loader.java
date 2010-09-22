@@ -4507,7 +4507,7 @@ while (it.hasNext()) {
 	// Will be shut down by Loader.destroy()
 	private final Dispatcher guiExec = new Dispatcher("GUI Executor");
 
-	/** Execute a GUI-related task later; it's the fn's responsability to do the call via SwingUtilities.invokeLater if necesary. */
+	/** Execute a GUI-related task later, in the event dispatch thread context if @param swing is true. */
 	public void doGUILater( final boolean swing, final Runnable fn ) {
 		guiExec.exec( fn, swing );
 	}
