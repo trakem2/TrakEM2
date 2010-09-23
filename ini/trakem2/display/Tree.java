@@ -1025,7 +1025,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Considering only the set of consecutive layers currently painted, find a point near an edge
-	 *  with accurancy depending upon magnification.
+	 *  with accuracy depending upon magnification.
 	 *  @return null if none of the edges is close enough, or an array of parent and child describing the edge. */
 	public Node<T>[] findNearestEdge(float x_pl, float y_pl, Layer layer, double magnification) {
 		if (null == root) return null;
