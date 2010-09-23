@@ -1782,7 +1782,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
 					if (null != nd) {
 						display.toLayer(nd.la);
-						setReceiver(nd);
+						if (nd != receiver) {
+							setReceiver(nd);
+							display.getCanvas().repaint(false);
+						}
 						ke.consume();
 						return;
 					}
