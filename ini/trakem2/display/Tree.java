@@ -1135,9 +1135,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					root = node.children[0];
 					root.parent = null;
 					root.confidence = Node.MAX_EDGE_CONFIDENCE; // with its now non-existent parent
+					if (node == receiver) setReceiver(root);
 				} else {
 					node.parent.children[node.parent.indexOf(node)] = node.children[0];
 					node.children[0].parent = node.parent;
+					if (node == receiver) setReceiver(node.parent);
 				}
 				synchronized (node_layer_map) {
 					node_layer_map.get(node.la).remove(node);
@@ -1178,6 +1180,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				if (1 == node.parent.getChildrenCount()) {
 					end_nodes.add(node.parent);
 				}
+				// Update receiver:
+				if (node == receiver) setReceiver(node.parent);
 				// Finally, remove from parent node
 				node.parent.remove(node);
 			}
