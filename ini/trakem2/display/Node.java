@@ -303,25 +303,27 @@ public abstract class Node<T> implements Taggable {
 		final float x = (float)((po.x - srcRect.x) * magnification);
 		final float y = (float)((po.y - srcRect.y) * magnification);
 
+		final Color receiver = t.getReceiver() == this ? Color.green : null;
 		// paint the node as a draggable point
 		if (null == parent) {
 			// As origin
-			g.setColor(Color.magenta);
+			g.setColor(null == receiver ? Color.magenta : receiver);
 			g.fillOval((int)x - 6, (int)y - 6, 11, 11);
 			g.setColor(Color.black);
 			g.drawString("S", (int)x -3, (int)y + 4); // TODO ensure Font is proper
 		} else if (null == children) {
 			// as end point
-			g.setColor(Color.white);
+			g.setColor(null == receiver ? Color.white : receiver);
 			g.fillOval((int)x - 6, (int)y - 6, 11, 11);
 			g.setColor(Color.black);
 			g.drawString("e", (int)x -4, (int)y + 3); // TODO ensure Font is proper
 		} else if (1 == children.length) {
 			// as a slab: no branches
-			DisplayCanvas.drawScreenHandle(g, (int)x, (int)y);
+			g.setColor(null == receiver ? (null == this.color ? t.getColor() : this.color) : receiver);
+			g.fillOval((int)x - 4, (int)y - 4, 9, 9);
 		} else {
 			// As branch point
-			g.setColor(Color.yellow);
+			g.setColor(null == receiver ? Color.yellow : receiver);
 			g.fillOval((int)x - 6, (int)y - 6, 11, 11);
 			g.setColor(Color.black);
 			g.drawString("Y", (int)x -4, (int)y + 4); // TODO ensure Font is proper

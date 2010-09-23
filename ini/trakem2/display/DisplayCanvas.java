@@ -2890,6 +2890,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// Else:
 				display.toLayer(nd.la);
 				t.setLastVisited(nd);
+				t.setReceiver(nd);
 				if (!is_shift_down) display.getSelection().clear();
 				display.getSelection().add(t);
 				switch (ProjectToolbar.getToolId()) {

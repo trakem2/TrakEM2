@@ -1368,19 +1368,28 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Node<T> getMarked() {
 		return marked;
 	}
+	
+	protected void setReceiver(Node<T> nd) { this.receiver = nd; }
+	protected Node<T> getReceiver() { return this.receiver; }
+	
+	@Override
+	public void deselect() {
+		setReceiver(null);
+	}
 
 	protected void fireNodeRemoved(final Node<T> nd) {
 		if (nd == marked) marked = null;
 		if (nd == last_added) last_added = null;
 		if (nd == last_edited) last_edited = null;
 		if (nd == last_visited) last_visited = null;
+		if (nd == receiver) receiver = null;
 		removeFromLinkLater(nd);
 		removeReview(nd);
 	}
 
 	protected void clearState() {
 		// clear:
-		marked = last_added = last_edited = last_visited = null;
+		marked = last_added = last_edited = last_visited = receiver = null;
 	}
 
 	/** The Node double-clicked on, for join operations. */
@@ -1393,6 +1402,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	private Node<T> last_edited = null;
 	/** The last visited node, either navigating or editing. */
 	private Node<T> last_visited = null;
+	/** The only node that can receive new children by clicking. */
+	private Node<T> receiver = null;
 
 	static private Polygon MARKED_PARENT, MARKED_CHILD;
 
@@ -1444,13 +1455,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					setActive(null);
 					return;
 				}
-				if (me.isShiftDown() && !me.isAltDown()) {
-					// Create new branch at point, with local coordinates
-					Node<T> child = newNode(x_pl, y_pl, layer, found);
-					addNode(found, child, Node.MAX_EDGE_CONFIDENCE);
-					setActive(child);
-					return;
-				}
 			} else {
 				if (2 == me.getClickCount()) {
 					setLastMarked(null);
@@ -1468,8 +1472,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						setActive(found);
 					}
 				} else {
+					Node<T> nearest = receiver;
+					if (null == nearest) {
+						Utils.showMessage("Before adding a new node, please activate an existing node\nby clicking on it, or pushing 'g' on it.");
+						return;
+					}
 					// Find the point closest to any other starting or ending point in all branches
-					Node<T> nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
+					//Node<T> nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
 					// append new child; inherits radius from parent
 					found = newNode(x_pl, y_pl, layer, nearest);
 					addNode(nearest, found, Node.MAX_EDGE_CONFIDENCE);
@@ -1503,6 +1512,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		updateViewData(active);
 
+		setReceiver(active);
 		setActive(null);
 	}
 
@@ -1764,6 +1774,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
 					if (null != nd) {
 						display.toLayer(nd.la);
+						setReceiver(nd);
 						ke.consume();
 						return;
 					}
