@@ -323,7 +323,7 @@ public abstract class Node<T> implements Taggable {
 		} else if (1 == children.length) {
 			// as a slab: no branches
 			g.setColor(null == receiver ? (null == this.color ? t.getColor() : this.color) : receiver);
-			g.fillOval((int)x - 4, (int)y - 4, 9, 9);
+			g.fillOval((int)x - 3, (int)y - 3, 7, 7);
 		} else {
 			// As branch point
 			g.setColor(null == receiver ? Color.yellow : receiver);
