@@ -490,10 +490,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return tt;
 	}
 
+	@Override
 	public void keyPressed(final KeyEvent ke) {
 		super.keyPressed(ke);
 		if (ke.isConsumed()) return;
-		super.dispatcher.execSwing(new Runnable() { public void run() {
 		if (!ke.getSource().equals(ProjectTree.this) || !project.isInputEnabled()) {
 			return;
 		}
@@ -554,7 +554,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 				break;
 		}
-		}});
 		ke.consume();
 	}
 
