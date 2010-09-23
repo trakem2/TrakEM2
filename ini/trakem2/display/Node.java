@@ -297,13 +297,16 @@ public abstract class Node<T> implements Taggable {
 			paintTags(g, x, y, local_edge_color);
 		}
 	}
+	
+	static private final Color receiver_color = Color.green.brighter();
+	
 	/** Paint in the context of offscreen space, without transformations. */
 	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t) {
 		final Point2D.Double po = t.transformPoint(this.x, this.y);
 		final float x = (float)((po.x - srcRect.x) * magnification);
 		final float y = (float)((po.y - srcRect.y) * magnification);
 
-		final Color receiver = t.getReceiver() == this ? Color.green : null;
+		final Color receiver = t.getReceiver() == this ? Node.receiver_color : null;
 		// paint the node as a draggable point
 		if (null == parent) {
 			// As origin
