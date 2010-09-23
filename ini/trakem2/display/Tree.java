@@ -1134,6 +1134,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Make its child the new root
 					root = node.children[0];
 					root.parent = null;
+					root.confidence = Node.MAX_EDGE_CONFIDENCE; // with its now non-existent parent
 				} else {
 					node.parent.children[node.parent.indexOf(node)] = node.children[0];
 					node.children[0].parent = node.parent;
