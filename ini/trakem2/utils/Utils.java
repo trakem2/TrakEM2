@@ -124,8 +124,8 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Avoid waiting on the AWT thread repainting ImageJ's log window. */
 	static private final class LogDispatcher extends Thread {
 		private final StringBuilder cache = new StringBuilder();
-		public LogDispatcher() {
-			super("T2-Log-Dispatcher");
+		public LogDispatcher(ThreadGroup tg) {
+			super(tg, "T2-Log-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
@@ -176,15 +176,14 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 	}
-	static private LogDispatcher logger = new LogDispatcher();
 
 	/** Avoid waiting on the AWT thread repainting ImageJ's status bar.
 	    Waits 100 ms before printing the status message; if too many status messages are being sent, the last one overrides all. */
 	static private final class StatusDispatcher extends Thread {
 		private volatile String msg = null;
 		private volatile double progress = -1;
-		public StatusDispatcher() {
-			super("T2-Status-Dispatcher");
+		public StatusDispatcher(ThreadGroup tg) {
+			super(tg, "T2-Status-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
 			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 			start();
@@ -244,20 +243,25 @@ public class Utils implements ij.plugin.PlugIn {
 							try { wait(); } catch (InterruptedException ie) {}
 						}
 					}
+				} catch (InterruptedException ie) {
+					// pass
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 			}
 		}
 	}
-	static private StatusDispatcher status = new StatusDispatcher();
+	static private LogDispatcher logger = null; 
+	static private StatusDispatcher status = null;
 
 	/** Initialize house keeping threads. */
 	static public final void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
-		if (null != status) status.quit();
-		status = new StatusDispatcher();
-		if (null != logger) logger.quit();
-		logger = new LogDispatcher();
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			if (null != status) status.quit();
+			if (null != logger) logger.quit();
+			logger = new LogDispatcher(Thread.currentThread().getThreadGroup());
+			status = new StatusDispatcher(Thread.currentThread().getThreadGroup());
+		}});
 	}
 
 	/** Destroy house keeping threads. */
