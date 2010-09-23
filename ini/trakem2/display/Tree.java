@@ -1155,8 +1155,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		removeNode(node, node.getSubtreeNodes());
 	}
 
-	// TODO this function is not thread safe. Works well because multiple threads aren't so far calling cache-modifying functions.
-	// Should synchronize on node_layer_map.
 	private void removeNode(final Node<T> node, final Collection<Node<T>> subtree_nodes) {
 		synchronized (node_layer_map) {
 			if (null == node.parent) {
