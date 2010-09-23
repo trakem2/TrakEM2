@@ -59,8 +59,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		this.project = project;
 		this.background = background;
 		setAutoscrolls(true);
-		DefaultTreeModel treemodel = new DefaultTreeModel(root);
-		setModel(treemodel);
+		setModel(new DefaultTreeModel(root));
 		setRootVisible(true); 
 		setShowsRootHandles(false);//to show the root icon
 		getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION); //set single selection for the Tree
@@ -70,6 +69,10 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		dtth = new DefaultTreeTransferHandler(project, this, DnDConstants.ACTION_COPY_OR_MOVE);
 		//
 		this.setScrollsOnExpand(true);
+		KeyListener[] kls = getKeyListeners();
+		if (null != kls) for (KeyListener kl : kls) { Utils.log2("removing kl: " + kl); removeKeyListener(kl); }
+		//resetKeyboardActions(); // removing the KeyListeners is not enough!
+		//setActionMap(new ActionMap()); // an empty one -- none of these two lines has any effect towards stopping the key events.
 		this.addKeyListener(this);
 
 		if (null != background) {
@@ -85,28 +88,48 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			}});
 		}
 	}
+	
+	/** Removing all KeyListener and ActionMap is not enough:
+	 *  one must override this method to stop the JTree from reacting to keys. */
+	@Override
+	protected void processKeyEvent(KeyEvent ke) {
+		if (ke.isConsumed()) return;
+		if (KeyEvent.KEY_PRESSED == ke.getID()) {
+			keyPressed(ke);
+		}
+	}
 
-        /** Subclasses should override this method to return a subclass of DNDTree.NodeRenderer */
-        protected NodeRenderer createNodeRenderer() {
-                return new NodeRenderer();
-        }       
+	/** Prevent processing. */ // Never occurred so far
+	@Override
+	protected boolean processKeyBinding(KeyStroke ks,
+            KeyEvent e,
+            int condition,
+            boolean pressed) {
+		Utils.log2("intercepted binding: " + e.getKeyChar() + " " + ks.getKeyChar());
+		return false;
+	}
 
-        protected class NodeRenderer extends DefaultTreeCellRenderer {
+	/** Subclasses should override this method to return a subclass of DNDTree.NodeRenderer */
+	protected NodeRenderer createNodeRenderer() {
+		return new NodeRenderer();
+	}       
 
-                @Override
-                public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
-                        final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-                        label.setText(label.getText().replace('_', ' ')); // just for display
-                        return label;
-                }       
-                
-                /** Override to show tooptip text as well. */
-                @Override
-                public void setText(final String text) {
-                        super.setText(text);
-                        setToolTipText(text); // TODO doesn't work ??
-                }       
-        }
+	protected class NodeRenderer extends DefaultTreeCellRenderer {
+
+		@Override
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+			final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+			label.setText(label.getText().replace('_', ' ')); // just for display
+			return label;
+		}       
+
+		/** Override to show tooltip text as well. */
+		@Override
+		public void setText(final String text) {
+			super.setText(text);
+			setToolTipText(text); // TODO doesn't work ??
+		}       
+	}
 
 	public void autoscroll(Point cursorLocation)  {
 		Insets insets = getAutoscrollInsets();
