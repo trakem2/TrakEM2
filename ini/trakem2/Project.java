@@ -267,6 +267,7 @@ public class Project extends DBObject {
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
+		ControlWindow.getInstance(); // init
 		this.loader = loader;
 		this.project = this; // for the superclass DBObject
 		loader.addToDatabase(this);
@@ -275,6 +276,7 @@ public class Project extends DBObject {
 	/** Constructor used by the Loader to find projects. These projects contain no loader. */
 	public Project(long id, String title) {
 		super(null, id);
+		ControlWindow.getInstance(); // init
 		this.title = title;
 		this.project = this;
 	}
