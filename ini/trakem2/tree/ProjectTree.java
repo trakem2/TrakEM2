@@ -531,6 +531,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			case KeyEvent.VK_A:
 				if (0 == flags || (0 == (flags ^ Event.SHIFT_MASK))) {
 					selectInDisplay(pt, 0 == (flags ^ Event.SHIFT_MASK));
+					ke.consume();
 				}
 				break;
 			case KeyEvent.VK_3:
