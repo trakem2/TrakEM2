@@ -308,8 +308,9 @@ public class ControlWindow {
 		}
 
 		}};
-		// I hate java: can't call invokeLater from the EventDispatch thread
+
 		new Thread() {
+			{ setPriority(Thread.NORM_PRIORITY); }
 			public void run() {
 				try {
 					SwingUtilities.invokeAndWait(gui_thread);
