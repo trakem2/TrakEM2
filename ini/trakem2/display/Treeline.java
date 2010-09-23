@@ -91,8 +91,9 @@ public class Treeline extends Tree<Float> {
 		}
 
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
-			final Layer layer = Display.getFrontLayer(this.project);
-			Node<Float> nd = findNodeNear(x_p, y_p, layer, mag);
+			final Display front = Display.getFront(this.project);
+			final Layer layer = front.getLayer();
+			Node<Float> nd = findNodeNear(x_p, y_p, layer, front.getCanvas());
 			if (null == nd) {
 				Utils.log("Can't adjust radius: found more than 1 node within visible area!");
 				return;
@@ -177,7 +178,7 @@ public class Treeline extends Tree<Float> {
 			final float y = ((mwe.getY() / magnification) + srcRect.y);
 
 			float inc = (rotation > 0 ? 1 : -1) * (1/magnification);
-			if (null != adjustNodeRadius(inc, x, y, la, magnification)) {
+			if (null != adjustNodeRadius(inc, x, y, la, dc)) {
 				Display.repaint(this);
 				mwe.consume();
 				return;
@@ -186,8 +187,8 @@ public class Treeline extends Tree<Float> {
 		super.mouseWheelMoved(mwe);
 	}
 
-	protected Node<Float> adjustNodeRadius(float inc, float x, float y, Layer layer, double magnification) {
-		Node<Float> nearest = findNodeNear(x, y, layer, magnification);
+	protected Node<Float> adjustNodeRadius(float inc, float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<Float> nearest = findNodeNear(x, y, layer, dc);
 		if (null == nearest) {
 			Utils.log("Can't adjust radius: found more than 1 node within visible area!");
 			return null;

@@ -4505,12 +4505,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			center(((Treeline)active).findPreviousBranchOrRootPoint(p.x, p.y, layer, canvas.getMagnification()));
+			center(((Treeline)active).findPreviousBranchOrRootPoint(p.x, p.y, layer, canvas));
 		} else if (command.equals("Next branch point or end")) {
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
-			center(((Tree)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas.getMagnification()));
+			center(((Tree)active).findNextBranchOrEndPoint(p.x, p.y, layer, canvas));
 		} else if (command.equals("Root")) {
 			if (!(active instanceof Tree)) return;
 			Point p = canvas.consumeLastPopupPoint();

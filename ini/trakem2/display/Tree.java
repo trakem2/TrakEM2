@@ -822,21 +822,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return new Coordinate<Node<T>>(x, y, nd.la, nd);
 	}
 
-	public Coordinate<Node<T>> findPreviousBranchOrRootPoint(float x, float y, Layer layer, double magnification) {
-		Node<T> nd = findNodeNear(x, y, layer, magnification);
+	public Coordinate<Node<T>> findPreviousBranchOrRootPoint(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) return null;
 		return createCoordinate(nd.findPreviousBranchOrRootPoint());
 	}
 	/** If the node found near x,y,layer is a branch point, returns it; otherwise the next down
 	 *  the chain; on reaching an end point, returns it. */
-	public Coordinate<Node<T>> findNextBranchOrEndPoint(float x, float y, Layer layer, double magnification) {
-		Node<T> nd = findNodeNear(x, y, layer, magnification);
+	public Coordinate<Node<T>> findNextBranchOrEndPoint(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) return null;
 		return createCoordinate(nd.findNextBranchOrEndPoint());
 	}
 
-	protected Coordinate<Node<T>> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
-		Node<T> nd = findNodeNear(x, y, layer, magnification);
+	protected Coordinate<Node<T>> findNearAndGetNext(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) nd = last_visited;
 		if (null == nd) return null;
 		int n_children = nd.getChildrenCount();
@@ -855,8 +855,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null != nd) setLastVisited(nd);
 		return createCoordinate(nd);
 	}
-	protected Coordinate<Node<T>> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
-		Node<T> nd = findNodeNear(x, y, layer, magnification);
+	protected Coordinate<Node<T>> findNearAndGetPrevious(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) nd = last_visited;
 		if (null == nd || null == nd.parent) return null;
 		setLastVisited(nd.parent);
@@ -883,17 +883,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	protected Node<T> adjustEdgeConfidence(int inc, float x, float y, Layer layer, double magnification) {
-		if (!this.at.isIdentity()) {
-			final Point2D.Double po = inverseTransformPoint(x, y);
-			x = (float)po.x;
-			y = (float)po.y;
-		}
+	/** Expects world coordinates. */
+	protected Node<T> adjustEdgeConfidence(int inc, float x, float y, Layer layer, DisplayCanvas dc) {
 		Node<T> nearest;
 		synchronized (node_layer_map) {
-			nearest = findNode(x, y, layer, magnification);
-			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null == nearest || !nearest.adjustConfidence(inc)) {
+			nearest = findNodeConfidenceBox(x, y, layer, dc.getMagnification());
+			if (null == nearest) nearest = findNodeNear(x, y, layer, dc, true);
+			if (null == nearest) return null;
+			if (!nearest.adjustConfidence(inc)) {
 				return null;
 			}
 		}
@@ -1261,9 +1258,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		return true;
 	}
+	
+	protected Node<T> findNodeNear(float x, float y, final Layer layer, final DisplayCanvas dc) {
+		return findNodeNear(x, y, layer, dc, false);
+	}
 
 	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
-	protected Node<T> findNodeNear(float x, float y, final Layer layer, final double magnification) {
+	protected Node<T> findNodeNear(float x, float y, final Layer layer, final DisplayCanvas dc, final boolean use_receiver_when_null) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -1277,15 +1278,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				return null;
 			}
 			// Find a node near the coordinate
-			Node<T> nd = findNode(x, y, layer, magnification);
+			Node<T> nd = findNode(x, y, layer, dc.getMagnification());
 			// If that fails, try any node show all by itself in the display:
 
 			if (null == nd) {
 				// Is there only one node within the srcRect?
 				final Area a;
 				try {
-					a = new Area(Display.getFront().getCanvas().getSrcRect())
-						    .createTransformedArea(this.at.createInverse());
+					a = new Area(dc.getSrcRect()).createTransformedArea(this.at.createInverse());
 				} catch (NoninvertibleTransformException nite) {
 					IJError.print(nite);
 					return null;
@@ -1300,6 +1300,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							break;
 						}
 					}
+				}
+			}
+			
+			if (null == nd && use_receiver_when_null && null != receiver && receiver.la == layer) {
+				float[] f = new float[]{receiver.x, receiver.y};
+				at.transform(f, 0, f, 0, 1);
+				if (dc.getSrcRect().contains((int)f[0], (int)f[1])) {
+					nd = receiver;
 				}
 			}
 
@@ -1719,9 +1727,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		switch (keyCode) {
 			case KeyEvent.VK_T:
 				if (0 == modifiers) {
-					to_tag = findNodeNear(po.x, po.y, layer, dc.getMagnification());
+					to_tag = findNodeNear(po.x, po.y, layer, dc, true);
 				} else if (0 == (modifiers ^ KeyEvent.SHIFT_MASK)) {
-					to_untag = findNodeNear(po.x, po.y, layer, dc.getMagnification());
+					to_untag = findNodeNear(po.x, po.y, layer, dc, true);
 				}
 				ke.consume();
 				return;
@@ -1735,14 +1743,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					ke.consume();
 					return;
 				case KeyEvent.VK_B:
-					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification());
+					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc);
 					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_N:
-					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification());
+					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc);
 					if (null == c) return;
 					nd = c.object;
 					display.center(c);
@@ -1763,11 +1771,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					ke.consume();
 					return;
 				case KeyEvent.VK_CLOSE_BRACKET:
-					display.animateBrowsingTo(findNearAndGetNext(po.x, po.y, layer, dc.getMagnification()));
+					display.animateBrowsingTo(findNearAndGetNext(po.x, po.y, layer, dc));
 					ke.consume();
 					return;
 				case KeyEvent.VK_OPEN_BRACKET:
-					display.animateBrowsingTo(findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification()));
+					display.animateBrowsingTo(findNearAndGetPrevious(po.x, po.y, layer, dc));
 					ke.consume();
 					return;
 				case KeyEvent.VK_G:
@@ -1864,7 +1872,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			final float x = (float)((mwe.getX() / magnification) + srcRect.x);
 			final float y = (float)((mwe.getY() / magnification) + srcRect.y);
 
-			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, magnification);
+			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, dc);
 			Display.repaint(this);
 			mwe.consume();
 		}
