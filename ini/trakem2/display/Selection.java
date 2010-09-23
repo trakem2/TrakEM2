@@ -26,7 +26,6 @@ import ij.gui.GenericDialog;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ini.trakem2.Project;
-import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
@@ -38,12 +37,10 @@ import java.awt.geom.Area;
 import java.awt.image.ColorModel;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -325,6 +322,7 @@ public class Selection {
 				return;
 			}
 			queue.remove(d);
+			d.deselect();
 			setPrev(queue);
 			hs.remove(d);
 			if (d.equals(active)) {

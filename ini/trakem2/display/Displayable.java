@@ -2168,4 +2168,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public boolean softRemove() {
 		return remove(false);
 	}
+
+	/** Tell this Displayable that is has been deselected from a Display.
+	 *  If multiple displays have the same Displayable in their Selection,
+	 *  this Diplayabale is to act as if it has been deselected from all. */
+	public void deselect() {}
 }
