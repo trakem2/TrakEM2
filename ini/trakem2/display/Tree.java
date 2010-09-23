@@ -204,6 +204,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				to_screen.translate(-srcRect.x, -srcRect.y);
 				to_screen.concatenate(this.at);
 
+				final Node<T>[] handles = active ? new Node[nodes.size()] : null;
+				int next = 0;
+
 				for (final Node<T> nd : nodes) {
 					if (nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this, to_screen)) {
 						nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
@@ -218,7 +221,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 							g.setComposite(c);
 						}
-						if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
+						if (active && active_layer == nd.la) handles[next++] = nd;
+					}
+				}
+				if (active) {
+					for (int i=0; i<next; i++) {
+						handles[i].paintHandle(g, srcRect, magnification, this);
 					}
 				}
 			}
