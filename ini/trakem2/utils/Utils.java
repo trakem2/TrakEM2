@@ -842,14 +842,14 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Returns the file found at path as an array of lines, or null if not found. */
 	static public final String[] openTextFileLines(final String path) {
 		if (null == path || !new File(path).exists()) return null;
-		final ArrayList al = new ArrayList();
+		final ArrayList<String> al = new ArrayList<String>();
 		try {
 			BufferedReader r = new BufferedReader(new FileReader(path));
 			while (true) {
 				String s = r.readLine();
 				if (null == s) break;
 				al.add(s);
-        		}
+        	}
 			r.close();
 		} catch (Exception e) {
 			IJError.print(e);
@@ -918,7 +918,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static private final boolean isJava3DInstalled() {
 		try {
-			Class p3f = Class.forName("javax.vecmath.Point3f");
+			Class.forName("javax.vecmath.Point3f");
 		} catch (ClassNotFoundException cnfe) {
 			return false;
 		}
@@ -931,10 +931,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final void addLayerRangeChoices(final Layer first, final Layer last, final GenericDialog gd) {
 		final String[] layers = new String[first.getParent().size()];
-		final ArrayList al_layer_titles =  new ArrayList();
+		final ArrayList<String> al_layer_titles =  new ArrayList<String>();
 		int i = 0;
-		for (Iterator it = first.getParent().getLayers().iterator(); it.hasNext(); ) {
-			layers[i] = first.getProject().findLayerThing((Layer)it.next()).toString();
+		for (final Layer layer : first.getParent().getLayers()) {
+			layers[i] = first.getProject().findLayerThing(layer).toString();
 			al_layer_titles.add(layers[i]);
 			i++;
 		}
@@ -961,10 +961,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public final void addLayerChoice(final String label, final Layer selected, final GenericDialog gd) {
 		final String[] layers = new String[selected.getParent().size()];
-		final ArrayList al_layer_titles =  new ArrayList();
+		final ArrayList<String> al_layer_titles =  new ArrayList<String>();
 		int i = 0;
-		for (Iterator it = selected.getParent().getLayers().iterator(); it.hasNext(); ) {
-			layers[i] = selected.getProject().findLayerThing((Layer)it.next()).toString();
+		for (final Layer layer : selected.getParent().getLayers()) {
+			layers[i] = selected.getProject().findLayerThing(layer).toString();
 			al_layer_titles.add(layers[i]);
 			i++;
 		}
@@ -1106,7 +1106,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void sleep(final long miliseconds) {
-		try { Thread.currentThread().sleep(miliseconds); } catch (Exception e) { e.printStackTrace(); }
+		try { Thread.sleep(miliseconds); } catch (Exception e) { e.printStackTrace(); }
 	}
 
 	/** Mix colors visually: red + green = yellow, etc.*/
@@ -1151,7 +1151,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Get by reflection a private or protected field in the given object. */
-	static public final Object getField(final Object ob, final Class c, final String field_name) {
+	static public final Object getField(final Object ob, final Class<?> c, final String field_name) {
 		try {
 			Field f = c.getDeclaredField(field_name);
 			f.setAccessible(true);
@@ -1161,7 +1161,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return null;
 	}
-	static public final void setField(final Object ob, final Class c, final String field_name, final Object value) {
+	static public final void setField(final Object ob, final Class<?> c, final String field_name, final Object value) {
 		try {
 			Field f = c.getDeclaredField(field_name);
 			f.setAccessible(true);
@@ -1504,22 +1504,21 @@ public class Utils implements ij.plugin.PlugIn {
 		return exec;
 	}
 	/** If both are null will throw an error. */
-	static public final boolean equalContent(final Collection a, final Collection b) {
+	static public final boolean equalContent(final Collection<?> a, final Collection<?> b) {
 		if ((null == a && null != b)
 		 || (null != b && null == b)) return false;
 		if (a.size() != b.size()) return false;
-		for (Iterator ia = a.iterator(), ib = b.iterator(); ia.hasNext(); ) {
+		for (Iterator<?> ia = a.iterator(), ib = b.iterator(); ia.hasNext(); ) {
 			if (!ia.next().equals(ib.next())) return false;
 		}
 		return true;
 	}
 	/** If both are null will throw an error. */
-	static public final boolean equalContent(final Map a, final Map b) {
+	static public final boolean equalContent(final Map<?,?> a, final Map<?,?> b) {
 		if ((null == a && null != b)
 		 || (null != b && null == b)) return false;
 		if (a.size() != b.size()) return false;
-		for (final Object oe : a.entrySet()) {
-			final Map.Entry e = (Map.Entry)oe;
+		for (final Map.Entry<?,?> e : a.entrySet()) {
 			final Object ob = b.get(e.getKey());
 			if (null != ob && !ob.equals(e.getValue())) return false;
 			if (null != e.getValue() && !e.getValue().equals(ob)) return false;
