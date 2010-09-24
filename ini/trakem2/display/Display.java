@@ -678,7 +678,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private final class ScrollerModel extends DefaultBoundedRangeModel {
-		int index = 0;
+		int index;
+		ScrollerModel(final Layer la) {
+			this.index = layer.getParent().indexOf(la);
+		}
 		public void setValueWithoutEvent(int index) {
 			this.index = index;
 			scroller.updateUI(); // so the model needs to update the UI: how pretty!
@@ -810,7 +813,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		int extent = (int)(250.0 / layer.getParent().size());
 		if (extent < 10) extent = 10;
 		this.scroller = new JScrollBar(JScrollBar.HORIZONTAL);
-		this.scroller.setModel(new ScrollerModel());
+		this.scroller.setModel(new ScrollerModel(layer));
 		updateLayerScroller(layer);
 		this.scroller.addAdjustmentListener(scroller_listener);
 
