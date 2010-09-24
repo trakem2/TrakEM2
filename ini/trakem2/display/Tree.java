@@ -2961,7 +2961,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** The behavior is undefined if @param last is not a descendant of @param first. */
 	public void createReviewStack(final Node<T> first, final Node<T> last, final Tag tag, final String filepath, final int width, final int height, final double magnification, final int image_type) {
 		try {
-			ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(first, last, width, height, magnification), magnification, image_type);
+			ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(first, last, width, height, magnification), magnification, image_type, this);
 			imp.setTitle(imp.getTitle() + tag.toString());
 			ij.IJ.redirectErrorMessages();
 			new FileSaver(imp).saveAsZip(filepath);
