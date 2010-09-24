@@ -4965,7 +4965,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			ImagePlus imp = ((AreaList)active).getStack(type, gd.getNextNumber()/100);
 			if (null != imp) imp.show();
 		} else if (command.equals("Fly through selected Treeline/AreaTree")) {
-			if (null == active || !(active instanceof Tree)) return;
+			if (null == active || !(active instanceof Tree<?>)) return;
 			Bureaucrat.createAndStart(new Worker.Task("Creating fly through", true) {
 				public void exec() {
 					GenericDialog gd = new GenericDialog("Fly through");
@@ -4996,7 +4996,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						if (null == dir) return; // canceled
 						dir = Utils.fixDir(dir);
 					}
-					ImagePlus imp = ((Tree)active).flyThroughMarked(w, h, scale/100, type, dir);
+					ImagePlus imp = ((Tree<?>)active).flyThroughMarked(w, h, scale/100, type, dir);
 					if (null == imp) {
 						Utils.log("Mark a node first!");
 						return;
@@ -5014,13 +5014,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final float scale = (float)(gd.getNextNumber() / 100);
-			java.util.List al = 0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class);
+			java.util.List<Displayable> al = (java.util.List<Displayable>)(0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class));
 			if (null == al) {
 				Utils.log("No area lists found to export.");
 				return;
 			}
 			// Generics are ... a pain? I don't understand them? They fail when they shouldn't? And so easy to workaround that they are a shame?
-			al = (java.util.List<Displayable>) al;
 
 			int first = gd.getNextChoiceIndex();
 			int last  = gd.getNextChoiceIndex();
@@ -5318,13 +5317,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}});
 	}
 
-	public final void center(final Coordinate c) {
+	public final void center(final Coordinate<?> c) {
 		if (null == c) return;
 		slt.set(c.layer);
 		center(c.x, c.y);
 	}
 
-	public final void centerIfNotWithinSrcRect(final Coordinate c) {
+	public final void centerIfNotWithinSrcRect(final Coordinate<?> c) {
 		if (null == c) return;
 		slt.set(c.layer);
 		Rectangle srcRect = canvas.getSrcRect();
@@ -5332,7 +5331,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		center(c.x, c.y);
 	}
 
-	public final void animateBrowsingTo(final Coordinate c) {
+	public final void animateBrowsingTo(final Coordinate<?> c) {
 		if (null == c) return;
 		final double padding = 50/canvas.getMagnification(); // 50 screen pixels
 		canvas.animateBrowsing(new Rectangle((int)(c.x - padding), (int)(c.y - padding), (int)(2*padding), (int)(2*padding)), c.layer);
@@ -5580,8 +5579,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		//Utils.log2("int tool is " + tool);
 		if (ProjectToolbar.PEN == tool) {
 			// erase bounding boxes
+			HashSet<Layer> s = new HashSet<Layer>();
 			for (final Display d : al_displays) {
-				if (null != d.active) d.repaint(d.layer, d.selection.getBox(), 2);
+				if (null != d.active && !s.contains(d.layer)) {
+					Display.repaint(d.layer, d.selection.getBox(), 2);
+					s.add(d.layer);
+				}
 			}
 		}
 		for (final Display d: al_displays) {
