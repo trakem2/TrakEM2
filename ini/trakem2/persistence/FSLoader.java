@@ -1653,12 +1653,21 @@ public final class FSLoader extends Loader {
 
 		/** Record Patch as modified */
 		touched_mipmaps.add(patch);
-		
+
 		/** Remove serialized features, if any */
 		removeSerializedFeatures(patch);
 
 		/** Remove serialized pointmatches, if any */
 		removeSerializedPointMatches(patch);
+
+		/** Alpha mask: setup to check if it was modified while regenerating. */
+		String alphapath = getAlphaPath(patch);
+		File falphazip = null;
+		long falphalast = 0;
+		if (null != alphapath) {
+			falphazip = new File(alphapath);
+			falphalast = falphazip.lastModified();
+		}
 
 		String srmode = patch.getProject().getProperty("image_resizing_mode");
 		int resizing_mode = GAUSSIAN;
@@ -2013,6 +2022,12 @@ public final class FSLoader extends Loader {
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
 				regenerating_mipmaps.remove(patch);
+			}
+
+			// Has the alpha mask changed?
+			if (null != falphazip && falphazip.lastModified() != falphalast) {
+				Utils.log2("Alpha mask changed: resubmitting mipmap regeneration for " + patch);
+				regenerateMipMaps(patch);
 			}
 		}
 	}
