@@ -1383,6 +1383,7 @@ public class Utils implements ij.plugin.PlugIn {
 	 *  For safety reasons, this function will return false immediately if the parent file path does not include a
 	 *  lowercase "trakem2." in it.
 	 *  If removed_paths is not null, all removed full paths are added to it.
+	 *  Returns false if some files could not be removed.
 	 */
 	static public final boolean removePrefixedFiles(final File parent, final String prefix, final ArrayList<String> removed_paths) {
 		if (null == parent || !parent.isDirectory()) return false;
@@ -1393,8 +1394,6 @@ public class Utils implements ij.plugin.PlugIn {
 				return false;
 			}
 
-			boolean success = true;
-
 			final File[] list = parent.listFiles(new FilenameFilter() {
 				public boolean accept(File dir, String name) {
 					if (name.startsWith(prefix)) return true;
@@ -1402,6 +1401,7 @@ public class Utils implements ij.plugin.PlugIn {
 				}
 			});
 
+			boolean success = true;
 			ArrayList<String> a = null;
 			if (null != removed_paths) a = new ArrayList<String>();
 
@@ -1415,7 +1415,7 @@ public class Utils implements ij.plugin.PlugIn {
 				}
 			}
 
-			return true;
+			return success;
 
 		} catch (Exception e) {
 			IJError.print(e);
