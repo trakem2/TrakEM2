@@ -838,7 +838,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gb.setConstraints(this.canvas_panel, c);
 		gb.setConstraints(this.canvas, c);
 
-		// prevent new Displays from screweing up if input is globally disabled
+		// prevent new Displays from screwing up if input is globally disabled
 		if (!project.isInputEnabled()) this.canvas.setReceivesInput(false);
 
 		this.canvas_panel.add(canvas);
@@ -867,7 +867,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.frame.addComponentListener(component_listener);
 		this.frame.getContentPane().add(split);
 		this.frame.addMouseListener(frame_mouse_listener);
-		//doesn't exist//this.frame.setMinimumSize(new Dimension(270, 600));
 
 		if (null != props) {
 			// restore canvas
@@ -1300,16 +1299,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			//
 			setActive(active);
 		}});
-		// swing issues:
-		/*
-		new Thread() {
-			public void run() {
-				setPriority(Thread.NORM_PRIORITY);
-				try { Thread.sleep(1000); } catch (Exception e) {}
-				setActive(active);
-			}
-		}.start();
-		*/
 	}
 
 	/** Remove all components from the tab. */
