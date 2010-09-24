@@ -2644,7 +2644,10 @@ while (it.hasNext()) {
 	 *
 	 */
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background) {
-		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background);
+		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
+	}
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background, final Displayable active) {
+		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, active);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
 		final Calibration impCalibration = layer.getParent().getCalibrationCopy();
 		impCalibration.pixelWidth /= scale;
@@ -2655,6 +2658,10 @@ while (it.hasNext()) {
 	}
 
 	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background) {
+		return getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
+	}
+
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background, final Displayable active) {
 
 		try {
 			// if quality is specified, then a larger image is generated:
@@ -2765,14 +2772,14 @@ while (it.hasNext()) {
 					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 						ZDisplayable zd = (ZDisplayable)itz.next();
 						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-							zd.paint(g2d, srcRect, scaleP, false, c_alphas, layer);
+							zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer);
 						}
 						count++;
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-					d.paintOffscreen(g2d, srcRect, scaleP, false, c_alphas, layer);
+					d.paintOffscreen(g2d, srcRect, scaleP, active == d, c_alphas, layer);
 					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
@@ -2785,7 +2792,7 @@ while (it.hasNext()) {
 				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
 					ZDisplayable zd = (ZDisplayable)itz.next();
 					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-						zd.paint(g2d, srcRect, scaleP, false, c_alphas, layer);
+						zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer);
 					}
 					count++;
 					//Utils.log2("Painted " + count + " of " + total);
@@ -4591,7 +4598,7 @@ while (it.hasNext()) {
 	}
 
 	/** Each slice is generated on demand, one slice per Region instance. */
-	public<I> ImagePlus createLazyFlyThrough(final List<? extends Region<I>> regions, final double magnification, final int type) {
+	public<I> ImagePlus createLazyFlyThrough(final List<? extends Region<I>> regions, final double magnification, final int type, final Displayable active) {
 		final Region<I> first = regions.get(0);
 		int w = (int)(first.r.width * magnification),
 		    h = (int)(first.r.height * magnification);
@@ -4600,7 +4607,7 @@ while (it.hasNext()) {
 		for (final Region<I> r : regions) {
 			stack.addSlice(new Callable<ImageProcessor>() {
 				public ImageProcessor call() {
-					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black).getProcessor();
+					return getFlatImage(r.layer, r.r, magnification, 0xffffffff, type, Displayable.class, null, true, Color.black, active).getProcessor();
 				}
 			});
 		}
