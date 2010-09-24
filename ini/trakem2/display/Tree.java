@@ -953,6 +953,17 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return findClosestNode(nodes, lx, ly, magnification);
 	}
 
+	/** Also sets the last visited and the receiver node. This is a GUI method. */
+	protected Layer toClosestPaintedNode(final Layer active_layer, final float wx, final float wy, final double magnification) {
+		final Node<T> nd = findClosestNodeW(getNodesToPaint(active_layer), wx, wy, magnification);
+		if (null != nd) {
+			setLastVisited(nd);
+			setReceiver(nd);
+			return nd.la;
+		}
+		return null;
+	}
+
 	/** Expects local coords; with precision depending on magnification. */
 	public Node<T> findClosestNode(final Collection<Node<T>> nodes, final float lx, final float ly, final double magnification) {
 		if (null == nodes || nodes.isEmpty()) return null;

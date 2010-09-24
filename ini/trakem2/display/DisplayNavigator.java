@@ -48,6 +48,8 @@ import java.awt.GraphicsConfiguration;
 
 public final class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
+	private static final long serialVersionUID = 1L;
+
 	private Display display;
 	private Layer layer;
 	private Set<Displayable> hs_painted = Collections.synchronizedSet(new HashSet<Displayable>());
@@ -218,7 +220,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 						final Displayable d = (Displayable)al.get(i);
 						//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 						if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
-						final Class c = d.getClass();
+						final Class<?> c = d.getClass();
 						if (!zd_done && DLabel.class == c) {
 							zd_done = true;
 							// paint ZDisplayables before the labels (i.e. text labels on top)
@@ -252,9 +254,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 					if (!zd_done) { // if no labels, ZDisplayables haven't been painted
 						zd_done = true;
 						// paint ZDisplayables before the labels
-						final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
-						while (itz.hasNext()) {
-							ZDisplayable zd = (ZDisplayable)itz.next();
+						for (final ZDisplayable zd : display.getLayer().getParent().getZDisplayables()) {
 							if (!zd.isVisible()) continue;
 							zd.paintSnapshot(g, layer, srcRect, scale);
 						}

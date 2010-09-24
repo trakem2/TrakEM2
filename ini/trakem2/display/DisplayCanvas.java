@@ -96,6 +96,8 @@ import javax.vecmath.Vector3d;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
+	private static final long serialVersionUID = 1L;
+
 	private Display display;
 
 	private boolean update_graphics = false;
@@ -123,10 +125,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Store a copy of whatever data as each Class may define it, one such data object per class.
 	 * Private to the package. */
-	static private Hashtable<Class,Object> copy_buffer = new Hashtable<Class,Object>();
+	static private Hashtable<Class<?>,Object> copy_buffer = new Hashtable<Class<?>,Object>();
 
-	static void setCopyBuffer(final Class c, final Object ob) { copy_buffer.put(c, ob); }
-	static Object getCopyBuffer(final Class c) { return copy_buffer.get(c); }
+	static void setCopyBuffer(final Class<?> c, final Object ob) { copy_buffer.put(c, ob); }
+	static Object getCopyBuffer(final Class<?> c) { return copy_buffer.get(c); }
 
 	static private boolean openglEnabled = false;
 	static private boolean quartzEnabled = false;
@@ -742,7 +744,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}
 
-		Selection selection = display.getSelection();
 		if (ProjectToolbar.SELECT == ProjectToolbar.getToolId() && locked) {
 			Utils.log2("Selection is locked.");
 			return;
@@ -1691,7 +1692,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		try {
 			// Enable tagging system for any alphanumeric key:
-			if (!input_disabled && null != active && active instanceof Tree && ProjectToolbar.isDataEditTool(ProjectToolbar.getToolId())) {
+			if (!input_disabled && null != active && active instanceof Tree<?> && ProjectToolbar.isDataEditTool(ProjectToolbar.getToolId())) {
 				if (tagging) {
 					if (KeyEvent.VK_0 == keyCode && KeyEvent.VK_0 != last_keyCode) {
 						// do nothing: keep tagging as true
@@ -2391,7 +2392,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		while (ital.hasNext()) {
 			final Displayable d = ital.next();
-			final Class c = d.getClass();
+			final Class<?> c = d.getClass();
 			if (DLabel.class == c || LayerSet.class == c) {
 				tmp = d; // since ital.next() has moved forward already
 				break;
@@ -2883,14 +2884,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final Layer active_layer = display.getLayer();
 			final Point po = getCursorLoc(); // in offscreen coords
 			for (final ZDisplayable zd : display.getLayerSet().getDisplayableList()) {
-				if (!(zd instanceof Tree)) continue;
-				final Tree t = (Tree)zd;
-				final Node<?> nd = t.findClosestNodeW(t.getNodesToPaint(active_layer), po.x, po.y, magnification);
-				if (null == nd) continue;
+				if (!(zd instanceof Tree<?>)) continue;
+				final Tree<?> t = (Tree<?>)zd;
+				final Layer la = t.toClosestPaintedNode(active_layer, po.x, po.y, magnification);
+				if (null == la) continue;
 				// Else:
-				display.toLayer(nd.la);
-				t.setLastVisited(nd);
-				t.setReceiver(nd);
+				display.toLayer(la);
 				if (!is_shift_down) display.getSelection().clear();
 				display.getSelection().add(t);
 				switch (ProjectToolbar.getToolId()) {
@@ -3026,7 +3025,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private void cancelAnimations() {
 		if (sfs.isEmpty()) return;
-		Vector<ScheduledFuture<?>> sfs = (Vector<ScheduledFuture<?>>)this.sfs.clone();
+		Vector<ScheduledFuture<?>> sfs;
+		synchronized (this.sfs) { sfs = new Vector<ScheduledFuture<?>>(this.sfs); }
 		for (ScheduledFuture<?> sf : sfs) {
 			sf.cancel(true);
 		}
@@ -3113,18 +3113,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 	
-	private abstract class Animation implements Runnable {
-		final Highlighter h;
-		Animation(final Highlighter h) {
-			this.h = h;
-		}
-	}
+	private interface Animation extends Runnable {}
 
 	private ScheduledFuture<?> playHighlight(final Rectangle target) {
 		initAnimator();
 		final Highlighter highlight = new Highlighter(target);
 		final ScheduledFuture<?>[] sf = (ScheduledFuture<?>[])new ScheduledFuture[2];
-		sf[0] = animator.scheduleWithFixedDelay(new Animation(highlight) {
+		sf[0] = animator.scheduleWithFixedDelay(new Animation() {
 			public void run() {
 				if (!highlight.next()) {
 					cancelAnimation(sf[0]);
@@ -3132,7 +3127,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 			}
 		}, 10, 100, TimeUnit.MILLISECONDS);
-		sf[1] = animator.scheduleWithFixedDelay(new Animation(highlight) {
+		sf[1] = animator.scheduleWithFixedDelay(new Animation() {
 			public void run() {
 				if (sf[0].isCancelled()) {
 					highlight.cleanup();
