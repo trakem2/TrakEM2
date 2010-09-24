@@ -1690,4 +1690,10 @@ public class Utils implements ij.plugin.PlugIn {
 	public static final int luminance(Color c) {
 		return (int)(c.getRed() * 0.3f + c.getGreen() * 0.6f + c.getBlue() * 0.1f + 0.5f);
 	}
+
+	/** Invoke in the context of the event dispatch thread. */
+	public static final void invokeLater(final Runnable r) {
+		if (EventQueue.isDispatchThread()) r.run();
+		else SwingUtilities.invokeLater(r);
+	}
 }
