@@ -145,7 +145,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	}
 
 	public void setActive(final boolean active) {
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
+		Utils.invokeLater(new Runnable() { public void run() {
 			if (active) {
 				setBackground(Color.cyan);
 			} else {
