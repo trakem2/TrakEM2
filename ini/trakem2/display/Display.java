@@ -4801,8 +4801,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Rectangle b = proi.getBounds();
 			Polygon[] pols = new Polygon[proi.getNCoordinates() -1];
 			for (int i=0; i<pols.length; i++) {
-				pols[i] = new Polygon(new int[]{x[i], x[i] + 1, x[i+1], x[i+1] + 1},
-									  new int[]{y[i], y[i], y[i+1], y[i+1]}, 4);
+				pols[i] = new Polygon(new int[]{b.x + x[i], b.x + x[i] + 1, b.x + x[i+1], b.x + x[i+1] + 1},
+									  new int[]{b.y + y[i], b.y + y[i], b.y + y[i+1], b.y + y[i+1]}, 4);
 			}
 			for (final Patch p : getLayer().getAll(Patch.class)) {
 				if (!p.isVisible()) continue;
