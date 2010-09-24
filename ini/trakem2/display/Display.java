@@ -4888,11 +4888,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 								for (final Patch p : (Collection<Patch>)(Collection)col) {
 									Patch copy = (Patch) p.clone(p.getProject(), false);
-									p.getLayer().add(copy);
 									p.addAlphaMask(r1, 0);
 									copy.addAlphaMask(r2, 0);
 									fus.add(p.updateMipMaps());
 									fus.add(copy.updateMipMaps());
+									p.getLayer().add(copy); // after submitting mipmaps, since it will get added to all Displays and repainted.
 								}
 								Utils.wait(fus);
 							}
