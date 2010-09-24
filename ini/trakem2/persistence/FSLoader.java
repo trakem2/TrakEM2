@@ -90,6 +90,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
@@ -647,11 +649,26 @@ public final class FSLoader extends Loader {
 	@Override
 	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
 		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
-		final String path = getAlphaPath(p);
-		File parent = new File(path).getParentFile();
-		parent.mkdirs();
-		IJ.redirectErrorMessages();
-		new FileSaver(new ImagePlus("mask", fp)).saveAsZip(getAlphaPath(p));
+		DataOutputStream out = null;
+		try {
+			final String path = getAlphaPath(p);
+			File parent = new File(path).getParentFile();
+			parent.mkdirs();
+			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
+			FileOutputStream fos = new FileOutputStream(path);
+			ZipOutputStream zos = new ZipOutputStream(fos);
+			out = new DataOutputStream(new BufferedOutputStream(zos));
+			ImagePlus imp = new ImagePlus("mask.tif", fp); // ImageJ looks for ".tif" extension in the ZipEntry
+			zos.putNextEntry(new ZipEntry(imp.getTitle()));
+			TiffEncoder te = new TiffEncoder(imp.getFileInfo());
+			te.write(out);
+			out.flush();
+			fos.getFD().sync();
+		} catch (Throwable e) {
+			IJError.print(e);
+		} finally {
+			try { if (null != out) out.close(); } catch (Throwable t) { IJError.print(t); }
+		}
 	}
 
 	public final String getMasksFolder() {
