@@ -515,7 +515,7 @@ public class Selection {
 	}
 
 	/** Returns true if selection contains any items of the given class.*/
-	public boolean contains(final Class c) {
+	public boolean contains(final Class<?> c) {
 		if (null == c) return false;
 		synchronized (queue_lock) {
 			try {
@@ -642,7 +642,7 @@ public class Selection {
 	}
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones) of the given class. */
-	public ArrayList<Displayable> getSelected(final Class c) {
+	public ArrayList<Displayable> getSelected(final Class<?> c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c || c == Displayable.class) {
 			al.addAll(queue);
@@ -669,7 +669,7 @@ public class Selection {
 
 	/** Returns the subset of selected objects of Class c, in the proper order according to the Layer.indexOf or the LayerSet.indexOf.
 	 *  Class c cannot be Displayable (returns null); must be any Displayable subclass. */
-	public Collection<Displayable> getSelectedSorted(final Class c) {
+	public Collection<Displayable> getSelectedSorted(final Class<? extends Displayable> c) {
 		if (Displayable.class == c) return null;
 		final ArrayList<Displayable> al = getSelected(c);
 		final TreeMap<Integer,Displayable> tm = new TreeMap<Integer,Displayable>();
@@ -686,14 +686,14 @@ public class Selection {
 		Set<Displayable> set = null;
 		synchronized (queue_lock) {
 			lock();
-			set = (Set<Displayable>)hs.clone();
+			set = new HashSet<Displayable>(hs);
 			unlock();
 		}
 		return set;
 	}
 
 	/** Returns the set of all Displayable objects of the given class affected by this selection, that is, among the selected ones and their linked ones. */
-	public Set<Displayable> getAffected(final Class c) {
+	public Set<Displayable> getAffected(final Class<?> c) {
 		HashSet<Displayable> copy = new HashSet<Displayable>();
 		synchronized (queue_lock) {
 			lock();
@@ -711,7 +711,7 @@ public class Selection {
 	}
 
 	/** If any of the selected or linked is of Class c. */
-	public boolean containsAffected(final Class c) {
+	public boolean containsAffected(final Class<?> c) {
 		synchronized (queue_lock) {
 			lock();
 			if (Displayable.class.equals(c) && hs.size() > 0) {
