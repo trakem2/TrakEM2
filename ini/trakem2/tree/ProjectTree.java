@@ -300,11 +300,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}*/ else if (command.equals("Export project...") || command.equals("Save as...")) { // "Save as..." is for a FS project
 				Utils.log2("Calling export project at " + System.currentTimeMillis());
-				thing.getProject().getLoader().saveAs(thing.getProject());
+				thing.getProject().getLoader().saveTask(thing.getProject(), "Save as...");
 			} else if (command.equals("Save")) {
 				// overwrite the xml file of a FSProject
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
-				thing.getProject().getLoader().save(thing.getProject());
+				thing.getProject().getLoader().saveTask(thing.getProject(), "Save");
 			} else if (command.equals("Info")) {
 				showInfo(thing);
 				return;

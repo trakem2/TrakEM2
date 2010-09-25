@@ -626,7 +626,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		int key_code = ke.getKeyCode();
 		switch (key_code) {
 			case KeyEvent.VK_S:
-				project.save();
+				project.getLoader().saveTask(project, "Save");
 				ke.consume();
 				break;
 		}

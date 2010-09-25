@@ -1770,7 +1770,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			ke.consume();
 			return;
 		} else if (KeyEvent.VK_S == keyCode && 0 == ke.getModifiers() && display.getProject().getLoader().isAsynchronous()) {
-			display.getProject().getLoader().save(display.getProject());
+			display.getProject().getLoader().saveTask(display.getProject(), "Save");
 			ke.consume();
 			return;
 		} else if (KeyEvent.VK_F == keyCode && Utils.isControlDown(ke)) {

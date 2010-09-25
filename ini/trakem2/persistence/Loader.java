@@ -22,7 +22,9 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.persistence;
 
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Worker;
 
 import ij.IJ;
 import ij.ImageJ;
@@ -3681,6 +3683,19 @@ while (it.hasNext()) {
 	/** Does nothing unless overriden. */
 	public void setupMenuItems(final JMenu menu, final Project project) {}
 
+	/** Run save or saveAs in a Bureaucract that blocks user input to the project being saved. */
+	public Bureaucrat saveTask(final Project project, final String command) {
+		return Bureaucrat.createAndStart(new Worker.Task("Saving") {
+			public void exec() {
+				if (command.equals("Save")) {
+					save(project);
+				} else if (command.equals("Save as...")) {
+					saveAs(project);
+				}
+			}
+		}, project);		
+	}
+	
 	/** Test whether this Loader needs recurrent calls to a "save" of some sort, such as for the FSLoader. */
 	public boolean isAsynchronous() {
 		// in the future, DBLoader may also be asynchronous

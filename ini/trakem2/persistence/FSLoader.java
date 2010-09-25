@@ -59,7 +59,6 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FilenameFilter;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1185,12 +1184,7 @@ public final class FSLoader extends Loader {
 	public void setupMenuItems(final JMenu menu, final Project project) {
 		ActionListener listener = new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
-				String command = ae.getActionCommand();
-				if (command.equals("Save")) {
-					save(project);
-				} else if (command.equals("Save as...")) {
-					saveAs(project);
-				}
+				saveTask(project, ae.getActionCommand());
 			}
 		};
 		JMenuItem item;
