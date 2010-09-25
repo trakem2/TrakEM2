@@ -1118,6 +1118,7 @@ public class Project extends DBObject {
 	@Override
 	public void exportXML(final StringBuilder sb, final String indent, final Object any) {
 		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, Object) !!");
+		throw new UnsupportedOperationException("Cannot call Project.exportXML(StringBuilder, String, Object)");
 	}
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
