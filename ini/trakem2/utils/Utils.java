@@ -89,11 +89,14 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.Matcher;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -654,17 +657,21 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final boolean check(final String msg) {
+		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
 		YesNoCancelDialog dialog = new YesNoCancelDialog(IJ.getInstance(), "Execute?", msg);
 		if (dialog.yesPressed()) {
 			return true;
 		}
 		return false;
+		}}).get(); } catch (Throwable t) { IJError.print(t); return false; }
 	}
 
-	static public final boolean checkYN(String msg) {
+	static public final boolean checkYN(final String msg) {
+		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
 		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Execute?", msg);
 		if (yn.yesPressed()) return true;
 		return false;
+		}}).get(); } catch (Throwable t) { IJError.print(t); return false; }
 	}
 
 	static public final String d2s(double d, int n_decimals) {
@@ -715,6 +722,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	public void run(String arg) {
+		try { new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
 		IJ.showMessage("TrakEM2",
 				new StringBuilder("TrakEM2 ").append(Utils.version)
 				.append("\nCopyright Albert Cardona & Rodney Douglas\n")
@@ -723,6 +731,8 @@ public class Utils implements ij.plugin.PlugIn {
 				.append("\nLens correction copyright Verena Kaynig, ETH Zurich.\n")
 				.append("\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.")
 				.toString());
+		return true;
+		}}).get(); } catch (Throwable t) { IJError.print(t); }
 	}
 
 	static public final File chooseFile(String name, String extension) {
@@ -730,7 +740,8 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
-	static public final File chooseFile(String default_dir, String name, String extension) {
+	static public final File chooseFile(final String default_dir, final String name, final String extension) {
+		try { return new TaskOnEDT<File>(new Callable<File>() { public File call() {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
 		String name2 = null;
 		if (null != name && null != extension) name2 = name + extension;
@@ -760,10 +771,12 @@ public class Utils implements ij.plugin.PlugIn {
 			// else if yes pressed, overwrite.
 		}
 		return f;
+		}}).get(); } catch (Throwable t) { IJError.print(t); return null; }
 	}
 
 	/** Returns null or the selected directory and file. */
 	static public final String[] selectFile(String title_msg) {
+		try { return new TaskOnEDT<String[]>(new Callable<String[]>() { public String[] call() {
 		OpenDialog od = new OpenDialog("Select file", OpenDialog.getDefaultDirectory(), null);
 		String file = od.getFileName();
 		if (null == file || file.toLowerCase().startsWith("null")) return null;
@@ -779,10 +792,12 @@ public class Utils implements ij.plugin.PlugIn {
 			return null;
 		}
 		return new String[]{dir, file};
+		}}).get(); } catch (Throwable t) { IJError.print(t); return null; }
 	}
 
-	static public final boolean saveToFile(File f, String contents) {
+	static public final boolean saveToFile(final File f, final String contents) {
 		if (null == f) return false;
+		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
 		OutputStreamWriter dos = null;
 		try {
 			dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f), contents.length()), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
@@ -799,6 +814,7 @@ public class Utils implements ij.plugin.PlugIn {
 			return false;
 		}
 		return true;
+		}}).get(); } catch (Throwable t) { IJError.print(t); return false; }
 	}
 
 	static public final boolean saveToFile(String name, String extension, String contents) {
@@ -1068,19 +1084,15 @@ public class Utils implements ij.plugin.PlugIn {
 		//c.invalidate();
 		//c.validate();
 		// ALL that was needed: to put it into the swing repaint queue ... couldn't they JUST SAY SO
-		if (EventQueue.isDispatchThread()) {
-			c.repaint();
-		} else {
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					c.repaint();
-				}
-			});
-		}
+		Utils.invokeLater(new Runnable() {
+			public void run() {
+				c.repaint();
+			}
+		});
 	}
 	/** Like calling pack() on a Frame but on a Component. */
 	static public final void revalidateComponent(final Component c) {
-		SwingUtilities.invokeLater(new Runnable() {
+		Utils.invokeLater(new Runnable() {
 			public void run() {
 				c.invalidate();
 				c.validate();
@@ -1206,6 +1218,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Creates a new ResultsTable with the given window title and column titles, and 2 decimals of precision, or if one exists for the given window title, returns it. */
 	static public final ResultsTable createResultsTable(final String title, final String[] columns) {
+		try { return new TaskOnEDT<ResultsTable>(new Callable<ResultsTable>() { public ResultsTable call() {
 		TextWindow tw = (TextWindow)WindowManager.getFrame(title);
 		if (null != tw) {
 			// hacking again ... missing a getResultsTable() method in TextWindow
@@ -1218,6 +1231,7 @@ public class Utils implements ij.plugin.PlugIn {
 		for (int i=0; i<columns.length; i++) rt.setHeading(i, columns[i]);
 		//
 		return rt;
+		}}).get(); } catch (Throwable t) { IJError.print(t); return null; }
 	}
 
 	static public final ImageProcessor createProcessor(final int type, final int width, final int height) {
@@ -1231,7 +1245,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Paints an approximation of the pipe into the set of slices. */
-	public void paint(final Pipe pipe, final Map<Layer,ImageProcessor> slices, final int value, final float scale) {
+	static public void paint(final Pipe pipe, final Map<Layer,ImageProcessor> slices, final int value, final float scale) {
 		VectorString3D vs = pipe.asVectorString3D();
 		vs.resample(1); // one pixel
 		double[] px = vs.getPoints(0);
