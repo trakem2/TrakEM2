@@ -66,7 +66,7 @@ public class NonLinearTransformMode extends GroupingMode {
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping;
 			mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
 			
-			final HashMap<Paintable, GroupingMode.ScreenPatchRange> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
+			final HashMap<Paintable, GroupingMode.ScreenPatchRange<?>> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
 			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
 			{
 				if (screenPatchRanges != this.screenPatchRanges) {

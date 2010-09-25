@@ -2,26 +2,12 @@ package ini.trakem2.display;
 
 import java.awt.Rectangle;
 import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Point;
 import java.awt.Dimension;
-import java.util.Collections;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.HashSet;
 import java.util.HashMap;
-import java.util.TreeMap;
-import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.awt.AlphaComposite;
-import java.awt.Composite;
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.image.ColorModel;
 import java.awt.event.MouseEvent;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -36,23 +22,16 @@ import javax.swing.JSlider;
 import javax.swing.JLabel;
 import java.awt.Font;
 import java.awt.FlowLayout;
+import java.awt.Graphics2D;
 import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
-import java.awt.BorderLayout;
 import java.awt.Insets;
 import java.util.concurrent.Future;
 
-import ini.trakem2.utils.M;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.utils.History;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
-import ini.trakem2.display.graphics.GraphicsSource;
-import ini.trakem2.display.graphics.DefaultGraphicsSource;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Display;
 import ini.trakem2.imaging.ContrastPlot;
@@ -60,7 +39,6 @@ import ini.trakem2.imaging.ContrastPlot;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import ij.IJ;
-import ij.ImagePlus;
 import ij.measure.Measurements;
 
 public class ContrastAdjustmentMode extends GroupingMode {
@@ -70,7 +48,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	protected void doPainterUpdate( final Rectangle r, final double m ) {
 		try {
 			MinMaxData md = min_max.clone();
-			final HashMap<Paintable, GroupingMode.ScreenPatchRange> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
+			final HashMap<Paintable, GroupingMode.ScreenPatchRange<?>> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
 			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values()) {
 				if (screenPatchRanges != this.screenPatchRanges) {
 					// List has been updated; restart painting
@@ -160,7 +138,6 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	private final JFrame frame;
 	private final ContrastPlot plot;
 	private final JLabel minLabel, maxLabel;
-	private double label_ratio = 1;
 	private int sliderRange;
 
 	public ContrastAdjustmentMode(final Display display, final List<Displayable> selected) throws Exception {
@@ -327,24 +304,27 @@ public class ContrastAdjustmentMode extends GroupingMode {
 
 
 		frame.getContentPane().add(panel);
-		frame.pack();
+		
+		Utils.invokeLater(new Runnable() { public void run() {
+			frame.pack();
 
-		// after calling pack
-		Dimension dim = new Dimension(plot.getWidth(), 15);
-		minslider.setMinimumSize(dim);
-		maxslider.setMinimumSize(dim);
+			// after calling pack
+			Dimension dim = new Dimension(plot.getWidth(), 15);
+			minslider.setMinimumSize(dim);
+			maxslider.setMinimumSize(dim);
 
-		min_max.set(0, sliderRange);
-		updateLabelsAndPlot(0, sliderRange);
+			min_max.set(0, sliderRange);
+			updateLabelsAndPlot(0, sliderRange);
 
-		frame.pack(); // again
+			frame.pack(); // again
 
-		ij.gui.GUI.center(frame);
-		frame.setAlwaysOnTop(true);
+			ij.gui.GUI.center(frame);
+			frame.setAlwaysOnTop(true);
 
-		frame.setVisible(true);
+			frame.setVisible(true);
 
-		super.initThreads();
+			ContrastAdjustmentMode.super.initThreads();
+		}});
 	}
 
 	private int computeSliderRange() {
@@ -404,7 +384,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 				// 2. Set min and max
 				final double[] m = toImage(min_max.min, min_max.max);
 
-				final Collection<Future> fus = new ArrayList<Future>();
+				final Collection<Future<?>> fus = new ArrayList<Future<?>>();
 
 				// Submit all for regeneration
 				for (Patch p : originalPatches) {
@@ -413,7 +393,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 				}
 
 				// Wait until all done
-				for (Future fu : fus) {
+				for (Future<?> fu : fus) {
 					try {
 						fu.get();
 					} catch (Throwable t) {
