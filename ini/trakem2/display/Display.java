@@ -518,17 +518,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			al_displays = a;
 		}
 	}
- 
-	/** A new Display from scratch, to show the given Layer. */
-	public Display(Project project, final Layer layer) {
-		super(project);
-		addDisplay(this);
-		makeGUI(layer, null);
-		IJ.addEventListener(this);
-		setLayer(layer);
-		this.layer = layer; // after, or it doesn't update properly
-		addToDatabase();
-	}
 
 	/** For reconstruction purposes. The Display will be stored in the ht_later.*/
 	public Display(Project project, long id, Layer layer, Object[] props) {
@@ -539,17 +528,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.layer = layer;
 		IJ.addEventListener(this);
 	}
+ 
+	/** A new Display from scratch, to show the given Layer. */
+	public Display(Project project, final Layer layer) {
+		this(project, layer, null);
+	}
 
 	/** Open a new Display centered around the given Displayable. */
 	public Display(Project project, Layer layer, Displayable displ) {
 		super(project);
-		addDisplay(this);
 		active = displ;
+		this.layer = layer;
 		makeGUI(layer, null);
 		IJ.addEventListener(this);
 		setLayer(layer);
 		this.layer = layer; // after set layer!
 		addToDatabase();
+		addDisplay(this); // last: if there is an Exception, it won't be added
 	}
 
 	/** Reconstruct a Display from an XML entry, to be opened when everything is ready. */
@@ -680,7 +675,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private final class ScrollerModel extends DefaultBoundedRangeModel {
 		int index;
 		ScrollerModel(final Layer la) {
-			this.index = layer.getParent().indexOf(la);
+			this.index = la.getParent().indexOf(la);
 		}
 		public void setValueWithoutEvent(int index) {
 			this.index = index;
