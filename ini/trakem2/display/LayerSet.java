@@ -1162,6 +1162,13 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		} else {
 			writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
 		}
+		// Count objects
+		int done = 0;
+		int total = 0;
+		total += al_zdispl.size();
+		for (final Layer la : al_layers) {
+			total += la.getDisplayableList().size();
+		}
 		// export ZDisplayable objects
 		if (null != al_zdispl) {
 			for (final ZDisplayable zd : al_zdispl) {
@@ -1173,6 +1180,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
 				}
 			}
+			done += al_zdispl.size();
+			Utils.showProgress(done / (double)total);
 		}
 		// export Layer and contained Displayable objects
 		if (null != al_layers) {
@@ -1185,6 +1194,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				} else {
 					writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
 				}
+				done += la.getDisplayableList().size();
+				Utils.showProgress(done / (double)total);
 			}
 		}
 		sb_body.setLength(0);

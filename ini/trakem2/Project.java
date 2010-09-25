@@ -1123,6 +1123,7 @@ public class Project extends DBObject {
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
 	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+		Utils.showProgress(0);
 		// 1 - opening tag
 		writer.write(indent);
 		writer.write("<trakem2>\n");
@@ -1149,7 +1150,7 @@ public class Project extends DBObject {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
 		sb_body.append(in).append(">\n");
-		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
+		// 3 - export ProjectTree abstract hierarchy (skip the root since it wraps the project itself)
 		// Create table of expanded states
 		/*
 		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
