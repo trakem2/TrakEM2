@@ -5,12 +5,13 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class TaskOnEDT<V> implements Future<V> {
 
 	private V result;
 	private Callable<V> fn;
-	private boolean started = false;
+	private AtomicBoolean started = new AtomicBoolean(false);
 	
 	/** The task @param fn should not be threaded; this class is intended to run
 	 *  small snippets of code under the event dispatch thread, while still being
@@ -25,7 +26,7 @@ public class TaskOnEDT<V> implements Future<V> {
 	public boolean cancel(boolean mayInterruptIfRunning) {
 		synchronized (this) {
 			fn = null;
-			return !started;
+			return !started.get();
 		}
 	}
 
@@ -34,30 +35,29 @@ public class TaskOnEDT<V> implements Future<V> {
 	public V get() throws InterruptedException, ExecutionException {
 		if (null != result) return result;
 		final V[] v = (V[])new Object[1];
-		final boolean[] running = new boolean[1]; // false by default
 		final ExecutionException[] ee = new ExecutionException[1];
+		final AtomicBoolean launched = new AtomicBoolean(false);
 		Utils.invokeLater(new Runnable() {
 			public void run() {
+				launched.set(true);
 				synchronized (v) {
-					running[0] = true;
 					final Callable<V> c;
 					synchronized (TaskOnEDT.this) {
 						c = fn;
 						if (null == c) return;
-						started = true;
+						started.set(true);
 					}
 					try {
 						v[0] = c.call();
 					} catch (Throwable t) {
 						ee[0] = new ExecutionException(t);
 					}
-					running[0] = false;
 				}
 			}
 		});
 		// Wait until the event dispatch thread runs the Runnable.
 		// (Or it gets run immediately if get() is called from within the event dispatch thread.)
-		while (!running[0]) try { Thread.sleep(5); } catch (InterruptedException ie) {}
+		while (!launched.get()) try { Thread.sleep(5); } catch (InterruptedException ie) {}
 		// Block until the computation is done
 		synchronized (v) {
 			if (null != ee[0]) throw ee[0];
