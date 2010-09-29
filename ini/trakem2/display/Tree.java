@@ -208,8 +208,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				int next = 0;
 
 				for (final Node<T> nd : nodes) {
-					if (nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this, to_screen)) {
-						nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
+					if (nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes)) {
 						if (nd == marked) {
 							if (null == MARKED_CHILD) createMarks();
 							Composite c = g.getComposite();

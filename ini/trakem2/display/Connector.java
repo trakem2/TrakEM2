@@ -77,25 +77,18 @@ public class Connector extends Treeline {
 			return new ConnectorNode(lx, ly, layer, 0);
 		}
 		@Override
-		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Float>> to_paint, final Tree<Float> tree, final AffineTransform to_screen) {
+		public int paintData(final Graphics2D g, final Rectangle srcRect,
+				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
 			final float[] fp = new float[]{x, y, x + r, y};
 			tree.at.transform(fp, 0, fp, 0, 2);
 			float radius = fp[2] - fp[0];
 			if (radius <= 0) radius = 1;
 			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
-				// Which color?
-				if (active_layer == this.la) {
-					g.setColor(null == this.color ? tree.getColor() : this.color);
-				} else {
-					if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
-					else g.setColor(Color.blue);
-				}
-
+				g.setColor(cc);
 				g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
-
-				return true;
+				return Node.TRUE;
 			}
-			return false;
+			return Node.FALSE;
 		}
 
 		@Override

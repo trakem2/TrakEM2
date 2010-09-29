@@ -172,38 +172,55 @@ public abstract class Node<T> implements Taggable {
 			children = ch;
 		}
 	}
+
+	static protected final int TRUE = 0,
+							   FALSE = 1,
+							   TEST = 2;
+
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-	final void paintSlabs(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<T>> to_paint, final AffineTransform aff, final Color t_color, final boolean with_arrows, final boolean with_confidence_boxes) {
+	final boolean paintSlabs(final Graphics2D g, final Layer active_layer,
+			final boolean active, final Rectangle srcRect,
+			final double magnification, final Collection<Node<T>> to_paint,
+			final Tree<T> tree, final AffineTransform to_screen,
+			final boolean with_arrows, final boolean with_confidence_boxes) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
-
-		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
-
-		final float[] fps;
-
-		if (null == children) {
-			if (!paint) return;
-			fps = new float[2];
-		} else {
-			fps = new float[children.length * 2];
-		}
 
 		final double actZ = active_layer.getZ();
 		final double thisZ = this.la.getZ();
-		final Color node_color = null == this.color ? t_color : this.color; 
+		final Color node_color = null == this.color ? tree.color : this.color; 
 		// Which edge color?
 		Color local_edge_color = node_color;
 		if (active_layer == this.la) {} // default color
 		else if (actZ > thisZ) {
 			local_edge_color = Color.red;
 		} else if (actZ < thisZ) local_edge_color = Color.blue;
+		
+		final int PD = paintData(g, srcRect, tree, to_screen, local_edge_color);
+		
+		if (Node.FALSE == PD) return false;
+
+		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
+
+		final float[] fps;
+
+		if (null == children) {
+			if (!paint) return false;
+			fps = new float[2];
+		} else {
+			fps = new float[children.length * 2];
+		}
 
 		fps[0] = this.x;
 		fps[1] = this.y;
-		aff.transform(fps, 0, fps, 0, 1);
+		tree.at.transform(fps, 0, fps, 0, 1);
 
 		// To screen coords:
 		final int x = (int)((fps[0] - srcRect.x) * magnification);
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
+
+		if (Node.TEST == PD) {
+			if (!srcRect.contains(x, y)) return false;
+		}
 
 		if (null != children) {
 			synchronized (this) {
@@ -212,7 +229,7 @@ public abstract class Node<T> implements Taggable {
 					fps[k] = children[i].x;
 					fps[k+1] = children[i].y;
 				}
-				aff.transform(fps, 0, fps, 0, children.length);
+				tree.at.transform(fps, 0, fps, 0, children.length);
 				//
 				for (int i=0, k=0; i<children.length; i++, k+=2) {
 					final Node<T> child = children[i];
@@ -296,6 +313,7 @@ public abstract class Node<T> implements Taggable {
 		if (paint) {
 			paintTags(g, x, y, local_edge_color);
 		}
+		return true;
 	}
 	
 	static private final Color receiver_color = Color.green.brighter();
@@ -602,7 +620,9 @@ public abstract class Node<T> implements Taggable {
 
 	public abstract Node<T> newInstance(float x, float y, Layer layer);
 
-	abstract public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<T>> to_paint, final Tree<T> tree, final AffineTransform to_screen);
+	/** Returns Node.TRUE, Node.FALSE or Node.TEST, which determine whether the edges must be painted or not. */
+	abstract public int paintData(final Graphics2D g, final Rectangle srcRect,
+			final Tree<T> tree, final AffineTransform to_screen, final Color cc);
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);

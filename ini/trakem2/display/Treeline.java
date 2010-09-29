@@ -266,33 +266,26 @@ public class Treeline extends Tree<Float> {
 					   4);
 		}
 
-		/** Paint segments. Returns true if the edges have to be painted as well. */
 		@Override
-		public boolean paintData(final Graphics2D g, final Layer active_layer, final boolean active, final Rectangle srcRect, final double magnification, final Collection<Node<Float>> to_paint, final Tree<Float> tree, final AffineTransform to_screen) {
-			if (null == this.parent) return true; // doing it here for less total cost
-			if (0 == this.r && 0 == parent.getData()) return true;
+		public int paintData(final Graphics2D g, final Rectangle srcRect,
+				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
+			if (null == this.parent) return Node.TRUE; // doing it here for less total cost
+			if (0 == this.r && 0 == parent.getData()) return Node.TEST;
 
 			// Two transformations, but it's only 4 points each and it's necessary
 			final Polygon segment = getSegment();
-			if (!tree.at.createTransformedShape(segment).intersects(srcRect)) return false;
+			if (!tree.at.createTransformedShape(segment).intersects(srcRect)) return Node.FALSE;
 			final Shape shape = to_screen.createTransformedShape(segment);
-
-			// Which color?
-			if (active_layer == this.la) {
-				g.setColor(null == this.color ? tree.getColor() : this.color);
-			} else {
-				if (active_layer.getZ() > this.la.getZ()) g.setColor(Color.red);
-				else g.setColor(Color.blue);
-			}
 
 			final Composite c = g.getComposite();
 			final float alpha = tree.getAlpha();
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha > 0.4f ? 0.4f : alpha));
+			g.setColor(cc);
 			g.fill(shape);
 			g.setComposite(c);
 			g.draw(shape); // in Tree's composite mode (such as an alpha)
 
-			return true;
+			return Node.TRUE;
 		}
 
 		/** Expects @param a in local coords. */
