@@ -223,7 +223,7 @@ public abstract class Node<T> implements Taggable {
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
 
 		if (Node.TEST == PD) {
-			if (!srcRect.contains(x, y)) return null;
+			if (!srcRect.contains(fps[0], fps[1])) return null;
 		}
 
 		if (null != children) {
