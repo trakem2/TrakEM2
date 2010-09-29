@@ -469,6 +469,7 @@ public class Selection {
 				for (final Displayable d : queue) {
 					d.setAlpha(alpha);
 				}
+				Display.repaint(display.getLayer());
 				// DONE on mouse release from transp_slider // addDataEditStep(new String[]{"alpha"});
 			} catch (Exception e) {
 				IJError.print(e);
