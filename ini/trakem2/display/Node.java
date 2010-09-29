@@ -306,7 +306,7 @@ public abstract class Node<T> implements Taggable {
 		final float x = (float)((po.x - srcRect.x) * magnification);
 		final float y = (float)((po.y - srcRect.y) * magnification);
 
-		final Color receiver = t.getReceiver() == this ? Node.receiver_color : null;
+		final Color receiver = t.getLastVisited() == this ? Node.receiver_color : null;
 		// paint the node as a draggable point
 		if (null == parent) {
 			// As origin

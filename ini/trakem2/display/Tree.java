@@ -958,7 +958,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final Node<T> nd = findClosestNodeW(getNodesToPaint(active_layer), wx, wy, magnification);
 		if (null != nd) {
 			setLastVisited(nd);
-			setReceiver(nd);
 			return nd.la;
 		}
 		return null;
@@ -1146,11 +1145,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					root = node.children[0];
 					root.parent = null;
 					root.confidence = Node.MAX_EDGE_CONFIDENCE; // with its now non-existent parent
-					if (node == receiver) setReceiver(root);
+					if (node == last_visited) setLastVisited(root);
 				} else {
 					node.parent.children[node.parent.indexOf(node)] = node.children[0];
 					node.children[0].parent = node.parent;
-					if (node == receiver) setReceiver(node.parent);
+					if (node == last_visited) setLastVisited(node.parent);
 				}
 				synchronized (node_layer_map) {
 					node_layer_map.get(node.la).remove(node);
@@ -1192,7 +1191,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					end_nodes.add(node.parent);
 				}
 				// Update receiver:
-				if (node == receiver) setReceiver(node.parent);
+				setLastVisited(node.parent);
 				// Finally, remove from parent node
 				node.parent.remove(node);
 			}
@@ -1316,7 +1315,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 				}
 			}
-			
+
+			final Node<T> receiver = last_visited;
 			if (null == nd && use_receiver_when_null && null != receiver && receiver.la == layer) {
 				float[] f = new float[]{receiver.x, receiver.y};
 				at.transform(f, 0, f, 0, 1);
@@ -1369,7 +1369,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	protected void setActive(Node<T> nd) {
 		this.active = nd;
-		if (null != nd) setLastVisited(nd);
 	}
 	protected Node<T> getActive() { return active; }
 
@@ -1385,33 +1384,39 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		this.marked = nd;
 		setLastVisited(nd);
 	}
-	protected void setLastVisited(Node<T> nd) { this.last_visited = nd; }
+	protected void setLastVisited(Node<T> nd) {
+		this.last_visited = nd;
+	}
 	
 	public Node<T> getMarked() {
 		return marked;
 	}
-	
-	protected void setReceiver(Node<T> nd) { this.receiver = nd; }
-	protected Node<T> getReceiver() { return this.receiver; }
-	
+
+	public Node<T> getLastVisited() {
+		return last_visited;
+	}
+
 	@Override
 	public void deselect() {
-		setReceiver(null);
+		setLastVisited(null);
 	}
 
 	protected void fireNodeRemoved(final Node<T> nd) {
 		if (nd == marked) marked = null;
 		if (nd == last_added) last_added = null;
 		if (nd == last_edited) last_edited = null;
-		if (nd == last_visited) last_visited = null;
-		if (nd == receiver) receiver = null;
+		if (nd == last_visited) {
+			if (null != nd.parent) last_visited = nd.parent;
+			else if (nd.getChildrenCount() > 0) last_visited = nd.children[0];
+			else last_visited = null;
+		}
 		removeFromLinkLater(nd);
 		removeReview(nd);
 	}
 
 	protected void clearState() {
 		// clear:
-		marked = last_added = last_edited = last_visited = receiver = null;
+		marked = last_added = last_edited = last_visited = null;
 	}
 
 	/** The Node double-clicked on, for join operations. */
@@ -1422,10 +1427,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	private Node<T> last_added = null;
 	/** The last edited node, which will be the last added as well until some other node is edited. */
 	private Node<T> last_edited = null;
-	/** The last visited node, either navigating or editing. */
+	/** The last visited node, either navigating or editing.
+	 *  It's the only node that can receive new children by clicking*/
 	private Node<T> last_visited = null;
-	/** The only node that can receive new children by clicking. */
-	private Node<T> receiver = null;
+	
+	// TODO: last_visited and receiver overlap TOTALLY
 
 	static private Polygon MARKED_PARENT, MARKED_CHILD;
 
@@ -1494,7 +1500,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						setActive(found);
 					}
 				} else {
-					Node<T> nearest = receiver;
+					Node<T> nearest = last_visited;
 					if (null == nearest) {
 						Utils.showMessage("Before adding a new node, please activate an existing node\nby clicking on it, or pushing 'g' on it.");
 						return;
@@ -1534,7 +1540,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		updateViewData(active);
 
-		setReceiver(active);
+		setLastVisited(active);
 		setActive(null);
 	}
 
@@ -1796,8 +1802,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
 					if (null != nd) {
 						display.toLayer(nd.la);
-						if (nd != receiver) {
-							setReceiver(nd);
+						if (nd != last_visited) {
+							setLastVisited(nd);
 							display.getCanvas().repaint(false);
 						}
 						ke.consume();
