@@ -70,7 +70,6 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	
 	private byte compositeMode = COMPOSITE_NORMAL;
 	public byte getCompositeMode(){ return compositeMode; }
-	public Composite getComposite() { return getComposite( compositeMode ); }
 	protected Composite getComposite( byte mode ) {
 		return Displayable.getComposite(mode, alpha);
 	}

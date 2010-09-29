@@ -503,7 +503,7 @@ public class Stack extends ZDisplayable implements ImageData
 		final Composite original_composite = g.getComposite();
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
-			g.setComposite( getComposite() );
+			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Stack with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
