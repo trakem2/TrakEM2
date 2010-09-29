@@ -26,6 +26,7 @@ import ij.IJ;
 import ij.ImageJ;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import ini.trakem2.display.ImageJCommandListener;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.LayerTree;
@@ -68,6 +69,9 @@ public class ControlWindow {
 
 	static private boolean gui_enabled = true;
 
+	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
+	private ImageJCommandListener command_listener;
+
 	private ControlWindow() {
 		if (null != ij.gui.Toolbar.getInstance()) {
 			ij.gui.Toolbar.getInstance().addMouseListener(tool_listener);
@@ -77,6 +81,7 @@ public class ControlWindow {
 		if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
 		Display3D.init();
 		setLookAndFeel();
+		this.command_listener = new ImageJCommandListener();
 	}
 	
 	// private to the package
@@ -176,6 +181,8 @@ public class ControlWindow {
 			Utils.destroy(instance);
 			Loader.destroyPreloader(instance);
 			instance = null;
+			instance.command_listener.destroy();
+			instance.command_listener = null;
 		}
 	}
 

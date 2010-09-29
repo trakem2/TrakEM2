@@ -35,7 +35,6 @@ import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Dissector;
-import ini.trakem2.display.ImageJCommandListener;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -260,9 +259,6 @@ public class Project extends DBObject {
 	private String title = "Project"; // default  // TODO should be an attribute in the ProjectThing that holds it
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
-
-	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
-	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
