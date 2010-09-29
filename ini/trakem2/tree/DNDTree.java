@@ -88,7 +88,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			}});
 		}
 	}
-	
+
 	/** Removing all KeyListener and ActionMap is not enough:
 	 *  one must override this method to stop the JTree from reacting to keys. */
 	@Override
@@ -428,7 +428,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	/** Get the map of Thing vs. expanded state for all nodes that have children. */
-	public HashMap<? extends Thing,Boolean> getExpandedStates() {
+	public HashMap<Thing,Boolean> getExpandedStates() {
 		try {
 			final Hashtable ht = (Hashtable)f_expandedState.get(this);
 			final HashMap<Thing,Boolean> m = new HashMap<Thing,Boolean>(ht.size());

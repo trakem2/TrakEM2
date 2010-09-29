@@ -1169,7 +1169,7 @@ public class Project extends DBObject {
 			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
 		}
 		*/
-		final HashMap<? extends Thing,Boolean> expanded_states = project_tree.getExpandedStates();
+		final HashMap<Thing,Boolean> expanded_states = project_tree.getExpandedStates();
 		if (null != root_pt.getChildren()) {
 			final String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
@@ -1560,7 +1560,7 @@ public class Project extends DBObject {
 			zds.removeAll(not_removed);
 			layer_set.removeAll(zds);
 		}
-		
+
 		// TODO
 		return true;
 		
