@@ -662,7 +662,6 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (alpha != this.alpha && alpha >= 0.0f && alpha <= 1.0f) {
 			this.alpha = alpha;
 			if (update) {
-				Display.repaint(layer, this, 5);
 				updateInDatabase("alpha");
 				Display3D.setTransparency(this, alpha);
 			}
