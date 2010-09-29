@@ -2638,7 +2638,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			nodes = node_layer_map.remove(la);
 		}
 		if (null == nodes) return true;
-		final List<Tree> siblings = new ArrayList<Tree>();
+		final List<Tree<T>> siblings = new ArrayList<Tree<T>>();
 		for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
 			final Node<T> nd = it.next();
 			it.remove();
@@ -2682,7 +2682,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (!siblings.isEmpty()) {
 			this.clearCache();
 			if (null != this.root) this.cacheSubtree(root.getSubtreeNodes());
-			for (Tree t : siblings) {
+			for (Tree<T> t : siblings) {
 				t.cacheSubtree(t.root.getSubtreeNodes());
 				t.calculateBoundingBox(la);
 				layer_set.add(t);
@@ -2858,6 +2858,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						MouseListener[] ml = stack.getCanvas().getMouseListeners();
 						for (MouseListener m : ml) stack.getCanvas().removeMouseListener(m);
 						stack.getCanvas().addMouseListener(new MouseAdapter() {
+							@Override
 							public void mousePressed(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
@@ -2881,12 +2882,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 									}
 								}
 							}
+							@Override
 							public void mouseDragged(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 								}
 							}
-							public void mouseRelesed(MouseEvent me) {
+							@Override
+							public void mouseReleased(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 								}
@@ -3033,7 +3036,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}}, getProject());
 	}
 
-	public Map<Node<T>,Collection<Displayable>> findIntersecting(final Class c) throws Exception {
+	public Map<Node<T>,Collection<Displayable>> findIntersecting(final Class<?> c) throws Exception {
 		final HashMap<Node<T>,Collection<Displayable>> m = new HashMap<Node<T>,Collection<Displayable>>();
 		Process.progressive(root.getSubtreeNodes(),
 							new TaskFactory<Node<T>,Object>() {
@@ -3053,6 +3056,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incoming connectors. */
+	@SuppressWarnings("unchecked")
 	public List<Connector>[] findConnectors() throws Exception {
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
 		final ArrayList<Connector> incoming = new ArrayList<Connector>();
