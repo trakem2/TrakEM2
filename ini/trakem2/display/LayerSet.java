@@ -2824,7 +2824,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Find ZDisplayable objects that intersect the given rectangle in the given layer.
 	 *  May return false positives but never false negatives. */
-	protected Collection<Displayable> roughlyFindZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
+	public Collection<Displayable> roughlyFindZDisplayables(final Layer layer, final Rectangle r, final boolean visible_only) {
 		final LayerBucket lb;
 		synchronized (lbucks) {
 			lb = lbucks.get(layer);
