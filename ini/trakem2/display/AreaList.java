@@ -123,9 +123,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		Composite original_composite = null;
 		try {
 			if (layer_set.color_cues) {
-				original_composite = getComposite();
+				original_composite = g.getComposite();
 				Color c = Color.red;
-				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(alpha, 0.4f)));
+				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(alpha, 0.25f)));
 				for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
 					if (active_layer == la) {
 						c = Color.blue;
@@ -142,14 +142,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 					if (fill_paint) g.fill(area.createTransformedArea(this.at));
 					else 		g.draw(area.createTransformedArea(this.at));  // the contour only
 				}
-				// Restore for active layer
-				if (alpha == 1.0f) {
-					g.setComposite(original_composite);
-				} else {
-					g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-				}
-			} else if (alpha != 1.0f) {
-				original_composite = g.getComposite();
+				if (1.0f == alpha) g.setComposite(original_composite);
+			}
+			if (alpha != 1.0f) {
+				if (null == original_composite) original_composite = g.getComposite();
 				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
 			}
 
