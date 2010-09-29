@@ -1020,7 +1020,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return hs;
 	}
 	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
-	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+	public HashSet<Displayable> hideExcept(ArrayList<Class<?>> type, boolean repaint) {
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (ZDisplayable zd : al_zdispl) {
 			if (!type.contains(zd.getClass()) && zd.isVisible()) {

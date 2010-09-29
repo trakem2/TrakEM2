@@ -3947,7 +3947,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (null == active) return;
 			selection.specify();
 		} else if (command.equals("Hide all but images")) {
-			ArrayList<Class> type = new ArrayList<Class>();
+			ArrayList<Class<?>> type = new ArrayList<Class<?>>();
 			type.add(Patch.class);
 			type.add(Stack.class);
 			Collection<Displayable> col = layer.getParent().hideExcept(type, false);
