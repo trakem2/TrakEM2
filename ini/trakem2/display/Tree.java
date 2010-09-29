@@ -242,6 +242,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			g.setComposite(original_composite);
 		}
 	}
+	
+	protected void paintExtra(final Graphics2D g, final Layer active_layer,
+			final boolean active, final Rectangle srcRect, final double magnification,
+			final Set<Node<T>> to_paint, final AffineTransform to_screen,
+			final boolean with_arrows, final boolean with_confidence_boxes) {}
 
 	protected Rectangle getPaintingBounds() {
 		Rectangle box = null;
