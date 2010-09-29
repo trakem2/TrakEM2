@@ -3593,7 +3593,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			updateInDatabase("layer_id");
 		}
 	}
-
+	
 	/** Should be invoked within event dispatch thread. */
 	private final void translateLayerColors(final Layer current, final Layer other) {
 		if (current == other) return;
@@ -5801,7 +5801,45 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private final HashMap<Color,Layer> layer_channels = new HashMap<Color,Layer>();
 	private final TreeMap<Integer,LayerPanel> layer_alpha = new TreeMap<Integer,LayerPanel>();
 	private final HashMap<Layer,Byte> layer_composites = new HashMap<Layer,Byte>();
-	boolean invert_colors = false;
+	boolean invert_colors = false,
+			transp_overlay_images = true,
+			transp_overlay_areas = false,
+			transp_overlay_text_labels = false;
+	Set<Class<?>> classes_to_multipaint = getClassesToMultiPaint();
+
+	protected void setTranspOverlayImages(final boolean b) {
+		this.transp_overlay_images = b;
+		updateMultiPaint();
+	}
+	protected void setTranspOverlayAreas(final boolean b) {
+		this.transp_overlay_areas = b;
+		updateMultiPaint();
+	}
+	protected void setTranspOverlayTextLabels(final boolean b) {
+		this.transp_overlay_text_labels = b;
+		updateMultiPaint();
+	}
+	protected void updateMultiPaint() {
+		this.classes_to_multipaint = getClassesToMultiPaint();
+		this.canvas.repaint(true);
+	}
+	/** Only Patch, Stack; AreaList, Profile; and DLabel are considered.
+	 *  The rest paints in other layers with color cues. */
+	protected Set<Class<?>> getClassesToMultiPaint() {
+		final HashSet<Class<?>> include = new HashSet<Class<?>>();
+		if (transp_overlay_images) {
+			include.add(Patch.class);
+			include.add(Stack.class);
+		}
+		if (transp_overlay_areas) {
+			include.add(AreaList.class);
+			include.add(Profile.class);
+		}
+		if (transp_overlay_text_labels) {
+			include.add(DLabel.class);
+		}
+		return include;
+	}
 
 	protected byte getLayerCompositeMode(final Layer layer) {
 		synchronized (layer_composites) {

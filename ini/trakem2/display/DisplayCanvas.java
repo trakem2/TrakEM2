@@ -2554,6 +2554,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				final Composite original = g.getComposite();
 				// reset
 				g.setTransform(new AffineTransform());
+				// Paint what:
+				final Set<Class<?>> included = display.classes_to_multipaint;
 				for (final ListIterator<LayerPanel> it = blending_list.listIterator(blending_list.size()); it.hasPrevious(); ) {
 					final LayerPanel lp = it.previous();
 					if (lp.layer == layer) continue;
@@ -2562,13 +2564,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					final Graphics2D gb = bi.createGraphics();
 					gb.setTransform(atc);
 					for (final Displayable d : lp.layer.find(srcRect, true)) {
-						if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
-						d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
+						if (included.contains(d.getClass()))
+							d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 					}
 					// Repeating loop ... the human compiler at work, just because one cannot lazily concatenate both sequences:
 					for (final Displayable d : lp.layer.getParent().roughlyFindZDisplayables(lp.layer, srcRect, true)) {
-						if ( ! ImageData.class.isInstance(d)) continue; // skip non-images
-						d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
+						if (included.contains(d.getClass()))
+								d.paint(gb, srcRect, magnification, false, c_alphas, lp.layer); // not prePaint! We want direct painting, even if potentially slow
 					}
 					try {
 						g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
@@ -2594,8 +2596,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				//Object render_quality = g.getRenderingHint(RenderingHints.KEY_RENDERING);
 				g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-				// TODO this loop should be reading from the paintable_patches and paintables, since they length/order *could* have changed
-				//      And yes this means iterating and checking the Class of each.
+				// TODO this loop should be reading from the paintable_patches and paintables, since their length/order *could* have changed
+				// For the current layer:
 				for (int i = first_non_patch; i < al_paint.size(); i++) {
 					final Displayable d = al_paint.get(i);
 					d.paint(g, srcRect, magnification, d == active, c_alphas, layer);

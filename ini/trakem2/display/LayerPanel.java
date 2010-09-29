@@ -172,6 +172,23 @@ public final class LayerPanel extends JPanel implements MouseListener {
 					display.getCanvas().repaint(true);
 				}
 			});
+			JMenu transp_menu = new JMenu("Overlay items"); popup.add(transp_menu);
+			final JCheckBoxMenuItem cbI = new JCheckBoxMenuItem("Images", display.transp_overlay_images);
+			final JCheckBoxMenuItem cbA = new JCheckBoxMenuItem("Areas", display.transp_overlay_areas);
+			final JCheckBoxMenuItem cbL = new JCheckBoxMenuItem("Text labels", display.transp_overlay_text_labels);
+			ActionListener lis = new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					Object src = ae.getSource();
+					if (src == cbI) display.setTranspOverlayImages(cbI.getState()); 
+					else if (src == cbA) display.setTranspOverlayAreas(cbA.getState());
+					else if (src == cbL) display.setTranspOverlayTextLabels(cbL.getState());
+				}
+			};
+			for (JCheckBoxMenuItem rb : new JCheckBoxMenuItem[]{cbI, cbA, cbL}) {
+				transp_menu.add(rb);
+				rb.addActionListener(lis);
+			}
+	
 			popup.addSeparator();
 			JMenu composites = new JMenu("Composite mode");
 			ButtonGroup group = new ButtonGroup();
