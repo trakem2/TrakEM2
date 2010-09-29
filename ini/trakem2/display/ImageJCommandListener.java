@@ -1,28 +1,23 @@
 package ini.trakem2.display;
 
-import ij.IJ;
+import fiji.geom.AreaCalculations;
 import ij.CommandListener;
-import ij.Executer;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
-import ij.gui.Toolbar;
 import ij.gui.Roi;
+import ij.gui.Toolbar;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
-import fiji.geom.AreaCalculations;
-
 import ini.trakem2.Project;
-import ini.trakem2.display.*;
-import ini.trakem2.utils.Utils;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.tree.ProjectTree;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.Utils;
 
-import java.awt.Rectangle;
 import java.awt.Event;
+import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 
