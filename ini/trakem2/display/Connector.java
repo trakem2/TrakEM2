@@ -83,7 +83,7 @@ public class Connector extends Treeline {
 			tree.at.transform(fp, 0, fp, 0, 2);
 			float radius = fp[2] - fp[0];
 			if (radius <= 0) radius = 1;
-			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
+			if (srcRect.intersects(fp[0] - radius, fp[1] - radius, radius + radius, radius + radius)) {
 				g.setColor(cc);
 				g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
 				return Node.TRUE;
@@ -127,6 +127,16 @@ public class Connector extends Treeline {
 				g.drawString("x", (int)x -4, (int)y + 3); // TODO ensure Font is proper
 			}
 		}
+	}
+
+	@Override
+	protected void paintExtra(final Graphics2D g, final Layer active_layer,
+			final boolean active, final Rectangle srcRect, final double magnification,
+			final Set<Node<Float>> to_paint, final AffineTransform to_screen,
+			final boolean with_arrows, final boolean with_confidence_boxes) {
+		if (null == root || to_paint.contains(root) || to_paint.isEmpty()) return;
+		root.paintSlabs(g, active_layer, active, srcRect, magnification,
+				to_paint, this, to_screen, with_arrows, with_confidence_boxes);
 	}
 
 	static private final Color brightGreen = new Color(33, 255, 0);
