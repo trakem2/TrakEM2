@@ -121,22 +121,48 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
 		//arrange transparency
 		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
 		try {
+			if (layer_set.color_cues) {
+				original_composite = getComposite();
+				Color c = Color.red;
+				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(alpha, 0.4f)));
+				for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
+					if (active_layer == la) {
+						c = Color.blue;
+						continue;
+					}
+					Area area = ht_areas.get(la.getId());
+					if (null == area) continue;
+					if (AreaList.UNLOADED == area) {
+						area = loadLayer(la.getId());
+						if (null == area) continue;
+					}
+					g.setColor(c);
+
+					if (fill_paint) g.fill(area.createTransformedArea(this.at));
+					else 		g.draw(area.createTransformedArea(this.at));  // the contour only
+				}
+				// Restore for active layer
+				if (alpha == 1.0f) {
+					g.setComposite(original_composite);
+				} else {
+					g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+				}
+			} else if (alpha != 1.0f) {
+				original_composite = g.getComposite();
+				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+			}
+
+			// The active layer, on top:
 			if (null != aw) {
 				aw.paint(g, this.at, fill_paint, this.color);
 			} else {
-				Object ob = ht_areas.get(new Long(active_layer.getId()));
-				if (null == ob) return;
-				if (AreaList.UNLOADED == ob) {
-					ob = loadLayer(active_layer.getId());
-					if (null == ob) return;
+				Area area = ht_areas.get(active_layer.getId());
+				if (null == area) return;
+				if (AreaList.UNLOADED == area) {
+					area = loadLayer(active_layer.getId());
+					if (null == area) return;
 				}
-				final Area area = (Area)ob;
 				g.setColor(this.color);
 
 				if (fill_paint) g.fill(area.createTransformedArea(this.at));
