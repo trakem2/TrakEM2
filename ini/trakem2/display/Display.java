@@ -1778,7 +1778,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	 *  @param update_graphics will be made true if the @param displ is a Patch or it's not the active Displayable. */
 	private void repaint(final Displayable displ, final Rectangle r, final int extra, final boolean repaint_navigator, boolean update_graphics) {
 		if (repaint_disabled || null == displ) return;
-		update_graphics = (update_graphics || displ.getClass() == Patch.class || displ != active); 
+		update_graphics = (update_graphics || displ.getClass() == Patch.class || displ != active);
 		if (null != r) canvas.repaint(r, extra, update_graphics);
 		else canvas.repaint(displ, extra, update_graphics);
 		if (repaint_navigator) {
