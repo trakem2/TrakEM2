@@ -744,6 +744,7 @@ public class Project extends DBObject {
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
+		synchronized (ptcache) { ptcache.clear(); }
 		return true;
 	}
 
@@ -941,10 +942,23 @@ public class Project extends DBObject {
 		return null != lob ? (LayerThing)lob : null;
 	}
 
+	private final Map<Object,ProjectThing> ptcache = new HashMap<Object, ProjectThing>();
+	
 	/** Find a ProjectThing that contains the given object. */
 	public ProjectThing findProjectThing(final Object ob) {
-		final Object pob = root_pt.findChild(ob);
-		return null != pob ? (ProjectThing)pob : null;
+		ProjectThing pt;
+		synchronized (ptcache) { pt = ptcache.get(ob); }
+		if (null == pt) {
+			pt = (ProjectThing) root_pt.findChild(ob);
+			if (null != ob) synchronized (ptcache) { ptcache.put(ob, pt); }
+		}
+		return pt;
+	}
+
+	public void decache(final Object ob) {
+		synchronized (ptcache) {
+			ptcache.remove(ob);
+		}
 	}
 
 	public ProjectThing getRootProjectThing() {
@@ -958,7 +972,7 @@ public class Project extends DBObject {
 	/** Returns the title of the enclosing abstract node in the ProjectTree.*/
 	public String getParentTitle(final Displayable d) {
 		try {
-			ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+			ProjectThing thing = findProjectThing(d);
 			ProjectThing parent = (ProjectThing)thing.getParent();
 			if (d instanceof Profile) {
 				parent = (ProjectThing)parent.getParent(); // skip the profile_list
@@ -973,7 +987,7 @@ public class Project extends DBObject {
 
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(final Displayable d) {
-		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		ProjectThing thing = findProjectThing(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
@@ -1005,7 +1019,7 @@ public class Project extends DBObject {
 	 *  If no user-defined name is found, then the type is prepended to the id.
 	 */
 	public String getShortMeaningfulTitle(final Displayable d) {
-		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		ProjectThing thing = findProjectThing(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		return getShortMeaningfulTitle(thing, d);
 	}

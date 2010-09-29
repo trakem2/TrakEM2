@@ -112,6 +112,7 @@ public abstract class ZDisplayable extends Displayable {
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes
 			Display.flush(this);
+			project.decache(this);
 			return true;
 		}
 		return false;

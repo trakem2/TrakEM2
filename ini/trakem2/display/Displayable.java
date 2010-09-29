@@ -853,6 +853,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this);
 			Display.flush(this);
+			project.decache(this);
 			return true;
 		}
 		Utils.log("Failed to remove " + this.getClass().getName() + " " + this);
