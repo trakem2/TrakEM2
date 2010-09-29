@@ -337,7 +337,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		this.updateUILater();
 	}
 
-	/** Recursive as long as levels is above zero. Levels defines the number of possibly emtpy parent levels to remove. */
+	/** Recursive as long as levels is above zero. Levels defines the number of possibly empty parent levels to remove. */
 	public void removeProjectThingLadder(ProjectThing lowest, int levels) {
 		if (0 == levels) return;
 		if (lowest.getType().toLowerCase().equals("project")) return; // avoid Project node
@@ -359,9 +359,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public Profile duplicateChild(Profile original, int position, Layer layer) {
 		Utils.log2("ProjectTree: Called duplicateChild " + System.currentTimeMillis() + " for original id = " + original.getId() + " at position " + position);
 		// find the Thing that holds it
-		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
-		ProjectThing root_thing = (ProjectThing)root.getUserObject();
-		Thing child = root_thing.findChild(original);
+		Thing child = project.findProjectThing(original);
 		if (null == child) {
 			Utils.log("ProjectTree.duplicateChild: node not found for original " + original);
 			return null;
@@ -416,7 +414,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(final Project project, final Collection al) {
+	public void insertSegmentations(final Project project, final Collection<? extends Displayable> al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";
