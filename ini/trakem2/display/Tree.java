@@ -206,9 +206,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 				final Node<T>[] handles = active ? new Node[nodes.size()] : null;
 				int next = 0;
+				final ArrayList<Runnable> tags_tasks = new ArrayList<Runnable>();
 
 				for (final Node<T> nd : nodes) {
-					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+					final Runnable task = nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+					if (null != task) tags_tasks.add(task);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();
 						Composite c = g.getComposite();
@@ -220,10 +222,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
+
 					if (active && active_layer == nd.la) handles[next++] = nd;
 				}
 				paintExtra(g, active_layer, active, srcRect, magnification,
 						nodes, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+				for (final Runnable task : tags_tasks) task.run();
 				if (active) {
 					for (int i=0; i<next; i++) {
 						handles[i].paintHandle(g, srcRect, magnification, this);

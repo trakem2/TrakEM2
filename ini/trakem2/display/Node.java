@@ -177,8 +177,9 @@ public abstract class Node<T> implements Taggable {
 							   FALSE = 1,
 							   TEST = 2;
 
-	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list. */
-	final boolean paintSlabs(final Graphics2D g, final Layer active_layer,
+	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list.
+	 *  Returns a task (or null) to paint the tags. */
+	final Runnable paintSlabs(final Graphics2D g, final Layer active_layer,
 			final boolean active, final Rectangle srcRect,
 			final double magnification, final Collection<Node<T>> to_paint,
 			final Tree<T> tree, final AffineTransform to_screen,
@@ -189,22 +190,25 @@ public abstract class Node<T> implements Taggable {
 		final double thisZ = this.la.getZ();
 		final Color node_color = null == this.color ? tree.color : this.color; 
 		// Which edge color?
-		Color local_edge_color = node_color;
-		if (active_layer == this.la) {} // default color
+		final Color local_edge_color;
+		if (active_layer == this.la) {
+			local_edge_color = node_color;
+		} // default color
 		else if (actZ > thisZ) {
 			local_edge_color = Color.red;
 		} else if (actZ < thisZ) local_edge_color = Color.blue;
-		
+		else local_edge_color = node_color;
+
 		final int PD = paintData(g, srcRect, tree, to_screen, local_edge_color);
 		
-		if (Node.FALSE == PD) return false;
+		if (Node.FALSE == PD) return null;
 
 		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
 
 		final float[] fps;
 
 		if (null == children) {
-			if (!paint) return false;
+			if (!paint) return null;
 			fps = new float[2];
 		} else {
 			fps = new float[children.length * 2];
@@ -219,7 +223,7 @@ public abstract class Node<T> implements Taggable {
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
 
 		if (Node.TEST == PD) {
-			if (!srcRect.contains(x, y)) return false;
+			if (!srcRect.contains(x, y)) return null;
 		}
 
 		if (null != children) {
@@ -311,9 +315,13 @@ public abstract class Node<T> implements Taggable {
 			}
 		}
 		if (paint) {
-			paintTags(g, x, y, local_edge_color);
+			return new Runnable() {
+				public void run() {
+					paintTags(g, x, y, local_edge_color);
+				}
+			};
 		}
-		return true;
+		return null;
 	}
 	
 	static private final Color receiver_color = Color.green.brighter();
