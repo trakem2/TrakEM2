@@ -22,7 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.IJ;
 import ini.trakem2.utils.Utils;
 
 import javax.swing.BoxLayout;
@@ -41,7 +40,6 @@ import javax.swing.event.ChangeListener;
 import java.awt.Event;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
@@ -51,6 +49,7 @@ import java.awt.Dimension;
 
 public final class LayerPanel extends JPanel implements MouseListener {
 
+	private static final long serialVersionUID = 1L;
 	private final JLabel title;
 	protected final JSlider slider = new JSlider(javax.swing.SwingConstants.HORIZONTAL, 0, 100, 0);
 	private Color color = Color.white;
@@ -68,7 +67,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				final float a = slider.getValue() / 100.0f;
 				setAlpha(a);
 				display.storeLayerAlpha(LayerPanel.this, a);
-				display.repaint();
+				display.getCanvas().repaint(true);
 			}
 		});
 
