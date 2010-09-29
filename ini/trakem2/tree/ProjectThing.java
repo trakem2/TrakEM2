@@ -32,7 +32,6 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
-import ini.trakem2.display.Line3D;
 import ini.trakem2.display.Tree;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
