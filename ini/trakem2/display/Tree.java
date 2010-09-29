@@ -182,19 +182,17 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		//arrange transparency
 		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
 		AffineTransform gt = null;
-
 		Stroke stroke = null;
 
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
-			final Collection<Node<T>> nodes = getNodesToPaint(active_layer);
+			final Set<Node<T>> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
+				if (alpha != 1.0f) {
+					original_composite = g.getComposite();
+					g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+				}
 				// Clear transform and stroke
 				gt = g.getTransform();
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
