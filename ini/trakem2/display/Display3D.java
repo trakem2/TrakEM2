@@ -1,68 +1,51 @@
 package ini.trakem2.display;
 
-import ini.trakem2.tree.*;
-import ini.trakem2.utils.*;
-import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.vector.VectorString3D;
-
-import ij.ImageStack;
 import ij.ImagePlus;
-import ij.process.ImageProcessor;
-import ij.process.ByteProcessor;
-import ij.gui.ShapeRoi;
 import ij.gui.GenericDialog;
-import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
+import ij3d.Content;
+import ij3d.Image3DUniverse;
+import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.Rectangle;
-import java.awt.geom.Area;
-import java.awt.MenuBar;
-import java.awt.Menu;
-import java.awt.MenuItem;
-import java.awt.CheckboxMenuItem;
-import java.awt.Component;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.ItemEvent;
-import java.util.*;
-import java.io.File;
-import java.awt.geom.AffineTransform;
-
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyListener;
-
-import javax.vecmath.Point3f;
-import javax.vecmath.Color3f;
-import javax.vecmath.Vector3f;
-import javax.media.j3d.View;
-import javax.media.j3d.Transform3D;
-import javax.media.j3d.PolygonAttributes;
-
-import ij3d.ImageWindow3D;
-import ij3d.Image3DUniverse;
-import ij3d.Content;
-import ij3d.Image3DMenubar;
-import customnode.CustomMeshNode;
-import customnode.CustomMesh;
-import customnode.CustomTriangleMesh;
-import customnode.CustomLineMesh;
-import customnode.CustomMultiMesh;
-
-import java.lang.reflect.Field;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.media.j3d.PolygonAttributes;
+import javax.media.j3d.Transform3D;
+import javax.media.j3d.View;
+import javax.vecmath.Color3f;
+import javax.vecmath.Point3f;
+
+import customnode.CustomLineMesh;
+import customnode.CustomMesh;
+import customnode.CustomMultiMesh;
+import customnode.CustomTriangleMesh;
 
 
 /** One Display3D instance for each LayerSet (maximum). */
