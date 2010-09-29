@@ -125,9 +125,9 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 
 		@Override
-		public int paintData(final Graphics2D g, final Rectangle srcRect,
+		public void paintData(final Graphics2D g, final Rectangle srcRect,
 				final Tree<Area> tree, final AffineTransform to_screen, final Color cc) {
-			if (null == aw) return Node.TEST;
+			if (null == aw) return;
 			Composite oc = null;
 			if (cc != tree.color) {
 				oc = g.getComposite();
@@ -135,7 +135,6 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			}
 			aw.paint(g, to_screen, ((AreaTree)tree).fill_paint, cc);
 			if (null != oc) g.setComposite(oc);
-			return Node.TRUE;
 		}
 
 		/*

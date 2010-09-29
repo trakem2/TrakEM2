@@ -180,7 +180,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			if (null == root) return;
 		}
 
-		//arrange transparency
 		Composite original_composite = null;
 		AffineTransform gt = null;
 		Stroke stroke = null;
@@ -189,6 +188,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			// Determine which layers to paint
 			final Set<Node<T>> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
+				// Filter nodes outside the srcRect
+				try {
+					final Rectangle localRect = this.at.createInverse().createTransformedShape(srcRect).getBounds();
+					for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
+						final Node<T> nd = it.next();
+						if (nd.isRoughlyInside(localRect)) continue;
+						it.remove();
+					}
+				} catch (NoninvertibleTransformException nite) {
+					IJError.print(nite);
+				}
+				// Arrange transparency
 				if (alpha != 1.0f) {
 					original_composite = g.getComposite();
 					g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
@@ -222,7 +233,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-
+					if (null != nd.parent && !nodes.contains(nd.parent)) {
+						// ignore tags of parent node outside srcRect
+						nd.parent.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+					}
 					if (active && active_layer == nd.la) handles[next++] = nd;
 				}
 				paintExtra(g, active_layer, active, srcRect, magnification,

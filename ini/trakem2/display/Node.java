@@ -199,9 +199,7 @@ public abstract class Node<T> implements Taggable {
 		} else if (actZ < thisZ) local_edge_color = Color.blue;
 		else local_edge_color = node_color;
 
-		final int PD = paintData(g, srcRect, tree, to_screen, local_edge_color);
-		
-		if (Node.FALSE == PD) return null;
+		paintData(g, srcRect, tree, to_screen, local_edge_color);
 
 		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
 
@@ -221,10 +219,6 @@ public abstract class Node<T> implements Taggable {
 		// To screen coords:
 		final int x = (int)((fps[0] - srcRect.x) * magnification);
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
-
-		if (Node.TEST == PD) {
-			if (!srcRect.contains(fps[0], fps[1])) return null;
-		}
 
 		if (null != children) {
 			synchronized (this) {
@@ -628,8 +622,7 @@ public abstract class Node<T> implements Taggable {
 
 	public abstract Node<T> newInstance(float x, float y, Layer layer);
 
-	/** Returns Node.TRUE, Node.FALSE or Node.TEST, which determine whether the edges must be painted or not. */
-	abstract public int paintData(final Graphics2D g, final Rectangle srcRect,
+	abstract public void paintData(final Graphics2D g, final Rectangle srcRect,
 			final Tree<T> tree, final AffineTransform to_screen, final Color cc);
 
 	/** Expects Area in local coords. */

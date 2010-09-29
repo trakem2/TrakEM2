@@ -236,14 +236,14 @@ public class Treeline extends Tree<Float> {
 					if (0 == parent.getData()) { // parent.getData() == ((RadiusNode)parent).r
 						return localbox.intersectsLine(parent.x, parent.y, this.x, this.y);
 					} else {
-						return getSegment().intersects(localbox);
+						return segmentIntersects(localbox);
 					}
 				}
 			} else {
 				if (null == parent) {
 					return localbox.contains((int)this.x, (int)this.y);
 				} else {
-					return getSegment().intersects(localbox);
+					return segmentIntersects(localbox);
 				}
 			}
 		}
@@ -266,17 +266,37 @@ public class Treeline extends Tree<Float> {
 					   4);
 		}
 
+		// The human compiler at work!
+		private final boolean segmentIntersects(final Rectangle localRect) {
+			final RadiusNode parent = (RadiusNode) this.parent;
+			float vx = parent.x - this.x;
+			float vy = parent.y - this.y;
+			float len = (float) Math.sqrt(vx*vx + vy*vy);
+			vx /= len;
+			vy /= len;
+			// perpendicular vector
+			final float vx90 = -vy;
+			final float vy90 = vx;
+			final float vx270 = vy;
+			final float vy270 = -vx;
+			
+			return localRect.contains((int)(parent.x + vx90 * parent.r), (int)(parent.y + vy90 * parent.r))
+				|| localRect.contains((int)(parent.x + vx270 * parent.r), (int)(parent.y + vy270 * parent.r))
+				|| localRect.contains((int)(this.x + vx270 * this.r), (int)(this.y + vy270 * this.r))
+				|| localRect.contains((int)(this.x + vx90 * this.r), (int)(this.y + vy90 * this.r));
+		}
+
 		@Override
-		public int paintData(final Graphics2D g, final Rectangle srcRect,
+		public void paintData(final Graphics2D g, final Rectangle srcRect,
 				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
-			if (null == this.parent) return Node.TRUE; // doing it here for less total cost
-			if (0 == this.r && 0 == parent.getData()) return Node.TEST;
+			if (null == this.parent) return; // doing it here for less total cost
+			if (0 == this.r && 0 == parent.getData()) return;
 
 			// Two transformations, but it's only 4 points each and it's necessary
-			final Polygon segment = getSegment();
-			if (!tree.at.createTransformedShape(segment).intersects(srcRect)) return Node.FALSE;
-			final Shape shape = to_screen.createTransformedShape(segment);
-
+			//final Polygon segment = getSegment();
+			//if (!tree.at.createTransformedShape(segment).intersects(srcRect)) return Node.FALSE;
+			//final Shape shape = to_screen.createTransformedShape(segment);
+			final Shape shape = to_screen.createTransformedShape(getSegment());
 			final Composite c = g.getComposite();
 			final float alpha = tree.getAlpha();
 			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha > 0.4f ? 0.4f : alpha));
@@ -284,8 +304,6 @@ public class Treeline extends Tree<Float> {
 			g.fill(shape);
 			g.setComposite(c);
 			g.draw(shape); // in Tree's composite mode (such as an alpha)
-
-			return Node.TRUE;
 		}
 
 		/** Expects @param a in local coords. */
