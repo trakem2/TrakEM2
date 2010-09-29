@@ -8,7 +8,9 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
+import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Polygon;
@@ -126,7 +128,13 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		public int paintData(final Graphics2D g, final Rectangle srcRect,
 				final Tree<Area> tree, final AffineTransform to_screen, final Color cc) {
 			if (null == aw) return Node.TEST;
+			Composite oc = null;
+			if (cc != tree.color) {
+				oc = g.getComposite();
+				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(tree.alpha, 0.25f)));
+			}
 			aw.paint(g, to_screen, ((AreaTree)tree).fill_paint, cc);
+			if (null != oc) g.setComposite(oc);
 			return Node.TRUE;
 		}
 
