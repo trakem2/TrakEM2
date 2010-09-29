@@ -2703,12 +2703,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	// ============== FIND Displayable or ZDisplayable onjects ============
 
 	/** Find any Displayable or ZDisplayable objects of class C which intersect with the Area @param aroi. If @param visible_only, then only those that are not hidden. */
-	public ArrayList<Displayable> find(final Class c, final Layer layer, final Area aroi, final boolean visible_only) {
+	public ArrayList<Displayable> find(final Class<?> c, final Layer layer, final Area aroi, final boolean visible_only) {
 		return find(c, layer, aroi, visible_only, false);
 	}
 
 	/** Find any Displayable or ZDisplayable objects of class C which intersect with the Area @param aroi. If @param visible_only, then only those that are not hidden. If @param instance_of is true, then classes are not check by equality but by instanceof. */
-	public ArrayList<Displayable> find(final Class c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
+	public ArrayList<Displayable> find(final Class<?> c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (!ZDisplayable.class.isAssignableFrom(c)) {
 			al.addAll(layer.getDisplayables(c, aroi, visible_only, instance_of));
@@ -2717,12 +2717,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return al;
 	}
 
-	public ArrayList<Displayable> find(final Class c, final Layer layer, final int x, final int y, final boolean visible_only) {
+	public ArrayList<Displayable> find(final Class<?> c, final Layer layer, final int x, final int y, final boolean visible_only) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (!ZDisplayable.class.isAssignableFrom(c)) {
 			al.addAll(layer.find(c, x, y, visible_only));
 		}
-		al.addAll(findZDisplayables(layer, x, y, visible_only));
+		al.addAll(findZDisplayables(c, layer, x, y, visible_only));
 		return al;
 	}
 
@@ -2744,13 +2744,38 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		return al;
 	}
-	/** Find ZDisplayable objects of the given class that intersect the given rectangle in the given layer. */
-	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Rectangle r, final boolean visible_only) {
+
+	/** Find ZDisplayable objects of Class c that contain the point x,y in the given layer. */
+	public Collection<Displayable> findZDisplayables(final Class<?> c, final Layer layer, final int x, final int y, final boolean visible_only) {
+		return findZDisplayables(c, layer, x, y, visible_only, false);
+	}
+	/** Find ZDisplayable objects of Class c that contain the point x,y in the given layer. */
+	public Collection<Displayable> findZDisplayables(final Class<?> c, final Layer layer, final int x, final int y, final boolean visible_only, final boolean instance_of) {
 		final LayerBucket lb;
 		synchronized (lbucks) {
 			lb = lbucks.get(layer);
 		}
-		if (null != lb) return lb.root.find(c, r, layer, visible_only);
+		if (null != lb) return lb.root.find(c, x, y, layer, visible_only, instance_of);
+		else nbmsg(layer);
+
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		for (final ZDisplayable zd : al_zdispl) {
+			if (zd.getClass() == c && zd.contains(layer, x, y)) al.add(zd);
+		}
+		return al;
+	}
+
+	public Collection<Displayable> findZDisplayables(final Class<?> c, final Layer layer, final Rectangle r, final boolean visible_only) {
+		return findZDisplayables(c, layer, r, visible_only, false);
+	}
+	
+	/** Find ZDisplayable objects of the given class that intersect the given rectangle in the given layer. */
+	public Collection<Displayable> findZDisplayables(final Class<?> c, final Layer layer, final Rectangle r, final boolean visible_only, final boolean instance_of) {
+		final LayerBucket lb;
+		synchronized (lbucks) {
+			lb = lbucks.get(layer);
+		}
+		if (null != lb) return lb.root.find(c, r, layer, visible_only, instance_of);
 		else nbmsg(layer);
 
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -2762,7 +2787,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 	/** Find ZDisplayable objects of the given class that intersect the given area in the given layer.
 	 *  If @param instance_of is true, use c.isAssignableFrom instead of class equality. */
-	public Collection<Displayable> findZDisplayables(final Class c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
+	public Collection<Displayable> findZDisplayables(final Class<?> c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
 		final LayerBucket lb;
 		synchronized (lbucks) {
 			lb = lbucks.get(layer);

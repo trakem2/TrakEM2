@@ -252,28 +252,41 @@ public class Bucket {
 	}
 
 	/** Find All Displayable objects that intersect with the given srcRect and return them ordered by stack_index. Of @param visible_only is true, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final Class<?> c, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+	synchronized final Collection<Displayable> find(final Class<?> c, final Rectangle srcRect, final Layer layer, final boolean visible_only, final boolean instance_of) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, c, srcRect, layer, visible_only);
+		find(accum, c, srcRect, layer, visible_only, instance_of);
 		return accum.values(); // sorted by integer key
 	}
 
 	/** Recursive search, accumulates Displayable objects that intersect the srcRect and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final Class<?> c, final Rectangle srcRect, final Layer layer, final boolean visible_only) {
+	private void find(final TreeMap<Integer,Displayable> accum, final Class<?> c, final Rectangle srcRect, final Layer layer, final boolean visible_only, final boolean instance_of) {
 		if (empty || !intersects(srcRect)) return;
 		if (null != children) {
 			for (final Bucket bu : children) {
-				bu.find(accum, c, srcRect, layer, visible_only);
+				bu.find(accum, c, srcRect, layer, visible_only, instance_of);
 			}
 		} else {
 			final Area asrc = new Area(srcRect);
-			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
-				final Displayable d = entry.getValue();
-				if (visible_only && !d.isVisible()) continue;
-				if (d.getClass() == c) {
-					final Area a = d.getAreaForBucket(layer);
-					if (null != a && M.intersects(asrc, a)) {
-						accum.put(entry.getKey(), d);
+			if (instance_of) {
+				for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+					final Displayable d = entry.getValue();
+					if (visible_only && !d.isVisible()) continue;
+					if (c.isAssignableFrom(d.getClass())) {
+						final Area a = d.getAreaForBucket(layer);
+						if (null != a && M.intersects(asrc, a)) {
+							accum.put(entry.getKey(), d);
+						}
+					}
+				}
+			} else {
+				for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+					final Displayable d = entry.getValue();
+					if (visible_only && !d.isVisible()) continue;
+					if (d.getClass() == c) {
+						final Area a = d.getAreaForBucket(layer);
+						if (null != a && M.intersects(asrc, a)) {
+							accum.put(entry.getKey(), d);
+						}
 					}
 				}
 			}
@@ -306,27 +319,36 @@ public class Bucket {
 	}
 
 	/** Find all Displayable objects that contain the given point at the given layer (here layer acts as the Z coordinate, then) and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final Class<?> c, final int px, final int py, final Layer layer, final boolean visible_only) {
+	synchronized final Collection<Displayable> find(final Class<?> c, final int px, final int py, final Layer layer, final boolean visible_only, final boolean instance_of) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
-		find(accum, c, px, py, layer, visible_only);
+		find(accum, c, px, py, layer, visible_only, instance_of);
 		return accum.values(); // sorted by integer key
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final Class<?> c, final int px, final int py, final Layer layer, final boolean visible_only) {
+	private void find(final TreeMap<Integer,Displayable> accum, final Class<?> c, final int px, final int py, final Layer layer, final boolean visible_only, final boolean instance_of) {
 		if (empty || !contains(px, py)) return;
 		if (null != children) {
 			for (final Bucket bu : children) {
-				 bu.find(accum, c, px, py, layer, visible_only);
+				 bu.find(accum, c, px, py, layer, visible_only, instance_of);
 			}
 		} else {
-			for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
-				final Displayable d = entry.getValue();
-				if (visible_only && !d.isVisible()) continue;
-				if (d.getClass() == c && d.contains(layer, px, py)) {
-					accum.put(entry.getKey(), d);
+			if (instance_of) {
+				for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+					final Displayable d = entry.getValue();
+					if (visible_only && !d.isVisible()) continue;
+					if (c.isAssignableFrom(d.getClass()) && d.contains(layer, px, py)) {
+						accum.put(entry.getKey(), d);
+					}
+				}
+			} else {
+				for (final Map.Entry<Integer,Displayable> entry : map.entrySet()) {
+					final Displayable d = entry.getValue();
+					if (visible_only && !d.isVisible()) continue;
+					if (d.getClass() == c && d.contains(layer, px, py)) {
+						accum.put(entry.getKey(), d);
+					}
 				}
 			}
-			//Utils.log2("Bucket with " + map.size() + " contains click " + this.toString());
 		}
 	}
 
