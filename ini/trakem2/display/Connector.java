@@ -83,7 +83,7 @@ public class Connector extends Treeline {
 			tree.at.transform(fp, 0, fp, 0, 2);
 			float radius = fp[2] - fp[0];
 			if (radius <= 0) radius = 1;
-			if (srcRect.intersects(fp[0] - radius, fp[1], radius + radius, radius + radius)) {
+			if (srcRect.intersects(fp[0] - radius, fp[1] - radius, radius + radius, radius + radius)) {
 				g.setColor(cc);
 				g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
 				return Node.TRUE;
