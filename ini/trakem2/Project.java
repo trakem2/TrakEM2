@@ -910,7 +910,10 @@ public class Project extends DBObject {
 	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Displayable d) {
 		if (d.getClass() == LayerSet.class) select(d, layer_tree);
-		else select(d, project_tree);
+		else {
+			ProjectThing pt = findProjectThing(d); // from cache: one linear search less
+			if (null != pt) DNDTree.selectNode(pt, project_tree);
+		}
 	}
 
 	private final void select(final Object ob, final DNDTree tree) {
