@@ -208,21 +208,22 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				int next = 0;
 
 				for (final Node<T> nd : nodes) {
-					if (nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes)) {
-						if (nd == marked) {
-							if (null == MARKED_CHILD) createMarks();
-							Composite c = g.getComposite();
-							g.setXORMode(Color.green);
-							float[] fps = new float[]{nd.x, nd.y};
-							this.at.transform(fps, 0, fps, 0, 1);
-							AffineTransform aff = new AffineTransform();
-							aff.translate((fps[0] - srcRect.x) * magnification, (fps[1] - srcRect.y) * magnification);
-							g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
-							g.setComposite(c);
-						}
-						if (active && active_layer == nd.la) handles[next++] = nd;
+					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+					if (nd == marked) {
+						if (null == MARKED_CHILD) createMarks();
+						Composite c = g.getComposite();
+						g.setXORMode(Color.green);
+						float[] fps = new float[]{nd.x, nd.y};
+						this.at.transform(fps, 0, fps, 0, 1);
+						AffineTransform aff = new AffineTransform();
+						aff.translate((fps[0] - srcRect.x) * magnification, (fps[1] - srcRect.y) * magnification);
+						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
+						g.setComposite(c);
 					}
+					if (active && active_layer == nd.la) handles[next++] = nd;
 				}
+				paintExtra(g, active_layer, active, srcRect, magnification,
+						nodes, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
 				if (active) {
 					for (int i=0; i<next; i++) {
 						handles[i].paintHandle(g, srcRect, magnification, this);
