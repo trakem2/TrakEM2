@@ -149,26 +149,28 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer) {
-		// Determine which layers to paint
-		if (layer_set.color_cues) {
-			Set<Node<T>> nodes = null;
-			if (-1 == layer_set.n_layers_color_cue) {
-				// All layers
-				nodes = new HashSet<Node<T>>();
-				for (final Set<Node<T>> ns : node_layer_map.values()) nodes.addAll(ns);
-			} else {
-				for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
-					Set<Node<T>> ns = node_layer_map.get(la);
-					if (null != ns) {
-						if (null == nodes) nodes = new HashSet<Node<T>>();
-						nodes.addAll(ns);
+		synchronized (node_layer_map) {
+			// Determine which layers to paint
+			if (layer_set.color_cues) {
+				Set<Node<T>> nodes = null;
+				if (-1 == layer_set.n_layers_color_cue) {
+					// All layers
+					nodes = new HashSet<Node<T>>();
+					for (final Set<Node<T>> ns : node_layer_map.values()) nodes.addAll(ns);
+				} else {
+					for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
+						Set<Node<T>> ns = node_layer_map.get(la);
+						if (null != ns) {
+							if (null == nodes) nodes = new HashSet<Node<T>>();
+							nodes.addAll(ns);
+						}
 					}
 				}
+				return nodes;
 			}
-			return nodes;
+			// Else, just the active layer, if any
+			return node_layer_map.get(active_layer);
 		}
-		// Else, just the active layer, if any
-		return node_layer_map.get(active_layer);
 	}
 
 	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
