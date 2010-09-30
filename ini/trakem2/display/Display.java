@@ -2529,6 +2529,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				final JMenuItem tgenerate = new JMenuItem("Generate review stacks (selected Trees)"); review.add(tgenerate);
 				tgenerate.setEnabled(trees.size() > 0);
 				final JMenuItem tslab = new JMenuItem("Generate review stack for current slab"); review.add(tslab);
+				final JMenuItem tsubtree = new JMenuItem("Generate review stacks for subtree"); review.add(tsubtree);
 				final JMenuItem tremove = new JMenuItem("Remove reviews (selected Trees)"); review.add(tremove);
 				tremove.setEnabled(trees.size() > 0);
 				final JMenuItem tconnectors = new JMenuItem("View table of outgoing/incoming connectors"); review.add(tconnectors);
@@ -2549,6 +2550,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 										Point po = canvas.consumeLastPopupPoint();
 										Utils.log2(po, layer, 1.0);
 										bu = t.generateReviewStackForSlab(po.x, po.y, Display.this.layer, 1.0);
+									} else if (ae.getSource() == tsubtree) {
+										Point po = canvas.consumeLastPopupPoint();
+										bu = t.generateSubtreeReviewStacks(po.x, po.y, Display.this.layer, 1.0);
 									}
 									if (null != bu) try {
 										bu.getWorker().join();
@@ -2558,7 +2562,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						});
 					}
 				};
-				for (JMenuItem c : new JMenuItem[]{tgenerate, tslab, tremove}) c.addActionListener(l);
+				for (JMenuItem c : new JMenuItem[]{tgenerate, tslab, tsubtree, tremove}) c.addActionListener(l);
 				tconnectors.addActionListener(new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
 						for (final Tree<?> t : trees) TreeConnectorsView.create(t);

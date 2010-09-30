@@ -2234,7 +2234,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 										if (!Utils.check("Really generate all review stacks?")) {
 											return;
 										}
-										generateAllReviewStacks();
+										generateSubtreeReviewStacks(root);
 									}
 									else if (review == src) review(row);
 									else if (rm_reviews == src) {
@@ -2936,10 +2936,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 		});
 	}
-
+	
 	public Bureaucrat generateAllReviewStacks() {
+		return generateSubtreeReviewStacks(root);
+	}
+
+	public Bureaucrat generateSubtreeReviewStacks(final Node<T> root) {
 		return Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
 			public void exec() {
+				if (null == root) return;
 
 		// Find all end nodes and branch nodes
 		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
@@ -3270,8 +3275,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	/** @return null if no node is near @param x, @param y */ 
-	public Bureaucrat generateReviewStackForSlab(final float x, final float y, final Layer layer, final double magnification) {
+	private Node<T> guiFindNode(final float x, final float y, final Layer layer, final double magnification) {
 		final Collection<Node<T>> nodes;
 		synchronized (node_layer_map) {
 			nodes = node_layer_map.get(layer);
@@ -3283,15 +3287,24 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final Node<T> node = findClosestNodeW(nodes, x, y, magnification);
 		if (null == node) {
 			Utils.log("Could not find any node! Zoom in for better precision.");
-			return null;
 		}
-		return generateReviewStackForSlab(node);
+		return node;
+	}
+
+	/** @return null if no node is near @param x, @param y */ 
+	public Bureaucrat generateReviewStackForSlab(final float x, final float y, final Layer layer, final double magnification) {
+		return generateReviewStackForSlab(guiFindNode(x, y, layer, magnification));
+	}
+
+	public Bureaucrat generateSubtreeReviewStacks(int x, int y, Layer layer, double magnification) {
+		return generateSubtreeReviewStacks(guiFindNode(x, y, layer, magnification));
 	}
 
 	/** Generate a review stack from the previous branch node or root, to the next branch node or end node. */
 	public Bureaucrat generateReviewStackForSlab(final Node<T> node) {
 		return Bureaucrat.createAndStart(new Worker.Task("Create review stack") {
 			public void exec() {
+				if (null == node) return;
 				final Node<T> first = node.findPreviousBranchOrRootPoint();
 				final Node<T> last = node.findNextBranchOrEndPoint();
 				// Check if 'last' already has a review tag
