@@ -64,6 +64,7 @@ import java.awt.geom.Path2D;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.TreeMap;
@@ -451,7 +452,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	@Override
-	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> _ignored) {
 		paint(g, fetchImage(magnification, channels, false));
 	}
 
@@ -496,7 +497,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
 	@Override
-	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> _ignored) {
 
 		AffineTransform atp = this.at;
 
@@ -830,13 +831,13 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				if (!project.getLoader().isSnapPaintable(this.id)) {
 					paintAsBox(g);
 				} else {
-					paint(g, srcRect, mag, false, this.channels, layer);
+					paint(g, srcRect, mag, false, this.channels, layer, layers);
 				}
 				return;
 			case 1:

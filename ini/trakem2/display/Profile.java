@@ -24,42 +24,34 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
-
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.Loader;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.display.Display3D;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.tree.Thing;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.vector.SkinMaker;
+import ini.trakem2.vector.VectorString2D;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Rectangle;
+import java.awt.Composite;
+import java.awt.Graphics2D;
 import java.awt.Polygon;
-import java.awt.event.MouseEvent;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
+import java.util.Map;
 
 import javax.vecmath.Point3f;
 
@@ -530,8 +522,8 @@ public class Profile extends Displayable implements VectorData {
 		}
 	}
 
-
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database

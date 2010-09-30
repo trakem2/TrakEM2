@@ -146,7 +146,7 @@ public abstract class GroupingMode implements Mode {
 			atc.translate(-srcRect.x, -srcRect.y);
 			g.setTransform( atc );
 			for (final Patch patch : range.list) {
-				patch.paint( g, srcRect, magnification, false, 0xffffffff, patch.getLayer() );
+				patch.paint( g, srcRect, magnification, false, 0xffffffff, patch.getLayer(), null);
 			}
 
 			ip = new ImagePlus( "", image ).getProcessor();
@@ -187,7 +187,8 @@ public abstract class GroupingMode implements Mode {
 			if (null != transformedImage) transformedImage.flush();
 		}
 
-		public void paint( Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer )
+		@Override
+		public void paint( Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers)
 		{
 			final AffineTransform at = g.getTransform();
 			final AffineTransform atp = new AffineTransform();
@@ -206,9 +207,10 @@ public abstract class GroupingMode implements Mode {
 			g.setTransform( at );
 		}
 
-		public void prePaint( Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer )
+		@Override
+		public void prePaint( Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers)
 		{
-			paint( g, srcRect, magnification, active, channels, active_layer );			
+			paint( g, srcRect, magnification, active, channels, active_layer, layers );			
 		}
 	}
 

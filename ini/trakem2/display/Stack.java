@@ -35,8 +35,8 @@ import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
@@ -151,13 +151,11 @@ public class Stack extends ZDisplayable implements ImageData
 	}
 
 	/** Construct a Stack from an XML entry. */
-	public Stack(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Stack(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific fields
 		
-		final Iterator it = ht.entrySet().iterator();
-		while (it.hasNext()) {
-			final Map.Entry entry = (Map.Entry)it.next();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
 			final String key = (String)entry.getKey();
 			final String data = (String)entry.getValue();
 			if (key.equals("min")) {
@@ -281,7 +279,7 @@ public class Stack extends ZDisplayable implements ImageData
 
 	/** Slow paint: will wait until the image is generated and cached, then paint it. */
 	@Override
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		Image image = null;
 		Future< Image > fu = null;
 		final SliceViewKey sliceViewKey = new SliceViewKey( magnification, active_layer.getZ() );
@@ -451,7 +449,8 @@ public class Stack extends ZDisplayable implements ImageData
 			final double magnification,
 			final boolean active,
 			final int channels,
-			final Layer active_layer )
+			final Layer active_layer,
+			final List<Layer> _ignored)
 	{
 
 		//final Image image = project.getLoader().fetchImage(this,0);
@@ -514,7 +513,7 @@ public class Stack extends ZDisplayable implements ImageData
 		g.setComposite( original_composite );
 	}
 
-	static public final void exportDTD( final StringBuilder sb_header, final HashSet hs, final String indent ) {
+	static public final void exportDTD( final StringBuilder sb_header, final HashSet<String> hs, final String indent ) {
 		final String type = "t2_stack";
 		if (hs.contains(type)) return;
 		hs.add( type );

@@ -2659,11 +2659,11 @@ while (it.hasNext()) {
 		return imp;
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background) {
 		return getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background, final Displayable active) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 
 		try {
 			// if quality is specified, then a larger image is generated:
@@ -2728,25 +2728,25 @@ while (it.hasNext()) {
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-			ArrayList al_zdispl = null;
+			ArrayList<ZDisplayable> al_zdispl = null;
 			if (null == al_displ) {
 				al_displ = layer.getDisplayables(clazz);
 				al_zdispl = layer.getParent().getZDisplayables(clazz);
 			} else {
 				// separate ZDisplayables into their own array
-				al_displ = new ArrayList(al_displ);
+				al_displ = new ArrayList<Displayable>(al_displ);
 				//Utils.log2("al_displ size: " + al_displ.size());
-				al_zdispl = new ArrayList();
-				for (Iterator it = al_displ.iterator(); it.hasNext(); ) {
+				al_zdispl = new ArrayList<ZDisplayable>();
+				for (Iterator<?> it = al_displ.iterator(); it.hasNext(); ) {
 					Object ob = it.next();
 					if (ob instanceof ZDisplayable) {
 						it.remove();
-						al_zdispl.add(ob);
+						al_zdispl.add((ZDisplayable)ob);
 					}
 				}
 				// order ZDisplayables by their stack order TODO the code below doesn't do that
-				ArrayList al_zdispl2 = layer.getParent().getZDisplayables();
-				for (Iterator it = al_zdispl2.iterator(); it.hasNext(); ) {
+				ArrayList<ZDisplayable> al_zdispl2 = layer.getParent().getZDisplayables();
+				for (Iterator<?> it = al_zdispl2.iterator(); it.hasNext(); ) {
 					Object ob = it.next();
 					if (!al_zdispl.contains(ob)) it.remove();
 				}
@@ -2765,23 +2765,22 @@ while (it.hasNext()) {
 			//int total = al_displ.size() + al_zdispl.size();
 			int count = 0;
 			boolean zd_done = false;
-			for(Iterator it = al_displ.iterator(); it.hasNext(); ) {
-				Displayable d = (Displayable)it.next();
+			final List<Layer> layers = layer.getParent().getColorCueLayerRange(layer);
+			for (final Displayable d : al_displ) {
 				//Utils.log2("d is: " + d);
 				// paint the ZDisplayables before the first label, if any
 				if (!zd_done && d instanceof DLabel) {
 					zd_done = true;
-					for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
-						ZDisplayable zd = (ZDisplayable)itz.next();
+					for (final ZDisplayable zd : al_zdispl) {
 						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-							zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer);
+							zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer, layers);
 						}
 						count++;
 						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-					d.paintOffscreen(g2d, srcRect, scaleP, active == d, c_alphas, layer);
+					d.paintOffscreen(g2d, srcRect, scaleP, active == d, c_alphas, layer, layers);
 					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
 				} else {
 					//Utils.log2("out: " + d);
@@ -2791,10 +2790,9 @@ while (it.hasNext()) {
 			}
 			if (!zd_done) {
 				zd_done = true;
-				for (Iterator itz = al_zdispl.iterator(); itz.hasNext(); ) {
-					ZDisplayable zd = (ZDisplayable)itz.next();
+				for (final ZDisplayable zd : al_zdispl) {
 					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
-						zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer);
+						zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer, layers);
 					}
 					count++;
 					//Utils.log2("Painted " + count + " of " + total);

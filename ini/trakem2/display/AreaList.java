@@ -118,7 +118,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 	}
 
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		//arrange transparency
 		Composite original_composite = null;
 		try {
@@ -126,7 +126,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				original_composite = g.getComposite();
 				Color c = Color.red;
 				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(alpha, 0.25f)));
-				for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
+				for (final Layer la : layers) {
 					if (active_layer == la) {
 						c = Color.blue;
 						continue;

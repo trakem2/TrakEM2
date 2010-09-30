@@ -527,7 +527,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	// synchronizing to protect n_points ... need to wrap it in a lock
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database

@@ -22,32 +22,36 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-import ij.gui.GenericDialog;
-
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
-import ini.trakem2.persistence.DBObject;
 
-import java.awt.*;
-import java.awt.event.MouseEvent;
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Stroke;
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Map;
-import java.util.Iterator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import javax.vecmath.Point3f;
 
@@ -203,7 +207,8 @@ public class Ball extends ZDisplayable implements VectorData {
 		return index;
 	}
 
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -608,7 +613,7 @@ public class Ball extends ZDisplayable implements VectorData {
 
 	/** Get the perimeter of all parts that show in the given layer (as defined by its Z), but representing each ball as a square in a Rectangle object. Returns null if none found. */
 	private Rectangle[] getSubPerimeters(final Layer layer) {
-		final ArrayList al = new ArrayList();
+		final ArrayList<Rectangle> al = new ArrayList<Rectangle>();
 		final long layer_id = layer.getId();
 		double[][] p = this.p;
 		double[] p_width = this.p_width;
@@ -636,7 +641,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		final ArrayList al = layer.getDisplayables(Patch.class);
+		final ArrayList<Displayable> al = layer.getDisplayables(Patch.class);
 
 		// this bounding box as in the present layer
 		final Rectangle[] perimeters = getSubPerimeters(layer); // transformed
@@ -646,8 +651,7 @@ public class Ball extends ZDisplayable implements VectorData {
 
 		// for each Patch, check if it underlays this profile's bounding box
 		final Rectangle box = new Rectangle(); // as tmp
-		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
-			final Displayable displ = (Displayable)itd.next();
+		for (final Displayable displ : al) {
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			for (int i=0; i<perimeters.length; i++) {
 				if (perimeters[i].intersects(displ.getBoundingBox(box))) {
@@ -743,9 +747,8 @@ public class Ball extends ZDisplayable implements VectorData {
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			int ii = 0;
 			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				data.append(((DBObject)ob).getId());
+			for (final Displayable d : hs_linked) {
+				data.append(d.getId());
 				if (ii != len-1) data.append(",");
 				ii++;
 			}
@@ -778,7 +781,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		sb_body.append(indent).append("</t2_ball>\n");
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_ball";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -879,13 +882,13 @@ public class Ball extends ZDisplayable implements VectorData {
 
 		// Build parallels from circle
 		angle_increase = Math.PI / parallels;   // = 180 / parallels in radians
-		final double angle90 = Math.toRadians(90);
+		//final double angle90 = Math.toRadians(90);
 		final double[][][] xyz = new double[parallels+1][xy_points.length][3];
 		for (int p=1; p<xyz.length-1; p++) {
 			double radius = Math.sin(angle_increase*p);
 			double Z = Math.cos(angle_increase*p);
 			for (int mm=0; mm<xyz[0].length-1; mm++) {
-				//scaling circle to apropiate radius, and positioning the Z
+				//scaling circle to appropriate radius, and positioning the Z
 				xyz[p][mm][0] = xy_points[mm][0] * radius;
 				xyz[p][mm][1] = xy_points[mm][1] * radius;
 				xyz[p][mm][2] = Z;
@@ -912,7 +915,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Put all balls as a single 'mesh'; the returned list contains all faces as three consecutive Point3f. The mesh is also translated by x,y,z of this Displayable.*/
 	public List<Point3f> generateTriangles(final double scale, final double[][][] globe) {
 		try {
-			Class c = Class.forName("javax.vecmath.Point3f");
+			Class.forName("javax.vecmath.Point3f");
 		} catch (ClassNotFoundException cnfe) {
 			Utils.log("Java3D is not installed.");
 			return null;

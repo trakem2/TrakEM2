@@ -22,20 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
@@ -46,9 +32,38 @@ import ini.trakem2.display.graphics.MultiplyARGBComposite;
 import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
+
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Scrollbar;
+import java.awt.TextField;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.TextEvent;
+import java.awt.event.TextListener;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject implements Paintable  {
@@ -444,25 +459,20 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 	}
 
-	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		Utils.log2("paint g, srcRect, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+	@Override
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+		Utils.log2("paint g, srcRect, magnification, active, channels, active_layer, layers: not implemented yet for " + this.getClass());
 	}
 
-	//public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-	//	Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
-	//}
-
-	public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, srcRect, magnification, active, channels, active_layer);
+	@Override
+	public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layers);
 	}
 
-	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, srcRect, magnification, active, channels, active_layer);
-	}
 	/** Paints waiting for data to load, if necessary. */
-	//public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-	//	paint(g, magnification, active, channels, active_layer);
-	//}
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layers);
+	}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
@@ -1726,10 +1736,10 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		g.drawLine((int)c2[6], (int)c2[7], (int)c2[0], (int)c2[1]);
 	}
 
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
-				paint(g, srcRect, mag, false, 0xffffffff, layer);
+				paint(g, srcRect, mag, false, 0xffffffff, layer, layers);
 				return;
 			case 1:
 				paintAsBox(g);

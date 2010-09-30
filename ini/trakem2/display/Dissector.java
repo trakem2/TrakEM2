@@ -675,7 +675,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	/** Always paint as box. TODO paint as the area of an associated ROI. */
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		paintAsBox(g);
 	}
 

@@ -36,6 +36,7 @@ import ini.trakem2.persistence.FSLoader;
 
 public class SnapshotPanel extends JPanel implements MouseListener {
 
+	private static final long serialVersionUID = 1L;
 	private Display display;
 	private Displayable d;
 	static public final int SIDE = 50;
@@ -113,7 +114,8 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 				//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
 				//	d.paintAsBox(g2);
 				//} else {
-					d.paintSnapshot(g2, display.getLayer(), d.getLayerSet().get2DBounds(), scale);
+					final Layer la = display.getLayer();
+					d.paintSnapshot(g2, la, la.getParent().getColorCueLayerRange(la), d.getLayerSet().get2DBounds(), scale);
 				//}
 			} catch (Exception e) {
 				d.paintAsBox(g2);

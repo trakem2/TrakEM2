@@ -149,6 +149,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer) {
+		return getNodesToPaint(active_layer, active_layer.getParent().getColorCueLayerRange(active_layer));
+	}
+	
+	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer, final List<Layer> color_cue_layers) {
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
 			if (layer_set.color_cues) {
@@ -158,7 +162,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					nodes = new HashSet<Node<T>>();
 					for (final Set<Node<T>> ns : node_layer_map.values()) nodes.addAll(ns);
 				} else {
-					for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
+					for (final Layer la : color_cue_layers) {
 						Set<Node<T>> ns = node_layer_map.get(la);
 						if (null != ns) {
 							if (null == nodes) nodes = new HashSet<Node<T>>();
@@ -173,10 +177,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		paint(g, srcRect, magnification, active, channels, active_layer, layer_set.paint_arrows);
+	@Override
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layers, layer_set.paint_arrows);
 	}
-	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final boolean with_arrows) {
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers, final boolean with_arrows) {
 		if (null == root) {
 			setupForDisplay();
 			if (null == root) return;
@@ -188,7 +193,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
-			final Set<Node<T>> nodes = getNodesToPaint(active_layer);
+			final Set<Node<T>> nodes = getNodesToPaint(active_layer, layers);
 			if (null != nodes) {
 				// Filter nodes outside the srcRect
 				// The DisplayNavigator and the snapshot panels call paint with the full srcRect
@@ -1940,11 +1945,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows
-				paint(g, srcRect, mag, false, 0xffffffff, layer, false);
+				paint(g, srcRect, mag, false, 0xffffffff, layer, layers, false);
 				return;
 			case 1:
 				paintAsBox(g);
