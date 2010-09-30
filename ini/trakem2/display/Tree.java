@@ -189,15 +189,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			final Set<Node<T>> nodes = getNodesToPaint(active_layer);
 			if (null != nodes) {
 				// Filter nodes outside the srcRect
-				try {
-					final Rectangle localRect = this.at.createInverse().createTransformedShape(srcRect).getBounds();
-					for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
-						final Node<T> nd = it.next();
-						if (nd.isRoughlyInside(localRect)) continue;
-						it.remove();
+				// The DisplayNavigator and the snapshot panels call paint with the full srcRect
+				// so avoid filtering for them:
+				if (srcRect.x > 0 && srcRect.y > 0
+				 && srcRect.width < (int)layer_set.getLayerWidth()
+				 && srcRect.height < (int)layer_set.getLayerHeight()) {
+					try {
+						final Rectangle localRect = this.at.createInverse().createTransformedShape(srcRect).getBounds();
+						for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
+							final Node<T> nd = it.next();
+							if (nd.isRoughlyInside(localRect)) continue;
+							it.remove();
+						}
+					} catch (NoninvertibleTransformException nite) {
+						IJError.print(nite);
 					}
-				} catch (NoninvertibleTransformException nite) {
-					IJError.print(nite);
 				}
 				// Arrange transparency
 				if (alpha != 1.0f) {
