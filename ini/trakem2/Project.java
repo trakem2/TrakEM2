@@ -988,6 +988,29 @@ public class Project extends DBObject {
 		} catch (Exception e) { IJError.print(e); return null; }
 	}
 
+	public String getMeaningfulTitle2(final Displayable d) {
+		final ProjectThing thing = findProjectThing(d);
+		if (null == thing) return d.getTitle(); // happens if there is no associated node
+
+		if (!thing.getType().equals(d.getTitle())) {
+			return new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(']').toString();
+		}
+
+		// Else, search upstream for a ProjectThing whose name differs from its type
+		Thing parent = (ProjectThing)thing.getParent();
+		while (null != parent) {
+			String type = parent.getType();
+			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) break;
+			if (!ob.equals(type)) {
+				return ob.toString() + " [" + thing.getType() + "]";
+			}
+			parent = parent.getParent();
+		}
+		if (d.getTitle().equals(thing.getType())) return "[" + thing.getType() + "]";
+		return d.getTitle() + " [" + thing.getType() + "]";
+	}
+
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(final Displayable d) {
 		ProjectThing thing = findProjectThing(d);

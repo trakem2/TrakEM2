@@ -36,6 +36,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseAdapter;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Event;
 import java.awt.Dimension;
@@ -57,8 +58,11 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	static private ImageIcon LINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/linked.png"));
 	static private ImageIcon UNLINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlinked.png"));
 
+	static private final Font SMALL = new Font("Courier", Font.ITALIC, 11);
+	static private final Color GRAYISH = new Color(50, 50, 50);
+
 	private JCheckBox c, c_locked, c_linked;
-	private JLabel title, title2;
+	private JLabel title, title2, idlabel;
 	private JPanel titles;
 	private SnapshotPanel sp;
 
@@ -105,6 +109,9 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		title.addMouseListener(this);
 		title2 = new JLabel();
 		title2.addMouseListener(this);
+		idlabel = new JLabel("#" + d.getId());
+		idlabel.setFont(SMALL);
+		idlabel.setForeground(GRAYISH);
 		titles = new JPanel();
 		updateTitle();
 		BoxLayout bt = new BoxLayout(titles, BoxLayout.Y_AXIS);
@@ -112,6 +119,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		titles.setBackground(Color.white);
 		titles.add(title);
 		titles.add(title2);
+		titles.add(idlabel);
 		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		JPanel checkboxes = new JPanel();
 		checkboxes.setBackground(Color.white);
@@ -181,18 +189,18 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	private String makeUpdatedTitle() {
 		if (null == d) { Utils.log2("null d "); return ""; }
 		else if (null == d.getTitle()) { Utils.log2("null title for " + d); return ""; }
-		final Class c = d.getClass();
-		if (c.equals(Patch.class)) {
+		final Class<?> c = d.getClass();
+		if (c == Patch.class) {
 			return d.getTitle();
-		} else if (c.equals(DLabel.class)) {
+		} else if (c == DLabel.class) {
 			return d.getTitle().replace('\n', ' ');
 		} else {
 			// gather name of the enclosing object in the project tree
-			return d.getProject().getMeaningfulTitle(d);
+			return d.getProject().getMeaningfulTitle2(d);
 		}
 	}
 
-	static private int MAX_CHARS = 23;
+	static private int MAX_CHARS = 20;
 
 	public void updateTitle() {
 		String t = makeUpdatedTitle();
@@ -203,27 +211,22 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		}
 		// else split at MAX_CHARS
 		// First try to see if it can be cut nicely
-		int i = -1;
-		int back = t.length() < ((MAX_CHARS * 3) / 2) ? 12 : 5;
-		for (int k=MAX_CHARS-1; k>MAX_CHARS-6; k--) {
-			char c = t.charAt(k);
-			switch (c) {
-				case ' ':
-				case '/':
-				case '_':
-				case '.':
-					i = k; break;
-				default:
-					break;
-			}
+		int lastbracket = t.lastIndexOf('[');
+		int end = -1,
+		    start = -1;
+		if (lastbracket -1 <= MAX_CHARS) { // there's a space in front of the [
+			end = lastbracket -1;
+			start = lastbracket;
+		} else {
+			end = start = MAX_CHARS;
 		}
-		if (-1 == i) i = MAX_CHARS; // cut at MAX_CHARS anyway
-		title.setText(t.substring(0, i));
-		String t2 = t.substring(i);
-		if (t2.length() > MAX_CHARS) {
-			t2 = new StringBuilder(t2.substring(0, 7)).append("...").append(t2.substring(t2.length()-13)).toString();
+		title.setText(t.substring(0, end));
+		
+		if (t.length() - start -1 > MAX_CHARS) {
+			title2.setText(t.substring(start, start + 7) + "..." + t.substring(t.length() -10));
+		} else {
+			title2.setText(t.substring(start));
 		}
-		title2.setText(t2);
 
 		title.setToolTipText(t);
 		title2.setToolTipText(t);
