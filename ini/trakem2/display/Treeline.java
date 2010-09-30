@@ -267,6 +267,7 @@ public class Treeline extends Tree<Float> {
 		}
 
 		// The human compiler at work!
+		/** Detect intersection between localRect and the bounds of getSegment() */
 		private final boolean segmentIntersects(final Rectangle localRect) {
 			final RadiusNode parent = (RadiusNode) this.parent;
 			float vx = parent.x - this.x;
@@ -275,15 +276,44 @@ public class Treeline extends Tree<Float> {
 			vx /= len;
 			vy /= len;
 			// perpendicular vector
-			final float vx90 = -vy;
-			final float vy90 = vx;
-			final float vx270 = vy;
-			final float vy270 = -vx;
-			
-			return localRect.contains((int)(parent.x + vx90 * parent.r), (int)(parent.y + vy90 * parent.r))
-				|| localRect.contains((int)(parent.x + vx270 * parent.r), (int)(parent.y + vy270 * parent.r))
-				|| localRect.contains((int)(this.x + vx270 * this.r), (int)(this.y + vy270 * this.r))
-				|| localRect.contains((int)(this.x + vx90 * this.r), (int)(this.y + vy90 * this.r));
+			//final float vx90 = -vy;
+			//final float vy90 = vx;
+			//final float vx270 = vy;
+			//final float vy270 = -vx;
+
+			final float x1 = parent.x + (-vy) /*vx90*/ * parent.r,
+						y1 = parent.y + vx    /*vy90*/ * parent.r,
+						x2 = parent.x + vy    /*vx270*/ * parent.r,
+						y2 = parent.y + (-vx) /*vy270*/ * parent.r,
+						x3 = this.x + vy    /*vx270*/ * this.r,
+						y3 = this.y + (-vx) /*vy270*/ * this.r,
+						x4 = this.x + (-vy) /*vx90*/ * this.r,
+						y4 = this.y + vx    /*vy90*/ * this.r;
+			final float min_x = Math.min(Math.min(x1, x2), Math.min(x3, x4)),
+						min_y = Math.min(Math.min(y1, y2), Math.min(y3, y4)),
+						max_x = Math.max(Math.max(x1, x2), Math.max(x3, x4)),
+						max_y = Math.max(Math.max(y1, y2), Math.max(y3, y4));
+			/*
+			final float w = max_x - min_x,
+						h = max_y - min_y;
+
+			return min_x + w > localRect.x
+			    && min_y + h > localRect.y
+			    && min_x < localRect.x + localRect.width
+			    && min_y < localRect.y + localRect.height;
+			*/
+
+			// As above, but inline:
+			return min_x + max_x - min_x > localRect.x
+				&& min_y + max_y - min_y > localRect.y
+				&& min_x < localRect.x + localRect.width
+				&& min_y < localRect.y + localRect.height;
+
+			// May give false negatives!
+			//return localRect.contains((int)(parent.x + vx90 * parent.r), (int)(parent.y + vy90 * parent.r))
+			//	|| localRect.contains((int)(parent.x + vx270 * parent.r), (int)(parent.y + vy270 * parent.r))
+			//	|| localRect.contains((int)(this.x + vx270 * this.r), (int)(this.y + vy270 * this.r))
+			//	|| localRect.contains((int)(this.x + vx90 * this.r), (int)(this.y + vy90 * this.r));
 		}
 
 		@Override
