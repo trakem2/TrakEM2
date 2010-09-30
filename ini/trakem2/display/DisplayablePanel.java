@@ -214,14 +214,14 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		int lastbracket = t.lastIndexOf('[');
 		int end = -1,
 		    start = -1;
-		if (lastbracket -1 <= MAX_CHARS) { // there's a space in front of the [
+		if (lastbracket -1 <= MAX_CHARS && -1 != lastbracket) { // there's a space in front of the [
 			end = lastbracket -1;
 			start = lastbracket;
 		} else {
 			end = start = MAX_CHARS;
 		}
 		title.setText(t.substring(0, end));
-		
+
 		if (t.length() - start -1 > MAX_CHARS) {
 			title2.setText(t.substring(start, start + 7) + "..." + t.substring(t.length() -10));
 		} else {
