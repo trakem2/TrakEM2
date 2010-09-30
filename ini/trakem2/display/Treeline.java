@@ -253,6 +253,11 @@ public class Treeline extends Tree<Float> {
 			float vx = parent.x - this.x;
 			float vy = parent.y - this.y;
 			float len = (float) Math.sqrt(vx*vx + vy*vy);
+			if (0 == len) {
+				// Points are on top of each other
+				return new Polygon(new int[]{(int)this.x, (int)Math.ceil(parent.x)},
+								   new int[]{(int)this.y, (int)Math.ceil(parent.y)}, 2);
+			}
 			vx /= len;
 			vy /= len;
 			// perpendicular vector
@@ -272,7 +277,11 @@ public class Treeline extends Tree<Float> {
 			final RadiusNode parent = (RadiusNode) this.parent;
 			float vx = parent.x - this.x;
 			float vy = parent.y - this.y;
-			float len = (float) Math.sqrt(vx*vx + vy*vy);
+			final float len = (float) Math.sqrt(vx*vx + vy*vy);
+			if (0 == len) {
+				// Points are on top of each other
+				return localRect.contains(this.x, this.y);
+			}
 			vx /= len;
 			vy /= len;
 			// perpendicular vector
