@@ -180,9 +180,9 @@ public class ControlWindow {
 			}
 			Utils.destroy(instance);
 			Loader.destroyPreloader(instance);
-			instance = null;
 			instance.command_listener.destroy();
 			instance.command_listener = null;
+			instance = null;
 		}
 	}
 
