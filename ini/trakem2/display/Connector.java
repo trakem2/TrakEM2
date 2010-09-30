@@ -121,16 +121,6 @@ public class Connector extends Treeline {
 		}
 	}
 
-	@Override
-	protected void paintExtra(final Graphics2D g, final Layer active_layer,
-			final boolean active, final Rectangle srcRect, final double magnification,
-			final Set<Node<Float>> to_paint, final AffineTransform to_screen,
-			final boolean with_arrows, final boolean with_confidence_boxes) {
-		if (null == root || to_paint.contains(root) || to_paint.isEmpty()) return;
-		root.paintSlabs(g, active_layer, active, srcRect, magnification,
-				to_paint, this, to_screen, with_arrows, with_confidence_boxes);
-	}
-
 	static private final Color brightGreen = new Color(33, 255, 0);
 
 	public void readLegacyXML(final LayerSet ls, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {

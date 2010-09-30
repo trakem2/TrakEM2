@@ -179,11 +179,12 @@ public abstract class Node<T> implements Taggable {
 
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list.
 	 *  Returns a task (or null) to paint the tags. */
-	final Runnable paintSlabs(final Graphics2D g, final Layer active_layer,
+	final Runnable paint(final Graphics2D g, final Layer active_layer,
 			final boolean active, final Rectangle srcRect,
 			final double magnification, final Collection<Node<T>> to_paint,
 			final Tree<T> tree, final AffineTransform to_screen,
-			final boolean with_arrows, final boolean with_confidence_boxes) {
+			final boolean with_arrows, final boolean with_confidence_boxes,
+			final boolean with_data) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
 
 		final double actZ = active_layer.getZ();
@@ -199,7 +200,7 @@ public abstract class Node<T> implements Taggable {
 		} else if (actZ < thisZ) local_edge_color = Color.blue;
 		else local_edge_color = node_color;
 
-		paintData(g, srcRect, tree, to_screen, local_edge_color);
+		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color);
 
 		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
 

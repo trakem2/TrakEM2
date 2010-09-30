@@ -233,7 +233,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final ArrayList<Runnable> tags_tasks = new ArrayList<Runnable>();
 
 				for (final Node<T> nd : nodes) {
-					final Runnable task = nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+					final Runnable task = nd.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes, true);
 					if (null != task) tags_tasks.add(task);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();
@@ -248,12 +248,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 					if (null != nd.parent && !nodes.contains(nd.parent)) {
 						// ignore tags of parent node outside srcRect
-						nd.parent.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
+						nd.parent.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes, false);
 					}
 					if (active && active_layer == nd.la) handles[next++] = nd;
 				}
-				paintExtra(g, active_layer, active, srcRect, magnification,
-						nodes, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes);
 				for (final Runnable task : tags_tasks) task.run();
 				if (active) {
 					for (int i=0; i<next; i++) {
@@ -274,11 +272,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			g.setComposite(original_composite);
 		}
 	}
-	
-	protected void paintExtra(final Graphics2D g, final Layer active_layer,
-			final boolean active, final Rectangle srcRect, final double magnification,
-			final Set<Node<T>> to_paint, final AffineTransform to_screen,
-			final boolean with_arrows, final boolean with_confidence_boxes) {}
 
 	protected Rectangle getPaintingBounds() {
 		Rectangle box = null;
