@@ -686,7 +686,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public HashSet<Displayable> getLinked() { return hs_linked; }
 
 	/** Return those of Class c from among the directly linked. */
-	public HashSet<Displayable> getLinked(final Class c) {
+	public HashSet<Displayable> getLinked(final Class<?> c) {
 		if (null == hs_linked) return null;
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (final Displayable d : hs_linked) {
@@ -925,7 +925,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
-	public boolean isLinked(final Class c) {
+	public boolean isLinked(final Class<?> c) {
 		if (null == hs_linked) return false;
 		for (final Displayable d : hs_linked) {
 			if (c.isInstance(d)) return true;
@@ -940,7 +940,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
-	public boolean isOnlyLinkedTo(final Class c) {
+	public boolean isOnlyLinkedTo(final Class<?> c) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (final Displayable d : hs_linked) {
 			if (d.getClass() != c) return false;
@@ -949,7 +949,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
-	public boolean isOnlyLinkedTo(final Class c, final Layer layer) {
+	public boolean isOnlyLinkedTo(final Class<?> c, final Layer layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (final Displayable d : hs_linked) {
 			// if the class is not the asked one, or the object is not in the same layer, return false!
@@ -996,7 +996,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Unlink all Displayable objects of the given type linked by this. */
-	public void unlinkAll(final Class c) {
+	public void unlinkAll(final Class<?> c) {
 		if (!this.isLinked() || null == hs_linked) {
 			return;
 		}
@@ -1138,6 +1138,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	private class GD extends GenericDialog {
+		private static final long serialVersionUID = 1L;
 		Displayable displ;
 		Color dcolor;
 		float dalpha;
@@ -1703,7 +1704,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Concatenate the given affine to this and all its linked objects. */
 	public void transform(final AffineTransform at) {
-		for (final Displayable d : getLinkedGroup(new HashSet())) {
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
 			d.at.concatenate(at);
 			d.updateInDatabase("transform");
 			d.updateBucket();
@@ -1867,20 +1868,22 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					Utils.log2("WARNING: null val for " + e.getKey());
 					return false;
 				}
-				if (val instanceof HashMap) {
-					if ( ! identical((HashMap)val, (HashMap)e.getValue())) {
+				if (val instanceof HashMap<?,?>) {
+					if ( ! identical((HashMap<?,?>)val, (HashMap<?,?>)e.getValue())) {
 						return false;
 					}
 				} else if ( ! val.equals(e.getValue())) return false;
 			}
 			return true;
 		}
-		private boolean identical(final HashMap m1, final HashMap m2) {
+		private boolean identical(final HashMap<?,?> m1, final HashMap<?,?> m2) {
 			if (m1.size() != m2.size()) return false;
-			for (final Object entry : m1.entrySet()) {
-				final Map.Entry e = (Map.Entry) entry;
+			for (final Map.Entry<?,?> e : m1.entrySet()) {
 				// TODO this could fail if value is null
-				if ( ! e.getValue().equals(m2.get(e.getKey()))) return false;
+				final Object val1 = e.getValue(),
+							 val2 = m2.get(e.getKey());
+				if (null == val1 && null == val2) continue; // both values are null
+				if ( ! val1.equals(val2)) return false;
 			}
 			return true;
 		}
@@ -1903,7 +1906,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			return true;
 		}
 		synchronized DoEdit init(final Displayable d, final String[] fields) {
-			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
+			final Class<?>[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
 			for (int k=0; k<fields.length; k++) {
 				if ("data".equals(fields[k])) {
 					content.put(fields[k], d.getDataPackage());
@@ -1931,6 +1934,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
+		@SuppressWarnings("unchecked")
 		private final Object duplicate(final Object ob, final String field) {
 			if (ob instanceof Color) {
 				final Color c = (Color)ob;
@@ -1951,7 +1955,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		/** Set the stored data to the stored Displayable. */
 		public boolean apply(int action) {
-			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
+			final Class<?>[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
 			for (final Map.Entry<String,Object> e : content.entrySet()) {
 				String field = e.getKey();
 				if ("data".equals(field)) {
@@ -2017,6 +2021,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		public Displayable getD() { return null; }
 
+		@SuppressWarnings("unchecked")
 		public boolean isIdenticalTo(final Object ob) {
 			if (ob instanceof Collection<?>) {
 				final Collection<Displayable> col = (Collection<Displayable>) ob;
@@ -2061,7 +2066,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return null;
 	}
 	// Must be overriden by subclasses
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DataPackage.class;
 	}
 
@@ -2120,7 +2125,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			for (final Displayable d : l.getDisplayables(Patch.class)) {
 				if (d.isLinked()) {
 					for (final Displayable other : d.getLinked()) {
-						final Class c = other.getClass();
+						final Class<?> c = other.getClass();
 						if ( (!ignore_stacks && Patch.class == c && other.layer != d.layer)
 						   || (Profile.class == c && other.getLinked(Profile.class).size() > 0)
 						   || ZDisplayable.class.isAssignableFrom(c)) {
