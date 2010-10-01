@@ -824,11 +824,14 @@ public class Selection {
 
 	/** Call measure(ResultsTable) on every selected Displayable. */
 	public void measure() {
+		Utils.log2("Selection.measure");
 		final HashMap<Class<?>,ResultsTable> rts = new HashMap<Class<?>,ResultsTable>();
 		for (final Displayable d : getSelected()) {
+			Utils.log2("measured " + d);
 			ResultsTable rt1 = rts.get(d.getClass());
 			ResultsTable rt2 = d.measure(rt1);
-			if (null == rt1) rts.put(d.getClass(), rt2);
+			if (null == rt1 && null != rt2) rts.put(d.getClass(), rt2);
 		}
+		Utils.showAllTables(rts);
 	}
 }

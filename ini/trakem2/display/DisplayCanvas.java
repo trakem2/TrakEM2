@@ -1953,6 +1953,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				ProjectToolbar.keyPressed(ke);
 				ke.consume();
 				break;
+			case KeyEvent.VK_M:
+				Utils.log2("m");
+				if (0 == ke.getModifiers() && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
+					display.getSelection().measure();
+					ke.consume();
+				}
+				break;
 		}
 
 		if (ke.isConsumed()) return;
@@ -2069,12 +2076,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_N:
 				if (0 == ke.getModifiers() && null != active && active.getClass() == Profile.class) {
 					display.duplicateLinkAndSendTo(active, 1, active.getLayer().getParent().next(layer));
-					ke.consume();
-				}
-				break;
-			case KeyEvent.VK_M:
-				if (0 == ke.getModifiers() && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
-					display.getSelection().measure();
 					ke.consume();
 				}
 				break;
