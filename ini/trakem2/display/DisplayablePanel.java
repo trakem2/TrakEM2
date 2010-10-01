@@ -164,7 +164,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 
 	public void paint(final Graphics g) {
 		if (null == g) return;
-		if (display.getSelection().likelyContains(d)) {
+		if (display.getSelection().contains(d)) {
 			if (null != display.getActive() && display.getActive() == d) { // can be null when initializing ... because swing is designed with built-in async
 				setBackground(Color.cyan);
 			} else {

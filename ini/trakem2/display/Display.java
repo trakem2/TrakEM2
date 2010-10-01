@@ -1317,14 +1317,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			setTransparency(new_value / 100.0f);
 		}
 
-		public void mousePressed(MouseEvent me) {
-			if (tabs.getSelectedComponent() != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
-		}
-
 		public void mouseReleased(MouseEvent me) {
 			// update navigator window
 			navigator.repaint(true);
-			if (tabs.getSelectedComponent() != scroll_channels && !selection.isEmpty()) selection.addDataEditStep(new String[]{"alpha"});
 		}
 	}
 
