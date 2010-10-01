@@ -1,35 +1,40 @@
 package ini.trakem2.display;
 
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
+
 import java.awt.Dimension;
-import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.Area;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
+
 import javax.swing.JFrame;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JTable;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.IJError;
 
 /** List all connectors whose origins intersect with the given tree. */
 public class TreeConnectorsView {
 
+	static private Map<Tree<?>,TreeConnectorsView> open = Collections.synchronizedMap(new HashMap<Tree<?>,TreeConnectorsView>());
+	
 	private JFrame frame;
 	private TargetsTableModel outgoing_model = new TargetsTableModel(),
 				  incoming_model = new TargetsTableModel();
@@ -39,6 +44,7 @@ public class TreeConnectorsView {
 		this.tree = tree;
 		update();
 		createGUI();
+		open.put(tree,this);
 	}
 
 	static public Bureaucrat create(final Tree<?> tree) {
@@ -47,6 +53,12 @@ public class TreeConnectorsView {
 				new TreeConnectorsView(tree);
 			}
 		}, tree.getProject());
+	}
+
+	static public void dispose(final Tree<?> tree) {
+		TreeConnectorsView tcv = open.remove(tree);
+		if (null == tcv) return;
+		tcv.frame.dispose();
 	}
 
 	private class Row {
@@ -127,6 +139,11 @@ public class TreeConnectorsView {
 
 	private void createGUI() {
 		this.frame = new JFrame("Connectors for Tree #" + this.tree.getId());
+		frame.addWindowListener(new WindowAdapter() {
+			public void windowClosing(WindowEvent we) {
+				open.remove(tree);
+			}
+		});
 		JTabbedPane tabs = new JTabbedPane();
 		addTab(tabs, "Outgoing", outgoing_model);
 		addTab(tabs, "Incoming", incoming_model);
