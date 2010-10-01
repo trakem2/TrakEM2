@@ -50,7 +50,6 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
@@ -688,8 +687,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	 *  All children of the same type report to the same table.
 	 *  Result tables are returned without ever displaying them.
 	 */
-	public HashMap<Class,ResultsTable> measure(HashMap<Class,ResultsTable> ht) {
-		if (null == ht) ht = new HashMap<Class,ResultsTable>();
+	public HashMap<Class<?>,ResultsTable> measure(HashMap<Class<?>,ResultsTable> ht) {
+		if (null == ht) ht = new HashMap<Class<?>,ResultsTable>();
 		if (null != object && object instanceof Displayable) {
 			Displayable d = (Displayable)object;
 			if (d.isVisible()) {
@@ -714,21 +713,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 
 	/** Measure each node, recursively into children, and at the end display all the result tables, one for each data type. */
 	public void measure() {
-		final HashMap<Class,ResultsTable> ht = new HashMap<Class,ResultsTable>();
+		final HashMap<Class<?>,ResultsTable> ht = new HashMap<Class<?>,ResultsTable>();
 		measure(ht);
 		// Show all tables. Need to be done at the end -- otherwise, at each call to "show"
 		// the entire text panel is flushed and refilled with all data and repainted.
-		for (Map.Entry<Class,ResultsTable> entry : ht.entrySet()) {
-			final Class c = entry.getKey();
-			String title;
-			if (Profile_List.class == c) title = "Profile List";
-			else {
-				title = c.getName();
-				int idot = title.lastIndexOf('.');
-				if (-1 != idot) title = title.substring(idot+1);
-			}
-			entry.getValue().show(title + " results");
-		}
+		Utils.showAllTables(ht);
 	}
 
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
