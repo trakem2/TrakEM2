@@ -50,7 +50,14 @@ public class TreeConnectorsView {
 	static public Bureaucrat create(final Tree<?> tree) {
 		return Bureaucrat.createAndStart(new Worker.Task("Opening connectors table") {
 			public void exec() {
-				new TreeConnectorsView(tree);
+				TreeConnectorsView tcv = open.get(tree);
+				if (null != tcv) {
+					tcv.update();
+					tcv.frame.setVisible(true);
+					tcv.frame.toFront();
+				} else {
+					new TreeConnectorsView(tree);
+				}
 			}
 		}, tree.getProject());
 	}
