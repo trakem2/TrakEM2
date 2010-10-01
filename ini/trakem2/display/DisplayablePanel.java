@@ -49,6 +49,8 @@ import java.util.HashSet;
 
 public final class DisplayablePanel extends JPanel implements MouseListener {
 
+	private static final long serialVersionUID = 1L;
+
 	static public final int HEIGHT = 52;
 
 	static private ImageIcon LOCKED = new ImageIcon(DisplayablePanel.class.getResource("/img/locked.png"));
