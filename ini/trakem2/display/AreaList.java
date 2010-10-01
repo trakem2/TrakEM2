@@ -195,8 +195,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	public Layer getLastLayer() {
 		double max_z = -Double.MAX_VALUE;
 		Layer last_layer = null;
-		for (Iterator it = ht_areas.keySet().iterator(); it.hasNext(); ) {
-			Layer la = this.layer_set.getLayer(((Long)it.next()).longValue());
+		for (final Long lid : ht_areas.keySet()) {
+			Layer la = this.layer_set.getLayer(lid.longValue());
 			double z = la.getZ();
 			if (z > max_z) {
 				max_z = z;
@@ -216,17 +216,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		// cheap way: intersection of the patches' bounding box with the area
 		Rectangle r = new Rectangle();
 		boolean must_lock = false;
-		for (Iterator it = ht_areas.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Layer la = this.layer_set.getLayer(((Long)entry.getKey()).longValue());
+		for (final Map.Entry<Long,Area> e : ht_areas.entrySet()) {
+			Layer la = this.layer_set.getLayer(e.getKey());
 			if (null == la) {
-				Utils.log2("AreaList.linkPatches: ignoring null layer for id " + ((Long)entry.getKey()).longValue());
+				Utils.log2("AreaList.linkPatches: ignoring null layer for id " + e.getKey());
 				continue;
 			}
-			Area area = (Area)entry.getValue();
-			area = area.createTransformedArea(this.at);
-			for (Iterator dit = la.getDisplayables(Patch.class).iterator(); dit.hasNext(); ) {
-				Displayable d = (Displayable)dit.next();
+			final Area area = e.getValue().createTransformedArea(this.at);
+			for (final Patch d : la.getAll(Patch.class)) {
 				r = d.getBoundingBox(r);
 				if (area.intersects(r)) {
 					link(d, true);
@@ -376,13 +373,18 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				else box.add(b[i]);
 			}
 			if (null == box || 0 == box.width || 0 == box.height) return false; // empty AreaList
-			
-			final Map.Entry[] entry = new Map.Entry[area.length];
-			ht_areas.entrySet().toArray(entry);
+
 			final AffineTransform atb = new AffineTransform();
 			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
+			/*
+			final Map.Entry<Long,Area>[] entry = (Map.Entry<Long,Area>[])new Map.Entry[area.length];
+			ht_areas.entrySet().toArray(entry);
 			for (int i=0; i<area.length; i++) {
 				entry[i].setValue(area[i].createTransformedArea(atb));
+			}
+			*/
+			for (final Area a : ht_areas.values()) {
+				a.transform(atb);
 			}
 			//this.translate(box.x, box.y);
 			this.at.translate(box.x, box.y);
@@ -395,7 +397,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_area_list";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -461,36 +463,6 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			pit.next();
 			if (pit.isDone()) {
 				//Utils.log2("finishing");
-				return;
-			}
-		}
-	}
-	/** Exports the given area as a list of SVG path elements with integers only. Only reads SEG_MOVETO, SEG_LINETO and SEG_CLOSE elements, all others ignored (but could be just as easily saved in the SVG path). */
-	private void exportAreaT2(final StringBuilder sb, final String indent, final Area area) {
-		// I could add detectors for straight lines and thus avoid saving so many points.
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			float[] coords = new float[6];
-			int seg_type = pit.currentSegment(coords);
-			int x0=0, y0=0;
-			switch (seg_type) {
-				case PathIterator.SEG_MOVETO:
-					x0 = (int)coords[0];
-					y0 = (int)coords[1];
-					sb.append(indent).append("(path '(M ").append(x0).append(' ').append(y0);
-					break;
-				case PathIterator.SEG_LINETO:
-					sb.append(" L ").append((int)coords[0]).append(' ').append((int)coords[1]);
-					break;
-				case PathIterator.SEG_CLOSE:
-					// no need to make a line to the first point
-					sb.append(" z))\n");
-					break;
-				default:
-					Utils.log2("WARNING: AreaList.exportArea unhandled seg type.");
-					break;
-			}
-			pit.next();
-			if (pit.isDone()) {
 				return;
 			}
 		}
@@ -577,10 +549,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final boolean fp = !gd.getNextBoolean();
 		final boolean to_all = gd.getNextBoolean();
 		if (to_all) {
-			for (Iterator it = this.layer_set.getZDisplayables().iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				if (ob instanceof AreaList) {
-					AreaList ali = (AreaList)ob;
+			for (final ZDisplayable zd : this.layer_set.getZDisplayables()) {
+				if (zd.getClass() == AreaList.class) {
+					AreaList ali = (AreaList)zd;
 					ali.fill_paint = fp;
 					ali.updateInDatabase("fill_paint");
 					Display.repaint(this.layer_set, ali, 2);
@@ -603,10 +574,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	public boolean isFillPaint() { return this.fill_paint; }
 
 	/** Merge all arealists contained in the ArrayList to the first one found, and remove the others from the project, and only if they belong to the same LayerSet. Returns the merged AreaList object. */
-	static public AreaList merge(final ArrayList al) {
+	static public AreaList merge(final ArrayList<Displayable> al) {
 		AreaList base = null;
-		final ArrayList list = (ArrayList)al.clone();
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
+		final ArrayList<Displayable> list = new ArrayList<Displayable>(al);
+		for (final Iterator<Displayable> it = list.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
 			if (ob.getClass() != AreaList.class) it.remove();
 			if (null == base) {
@@ -622,7 +593,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			if (base.layer_set != ali.layer_set) it.remove();
 		}
 		if (list.size() < 1) return null; // nothing to fuse
-		for (Iterator it = list.iterator(); it.hasNext(); ) {
+		for (final Iterator<Displayable> it = list.iterator(); it.hasNext(); ) {
 			// add to base
 			AreaList ali = (AreaList)it.next();
 			base.add(ali);
@@ -1259,7 +1230,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	@Override
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DPAreaList.class;
 	}
 
@@ -1326,7 +1297,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			aff.scale(scale, scale);
 			ShapeRoi roi = new ShapeRoi(area.createTransformedArea(aff));
 			// Create a cropped snapshot of the images at Layer la under the area:
-			ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, (List<Patch>) (List) la.getDisplayables(Patch.class), Color.black);
+			ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, la.getAll(Patch.class), Color.black);
 			flat.setRoi(roi);
 			Rectangle rb = roi.getBounds();
 			ip.insert(flat.crop(), rb.x, rb.y);
