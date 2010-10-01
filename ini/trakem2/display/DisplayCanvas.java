@@ -2072,6 +2072,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				}
 				break;
+			case KeyEvent.VK_M:
+				if (0 == ke.getModifiers() && ProjectToolbar.getToolId() == ProjectToolbar.SELECT) {
+					display.getSelection().measure();
+					ke.consume();
+				}
+				break;
 			case KeyEvent.VK_1:
 			case KeyEvent.VK_2:
 			case KeyEvent.VK_3:
