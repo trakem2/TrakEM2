@@ -2064,6 +2064,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		imp.show();
 	}
 
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return rt;

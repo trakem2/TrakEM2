@@ -1238,6 +1238,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		return new StringBuilder("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return rt;

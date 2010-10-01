@@ -1613,6 +1613,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Measures the calibrated length, the lateral surface as the length times the layer thickness, and the volume (if closed) as the area times the layer thickness. */
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == rt) rt = Utils.createResultsTable("Profile results", new String[]{"id", "length", "side surface: length x thickness", "volume: area x thickness", "name-id"});
 		if (-1 == n_points) setupForDisplay();
