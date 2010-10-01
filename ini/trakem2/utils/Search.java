@@ -22,26 +22,65 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.display.*;
 import ini.trakem2.ControlWindow;
-import javax.swing.*;
-import javax.swing.table.*;
-import java.awt.event.*;
+import ini.trakem2.Project;
+import ini.trakem2.display.AreaList;
+import ini.trakem2.display.AreaTree;
+import ini.trakem2.display.Ball;
+import ini.trakem2.display.Connector;
+import ini.trakem2.display.Coordinate;
+import ini.trakem2.display.DLabel;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Dissector;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Node;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Polyline;
+import ini.trakem2.display.Profile;
+import ini.trakem2.display.Tag;
+import ini.trakem2.display.Tree;
+import ini.trakem2.display.Treeline;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.persistence.DBObject;
+
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
-import java.util.Hashtable;
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.Vector;
-import java.util.regex.*;
 import java.util.Map;
 import java.util.Set;
-import java.util.Collection;
+import java.util.Vector;
+import java.util.regex.Pattern;
+
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableModel;
 
 public class Search {
 	private JFrame search_frame = null;
@@ -52,7 +91,7 @@ public class Search {
 
 	static private Search instance = null;
 
-	private Class[] types = null;
+	private Class<?>[] types = null;
 
 
 	/** Creates the GUI for searching text in any TrakEM2 element. */
