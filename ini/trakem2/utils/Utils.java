@@ -30,6 +30,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.tree.ProjectThing.Profile_List;
 import ini.trakem2.vector.VectorString3D;
 import ini.trakem2.plugin.TPlugIn;
 
@@ -77,6 +78,7 @@ import javax.swing.JMenu;
 import java.lang.reflect.Field;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.LinkedList;
 import java.util.Iterator;
@@ -1705,5 +1707,19 @@ public class Utils implements ij.plugin.PlugIn {
 	public static final void invokeLater(final Runnable r) {
 		if (EventQueue.isDispatchThread()) r.run();
 		else SwingUtilities.invokeLater(r);
+	}
+
+	public static final void showAllTables(HashMap<Class<?>, ResultsTable> ht) {
+		for (Map.Entry<Class<?>,ResultsTable> entry : ht.entrySet()) {
+			final Class<?> c = entry.getKey();
+			String title;
+			if (Profile_List.class == c) title = "Profile List";
+			else {
+				title = c.getName();
+				int idot = title.lastIndexOf('.');
+				if (-1 != idot) title = title.substring(idot+1);
+			}
+			entry.getValue().show(title + " results");
+		}
 	}
 }
