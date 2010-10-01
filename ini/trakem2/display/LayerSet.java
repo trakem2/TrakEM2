@@ -1246,6 +1246,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return this.snapshots_mode;
 	}
 
+	@Override
 	public void destroy() {
 		for (Iterator<Layer> it = al_layers.iterator(); it.hasNext(); ) {
 			Layer layer = it.next();
