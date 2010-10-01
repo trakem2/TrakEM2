@@ -2962,6 +2962,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select upstream targets"); item.addActionListener(gl); graph.add(item);
 		graph.setEnabled(!selection.isEmpty());
 		menu.add(graph);
+
+		item = new JMenuItem("Measure"); item.addActionListener(this); menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_M, 0, true));
+		item.setEnabled(!selection.isEmpty());
+
 		popup.add(menu);
 
 		menu = new JMenu("Tool");
@@ -5061,6 +5066,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					Graph.extractAndShowGraph(getLayerSet());
 				}
 			}, getProject());
+		} else if (command.equals("Measure")) {
+			if (selection.isEmpty()) {
+				Utils.log("Nothing selected to measure!");
+				return;
+			}
+			selection.measure();
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
