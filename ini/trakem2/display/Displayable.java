@@ -608,13 +608,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			d.getBounds(rd);
 			if (null == rect) {
 				// the first one:
-				if (null == r) rect = (Rectangle) rd.clone();
-				else rect.setRect(rd);
+				rect = (Rectangle) rd.clone();
 			} else {
 				rect.add(rd);
 			}
 		}
-		return rect;
+		if (null == r) return rect;
+		r.setRect(rect);
+		return r;
 	}
 
 	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box of the data. */
