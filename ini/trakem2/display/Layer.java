@@ -339,6 +339,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
 		//
 		if (null != root) root.removeAll(old_stack_indices, new_stack_indices);
+		Display.updateVisibleTabs(this.project);
 		return ds.size() == old_stack_indices.size();
 	}
 

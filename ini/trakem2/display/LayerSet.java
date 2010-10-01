@@ -888,13 +888,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				removeFromOffscreens(zd);
 				Display.remove(zd);
 				old_stack_indices.put(zd, i);
-			} else {
-				Utils.log("LayerSet: not removing: " + zd);
 			}
 			i++;
 			if (old_stack_indices.size() == zds.size()) break;
 		}
 		removeFromBuckets(old_stack_indices);
+		Display.updateVisibleTabs(this.project);
 		return zds.size() == old_stack_indices.size();
 	}
 
