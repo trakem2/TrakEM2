@@ -1688,19 +1688,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (repaint_snapshot) navigator.repaint(true);
 	}
 
-	/*
-	private void addToPanel(JPanel panel, int index, DisplayablePanel dp, boolean repaint) {
-		// remove the label
-		if (1 == panel.getComponentCount() && panel.getComponent(0) instanceof JLabel) {
-			panel.removeAll();
-		}
-		panel.add(dp, index);
-		if (repaint) {
-			Utils.updateComponent(tabs);
-		}
-	}
-	*/
-
 	/** Find the displays that show the given Layer, and remove the given Displayable from the GUI. */
 	static public void remove(final Layer layer, final Displayable displ) {
 		for (final Display d : al_displays) {
