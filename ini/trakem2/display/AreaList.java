@@ -984,7 +984,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UBs-surface", "UB-surface", "AVGs-surface", "AVG-surface", "max diameter", "name-id"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UBs-surface", "UB-surface", "AVGs-surface", "AVG-surface", "max diameter", "Sum of tops", "name-id"});
 		rt.incrementCounter();
 		rt.addLabel("units", layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
@@ -996,19 +996,21 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		rt.addValue(5, (m[1] + m[2]) / 2); // average of LB and UBs
 		rt.addValue(6, (m[1] + m[3]) / 2); // average of LB and UB
 		rt.addValue(7, m[4]); // max diameter
-		rt.addValue(8, getNameId());
+		rt.addValue(8, m[5]); // sum of all cappings (tops and bottoms)
+		rt.addValue(9, getNameId());
 		return rt;
 	}
 
-	/** Returns a double array with 0=volume, 1=lower_bound_surface, 2=upper_bound_surface_smoothed, 3=upper_bound_surface, 4=max_diameter.
+	/** Returns a double array with 0=volume, 1=lower_bound_surface, 2=upper_bound_surface_smoothed, 3=upper_bound_surface, 4=max_diameter, 5=all_tops_and_bottoms
 	 *  All measures are approximate.
 	 *  [0] Volume: sum(area * thickness) for all sections
-	 *  [1] Lower Bound Surface: measure area per section, compute radius of circumference of identical area, compute then are of the sides of the truncated cone of height thickness, for each section. Plus top and bottom areas when visiting sections without a painted area.
+	 *  [1] Lower Bound Surface: measure area per section, compute radius of circumference of identical area, compute then area of the sides of the truncated cone of height thickness, for each section. Plus top and bottom areas when visiting sections without a painted area.
 	 *  [2] Upper Bound Surface Smoothed: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
 	 *  [3] Upper Bound Surface: measure raw pixelated perimeter lengths per section, multiply by thickness to get lateral area. Plus top and bottoms.
-	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas. */
+	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas.
+	 *  [5] All tops and bottoms: Sum of all included surface areas that are not part of side area. */
 	public double[] measure() {
-		if (0 == ht_areas.size()) return new double[5]; // zeros
+		if (0 == ht_areas.size()) return new double[6]; // zeros
 
 		// prepare suitable transform
 		AffineTransform aff = (AffineTransform)this.at.clone();
@@ -1028,6 +1030,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		double prev_perimeter = 0;
 		double prev_smooth_perimeter = 0;
 		double prev_thickness = 0;
+		double all_tops_and_bottoms = 0;  // i.e. surface area that is not part of the side area
 
 		Calibration cal = layer_set.getCalibration();
 		final double pixelWidth = cal.pixelWidth;
@@ -1153,17 +1156,20 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
 				upper_bound_surface_smoothed += surface;
+				all_tops_and_bottoms += surface;
 			} else if (layer_index - last_layer_index > 1) {
-				// End of a continuous set
-				// sum the last surface and its side:
+				// End of a continuous set ...
+				// Sum the last surface and its side:
 				lower_bound_surface_h += prev_surface + prev_thickness * 2 * Math.sqrt(prev_surface * Math.PI); //   (2x + 2x) / 2   ==   2x
 				upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
 				upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
-
+				all_tops_and_bottoms += prev_surface;
+				
 				// ... and start of a new set
 				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
 				upper_bound_surface_smoothed += surface;
+				all_tops_and_bottoms += surface;
 			} else {
 				// Continuation of a set: use this Area and the previous as continuous
 				double diff_surface = Math.abs(prev_surface - surface);
@@ -1214,7 +1220,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		lower_bound_surface_h += prev_surface + prev_perimeter * prev_thickness;
 		upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
 		upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
-
+		all_tops_and_bottoms += prev_surface;
 
 		// Compute maximum diameter
 		double max_diameter_sq = 0;
@@ -1227,7 +1233,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			}
 		}
 
-		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq)};
+		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq), all_tops_and_bottoms};
 	}
 
 	@Override
