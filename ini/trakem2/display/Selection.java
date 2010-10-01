@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -37,6 +38,7 @@ import java.awt.geom.Area;
 import java.awt.image.ColorModel;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -55,7 +57,6 @@ public class Selection {
 	private final LinkedList<Displayable> queue = new LinkedList<Displayable>();
 	private final LinkedList<Displayable> queue_prev = new LinkedList<Displayable>();
 	private final Object queue_lock = new Object();
-	private boolean queue_locked = false;
 	/** All selected objects plus their links. */
 	private final HashSet<Displayable> hs = new HashSet<Displayable>();
 	private Displayable active = null;
@@ -818,6 +819,16 @@ public class Selection {
 				if (null == box) box = (Rectangle)b.clone();
 				box.add(b);
 			}
+		}
+	}
+
+	/** Call measure(ResultsTable) on every selected Displayable. */
+	public void measure() {
+		final HashMap<Class<?>,ResultsTable> rts = new HashMap<Class<?>,ResultsTable>();
+		for (final Displayable d : getSelected()) {
+			ResultsTable rt1 = rts.get(d.getClass());
+			ResultsTable rt2 = d.measure(rt1);
+			if (null == rt1) rts.put(d.getClass(), rt2);
 		}
 	}
 }
