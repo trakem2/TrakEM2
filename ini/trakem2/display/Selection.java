@@ -44,8 +44,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.python.modules.synchronize;
-
 /** Keeps track of selected objects and mediates their transformation.*/ 
 public class Selection {
 
