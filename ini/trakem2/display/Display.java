@@ -4434,7 +4434,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}});
 			burro.goHaveBreakfast();
 		} else if (command.equals("Reroot")) {
-			if (!(active instanceof Tree)) return;
+			if (!(active instanceof Tree<?>)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			getLayerSet().addDataEditStep(active);
@@ -4442,7 +4442,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			getLayerSet().addDataEditStep(active);
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Part subtree")) {
-			if (!(active instanceof Tree)) return;
+			if (!(active instanceof Tree<?>)) return;
 			if (!Utils.check("Really part the subtree?")) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
