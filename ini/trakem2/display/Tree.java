@@ -3463,4 +3463,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		return tags;
 	}
+	
+	@Override
+	public void destroy() {
+		super.destroy();
+		TreeConnectorsView.dispose(this);
+	}
 }
