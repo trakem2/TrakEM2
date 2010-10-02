@@ -711,7 +711,7 @@ public class Treeline extends Tree<Float> {
 			}
 		}
 		
-		Utils.log2("Treeline MeshData lists of same length: " + (ps.size() == colors.size()));
+		//Utils.log2("Treeline MeshData lists of same length: " + (ps.size() == colors.size()));
 
 		return new MeshData(ps, colors);
 	}
