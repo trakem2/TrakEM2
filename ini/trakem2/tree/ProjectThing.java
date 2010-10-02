@@ -399,8 +399,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Returns a list of parent types (String), in order, for the given Thing if it exists as a child in the traversed trees. This method returns the first path that it finds, avoiding a check to uniquePathExists(type). */
-	public ArrayList getTemplatePathTo(String type) {
-		return template.getTemplatePathTo(type, new ArrayList());
+	public ArrayList<TemplateThing> getTemplatePathTo(String type) {
+		return template.getTemplatePathTo(type, new ArrayList<TemplateThing>());
 	}
 
 	public String getType() {
@@ -411,16 +411,15 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return template;
 	}
 
-	public JMenuItem[] getPopupItems(ActionListener listener) {
+	public JMenuItem[] getPopupItems(final ActionListener listener) {
 		JMenuItem item = null;
-		ArrayList al_items = new ArrayList();
+		ArrayList<JMenuItem> al_items = new ArrayList<JMenuItem>();
 
 		JMenu menu = new JMenu("Add...");
-		final ArrayList tc = project.getTemplateThing(template.getType()).getChildren(); // call the project unique type
+		final ArrayList<TemplateThing> tc = project.getTemplateThing(template.getType()).getChildren(); // call the project unique type
 		if (null != tc) {
-			Iterator it = tc.iterator();
-			while (it.hasNext()) {
-				item = new JMenuItem("new " + ((Thing)it.next()).getType());
+			for (final TemplateThing tt : tc) {
+				item = new JMenuItem("new " + tt.getType());
 				item.addActionListener(listener);
 				menu.add(item);
 			}
@@ -452,7 +451,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			addPopupItem("Show centered in Display", listener, al_items);
 		}
 
-		if (null != object && object instanceof Tree) {
+		if (null != object && object instanceof Tree<?>) {
 			addPopupItem("Show tabular view", listener, al_items);
 		}
 
@@ -487,7 +486,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return items;
 	}
 
-	private JMenuItem addPopupItem(String command, ActionListener listener, ArrayList al_items) {
+	private JMenuItem addPopupItem(String command, ActionListener listener, ArrayList<JMenuItem> al_items) {
 		JMenuItem item = new JMenuItem(command);
 		item.addActionListener(listener);
 		al_items.add(item);
@@ -514,28 +513,27 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			final ProjectThing pt = createChild(type);
 			if (null == pt) continue;
 			al.add(pt);
-			if (recursive) pt.createChildren(al, new HashSet());
+			if (recursive) pt.createChildren(al, new HashSet<String>());
 		}
 		return al;
 	}
 
 	/** Recursively create one instance of each possible children, and store them in the given ArrayList. Will stop if the new child to create has already been created as a parent, i.e. if it's nested. */
-	private void createChildren(final ArrayList<ProjectThing> nc, final HashSet parents) {
+	private void createChildren(final ArrayList<ProjectThing> nc, final HashSet<String> parents) {
 		if (parents.contains(template.getType())) {
 			// don't dive into nested nodes
 			return;
 		}
 		parents.add(template.getType());
 		// the template itself is never nested; the ProjectThing has a pointer to the master one.
-		final ArrayList children = template.getChildren();
+		final ArrayList<TemplateThing> children = template.getChildren();
 		if (null == children) return;
-		for (Iterator it = children.iterator(); it.hasNext(); ) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (final TemplateThing tt : children) {
 			if (parents.contains(tt.getType())) continue; // don't create directly nested types
 			ProjectThing newchild = createChild(tt.getType());
 			if (null == newchild) continue;
 			nc.add(newchild);
-			newchild.createChildren(nc, (HashSet)parents.clone()); // each branch needs its own copy of the parent chain
+			newchild.createChildren(nc, new HashSet<String>(parents)); // each branch needs its own copy of the parent chain
 		}
 	}
 
@@ -736,10 +734,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Check if this Thing directly contains any child of the given type, and return them all. */
-	public ArrayList findChildrenOfType(final String type) {
-		ArrayList al = new ArrayList();
+	public ArrayList<ProjectThing> findChildrenOfType(final String type) {
+		ArrayList<ProjectThing> al = new ArrayList<ProjectThing>();
 		if (null == al_children) return al;
-		for (ProjectThing pt : al_children) {
+		for (final ProjectThing pt : al_children) {
 			if (pt.template.getType().equals(type)) {
 				al.add(pt);
 			}
@@ -752,14 +750,14 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (null == al_children) return al;
 		for (final ProjectThing pt : al_children) {
 			if (c.isInstance(pt.object)) {
-				al.add((T)pt);
+				al.add((T)pt.object);
 			}
 		}
 		return al;
 	}
 
 	/** Recursive into children. */
-	public HashSet findChildrenOfTypeR(final String type) {
+	public HashSet<ProjectThing> findChildrenOfTypeR(final String type) {
 		return findChildrenOfTypeR(new HashSet<ProjectThing>(), type);
 	}
 	/** Recursive into children. */
@@ -775,11 +773,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Finds them in order. Recursive into children. */
-	public List<ProjectThing> findChildrenOfTypeR(final Class c) {
+	public List<ProjectThing> findChildrenOfTypeR(final Class<?> c) {
 		return findChildrenOfTypeR(new ArrayList<ProjectThing>(), c);
 	}
 	/** Finds them in order. Recursive into children. */
-	public List<ProjectThing> findChildrenOfTypeR(List<ProjectThing> list, final Class c) {
+	public List<ProjectThing> findChildrenOfTypeR(List<ProjectThing> list, final Class<?> c) {
 		if (null == list) list = new ArrayList<ProjectThing>();
 		if (c.isInstance(object)) list.add(this);
 		if (null == al_children) return list;

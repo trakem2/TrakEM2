@@ -440,7 +440,7 @@ public class Compare {
 				for (final ProjectThing c : children) {
 					if (hs_c_done.contains(c)) continue; // already visited
 					// c is at the same tree level as child (which contains a pipe directly)
-					ArrayList child_pipes = c.findChildrenOfType(Line3D.class);
+					ArrayList<Line3D> child_pipes = c.findChildrenOfType(Line3D.class);
 					if (child_pipes.size() > 0) {
 						Chain ca;
 						if (first) {

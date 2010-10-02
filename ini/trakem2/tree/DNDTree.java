@@ -525,7 +525,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	/** Will add only those for which a node doesn't exist already. */
-	public void addLeafs(final java.util.List<Thing> leafs, final Runnable after) {
+	public void addLeafs(final java.util.List<? extends Thing> leafs, final Runnable after) {
 		javax.swing.SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (final Thing th : leafs) {
 			// find parent node

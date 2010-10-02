@@ -30,8 +30,6 @@ import ini.trakem2.Project;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Map;
 
 public final class TemplateThing extends DBObject implements Thing {
 
@@ -123,23 +121,18 @@ public final class TemplateThing extends DBObject implements Thing {
 
 	public TemplateThing getChildTemplate(String type) {
 		if (null == al_children) return null;
-		Iterator it = al_children.iterator();
-		while (it.hasNext()) {
-			TemplateThing child = (TemplateThing)it.next();
-			if (child.type.equals(type)) {
-				return child;
-			}
+		for (final TemplateThing child : al_children) {
+			if (child.type.equals(type)) return child;
 		}
 		return null;
 	}
 
 	public boolean addChild(Thing child) {
 		if (null == child) return false;
-		if (null == al_children) al_children = new ArrayList();
+		if (null == al_children) al_children = new ArrayList<TemplateThing>();
 		else {
 			// check that no child is already of the same type as the new child
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				TemplateThing tc = (TemplateThing) it.next();
+			for (final TemplateThing tc : al_children) {
 				if (tc.type.equals(((TemplateThing)child).type)) {
 					Utils.log2("TemplateThing.addChild: already have a child of type " + tc.type);
 					//Utils.printCaller(this, 10);
@@ -165,8 +158,7 @@ public final class TemplateThing extends DBObject implements Thing {
 
 	public boolean canHaveAsChild(Thing thing) {
 		if (null == thing || null == al_children) return false;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (final TemplateThing tt : al_children) {
 			if (tt.type.equals(thing.getType())) {
 				return true;
 			}
@@ -177,16 +169,15 @@ public final class TemplateThing extends DBObject implements Thing {
 	/** Check if a unique path exists through the child trees until reaching a Thing of the given type. Does not look inside that found thing if any. */
 	public boolean uniquePathExists(String type) {
 		if (null == al_children) return false;
-		ArrayList al = scanChildTrees(type, new ArrayList(), new HashSet());
-		return 1 == al.size();
+		return 1 == scanChildTrees(type, new ArrayList<TemplateThing>(), new HashSet<TemplateThing>()).size();
 	}
 
 	// recursive
-	private ArrayList scanChildTrees(String type, ArrayList al, HashSet hs_done) {
-		if (null == al) al = new ArrayList();
+	private ArrayList<TemplateThing> scanChildTrees(final String type, ArrayList<TemplateThing> al,
+			HashSet<TemplateThing> hs_done) {
+		if (null == al) al = new ArrayList<TemplateThing>();
 		if (null == al_children) return al;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (final TemplateThing tt : al_children) {
 			if (tt.type.equals(type)) {
 				al.add(tt);
 				// don't look any further down for this found Thing
@@ -201,11 +192,10 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Returns the list of parents to reach a particular child, starting at this, and including the child. Only the first path is reported, others are ignored. */
-	protected ArrayList getTemplatePathTo(String type, ArrayList al) {
+	protected ArrayList<TemplateThing> getTemplatePathTo(String type, ArrayList<TemplateThing> al) {
 		al.add(this);
 		if (null == al_children) return al;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (final TemplateThing tt : al_children) {
 			if (tt.type.equals(type)) {
 				// end. Return the list of parents to get here, plus the found type at the end as a means of signal
 				//Utils.log2("found " + tt);
@@ -214,7 +204,7 @@ public final class TemplateThing extends DBObject implements Thing {
 			} else {
 				// scan its children, if any
 				//Utils.log2("looking at " + tt);
-				ArrayList al2 = tt.getTemplatePathTo(type, (ArrayList)al.clone());
+				ArrayList<TemplateThing> al2 = tt.getTemplatePathTo(type, new ArrayList<TemplateThing>(al));
 		/*
 		//debug:
 		String all = "";
@@ -268,8 +258,7 @@ public final class TemplateThing extends DBObject implements Thing {
 		if (ht.containsKey(this.type)) return ht;
 		ht.put(this.type, this);
 		if (null == al_children || al_children.isEmpty()) return ht;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (final TemplateThing tt : al_children) {
 			tt.getUniqueTypes(ht);
 		}
 		return ht;
@@ -340,33 +329,33 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Recursive into children, find those of the given type that have the same immediate parent type as the given TemplateThing. */
-	public HashSet<TemplateThing> collectSimilarThings(TemplateThing tt, HashSet<TemplateThing> hs) {
-		if (type.equals(tt.type) && parent.getType().equals(tt.getParent().getType())) {
+	public HashSet<TemplateThing> collectSimilarThings(final TemplateThing tt, final HashSet<TemplateThing> hs) {
+		if (type.equals(tt.type) && parent.type.equals(tt.parent.type)) {
 			hs.add(this);
 		}
 		if (null == al_children || al_children.isEmpty()) return hs;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			hs = ((TemplateThing)it.next()).collectSimilarThings(tt, hs);
+		for (final TemplateThing child : al_children) {
+			child.collectSimilarThings(tt, hs);
 		}
 		return hs;
 	}
 
 	/** Recursive into children, find those of the same type as the given TemplateThing and whose number of children is the same to those of the given TemplateThing (to exclude nested types). */
-	public HashSet collectSimilarThings2(TemplateThing tt, HashSet hs) {
+	public HashSet<TemplateThing> collectSimilarThings2(final TemplateThing tt, final HashSet<TemplateThing> hs) {
 		if (type.equals(tt.type) && (al_children == tt.al_children /*if both are null*/ || (null != al_children && null != tt.al_children && al_children.size() == tt.al_children.size()))) hs.add(this);
 		if (null == al_children || al_children.isEmpty()) return hs;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			hs = ((TemplateThing)it.next()).collectSimilarThings2(tt, hs);
+		for (final TemplateThing child : al_children) {
+			child.collectSimilarThings2(tt, hs);
 		}
 		return hs;
 	}
 
 	/** Find things of the same type, even if their parents are different, recusively into children. */
-	public HashSet collectThingsOfEqualType(TemplateThing tt, HashSet hs) {
+	public HashSet<TemplateThing> collectThingsOfEqualType(final TemplateThing tt, final HashSet<TemplateThing> hs) {
 		if (type.equals(tt.type)) hs.add(this);
 		if (null == al_children || al_children.isEmpty()) return hs;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			hs = ((TemplateThing)it.next()).collectThingsOfEqualType(tt, hs);
+		for (final TemplateThing child : al_children) {
+			child.collectThingsOfEqualType(tt, hs);
 		}
 		return hs;
 	}
@@ -384,7 +373,7 @@ public final class TemplateThing extends DBObject implements Thing {
 	}
 
 	/** Only the header !ELEMENT and !ATTLIST. */
-	public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String tag = type.replace(' ', '_');
 		if (hs.contains(tag)) return;
 		hs.add(tag);
@@ -392,10 +381,10 @@ public final class TemplateThing extends DBObject implements Thing {
 		if (null != al_children && 0 != al_children.size()) {
 			sb_header.append(" (");
 			int c = 0;
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+			for (final TemplateThing child : al_children) {
 				if (0 != c) sb_header.append(", ");
 				c++;
-				sb_header.append(((TemplateThing)it.next()).type);
+				sb_header.append(child.type);
 			}
 			sb_header.append(")");
 		} else {
@@ -404,34 +393,32 @@ public final class TemplateThing extends DBObject implements Thing {
 		sb_header.append(">\n");
 		sb_header.append(indent).append("<!ATTLIST ").append(tag).append(" id NMTOKEN #REQUIRED>\n"); // 'id' exists separate from the other attributes
 		// if it's a basic type it can contain a DBObject
-		if (project.isBasicType(type)) {
+		if (Project.isBasicType(type)) {
 			sb_header.append(indent).append("<!ATTLIST ").append(tag).append(" oid NMTOKEN #REQUIRED>\n");
 		}
 		// node expanded state
 		sb_header.append(indent).append("<!ATTLIST ").append(tag).append(" expanded NMTOKEN #REQUIRED>\n"); // TODO should not say #REQUIRED but optional, in XMLese
 		// recurse into children
 		if (null != al_children && 0 != al_children.size()) {
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((TemplateThing)it.next()).exportDTD(sb_header, hs, indent);
+			for (final TemplateThing child : al_children) {
+				child.exportDTD(sb_header, hs, indent);
 			}
 		}
 	}
 
-	public void exportXMLTemplate(StringBuffer sb_header, StringBuffer sb_body, HashSet hs, String indent) {
+	public void exportXMLTemplate(StringBuffer sb_header, StringBuffer sb_body, HashSet<String> hs, String indent) {
 		// write in opening tag, put in there the attributes (and also to sb_header), then close, then call the children (indented), then closing tag.
 		// 0 - ELEMENT and ATTLIST
-		boolean write_attr = false;
 		if (!hs.contains(type)) {
 			hs.add(type);
-			write_attr = true;
 			sb_header.append("\t<!ELEMENT ").append(type);
 			if (null != al_children && 0 != al_children.size()) {
 				sb_header.append(" (");
 				int c = 0;
-				for (Iterator it = al_children.iterator(); it.hasNext(); ) {
+				for (final TemplateThing child : al_children) {
 					if (0 != c) sb_header.append(", ");
 					c++;
-					sb_header.append(((TemplateThing)it.next()).type);
+					sb_header.append(child.type);
 				}
 				sb_header.append(")");
 			} else {
@@ -445,8 +432,8 @@ public final class TemplateThing extends DBObject implements Thing {
 		sb_body.append(">\n");
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((TemplateThing)it.next()).exportXMLTemplate(sb_header, sb_body, hs, indent + "\t");
+			for (final TemplateThing child : al_children) {
+				child.exportXMLTemplate(sb_header, sb_body, hs, indent + "\t");
 			}
 		}
 		// 3 - closing tag:
@@ -487,8 +474,8 @@ public final class TemplateThing extends DBObject implements Thing {
 		copy.addToDatabase();
 		// clone children
 		if (null == al_children) return copy;
-		for (final Iterator it = al_children.iterator(); it.hasNext(); ) {
-			copy.addChild(((TemplateThing)it.next()).clone(pr, copy_id));
+		for (final TemplateThing child : al_children) {
+			copy.addChild(child.clone(pr, copy_id));
 		}
 		return copy;
 	}
