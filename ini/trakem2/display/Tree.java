@@ -3469,4 +3469,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		super.destroy();
 		TreeConnectorsView.dispose(this);
 	}
+
+	public HashMap<Node<T>,Integer> computeAllDegrees() {
+		if (null == root) return new HashMap<Node<T>,Integer>();
+		return root.computeAllDegrees();
+	}
+	
+	public Collection<Node<T>> getBranchNodes() {
+		if (null == root) return new ArrayList<Node<T>>();
+		return root.getBranchNodes();
+	}
+	public Collection<Node<T>> getBranchAndEndNodes() {
+		if (null == root) return new ArrayList<Node<T>>();
+		return root.getBranchAndEndNodes();
+	}
 }

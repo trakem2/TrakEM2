@@ -383,6 +383,21 @@ public abstract class Node<T> implements Taggable {
 		return new NodeCollection<T>(this, SlabIterator.class);
 	}
 
+	/** Returns a lazy read-only Collection of all branch and end nodes under this node. */
+	public final Collection<Node<T>> getBranchAndEndNodes() {
+		return new NodeCollection<T>(this, BranchAndEndNodeIterator.class);
+	}
+
+	/** Returns a lazy read-only Collection of all branch nodes under this node. */
+	public final Collection<Node<T>> getBranchNodes() {
+		return new NodeCollection<T>(this, BranchNodeIterator.class);
+	}
+
+	/** Returns a lazy read-only Collection of all end nodes under this node. */
+	public final Collection<Node<T>> getEndNodes() {
+		return new NodeCollection<T>(this, EndNodeIterator.class);
+	}
+
 	/** Only this node, not any of its children. */
 	final public void translate(final float dx, final float dy) {
 		x += dx;
@@ -495,6 +510,34 @@ public abstract class Node<T> implements Taggable {
 	    }
 	    return listA;
 	}
+
+	/** Return a map of node vs degree of that node, for the entire subtree (including this node). */
+	public HashMap<Node<T>,Integer> computeAllDegrees() {
+		final HashMap<Node<T>,Integer> degrees = new HashMap<Node<T>, Integer>();
+		int degree = 1;
+		ArrayList<Node<T>> next_level = new ArrayList<Node<T>>();
+		ArrayList<Node<T>> current_level = new ArrayList<Node<T>>();
+		current_level.add(this);
+		do {
+			for (final Node<T> nd : current_level) {
+				degrees.put(nd, degree);
+				if (null != nd.children) {
+					for (final Node<T> child : nd.children) {
+						next_level.add(child);
+					}
+				}
+			}
+			// rotate lists:
+			current_level.clear();
+			ArrayList<Node<T>> tmp = current_level;
+			current_level = next_level;
+			next_level = tmp;
+			degree++;
+		} while (!current_level.isEmpty());
+
+		return degrees;
+	}
+
 	/** Assumes this is NOT a graph with cycles. Non-recursive to avoid stack overflows. */
 	final void setRoot() {
 		// Works, but can be done in one pass TODO
@@ -919,6 +962,24 @@ public abstract class Node<T> implements Taggable {
 		@Override
 		public boolean accept(final Node<I> node) {
 			return 1 != node.getChildrenCount();
+		}
+	}
+	static public class BranchNodeIterator<I> extends FilteredIterator<I> {
+		public BranchNodeIterator(final Node <I> first) {
+			super(first);
+		}
+		@Override
+		public boolean accept(final Node<I> node) {
+			return node.getChildrenCount() > 1;
+		}
+	}
+	static public class EndNodeIterator<I> extends FilteredIterator<I> {
+		public EndNodeIterator(final Node <I> first) {
+			super(first);
+		}
+		@Override
+		public boolean accept(final Node<I> node) {
+			return 0 == node.getChildrenCount();
 		}
 	}
 
