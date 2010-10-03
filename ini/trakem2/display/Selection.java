@@ -68,7 +68,7 @@ public class Selection {
 		this.display = display;
 	}
 
-	public void setActive(Displayable d) {
+	public void setActive(final Displayable d) {
 		synchronized (queue_lock) {
 			try {
 				if (!queue.contains(d)) {
@@ -80,12 +80,12 @@ public class Selection {
 					if (active instanceof ZDisplayable) {
 						active.setLayer(display.getLayer());
 					}
-					display.setActive(d);
 				}
 			} catch (Exception e) {
 				IJError.print(e);
 			}
 		}
+		display.setActive(d);
 	}
 
 	public Displayable getActive() {
@@ -97,41 +97,41 @@ public class Selection {
 			Utils.log2("Selection.add warning: skipping null ob");
 			return;
 		}
-		synchronized (queue_lock) {
 		try {
-			this.active = d;
-			if (queue.contains(d)) {
-				if (null != display) {
-					if (d instanceof ZDisplayable) d.setLayer(display.getLayer());
-					display.setActive(d);
+			synchronized (queue_lock) {
+				this.active = d;
+				if (queue.contains(d)) {
+					if (null != display) {
+						if (d instanceof ZDisplayable) d.setLayer(display.getLayer());
+					}
+					Utils.log2("Selection.add warning: already have " + d + " selected.");
+					return;
 				}
-				Utils.log2("Selection.add warning: already have " + d + " selected.");
-				return;
-			}
-			setPrev(queue);
-			queue.add(d);
-			//Utils.log("box before adding: " + box);
-			// add it's box to the selection box
-			Rectangle b = d.getBoundingBox(new Rectangle());
-			if (null == box) box = b;
-			else box.add(b);
-			//Utils.log("box after adding: " + box);
-			// check if it was among the linked already before adding it's links and its transform
-			if (!hs.contains(d)) {
-				hs.add(d);
-				// now, grab the linked group and add it as well to the hashtable
-				HashSet<Displayable> hsl = d.getLinkedGroup(new HashSet<Displayable>());
-				if (null != hsl) {
-					for (final Displayable displ : hsl) {
-						if (!hs.contains(displ)) hs.add(displ);
+				setPrev(queue);
+				queue.add(d);
+				//Utils.log("box before adding: " + box);
+				// add it's box to the selection box
+				Rectangle b = d.getBoundingBox(new Rectangle());
+				if (null == box) box = b;
+				else box.add(b);
+				//Utils.log("box after adding: " + box);
+				// check if it was among the linked already before adding it's links and its transform
+				if (!hs.contains(d)) {
+					hs.add(d);
+					// now, grab the linked group and add it as well to the hashtable
+					HashSet<Displayable> hsl = d.getLinkedGroup(new HashSet<Displayable>());
+					if (null != hsl) {
+						for (final Displayable displ : hsl) {
+							if (!hs.contains(displ)) hs.add(displ);
+						}
 					}
 				}
 			}
-			// finally:
-			if (null != display) display.setActive(d);
 		} catch (Exception e) {
 			IJError.print(e);
-		}}
+		} finally {
+			if (null != display) display.setActive(d);
+		}
 	}
 	
 	/** Select all objects in the Display's current layer, preserving the active one (if any) as active; includes all the ZDisplayables, whether visible in this layer or not. */
@@ -209,47 +209,57 @@ public class Selection {
 	}
 
 	public void selectAll(Collection<? extends Displayable> al) {
-		synchronized (queue_lock) {
+		Displayable the_active = null;
 		try {
-			setPrev(queue);
-			for (final Displayable d : al) {
-				if (queue.contains(d)) continue;
-				queue.add(d);
-				if (hs.contains(d)) continue;
-				hs.add(d);
-				// now, grab the linked group and add it as well to the hashset
-				HashSet<Displayable> hsl = d.getLinkedGroup(new HashSet<Displayable>());
-				if (null != hsl) {
-					for (final Displayable displ : hsl) {
-						if (!hs.contains(displ)) hs.add(displ);
+			synchronized (queue_lock) {
+				setPrev(queue);
+				for (final Displayable d : al) {
+					if (queue.contains(d)) continue;
+					queue.add(d);
+					if (hs.contains(d)) continue;
+					hs.add(d);
+					// now, grab the linked group and add it as well to the hashset
+					HashSet<Displayable> hsl = d.getLinkedGroup(new HashSet<Displayable>());
+					if (null != hsl) {
+						for (final Displayable displ : hsl) {
+							if (!hs.contains(displ)) hs.add(displ);
+						}
+					}
+				}
+
+				resetBox();
+
+				if (null != display) {
+					if (null == this.active) {
+						this.active = the_active = queue.getLast();
 					}
 				}
 			}
-
-			resetBox();
-
-			if (null != display) {
-				if (null == this.active) {
-					display.setActive((Displayable)queue.getLast());
-					this.active = display.getActive();
-				}
-				Display.update(display.getLayer());
-			}
 		} catch (Exception e) {
 			IJError.print(e);
-		}}
+		} finally {
+			display.setActive(the_active);
+			Display.update(display.getLayer());
+		}
 	}
 
 	/** Delete all selected objects from their Layer. */
 	public boolean deleteAll() {
-		if (0 == queue.size()) return true; // nothing to remove
-		if (!Utils.check("Remove " + queue.size() + " selected object" + (1 == queue.size() ? "?" : "s?"))) return false;
-		
-		final HashSet<Displayable> set = new HashSet<Displayable>(queue.size());
+		int size = 0;
 		synchronized (queue_lock) {
+			size = queue.size();
+			if (0 == size) return false;
+		}
+		if (!Utils.check("Remove " + size + " selected object" + (1 == size ? "?" : "s?"))) return false;
+
+		final HashSet<Displayable> set = new HashSet<Displayable>();
+		synchronized (queue_lock) {
+			if (size != queue.size()) {
+				Utils.log("Number of selected objects has changed!");
+				return false;
+			}
 			try {
 				setPrev(queue);
-				if (null != display) display.setActive(null);
 				this.active = null;
 				set.addAll(queue);
 				queue.clear();
@@ -257,9 +267,12 @@ public class Selection {
 				IJError.print(e);
 			}
 		}
-		
-		if (null != display) display.getLayerSet().addChangeTreesStep();
-		
+
+		if (null != display) {
+			display.setActive(null);
+			display.getLayerSet().addChangeTreesStep();
+		}
+
 		set.iterator().next().getProject().removeAll(set);
 
 		Display.updateSelection(); // from all displays
@@ -269,7 +282,8 @@ public class Selection {
 		return true;
 	}
 
-	/** Set the elements of the given LinkedList as those of the stored, previous selection, only if the given list is not empty. */
+	/** Set the elements of the given LinkedList as those of the stored, previous selection,
+	 *  only if the given list is not empty. */
 	private void setPrev(final LinkedList<Displayable> q) {
 		if (0 == q.size()) return;
 		queue_prev.clear();
@@ -287,84 +301,97 @@ public class Selection {
 			Utils.log2("Selection.remove warning: null Displayable to remove.");
 			return;
 		}
-		synchronized (queue_lock) {
+		
 		try {
-			if (!hs.contains(d)) {
-				//Utils.log2("Selection.remove warning: can't find ob " + ob_t + " to remove");
-				// happens when removing a profile from the project tree that is not selected in the Display to which this Selection belongs
-				return;
-			}
-			queue.remove(d);
-			d.deselect();
-			setPrev(queue);
-			hs.remove(d);
-			if (d.equals(active)) {
+			synchronized (queue_lock) {
+				if (!hs.contains(d)) {
+					//Utils.log2("Selection.remove warning: can't find ob " + ob_t + " to remove");
+					// happens when removing a profile from the project tree that is not selected in the Display to which this Selection belongs
+					return;
+				}
+				queue.remove(d);
+				d.deselect();
+				setPrev(queue);
+				hs.remove(d);
+				if (d.equals(active)) {
+					if (0 == queue.size()) {
+						active = null;
+						box = null;
+						hs.clear();
+					} else {
+						// select last
+						active = (Displayable)queue.getLast();
+					}
+				}
+				// finish if none left
 				if (0 == queue.size()) {
-					active = null;
 					box = null;
 					hs.clear();
-				} else {
-					// select last
-					active = (Displayable)queue.getLast();
+					return;
 				}
-			}
-			// update
-			if (null != display) display.setActive(active);
-			// finish if none left
-			if (0 == queue.size()) {
-				box = null;
-				hs.clear();
-				return;
-			}
-			// now, remove linked ones from the hs
-			HashSet<Displayable> hs_to_keep = new HashSet<Displayable>();
-			for (final Displayable displ : queue) {
-				hs_to_keep = displ.getLinkedGroup(hs_to_keep); //accumulates into the hashset
-			}
-			for (final Iterator<Displayable> it = hs.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
-				it.remove();
-			}
-			// recompute box
-			Rectangle r = new Rectangle(); // as temp storage
-			for (final Displayable di : queue) {
-				box.add(di.getBoundingBox(r));
+				// now, remove linked ones from the hs
+				HashSet<Displayable> hs_to_keep = new HashSet<Displayable>();
+				for (final Displayable displ : queue) {
+					hs_to_keep = displ.getLinkedGroup(hs_to_keep); //accumulates into the hashset
+				}
+				for (final Iterator<Displayable> it = hs.iterator(); it.hasNext(); ) {
+					Object ob = it.next();
+					if (hs_to_keep.contains(ob)) continue; // avoid linked ones still in queue or linked to those in queue
+					it.remove();
+				}
+				// recompute box
+				Rectangle r = new Rectangle(); // as temp storage
+				for (final Displayable di : queue) {
+					box.add(di.getBoundingBox(r));
+				}
 			}
 		} catch (Exception e) {
 			IJError.print(e);
-		}}
+		} finally {
+			// update
+			if (null != display) display.setActive(active);
+		}
 	}
 
 	/** Remove all Displayables from this selection. */
 	public void clear() {
+		int size = 0;
 		synchronized (queue_lock) {
+			size = queue.size();
+		}
+		// set null active before clearing so that borders can be repainted
+		if (null != display && size > 0) {
+			display.setActive(null);
+			Display.repaint(display.getLayer(), 5, box, false);
+		}
+		Rectangle bb = null;
 		try {
-			// set null active before clearing so that borders can be repainted
-			if (null != display && queue.size() > 0) {
-				display.setActive(null);
-				Display.repaint(display.getLayer(), 5, box, false);
-			}
-			setPrev(queue);
-			this.queue.clear();
-			this.hs.clear();
-			this.active = null;
-			Rectangle bb = box;
-			this.box = null;
-			if (null != display) {
-				Display.repaint(display.getLayer(), 5, bb, false);
+			synchronized (queue_lock) {
+				if (size != queue.size()) {
+					Utils.log("Interrupted clearing selection: number of selected items changed!");
+					return;
+				}
+				setPrev(queue);
+				this.queue.clear();
+				this.hs.clear();
+				this.active = null;
+				bb = box;
+				this.box = null;
 			}
 		} catch (Exception e) {
 			IJError.print(e);
-		}}
+		}
+		if (null != display) {
+			Display.repaint(display.getLayer(), 5, bb, false);
+		}
 	}
 
 	/** Returns the total box enclosing all selected objects and their linked objects within the current layer, or null if none are selected. Includes the position of the floater, when transforming.*/
 	public Rectangle getLinkedBox() {
 		if (null == active) return null;
-		Rectangle b = active.getBoundingBox();
-		Layer layer = display.getLayer();
-		Rectangle r = new Rectangle(); // for reuse
+		final Rectangle b = active.getBoundingBox();
+		final Layer layer = display.getLayer();
+		final Rectangle r = new Rectangle(); // for reuse
 		synchronized (queue_lock) {
 			for (final Displayable d : hs) {
 				if (!d.equals(active) && d.getLayer().equals(layer)) {
@@ -380,7 +407,7 @@ public class Selection {
 		// loop directly to avoid looping through the same linked groups if two or more selected objects belong to the same linked group. The ht contains all linked items anyway.
 		synchronized (queue_lock) {
 			if (null == active || null == hs || hs.isEmpty()) return false;
-			for (Displayable d : hs) {
+			for (final Displayable d : hs) {
 				if (d.isLocked2()) return true;
 			}
 		}
@@ -389,13 +416,16 @@ public class Selection {
 
 	/** Lock / unlock all selected objects. */
 	public void setLocked(final boolean b) {
+		final HashSet<Displayable> hs;
+		synchronized (queue_lock) {
+			hs = new HashSet<Displayable>(Selection.this.hs); // a copy
+		}
 		apply("locked", new Action() {
+			@Override
 			void exec(Displayable d) { d.setLocked(b); }
-		}, new Runnable() {
-			public void run() {
-				synchronized (queue_lock) {
-					Display.updateCheckboxes(hs, DisplayablePanel.LOCK_STATE, b);
-				}
+			@Override
+			void post(final Collection<Displayable> queue_copy, final HashSet<Displayable> hs_copy) {
+				Display.updateCheckboxes(hs, DisplayablePanel.LOCK_STATE, b);
 			}
 		});
 	}
@@ -406,21 +436,24 @@ public class Selection {
 	
 	static private abstract class Action {
 		abstract void exec(final Displayable d);
+		void post(final Collection<Displayable> queue_copy, final HashSet<Displayable> hs_copy) {}
 	}
 
-	private void apply(final String field, final Action task, final Runnable post_task) {
+	private void apply(final String field, final Action task) {
 		if (null == active) return;
 		final HashSet<Displayable> sel = new HashSet<Displayable>();
 		final LayerSet ls;
+		final HashSet<Displayable> hs_copy;
 		synchronized (queue_lock) {
 			sel.addAll(queue);
 			ls = active.getLayer().getParent();
+			hs_copy = new HashSet<Displayable>(this.hs);
 		}
 		ls.addDataEditStep(sel, new String[]{field});
 		try {
 			for (final Displayable d : sel) task.exec(d);
+			task.post(sel, hs_copy);
 			ls.addDataEditStep(sel, new String[]{field});
-			if (null != post_task) post_task.run();
 		} catch (Exception e) {
 			IJError.print(e);
 			ls.undoOneStep();
@@ -429,13 +462,15 @@ public class Selection {
 
 	public void setColor(final Color c) {
 		apply("color", new Action() {
+			@Override
 			void exec(Displayable d) { d.setColor(c); }
-		}, null);
+		});
 	}
 	public void setAlpha(final float alpha) {
 		apply("alpha", new Action() {
+			@Override
 			void exec(Displayable d) { d.setAlpha(alpha); }
-		}, null);
+		});
 	}
 
 	public boolean isEmpty() {
@@ -478,27 +513,34 @@ public class Selection {
 	/** Recompute list of linked Displayable. */
 	void update() {
 		synchronized (queue_lock) {
-		try {
 			if (null != display && display.getCanvas().isTransforming()) {
 				Utils.log2("Selection.update warning: shouldn't be doing this while transforming!");
 				return;
 			}
-			Utils.log2("updating selection");
-			hs.clear();
-			HashSet<Displayable> hsl = new HashSet<Displayable>();
-			for (final Displayable d : queue) {
-				// collect all linked ones into the hs
-				hsl = d.getLinkedGroup(hsl);
+		}
+		HashSet<Displayable> hsl = new HashSet<Displayable>();
+		try {
+			synchronized (queue_lock) {
+				Utils.log2("updating selection");
+				hs.clear();
+				
+				for (final Displayable d : queue) {
+					// collect all linked ones into the hs
+					hsl = d.getLinkedGroup(hsl);
+				}
+				if (0 == hsl.size()) {
+					active = null;
+					return;
+				}
+				hs.addAll(hsl);
 			}
-			if (0 == hsl.size()) {
-				active = null;
-				if (null != display) display.setActive(null);
-				return;
-			}
-			hs.addAll(hsl); // hs is final, can't just assign
 		} catch (Exception e) {
 			IJError.print(e);
-		}}
+		} finally {
+			if (0 == hsl.size()) {
+				if (null != display) display.setActive(null);
+			}
+		}
 	}
 
 	/** Update the bounding box of the whole selection. */
@@ -627,7 +669,7 @@ public class Selection {
 	public Set<Displayable> getAffected(final Class<?> c) {
 		HashSet<Displayable> copy = new HashSet<Displayable>();
 		synchronized (queue_lock) {
-			if (Displayable.class.equals(c) && hs.size() > 0) {
+			if (Displayable.class.equals(c)) {
 				copy.addAll(hs);
 				return copy;
 			}
@@ -675,22 +717,25 @@ public class Selection {
 
 	/** Set all selected objects visible/hidden; returns a collection of those that changed state.
 	 *  Also updates checkboxes state in the Display. */
-	public Collection<Displayable> setVisible(boolean b) {
-		Collection<Displayable> col = new ArrayList<Displayable>();
+	public Collection<Displayable> setVisible(final boolean b) {
+		final HashSet<Displayable> changing = new HashSet<Displayable>();
 		synchronized (queue_lock) {
 			for (final Displayable d : queue) {
-				if (b != d.isVisible()) {
-					d.setVisible(b);
-					col.add(d);
-				}
+				if (b != d.isVisible()) changing.add(d);
 			}
 		}
+		apply("visible", new Action() {
+			@Override
+			void exec(Displayable d) {
+				if (changing.contains(d)) d.setVisible(b);
+			}
+		});
 		if (null != display) {
-			Display.updateCheckboxes(col, DisplayablePanel.VISIBILITY_STATE, b);
+			Display.updateCheckboxes(changing, DisplayablePanel.VISIBILITY_STATE, b);
 			// after updating checkboxes and clearing screenshots:
 			Display.repaint(display.getLayer(), box, 10);
 		}
-		return col;
+		return changing;
 	}
 
 	/** Removes the given Displayable from the selection and previous selection list. */
