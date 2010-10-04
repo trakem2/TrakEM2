@@ -2225,6 +2225,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							final JMenuItem rm_review = new JMenuItem("Remove review stack"); popup.add(rm_review);
 							popup.addSeparator();
 							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
+							final JMenuItem gsub = new JMenuItem("Generate review stacks for subtree"); popup.add(gsub);
 							final JMenuItem rm_reviews = new JMenuItem("Remove all reviews"); popup.add(rm_reviews);
 							popup.addSeparator();
 							final JMenuItem mark_as_reviewed = new JMenuItem("Mark selected as reviewed"); popup.add(mark_as_reviewed);
@@ -2239,6 +2240,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 											return;
 										}
 										generateSubtreeReviewStacks(root);
+									}
+									else if (gsub == src) {
+										if (!Utils.check("Really generate review stacks for the subtree?")) {
+											return;
+										}
+										generateSubtreeReviewStacks(((NodeTableModel)getModel()).nodes.get(getSelectedRow()));
 									}
 									else if (review == src) review(row);
 									else if (rm_reviews == src) {
