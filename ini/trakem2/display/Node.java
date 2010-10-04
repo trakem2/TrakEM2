@@ -984,7 +984,7 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** For a given starting node, iterates all the way to the next end node or branch node, inclusive. */
-	public class SlabIterator<I> extends SubtreeIterator<I> {
+	static public class SlabIterator<I> extends SubtreeIterator<I> {
 		public SlabIterator(final Node<I> first) {
 			super(first);
 		}
