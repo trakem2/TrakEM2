@@ -1336,6 +1336,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (null != active) {
 			if (value != active.getAlpha()) { // because there's a callback from setActive that would then affect all other selected Displayable without having dragged the slider, i.e. just by being selected.
 				selection.setAlpha(value);
+				Display.repaint(active.getLayerSet(), active, active.getBoundingBox(), 5, false);
 			}
 		}
 	}
@@ -1857,7 +1858,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 					d.navigator.repaint(true);
 				}
-				if (null == displ || displ != d.active) d.setUpdateGraphics(true); // safeguard
+				if (null == displ || displ != d.active || displ instanceof ImageData) d.setUpdateGraphics(true); // safeguard
 				// paint the given box or the actual Displayable's box
 				if (null != r) d.canvas.repaint(r, extra);
 				else d.canvas.repaint(displ, extra);
