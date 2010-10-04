@@ -137,6 +137,11 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			if (null != oc) g.setComposite(oc);
 		}
 
+		@Override
+		protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<Area> t) {
+			paintHandle(g, srcRect, magnification, t, true);
+		}
+
 		/*
 		final boolean contains(final int lx, final int ly) {
 			return null != aw && aw.getArea().contains(lx, ly);

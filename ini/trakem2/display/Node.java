@@ -337,9 +337,13 @@ public abstract class Node<T> implements Taggable {
 	}	
 	
 	static private final Color receiver_color = Color.green.brighter();
+
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t) {
+		paintHandle(g, srcRect, magnification, t, false);
+	}
 	
 	/** Paint in the context of offscreen space, without transformations. */
-	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t) {
+	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t, final boolean paint_background) {
 		final Point2D.Double po = t.transformPoint(this.x, this.y);
 		final float x = (float)((po.x - srcRect.x) * magnification);
 		final float y = (float)((po.y - srcRect.y) * magnification);
@@ -360,6 +364,10 @@ public abstract class Node<T> implements Taggable {
 			g.drawString("e", (int)x -4, (int)y + 3); // TODO ensure Font is proper
 		} else if (1 == children.length) {
 			// as a slab: no branches
+			if (paint_background) {
+				g.setColor(Color.black);
+				g.fillOval((int)x - 4, (int)y - 4, 9, 9);
+			}
 			g.setColor(null == receiver ? (null == this.color ? t.getColor() : this.color) : receiver);
 			g.fillOval((int)x - 3, (int)y - 3, 7, 7);
 		} else {
