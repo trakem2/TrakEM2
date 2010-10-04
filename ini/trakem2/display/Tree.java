@@ -1854,6 +1854,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	private boolean adjustNodeColors(final Node<T> nd) {
+		final Color color = null == nd.color ? this.color : nd.color;
 		GenericDialog gd = new GenericDialog("Node colors");
 		gd.addSlider("Red: ", 0, 255, color.getRed());
 		gd.addSlider("Green: ", 0, 255, color.getGreen());
@@ -1881,9 +1882,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		try {
 			layer_set.addDataEditStep(this);
-			final Color c;
-			if (null == nd.getColor()) c = new Color(red.getValue(), green.getValue(), blue.getValue());
-			else c = nd.getColor(); // was dynamically adjusted
+			final Color c = new Color(red.getValue(), green.getValue(), blue.getValue());
 			switch (gd.getNextChoiceIndex()) {
 				case 0:
 					// this node only: already done
