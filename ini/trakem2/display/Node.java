@@ -186,7 +186,7 @@ public abstract class Node<T> implements Taggable {
 			final boolean with_arrows, final boolean with_confidence_boxes,
 			final boolean with_data) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
-
+		
 		final double actZ = active_layer.getZ();
 		final double thisZ = this.la.getZ();
 		final Color node_color = null == this.color ? tree.color : this.color; 
@@ -202,122 +202,139 @@ public abstract class Node<T> implements Taggable {
 
 		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color);
 
+		//if (null == children && !paint) return null;
+
 		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
+		if (null == parent && !paint) return null;
 
-		final float[] fps;
-
-		if (null == children) {
-			if (!paint) return null;
-			fps = new float[2];
-		} else {
-			fps = new float[children.length * 2];
-		}
-
+		final float[] fps = new float[4];
+		final int parent_x, parent_y;
 		fps[0] = this.x;
 		fps[1] = this.y;
-		tree.at.transform(fps, 0, fps, 0, 1);
+		if (null == parent) {
+			parent_x = parent_y = 0;
+			tree.at.transform(fps, 0, fps, 0, 1);
+		} else {
+			fps[2] = parent.x;
+			fps[3] = parent.y;
+			tree.at.transform(fps, 0, fps, 0, 2);
+			parent_x = (int)((fps[2] - srcRect.x) * magnification);
+			parent_y = (int)((fps[3] - srcRect.y) * magnification);
+		}
 
 		// To screen coords:
 		final int x = (int)((fps[0] - srcRect.x) * magnification);
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
 
-		if (null != children) {
-			synchronized (this) {
-				// Transform points
-				for (int i=0, k=0; i<children.length; i++, k+=2) {
-					fps[k] = children[i].x;
-					fps[k+1] = children[i].y;
-				}
-				tree.at.transform(fps, 0, fps, 0, children.length);
-				//
-				for (int i=0, k=0; i<children.length; i++, k+=2) {
-					final Node<T> child = children[i];
-
-					// Does the line from parent to child cross the srcRect?
-					// Or what is the same, does the line from parent to child cross any of the edges of the srcRect?
-
-					// To screen coords:
-					final int chx = (int)((fps[k] - srcRect.x) * magnification);
-					final int chy = (int)((fps[k+1] - srcRect.y) * magnification);
-					if (!to_paint.contains(child)) {
-						// Paint proximal half edge to the child
-						g.setColor(local_edge_color);
-						g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-						//if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-					} else {
-						// Paint full edge, but perhaps in two halves of different colors
-						if ((child.la == this.la && this.la == active_layer)      // in treeline color
-						  || (thisZ < actZ && child.la.getZ() < actZ)    // in red
-						  || (thisZ > actZ && child.la.getZ() > actZ)) { // in blue
-							// Full edge in local color
-							g.setColor(local_edge_color);
-							g.drawLine((int)x, (int)y, (int)chx, (int)chy);
-							if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-						} else {
-							if (this.la == active_layer) {
-								// Proximal half in this color
-								g.setColor(local_edge_color);
-								g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-								// Distal either red or blue:
-								Color c = local_edge_color;
-								// If other towards higher Z:
-								if (actZ < child.la.getZ()) c = Color.blue;
-								// If other towards lower Z:
-								else if (actZ > child.la.getZ()) c = Color.red;
-								//
-								g.setColor(c);
-								g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
-								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-							} else if (child.la == active_layer) {
-								// Distal half in the Displayable or Node color
-								g.setColor(node_color);
-								g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
-								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-								// Proximal half in either red or blue:
-								g.setColor(local_edge_color);
-								g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-							} else if (thisZ < actZ && actZ < child.la.getZ()) {
-								// proximal half in red
-								g.setColor(Color.red);
-								g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-								// distal half in blue
-								g.setColor(Color.blue);
-								g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
-								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-							} else if (thisZ > actZ && actZ > child.la.getZ()) {
-								// proximal half in blue
-								g.setColor(Color.blue);
-								g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
-								// distal half in red
-								g.setColor(Color.red);
-								g.drawLine((int)(x + (chx - x)/2), (int)(y + (chy - y)/2), (int)chx, (int)chy);
-								if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
-							}
-						}
-					}
-					if (active && with_confidence_boxes && (active_layer == this.la || active_layer == child.la || (thisZ < actZ && actZ < child.la.getZ()))) {
-						// Draw confidence half-way through the edge
-						final String s = Integer.toString(children[i].confidence&0xff);
-						final Dimension dim = Utils.getDimensions(s, g.getFont());
-						g.setColor(Color.white);
-						final int xc = (int)(x + (chx - x)/2),
-							  yc = (int)(y + (chy - y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
-						g.fillRect(xc, yc, dim.width+2, dim.height+2);
-						g.setColor(Color.black);
-						g.drawString(s, xc+1, yc+dim.height+1);
-					}
-				}
-			}
-		}
+		final Runnable tagsTask;
 		if (paint) {
-			return new Runnable() {
+			tagsTask = new Runnable() {
 				public void run() {
 					paintTags(g, x, y, local_edge_color);
 				}
 			};
+		} else tagsTask = null;
+
+		if (null == parent) return tagsTask;
+
+		synchronized (this) {
+			if (null != parent) {
+				// Does the line from parent to this cross the srcRect?
+				// Or what is the same, does the line from parent to this cross any of the edges of the srcRect?
+				// Paint full edge, but perhaps in two halves of different colors
+				if (parent.la == this.la && this.la == active_layer) {      // in treeline color
+					// Full edge in local color
+					g.setColor(local_edge_color);
+					g.drawLine(x, y, parent_x, parent_y);
+					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
+				} else if (this.la == active_layer) {
+					// Proximal half in this color
+					g.setColor(local_edge_color);
+					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, x, y);
+					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
+					// Distal either red or blue:
+					Color c = local_edge_color;
+					// If other towards higher Z:
+					if (actZ < parent.la.getZ()) c = Color.blue;
+					// If other towards lower Z:
+					else if (actZ > parent.la.getZ()) c = Color.red;
+					//
+					g.setColor(c);
+					g.drawLine(parent_x, parent_y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
+				} else if (parent.la == active_layer) {
+					// Distal half in the Displayable or Node color
+					g.setColor(node_color);
+					g.drawLine(parent_x, parent_y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
+					// Proximal half in either red or blue:
+					g.setColor(local_edge_color);
+					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, x, y);
+					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
+				} else if (thisZ < actZ && actZ < parent.la.getZ()) {
+					// proximal half in red
+					g.setColor(Color.red);
+					g.drawLine(x, y, parent_x + (x - parent_x)/2, (parent_y + (y - parent_y)/2));
+					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
+					// distal half in blue
+					g.setColor(Color.blue);
+					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, parent_x, parent_y);
+				} else if (thisZ > actZ && actZ > parent.la.getZ()) {
+					// proximal half in blue
+					g.setColor(Color.blue);
+					g.drawLine(x, y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
+					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
+					// distal half in red
+					g.setColor(Color.red);
+					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, parent_x, parent_y);
+				} else if ((thisZ < actZ && parent.la.getZ() < actZ)
+						|| (thisZ > actZ && parent.la.getZ() > actZ)) {
+					g.setColor(local_edge_color);
+					if (to_paint.contains(parent)) {
+						// full edge
+						g.drawLine(x, y, parent_x, parent_y);
+					} else {
+						// paint proximal half
+						g.drawLine(x, y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
+					}
+					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
+				}
+			}
+			if (null != children) {
+				final float[] fp = new float[2];
+				for (final Node<T> child : children) {
+					if (to_paint.contains(child)) continue;
+					fp[0] = child.x;
+					fp[1] = child.y;
+					tree.at.transform(fp, 0, fp, 0, 1);
+					final int cx = (int)(((int)fp[0] - srcRect.x) * magnification),
+					cy = (int)(((int)fp[1] - srcRect.y) * magnification);
+					if (child.la == this.la){
+						// child in same layer but outside the field of view
+						// paint full edge to it
+						g.setColor(null == child.color ? tree.color : child.color);
+						g.drawLine(x, y, cx, cy);
+						if (with_arrows) g.fill(M.createArrowhead(x, y, cx, cy, magnification));
+					} else {
+						if (child.la.getZ() < actZ) g.setColor(Color.red);
+						else if (child.la.getZ() > actZ) g.setColor(Color.blue);
+						// paint half edge to the child
+						g.drawLine(x, y, x + (cx - x)/2, y + (cy - y)/2);
+					}
+				}
+			}
+			if (null != parent && active && with_confidence_boxes && (active_layer == this.la || active_layer == parent.la || (thisZ < actZ && actZ < parent.la.getZ()))) {
+				// Draw confidence half-way through the edge
+				final String s = Integer.toString(confidence);
+				final Dimension dim = Utils.getDimensions(s, g.getFont());
+				g.setColor(Color.white);
+				final int xc = (int)(x + (x - parent_x)/2),
+				yc = (int)(y + (y - parent_y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
+				g.fillRect(xc, yc, dim.width+2, dim.height+2);
+				g.setColor(Color.black);
+				g.drawString(s, xc+1, yc+dim.height+1);
+			}
 		}
-		return null;
-	}
+		return tagsTask; 
+	}	
 	
 	static private final Color receiver_color = Color.green.brighter();
 	

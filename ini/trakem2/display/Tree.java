@@ -246,10 +246,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-					if (null != nd.parent && !nodes.contains(nd.parent)) {
-						// ignore tags of parent node outside srcRect
-						nd.parent.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes, false);
-					}
 					if (active && active_layer == nd.la) handles[next++] = nd;
 				}
 				for (final Runnable task : tags_tasks) task.run();
