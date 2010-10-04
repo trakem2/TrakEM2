@@ -437,6 +437,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	abstract protected Node<T> newNode(float lx, float ly, Layer layer, Node<?> modelNode);
 
+	/** Create a new node, copying some properties from the modelNode such as radius or color.
+	 *  The modelNode should be the node that will become the parent of the new node,
+	 *  but it doesn't have to be. */
+	protected Node<T> createNewNode(float lx, float ly, Layer layer, Node<?> modelNode) {
+		final Node<T> nd = newNode(lx, ly, layer, modelNode);
+		if (null == modelNode) return nd;
+		nd.setColor(modelNode.getColor());
+		return nd;
+	}
+
 	/** To reconstruct from XML. */
 	abstract public Node<T> newNode(HashMap<String,String> ht_attr);
 
@@ -1524,7 +1534,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				if (me.isShiftDown()) {
 					Node<T>[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
 					if (null != ns) {
-						found = newNode(x_pl, y_pl, layer, ns[0]);
+						found = createNewNode(x_pl, y_pl, layer, ns[0]);
 						insertNode(ns[0], ns[1], found, ns[0].getConfidence(ns[1]));
 						setActive(found);
 					}
@@ -1537,7 +1547,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Find the point closest to any other starting or ending point in all branches
 					//Node<T> nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
 					// append new child; inherits radius from parent
-					found = newNode(x_pl, y_pl, layer, nearest);
+					found = createNewNode(x_pl, y_pl, layer, nearest);
 					addNode(nearest, found, Node.MAX_EDGE_CONFIDENCE);
 					setActive(found);
 					repaint(true, layer);
@@ -1546,7 +1556,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 		} else {
 			// First point
-			root = newNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
+			root = createNewNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
 			addNode(null, root, (byte)0);
 			setActive(root);
 		}
