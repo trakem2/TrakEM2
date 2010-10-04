@@ -12,7 +12,8 @@
      (ini.trakem2.utils Utils)
      (ini.trakem2.display Display Display3D LayerSet)
      (ini.trakem2.analysis Compare)
-     (ini.trakem2.vector VectorString3D Editions)))
+     (ini.trakem2.vector VectorString3D Editions))
+  (:use [clojure.set :only (intersection)]))
 
 (defmacro report
   [& args]
@@ -66,7 +67,7 @@
   [brain-label brain-data target-fids]
   (let [source-fids (fids-as-Point3d (brain-data :fiducials))
         SATs (into (sorted-map) (brain-data :SATs))
-        common-fid-keys (clojure.set/intersection (into #{} (keys source-fids)) (into #{} (keys target-fids)))
+        common-fid-keys (intersection (into #{} (keys source-fids)) (into #{} (keys target-fids)))
         vs (Compare/transferVectorStrings (vals SATs)
                                           (vals (into (sorted-map) (select-keys source-fids common-fid-keys)))
                                           (vals (into (sorted-map) (select-keys target-fids common-fid-keys)))
@@ -115,7 +116,7 @@
 (defn- register-vs
   "Register a singe VectorString3D from source-fids to target-fids."
   [vs source-fids target-fids]
-  (let [common-fid-keys (clojure.set/intersection (into #{} (keys source-fids)) (into #{} (keys target-fids)))]
+  (let [common-fid-keys (intersection (into #{} (keys source-fids)) (into #{} (keys target-fids)))]
     (if (empty? common-fid-keys)
       nil
       (first (Compare/transferVectorStrings [vs]
