@@ -245,7 +245,7 @@ public abstract class Node<T> implements Taggable {
 						g.drawLine((int)x, (int)y, (int)(x + (chx - x)/2), (int)(y + (chy - y)/2));
 						//if (with_arrows) g.fill(M.createArrowhead(x, y, chx, chy, magnification));
 					} else {
-						// Paint full edge, but perhaps in two halfs of different colors
+						// Paint full edge, but perhaps in two halves of different colors
 						if ((child.la == this.la && this.la == active_layer)      // in treeline color
 						  || (thisZ < actZ && child.la.getZ() < actZ)    // in red
 						  || (thisZ > actZ && child.la.getZ() > actZ)) { // in blue
