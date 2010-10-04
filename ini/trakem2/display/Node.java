@@ -1011,7 +1011,7 @@ public abstract class Node<T> implements Taggable {
 		final Node<I> first;
 		final Class<?> type;
 
-		NodeCollection(final Node<I> first, final Class<?> type) {
+		public NodeCollection(final Node<I> first, final Class<?> type) {
 			this.first = first;
 			this.type = type;
 		}
