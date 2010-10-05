@@ -93,7 +93,7 @@ public class Graph {
 	/** Shows a dialog to pick which classes is one interested in. */
 	static public final void extractAndShowGraph(final LayerSet ls) {
 		GenericDialog gd = new GenericDialog("Graph elements");
-		Class[] c = new Class[]{AreaList.class, AreaTree.class, Ball.class, Connector.class, Patch.class, Pipe.class, Polyline.class, Profile.class, DLabel.class, Treeline.class};
+		Class<Displayable>[] c = new Class[]{AreaList.class, AreaTree.class, Ball.class, Connector.class, Patch.class, Pipe.class, Polyline.class, Profile.class, DLabel.class, Treeline.class};
 		String[] types = new String[]{"AreaList", "AreaTree", "Ball", "Connector", "Image", "Pipe", "Polyline", "Profile", "Text", "Treeline"};
 		boolean[] states = new boolean[]{true, true, false, false, false, false, true, true, false, true};
 		assert(c.length == types.length && types.length == states.length);
