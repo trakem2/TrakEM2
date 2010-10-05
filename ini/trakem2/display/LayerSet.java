@@ -132,7 +132,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean color_cues = true;
 	protected boolean paint_arrows = true;
 	protected boolean paint_edge_confidence_boxes = true;
-	protected int n_layers_color_cue = -1; // -1 means all
+	protected int n_layers_color_cue = 0; // -1 means all
 	protected boolean prepaint = true;
 
 	private Calibration calibration = new Calibration(); // default values
