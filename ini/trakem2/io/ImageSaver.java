@@ -32,6 +32,7 @@ import ij.io.TiffEncoder;
 import java.awt.image.BufferedImage;
 import java.awt.Graphics;
 import java.awt.Image;
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
@@ -59,6 +60,14 @@ import com.sun.media.jai.codec.TIFFEncodeParam;
 import com.sun.media.jai.codec.TIFFDecodeParam;
 import com.sun.media.jai.codec.ImageCodec;
 import javax.media.jai.PlanarImage;
+
+import mpicbg.imglib.container.array.Array;
+import mpicbg.imglib.container.array.ArrayContainerFactory;
+import mpicbg.imglib.container.basictypecontainer.array.ShortArray;
+import mpicbg.imglib.type.Type;
+import mpicbg.imglib.type.numeric.integer.ShortType;
+import mpicbg.imglib.type.numeric.integer.UnsignedShortType;
+
 import java.io.OutputStream;
 
 /** Provides the necessary thread-safe image file saver utilities. */
@@ -721,4 +730,61 @@ public class ImageSaver {
 		}
 		return null;
 	}
+
+	/** Loads an image that was stored in @param path.
+	 *  If the file is shorter than width * height * 2, then the remaning values will be zero. */
+	static public final mpicbg.imglib.image.Image<?> load16bitRawImage(final String path, final int width, final int height) {
+		BufferedInputStream fis = null;
+		try {
+			fis = new BufferedInputStream(new FileInputStream(new File(path)), 4096);
+			short[] pix = new short[width * height];
+			byte[] buf = new byte[width * height * 2];
+			fis.read(buf);
+			for (int i=0; i<pix.length; i+=2) {
+				pix[i] = (short)(((buf[i]&0xff)<<16) + buf[1+1]);
+			}
+			// Correct but fragile, and limited to Arrays -- according to Stephan Preibisch
+			ArrayContainerFactory factory = new ArrayContainerFactory();
+			Array<UnsignedShortType, ShortArray> array = new Array<UnsignedShortType, ShortArray>(factory, new ShortArray(pix), new int[]{width, height}, 1);
+			// create a Type that is linked to the container
+			final UnsignedShortType linkedType = new UnsignedShortType(array);  
+			// pass it to the DirectAccessContainer
+			array.setLinkedType( linkedType );
+			mpicbg.imglib.image.Image<UnsignedShortType> iml = new mpicbg.imglib.image.Image<UnsignedShortType>(array, new UnsignedShortType());
+			
+			return iml;
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} finally {
+			if (null != fis)
+				try {
+					fis.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+		}
+		
+		return null;
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 }
