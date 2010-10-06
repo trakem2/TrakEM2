@@ -735,7 +735,7 @@ public class ImageSaver {
 
 	/** Loads an image that was stored in @param path.
 	 *  If the file is shorter than width * height * 2, then the remaning values will be zero. */
-	static public final mpicbg.imglib.image.Image<?> load16bitRawImage(final String path, final int width, final int height) {
+	static public final mpicbg.imglib.image.Image<UnsignedShortType> load16bitRawImage(final String path, final int width, final int height) {
 		BufferedInputStream fis = null;
 		try {
 			fis = new BufferedInputStream(new FileInputStream(new File(path)), 4096);
@@ -755,7 +755,7 @@ public class ImageSaver {
 			array.setLinkedType( linkedType );
 			mpicbg.imglib.image.Image<UnsignedShortType> iml = new mpicbg.imglib.image.Image<UnsignedShortType>(array, new UnsignedShortType());
 			*/
-			
+
 			// Correct future-proof version (notice the short[] is created by the imglib factory)
 			final ImageFactory<UnsignedShortType> factory = new ImageFactory<UnsignedShortType>( new UnsignedShortType(), new ArrayContainerFactory() );     
 			final mpicbg.imglib.image.Image<UnsignedShortType> iml = factory.createImage( new int[]{width, height} );
@@ -784,23 +784,4 @@ public class ImageSaver {
 		
 		return null;
 	}
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
 }
