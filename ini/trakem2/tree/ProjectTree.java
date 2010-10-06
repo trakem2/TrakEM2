@@ -29,11 +29,9 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Render;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.Dispatcher;
 import mpicbg.trakem2.align.AlignTask;
 
 import java.awt.Color;
@@ -54,6 +52,7 @@ import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.tree.*;
+
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -62,7 +61,6 @@ import java.util.List;
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Set;
-import java.util.Hashtable;
 import java.util.Collections;
 import java.util.Vector;
 import java.util.Comparator;
@@ -115,7 +113,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 	public void mousePressed(final MouseEvent me) {
 		super.dispatcher.execSwing(new Runnable() { public void run() {
-		if (!me.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
+		if (!me.getSource().equals(ProjectTree.this) || !project.isInputEnabled()) {
 			return;
 		}
 		final int x = me.getX();
@@ -151,9 +149,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}});
 	}
 
-	public void rename(ProjectThing thing) {
-		Object ob = thing.getObject();
-		String old_title = null;
+	public void rename(final ProjectThing thing) {
+		final Object ob = thing.getObject();
+		final String old_title;
 		if (null == ob) old_title = thing.getType();
 		else if (ob instanceof DBObject) old_title = ((DBObject)ob).getTitle();
 		else old_title = ob.toString();
@@ -162,9 +160,18 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		gd.addStringField("New name: ", old_title, 40);
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
-		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
 		String title = gd.getNextString();
+		if (null == title) {
+			Utils.log("WARNING: avoided setting the title to null for " + thing);
+			return;
+		}
 		title = title.replace('"', '\'').trim(); // avoid XML problems - could also replace by double '', then replace again by " when reading.
+		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
+		if (title.length() == 0) {
+			// Set the title to the template type
+			thing.setTitle(thing.getTemplate().getType());
+			return;
+		}
 		thing.setTitle(title);
 		this.updateUILater();
 		project.getRootLayerSet().addUndoStep(new RenameThingStep(thing));
@@ -177,7 +184,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public void mouseClicked(MouseEvent me) { }
 
 	public void actionPerformed(final ActionEvent ae) {
-		if (!Project.getInstance(this).isInputEnabled()) return;
+		if (!project.isInputEnabled()) return;
 		super.dispatcher.exec(new Runnable() { public void run() {
 		try {
 			if (null == selected_node) return;
@@ -255,7 +262,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
 			} else if (command.equals("Delete...")) {
+				project.getRootLayerSet().addChangeTreesStep(); // store old state
 				remove(true, thing, selected_node);
+				project.getRootLayerSet().addChangeTreesStep(); // store new state
 				return;
 			} else if (command.equals("Rename...")) {
 				//if (!Project.isBasicType(thing.getType())) {
@@ -291,11 +300,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 			}*/ else if (command.equals("Export project...") || command.equals("Save as...")) { // "Save as..." is for a FS project
 				Utils.log2("Calling export project at " + System.currentTimeMillis());
-				thing.getProject().getLoader().saveAs(thing.getProject());
+				thing.getProject().getLoader().saveTask(thing.getProject(), "Save as...");
 			} else if (command.equals("Save")) {
 				// overwrite the xml file of a FSProject
 				// Just do the same as in "Save as..." but without saving the images and overwritting the XML file without asking.
-				thing.getProject().getLoader().save(thing.getProject());
+				thing.getProject().getLoader().saveTask(thing.getProject(), "Save");
 			} else if (command.equals("Info")) {
 				showInfo(thing);
 				return;
@@ -328,7 +337,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		this.updateUILater();
 	}
 
-	/** Recursive as long as levels is above zero. Levels defines the number of possibly emtpy parent levels to remove. */
+	/** Recursive as long as levels is above zero. Levels defines the number of possibly empty parent levels to remove. */
 	public void removeProjectThingLadder(ProjectThing lowest, int levels) {
 		if (0 == levels) return;
 		if (lowest.getType().toLowerCase().equals("project")) return; // avoid Project node
@@ -350,9 +359,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	public Profile duplicateChild(Profile original, int position, Layer layer) {
 		Utils.log2("ProjectTree: Called duplicateChild " + System.currentTimeMillis() + " for original id = " + original.getId() + " at position " + position);
 		// find the Thing that holds it
-		DefaultMutableTreeNode root = (DefaultMutableTreeNode)this.getModel().getRoot();
-		ProjectThing root_thing = (ProjectThing)root.getUserObject();
-		Thing child = root_thing.findChild(original);
+		Thing child = project.findProjectThing(original);
 		if (null == child) {
 			Utils.log("ProjectTree.duplicateChild: node not found for original " + original);
 			return null;
@@ -407,7 +414,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(final Project project, final Collection al) {
+	public void insertSegmentations(final Project project, final Collection<? extends Displayable> al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";
@@ -481,11 +488,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return tt;
 	}
 
+	@Override
 	public void keyPressed(final KeyEvent ke) {
 		super.keyPressed(ke);
 		if (ke.isConsumed()) return;
-		super.dispatcher.execSwing(new Runnable() { public void run() {
-		if (!ke.getSource().equals(ProjectTree.this) || !Project.getInstance(ProjectTree.this).isInputEnabled()) {
+		if (!ke.getSource().equals(ProjectTree.this) || !project.isInputEnabled()) {
 			return;
 		}
 		// get the first selected node only
@@ -522,6 +529,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			case KeyEvent.VK_A:
 				if (0 == flags || (0 == (flags ^ Event.SHIFT_MASK))) {
 					selectInDisplay(pt, 0 == (flags ^ Event.SHIFT_MASK));
+					ke.consume();
 				}
 				break;
 			case KeyEvent.VK_3:
@@ -545,7 +553,6 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				}
 				break;
 		}
-		}});
 		ke.consume();
 	}
 
@@ -569,17 +576,39 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 
 	/** If the given node is null, it will be searched for. */
-	public boolean remove(boolean check, ProjectThing thing, DefaultMutableTreeNode node) {
-		Object obd = thing.getObject();
-		if (obd instanceof Project) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
-		boolean b = thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
-		// This is a patch: removal from buckets is subtly broken
-		// thing.getProject().getRootLayerSet().recreateBuckets(true);
-		// The true problem is that the offscreen repaint thread sets the DisplayCanvas.al_top list before, not at the end of removing all.
-		// --> actually no: querying the LayerSet buckets for ZDisplayables still returns them, but al_zdispl doesn't have them.
-		thing.getProject().getRootLayerSet().recreateBuckets(true);
+	public boolean remove(final boolean check, final ProjectThing thing, final DefaultMutableTreeNode node) {
+		final Object obd = thing.getObject();
+		if (obd.getClass() == Project.class) return ((Project)obd).remove(check); // shortcut to remove everything regardless.
+		final boolean b = thing.remove(check) && removeNode(null != node ? node : findNode(thing, this));
 		Display.repaint();
 		return b;
+	}
+
+	/** Remove the Thing and DefaultMutableTreeNode that wrap each of the Displayable;
+	 *  calls softRemove on each Displayable, and does NOT call remove on the Displayable.
+	 *  If a Displayable is not found, it returns it in a set of not found objects.
+	 *  If all are removed, returns an empty set. */
+	public final Set<Displayable> remove(final Set<? extends Displayable> displayables, final DefaultMutableTreeNode top) {
+		final Enumeration en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
+		final HashSet<DefaultMutableTreeNode> to_remove = new HashSet<DefaultMutableTreeNode>();
+		final HashSet<Displayable> remaining = new HashSet<Displayable>(displayables);
+		while (en.hasMoreElements()) {
+			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)en.nextElement();
+			final ProjectThing pt = (ProjectThing)node.getUserObject();
+			if (remaining.remove(pt.getObject())) {
+				pt.remove(false, false); // don't call remove on the object!
+				((Displayable)pt.getObject()).softRemove();
+				to_remove.add(node);
+			}
+		}
+		// Updates the model properly:
+		for (final DefaultMutableTreeNode node : to_remove) {
+			((DefaultTreeModel)this.getModel()).removeNodeFromParent(node);
+		}
+		if (!remaining.isEmpty()) {
+			Utils.log("Could not remove:", remaining);
+		}
+		return remaining;
 	}
 
 	public void showInfo(ProjectThing thing) {
@@ -655,6 +684,13 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			Utils.log2("Could not find a template for class " + sibling.getClass());
 			return null;
 		}
+		if (!parent.getTemplate().canHaveAsChild(tt)) {
+			// DONE BELOW: parent.getTemplate().addChild(tt);
+			if (null == parent.getProject().getTemplateTree().addNewChildType(parent, tt.getType())) {
+				return null;
+			}
+			Utils.log2("Added template " + tt.getType() + " as child of " + parent.getTemplate().getType());
+		}
 		ProjectThing pt;
 		try {
 			pt = new ProjectThing(tt, sibling.getProject(), sibling);
@@ -662,7 +698,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			IJError.print(e);
 			return null;
 		}
-		parent.addChild(pt);
+		if (!parent.addChild(pt)) {
+			Utils.log2("Could not add sibling!");
+			return null;
+		}
 
 		DefaultMutableTreeNode node = new DefaultMutableTreeNode(pt);
 		int index = enode.getParent().getIndex(enode);
@@ -884,5 +923,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		}
 
 		return false;
+	}
+	
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootProjectThing();
 	}
 }

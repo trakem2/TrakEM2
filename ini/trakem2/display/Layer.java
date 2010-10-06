@@ -38,26 +38,23 @@ import java.util.List;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Iterator;
-import java.util.TreeMap;
-import java.util.Collection;
+import java.util.Set;
 
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.Image;
 
 public final class Layer extends DBObject implements Bucketable, Comparable<Layer> {
 
 	private final ArrayList<Displayable> al_displayables = new ArrayList<Displayable>();
 	/** For fast search. */
 	Bucket root = null;
-	private HashMap<Displayable,ArrayList<Bucket>> db_map = null;
+	private HashMap<Displayable,HashSet<Bucket>> db_map = null;
 
-	private double z;
-	private double thickness;
+	private double z = 0;
+	private double thickness = 0;
 
 	private LayerSet parent;
 
@@ -78,21 +75,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Reconstruct from XML file. */
-	public Layer(Project project, long id, HashMap ht_attributes) {
+	public Layer(final Project project, final long id, HashMap<String,String> ht_attributes) {
 		super(project, id);
 		this.parent = null;
 		// parse data
-		for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("z")) {
-				this.z = Double.parseDouble(data);
-			} else if (key.equals("thickness")) {
-				this.thickness = Double.parseDouble(data);
-			}
-			// all the above could have been done with reflection since the fields have the same name
-		}
+		String data;
+		if (null != (data = ht_attributes.get("z"))) this.z = Double.parseDouble(data);
+		else Displayable.xmlError(this, "z", this.z);
+		if (null != (data = ht_attributes.get("thickness"))) this.thickness = Double.parseDouble(data);
+		else Displayable.xmlError(this, "thickness", this.thickness);
 	}
 
 	/** Creates a new Layer asking for z and thickness, and adds it to the parent and returns it. Returns null if the dialog was canceled.*/
@@ -116,6 +107,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
+	/** Pops up a dialog to choose the first Z coord, the thickness, the number of layers,
+	 *  and whether to skip the creation of any layers whose Z and thickness match
+	 *  that of existing layers.
+	 *  @return The newly created layers. */
 	static public List<Layer> createMany(Project project, LayerSet parent) {
 		if (null == parent) return null;
 		GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
@@ -126,10 +121,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		// start iteration to add layers
-		boolean skip = gd.getNextBoolean();
 		double z = gd.getNextNumber();
 		double thickness = gd.getNextNumber();
 		int n_layers = (int)gd.getNextNumber();
+		boolean skip = gd.getNextBoolean();
 		if (thickness < 0) {
 			Utils.log("Can't create layers with negative thickness");
 			return null;
@@ -145,7 +140,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				// Check if layer exists
 				la = parent.getLayer(z);
 				if (null == la) la = new Layer(project, z, thickness, parent);
-				// else don't create, but use existing
+				else la = null;
 			} else la = new Layer(project, z, thickness, parent);
 			if (null != la) {
 				parent.addSilently(la);
@@ -190,6 +185,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	public void add(final Displayable displ, final boolean update_displays, final boolean update_db) {
 		if (null == displ || -1 != al_displayables.indexOf(displ)) return;
+		if (displ.getProject() != this.project)
+			throw new IllegalArgumentException("Layer rejected a Displayable: belongs to a different project.");
 
 		int i=-1, j=-1;
 		final Displayable[] d = new Displayable[al_displayables.size()];
@@ -266,7 +263,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				// add as last first, then update
 				root.put(d.length, displ, this, db_map);
 				// find and update the range of affected Displayable objects
-				root.update(this, displ, stack_index, d.length); // first to last indices affected
+				root.updateRange(this, displ, stack_index, d.length); // first to last indices affected
 			}
 		}
 
@@ -275,7 +272,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
-	public HashMap<Displayable, ArrayList<Bucket>> getBucketMap(final Layer layer) { // ignore layer
+	public HashMap<Displayable, HashSet<Bucket>> getBucketMap(final Layer layer) { // ignore layer
 		return db_map;
 	}
 
@@ -292,17 +289,58 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public synchronized boolean remove(final Displayable displ) {
-		if (null == displ || null == al_displayables || -1 == al_displayables.indexOf(displ)) {
+		if (null == displ || null == al_displayables) {
 			Utils.log2("Layer can't remove Displayable " + displ.getId());
 			return false;
 		}
-		// remove from Bucket before modifying stack index
-		if (null != root) Bucket.remove(displ, db_map);
-		// now remove proper, so stack_index hasn't changed yet
+		final int old_stack_index = al_displayables.indexOf(displ);
+		if (-1 == old_stack_index) {
+			Utils.log2("Layer.remove: not found: " + displ);
+			return false;
+		}
 		al_displayables.remove(displ);
+		// remove from Bucket AFTER modifying stack index, so it gets reindexed properly
+		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
+		int i = 0;
+		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
+		if (null != root) {
+			final Collection<Bucket> bus = db_map.remove(displ);
+			// bus may be null if the object, like a profile, didn't have any data and was deleted while empty
+			if (null != bus)
+				for (Bucket bu : bus)
+					bu.remove(displ, old_stack_index, new_stack_indices);
+		}
+
 		parent.removeFromOffscreens(this);
 		Display.remove(this, displ);
 		return true;
+	}
+	
+	/** Remove a set of children. Does not destroy the children nor remove them from the database, only from the Layer and the Display. */
+	public synchronized boolean removeAll(final Set<Displayable> ds) {
+		if (null == ds || null == al_displayables) return false;
+		// Ensure list is iterated only once: don't ask for index every time!
+		final ArrayList<Integer> old_stack_indices = new ArrayList<Integer>(ds.size());
+		int i = 0;
+		for (final Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
+			if (ds.contains(d)) {
+				it.remove();
+				parent.removeFromOffscreens(this);
+				Display.remove(this, d);
+				old_stack_indices.add(i);
+			}
+			i++;
+			if (old_stack_indices.size() == ds.size()) break;
+		}
+		// New stack indices:
+		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
+		i = 0;
+		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
+		//
+		if (null != root) root.removeAll(old_stack_indices, new_stack_indices);
+		Display.updateVisibleTabs(this.project);
+		return ds.size() == old_stack_indices.size();
 	}
 
 	/** Used for reconstruction purposes. */
@@ -384,7 +422,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Returns true if any of the Displayable objects are of the given class. */
-	public boolean contains(final Class c) {
+	public boolean contains(final Class<?> c) {
 		for (Object ob : al_displayables) {
 			if (ob.getClass() == c) return true;
 		}
@@ -392,7 +430,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Count instances of the given Class. */
-	public int count(final Class c) {
+	public int count(final Class<?> c) {
 		int n = 0;
 		for (Object ob : al_displayables) {
 			if (ob.getClass() == c) n++;
@@ -407,7 +445,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Returns a copy of the list of Displayable objects.*/
 	synchronized public ArrayList<Displayable> getDisplayables() {
-		return (ArrayList<Displayable>)al_displayables.clone();
+		return new ArrayList<Displayable>(al_displayables);
 	}
 
 	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
@@ -420,7 +458,22 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Returns a list of Displayable of class c only.*/
-	synchronized public ArrayList<Displayable> getDisplayables(final Class c) {
+	synchronized public<T extends Displayable> ArrayList<T> getAll(final Class<T> c) {
+		// So yes, it can be done to return a typed list of any kind: this WORKS:
+		final ArrayList<T> al = new ArrayList<T>();
+		if (null == c) return al;
+		if (Displayable.class == c) {
+			al.addAll((Collection<T>)al_displayables); // T is Displayable
+			return al;
+		}
+		for (final Displayable d : al_displayables) {
+			if (d.getClass() == c) al.add((T)d);
+		}
+		return al;
+	}
+
+	/** Returns a list of Displayable of class c only.*/
+	synchronized public ArrayList<Displayable> getDisplayables(final Class<?> c) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		if (null == c) return al;
 		if (Displayable.class == c) {
@@ -432,19 +485,20 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
+	
 
 	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
-	public Collection<Displayable> getDisplayables(final Class c, final Rectangle roi) {
+	public Collection<Displayable> getDisplayables(final Class<?> c, final Rectangle roi) {
 		return getDisplayables(c, new Area(roi), true, false);
 	}
 
 	/** Returns a list of all Displayable of class c that intersect the given area. */
-	synchronized public Collection<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only) {
+	synchronized public Collection<Displayable> getDisplayables(final Class<?> c, final Area aroi, final boolean visible_only) {
 		return getDisplayables(c, aroi, visible_only, false);
 	}
 
 	/** Check class identity by instanceof instead of equality. */
-	synchronized public Collection<Displayable> getDisplayables(final Class c, final Area aroi, final boolean visible_only, final boolean instance_of) {
+	synchronized public Collection<Displayable> getDisplayables(final Class<?> c, final Area aroi, final boolean visible_only, final boolean instance_of) {
 		if (null != root) return root.find(c, aroi, this, visible_only, instance_of);
 		// Else, the slow way
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -482,7 +536,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
-	synchronized public ArrayList<Displayable> getDisplayables(final Class c, final boolean visible_only) {
+	synchronized public ArrayList<Displayable> getDisplayables(final Class<?> c, final boolean visible_only) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final Displayable d : al_displayables) {
 			if (d.getClass() == c) {
@@ -500,10 +554,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return null;
 	}
 
-	public double getLayerWidth() {
+	public float getLayerWidth() {
 		return parent.getLayerWidth();
 	}
-	public double getLayerHeight() {
+	public float getLayerHeight() {
 		return parent.getLayerHeight();
 	}
 
@@ -525,12 +579,12 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
-	public Collection<Displayable> find(final Class c, final int x, final int y) {
+	public Collection<Displayable> find(final Class<?> c, final int x, final int y) {
 		return find(c, x, y, false);
 	}
 
 	/** Find the Displayable objects of Class c that contain the point. */
-	synchronized public Collection<Displayable> find(final Class c, final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only) {
 		if (Displayable.class == c) return find(x, y); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -559,11 +613,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
+	
+	synchronized public Collection<Displayable> find(final Class<?> c, final Rectangle r, final boolean visible_only) {
+		return find(c, r, visible_only, false);
+	}
 
 	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
-	synchronized public Collection<Displayable> find(final Class c, final Rectangle r, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class<?> c, final Rectangle r, final boolean visible_only, final boolean instance_of) {
 		if (Displayable.class == c) return find(r, visible_only);
-		if (null != root && root.isBetter(r, this)) return root.find(c, r, this, visible_only);
+		if (null != root && root.isBetter(r, this)) return root.find(c, r, this, visible_only, instance_of);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final Displayable d : al_displayables) {
 			if (visible_only && !d.isVisible()) continue;
@@ -576,12 +634,12 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself included if present in this very Layer). */
-	synchronized public Collection<Displayable> getIntersecting(final Displayable d, final Class target) {
+	synchronized public Collection<Displayable> getIntersecting(final Displayable d, final Class<?> target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());
 			if (root.isBetter(area.getBounds(), this)) return root.find(area, this, false);
 		}
-		final ArrayList<Displayable> al = new ArrayList();
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
 			Object ob = al_displayables.get(i);
 			if (ob.getClass() != target) continue;
@@ -612,7 +670,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i, i+1);
+		if (null != root) root.updateRange(this, d, i, i+1);
 	}
 
 	/** Within its own class only. */
@@ -626,7 +684,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		} else return;
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i-1, i);
+		if (null != root) root.updateRange(this, d, i-1, i);
 	}
 
 	/** Within its own class only. */
@@ -634,7 +692,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		final int i = al_displayables.indexOf(d);
 		final int size = al_displayables.size();
 		if (null == d || -1 == i || size -1 == i) return;
-		final Class c = d.getClass();
+		final Class<?> c = d.getClass();
 		boolean done = false;
 		int j = i + 1;
 		for (; j<size; j++) {
@@ -655,14 +713,14 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, i, j);
+		if (null != root) root.updateRange(this, d, i, j);
 	}
 
 	/** Within its own class only. */
 	public void moveBottom(final Displayable d) {
 		final int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
-		Class c = d.getClass();
+		Class<?> c = d.getClass();
 		boolean done = false;
 		int j = i - 1;
 		for (; j > -1; j--) {
@@ -682,7 +740,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		updateInDatabase("stack_index");
 		Display.updatePanelIndex(d.getLayer(), d);
-		if (null != root) root.update(this, d, j, i);
+		if (null != root) root.updateRange(this, d, j, i);
 	}
 
 	/** Within its own class only. */
@@ -705,7 +763,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	public int relativeIndexOf(final Displayable d) {
 		int k = al_displayables.indexOf(d);
 		if (-1 == k) return -1;
-		Class c = d.getClass();
+		Class<?> c = d.getClass();
 		int size = al_displayables.size();
 		int i = k+1;
 		for (; i<size; i++) {
@@ -751,7 +809,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
-	public HashSet<Displayable> hideExcept(ArrayList<Class> type, boolean repaint) {
+	public HashSet<Displayable> hideExcept(ArrayList<Class<?>> type, boolean repaint) {
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (Displayable d : al_displayables) {
 			if (!type.contains(d.getClass()) && d.isVisible()) {
@@ -786,9 +844,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Includes all Displayable objects in the list of possible children. */
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_layer";
 		if (hs.contains(type)) return;
+		hs.add(type);
 		sb_header.append(indent).append("<!ELEMENT t2_layer (t2_patch,t2_label,t2_layer_set,t2_profile)>\n")
 			 .append(indent).append(Displayable.TAG_ATTR1).append(type).append(" oid").append(Displayable.TAG_ATTR2)
 			 .append(indent).append(Displayable.TAG_ATTR1).append(type).append(" thickness").append(Displayable.TAG_ATTR2)
@@ -803,18 +862,17 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public void destroy() {
-		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : al_displayables) {
 			d.destroy();
 		}
 	}
 
 	/** Returns null if no Displayable objects of class c exist. */
-	public Rectangle getMinimalBoundingBox(final Class c) {
+	public Rectangle getMinimalBoundingBox(final Class<?> c) {
 		Rectangle box = null;
 		Rectangle tmp = new Rectangle();
-		for (Iterator it = getDisplayables(c).iterator(); it.hasNext(); ) {
-			tmp = ((Displayable)it.next()).getBoundingBox(tmp);
+		for (final Displayable d : getDisplayables(c)) {
+			tmp = d.getBoundingBox(tmp);
 			if (null == box) {
 				box = (Rectangle)tmp.clone();
 				continue;
@@ -827,17 +885,18 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	/** Returns an Area in world coordinates that represents the inside of all Patches. */
 	public Area getPatchArea(final boolean visible_only) {
 		Area area = new Area(); // with width,height zero
-		for (final Patch p : (ArrayList<Patch>) (ArrayList) getDisplayables(Patch.class, visible_only)) {
-			area.add(p.getArea());
+		for (final Patch p: getAll(Patch.class)) {
+			if (visible_only && p.isVisible()) {
+				area.add(p.getArea());
+			}
 		}
 		return area;
 	}
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
-	public void apply(final Class c, final AffineTransform at) {
+	public void apply(final Class<?> c, final AffineTransform at) {
 		boolean all = Displayable.class == c;
-		for (Iterator it = al_displayables.iterator(); it.hasNext(); ) {
-			final Displayable d = (Displayable)it.next();
+		for (final Displayable d : al_displayables) {
 			if (all || d.getClass() == c) {
 				d.preTransform(at, false);
 			}
@@ -850,9 +909,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Layer copy = new Layer(pr, nid, z, thickness);
 		copy.parent = ls;
-		for (Iterator it = find(roi).iterator(); it.hasNext(); ) {
-			Displayable dc = ((Displayable)it.next()).clone(pr, copy_id);
-			copy.addSilently(dc);
+		for (final Displayable d : find(roi)) {
+			copy.addSilently(d.clone(pr, copy_id));
 		}
 		final AffineTransform transform = new AffineTransform();
 		transform.translate(-roi.x, -roi.y);
@@ -869,12 +927,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	 *  The type is either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB.
 	 *  The format is either Layer.IMAGEPROCESSOR, Layer.IMAGEPLUS, Layer.PIXELARRAY or Layer.IMAGE.
 	 */
-	public Object grab(final Rectangle r, final double scale, final Class c, final int c_alphas, final int format, final int type) {
-		// check that it will fit in memory
-		if (!project.getLoader().releaseToFit(r.width, r.height, type, 1.1f)) {
-			Utils.log("Layer.grab: Cannot fit a flat image of " + (long)(r.width*r.height*(ImagePlus.GRAY8==type?1:4)*1.1) + " bytes in memory.");
-			return null;
-		}
+	public Object grab(final Rectangle r, final double scale, final Class<?> c, final int c_alphas, final int format, final int type) {
+		//Ensure some memory is free
+		project.getLoader().releaseToFit(r.width, r.height, type, 1.1f);
 		if (IMAGE == format) {
 			return project.getLoader().getFlatAWTImage(this, r, scale, c_alphas, type, c, null, true, Color.black);
 		} else {
@@ -927,7 +982,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	synchronized public void recreateBuckets() {
 		this.root = new Bucket(0, 0, (int)(0.00005 + getLayerWidth()), (int)(0.00005 + getLayerHeight()), Bucket.getBucketSide(this, this));
-		this.db_map = new HashMap<Displayable,ArrayList<Bucket>>();
+		this.db_map = new HashMap<Displayable,HashSet<Bucket>>();
 		this.root.populate(this, this, db_map);
 		//root.debug();
 	}

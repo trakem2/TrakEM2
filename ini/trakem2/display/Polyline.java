@@ -22,13 +22,13 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.gui.Plot;
+import features.ComputeCurvatures;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
-import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
+import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -36,21 +36,20 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.vector.VectorString3D;
-import ini.trakem2.imaging.Segmentation;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
-import java.awt.Graphics2D;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.Shape;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -60,14 +59,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import features.ComputeCurvatures;
+import javax.vecmath.Point3f;
+import javax.vecmath.Vector3d;
+
 import tracing.Path;
+import tracing.SearchProgressCallback;
 import tracing.SearchThread;
 import tracing.TracerThread;
-import tracing.SearchProgressCallback;
-
-import javax.vecmath.Vector3d;
-import javax.vecmath.Point3f;
 
 
 /** A sequence of points that make multiple chained line segments. */
@@ -87,7 +85,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		n_points = 0;
 	}
 
-	public Polyline(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Polyline(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -97,51 +95,51 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Reconstruct from XML. */
-	public Polyline(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	public Polyline(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 		// parse specific data
-		for (Iterator it = ht_attr.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("d")) {
-				// parse the points
-				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				// M: Move To
-				// L: Line To
-				// sequence is: M p[0][0],p[1][0] L p[0][1],p[1][1] L p[0][2],p[1][2] ...
-				// first point:
-				int i_start = data.indexOf('M');
-				int i_L = data.indexOf('L', i_start+1);
-				int next = 0;
-				while (-1 != i_L) {
-					if (p[0].length == next) enlargeArrays();
-					// parse the point
-					// 'X'
-					int i_comma = data.indexOf(',', i_start+1);
-					p[0][next] = Double.parseDouble(data.substring(i_start+1, i_comma));
-					// 'Y'
-					i_L = data.indexOf('L', i_comma);
-					int i_end = i_L;
-					if (-1 == i_L) i_end = data.length();
-					p[1][next] = Double.parseDouble(data.substring(i_comma+1, i_end));
-			
-					// prepare next point
-					i_start = i_L;
-					next++;
-				}
-				n_points = next;
-				// scale arrays back, so minimal size and also same size as p_layer
-				p = new double[][]{Utils.copy(p[0], n_points), Utils.copy(p[1], n_points)};
-			} else if (key.equals("layer_ids")) {
-				// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
-				final String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
-				this.p_layer = new long[layer_ids.length];
-				for (int i=0; i<layer_ids.length; i++) {
-					if (i == p_layer.length) enlargeArrays();
-					this.p_layer[i] = Long.parseLong(layer_ids[i]);
-				}
+		final String ps = ht_attr.get("d");
+		if (null != ps) {
+			final String lids = ht_attr.get("layer_ids");
+			if (null == lids) {
+				Utils.log("ERROR: found 'd' but not 'layer_ids' in XML entry of Polyline #" + this.id);
+				return;
+			}
+			// parse the points
+			// parse the SVG points data
+			// M: Move To
+			// L: Line To
+			// sequence is: M p[0][0],p[1][0] L p[0][1],p[1][1] L p[0][2],p[1][2] ...
+			// first point:
+			int i_start = ps.indexOf('M');
+			int i_L = ps.indexOf('L', i_start+1);
+			int next = 0;
+			while (-1 != i_L) {
+				if (p[0].length == next) enlargeArrays();
+				// parse the point
+				// 'X'
+				int i_comma = ps.indexOf(',', i_start+1);
+				p[0][next] = Double.parseDouble(ps.substring(i_start+1, i_comma));
+				// 'Y'
+				i_L = ps.indexOf('L', i_comma);
+				int i_end = i_L;
+				if (-1 == i_L) i_end = ps.length();
+				p[1][next] = Double.parseDouble(ps.substring(i_comma+1, i_end));
+
+				// prepare next point
+				i_start = i_L;
+				next++;
+			}
+			n_points = next;
+			// scale arrays back, so minimal size and also same size as p_layer
+			p = new double[][]{Utils.copy(p[0], n_points), Utils.copy(p[1], n_points)};
+
+			// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
+			final String[] layer_ids = lids.replaceAll(" ", "").trim().split(",");
+			this.p_layer = new long[layer_ids.length];
+			for (int i=0; i<layer_ids.length; i++) {
+				if (i == p_layer.length) enlargeArrays();
+				this.p_layer[i] = Long.parseLong(layer_ids[i]);
 			}
 		}
 	}
@@ -418,7 +416,8 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		updateInDatabase("points");
 	}
 
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -579,6 +578,13 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
 			// Use Mark Longair's tracing: from the clicked point to the last one
+			
+			// Check that there are any images -- otherwise may hang. TODO
+			if (layer_set.getDisplayables(Patch.class).isEmpty()) {
+				Utils.log("No images are present!");
+				return;
+			}
+			
 			final double scale = layer_set.getVirtualizationScale();
 			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
 			final Worker[] worker = new Worker[2];
@@ -836,17 +842,22 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		is_new_point = false;
 		index = -1;
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) {
+		return calculateBoundingBox(true, la);
+	}
 
-	synchronized protected void calculateBoundingBox(final boolean adjust_position, final Layer la) {
+	synchronized protected boolean calculateBoundingBox(final boolean adjust_position, final Layer la) {
 		if (0 == n_points) {
 			this.width = this.height = 0;
 			updateBucket(la);
-			return;
+			return true;
 		}
 		final double[] m = calculateDataBoundingBox();
 
-		this.width = m[2] - m[0];  // max_x - min_x;
-		this.height = m[3] - m[1]; // max_y - min_y;
+		this.width = (float)(m[2] - m[0]);  // max_x - min_x;
+		this.height = (float)(m[3] - m[1]); // max_y - min_y;
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
@@ -860,6 +871,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		updateInDatabase("dimensions");
 
 		updateBucket(la);
+		return true;
 	}
 
 	/** Returns min_x, min_y, max_x, max_y. */
@@ -955,6 +967,21 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 		a.transform(this.at);
 		return a;
+	}
+	
+	@Override
+	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		try {
+			final Rectangle box = this.at.createInverse().createTransformedShape(r).getBounds();
+			for (int i=0; i<n_points; i++) {
+				if (p_layer[i] == layer.getId()) {
+					if (box.contains(p[0][i], p[1][i])) return true;
+				}
+			}
+		} catch (NoninvertibleTransformException e) {
+			IJError.print(e);
+		}
+		return false;
 	}
 
 	public boolean isDeletable() {
@@ -1211,6 +1238,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		return new StringBuilder("Length: ").append(Utils.cutNumber(len, 2, true)).append(' ').append(this.layer_set.getCalibration().getUnits()).append('\n').toString();
 	}
 
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return rt;

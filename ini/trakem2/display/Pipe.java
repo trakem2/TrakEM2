@@ -93,7 +93,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct an unloaded Pipe from the database. Points will be loaded later, when needed. */
-	public Pipe(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Pipe(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -103,24 +103,21 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct a Pipe from an XML entry. */
-	public Pipe(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Pipe(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("d")) {
+		String data;
+		if (null != (data = ht.get("d"))) {
 				// parse the points
 				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				ArrayList al_p_r = new ArrayList();
-				ArrayList al_p_l = new ArrayList();// needs shifting, inserting one point at the beginning if not closed.
+				ArrayList<String> al_p = new ArrayList<String>();
+				ArrayList<String> al_p_r = new ArrayList<String>();
+				ArrayList<String> al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
 				// sequence is: M p[0],p[1] C p_r[0],p_r[1] p_l[0],p_l[1] and repeat without the M, and finishes with the last p[0],p[1]. If closed, appended at the end is p_r[0],p_r[1] p_l[0],p_l[1]
 				// first point:
 				int i_start = data.indexOf('M');
 				int i_end = data.indexOf('C');
-				String point = data.substring(i_start+1, i_end).trim();
+				final String point = data.substring(i_start+1, i_end).trim();
 				al_p.add(point);
 				boolean go = true;
 				while (go) {
@@ -173,19 +170,20 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					p_r[0][i] = Double.parseDouble(sp[0]);
 					p_r[1][i] = Double.parseDouble(sp[1]);
 				}
-			} else if (key.equals("layer_ids")) {
-				// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
-				String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
-				this.p_layer = new long[layer_ids.length];
-				for (int i=0; i<layer_ids.length; i++) {
-					this.p_layer[i] = Long.parseLong(layer_ids[i]);
-				}
-			} else if (key.equals("p_width")) {
-				String[] widths = data.replaceAll(" ", "").trim().split(",");
-				this.p_width = new double[widths.length];
-				for (int i=0; i<widths.length; i++) {
-					this.p_width[i] = Double.parseDouble(widths[i]);
-				}
+		}
+		if(null != (data = ht.get("layer_ids"))) {
+			// parse comma-separated list of layer ids. Creates empty Layer instances with the proper id, that will be replaced later.
+			final String[] layer_ids = data.replaceAll(" ", "").trim().split(",");
+			this.p_layer = new long[layer_ids.length];
+			for (int i=0; i<layer_ids.length; i++) {
+				this.p_layer[i] = Long.parseLong(layer_ids[i]);
+			}
+		}
+		if (null != (data = ht.get("p_width"))) {
+			final String[] widths = data.replaceAll(" ", "").trim().split(",");
+			this.p_width = new double[widths.length];
+			for (int i=0; i<widths.length; i++) {
+				this.p_width[i] = Double.parseDouble(widths[i]);
 			}
 		}
 		// finish up
@@ -529,7 +527,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	// synchronizing to protect n_points ... need to wrap it in a lock
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -844,8 +843,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		is_new_point = false;
 		index = index_r = index_l = -1;
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) {
+		return calculateBoundingBox(true, la);
+	}
 
-	synchronized protected void calculateBoundingBox(final boolean adjust_position, final Layer la) {
+	synchronized protected boolean calculateBoundingBox(final boolean adjust_position, final Layer la) {
 		double min_x = Double.MAX_VALUE;
 		double min_y = Double.MAX_VALUE;
 		double max_x = 0.0D;
@@ -853,7 +857,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (0 == n_points) {
 			this.width = this.height = 0;
 			updateBucket(la);
-			return;
+			return true;
 		}
 		// get perimeter of the tube, without the transform
 		final Polygon pol = Pipe.getRawPerimeter(p_i, p_width_i);
@@ -878,8 +882,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			if (p_r[1][i] > max_y) max_y = p_r[1][i];
 		}
 
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
@@ -897,6 +901,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		updateInDatabase("dimensions");
 
 		updateBucket(la);
+		return true;
 	}
 
 	/**Release all memory resources taken by this object.*/
@@ -1597,7 +1602,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_pipe";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -2059,6 +2064,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		imp.show();
 	}
 
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return rt;
@@ -2263,5 +2269,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (null == pols) return a;
 		for (final Polygon pol : pols) a.add(new Area(pol));
 		return a;
+	}
+
+	@Override
+	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		final Polygon[] pols = getSubPerimeters(layer); // in world coords
+		if (null == pols) return false;
+		for (final Polygon pol : pols) {
+			if (pol.intersects(r)) return true;
+		}
+		return false;
 	}
 }

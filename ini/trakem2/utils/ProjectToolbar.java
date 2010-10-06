@@ -33,10 +33,13 @@ import java.awt.event.KeyEvent;
 import java.io.File;
 
 import java.lang.reflect.Field;
+import java.awt.Color;
 import java.awt.PopupMenu;
 import java.awt.MenuItem;
 import java.awt.ItemSelectable;
 import java.awt.event.ItemEvent;
+
+import javax.swing.SwingUtilities;
 
 import ini.trakem2.display.Display;
 
@@ -58,7 +61,7 @@ public class ProjectToolbar implements MouseListener {
 	private ProjectToolbar() {}
 
 	/** Set macro buttons for TrakEM2 in ImageJ's toolbar */
-	static public void setProjectToolbar() {
+	static synchronized public void setProjectToolbar() {
 		if (null == instance) instance = new ProjectToolbar();
 		// check if macros are installed already
 		MacroInstaller installer = new MacroInstaller();
@@ -189,8 +192,10 @@ public class ProjectToolbar implements MouseListener {
 		}
 	}
 
-	static public void setTool(int t) {
-		Toolbar.getInstance().setTool(t);
+	static public void setTool(final int t) {
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			Toolbar.getInstance().setTool(t);
+		}});
 		Display.repaintToolbar();
 	}
 
@@ -281,5 +286,10 @@ public class ProjectToolbar implements MouseListener {
 			default:
 				return false;
 		}
+	}
+	
+	/** The luminance of the foreground color. */
+	static public final int getForegroundColorValue() {
+		return Utils.luminance(Toolbar.getForegroundColor());
 	}
 }

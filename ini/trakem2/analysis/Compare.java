@@ -42,7 +42,6 @@ import ini.trakem2.display.Line3D;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -441,7 +440,7 @@ public class Compare {
 				for (final ProjectThing c : children) {
 					if (hs_c_done.contains(c)) continue; // already visited
 					// c is at the same tree level as child (which contains a pipe directly)
-					ArrayList child_pipes = c.findChildrenOfType(Line3D.class);
+					ArrayList<Line3D> child_pipes = c.findChildrenOfType(Line3D.class);
 					if (child_pipes.size() > 0) {
 						Chain ca;
 						if (first) {

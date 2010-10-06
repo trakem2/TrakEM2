@@ -26,6 +26,7 @@ import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Font;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Collection;
@@ -35,8 +36,6 @@ import java.util.SortedMap;
 import java.util.Comparator;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.awt.Graphics2D;
 import java.awt.event.MouseEvent;
 import java.awt.Component;
 import java.awt.geom.AffineTransform;
@@ -60,6 +59,7 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 
 import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AlignTask;
 import ij.gui.GenericDialog;
 
 import java.io.File;
@@ -228,7 +228,7 @@ public class ManualAlignMode implements Mode {
 			//Utils.log2("lm is " + lm);
 			if (null != lm) {
 				lm.set(index, x_d, y_d);
-				display.repaint();
+				Display.repaint();
 			}
 		}
 	}
@@ -335,7 +335,7 @@ public class ManualAlignMode implements Mode {
 		}
 
 		if (n_landmarks < min) {
-			Utils.showMessage("Need at least " + min + " landmarks for a " + Align.param.modelStrings[model_index] + " model");
+			Utils.showMessage("Need at least " + min + " landmarks for a " + Align.Param.modelStrings[model_index] + " model");
 			return false;
 		}
 
@@ -346,13 +346,15 @@ public class ManualAlignMode implements Mode {
 		// Match in pairs.
 
 		// So, get two submaps: from ref_layer to first, and from ref_layer to last
-		SortedMap<Layer,Landmarks> first_chunk = new TreeMap<Layer,Landmarks>(sorted.headMap(ref_layer)); // strictly lower Z than ref_layer
-		first_chunk.put(ref_layer, m.get(ref_layer)); // .. so add ref_layer
+		final SortedMap<Layer,Landmarks> first_chunk_ = new TreeMap<Layer,Landmarks>(sorted.headMap(ref_layer)); // strictly lower Z than ref_layer
+		first_chunk_.put(ref_layer, m.get(ref_layer)); // .. so add ref_layer
 
-		SortedMap<Layer,Landmarks> second_chunk = sorted.tailMap(ref_layer); // equal or larger Z than ref_layer
+		final SortedMap<Layer,Landmarks> second_chunk = sorted.tailMap(ref_layer); // equal or larger Z than ref_layer
 
+		final SortedMap<Layer,Landmarks> first_chunk;
+		
 		// Reverse order of first_chunk
-		if (first_chunk.size() > 1) {
+		if (first_chunk_.size() > 1) {
 			SortedMap<Layer,Landmarks> fc = new TreeMap<Layer,Landmarks>(new Comparator<Layer>() {
 				public boolean equals(Object ob) {
 					return this == ob;
@@ -365,16 +367,78 @@ public class ManualAlignMode implements Mode {
 					else return 0;
 				}
 			});
-			fc.putAll(first_chunk);
+			fc.putAll(first_chunk_);
 			first_chunk = fc;
+		} else {
+			first_chunk = first_chunk_;
 		}
 
-		LayerSet ls = ref_layer.getParent();
+		final LayerSet ls = ref_layer.getParent();
+		
+		final Collection<Layer> affected_layers = new HashSet<Layer>(m.keySet());
+
+		// Gather all Patch instances that will be affected
+		final ArrayList<Patch> patches = new ArrayList<Patch>();
+		for (final Layer la : m.keySet()) patches.addAll(la.getAll(Patch.class));
+		if (propagate_to_first && first_chunk.size() > 1) {
+			final Collection<Layer> affected = ls.getLayers().subList(0, ls.indexOf(first_chunk.lastKey()));
+			for (final Layer la : affected) {
+				patches.addAll(la.getAll(Patch.class));
+			}
+			affected_layers.addAll(affected);
+		}
+		if (propagate_to_last && second_chunk.size() > 1) {
+			final Collection<Layer> affected = ls.getLayers().subList(ls.indexOf(second_chunk.lastKey()) + 1, ls.size());
+			for (final Layer la : affected) {
+				patches.addAll(la.getAll(Patch.class));
+			}
+		}
+		
+
+		// Transform segmentations along with patches
+		AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
+
 
 		// Apply!
 
-		// Setup undo
-		ls.addTransformStep();
+
+		// TODO: when adding non-linear transforms, use this single line for undo instead of all below:
+		// (these transforms may be non-linear as well, which alter mipmaps.)
+		//ls.addTransformStepWithData(affected_layers);
+	
+		
+		// Setup undo:
+		// Find all images in the range of affected layers,
+		// plus all Displayable of those layers (but Patch instances in a separate DoTransforms step,
+		//   to avoid adding a "data" undo for them, which would recreate mipmaps when undone).
+		// plus all ZDisplayable that paint in those layers
+		final HashSet<Displayable> ds = new HashSet<Displayable>();
+		final ArrayList<Displayable> patches = new ArrayList<Displayable>();
+		for (final Layer layer : affected_layers) {
+			for (final Displayable d : layer.getDisplayables()) {
+				if (d.getClass() == Patch.class) {
+					patches.add(d);
+				} else {
+					ds.add(d);
+				}
+			}
+		}
+		for (final ZDisplayable zd : ls.getZDisplayables()) {
+			for (final Layer layer : affected_layers) {
+				if (zd.paintsAt(layer)) {
+					ds.add((Displayable)zd);
+					break;
+				}
+			}
+		}
+		if (ds.size() > 0) {
+			Displayable.DoEdits step = ls.addTransformStepWithData(ds);
+			if (patches.size() > 0) {
+				ArrayList<DoStep> a = new ArrayList<DoStep>();
+				a.add(new Displayable.DoTransforms().addAll(patches));
+				step.addDependents(a);
+			}
+		}
 
 		if (first_chunk.size() > 1) {
 			AffineTransform aff = align(first_chunk, model);
@@ -396,7 +460,16 @@ public class ManualAlignMode implements Mode {
 		Display.repaint();
 
 		// Store current state
-		ls.addTransformStep();
+		if (ds.size() > 0) {
+			Displayable.DoEdits step2 = ls.addTransformStepWithData(ds);
+			if (patches.size() > 0) {
+				ArrayList<DoStep> a2 = new ArrayList<DoStep>();
+				a2.add(new Displayable.DoTransforms().addAll(patches));
+				step2.addDependents(a2);
+			}
+		}
+
+		}});
 
 
 		}}, display.getProject());
@@ -519,7 +592,7 @@ public class ManualAlignMode implements Mode {
 			if (sizes.size() > 1) {
 				Utils.log("WARNING: different number of landmarks in at least one layer.");
 			}
-			display.repaint();
+			Display.repaint();
 
 		} catch (Throwable t) {
 			IJError.print(t);

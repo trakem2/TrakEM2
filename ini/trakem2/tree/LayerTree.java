@@ -28,25 +28,19 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
-import ini.trakem2.display.DLabel;
-import ini.trakem2.display.DoStep;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 
 import java.awt.Component;
-import java.awt.Point;
 import java.awt.Color;
-import java.awt.Event;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.util.Hashtable;
 import java.util.List;
 import java.util.Iterator;
 //import java.util.Enumeration;
@@ -55,7 +49,7 @@ import java.util.HashSet;
 
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -97,7 +91,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
-		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
+		if (!source.equals(this) || !project.isInputEnabled()) {
 			return;
 		}
 
@@ -231,7 +225,6 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 						updateList((LayerSet)it.next());
 					}
 					// now update all profile's Z ordering in the ProjectTree
-					final Project project = Project.getInstance(this);
 					ProjectThing root_pt = project.getRootProjectThing();
 					ArrayList al_pl = root_pt.findChildrenOfType("profile_list");
 					for (Iterator it = al_pl.iterator(); it.hasNext(); ) {
@@ -327,7 +320,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				// create a new Display
 				DBObject dbo = (DBObject)thing.getObject();
 				if (thing.getType().equals("layer_set") && null == ((LayerSet)dbo).getParent()) return; // the top level LayerSet
-				new Display(dbo.getProject(), thing.getType().equals("layer") ? (Layer)dbo : ((LayerSet)dbo).getParent());
+				Display.createDisplay(dbo.getProject(), thing.getType().equals("layer") ? (Layer)dbo : ((LayerSet)dbo).getParent());
 				return;
 			} else if (command.equals("Show centered in Display")) {
 				LayerSet ls = (LayerSet)thing.getObject();
@@ -379,8 +372,8 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 					gd.showDialog();
 					if (gd.wasCanceled()) return;
-					double new_width = gd.getNextNumber();
-					double new_height =gd.getNextNumber();
+					float new_width = (float)gd.getNextNumber(),
+						  new_height = (float)gd.getNextNumber();
 					ls.setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 				}
 			} else if (command.equals("Autoresize LayerSet")) {
@@ -733,5 +726,29 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 			}
 			return label;
 		}
+	}
+	
+	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
+	public void selectNode(final Layer layer) {
+		final DefaultMutableTreeNode node = DNDTree.findNode2(layer, this);
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				// deselect whatever is selected
+				setSelectionPath(null);
+				if (null != node) {
+					final TreePath path = new TreePath(node.getPath());
+					try {
+						scrollPathToVisible(path); // involves repaint, so must be set through invokeAndWait. Why it doesn't do so automatically is beyond me.
+						setSelectionPath(path);
+					} catch (Exception e) {
+						IJError.print(e, true);
+					}
+				}
+		}});
+	}
+	
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootLayerThing();
 	}
 }

@@ -22,20 +22,14 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
+import ini.trakem2.utils.Utils;
+
 import java.awt.Component;
 import java.awt.Rectangle;
 import java.util.LinkedList;
-import java.util.ArrayList;
-import javax.swing.SwingUtilities;
-import ini.trakem2.utils.Lock;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 
 public abstract class AbstractRepaintThread extends Thread {
 
-	final private Lock lock_event = new Lock();
-	final private Lock lock_paint = new Lock();
-	private boolean quit = false;
 	final protected AbstractOffscreenThread off;
 	private final java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();
 	private final Component target;
@@ -44,7 +38,7 @@ public abstract class AbstractRepaintThread extends Thread {
 		super(name);
 		this.target = target;
 		this.off = off;
-		setPriority(Thread.NORM_PRIORITY);
+		setPriority(Thread.NORM_PRIORITY + 1);
 		try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
 		start();
 	}
@@ -67,38 +61,33 @@ public abstract class AbstractRepaintThread extends Thread {
 	public void paint(final Rectangle clipRect, final boolean update_graphics) {
 		//Utils.log2("update_graphics: " + update_graphics);
 		//Utils.printCaller(this, 5);
-		// queue the event
-		synchronized (lock_event) {
-			lock_event.lock();
+		// queue the event and signal a repaint request
+		synchronized (events) {
 			events.add(new PaintEvent(clipRect, update_graphics));
-			lock_event.unlock();
-		}
-		// signal a repaint request
-		synchronized (lock_paint) {
-			lock_paint.notifyAll();
+			events.notify();
 		}
 	}
 
 	/** Will gracefully kill this thread by breaking its infinite wait-for-event loop, and also call cancel on all registered offscreen threads. */
 	public void quit() {
-		this.quit = true;
+		interrupt();
 		// notify and finish
-		synchronized (lock_paint) {
-			lock_paint.notifyAll();
+		synchronized (events) {
+			events.notify();
 		}
 	}
 
 	public void run() {
-		while (!quit) {
+		while (!isInterrupted()) {
 			try {
 				// wait until anyone issues a repaint event
-				if (0 == events.size()) {
-					synchronized (lock_paint) {
-						try { lock_paint.wait(); } catch (InterruptedException ie) {}
+				synchronized (events) {
+					if (0 == events.size() && !isInterrupted()) {
+						try { events.wait(); } catch (InterruptedException ie) {}
 					}
 				}
 
-				if (quit) {
+				if (isInterrupted()) {
 					off.interrupt();
 					return; // finish
 				}
@@ -108,13 +97,11 @@ public abstract class AbstractRepaintThread extends Thread {
 				try { Thread.sleep(10); } catch (InterruptedException ie) {}
 
 				// obtain all events up to now and clear the event queue
-				PaintEvent[] pe = null;
-				synchronized (lock_event) {
-					lock_event.lock();
+				final PaintEvent[] pe;
+				synchronized (events) {
 					pe = new PaintEvent[events.size()];
-					pe = events.toArray(pe);
+					events.toArray(pe);
 					events.clear();
-					lock_event.unlock();
 				}
 				if (0 == pe.length) {
 					Utils.log2("No repaint events (?)");
@@ -139,10 +126,21 @@ public abstract class AbstractRepaintThread extends Thread {
 				}
 
 				// repaint
+				/*
 				if (null == clipRect) target.repaint(0, 0, 0, target.getWidth(), target.getHeight()); // using super.repaint() causes infinite thread loops in the IBM-1.4.2-ppc
 				else target.repaint(0, clipRect.x, clipRect.y, clipRect.width, clipRect.height);
-			} catch (Exception e) {
-				e.printStackTrace();
+				*/
+
+				// Crazy idea: paint NOW
+				final java.awt.Graphics g = target.getGraphics();
+				if (null != g) {
+					// Ensure full clip rect
+					g.setClip(0, 0, target.getWidth(), target.getHeight());
+					target.paint(g);
+					g.dispose();
+				}
+			} catch (Throwable t) {
+				t.printStackTrace();
 			}
 		}
 	}

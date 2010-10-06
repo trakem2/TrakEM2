@@ -227,7 +227,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 		// Expects graphics with an identity transform
 		final void paint(final Graphics2D g, final AffineTransform aff, final Layer layer) {
-			final int i_current = layer_set.getLayerIndex(layer.getId());
+			final int i_current = layer_set.indexOf(layer);
 			int ii;
 			final int M_radius = radius;
 			final int EXTRA = 2;
@@ -390,14 +390,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		super(project, title, x, y);
 	}
 
-	public Dissector(Project project, long id, String title,  double width, double height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Dissector(Project project, long id, String title,  float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
 	}
 	/** Reconstruct from XML. */
-	public Dissector(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Dissector(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// individual items will be added as soon as parsed
 	}
@@ -595,12 +595,16 @@ public class Dissector extends ZDisplayable implements VectorData {
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
-		bbox = calculateBoundingBox(la);
+		calculateBoundingBox(la, bbox);
+	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) {
+		return calculateBoundingBox(la, null);
 	}
 
 	/** Make points as local as possible, and set the width and height. */
-	private Rectangle calculateBoundingBox(Layer la) {
-		Rectangle box = null;
+	private boolean calculateBoundingBox(final Layer la, Rectangle box) {
 		for (Item item : al_items) {
 			if (null == box) box = item.getBoundingBox();
 			else box.add(item.getBoundingBox());
@@ -608,7 +612,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (null == box) {
 			// no items
 			this.width = this.height = 0;
-			return null;
+			updateBucket(la);
+			return true;
 		}
 		// edit the AffineTransform
 		this.translate(box.x, box.y, false);
@@ -620,7 +625,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			for (Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
 		updateBucket(la);
-		return box;
+		return true;
 	}
 
 	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
@@ -670,7 +675,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	/** Always paint as box. TODO paint as the area of an associated ROI. */
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		paintAsBox(g);
 	}
 
@@ -688,6 +693,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return false;
 	}
 
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == al_items.size()) return rt;
 		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius", "nameid"});

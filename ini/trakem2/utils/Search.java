@@ -22,23 +22,65 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.display.*;
 import ini.trakem2.ControlWindow;
-import javax.swing.*;
-import javax.swing.table.*;
-import java.awt.event.*;
+import ini.trakem2.Project;
+import ini.trakem2.display.AreaList;
+import ini.trakem2.display.AreaTree;
+import ini.trakem2.display.Ball;
+import ini.trakem2.display.Connector;
+import ini.trakem2.display.Coordinate;
+import ini.trakem2.display.DLabel;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Dissector;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Node;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Polyline;
+import ini.trakem2.display.Profile;
+import ini.trakem2.display.Tag;
+import ini.trakem2.display.Tree;
+import ini.trakem2.display.Treeline;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.persistence.DBObject;
+
 import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
-import java.util.Hashtable;
+import java.util.Collection;
 import java.util.Iterator;
-import java.util.Vector;
-import java.util.regex.*;
 import java.util.Map;
 import java.util.Set;
-import java.util.Collection;
+import java.util.Vector;
+import java.util.regex.Pattern;
+
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
+import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableModel;
 
 public class Search {
 	private JFrame search_frame = null;
@@ -49,7 +91,7 @@ public class Search {
 
 	static private Search instance = null;
 
-	private Class[] types = null;
+	private Class<?>[] types = null;
 
 
 	/** Creates the GUI for searching text in any TrakEM2 element. */
@@ -97,22 +139,45 @@ public class Search {
 			search_tabs.addKeyListener(kl);
 			search_field = new JTextField(14);
 			search_field.addKeyListener(new VKEnterListener());
+			
+			GridBagLayout gb = new GridBagLayout();
+			GridBagConstraints c = new GridBagConstraints();
+			JPanel all = new JPanel();
+			all.setLayout(gb);
+			all.setPreferredSize(new Dimension(400, 400));
+			
 			JButton b = new JButton("Search");
 			b.addActionListener(new ButtonListener());
 			pulldown = new JComboBox(new String[]{"All", "All displayables", "Labels", "Images", "Area Lists", "Profiles", "Pipes", "Balls", "Layers", "Dissectors", "Polylines", "Treelines", "AreaTrees", "Connectors"});
-			JPanel top = new JPanel();
-			top.add(search_field);
-			top.add(b);
-			top.add(pulldown);
-			top.setMinimumSize(new Dimension(400, 30));
-			top.setMaximumSize(new Dimension(10000, 30));
-			top.setPreferredSize(new Dimension(400, 30));
-			JPanel all = new JPanel();
-			all.setPreferredSize(new Dimension(400, 400));
-			BoxLayout bl = new BoxLayout(all, BoxLayout.Y_AXIS);
-			all.setLayout(bl);
-			all.add(top);
+
+			c.gridx = 0;
+			c.gridy = 0;
+			c.fill = GridBagConstraints.HORIZONTAL;
+			c.weightx = 1;
+			c.insets = new Insets(4, 10, 5, 2);
+			gb.setConstraints(search_field, c);
+			all.add(search_field);
+			
+			c.gridx = 1;
+			c.weightx = 0;
+			c.insets = new Insets(4, 2, 5, 10);
+			gb.setConstraints(b, c);
+			all.add(b);
+			
+			c.gridx = 2;
+			gb.setConstraints(pulldown, c);
+			all.add(pulldown);
+			
+			c.gridx = 0;
+			c.gridy = 1;
+			c.gridwidth = 3;
+			c.weightx = 1;
+			c.weighty = 1;
+			c.fill = GridBagConstraints.BOTH;
+			c.insets = new Insets(0, 0, 0, 0);
+			gb.setConstraints(search_tabs, c);
 			all.add(search_tabs);
+
 			search_frame.getContentPane().add(all);
 			search_frame.pack();
 			javax.swing.SwingUtilities.invokeLater(new Runnable() {
@@ -245,12 +310,15 @@ public class Search {
 			if (dbo instanceof Displayable) {
 				d = (Displayable)dbo;
 			}
-			String txt = null != d ?
-				  dbo.getProject().getMeaningfulTitle(d)
-				: dbo.getTitle();
+			String txt;
+			String meaningful_title = null;
+			if (null == d || Patch.class == d.getClass()) txt = dbo.getTitle();
+			else {
+				txt = meaningful_title = dbo.getProject().getMeaningfulTitle(d);
+			}
+
 			if (null == txt || 0 == txt.trim().length()) continue;
 			matched = pat.matcher(txt).matches();
-			long id = dbo.getId();
 			if (!matched && null != d) {
 				// Search also in its annotation
 				txt = d.getAnnotation();
@@ -306,7 +374,7 @@ public class Search {
 					for (final Tag tag : tags) {
 						if (pat.matcher(tag.toString()).matches()) {
 							v_obs.add(dbo);
-							v_txt.add(new StringBuilder(tag.toString()).append(" (").append(dbo.toString()).append(')').toString());
+							v_txt.add(new StringBuilder(tag.toString()).append(" (").append(null == meaningful_title ? dbo.toString() : meaningful_title).append(')').toString());
 							v_co.add(createCoordinate((Tree)dbo, nd));
 						}
 					}
@@ -329,7 +397,7 @@ public class Search {
 		final JScrollPane jsp = makeTable(new DisplayableTableModel(v_obs, v_txt, v_co));
 		search_tabs.addTab(typed_pattern, jsp);
 		search_tabs.setSelectedComponent(jsp);
-		search_frame.pack();
+		//search_frame.pack();
 
 		}}, project);
 	}
@@ -346,9 +414,15 @@ public class Search {
 		return new Coordinate<Node>(x, y, nd.getLayer(), nd);
 	}
 
-	private Coordinate<Displayable> createCoordinate(Displayable d) {
+	private Coordinate<Displayable> createCoordinate(final Displayable d) {
 		Rectangle r = d.getBoundingBox();
-		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, d.getLayer(), d);
+		Layer la = d instanceof ZDisplayable ? ((ZDisplayable)d).getFirstLayer() : d.getLayer();
+		if (null == la) {
+			Display display = Display.getFront(d.getProject());
+			if (null == display) la = d.getProject().getRootLayerSet().getLayer(0);
+			else la = display.getLayer();
+		}
+		return new Coordinate<Displayable>(r.x+r.width/2, r.y+r.height/2, la, d);
 	}
 
 	private JScrollPane makeTable(TableModel model) {
@@ -388,9 +462,7 @@ public class Search {
 			if (2 == me.getClickCount()) {
 				if (null != co) {
 					Display.centerAt(co);
-					return;
-				}
-				if (ob instanceof Displayable) {
+				} else if (ob instanceof Displayable) {
 					// no zoom
 					Display.centerAt(createCoordinate((Displayable)ob), true, me.isShiftDown());
 				} else if (ob instanceof Layer) {
@@ -488,13 +560,15 @@ public class Search {
 	/** Repaint (refresh the text in the cells) only if any of the selected tabs in any of the search frames contains the given object in its rows. */
 	static public void repaint(final Object ob) {
 		if (null == instance) return;
-		final int selected = instance.search_tabs.getSelectedIndex();
-		if (-1 == selected) return;
-		java.awt.Component c = instance.search_tabs.getComponentAt(selected);
-		JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
-		DisplayableTableModel data = (DisplayableTableModel)table.getModel();
-		if (data.contains(ob)) {
-			Utils.updateComponent(instance.search_frame);
-		}
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			final int selected = instance.search_tabs.getSelectedIndex();
+			if (-1 == selected) return;
+			java.awt.Component c = instance.search_tabs.getComponentAt(selected);
+			JTable table = (JTable)((JScrollPane)c).getViewport().getComponent(0);
+			DisplayableTableModel data = (DisplayableTableModel)table.getModel();
+			if (data.contains(ob)) {
+				Utils.updateComponent(instance.search_frame);
+			}
+		}});
 	}
 }

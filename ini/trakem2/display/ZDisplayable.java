@@ -25,8 +25,6 @@ package ini.trakem2.display;
 import ini.trakem2.Project;
 
 import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Rectangle;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -49,12 +47,12 @@ public abstract class ZDisplayable extends Displayable {
 	}
 
 	/** For reconstruction from the database. */
-	public ZDisplayable(Project project, long id, String title, boolean locked, AffineTransform at, double width, double height) {
+	public ZDisplayable(Project project, long id, String title, boolean locked, AffineTransform at, float width, float height) {
 		super(project, id, title, locked, at, width, height);
 	}
 
 	/** For reconstruction from an XML file. */
-	public ZDisplayable(Project project, long id, HashMap ht, HashMap ht_links) {
+	public ZDisplayable(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		Object data = ht.get("layer_set_id");
 		if (null != data) {
@@ -90,7 +88,7 @@ public abstract class ZDisplayable extends Displayable {
 		super.exportXML(sb_body, indent, any);
 		sb_body.append(indent).append("layer_set_id=\"").append(layer_set.getId()).append("\"\n");
 	}
-	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		if (hs.contains(type)) return;
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" layer_set_id").append(TAG_ATTR2)
@@ -101,13 +99,29 @@ public abstract class ZDisplayable extends Displayable {
 	@Deprecated
 	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {}
 
+	@Override
 	protected boolean remove2(boolean check) {
 		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
 	}
 
+	@Override
 	public boolean remove(boolean check) {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;
 		if (layer_set.remove(this) && removeFromDatabase()) {
+			unlink();
+			removeLinkedPropertiesFromOrigins();
+			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes
+			Display.flush(this);
+			project.decache(this);
+			return true;
+		}
+		return false;
+	}
+	
+	/** Does not remove from the LayerSet. */
+	@Override
+	public boolean softRemove() {
+		if (removeFromDatabase()) {
 			unlink();
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this); // duplication of code from Displayable.remove, because there isn't a proper hierarchy of classes
@@ -188,4 +202,6 @@ public abstract class ZDisplayable extends Displayable {
 			getBucketable().updateBucket(this, layer);
 		}
 	}
+	
+	abstract protected boolean calculateBoundingBox(final Layer la);
 }

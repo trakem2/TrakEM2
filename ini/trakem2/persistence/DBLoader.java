@@ -45,12 +45,9 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.Profile;
 import ini.trakem2.display.ZDisplayable;
-import ini.trakem2.tree.Attribute;
 import ini.trakem2.tree.LayerThing;
-import ini.trakem2.tree.ProjectAttribute;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.TemplateThing;
-import ini.trakem2.tree.TemplateAttribute;
 import ini.trakem2.tree.Thing;
 import ini.trakem2.tree.TrakEM2MLParser;
 import ini.trakem2.tree.DTDParser;
@@ -126,7 +123,6 @@ public class DBLoader extends Loader {
 	public DBLoader() {
 		super(); // register
 		synchronized (db_lock) {
-			lock();
 			//check for data
 			if (null == this.db_host || null == this.db_port || null == this.db_name || null == this.db_user || null == this.db_pw) {
 				GenericDialog gd = new GenericDialog("Login");
@@ -140,7 +136,6 @@ public class DBLoader extends Loader {
 				tf.setEchoChar('*');
 				gd.showDialog();
 				if (gd.wasCanceled()) {
-					unlock();
 					return;
 				}
 				db_host = gd.getNextString();
@@ -159,13 +154,11 @@ public class DBLoader extends Loader {
 				} catch (ClassNotFoundException cnfe) {
 					driver_loaded = false;
 					Utils.log("Loader: could not load "+Driver.class.getName()+": " + cnfe);
-					unlock();
 					return;
 				}
 			}
 
 			if (!connectToDatabase()) {
-				unlock();
 				return;
 			}
 
@@ -238,12 +231,10 @@ public class DBLoader extends Loader {
 					connection.prepareStatement(query_projects).execute();
 					Utils.log("Created table ab_projects in database " + db_name);
 				} else {
-					unlock(); // to enable inserts
 					if (!upgradeProjectsTable()) {
 						Utils.showMessage("Can't proceed without an upgraded 'ab_projects' table");
 						return;
 					}
-					lock();
 				}
 				// create table ab_layers if it does not exist
 				if (!table_layers_exists) {
@@ -361,19 +352,16 @@ public class DBLoader extends Loader {
 				}
 
 			} catch (SQLException sqle) {
-				unlock();
 				Utils.log("Loader: Database problems, can't check and/or create tables.");
 				disconnect();
 				IJError.print(sqle);
 				return;
 			} catch (Exception e) {
-				unlock();
 				Utils.log("Loader: Database problems, can't check tables!");
 				disconnect();
 				IJError.print(e);
 				return;
 			}
-			unlock();
 		}
 	}
 
@@ -479,22 +467,17 @@ public class DBLoader extends Loader {
 	/**Find out whether the connection is up. */
 	public boolean isConnected() {
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null != connection && connection.isClosed()) {
 					connection = null;
-					unlock();
 					return false;
 				} else if (null == connection) {
-					unlock();
 					return false;
 				}
 			}catch(SQLException sqle) {
 				IJError.print(sqle);
-				unlock();
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
@@ -502,16 +485,13 @@ public class DBLoader extends Loader {
 	/**Disconnect from the database. */
 	public void disconnect() {
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null != connection) connection.close();
 				//Utils.log("Loader: Disconnected.");
 			} catch (SQLException sqle) {
 				Utils.log("Loader: Can't close connection to database:\n " + sqle);
-				unlock();
 				return;
 			}
-			unlock();
 		}
 	}
 
@@ -522,7 +502,6 @@ public class DBLoader extends Loader {
 			return -System.currentTimeMillis(); // an improbable negative id to be repeated, ensures uniqueness
 		}
 		synchronized (db_lock) {
-			lock();
 			long id = Long.MIN_VALUE;
 			try {
 				String query = "SELECT nextval('ab_ids')";
@@ -534,7 +513,6 @@ public class DBLoader extends Loader {
 			} catch (SQLException sqle) {
 				IJError.print(sqle);
 			}
-			unlock();
 			return id;
 		}
 	}
@@ -786,7 +764,6 @@ public class DBLoader extends Loader {
 			*/
 
 			// New way: TemplateThing instances are saved in the ab_things table
-			lock();
 			try {
 				// fetch TemplateThings, which have no stored object.
 				ResultSet r = connection.prepareStatement("SELECT * FROM ab_things WHERE project_id=" + project.getId() + " AND parent_id=-1 AND object_id=-1").executeQuery(); // signature of the root TemplateThing is parent_id=-1 and object_id=-1
@@ -794,15 +771,13 @@ public class DBLoader extends Loader {
 					long id = r.getLong("id");
 					String type = r.getString("type");
 					root = new TemplateThing(type, project, id);
-					root.setup(getChildrenTemplateThings(project, id), getTemplateAttributes(project, id));
+					root.setup(getChildrenTemplateThings(project, id));
 				}
 				r.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 		}
 		return root;
 	}
@@ -815,32 +790,18 @@ public class DBLoader extends Loader {
 			long id = r.getLong("id");
 			String type = r.getString("type");
 			TemplateThing tt = new TemplateThing(type, project, id);
-			tt.setup(getChildrenTemplateThings(project, id), getTemplateAttributes(project, id));
+			tt.setup(getChildrenTemplateThings(project, id));
 			al.add(tt);
 		}
 		r.close();
 		return al;
 	}
 
-	// this method is a copy of the getProjectAttributes ... could pass a Constructor as argument and have only one method then.
-	private HashMap getTemplateAttributes(Project project, long thing_id) throws Exception {
-		HashMap ht = new HashMap();
-		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
-		while (r.next()) {
-			String name = r.getString("name");
-			ht.put(name, new TemplateAttribute(name, r.getString("value"), project, r.getLong("id")));
-		}
-		r.close();
-		return ht;
-	}
-
 	/** Fetch all existing projects from the database. */
 	public Project[] getProjects() {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			Project[] projects = null;
@@ -855,10 +816,8 @@ public class DBLoader extends Loader {
 				al_projects.toArray(projects);
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return projects;
 		}
 	}
@@ -879,13 +838,11 @@ public class DBLoader extends Loader {
 	/** Get all the Thing objects, recursively, for the root, and their corresponding encapsulated objects. Also, fills in the given ArrayList with all loaded Displayable objects. */
 	public ProjectThing getRootProjectThing(Project project, TemplateThing root_tt, TemplateThing project_tt, HashMap hs_d) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
-			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recusive things such as neurite_branch)
+			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recursive things such as neurite_branch)
 			HashMap hs_tt = new HashMap();
 			unpack(root_tt, hs_tt);
 
@@ -894,20 +851,17 @@ public class DBLoader extends Loader {
 				ResultSet r = connection.prepareStatement("SELECT * FROM ab_things WHERE project_id=" + project.getId() + " AND type='project' AND parent_id=-1").executeQuery(); // -1 signals root
 				if (r.next()) {
 					long id = r.getLong("id");
-					root = new ProjectThing(project_tt, project, id, project, getChildrenProjectThings(project, id, project_tt.getType(), hs_tt, hs_d), getProjectAttributes(project, id));
+					root = new ProjectThing(project_tt, project, id, project, getChildrenProjectThings(project, id, project_tt.getType(), hs_tt, hs_d));
 				}
 				r.close();
 				if (null == root) {
 					Utils.log("Loader.getRootProjectThing: can't find it for project id=" + project.getId());
-					unlock();
 					return null;
 				}
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return root;
 		}
 	}
@@ -927,7 +881,7 @@ public class DBLoader extends Loader {
 			if (ob instanceof Displayable) hs_d.put(new Long(((DBObject)ob).getId()), ob);
 			else Utils.log("Loader.getProjectThing: not adding to hs_d: " + ob);
 		}
-		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d), getProjectAttributes(project, id));
+		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d));
 	}
 
 	private ArrayList<ProjectThing> getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap hs_tt, HashMap hs_d) throws Exception {
@@ -945,19 +899,6 @@ public class DBLoader extends Loader {
 		}
 		r.close();
 		return al_children;
-	}
-
-
-	/** Fetch all attributes for the given Thing id. Returns an empty HashMap if none.*/
-	private HashMap getProjectAttributes(Project project, long thing_id) throws Exception {
-		HashMap hs = new HashMap();
-		ResultSet r = connection.prepareStatement("SELECT * FROM ab_attributes WHERE thing_id=" + thing_id).executeQuery();
-		while (r.next()) {
-			String name = r.getString("name");
-			hs.put(name, new ProjectAttribute(project, r.getLong("id"), name, r.getString("value"))); // null owner, can't eat his own tail. And the object is a temporary String with the value, which can be an id, etc. and will be resolved with a call to setup(Thing owner)
-		}
-		r.close();
-		return hs;
 	}
 
 	/** Fetch the object if any, which means, if the id corresponds to a basic object, that object will be minimally constructed to be usable and returned. */
@@ -989,7 +930,7 @@ public class DBLoader extends Loader {
 		ResultSet r = connection.prepareStatement("SELECT ab_profiles.id, ab_displayables.id, title, width, height, alpha, visible, color_red, color_green, color_blue, closed, locked, m00, m10, m01, m11, m02, m12 FROM ab_profiles, ab_displayables WHERE ab_profiles.id=ab_displayables.id AND ab_profiles.id=" + id).executeQuery();
 		Profile p = null;
 		if (r.next()) {
-			p = new Profile(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), (float)r.getDouble("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("closed"), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			p = new Profile(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), (float)r.getDouble("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("closed"), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 			// the polygon is not loaded, only when repainting the profile.
 		}
 		r.close();
@@ -1000,7 +941,7 @@ public class DBLoader extends Loader {
 		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_pipe_points.pipe_id, ab_displayables.locked, m00, m10, m01, m11, m02, m12 FROM ab_zdisplayables, ab_displayables, ab_pipe_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_pipe_points.pipe_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
 		Pipe p = null;
 		if (r.next()) {
-			p = new Pipe(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			p = new Pipe(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return p;
@@ -1010,7 +951,7 @@ public class DBLoader extends Loader {
 		ResultSet r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, ab_zdisplayables.id, ab_ball_points.ball_id, ab_displayables.locked, m00, m10, m01, m11, m02, m12 FROM ab_zdisplayables, ab_displayables, ab_ball_points WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=ab_ball_points.ball_id AND ab_zdisplayables.id=" + id).executeQuery(); // strange query, but can't distinguish between pipes and balls otherwise
 		Ball b = null;
 		if (r.next()) {
-			b = new Ball(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			b = new Ball(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return b;
@@ -1026,7 +967,7 @@ public class DBLoader extends Loader {
 		r = connection.prepareStatement("SELECT ab_displayables.id, title, ab_displayables.width, height, alpha, visible, color_red, color_green, color_blue, locked, m00, m10, m01, m11, m02, m12, ab_zdisplayables.id FROM ab_zdisplayables, ab_displayables WHERE ab_zdisplayables.id=ab_displayables.id AND ab_zdisplayables.id=" + id).executeQuery();
 		AreaList area_list = null;
 		if (r.next()) {
-			area_list = new AreaList(project, id, r.getString("title"), r.getDouble("width"), r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), al_ul, new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
+			area_list = new AreaList(project, id, r.getString("title"), (float)r.getDouble("width"), (float)r.getDouble("height"), r.getFloat("alpha"), r.getBoolean("visible"), new Color(r.getInt("color_red"), r.getInt("color_green"), r.getInt("color_blue")), r.getBoolean("locked"), al_ul, new AffineTransform(r.getDouble("m00"), r.getDouble("m10"), r.getDouble("m01"), r.getDouble("m11"), r.getDouble("m02"), r.getDouble("m12")));
 		}
 		r.close();
 		return area_list;
@@ -1052,10 +993,8 @@ public class DBLoader extends Loader {
 	/** Fetches the root LayerSet, fills it with children (recursively) and uses the profiles, pipes, etc., from the project_thing. Will reconnect the links and open Displays for the layers that have one. */
 	public LayerThing getRootLayerThing(Project project, ProjectThing project_thing, TemplateThing layer_set_tt, TemplateThing layer_tt) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			HashMap hs_pt = new HashMap();
@@ -1070,7 +1009,6 @@ public class DBLoader extends Loader {
 				r.close();
 				if (null == root) {
 					Utils.log("Loader.getRootLayerThing: can't find it for project id=" + project.getId());
-					unlock();
 					return null;
 				}
 
@@ -1091,10 +1029,8 @@ public class DBLoader extends Loader {
 				rl.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return root;
 		}
 	}
@@ -1103,7 +1039,7 @@ public class DBLoader extends Loader {
 		long id = r.getLong("id");
 		String type = r.getString("type");
 		TemplateThing template = type.equals("layer_set") ? layer_set_tt : layer_tt; // if not a "Layer", then it's a "Layer Set"
-		return new LayerThing(template, project, id, r.getString("title"), getLayerThingObject(project, r.getLong("object_id"), template, hs_pt), getChildrenLayerThing(project, id, hs_pt, layer_set_tt, layer_tt), getLayerAttributes(project, id)); // HERE the order of the arguments layer_set_tt and layer_tt was inverted, and it worked??? There was a compensating bug, incredibly enough, in the type.equals(.. above.
+		return new LayerThing(template, project, id, r.getString("title"), getLayerThingObject(project, r.getLong("object_id"), template, hs_pt), getChildrenLayerThing(project, id, hs_pt, layer_set_tt, layer_tt)); // HERE the order of the arguments layer_set_tt and layer_tt was inverted, and it worked??? There was a compensating bug, incredibly enough, in the type.equals(.. above.
 	}
 
 	private ArrayList getChildrenLayerThing(Project project, long parent_id, HashMap hs_pt, TemplateThing layer_set_tt, TemplateThing layer_tt) throws Exception {
@@ -1129,7 +1065,7 @@ public class DBLoader extends Loader {
 				LayerSet layer_set = null;
 				if (rls.next()) {
 					long ls_id = rls.getLong("id");
-					layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
+					layer_set = new LayerSet(project, ls_id, rls.getString("title"), (float)rls.getDouble("width"), (float)rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), (float)rls.getDouble("layer_width"), (float)rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 					// store for children Layer to find it
 					hs_pt.put(new Long(ls_id), layer_set);
 					// find the pipes (or other possible ZDisplayable objects) in the hs_pt that belong to this LayerSet and add them silently
@@ -1188,7 +1124,7 @@ public class DBLoader extends Loader {
 			ResultSet rls = connection.prepareStatement("SELECT * FROM ab_layer_sets, ab_displayables WHERE ab_layer_sets.id=ab_displayables.id AND ab_layer_sets.parent_layer_id=" + id).executeQuery();
 			while (rls.next()) {
 				long ls_id = rls.getLong("id");
-				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), rls.getDouble("width"), rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), rls.getDouble("layer_width"), rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
+				LayerSet layer_set = new LayerSet(project, ls_id, rls.getString("title"), (float)rls.getDouble("width"), (float)rls.getDouble("height"), rls.getDouble("rot_x"), rls.getDouble("rot_y"), rls.getDouble("rot_z"), (float)rls.getDouble("layer_width"), (float)rls.getDouble("layer_height"), rls.getBoolean("locked"), rls.getInt("snapshots_mode"), new AffineTransform(rls.getDouble("m00"), rls.getDouble("m10"), rls.getDouble("m01"), rls.getDouble("m11"), rls.getDouble("m02"), rls.getDouble("m12")));
 				hs_pt.put(new Long(ls_id), layer_set);
 				hs_d.put(new Integer(rls.getInt("stack_index")), layer_set);
 				layer_set.setLayer(layer, false);
@@ -1211,7 +1147,7 @@ public class DBLoader extends Loader {
 			ResultSet rp = connection.prepareStatement("SELECT ab_patches.id, ab_displayables.id, layer_id, title, width, height, stack_index, imp_type, locked, min, max, m00, m10, m01, m11, m02, m12 FROM ab_patches,ab_displayables WHERE ab_patches.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rp.next()) {
 				long patch_id = rp.getLong("id");
-				Patch patch = new Patch(project, patch_id, rp.getString("title"), rp.getDouble("width"), rp.getDouble("height"), rp.getInt("o_width"), rp.getInt("o_height"),rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
+				Patch patch = new Patch(project, patch_id, rp.getString("title"), (float)rp.getDouble("width"), (float)rp.getDouble("height"), rp.getInt("o_width"), rp.getInt("o_height"),rp.getInt("imp_type"), rp.getBoolean("locked"), rp.getDouble("min"), rp.getDouble("max"), new AffineTransform(rp.getDouble("m00"), rp.getDouble("m10"), rp.getDouble("m01"), rp.getDouble("m11"), rp.getDouble("m02"), rp.getDouble("m12")));
 				hs_pt.put(new Long(patch_id), patch); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rp.getInt("stack_index")), patch);
 			}
@@ -1221,7 +1157,7 @@ public class DBLoader extends Loader {
 			ResultSet rl = connection.prepareStatement("SELECT ab_labels.id, ab_displayables.id, layer_id, title, width, height, m00, m10, m01, m11, m02, m12, stack_index, font_name, font_style, font_size, ab_labels.type, locked FROM ab_labels,ab_displayables WHERE ab_labels.id=ab_displayables.id AND ab_displayables.layer_id=" + layer_id).executeQuery();
 			while (rl.next()) {
 				long label_id = rl.getLong("id");
-				DLabel label = new DLabel(project, label_id, rl.getString("title"), rl.getDouble("width"), rl.getDouble("height"), rl.getInt("type"), rl.getString("font_name"), rl.getInt("font_style"), rl.getInt("font_size"), rl.getBoolean("locked"), new AffineTransform(rl.getDouble("m00"), rl.getDouble("m10"), rl.getDouble("m01"), rl.getDouble("m11"), rl.getDouble("m02"), rl.getDouble("m12")));
+				DLabel label = new DLabel(project, label_id, rl.getString("title"), (float)rl.getDouble("width"), (float)rl.getDouble("height"), rl.getInt("type"), rl.getString("font_name"), rl.getInt("font_style"), rl.getInt("font_size"), rl.getBoolean("locked"), new AffineTransform(rl.getDouble("m00"), rl.getDouble("m10"), rl.getDouble("m01"), rl.getDouble("m11"), rl.getDouble("m02"), rl.getDouble("m12")));
 				hs_pt.put(new Long(label_id), label); // collecting all Displayable objects to reconstruct links
 				hs_d.put(new Integer(rl.getInt("stack_index")), label);
 			}
@@ -1269,12 +1205,10 @@ public class DBLoader extends Loader {
 	/** Get the bezier points from the database for the given profile but as a triple array of points, that is, three arrays with 2 arrays (x and y) each. */
 	public double[][][] fetchBezierArrays(long id) {
 		synchronized (db_lock) {
-			lock();
 			// TODO: cache! add/check
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1290,10 +1224,8 @@ public class DBLoader extends Loader {
 
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return toBezierArrays(p);
 		}
 	}
@@ -1322,11 +1254,9 @@ public class DBLoader extends Loader {
 
 	public Area fetchArea(long area_list_id, long layer_id) {
 		synchronized(db_lock) {
-			lock();
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1345,20 +1275,17 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			unlock();
 			return area;
 		}
 	}
 
 	public ArrayList fetchPipePoints(long id) {
 		synchronized (db_lock) {
-			lock();
 
 			// TODO: cache! add/check
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1383,22 +1310,18 @@ public class DBLoader extends Loader {
 				r.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return al;
 		}
 	}
 
 	public ArrayList fetchBallPoints(long id) {
 		synchronized (db_lock) {
-			lock();
 			// TODO: cache! add/check
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -1419,10 +1342,8 @@ public class DBLoader extends Loader {
 				r.close();
 			} catch (Exception e) {
 				IJError.print(e);
-				unlock();
 				return null;
 			}
-			unlock();
 			return al;
 		}
 	}
@@ -1442,10 +1363,8 @@ public class DBLoader extends Loader {
 	/* GENERIC, from DBObject calls */
 	public boolean addToDatabase(DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return false;
 			}
 			try {
@@ -1460,7 +1379,6 @@ public class DBLoader extends Loader {
 						Method method = getClass().getDeclaredMethod("addToDatabase", new Class[]{interfaces[i]});
 						method.invoke(this, new Object[]{ob});
 						// on success, end, to ensure only one invocation
-						unlock();
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException and InvocationTargetException
 						Utils.log("Loader: Not for " + interfaces[i] + " : " + e);
@@ -1468,7 +1386,6 @@ public class DBLoader extends Loader {
 					}
 				}
 				Utils.log("Loader: no method for addToDatabase(" + ob.getClass().getName() + ")");
-				unlock();
 				return false;
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1476,20 +1393,16 @@ public class DBLoader extends Loader {
 					Exception next = ((SQLException)e).getNextException();
 					if (null != next) { IJError.print(next); }
 				}
-				unlock();
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
 
 	public boolean updateInDatabase(DBObject ob, String key) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return false;
 			}
 			try {
@@ -1503,7 +1416,6 @@ public class DBLoader extends Loader {
 						Method method = getClass().getDeclaredMethod("updateInDatabase", new Class[]{interfaces[i], key.getClass()});
 						method.invoke(this, new Object[]{ob, key});
 						// on success, end, to ensure only one invocation
-						unlock();
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException
 						Utils.debug("Loader: Not for " + interfaces[i]);
@@ -1511,10 +1423,8 @@ public class DBLoader extends Loader {
 					}
 				}
 				Utils.log("Loader: no method for updateInDatabase(" + ob.getClass().getName() + ")");
-				unlock();
 				return false;
 			} catch (Exception e) {
-				unlock();
 				IJError.print(e);
 				if (e instanceof SQLException) { 
 					Exception next = ((SQLException)e).getNextException();
@@ -1522,7 +1432,6 @@ public class DBLoader extends Loader {
 				}
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
@@ -1534,10 +1443,8 @@ public class DBLoader extends Loader {
 
 	public boolean removeFromDatabase(DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return false;
 			}
 			try {
@@ -1551,14 +1458,12 @@ public class DBLoader extends Loader {
 						Method method = getClass().getDeclaredMethod("removeFromDatabase", new Class[]{interfaces[i]});
 						method.invoke(this, new Object[]{ob});
 						// on success, end, to ensure only one invocation
-						unlock();
 						return true;
 					} catch (Exception e) { // NoSuchMethodException and IllegalAccessException
 						Utils.log("Loader: Not for " + interfaces[i]);
 					}
 				}
 				Utils.log("Loader: no method for removeFromDatabase(" + ob.getClass().getName() + ")");
-				unlock();
 				return false;
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1566,10 +1471,8 @@ public class DBLoader extends Loader {
 					Exception next = ((SQLException)e).getNextException();
 					if (null != next) { IJError.print(next); }
 				}
-				unlock();
 				return false;
 			}
-			unlock();
 			return true;
 		}
 	}
@@ -1842,7 +1745,7 @@ public class DBLoader extends Loader {
 	private void addToDatabase(Patch patch) throws Exception {
 		InputStream i_stream = null;
 		try {
-			ImagePlus imp = imps.get(patch.getId());
+			ImagePlus imp = mawts.get(patch.getId());
 			//PreparedStatement st = connection.prepareStatement(new StringBuffer("INSERT INTO ab_patches (id, imp_type, tiff_original) VALUES (").append(patch.getId()).append(',').append(imp.getType()).append(",?)").toString());
 			stmt_add_patch.setLong(1, patch.getId());
 			stmt_add_patch.setInt(2, imp.getType());
@@ -1916,7 +1819,7 @@ public class DBLoader extends Loader {
 		InputStream i_stream2 = null;
 		try {
 			if (update_imp) {
-				ImagePlus imp = imps.get(patch.getId()); // WARNING if the cache is very small relative to the size of the images, this strategy may fail
+				ImagePlus imp = mawts.get(patch.getId()); // WARNING if the cache is very small relative to the size of the images, this strategy may fail
 				i_stream2 = createZippedStream(imp);
 				st.setBinaryStream(i, i_stream2, i_stream2.available());
 				i++; // defensive programming: if later I add any other ..
@@ -1937,61 +1840,7 @@ public class DBLoader extends Loader {
 		//finally:
 		removeFromDatabase((Displayable)patch); // problem: this is not atomic.
 
-		// finally, remove the images from the cache if any
-		//Image snap = snaps.remove(patch.getId());
-		//if (null != snap) snap.flush();
-		//Image awt = awts.remove(patch.getId());
-		//if (null != awt) awt.flush();
-		mawts.removeAndFlush(patch.getId());
-		ImagePlus imp = imps.remove(patch.getId());
-		if (null != imp) flush(imp);
-	}
-
-	/*  Attribute methods ****************************************************************/
-
-	private void addToDatabase(Attribute attr) throws Exception {
-		Object owner = attr.getOwner();
-		connection.prepareStatement(new StringBuffer("INSERT INTO ab_attributes (id, thing_id, name, value) VALUES (").append(((DBObject)attr).getId()).append(',').append(owner == null ? -1 : ((DBObject)owner).getId()).append(",'").append(attr.getTitle()).append("','").append(attr.getObjectString()).append("')").toString()).executeUpdate();
-	}
-
-	private void updateInDatabase(Attribute attr, String key) throws Exception {
-		StringBuffer sb = new StringBuffer("UPDATE ab_attributes SET ");
-		if (key.equals("object")) {
-			sb.append("value='").append(null == attr.getObject() ? "" : attr.getObjectString()).append("'");
-		} else {
-			Utils.log("Loader.updateInDatabase(Attribute): don't know what to do with key: " + key);
-			return;
-		}
-		sb.append(" WHERE id=").append(((DBObject)attr).getId());
-		connection.prepareStatement(sb.toString()).executeUpdate();
-	}
-
-	private void removeFromDatabase(Attribute attr) throws Exception {
-		connection.prepareStatement("DELETE FROM ab_attributes WHERE id=" + ((DBObject)attr).getId()).execute();
-	}
-	
-	/*  ProjectAttribute methods *********************/
-
-	private void addToDatabase(ProjectAttribute attr) throws Exception {
-		addToDatabase((Attribute)attr);
-	}
-	private void updateInDatabase(ProjectAttribute attr, String key) throws Exception {
-			updateInDatabase((Attribute)attr, key);
-	}
-	private void removeFromDatabase(ProjectAttribute attr) throws Exception {
-		removeFromDatabase((Attribute)attr);
-	}
-
-	/*  TemplateAttribute methods *********************/
-
-	private void addToDatabase(TemplateAttribute attr) throws Exception {
-		addToDatabase((Attribute)attr);
-	}
-	private void updateInDatabase(TemplateAttribute attr, String key) throws Exception {
-			updateInDatabase((Attribute)attr, key);
-	}
-	private void removeFromDatabase(TemplateAttribute attr) throws Exception {
-		removeFromDatabase((Attribute)attr);
+		mawts.remove(patch.getId());
 	}
 
 	/* Layer methods ****************************************************************/
@@ -2120,9 +1969,7 @@ public class DBLoader extends Loader {
 
 		PreparedStatement statement = connection.prepareStatement(sb.toString());
 		if (update_points) {
-			unlock();
 			statement.setObject(1, makePGpolygon(profile.getBezierArrays()));
-			lock();
 		}
 		statement.executeUpdate();
 	}
@@ -2462,9 +2309,7 @@ public class DBLoader extends Loader {
 				// remove exisiting paths for this layer_id
 				connection.createStatement().executeUpdate(new StringBuffer("DELETE FROM ab_area_paths WHERE area_list_id=").append(arealist.getId()).append(" AND layer_id=").append(layer_id).toString());
 				// add new paths
-				unlock();
 				ArrayList al_paths = arealist.getPaths(layer_id);
-				lock();
 				for (Iterator it = al_paths.iterator(); it.hasNext(); ) {
 					PreparedStatement ps = connection.prepareStatement(new StringBuffer("INSERT INTO ab_area_paths (area_list_id, layer_id, polygon) VALUES (").append(arealist.getId()).append(',').append(layer_id).append(",?)").toString());
 					ps.setObject(1, makePGpolygon((ArrayList)it.next()));
@@ -2592,13 +2437,11 @@ public class DBLoader extends Loader {
 
 	public ImagePlus fetchImagePlus(Patch p) {
 		synchronized (db_lock) {
-			lock();
 			long id = p.getId();
 			// see if the ImagePlus is cached:
-			ImagePlus imp = imps.get(id);
+			ImagePlus imp = mawts.get(id);
 			if (null != imp) {
 				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels()) { // may have been flushed by ImageJ, for example when making images from a stack
-					unlock();
 					return imp;
 				} else {
 					flush(imp); // can't hurt
@@ -2608,7 +2451,6 @@ public class DBLoader extends Loader {
 
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 
@@ -2628,7 +2470,7 @@ public class DBLoader extends Loader {
 					imp = unzipTiff(i_stream, p.getTitle());
 					//sw.elapsed();
 					i_stream.close();
-					imps.put(id, imp);
+					mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 				}
 				r.close();
 				// if the working is not there, fetch the original instead
@@ -2641,7 +2483,7 @@ public class DBLoader extends Loader {
 						imp = unzipTiff(i_stream, p.getTitle()); // will apply the preprocessor plugin to it as well
 						//sw.elapsed();
 						i_stream.close();
-						imps.put(id, imp);
+						mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 					}
 					r.close();
 				}
@@ -2650,24 +2492,20 @@ public class DBLoader extends Loader {
 					// OBSOLETE and wrong -- but then this whole class is obsolete// p.putMinAndMax(imp);
 				}
 			} catch (Exception e) {
-				unlock();
 				IJError.print(e);
 				if (null != i_stream) {
 					try { i_stream.close(); } catch (Exception ie) { IJError.print(ie); }
 				}
 				return null;
 			}
-			unlock();
 			return imp;
 		}
 	}
 
 	public Object[] fetchLabel(DLabel label) {
 		synchronized (db_lock) {
-			lock();
 			//connect if disconnected
 			if (!connectToDatabase()) {
-				unlock();
 				return null;
 			}
 			Object[] ob = null;
@@ -2683,11 +2521,9 @@ public class DBLoader extends Loader {
 				}
 				r.close();
 			} catch (Exception e) {
-				unlock();
 				IJError.print(e);
 				return null;
 			}
-			unlock();
 			return ob;
 		}
 	}
@@ -2698,7 +2534,7 @@ public class DBLoader extends Loader {
 			return null;
 		}
 		long imp_size = (long)(patch.getWidth() * patch.getHeight() * 4); // assume RGB, thus multiply by 4 (an int has 4 bytes)
-		releaseMemory(MIN_FREE_BYTES > imp_size ? MIN_FREE_BYTES : imp_size);
+		releaseToFit(MIN_FREE_BYTES > imp_size ? MIN_FREE_BYTES : imp_size);
 		ImagePlus imp = null;
 		InputStream i_stream = null;
 		try {
@@ -2757,7 +2593,7 @@ public class DBLoader extends Loader {
 		private final Connection connection;
 		private final LoggingInputStream lis;
 		private java.awt.Dialog dialog;
-		private boolean quit = false;
+		private volatile boolean quit = false;
 		private Label time;
 		private Label speed;
 		private Label bytes;

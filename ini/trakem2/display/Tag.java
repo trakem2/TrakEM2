@@ -14,7 +14,8 @@ public class Tag implements Comparable<Tag> {
 		return keyCode;
 	}
 	public boolean equals(final Object ob) {
-		return ob == this && (ob instanceof Tag) && ((Tag)ob).tag == this.tag;
+		final Tag t = (Tag)ob;
+		return t.keyCode == this.keyCode && t.tag.equals(this.tag);
 	}
 	public int compareTo(final Tag t) {
 		return t.tag.toString().compareTo(this.tag.toString());

@@ -31,16 +31,14 @@ import java.io.BufferedReader;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import ij.gui.YesNoCancelDialog;
+
+import javax.swing.SwingUtilities;
+
 import ij.gui.GenericDialog;
-import ij.io.*;
 import ij.IJ;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.VirtualStack; // only after 1.38q
 import ini.trakem2.display.*;
-import ini.trakem2.*;
-import ini.trakem2.persistence.*;
 import ini.trakem2.io.ImageFileFilter;
 
 
@@ -56,9 +54,11 @@ public class DNDInsertImage implements DropTargetListener {
 
 	public void destroy() {
 		// is there any way to really destroy it?
-		dt.setActive(false);
-		display.getCanvas().setDropTarget(null);
-		dt.setComponent(null);
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
+			dt.setActive(false);
+			display.getCanvas().setDropTarget(null);
+			dt.setComponent(null);
+		}});
 	}
 
 	public void dragEnter(DropTargetDragEvent e) {

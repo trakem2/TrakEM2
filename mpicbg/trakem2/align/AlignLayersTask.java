@@ -23,7 +23,7 @@ import ij.process.ImageProcessor;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.Paintable;
+import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
@@ -60,6 +60,7 @@ import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.Transforms;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.RigidModel2D;
@@ -138,13 +139,7 @@ final public class AlignLayersTask
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
 				if (index < cref.getSelectedIndex()) cref.select(index);
 			}
-		});		
-
-		Align.param.addFields( gd );
-		gd.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
-		
-		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "propagate after last transform", propagateTransform );
+		});
 		
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
@@ -152,11 +147,22 @@ final public class AlignLayersTask
 		final int first = gd.getNextChoiceIndex();
 		final int ref = gd.getNextChoiceIndex();
 		final int last = gd.getNextChoiceIndex();
+
+		final GenericDialog gd2 = new GenericDialog( "Align Layers" );
 		
-		Align.param.readFields( gd );
+		Align.param.addFields( gd2 );
+		gd2.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
 		
-		useBUnwarpJ = gd.getNextBoolean();
-		propagateTransform = gd.getNextBoolean();
+		gd2.addMessage( "Miscellaneous:" );
+		gd2.addCheckbox( "propagate after last transform", propagateTransform );
+		
+		gd2.showDialog();
+		if ( gd2.wasCanceled() ) return;
+		
+		Align.param.readFields( gd2 );
+		
+		useBUnwarpJ = gd2.getNextBoolean();
+		propagateTransform = gd2.getNextBoolean();
 		
 		if (useBUnwarpJ && !elasticParam.showDialog()) return;
 
@@ -201,6 +207,7 @@ final public class AlignLayersTask
 
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
 		p.maxEpsilon *= scale;
+		p.identityTolerance *= scale;
 
 		//Utils.log2("scale: " + scale + "  maxOctaveSize: " + p.sift.maxOctaveSize + "  box: " + box.width + "," + box.height);
 		
@@ -214,7 +221,7 @@ final public class AlignLayersTask
 		List< PointMatch > candidates = new ArrayList< PointMatch >();
 		List< PointMatch > inliers = new ArrayList< PointMatch >();
 		
-		AffineTransform a = new AffineTransform();
+		final AffineTransform a = new AffineTransform();
 		
 		int s = 0;
 		for ( final Layer layer : layerRange )
@@ -272,17 +279,37 @@ final public class AlignLayersTask
 					return;
 				}
 	
+						
+				
 				boolean modelFound;
+				boolean again = false;
 				try
 				{
-					modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							p.maxEpsilon,
-							p.minInlierRatio,
-							3 * model.getMinNumMatches(),
-							3 );
+					do
+					{
+						again = false;
+						modelFound = model.filterRansac(
+									candidates,
+									inliers,
+									1000,
+									p.maxEpsilon,
+									p.minInlierRatio,
+									p.minNumInliers,
+									3 );
+						if ( modelFound && p.rejectIdentity )
+						{
+							final ArrayList< Point > points = new ArrayList< Point >();
+							PointMatch.sourcePoints( inliers, points );
+							if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+							{
+								IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+								candidates.removeAll( inliers );
+								inliers.clear();
+								again = true;
+							}
+						}
+					}
+					while ( again );
 				}
 				catch ( NotEnoughDataPointsException e )
 				{
@@ -304,15 +331,22 @@ final public class AlignLayersTask
 					Display.repaint( layer );
 				}
 				else
-					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor." );
+				{
+					IJ.log( "No model found for layer \"" + layer.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					a.setToIdentity();
+				}
 			}
 			IJ.showProgress( ++s, layerRange.size() );
 		}
 		if ( propagateTransform )
 		{
-			for (Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
-				AlignTask.transformPatchesAndVectorData(la, a);
-			}
+			final LayerSet layerSet = l.getParent();
+			if ( last > first && last < layerSet.size() - 2 )
+				for ( final Layer la : layerSet.getLayers( last + 1, layerSet.size() - 1 ) )
+					AlignTask.transformPatchesAndVectorData( la, a );
+			else if ( first > last && last > 0 )
+				for ( final Layer la : layerSet.getLayers( 0, last - 1 ) )
+					AlignTask.transformPatchesAndVectorData( la, a );
 		}
 	}
 	
@@ -437,16 +471,34 @@ final public class AlignLayersTask
 				}
 	
 				boolean modelFound;
+				boolean again = false;
 				try
 				{
-					modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							p.maxEpsilon,
-							p.minInlierRatio,
-							3 * model.getMinNumMatches(),
-							3 );
+					do
+					{
+						again = false;
+						modelFound = model.filterRansac(
+									candidates,
+									inliers,
+									1000,
+									p.maxEpsilon,
+									p.minInlierRatio,
+									p.minNumInliers,
+									3 );
+						if ( modelFound && p.rejectIdentity )
+						{
+							final ArrayList< Point > points = new ArrayList< Point >();
+							PointMatch.sourcePoints( inliers, points );
+							if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+							{
+								IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+								candidates.removeAll( inliers );
+								inliers.clear();
+								again = true;
+							}
+						}
+					}
+					while ( again );
 				}
 				catch ( NotEnoughDataPointsException e )
 				{
@@ -480,7 +532,7 @@ final public class AlignLayersTask
 					transf.set(warp.getIntervals(), warp.getDirectDeformationCoefficientsX(), warp.getDirectDeformationCoefficientsY(),
 	                		imp2.getWidth(), imp2.getHeight());
 
-					final ArrayList<Future> fus = new ArrayList<Future>();
+					final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					
 					for ( final Displayable disp : layer2.getDisplayables( Patch.class ) )
 					{
@@ -526,7 +578,7 @@ final public class AlignLayersTask
 					Display.repaint( layer2 );
 				}
 				else
-					IJ.log( "No model found for layer \"" + layer2.getTitle() + "\" and its predecessor." );
+					IJ.log( "No model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			}
 			IJ.showProgress( ++s, layerRange.size() );	
 		}

@@ -1,14 +1,13 @@
 package ini.trakem2.parallel;
 
 import ini.trakem2.utils.Utils;
-import java.util.ArrayList;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Collection;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+/** For all methods, if the number of processors given as argument is zero or larger than the maximum available plus 2,
+ *  the number of processors will be adjusted to fall within the range [1, max+2]. */
 public class Process {
 
 	static private final int MIN_AHEAD = 4;
@@ -18,12 +17,14 @@ public class Process {
 		return Math.max(1, Math.min(nproc, NUM_PROCESSORS + 2));
 	}
 
-	/** Takes a Collection of inputs, applies a function to each created by the generator, and places their output in output. */
-	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs) throws Exception {
+	/** Takes a Collection of inputs, applies a function to each created by the generator,
+	 *  and places their output in outputs in the same order as each input was retrieved from inputs. */
+	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs) throws Exception {
 		progressive(inputs, generator, outputs, NUM_PROCESSORS);
 	}
-	/** Takes a Collection of inputs, applies a function to each created by the generator, and places their output in output. */
-	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc) throws Exception {
+	/** Takes a Collection of inputs, applies a function to each created by the generator,
+	 *  and places their output in outputs in the same order as each input was retrieved from inputs. */
+	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc) throws Exception {
 		final int nproc = sensible(n_proc);
 		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
 		try {
@@ -47,10 +48,10 @@ public class Process {
 	}
 
 	/** Takes a Collection of inputs, applies a function to each created by the generator. */
-	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator) throws Exception {
+	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator) throws Exception {
 		progressive(inputs, generator, NUM_PROCESSORS);
 	}
-	static public final <I,O> void progressive(final Collection<I> inputs, final TaskFactory<I,O> generator, final int n_proc) throws Exception {
+	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc) throws Exception {
 		final int nproc = sensible(n_proc);
 		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
 		try {

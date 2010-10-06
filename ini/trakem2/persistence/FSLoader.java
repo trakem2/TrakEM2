@@ -24,6 +24,7 @@ package ini.trakem2.persistence;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.ImageStack;
 import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
 import ij.process.ByteProcessor;
@@ -38,7 +39,6 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
-import ini.trakem2.display.YesNoDialog;
 import ij.gui.YesNoCancelDialog;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
@@ -47,18 +47,29 @@ import ini.trakem2.imaging.FloatProcessorT2;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
-import java.awt.image.IndexColorModel;
 import java.awt.image.ColorModel;
 import java.awt.image.PixelGrabber;
 import java.awt.RenderingHints;
 import java.awt.geom.Area;
 import java.awt.geom.AffineTransform;
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.InputStream;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 
 import javax.swing.JMenuItem;
 import javax.swing.JMenu;
@@ -74,7 +85,6 @@ import javax.xml.parsers.SAXParser;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.general.MultiThreading;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.Future;
@@ -82,8 +92,9 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
@@ -91,7 +102,7 @@ public final class FSLoader extends Loader {
 
 	/** Largest id seen so far. */
 	private long max_id = -1;
-	private final Hashtable<Long,String> ht_paths = new Hashtable<Long,String>();
+	private final Map<Long,String> ht_paths = Collections.synchronizedMap(new HashMap<Long,String>());
 	/** For saving and overwriting. */
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
@@ -111,13 +122,13 @@ public final class FSLoader extends Loader {
 	/** Used to open a project from an existing XML file. */
 	public FSLoader() {
 		super(); // register
-		super.v_loaders.remove(this); //will be readded on successful open
 		FSLoader.startStaticServices();
 	}
 
 	private String unuid = null;
 
-	/** Used to create a new project, NOT from an XML file. */
+	/** Used to create a new project, NOT from an XML file.
+	 *  Throws an Exception if the loader cannot read and write to the storage folder. */
 	public FSLoader(final String storage_folder) throws Exception {
 		this();
 		if (null == storage_folder) this.dir_storage = super.getStorageFolder(); // home dir
@@ -136,7 +147,6 @@ public final class FSLoader extends Loader {
 
 	private String createUNUId(String dir_storage) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				if (null == dir_storage) dir_storage = System.getProperty("user.dir") + "/";
 				return new StringBuilder(64).append(System.currentTimeMillis()).append('.')
@@ -145,8 +155,6 @@ public final class FSLoader extends Loader {
 							   .toString();
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				unlock();
 			}
 		}
 		return null;
@@ -163,7 +171,7 @@ public final class FSLoader extends Loader {
 		try {
 			if (f.exists()) {
 				// crashed!
-				askAndExecMipmapRegeneration("TrakEM2 detected a crash!");
+				notifyMipMapsOutOfSynch();
 			} else {
 				if (!f.createNewFile() && !dir_mipmaps.startsWith("http:")) {
 					Utils.showMessage("WARNING: could NOT create crash detection system:\nCannot write to mipmaps folder.");
@@ -259,7 +267,8 @@ public final class FSLoader extends Loader {
 			} else {
 				try {
 					SAXParserFactory factory = SAXParserFactory.newInstance();
-					factory.setValidating(true);
+					factory.setValidating(false);
+					factory.setXIncludeAware(false);
 					SAXParser parser = factory.newSAXParser();
 					if (isURL(this.project_file_path)) {
 						i_stream = new java.net.URL(this.project_file_path).openStream();
@@ -297,7 +306,6 @@ public final class FSLoader extends Loader {
 			return null;
 		}
 		// else, good
-		super.v_loaders.add(this);
 		crashDetector();
 		return data;
 	}
@@ -308,8 +316,11 @@ public final class FSLoader extends Loader {
 		final Loader[] lo = (Loader[])v_loaders.toArray(new Loader[0]); // atomic way to get the list of loaders
 		for (int i=0; i<lo.length; i++) {
 			if (lo[i].equals(caller)) continue;
-			if (lo[i] instanceof FSLoader && ((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
-				return Project.findProject(lo[i]);
+			if (lo[i] instanceof FSLoader) {
+				if (null == ((FSLoader)lo[i]).project_file_path) continue; // not saved
+				if (((FSLoader)lo[i]).project_file_path.equals(project_file_path)) {
+					return Project.findProject(lo[i]);
+				}
 			}
 		}
 		return null;
@@ -317,10 +328,6 @@ public final class FSLoader extends Loader {
 
 	static public final Project getOpenProject(final String project_file_path) {
 		return getOpenProject(project_file_path, null);
-	}
-
-	public boolean isReady() {
-		return null != ht_paths;
 	}
 
 	static private void startStaticServices() {
@@ -417,9 +424,7 @@ public final class FSLoader extends Loader {
 	public long getNextId() {
 		long nid = -1;
 		synchronized (db_lock) {
-			lock();
 			nid = ++max_id;
-			unlock();
 		}
 		return nid;
 	}
@@ -464,9 +469,8 @@ public final class FSLoader extends Loader {
 		long n_bytes = 0;
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
-			lock();
-			imp = imps.get(p.getId());
 			try {
+				imp = mawts.get(p.getId());
 				path = getAbsolutePath(p);
 				int i_sl = -1;
 				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
@@ -478,17 +482,15 @@ public final class FSLoader extends Loader {
 						if (ia <= imp.getNSlices()) {
 							if (null == imp.getStack() || null == imp.getStack().getPixels(ia)) {
 								// reload (happens when closing a stack that was opened before importing it, and then trying to paint, for example)
-								imps.remove(p.getId());
+								mawts.removeImagePlus(p.getId());
 								imp = null;
 							} else {
 								imp.setSlice(ia);
 								switch (format) {
 									case Layer.IMAGEPROCESSOR:
 										ip = imp.getStack().getProcessor(ia);
-										unlock();
 										return ip;
 									case Layer.IMAGEPLUS:
-										unlock();
 										return imp;
 									default:
 										Utils.log("FSLoader.fetchImage: Unknown format " + format);
@@ -496,14 +498,12 @@ public final class FSLoader extends Loader {
 								}
 							}
 						} else {
-							unlock();
 							return null; // beyond bonds!
 						}
 					}
 				}
 				// for non-stack images
 				if (null != imp) {
-					unlock();
 					switch (format) {
 						case Layer.IMAGEPROCESSOR:
 							return imp.getProcessor();
@@ -520,24 +520,18 @@ public final class FSLoader extends Loader {
 					path = path.substring(0, i_sl);
 				}
 
-				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock(p.getId(), 0);
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 				return null;
-			} finally {
-				unlock();
 			}
 		}
 
 
 		synchronized (plock) {
-			plock.lock();
-
-			imp = imps.get(p.getId());
+			imp = mawts.get(p.getId());
 			if (null != imp) {
 				// was loaded by a different thread -- TODO the slice of the stack could be wrong!
-				plock.unlock();
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						return imp.getProcessor();
@@ -554,21 +548,13 @@ public final class FSLoader extends Loader {
 
 			// reserve memory:
 			n_bytes = estimateImageFileSize(p, 0);
-			try {
-				alterMaxMem(-n_bytes);
+			releaseToFit(n_bytes);
+			imp = openImage(path);
 
-				releaseToFit(n_bytes);
-				imp = openImage(path);
-
-				preProcess(p, imp);
-			} finally {
-				alterMaxMem(n_bytes);
-			}
+			preProcess(p, imp, n_bytes);
 
 			synchronized (db_lock) {
 				try {
-					lock();
-
 					if (null == imp) {
 						if (!hs_unloadable.contains(p)) {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for patch  " + p + "  at path " + path);
@@ -578,8 +564,6 @@ public final class FSLoader extends Loader {
 							FilePathRepair.add(p);
 						}
 						removeImageLoadingLock(plock);
-						unlock();
-						plock.unlock();
 						return null;
 					}
 					// update all clients of the stack, if any
@@ -599,7 +583,7 @@ public final class FSLoader extends Loader {
 							if (-1 != isl) {
 								//int i_slice = Integer.parseInt(str.substring(isl + 12));
 								final long lid = entry.getKey();
-								imps.put(lid, imp);
+								mawts.put(lid, imp, (int)Math.max(p.getWidth(), p.getHeight()));
 							}
 						}
 						// set proper active slice
@@ -610,7 +594,7 @@ public final class FSLoader extends Loader {
 						// for non-stack images
 						// OBSOLETE and wrong //p.putMinAndMax(imp); // non-destructive contrast: min and max -- WRONG, it's destructive for ColorProcessor and ByteProcessor!
 							// puts the Patch min and max values into the ImagePlus processor.
-						imps.put(p.getId(), imp);
+						mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
 					}
 					// imp is cached, so:
@@ -619,8 +603,6 @@ public final class FSLoader extends Loader {
 				} catch (Exception e) {
 					IJError.print(e);
 				}
-				unlock();
-				plock.unlock();
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						return ip; // not imp.getProcessor because after unlocking the slice may have changed for stacks.
@@ -670,11 +652,26 @@ public final class FSLoader extends Loader {
 	@Override
 	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
 		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
-		final String path = getAlphaPath(p);
-		File parent = new File(path).getParentFile();
-		parent.mkdirs();
-		IJ.redirectErrorMessages();
-		new FileSaver(new ImagePlus("mask", fp)).saveAsZip(getAlphaPath(p));
+		DataOutputStream out = null;
+		try {
+			final String path = getAlphaPath(p);
+			File parent = new File(path).getParentFile();
+			parent.mkdirs();
+			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
+			FileOutputStream fos = new FileOutputStream(path);
+			ZipOutputStream zos = new ZipOutputStream(fos);
+			out = new DataOutputStream(new BufferedOutputStream(zos));
+			ImagePlus imp = new ImagePlus("mask.tif", fp); // ImageJ looks for ".tif" extension in the ZipEntry
+			zos.putNextEntry(new ZipEntry(imp.getTitle()));
+			TiffEncoder te = new TiffEncoder(imp.getFileInfo());
+			te.write(out);
+			out.flush();
+			fos.getFD().sync();
+		} catch (Throwable e) {
+			IJError.print(e);
+		} finally {
+			try { if (null != out) out.close(); } catch (Throwable t) { IJError.print(t); }
+		}
 	}
 
 	public final String getMasksFolder() {
@@ -717,15 +714,11 @@ public final class FSLoader extends Loader {
 		String original_path = patch.getOriginalPath();
 		if (null == original_path) return null;
 		// else, reserve memory and open it:
-		long n_bytes = estimateImageFileSize(patch, 0);
-		// reserve memory:
-		alterMaxMem(-n_bytes);
+		releaseToFit(estimateImageFileSize(patch, 0));
 		try {
 			return openImage(original_path);
 		} catch (Throwable t) {
 			IJError.print(t);
-		} finally {
-			alterMaxMem(n_bytes);
 		}
 		return null;
 	}
@@ -735,13 +728,11 @@ public final class FSLoader extends Loader {
 	 */
 	public boolean addToDatabase(final DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			setChanged(true);
 			final long id = ob.getId();
 			if (id > max_id) {
 				max_id = id;
 			}
-			unlock();
 		}
 		return true;
 	}
@@ -769,34 +760,25 @@ public final class FSLoader extends Loader {
 
 	public boolean removeFromDatabase(final DBObject ob) {
 		synchronized (db_lock) {
-			lock();
 			setChanged(true);
 			// remove from the hashtable
 			final long loid = ob.getId();
 			Utils.log2("removing " + Project.getName(ob.getClass()) + " " + ob);
 			if (ob.getClass() == Patch.class) {
-				// STRATEGY change: images are not owned by the FSLoader.
-				Patch p = (Patch)ob;
-				if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
-				ht_paths.remove(p.getId()); // after removeMipMaps !
-				mawts.removeAndFlush(loid);
-				final ImagePlus imp = imps.remove(loid);
-				if (null != imp) {
-					if (imp.getStackSize() > 1) {
-						if (null == imp.getProcessor()) {}
-						else if (null == imp.getProcessor().getPixels()) {}
-						else Loader.flush(imp); // only once
-					} else {
-						Loader.flush(imp);
-					}
+				try {
+					// STRATEGY change: images are not owned by the FSLoader.
+					Patch p = (Patch)ob;
+					if (!ob.getProject().getBooleanProperty("keep_mipmaps")) removeMipMaps(p);
+					ht_paths.remove(p.getId()); // after removeMipMaps !
+					mawts.remove(loid);
+					cannot_regenerate.remove(p);
+					flushMipMaps(p.getId()); // locks on its own
+					touched_mipmaps.remove(p);
+					return true;
+				} catch (Throwable t) {
+					handleCacheError(t);
 				}
-				cannot_regenerate.remove(p);
-				unlock();
-				flushMipMaps(p.getId()); // locks on its own
-				touched_mipmaps.remove(p);
-				return true;
 			}
-			unlock();
 		}
 		return true;
 	}
@@ -919,7 +901,6 @@ public final class FSLoader extends Loader {
 	/** For the Patch and for any associated slices if the patch is part of a stack. */
 	private void updatePaths(final Patch patch, final String path, final boolean is_stack) {
 		synchronized (db_lock) {
-			lock();
 			try {
 				// ensure the old path is cached in the Patch, to get set as the original if there is no original.
 				if (is_stack) {
@@ -937,8 +918,6 @@ public final class FSLoader extends Loader {
 				}
 			} catch (Throwable e) {
 				IJError.print(e);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -1037,6 +1016,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
+	@Override
 	public String save(final Project project) {
 		String result = null;
 		if (null == project_file_path) {
@@ -1115,8 +1095,10 @@ public final class FSLoader extends Loader {
 		return ht_paths.get(patch.getId());
 	}
 
-	protected Hashtable<Long,String> getPathsCopy() {
-		return (Hashtable<Long,String>) ht_paths.clone();
+	protected Map<Long,String> getPathsCopy() {
+		synchronized (ht_paths) {
+			return Collections.synchronizedMap(new HashMap<Long,String>(ht_paths));
+		}
 	}
 
 	/** Try to make all paths in ht_paths be relative to the given xml_path.
@@ -1124,7 +1106,6 @@ public final class FSLoader extends Loader {
 	protected void makeAllPathsRelativeTo(final String xml_path, final Project project) {
 		synchronized (db_lock) {
 			try {
-				lock();
 				this.dir_storage = FSLoader.makeRelativePath(xml_path, this.dir_storage);
 				this.dir_mipmaps = FSLoader.makeRelativePath(xml_path, this.dir_mipmaps);
 				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
@@ -1140,23 +1121,18 @@ public final class FSLoader extends Loader {
 				}
 			} catch (Throwable t) {
 				IJError.print(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
-	protected void restorePaths(final Hashtable<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
+	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {
 		synchronized (db_lock) {
 			try {
-				lock();
 				this.dir_mipmaps = mipmaps_folder;
 				this.dir_storage = storage_folder;
 				ht_paths.clear();
 				ht_paths.putAll(copy);
 			} catch (Throwable t) {
 				IJError.print(t);
-			} finally {
-				unlock();
 			}
 		}
 	}
@@ -1208,12 +1184,7 @@ public final class FSLoader extends Loader {
 	public void setupMenuItems(final JMenu menu, final Project project) {
 		ActionListener listener = new ActionListener() {
 			public void actionPerformed(ActionEvent ae) {
-				String command = ae.getActionCommand();
-				if (command.equals("Save")) {
-					save(project);
-				} else if (command.equals("Save as...")) {
-					saveAs(project);
-				}
+				saveTask(project, ae.getActionCommand());
 			}
 		};
 		JMenuItem item;
@@ -1236,8 +1207,6 @@ public final class FSLoader extends Loader {
 			}
 		}
 
-		final boolean virtual = imp_stack.getStack().isVirtual();
-
 		// Double.MAX_VALUE is a flag to indicate "add centered"
 		double pos_x = Double.MAX_VALUE != x ? x : first_layer.getLayerWidth()/2 - imp_stack.getWidth()/2;
 		double pos_y = Double.MAX_VALUE != y ? y : first_layer.getLayerHeight()/2 - imp_stack.getHeight()/2;
@@ -1246,6 +1215,11 @@ public final class FSLoader extends Loader {
 		Utils.showProgress(0);
 		Patch previous_patch = null;
 		final int n = imp_stack.getStackSize();
+
+		final ImageStack stack = imp_stack.getStack();
+		final boolean virtual = stack.isVirtual();
+		final VirtualStack vs = virtual ? (VirtualStack)stack : null;
+
 		for (int i=1; i<=n; i++) {
 			Layer layer = first_layer;
 			double z = first_layer.getZ() + (i-1) * thickness;
@@ -1258,22 +1232,22 @@ public final class FSLoader extends Loader {
 
 			ImagePlus imp_patch_i = null;
 			if (virtual) { // because we love inefficiency, every time all this is done again
-				VirtualStack vs = (VirtualStack)imp_stack.getStack();
+				//VirtualStack vs = (VirtualStack)imp_stack.getStack();
 				String vs_dir = vs.getDirectory().replace('\\', '/');
 				if (!vs_dir.endsWith("/")) vs_dir += "/";
 				String iname = vs.getFileName(i);
 				patch_path = vs_dir + iname;
 				Utils.log2("virtual stack: patch path is " + patch_path);
-				releaseMemory();
+				releaseToFit(new File(patch_path).length() * 3);
 				Utils.log2(i + " : " + patch_path);
 				imp_patch_i = openImage(patch_path);
 			} else {
-				ImageProcessor ip = imp_stack.getStack().getProcessor(i);
+				ImageProcessor ip = stack.getProcessor(i);
 				if (as_copy) ip = ip.duplicate();
 				imp_patch_i = new ImagePlus(title + "__slice=" + i, ip);
 			}
 
-			String label = imp_stack.getStack().getSliceLabel(i);
+			String label = stack.getSliceLabel(i);
 			if (null == label) label = "";
 			Patch patch = null;
 			if (as_copy) {
@@ -1313,7 +1287,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
-	public void parseXMLOptions(final HashMap ht_attributes) {
+	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.
@@ -1387,7 +1361,7 @@ public final class FSLoader extends Loader {
 			// create a new one inside the dir_storage, which can't be null
 			createMipMapsDir(dir_storage);
 			if (null != this.dir_mipmaps && ControlWindow.isGUIEnabled() && null != IJ.getInstance()) {
-				askAndExecMipmapRegeneration(null);
+				notifyMipMapsOutOfSynch();
 			}
 		}
 		// fix
@@ -1413,32 +1387,9 @@ public final class FSLoader extends Loader {
 		}
 	}
 
-	private void askAndExecMipmapRegeneration(final String msg) {
-		Utils.log2("Asking user Yes/No to generate mipmaps on the background."); // tip for headless runners whose program gets "stuck"
-		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Generate mipmaps", (null != msg ? msg  + "\n" : "") + "Generate mipmaps in the background for all images?\nWhen in doubt say 'no', and do it later if necessary from popup 'Project' submenu.");
-		if (yn.yesPressed()) {
-			final Loader lo = this;
-			new Thread() {
-				{ setPriority(Thread.NORM_PRIORITY); }
-				public void run() {
-					try {
-						// wait while parsing the rest of the XML file
-						while (!v_loaders.contains(lo)) {
-							Thread.sleep(1000);
-						}
-						Project pj = Project.findProject(lo);
-						// Submit a task for each Patch:
-						for (final Displayable patch : pj.getRootLayerSet().getDisplayables(Patch.class)) {
-							synchronized (gm_lock) {
-								// May have been queued for regeneration when trying to display it, hence it will be labeled as touched.
-								if (touched_mipmaps.contains((Patch)patch)) continue;
-							}
-							((FSLoader)lo).regenerateMipMaps((Patch)patch);
-						}
-					} catch (Exception e) {}
-				}
-			}.start();
-		}
+	private void notifyMipMapsOutOfSynch() {
+		Utils.log2("'ok' dialog to explain that mipmaps may be in disagreement with the XML file."); // tip for headless runners whose program gets "stuck"
+		Utils.showMessage("TrakEM2 detected a crash", "TrakEM2 detected a crash. Image mipmap files may be out of synch.\n\nIf you where editing images when the crash occurred,\nplease right-click and run 'Project - Regenerate all mipmaps'");
 	}
 
 	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
@@ -1696,12 +1647,21 @@ public final class FSLoader extends Loader {
 
 		/** Record Patch as modified */
 		touched_mipmaps.add(patch);
-		
+
 		/** Remove serialized features, if any */
 		removeSerializedFeatures(patch);
 
 		/** Remove serialized pointmatches, if any */
 		removeSerializedPointMatches(patch);
+
+		/** Alpha mask: setup to check if it was modified while regenerating. */
+		String alphapath = getAlphaPath(patch);
+		File falphazip = null;
+		long falphalast = 0;
+		if (null != alphapath) {
+			falphazip = new File(alphapath);
+			falphalast = falphazip.lastModified();
+		}
 
 		String srmode = patch.getProject().getProperty("image_resizing_mode");
 		int resizing_mode = GAUSSIAN;
@@ -2049,11 +2009,19 @@ public final class FSLoader extends Loader {
 			flushMipMaps(patch.getId());
 
 			// flush any cached layer screenshots
-			try { patch.getLayer().getParent().removeFromOffscreens(patch.getLayer()); } catch (Exception e) { IJError.print(e); }
+			if (null != patch.getLayer()) {
+				try { patch.getLayer().getParent().removeFromOffscreens(patch.getLayer()); } catch (Exception e) { IJError.print(e); }
+			}
 
 			// gets executed even when returning from the catch statement or within the try/catch block
 			synchronized (gm_lock) {
 				regenerating_mipmaps.remove(patch);
+			}
+
+			// Has the alpha mask changed?
+			if (null != falphazip && falphazip.lastModified() != falphalast) {
+				Utils.log2("Alpha mask changed: resubmitting mipmap regeneration for " + patch);
+				regenerateMipMaps(patch);
 			}
 		}
 	}
@@ -2183,7 +2151,7 @@ public final class FSLoader extends Loader {
 				this.setAsBackground(true);
 				Utils.log2("starting mipmap generation ..");
 				try {
-					ArrayList<Future> fus = new ArrayList<Future>();
+					final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					for (final Displayable displ : patches) {
 						if (displ.getClass() != Patch.class) continue;
 						Patch pa = (Patch)displ;
@@ -2220,28 +2188,23 @@ public final class FSLoader extends Loader {
 	private final String getLevelDir(final String dir_mipmaps, final int level) {
 		// synch, so that multithreaded generateMipMaps won't collide trying to create dirs
 		synchronized (db_lock) {
-			lock();
 			final String path = new StringBuilder(dir_mipmaps).append(level).append('/').toString();
 			if (isURL(dir_mipmaps)) {
-				unlock();
 				return path;
 			}
 			final File file = new File(path);
 			if (file.exists() && file.isDirectory()) {
-				unlock();
 				return path;
 			}
 			// else, create it
 			try {
 				file.mkdir();
-				unlock();
 				return path;
 			} catch (Exception e) {
 				IJError.print(e);
+				return null;
 			}
-			unlock();
 		}
-		return null;
 	}
 
 	/** Returns the near-unique folder for the project hosted by this FSLoader. */
@@ -2356,10 +2319,12 @@ public final class FSLoader extends Loader {
 	public void flushMipMaps(boolean forget_dir_mipmaps) {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
-			lock();
-			if (forget_dir_mipmaps) this.dir_mipmaps = null;
-			mawts.removeAllPyramids(); // does not remove level 0 awts (i.e. the 100% images)
-			unlock();
+			try {
+				if (forget_dir_mipmaps) this.dir_mipmaps = null;
+				mawts.removeAndFlushAll();
+			} catch (Throwable t) {
+				handleCacheError(t);
+			}
 		}
 	}
 
@@ -2367,15 +2332,11 @@ public final class FSLoader extends Loader {
 	public void flushMipMaps(final long id) {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
-			lock();
 			try {
-				//mawts.removePyramid(id); // does not remove level 0 awts (i.e. the 100% images)
-				// Need to remove ALL now, since level 0 is also included as a mipmap:
-				for (final Image img : mawts.remove(id)) {
-					if (null != img) img.flush();
-				}
-			} catch (Exception e) { e.printStackTrace(); }
-			unlock();
+				mawts.removeAndFlushPyramid(id);
+			} catch (Throwable t) {
+				handleCacheError(t);
+			}
 		}
 	}
 
@@ -2438,7 +2399,8 @@ public final class FSLoader extends Loader {
 	/** Return the closest level to @param level that exists as a file.
 	 *  If no valid path is found for the patch, returns ERROR_PATH_NOT_FOUND.
 	 */
-	public int getClosestMipMapLevel(final Patch patch, int level) {
+	@Override
+	public int getClosestMipMapLevel(final Patch patch, int level, final int max_level) {
 		if (null == dir_mipmaps) return 0;
 		try {
 			final String path = getAbsolutePath(patch);
@@ -2448,8 +2410,7 @@ public final class FSLoader extends Loader {
 				if (level <= 0) return 0;
 				// choose the smallest dimension
 				// find max level that keeps dim over 32 pixels
-				final int lev = getHighestMipMapLevel(Math.min(patch.getWidth(), patch.getHeight()));
-				if (level > lev) return lev;
+				if (level > max_level) return max_level;
 				return level;
 			} else {
 				do {
@@ -2467,8 +2428,9 @@ public final class FSLoader extends Loader {
 		return 0;
 	}
 
-	/** A temporary list of Patch instances for which a pyramid is being generated. */
-	final private Hashtable<Patch,Future<Boolean>> regenerating_mipmaps = new Hashtable<Patch,Future<Boolean>>();
+	/** A temporary list of Patch instances for which a pyramid is being generated.
+	 *  Access is synchronized by gm_lock. */
+	final private Map<Patch,Future<Boolean>> regenerating_mipmaps = new HashMap<Patch,Future<Boolean>>();
 
 	/** A lock for the generation of mipmaps. */
 	final private Object gm_lock = new Object();
@@ -2484,16 +2446,19 @@ public final class FSLoader extends Loader {
 
 	final Set<Patch> cannot_regenerate = Collections.synchronizedSet(new HashSet<Patch>());
 
-	/** Loads the file containing the scaled image corresponding to the given level (or the maximum possible level, if too large) and returns it as an awt.Image, or null if not found. Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing. Frees n_bytes * 8 memory on its own. */
+	/** Loads the file containing the scaled image corresponding to the given level
+	 *  (or the maximum possible level, if too large)
+	 *  and returns it as an awt.Image, or null if not found.
+	 *  Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing.
+	 *  Does NOT release memory, avoiding locking on the db_lock. */
 	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
-	/** Does the actual fetching of the file. Returns null if the file does not exist. */
+	/** Does the actual fetching of the file. Returns null if the file does not exist.
+	 *  Does NOT pre-release memory from the cache;
+	 *  call releaseToFit to do that. */
 	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
-		releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
-		// TODO the x8 is overly exaggerated
-
 		final int max_level = getHighestMipMapLevel(patch);
 
 		final String filename = getInternalFileName(patch);
@@ -2505,6 +2470,9 @@ public final class FSLoader extends Loader {
 		// New style:
 		final String path = new StringBuilder(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
+		//releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
+		// TODO the x8 is overly exaggerated
+		
 		if (patch.hasAlphaChannel()) {
 			return mmio.openWithAlpha(path); // ImageSaver.openJpegAlpha(path);
 		} else {
@@ -2516,12 +2484,14 @@ public final class FSLoader extends Loader {
 				default:
 					// For color images: (considers URL as well)
 					IJ.redirectErrorMessages();
-					return patch.createImage(openImagePlus(path)); // considers c_alphas
+					final ImagePlus imp = openImagePlus(path);
+					if (null == imp) return null;
+					return patch.createImage(imp); // considers c_alphas
 			}
 		}
 	}
 
-	/** Will lock on db_lock to free memory. */
+	/** Will NOT free memory. */
 	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
@@ -2550,7 +2520,7 @@ public final class FSLoader extends Loader {
 				// Regenerate in the case of not asking for an image under 32x32
 				double scale = 1 / Math.pow(2, level);
 				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
-					// regenerate
+					// regenerate in a separate thread
 					regenerateMipMaps(patch);
 					return REGENERATING;
 				}
@@ -2872,55 +2842,40 @@ public final class FSLoader extends Loader {
 		long n_bytes = 0;
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
-			lock();
 			try {
-				imp = imps.get(stack.getId());
+				imp = mawts.get(stack.getId());
 				if (null != imp) {
 					return imp;
 				}
 				path = stack.getFilePath();
 				/* not cached */
-				releaseMemory2(); // ensure there is a minimum % of free memory
 				plock = getOrMakeImageLoadingLock( stack.getId(), 0 );
-			} catch (Exception e) {
-				IJError.print(e);
+			} catch (Throwable t) {
+				handleCacheError(t);
 				return null;
-			} finally {
-				unlock();
 			}
 		}
 
 
 		synchronized (plock) {
-			plock.lock();
-
-			imp = imps.get( stack.getId());
+			imp = mawts.get( stack.getId());
 			if (null != imp) {
 				// was loaded by a different thread
-				plock.unlock();
+				synchronized (db_lock) {
+					removeImageLoadingLock(plock);
+				}
 				return imp;
 			}
 
 			// going to load:
+			releaseToFit(stack.estimateImageFileSize());
+			imp = openImage(getAbsolutePath(path));
 
+			//preProcess(p, imp);
 
-			// reserve memory:
-			n_bytes = stack.estimateImageFileSize();
-			try {
-				alterMaxMem(-n_bytes);
-
-				releaseToFit(n_bytes);
-				imp = openImage(getAbsolutePath(path));
-
-				//preProcess(p, imp);
-			} finally {
-				alterMaxMem(n_bytes);
-			}
 
 			synchronized (db_lock) {
 				try {
-					lock();
-
 					if (null == imp) {
 						if (!hs_unloadable.contains(stack)) {
 							Utils.log("FSLoader.fetchImagePlus: no image exists for stack  " + stack + "  at path " + path);
@@ -2932,15 +2887,13 @@ public final class FSLoader extends Loader {
 //						}
 						return null;
 					} else {
-						imps.put( stack.getId(), imp );
+						mawts.put( stack.getId(), imp, (int)Math.max(stack.getWidth(), stack.getHeight()));
 					}
 
 				} catch (Exception e) {
 					IJError.print(e);
 				} finally {
 					removeImageLoadingLock(plock);
-					unlock();
-					plock.unlock();
 				}
 
 				return imp;
@@ -3013,7 +2966,7 @@ public final class FSLoader extends Loader {
 		return Bureaucrat.createAndStart(new Worker.Task("Updating mipmaps format") {
 			public void exec() {
 				try {
-					final List<Future> fus = new ArrayList<Future>();
+					final List<Future<?>> fus = new ArrayList<Future<?>>();
 					final String ext = MIPMAP_FORMATS[old_format];
 					for (Layer la : project.getRootLayerSet().getLayers()) {
 						for (Displayable p : la.getDisplayables(Patch.class)) {

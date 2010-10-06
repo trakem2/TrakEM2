@@ -23,7 +23,7 @@ public class DTDParser {
 	static public TemplateThing[] parseDTDFile(String dtd_path) throws Exception {
 		// fetch file
 		BufferedReader dis = null;
-		StringBuffer data = new StringBuffer();
+		final StringBuilder data = new StringBuilder();
 		try {
 			InputStream i_stream;
 			if (FSLoader.isURL(dtd_path)) {
@@ -53,7 +53,7 @@ public class DTDParser {
 	static public TemplateThing[] parseXMLFile(String xml_path) throws Exception {
 		// fetch file
 		BufferedReader dis = null;
-		StringBuffer data = new StringBuffer();
+		final StringBuilder data = new StringBuilder();
 		try {
 			InputStream i_stream;
 			if (FSLoader.isURL(xml_path)) {
@@ -102,14 +102,14 @@ public class DTDParser {
 	}
 
 	static private class Attribute {
-		String type, name, a1=null, a2=null;
+		String type, name; //, a1=null, a2=null;
 		Attribute(String chunk) {
 			chunk = Utils.cleanString(chunk);
 			String[] words = chunk.split(" ");
 			this.type = words[0];
 			this.name = words[1];
-			if (words.length > 2) this.a1 = words[2];
-			if (words.length > 3) this.a2 = words[3];
+			//if (words.length > 2) this.a1 = words[2];
+			//if (words.length > 3) this.a2 = words[3];
 			if (words.length > 4) Utils.log("WARNING: ignoring past the 4th word in the DTD: " + words[4] + " ... ");
 		}
 		public boolean equals(Object ob) {
@@ -118,20 +118,12 @@ public class DTDParser {
 			}
 			return false;
 		}
-		public void createAttribute(TemplateThing tt) {
-			// ignore id and oid
-			if (name.equals("id") || name.equals("oid")) return;
-			tt.addAttribute(name, null); // lots of XML-specified qualities missing ... TODO
-		}
 	}
 
 	static private class Type {
 		String name;
 		String[] children = null;
 		String[] limits = null;
-		ArrayList al_attributes = null;
-
-		private Type() {} // for cloning
 
 		/** Parses itself out of a chunk of text between '&lt;' and '&gt;'. */
 		Type(String chunk) {
@@ -165,6 +157,7 @@ public class DTDParser {
 				//Utils.log("parent " + this.name + " has child : __" + children[i] + "__");
 			}
 		}
+		/*
 		boolean containsChild(String type) {
 			if (null == children) return false;
 			for (int i=0; i<children.length; i++) {
@@ -172,25 +165,9 @@ public class DTDParser {
 			}
 			return false;
 		}
+		*/
 		/** Recursive, but avoids adding children to nested types. The table ht_attributes contains type names as keys, and hashtables of attributes as values. */
-		void createAttributesAndChildren(final TemplateThing parent, final Map<String,Object> ht_attributes, final Map<String,DTDParser.Type> ht_types) {
-			// create attributes if any
-			Object ob = ht_attributes.get(name);
-			if (null != ob) {
-				Hashtable ht_attr = (Hashtable)ob;
-				// delete redundant attributes (which overlap with fields or node properties)
-				ht_attr.remove("id"); // built-in to the class
-				ht_attr.remove("oid"); // temporary reference
-				ht_attr.remove("title"); // built-in to the class
-				ht_attr.remove("index"); //obsolete
-				ht_attr.remove("expanded"); // 'remove' doesn't fail when the key is not there
-				// What the above is saying: only user-defined attributes should be preserved
-				for (Iterator it = ht_attr.values().iterator(); it.hasNext(); ) {
-					Attribute attr = (Attribute)it.next();
-					attr.createAttribute(parent);
-					//Utils.log2(parent.getType() + "  new attr: " + attr.name);
-				}
-			}
+		void createChildren(final TemplateThing parent, final Map<String,DTDParser.Type> ht_types) {
 
 			// create children for it, unless nested
 			if (!parent.isNested() && null != children) {
@@ -208,7 +185,7 @@ public class DTDParser {
 					TemplateThing child = new TemplateThing(tyn);
 					//Utils.log2("DTDParser: created TT " + tyn);
 					parent.addChild(child);
-					ty.createAttributesAndChildren(child, ht_attributes, ht_types);
+					ty.createChildren(child, ht_types);
 				}
 			}
 		}
@@ -267,17 +244,15 @@ public class DTDParser {
 	}
 
 	/** Parses a chunk of text into a hierarchy of TemplateThing instances, the roots of which are in the returned array. */
-	static public TemplateThing[] parseDTD(final StringBuffer data) throws Exception {
+	static public TemplateThing[] parseDTD(final StringBuilder data) throws Exception {
 		// debug:
 		// Utils.log(data.toString());
 
 		// extract all tags into a hashtable of type names
 		final HashMap<String,DTDParser.Type> ht_types = new HashMap<String,DTDParser.Type>();
 		final List<DTDParser.Type> types = new ArrayList<DTDParser.Type>(); // sequential, as found in the DTD file
-		final HashMap<String,Object> ht_attributes = new HashMap<String,Object>();
-		int i = -1;
+		final HashMap<String,Map<String,Attribute>> ht_attributes = new HashMap<String,Map<String,Attribute>>();
 		final String text = data.toString();
-		int len = text.length();
 		int i_first = text.indexOf('<');
 		int i_last = text.indexOf('>');
 		int i_space;
@@ -315,15 +290,13 @@ public class DTDParser {
 			} else if (chunk.startsWith("!ATTLIST")) {
 				DTDParser.Attribute attr = new DTDParser.Attribute(chunk.substring(i_space +1));
 				if (isAllowed(attr.type)) {
-					Object o = ht_attributes.get(attr.type);
-					if (null == o) {
+					Map<String,Attribute> oht = ht_attributes.get(attr.type);
+					if (null == oht) {
 						//Utils.log2("at 1 for " + attr.type + " " + attr.name);
-						Hashtable ht = new Hashtable();
-						o = ht;
-						ht_attributes.put(attr.type, o);
+						oht = new HashMap<String,Attribute>();
+						ht_attributes.put(attr.type, oht);
 					}
-					Hashtable oht = (Hashtable)o;
-					if (oht.contains(attr.name)) {
+					if (oht.containsKey(attr.name)) {
 						Utils.log("Parsing DTD: already have attribute " + attr.name + " for type " + attr.type);
 					} else {
 						//Utils.log2("at 2 for " + attr.type + " " + attr.name);
@@ -362,7 +335,7 @@ public class DTDParser {
 					if (null != root_type_name) {
 						Utils.log("WARNING found second DTD root: " + node.name);
 					} else {
-						Utils.log("Found DTD root: " + node.name);
+						Utils.log2("Found DTD root: " + node.name);
 						root_type_name = node.name;
 					}
 				}
@@ -381,7 +354,7 @@ public class DTDParser {
 
 		// The root is the one and only element of the project node
 		TemplateThing root = new TemplateThing(root_type_name);
-		root_type.createAttributesAndChildren(root, ht_attributes, ht_types); // avoids nested
+		root_type.createChildren(root, ht_types); // avoids nested
 
 		return new TemplateThing[]{root};
 	}

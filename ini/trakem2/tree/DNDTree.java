@@ -24,15 +24,9 @@ package ini.trakem2.tree;
 
 
 import ini.trakem2.Project;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.tree.ProjectTree;
 
 import javax.swing.JTree;
 import java.util.*;
@@ -49,7 +43,7 @@ import java.awt.dnd.*;
  *
 * Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
  */
-public class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
+public abstract class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
  
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
@@ -65,8 +59,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		this.project = project;
 		this.background = background;
 		setAutoscrolls(true);
-		DefaultTreeModel treemodel = new DefaultTreeModel(root);
-		setModel(treemodel);
+		setModel(new DefaultTreeModel(root));
 		setRootVisible(true); 
 		setShowsRootHandles(false);//to show the root icon
 		getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION); //set single selection for the Tree
@@ -76,6 +69,10 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		dtth = new DefaultTreeTransferHandler(project, this, DnDConstants.ACTION_COPY_OR_MOVE);
 		//
 		this.setScrollsOnExpand(true);
+		KeyListener[] kls = getKeyListeners();
+		if (null != kls) for (KeyListener kl : kls) { Utils.log2("removing kl: " + kl); removeKeyListener(kl); }
+		//resetKeyboardActions(); // removing the KeyListeners is not enough!
+		//setActionMap(new ActionMap()); // an empty one -- none of these two lines has any effect towards stopping the key events.
 		this.addKeyListener(this);
 
 		if (null != background) {
@@ -92,27 +89,47 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		}
 	}
 
-        /** Subclasses should override this method to return a subclass of DNDTree.NodeRenderer */
-        protected NodeRenderer createNodeRenderer() {
-                return new NodeRenderer();
-        }       
+	/** Removing all KeyListener and ActionMap is not enough:
+	 *  one must override this method to stop the JTree from reacting to keys. */
+	@Override
+	protected void processKeyEvent(KeyEvent ke) {
+		if (ke.isConsumed()) return;
+		if (KeyEvent.KEY_PRESSED == ke.getID()) {
+			keyPressed(ke);
+		}
+	}
 
-        protected class NodeRenderer extends DefaultTreeCellRenderer {
+	/** Prevent processing. */ // Never occurred so far
+	@Override
+	protected boolean processKeyBinding(KeyStroke ks,
+            KeyEvent e,
+            int condition,
+            boolean pressed) {
+		Utils.log2("intercepted binding: " + e.getKeyChar() + " " + ks.getKeyChar());
+		return false;
+	}
 
-                @Override
-                public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
-                        final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-                        label.setText(label.getText().replace('_', ' ')); // just for display
-                        return label;
-                }       
-                
-                /** Override to show tooptip text as well. */
-                @Override
-                public void setText(final String text) {
-                        super.setText(text);
-                        setToolTipText(text); // TODO doesn't work ??
-                }       
-        }
+	/** Subclasses should override this method to return a subclass of DNDTree.NodeRenderer */
+	protected NodeRenderer createNodeRenderer() {
+		return new NodeRenderer();
+	}       
+
+	protected class NodeRenderer extends DefaultTreeCellRenderer {
+
+		@Override
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+			final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+			label.setText(label.getText().replace('_', ' ')); // just for display
+			return label;
+		}       
+
+		/** Override to show tooltip text as well. */
+		@Override
+		public void setText(final String text) {
+			super.setText(text);
+			setToolTipText(text); // TODO doesn't work ??
+		}       
+	}
 
 	public void autoscroll(Point cursorLocation)  {
 		Insets insets = getAutoscrollInsets();
@@ -186,28 +203,10 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			}
 		}
 
-		// add the attributes first, only for ProjectThing or TemplateThing instances (not LayerThing)
-		if (thing instanceof ProjectThing || thing instanceof TemplateThing) {
-			HashMap ht_attributes = thing.getAttributes();
-			if (null != ht_attributes) {
-				for (Iterator it = ht_attributes.entrySet().iterator(); it.hasNext(); ) {
-					Map.Entry entry = (Map.Entry)it.next();
-					String key = (String)entry.getKey();
-					if (key.equals("id") || key.equals("title") || key.equals("index") || key.equals("expanded")) {
-						// ignore: the id is internal, and the title is shown in the node itself. The index is ignored.
-						continue;
-					}
-					DefaultMutableTreeNode attr_node = new DefaultMutableTreeNode(entry.getValue());
-					node.add(attr_node);
-				}
-			}
-		}
 		//fill in with children
-		ArrayList al_children = thing.getChildren();
+		ArrayList<? extends Thing> al_children = thing.getChildren();
 		if (null == al_children) return node; // end
-		Iterator it = al_children.iterator();
-		while (it.hasNext()) {
-			Thing child = (Thing)it.next();
+		for (final Thing child : al_children) {
 			node.add(makeNode(child, childless_nested)); // recursive call
 		}
 		return node;
@@ -248,7 +247,6 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		}
 		return null;
 	}
-	// TODO this could be improved by checking while searching for nodes, not first getting all then checking.
 
 	/** Find the node in the tree that contains a Thing which contains the given project_ob. */
 	static public DefaultMutableTreeNode findNode2(final Object project_ob, final JTree tree) {
@@ -259,11 +257,11 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			if (null != o && o instanceof Thing && project_ob.equals(((Thing)o).getObject())) {
 				return node; // the root itself
 			}
-			Enumeration e = node.depthFirstEnumeration();
+			final Enumeration<?> e = node.depthFirstEnumeration();
 			while (e.hasMoreElements()) {
 				node = (DefaultMutableTreeNode)e.nextElement();
 				o = node.getUserObject();
-				if (null != o && o instanceof Thing && project_ob.equals(((Thing)o).getObject())) {
+				if (null != o && o instanceof Thing && project_ob == ((Thing)o).getObject()) {
 					//gotcha
 					return node;
 				}
@@ -278,12 +276,12 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 			Utils.log2("DNDTree.selectNode: null ob?");
 			return;
 		}
-		// deselect whatever is selected
-		tree.setSelectionPath(null);
-		// check first:
-		if (null == ob) return;
-		tree.project.getLoader().doGUILater(true, new Runnable() {
+		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
+				// deselect whatever is selected
+				tree.setSelectionPath(null);
+				// check first:
+				if (null == ob) return;
 				final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
 				if (null != node) {
 					final TreePath path = new TreePath(node.getPath());
@@ -308,7 +306,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */
 	public void updateUILater() {
-		project.getLoader().doGUILater(true, new Runnable() {
+		SwingUtilities.invokeLater(new Runnable() {
 			public void run() {
 				//try { Thread.sleep(200); } catch (InterruptedException ie) {}
 				try {
@@ -430,7 +428,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 	}
 
 	/** Get the map of Thing vs. expanded state for all nodes that have children. */
-	public HashMap<? extends Thing,Boolean> getExpandedStates() {
+	public HashMap<Thing,Boolean> getExpandedStates() {
 		try {
 			final Hashtable ht = (Hashtable)f_expandedState.get(this);
 			final HashMap<Thing,Boolean> m = new HashMap<Thing,Boolean>(ht.size());
@@ -527,7 +525,7 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 	}
 
 	/** Will add only those for which a node doesn't exist already. */
-	public void addLeafs(final java.util.List<Thing> leafs, final Runnable after) {
+	public void addLeafs(final java.util.List<? extends Thing> leafs, final Runnable after) {
 		javax.swing.SwingUtilities.invokeLater(new Runnable() { public void run() {
 		for (final Thing th : leafs) {
 			// find parent node
@@ -591,19 +589,22 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 		return copy;
 	}
 
-	/** For restoring purposes from an undo step. */
-	public void set(final Thing root, final HashMap<Thing,Boolean> expanded_state) {
+	/** Set the root Thing, and the expanded state of all nodes if @param expanded_state is not null.
+	 *  Used for restoring purposes from an undo step. */
+	public void reset(final HashMap<Thing,Boolean> expanded_state) {
 		// rebuild all nodes, restore their expansion state.
 		DefaultMutableTreeNode root_node = (DefaultMutableTreeNode) this.getModel().getRoot();
 		root_node.removeAllChildren();
-		set(root_node, root, expanded_state);
+		set(root_node, getRootThing(), expanded_state);
 		updateUILater();
 	}
+	
+	protected abstract Thing getRootThing();
 
 	/** Recursive */
-	private void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
+	protected void set(final DefaultMutableTreeNode root, final Thing root_thing, final HashMap<Thing,Boolean> expanded_state) {
 		root.setUserObject(root_thing);
-		final ArrayList<Thing> al_children = root_thing.getChildren();
+		final ArrayList<? extends Thing> al_children = root_thing.getChildren();
 		if (null != al_children) {
 			for (final Thing thing : al_children) {
 				DefaultMutableTreeNode child = new DefaultMutableTreeNode(thing);
@@ -618,20 +619,17 @@ public class DNDTree extends JTree implements TreeExpansionListener, KeyListener
 	}
 
 	public void keyPressed(final KeyEvent ke) {
-		dispatcher.exec(new Runnable() { public void run() {
-		if (!ke.getSource().equals(DNDTree.this) || !Project.getInstance(DNDTree.this).isInputEnabled()) {
+		if (!ke.getSource().equals(DNDTree.this) || !project.isInputEnabled()) {
 			ke.consume();
 			return;
 		}
 		int key_code = ke.getKeyCode();
 		switch (key_code) {
 			case KeyEvent.VK_S:
-				Project p = Project.getInstance(DNDTree.this);
-				p.getLoader().save(p);
+				project.getLoader().saveTask(project, "Save");
 				ke.consume();
 				break;
 		}
-		}});
 	}
 	public void keyReleased(KeyEvent ke) {}
 	public void keyTyped(KeyEvent ke) {}

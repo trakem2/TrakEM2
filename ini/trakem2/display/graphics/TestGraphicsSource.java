@@ -18,7 +18,7 @@ public class TestGraphicsSource implements GraphicsSource {
 		for (final Paintable p : ds) {
 			if (p instanceof Patch) {
 				final Paintable pa = new Paintable() {
-					public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+					public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
 						Patch patch = (Patch)p;
 						Rectangle r = patch.getBoundingBox();
 						g.setColor(Color.magenta);
@@ -28,8 +28,8 @@ public class TestGraphicsSource implements GraphicsSource {
 						g.fillOval(r.x + 2 * (r.width/3), r.y + r.height/3, r.width/10, r.width/10);
 						g.fillOval(r.x + r.width/3, r.y + 2*(r.height/3), r.width/3, r.height/6);
 					}
-					public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-						this.paint(g, srcRect, magnification, active, channels, active_layer);
+					public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+						this.paint(g, srcRect, magnification, active, channels, active_layer, layers);
 					}
 				};
 				a.add(pa);

@@ -33,9 +33,11 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
+import mpicbg.models.Transforms;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
@@ -71,6 +73,11 @@ public class Align
 		public float minInlierRatio = 0.2f;
 		
 		/**
+		 * Minimal absolute number of inliers
+		 */
+		public int minNumInliers = 7;
+		
+		/**
 		 * Implemeted transformation models for choice
 		 */
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
@@ -78,6 +85,12 @@ public class Align
 		public int desiredModelIndex = 1;
 		
 		public float correspondenceWeight = 1;
+		
+		/**
+		 * Ignore identity transform up to a given tolerance
+		 */
+		public boolean rejectIdentity = false;
+		public float identityTolerance = 0.5f;
 		
 		public Param()
 		{
@@ -93,8 +106,11 @@ public class Align
 			
 			gd.addMessage( "Geometric Consensus Filter:" );
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
-			gd.addNumericField( "inlier_ratio :", minInlierRatio, 2 );
+			gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
+			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
 			gd.addChoice( "expected_transformation :", modelStrings, modelStrings[ expectedModelIndex ] );
+			gd.addCheckbox( "ignore constant background", rejectIdentity );
+			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 			
 			gd.addMessage( "Alignment:" );
 			gd.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
@@ -109,7 +125,12 @@ public class Align
 			
 			maxEpsilon = ( float )gd.getNextNumber();
 			minInlierRatio = ( float )gd.getNextNumber();
+			minNumInliers = ( int )gd.getNextNumber();
 			expectedModelIndex = gd.getNextChoiceIndex();
+			
+			rejectIdentity = gd.getNextBoolean();
+			identityTolerance = ( float )gd.getNextNumber();
+			
 			desiredModelIndex = gd.getNextChoiceIndex();
 			
 			correspondenceWeight = ( float )gd.getNextNumber();
@@ -147,7 +168,11 @@ public class Align
 			p.rod = rod;
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
+			p.minNumInliers = minNumInliers;
 			p.expectedModelIndex = expectedModelIndex;
+			p.rejectIdentity = rejectIdentity;
+			p.identityTolerance = identityTolerance;
+			
 			p.desiredModelIndex = desiredModelIndex;
 			
 			p.correspondenceWeight = correspondenceWeight;
@@ -174,7 +199,10 @@ public class Align
 				( rod == p.rod ) &&
 				( maxEpsilon == p.maxEpsilon ) &&
 				( minInlierRatio == p.minInlierRatio ) &&
-				( expectedModelIndex == p.expectedModelIndex );
+				( minNumInliers == p.minNumInliers ) &&
+				( expectedModelIndex == p.expectedModelIndex ) &&
+				( rejectIdentity == p.rejectIdentity ) &&
+				( identityTolerance == p.identityTolerance );
 //			&& ( desiredModelIndex == p.desiredModelIndex );
 		}
 	}
@@ -196,6 +224,12 @@ public class Align
 		 */
 		public int maxPlateauwidth = 200;
 		
+		/**
+		 * Filter outliers
+		 */
+		public boolean filterOutliers = false;
+		public float meanFactor = 3.0f;
+		
 		@Override
 		public void addFields( final GenericDialog gd )
 		{
@@ -203,6 +237,8 @@ public class Align
 			
 			gd.addNumericField( "maximal_iterations :", maxIterations, 0 );
 			gd.addNumericField( "maximal_plateauwidth :", maxPlateauwidth, 0 );
+			gd.addCheckbox( "filter outliers", filterOutliers );
+			gd.addNumericField( "mean_factor :", meanFactor, 2 );
 		}
 		
 		@Override
@@ -212,6 +248,8 @@ public class Align
 			
 			maxIterations = ( int )gd.getNextNumber();
 			maxPlateauwidth = ( int )gd.getNextNumber();
+			filterOutliers = gd.getNextBoolean();
+			meanFactor = ( float )gd.getNextNumber();
 			
 			return !gd.invalidNumber();
 		}
@@ -248,11 +286,16 @@ public class Align
 			p.rod = rod;
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
+			p.minNumInliers = minNumInliers;
 			p.expectedModelIndex = expectedModelIndex;
+			p.rejectIdentity = rejectIdentity;
+			p.identityTolerance = identityTolerance;
 			
 			p.desiredModelIndex = desiredModelIndex;
 			p.maxIterations = maxIterations;
 			p.maxPlateauwidth = maxPlateauwidth;
+			p.filterOutliers = filterOutliers;
+			p.meanFactor = meanFactor;
 			
 			return p;
 		}
@@ -262,7 +305,9 @@ public class Align
 			return
 				super.equals( p ) &&
 				( maxIterations == p.maxIterations ) &&
-				( maxPlateauwidth == p.maxPlateauwidth );
+				( maxPlateauwidth == p.maxPlateauwidth ) &&
+				( filterOutliers == p.filterOutliers ) &&
+				( meanFactor == p.meanFactor );
 		}
 	}
 	
@@ -440,16 +485,34 @@ public class Align
 					}
 		
 					boolean modelFound;
+					boolean again = false;
 					try
 					{
-						modelFound = model.filterRansac(
-								candidates,
-								inliers,
-								1000,
-								p.maxEpsilon,
-								p.minInlierRatio,
-								Math.max( 7, 3 * model.getMinNumMatches() ),
-								3 );
+						do
+						{
+							again = false;
+							modelFound = model.filterRansac(
+									candidates,
+									inliers,
+									1000,
+									p.maxEpsilon,
+									p.minInlierRatio,
+									p.minNumInliers,
+									3 );
+							if ( modelFound && p.rejectIdentity )
+							{
+								final ArrayList< Point > points = new ArrayList< Point >();
+								PointMatch.sourcePoints( inliers, points );
+								if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+								{
+									IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+									candidates.removeAll( inliers );
+									inliers.clear();
+									again = true;
+								}
+							}
+						}
+						while ( again );
 					}
 					catch ( NotEnoughDataPointsException e )
 					{
@@ -458,7 +521,7 @@ public class Align
 					if ( modelFound )
 						IJ.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					else
-						IJ.log( "No model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\"" );
+						IJ.log( "No model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					
 					if ( !serializePointMatches( p, tilePair[ 0 ], tilePair[ 1 ], inliers ) )
 						IJ.log( "Saving point matches failed for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\"" );
@@ -667,28 +730,43 @@ public class Align
 			}
 	
 			boolean modelFound;
+			boolean again = false;
 			try
 			{
-				modelFound = model.filterRansac(
-						candidates,
-						inliers,
-						1000,
-						p.maxEpsilon,
-						p.minInlierRatio,
-						3 * model.getMinNumMatches(),
-						3 );
+				do
+				{
+					again = false;
+					modelFound = model.filterRansac(
+							candidates,
+							inliers,
+							1000,
+							p.maxEpsilon,
+							p.minInlierRatio,
+							p.minNumInliers,
+							3 );
+					if ( modelFound && p.rejectIdentity )
+					{
+						final ArrayList< Point > points = new ArrayList< Point >();
+						PointMatch.sourcePoints( inliers, points );
+						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+						{
+							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+							candidates.removeAll( inliers );
+							inliers.clear();
+							again = true;
+						}
+					}
+				}
+				while ( again );
 			}
 			catch ( NotEnoughDataPointsException e )
 			{
 				modelFound = false;
 			}
-			
 			if ( modelFound )
-			{
-				IJ.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch().getTitle() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
-			}
+				IJ.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			else
-				IJ.log( "No model found for tiles " + t1 + " and " + t2 + "." );
+				IJ.log( "No model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			
 			if ( !serializePointMatches( p, t1, t2, pointMatches ) )
 				IJ.log( "Saving point matches failed for tile \"" + t1.getPatch() + "\" and tile \"" + t2.getPatch() + "\"" );
@@ -765,7 +843,10 @@ public class Align
 		
 		try
 		{
-			tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
+			if ( p.filterOutliers )
+				tc.optimizeAndFilter( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth, p.meanFactor );
+			else
+				tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
 		}
 		catch ( Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
 	}
@@ -970,7 +1051,7 @@ public class Align
 		List< PointMatch > candidates = new ArrayList< PointMatch >();
 		List< PointMatch > inliers = new ArrayList< PointMatch >();
 		
-		AffineTransform a = new AffineTransform();
+		final AffineTransform a = new AffineTransform();
 		
 		int i = 0;
 		for ( Layer l : layers )
@@ -1025,16 +1106,34 @@ public class Align
 				}
 	
 				boolean modelFound;
+				boolean again = false;
 				try
 				{
-					modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							p.maxEpsilon,
-							p.minInlierRatio,
-							3 * model.getMinNumMatches(),
-							3 );
+					do
+					{
+						again = false;
+						modelFound = model.filterRansac(
+								candidates,
+								inliers,
+								1000,
+								p.maxEpsilon,
+								p.minInlierRatio,
+								p.minNumInliers,
+								3 );
+						if ( modelFound && p.rejectIdentity )
+						{
+							final ArrayList< Point > points = new ArrayList< Point >();
+							PointMatch.sourcePoints( inliers, points );
+							if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+							{
+								IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+								candidates.removeAll( inliers );
+								inliers.clear();
+								again = true;
+							}
+						}
+					}
+					while ( again );
 				}
 				catch ( NotEnoughDataPointsException e )
 				{
@@ -1056,9 +1155,12 @@ public class Align
 					Display.repaint( l );
 				}
 				else
-					IJ.log( "No model found for layer \"" + l.getTitle() + "\" and its predecessor." );
+				{
+					IJ.log( "No model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					a.setToIdentity();
+				}
 			}
-			IJ.showProgress( ++i, layers.size() );	
+			IJ.showProgress( ++i, layers.size() );
 		}
 	}
 	
@@ -1173,16 +1275,34 @@ public class Align
 			}
 
 			boolean modelFound;
+			boolean again = false;
 			try
 			{
-				modelFound = model.filterRansac(
-						candidates,
-						inliers,
-						1000,
-						p.maxEpsilon,
-						p.minInlierRatio,
-						3 * model.getMinNumMatches(),
-						3 );
+				do
+				{
+					again = false;
+					modelFound = model.filterRansac(
+							candidates,
+							inliers,
+							1000,
+							p.maxEpsilon,
+							p.minInlierRatio,
+							p.minNumInliers,
+							3 );
+					if ( modelFound && p.rejectIdentity )
+					{
+						final ArrayList< Point > points = new ArrayList< Point >();
+						PointMatch.sourcePoints( inliers, points );
+						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+						{
+							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+							candidates.removeAll( inliers );
+							inliers.clear();
+							again = true;
+						}
+					}
+				}
+				while ( again );
 			}
 			catch ( NotEnoughDataPointsException e )
 			{
@@ -1204,7 +1324,7 @@ public class Align
 				Display.repaint( la );
 			}
 			else
-				IJ.log( "No model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\"." );
+				IJ.log( "No model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 		}
 	}
 }

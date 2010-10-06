@@ -26,8 +26,6 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
-import ij.gui.ShapeRoi;
-import ij.gui.Toolbar;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -37,6 +35,7 @@ import ij.plugin.filter.ThresholdToSelection;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
@@ -44,7 +43,6 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Dimension;
 import java.awt.Rectangle;
@@ -52,7 +50,6 @@ import java.awt.Event;
 import java.awt.Image;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.AlphaComposite;
 import java.awt.Toolkit;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -62,12 +59,12 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
 import java.awt.Polygon;
-import java.awt.geom.PathIterator;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
 import java.awt.image.PixelGrabber;
 import java.awt.event.KeyEvent;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.TreeMap;
@@ -77,6 +74,9 @@ import java.util.Collection;
 import java.io.File;
 import java.util.concurrent.Future;
 
+import mpicbg.imglib.container.shapelist.ShapeList;
+import mpicbg.imglib.image.display.imagej.ImageJFunctions;
+import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
@@ -124,7 +124,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
 	public Patch(Project project, long id, String title,
-		     double width, double height,
+		     float width, float height,
 		     int o_width, int o_height,
 		     int type, boolean locked, double min, double max, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
@@ -139,38 +139,30 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Reconstruct from an XML entry. */
-	public Patch(Project project, long id, HashMap ht_attributes, HashMap ht_links) {
+	public Patch(Project project, long id, HashMap<String,String> ht_attributes, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// cache path:
-		project.getLoader().addedPatchFrom((String)ht_attributes.get("file_path"), this);
+		project.getLoader().addedPatchFrom(ht_attributes.get("file_path"), this);
 		boolean hasmin = false;
 		boolean hasmax = false;
 		// parse specific fields
-		for (final Map.Entry entry : (Collection<Map.Entry>) ht_attributes.entrySet()) {
-			final String key = (String)entry.getKey();
-			final String data = (String)entry.getValue();
-			if (key.equals("type")) {
-				this.type = Integer.parseInt(data);
-			} else if (key.equals("min")) {
-				this.min = Double.parseDouble(data);
-				hasmin = true;
-			} else if (key.equals("max")) {
-				this.max = Double.parseDouble(data);
-				hasmax = true;
-			} else if (key.equals("original_path")) {
-				this.original_path = data;
-			} else if (key.equals("o_width")) {
-				this.o_width = Integer.parseInt(data);
-			} else if (key.equals("o_height")) {
-				this.o_height = Integer.parseInt(data);
-			} else if (key.equals("pps")) {
-				String path = data;
-				if (FSLoader.isRelativePath(path)) {
-					path = project.getLoader().getParentFolder() + path;
-				}
-				project.getLoader().setPreprocessorScriptPathSilently(this, path);
-			}
+		String data;
+		if (null != (data = ht_attributes.get("type"))) this.type = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("min"))) {
+			this.min = Double.parseDouble(data);
+			hasmin = true;
 		}
+		if (null != (data = ht_attributes.get("max"))) {
+			this.max = Double.parseDouble(data);
+			hasmax = true;
+		}
+		if (null != (data = ht_attributes.get("o_width"))) this.o_width = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("o_height"))) this.o_height = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("pps"))) {
+			if (FSLoader.isRelativePath(data)) data = project.getLoader().getParentFolder() + data;
+			project.getLoader().setPreprocessorScriptPathSilently(this, data);
+		}
+		if (null != (data = ht_attributes.get("original_path"))) this.original_path = data;
 
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
@@ -202,14 +194,13 @@ public final class Patch extends Displayable implements ImageData {
 					// Some values, to survive:
 					min = 0;
 					max = Patch.getMaxMax(this.type);
-					Utils.log("ERROR could not restore min and max from file, and they are not present in the XML file.");
+					Utils.log("WARNING could not restore min and max from image file for Patch #" + this.id + ", and they are not present in the XML file.");
 				} else {
 					ip.resetMinAndMax(); // finds automatically reasonable values
 					setMinAndMax(ip.getMin(), ip.getMax());
 				}
 			}
 		}
-		//Utils.log2("new Patch from XML, min and max: " + min + "," + max);
 	}
 
 	/** The original width of the pixels in the source image file. */
@@ -242,8 +233,8 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Update type, original dimensions and min,max from the ImagePlus.
 	 *  This is automatically done after a preprocessor script has modified the image. */
-	public void updatePixelProperties() {
-		readProps(getImagePlus());
+	public void updatePixelProperties(final ImagePlus imp) {
+		readProps(imp);
 	}
 
 	/** Update type, original dimensions and min,max from the given ImagePlus. */
@@ -270,34 +261,33 @@ public final class Patch extends Displayable implements ImageData {
 	/** Set a new ImagePlus for this Patch.
 	 * The original path and image remain untouched. Any later image is deleted and replaced by the new one.
 	 */
-	synchronized public String set(final ImagePlus new_imp) {
-		if (null == new_imp) return null;
-		// flag to mean: this Patch has never been set to any image except the original
-		//    The intention is never to remove the mipmaps of original images
-		boolean first_time = null == original_path;
-		// 0 - set original_path to the current path if there is no original_path recorded:
-		if (isStack()) {
-			for (Patch p : getStackPatches()) {
-				if (null == p.original_path) original_path = p.project.getLoader().getAbsolutePath(p);
+	public String set(final ImagePlus new_imp) {
+		synchronized (this) {
+			if (null == new_imp) return null;
+			// 0 - set original_path to the current path if there is no original_path recorded:
+			if (isStack()) {
+				for (Patch p : getStackPatches()) {
+					if (null == p.original_path) original_path = p.project.getLoader().getAbsolutePath(p);
+				}
+			} else {
+				if (null == original_path) original_path = project.getLoader().getAbsolutePath(this);
 			}
-		} else {
-			if (null == original_path) original_path = project.getLoader().getAbsolutePath(this);
-		}
-		// 1 - tell the loader to store the image somewhere, unless the image has a path already
-		final String path = project.getLoader().setImageFile(this, new_imp);
-		if (null == path) {
-			Utils.log2("setImageFile returned null!");
-			return null; // something went wrong
-		}
-		// 2 - update properties and mipmaps
-		if (isStack()) {
-			for (Patch p : getStackPatches()) {
-				p.readProps(new_imp);
-				project.getLoader().regenerateMipMaps(p);
+			// 1 - tell the loader to store the image somewhere, unless the image has a path already
+			final String path = project.getLoader().setImageFile(this, new_imp);
+			if (null == path) {
+				Utils.log2("setImageFile returned null!");
+				return null; // something went wrong
 			}
-		} else {
-			readProps(new_imp);
-			project.getLoader().regenerateMipMaps(this);
+			// 2 - update properties and mipmaps
+			if (isStack()) {
+				for (Patch p : getStackPatches()) {
+					p.readProps(new_imp);
+					project.getLoader().regenerateMipMaps(p);
+				}
+			} else {
+				readProps(new_imp);
+				project.getLoader().regenerateMipMaps(this);
+			}
 		}
 		Display.repaint(layer, this, 5);
 		return project.getLoader().getAbsolutePath(this);
@@ -357,10 +347,6 @@ public final class Patch extends Displayable implements ImageData {
 
 	public Image createImage() {
 		return adjustChannels(channels, true, null);
-	}
-
-	private Image adjustChannels(int c) {
-		return adjustChannels(c, false, null);
 	}
 
 	public int getChannelAlphas() {
@@ -466,7 +452,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	@Override
-	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> _ignored) {
 		paint(g, fetchImage(magnification, channels, false));
 	}
 
@@ -500,7 +486,7 @@ public final class Patch extends Displayable implements ImageData {
 		final Composite original_composite = g.getComposite();
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
-			g.setComposite( getComposite() );
+			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -511,7 +497,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
 	@Override
-	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> _ignored) {
 
 		AffineTransform atp = this.at;
 
@@ -528,7 +514,6 @@ public final class Patch extends Displayable implements ImageData {
 		Image image = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
 		if (null == image) {
 			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
-			boolean thread = false;
 			if (null == image) {
 				// fetch the smallest image possible
 				//image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
@@ -536,7 +521,7 @@ public final class Patch extends Displayable implements ImageData {
 				image = project.getLoader().fetchImage(this, sc/4);
 			}
 			// painting a smaller image, will need to repaint with the proper one
-			if (!Loader.NOT_FOUND.equals(image)) {
+			if (!Loader.isSignalImage(image)) {
 				// use the lower resolution image, but ask to repaint it on load
 				Loader.preload(this, sc, true);
 			}
@@ -559,7 +544,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
-			g.setComposite( getComposite() );
+			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -586,16 +571,14 @@ public final class Patch extends Displayable implements ImageData {
 			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
 			Utils.log2("Removing stack patches: " + ht.size());
-			ArrayList al = new ArrayList();
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Patch p = (Patch)it.next();
+			for (final Patch p : ht.values()) {
 				if (!p.isOnlyLinkedTo(this.getClass())) {
 					Utils.showMessage("At least one slice of the stack (z=" + p.getLayer().getZ() + ") is supporting other data.\nCan't delete.");
 					return false;
 				}
 			}
-			for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-				Patch p = (Patch)it.next();
+			ArrayList<Layer> layers_to_remove = new ArrayList<Layer>();
+			for (final Patch p : ht.values()) {
 				if (!p.layer.remove(p) || !p.removeFromDatabase()) {
 					Utils.showMessage("Can't delete Patch " + p);
 					return false;
@@ -603,13 +586,12 @@ public final class Patch extends Displayable implements ImageData {
 				p.unlink();
 				p.removeLinkedPropertiesFromOrigins();
 				//no need//it.remove();
-				al.add(p.layer);
+				layers_to_remove.add(p.layer);
 				if (p.layer.isEmpty()) Display.close(p.layer);
 				else Display.repaint(p.layer);
 			}
 			if (delete_empty_layers) {
-				for (Iterator it = al.iterator(); it.hasNext(); ) {
-					Layer la = (Layer)it.next();
+				for (final Layer la : layers_to_remove) {
 					if (la.isEmpty()) {
 						project.getLayerTree().remove(la, false);
 						Display.close(la);
@@ -664,31 +646,7 @@ public final class Patch extends Displayable implements ImageData {
 	public ArrayList<Patch> getStackPatches() {
 		final TreeMap<Double,Patch> ht = new TreeMap<Double,Patch>();
 		getStackPatchesNR(ht);
-		return new ArrayList(ht.values()); // sorted by z
-	}
-
-	/** Collect linked Patch instances that do not lay in this layer. Recursive over linked Patch instances that lay in different layers. */ // This method returns a usable stack because Patch objects are only linked to other Patch objects when inserted together as stack. So the slices are all consecutive in space and have the same thickness. Yes this is rather convoluted, stacks should be full-grade citizens
-	private void getStackPatches(HashMap<Double,Patch> ht) {
-		if (ht.containsKey(this)) return;
-		ht.put(new Double(layer.getZ()), this);
-		if (null != hs_linked && hs_linked.size() > 0) {
-			/*
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Displayable ob = (Displayable)it.next();
-				if (ob instanceof Patch && !ob.layer.equals(this.layer)) {
-					((Patch)ob).getStackPatches(ht);
-				}
-			}
-			*/
-			// avoid stack overflow (with as little as 114 layers ... !!!)
-			Displayable[] d = new Displayable[hs_linked.size()];
-			hs_linked.toArray(d);
-			for (int i=0; i<d.length; i++) {
-				if (d[i] instanceof Patch && d[i].layer.equals(this.layer)) {
-					((Patch)d[i]).getStackPatches(ht);
-				}
-			}
-		}
+		return new ArrayList<Patch>(ht.values()); // sorted by z
 	}
 
 	/** Non-recursive version to avoid stack overflows with "excessive" recursion (I hate java). */
@@ -700,9 +658,9 @@ public final class Patch extends Displayable implements ImageData {
 			list2.clear();
 			for (Patch p : list1) {
 				if (null != p.hs_linked) {
-					for (Iterator it = p.hs_linked.iterator(); it.hasNext(); ) {
+					for (Iterator<?> it = p.hs_linked.iterator(); it.hasNext(); ) {
 						Object ln = it.next();
-						if (ln instanceof Patch) {
+						if (ln.getClass() == Patch.class) {
 							Patch pa = (Patch)ln;
 							if (!ht.containsValue(pa)) {
 								ht.put(pa.layer.getZ(), pa);
@@ -822,7 +780,7 @@ public final class Patch extends Displayable implements ImageData {
 		;
 	}
 
-	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. If the project is NOT the same as this instance's project, then the id of this instance gets assigned as well to the returned clone. */
+	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, o_width, o_height, type, false, min, max, (AffineTransform)at.clone());
@@ -838,10 +796,8 @@ public final class Patch extends Displayable implements ImageData {
 		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
 
 		// Copy preprocessor scripts
-		if (pr != this.project) {
-			String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
-			if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
-		}
+		String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
+		if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
 
 		return copy;
 	}
@@ -875,13 +831,13 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
 				if (!project.getLoader().isSnapPaintable(this.id)) {
 					paintAsBox(g);
 				} else {
-					paint(g, srcRect, mag, false, this.channels, layer);
+					paint(g, srcRect, mag, false, this.channels, layer, layers);
 				}
 				return;
 			case 1:
@@ -1013,32 +969,34 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Revert the ImagePlus to the one stored in original_path, if any; will revert all linked patches if this is part of a stack. */
-	synchronized public boolean revert() {
-		if (null == original_path) return false; // nothing to revert to
-		// 1 - check that original_path exists
-		if (!new File(original_path).exists()) {
-			Utils.log("CANNOT revert: Original file path does not exist: " + original_path + " for patch " + getTitle() + " #" + id);
-			return false;
-		}
-		// 2 - check that the original can be loaded
-		final ImagePlus imp = project.getLoader().fetchOriginal(this);
-		if (null == imp || null == set(imp)) {
-			Utils.log("CANNOT REVERT: original image at path " + original_path + " fails to load, for patch " + getType() + " #" + id);
-			return false;
-		}
-		// 3 - update path in loader, and cache imp for each stack slice id
-		if (isStack()) {
-			for (Patch p : getStackPatches()) {
-				p.project.getLoader().addedPatchFrom(p.original_path, p);
-				p.project.getLoader().cacheImagePlus(p.id, imp);
-				p.project.getLoader().regenerateMipMaps(p);
+	public boolean revert() {
+		synchronized (this) {
+			if (null == original_path) return false; // nothing to revert to
+			// 1 - check that original_path exists
+			if (!new File(original_path).exists()) {
+				Utils.log("CANNOT revert: Original file path does not exist: " + original_path + " for patch " + getTitle() + " #" + id);
+				return false;
 			}
-		} else {
-			project.getLoader().addedPatchFrom(original_path, this);
-			project.getLoader().cacheImagePlus(id, imp);
-			project.getLoader().regenerateMipMaps(this);
+			// 2 - check that the original can be loaded
+			final ImagePlus imp = project.getLoader().fetchOriginal(this);
+			if (null == imp || null == set(imp)) {
+				Utils.log("CANNOT REVERT: original image at path " + original_path + " fails to load, for patch " + getType() + " #" + id);
+				return false;
+			}
+			// 3 - update path in loader, and cache imp for each stack slice id
+			if (isStack()) {
+				for (Patch p : getStackPatches()) {
+					p.project.getLoader().addedPatchFrom(p.original_path, p);
+					p.project.getLoader().cacheImagePlus(p.id, imp);
+					p.project.getLoader().regenerateMipMaps(p);
+				}
+			} else {
+				project.getLoader().addedPatchFrom(original_path, this);
+				project.getLoader().cacheImagePlus(id, imp);
+				project.getLoader().regenerateMipMaps(this);
+			}
+			// 4 - update screens
 		}
-		// 4 - update screens
 		Display.repaint(layer, this, 0);
 		Utils.showStatus("Reverted patch " + getTitle(), false);
 		return true;
@@ -1136,6 +1094,8 @@ public final class Patch extends Displayable implements ImageData {
 		if (null == ct) return null;
 		
 		final ImageProcessor source = getImageProcessor();
+		
+		if (null == source) return null; // some error occurred
 
 		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
 
@@ -1192,9 +1152,9 @@ public final class Patch extends Displayable implements ImageData {
 		final Patch.PatchImage pi = createCoordinateTransformedImage();
 		if (null != pi) return pi;
 		// else, a new one with the untransformed, original image (a duplicate):
-		project.getLoader().releaseToFit(o_width, o_height, type, 3);
 		final ImageProcessor ip = getImageProcessor();
 		if (null == ip) return null;
+		project.getLoader().releaseToFit(o_width, o_height, type, 3);
 		return new PatchImage(ip.duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
@@ -1245,7 +1205,6 @@ public final class Patch extends Displayable implements ImageData {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 		DisplayCanvas dc = (DisplayCanvas)source;
-		final Layer la = dc.getDisplay().getLayer();
 		final Roi roi = dc.getFakeImagePlus().getRoi();
 
 		switch (ke.getKeyCode()) {
@@ -1254,7 +1213,11 @@ public final class Patch extends Displayable implements ImageData {
 				int mod = ke.getModifiers();
 
 				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
-				if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
+				if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
+					// Place the source image, untransformed, into clipboard:
+					ImagePlus imp = getImagePlus();
+					if (null != imp) imp.copy(false);
+				} else if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
 					CoordinateTransformList list = null;
 					if (null != ct) {
 						list = new CoordinateTransformList();
@@ -1275,11 +1238,6 @@ public final class Patch extends Displayable implements ImageData {
 						ip = getImageProcessor();
 					}
 					new ImagePlus(this.title, ip).copy(false);
-				} else if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
-					// On shift down (and no other flags!):
-					// Place the source image, untransformed, into clipboard:
-					ImagePlus imp = getImagePlus();
-					if (null != imp) imp.copy(false);
 				}
 				ke.consume();
 				break;
@@ -1287,126 +1245,13 @@ public final class Patch extends Displayable implements ImageData {
 				// fill mask with current ROI using 
 				Utils.log2("VK_F: roi is " + roi);
 				if (null != roi && M.isAreaROI(roi)) {
-					Bureaucrat.createAndStart(new Worker("Filling image mask") { public void run() { try {
-					startedWorking();
-					ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
-					boolean is_new = false;
-					if (null == mask) {
-						mask = new ByteProcessor(o_width, o_height);
-						mask.setValue(255);
-						mask.fill();
-						is_new = true;
-					}
-					try {
-						// a roi local to the image bounding box
-						//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
-						//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
-
-						final Area a = M.areaInInts(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
-
-						// Fix problems with ShapeRoi: cannot accept negative boundaries, or sometimes boundaries beyond the image border; if so, ImageProcessor could not fill(getMask())
-						Rectangle ab = a.getBounds();
-						if (ab.x < 0 || ab.y < 0 || ab.x + ab.width >= o_width || ab.y + ab.height >= o_height) {
-							// Restrict ROI to within the Patch local bounds:
-							a.intersect(new Area(new Rectangle(0, 0, o_width, o_height)));
-							ab = a.getBounds();
-							if (ab.x < 0 && ab.y >= 0) {
-								// My opinion: #$%^&!@
-								// Let's fix it in whatever way possible: note the +1 added to the width!
-								a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
-								ab = a.getBounds();
-								if (ab.x < 0) {
-									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X coordinates.");
-									Utils.log("Roi bounds after intersecting: " + a.getBounds());
-									return;
-								}
-							} else if (ab.x >= 0 && ab.y < 0) {
-								// The Y does not need a +1 to the height (the X needed it to the width, see above)
-								a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
-								ab = a.getBounds();
-								if (ab.y < 0) {
-									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative Y coordinates.");
-									Utils.log("Roi bounds after intersecting: " + a.getBounds());
-									return;
-								}
-							} else if (ab.x < 0 && ab.y < 0) {
-								Area out = new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2), o_height));
-								out.add(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
-								a.subtract(out);
-								ab = a.getBounds();
-								if (ab.x < 0 && ab.y >= 0) {
-									// Condition never seen so far, but just in case
-									// Note the +1 for the Rectangle's width
-									a.subtract(new Area(new Rectangle(ab.x - 2, 0, Math.abs(ab.x - 2) + 1, o_height)));
-									ab = a.getBounds();
-								}
-								if (ab.x >= 0 && ab.y < 0) {
-									// Condition never seen so far, but just in case
-									a.subtract(new Area(new Rectangle(0, ab.y - 2, o_width, Math.abs(ab.y - 2))));
-									ab = a.getBounds();
-								}
-								if (ab.x < 0 || ab.y < 0) {
-									Utils.log("ERROR: could not create a proper ShapeRoi: there are negative X or Y coordinates.");
-									Utils.log("Roi bounds after intersecting: " + a.getBounds());
-									return;
-								}
-							}
+					Bureaucrat.createAndStart(new Worker.Task("Filling image mask") {
+						public void exec() {
+							addAlphaMask(roi, ProjectToolbar.getForegroundColorValue());
+							try { updateMipMaps().get(); } catch (Throwable t) { IJError.print(t); } // wait
+							Display.repaint();
 						}
-
-						if (M.isEmpty(a)) {
-							Utils.log("ROI does not intersect the active image!");
-							return;
-						}
-
-						final ShapeRoi sroi = new ShapeRoi(a);
-						Utils.log2(sroi);
-						Utils.log2(sroi.getBounds());
-
-						if (null != ct) {
-							// inverse the coordinate transform
-							final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
-							final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
-
-							ByteProcessor rmask = new ByteProcessor((int)o_width, (int)o_height);
-
-							if (is_new) {
-								rmask.setColor(Toolbar.getForegroundColor());
-							} else {
-								rmask.setValue(255);
-							}
-							rmask.setRoi(sroi);
-							rmask.fill(sroi.getMask());  // Note: using fill(sroi) directly also fails on occasions.
-
-							ByteProcessor inv_mask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
-
-							if (is_new) {
-								mask = inv_mask;
-								// done!
-							} else {
-								// Blend
-								rmask = null;
-								inv_mask.setMinAndMax(255, 255);
-								final byte[] b1 = (byte[]) mask.getPixels();
-								final byte[] b2 = (byte[]) inv_mask.getPixels();
-								final int color = mask.getBestIndex(Toolbar.getForegroundColor());
-								for (int i=0; i<b1.length; i++) {
-									b1[i] = (byte) ((int)( (b2[i] & 0xff) / 255.0f ) * (color - (b1[i] & 0xff) ) + (b1[i] & 0xff));
-								}
-							}
-						} else {
-							mask.setRoi(sroi);
-							mask.setColor(Toolbar.getForegroundColor());
-							mask.fill(sroi.getMask());
-						}
-					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
-					setAlphaMask(mask);
-					updateMipMaps().get(); // wait
-					Display.repaint();
-					} catch (Exception e) {
-						IJError.print(e);
-					} finally {
-						finishedWorking();
-					}}}, project);
+					}, project);
 				}
 				// capturing:
 				ke.consume();
@@ -1491,7 +1336,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		project.getLoader().setPreprocessorScriptPath(this, path);
 
-		if (null != old_path || null != path || !path.equals(old_path)) {
+		if (null != old_path || null != path) {
 			// Update dimensions
 			ImagePlus imp = getImagePlus(); // transformed by the new preprocessor script, if any
 			final int w = imp.getWidth();
@@ -1517,6 +1362,61 @@ public final class Patch extends Displayable implements ImageData {
 				preTransform(aff, false);
 			}
 		}
+	}
+
+	/** Add the given roi, in world coords, to the alpha mask, using the given fill value. */
+	public void addAlphaMask(final Roi roi, int value) {
+		if (null == roi || !M.isAreaROI(roi)) return;
+		if (value < 0) value = 0;
+		if (value > 255) value = 255;
+		try {
+			// a roi local to the image bounding box
+			//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
+			//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+
+			final Area a = M.areaInInts(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+			if (M.isEmpty(a)) {
+				Utils.log("ROI does not intersect the active image!");
+				return;
+			}
+			if (!new Rectangle(0, 0, (int)width, (int)height).contains(a.getBounds())) {
+				// Crop most of the superfluous, leaving room for the buggy Area.intersect method to fail gracefully
+				// The cropping speeds up contains(x,y) calls for complex polygons
+				a.intersect(new Area(new Rectangle(-2, -2, (int)width+2, (int)height+2)));
+			}
+
+			ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
+
+			// Use imglib to bypass all the problems with ShapeROI
+			// Create a Shape image with background and the Area on it with 'value'
+			final int background = (null != mask && 255 == value) ? 0 : 255;
+			final ShapeList<UnsignedByteType> shapeList = new ShapeList<UnsignedByteType>(new int[]{(int)width, (int)height, 1}, new UnsignedByteType(background));
+			shapeList.addShape(a, new UnsignedByteType(value), new int[]{0});
+			final mpicbg.imglib.image.Image<UnsignedByteType> shapeListImage = new mpicbg.imglib.image.Image<UnsignedByteType>(shapeList, shapeList.getBackground(), "mask");
+
+			ByteProcessor rmask = (ByteProcessor) ImageJFunctions.copyToImagePlus(shapeListImage, ImagePlus.GRAY8).getProcessor();
+
+			if (null != ct) {
+				// inverse the coordinate transform
+				final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+				final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+				rmask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
+			}
+
+			if (null == mask) {
+				// There wasn't a mask, hence just set it
+				mask = rmask;
+			} else {
+				final byte[] b1 = (byte[]) mask.getPixels();
+				final byte[] b2 = (byte[]) rmask.getPixels();
+				// Whatever is not background in the new mask gets set on the old mask
+				for (int i=0; i<b1.length; i++) {
+					if (background == (b2[i]&0xff)) continue; // background pixel in new mask 
+					b1[i] = b2[i]; // replace old pixel with new pixel
+				}
+			}
+			setAlphaMask(mask);
+		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 	}
 
 	public String getPreprocessorScriptPath() {
@@ -1765,5 +1665,10 @@ public final class Patch extends Displayable implements ImageData {
 	@Override
 	protected Area getAreaForBucket(final Layer layer) {
 		return new Area(getPerimeter());
+	}
+
+	@Override
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		return layer == this.layer && r.intersects(getBoundingBox());
 	}
 }

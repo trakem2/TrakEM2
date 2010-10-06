@@ -118,7 +118,7 @@ public class TrakEM2MLParser {
 	class TrakEM2MLHandler extends DefaultHandler {
 
 		private TemplateThing current_thing = null;
-		private ArrayList al_open = new ArrayList();
+		private ArrayList<TemplateThing> al_open = new ArrayList<TemplateThing>();
 
 		public void startElement(String namespace_URI, String local_name, String qualified_name, Attributes attributes) throws SAXException {
 
@@ -133,16 +133,6 @@ public class TrakEM2MLParser {
 			// set the new_thing as the root if there is no root yet
 			if (null == root) {
 				root = new_thing;
-			}
-			//set attributes:
-			int n_attributes = attributes.getLength();
-			for (int a=0; a<n_attributes; a++) {
-				//debug:
-				//Utils.log("getLocalName(a)=" + attributes.getQName(a));
-				//Utils.log("local: " + attributes.getLocalName(a) + "    qname: " + attributes.getQName(a) + "   type: " + attributes.getType(a)); // local prints empty
-				if (!new_thing.addAttribute(attributes.getQName(a), attributes.getValue(a))) {
-					Utils.log("Could not add attribute " + attributes.getQName(a)  +" to the TemplateThing " + new_thing);
-				}
 			}
 			// get the previously open thing and add this new_thing to it as a child
 			int size = al_open.size();

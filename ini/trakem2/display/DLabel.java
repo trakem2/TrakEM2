@@ -22,23 +22,34 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import java.awt.*;
-import java.awt.geom.*;
-import java.awt.event.*;
-import javax.swing.*;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.HashSet;
-import java.util.Vector;
-
-import ij.gui.TextRoi;
 import ij.gui.GenericDialog;
-import ini.trakem2.ControlWindow;
+import ij.gui.TextRoi;
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.persistence.DBObject;
+
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowEvent;
+import java.awt.event.WindowListener;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+
+import javax.swing.JFrame;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
 
 /** This class is named funny to avoid confusion with java.awt.Label.
  * The 'D' stands for Displayable Label.
@@ -71,7 +82,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** For reconstruction purposes. */
-	public DLabel(Project project, long id, String text, double width, double height, int type, String font_name, int font_style, int font_size, boolean locked, AffineTransform at) {
+	public DLabel(Project project, long id, String text, float width, float height, int type, String font_name, int font_style, int font_size, boolean locked, AffineTransform at) {
 		super(project, id, text, locked, at, width, height);
 		this.type = TEXT; // default
 		this.font = new Font(font_name, font_style, font_size);
@@ -82,28 +93,24 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** To reconstruct from an XML entry. */
-	public DLabel(Project project, long id, HashMap ht, HashMap ht_links) {
+	public DLabel(final Project project, final long id, final HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// default:
 		int font_size = 12;
 		int font_style = Font.PLAIN;
 		String font_family = "Courier";
 		// parse data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
-			if (key.equals("style")) {
-				String[] s1 = data.split(";");
-				for (int i=0; i<s1.length; i++) {
-					String[] s2 = s1[i].split(":");
-					if (s2[0].equals("font-size")) {
-						font_size = Integer.parseInt(s2[1].trim());
-					} else if (s2[0].equals("font-style")) {
-						font_style = Integer.parseInt(s2[1].trim());
-					} else if (s2[0].equals("font-family")) {
-						font_family = s2[1].trim();
-					}
+		String data;
+		if (null != (data = ht.get("style"))) {
+			final String[] s1 = data.split(";");
+			for (int i=0; i<s1.length; i++) {
+				String[] s2 = s1[i].split(":");
+				if (s2[0].equals("font-size")) {
+					font_size = Integer.parseInt(s2[1].trim());
+				} else if (s2[0].equals("font-style")) {
+					font_style = Integer.parseInt(s2[1].trim());
+				} else if (s2[0].equals("font-family")) {
+					font_family = s2[1].trim();
 				}
 			}
 		}
@@ -147,19 +154,7 @@ public class DLabel extends Displayable implements VectorData {
 
 	public String getShortTitle() {
 		if (null == title) reload();
-		if (null == title || title.length() < 1) return "";
-		int[] ib = new int[] {
-			title.indexOf('\n'),
-			/*title.indexOf(','),*/
-			/*title.indexOf(' '),*/
-			title.indexOf('\t')
-		};
-		int min = title.length();
-		for (int i=0; i<ib.length; i++)
-			if (-1 != ib[i] /* && ib[i] < min*/)
-				min = ib[i];
-		//if (min > title.length()) return title;
-		//return title.substring(0, min);
+		if (null == title) return "";
 		return title;
 	}
 
@@ -176,7 +171,8 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 
-	public void paint(Graphics2D g, final Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+	@Override
+	public void paint(Graphics2D g, final Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, final List<Layer> layers) {
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
@@ -371,7 +367,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	private class ToFront extends Thread {
-		JFrame frame;
+		private final JFrame frame;
 		ToFront(JFrame frame) {
 			this.frame = frame;
 			start();
@@ -399,7 +395,7 @@ public class DLabel extends Displayable implements VectorData {
 		sb_body.append(indent).append("</t2_label>\n");
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		if (hs.contains("t2_label")) return;
 		sb_header.append(indent).append("<!ELEMENT t2_label (").append(Displayable.commonDTDChildren()).append(")>\n");
 		Displayable.exportDTD("t2_label", sb_header, hs, indent);

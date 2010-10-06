@@ -22,7 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.IJ;
 import ini.trakem2.utils.Utils;
 
 import javax.swing.BoxLayout;
@@ -41,7 +40,6 @@ import javax.swing.event.ChangeListener;
 import java.awt.Event;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
@@ -51,6 +49,7 @@ import java.awt.Dimension;
 
 public final class LayerPanel extends JPanel implements MouseListener {
 
+	private static final long serialVersionUID = 1L;
 	private final JLabel title;
 	protected final JSlider slider = new JSlider(javax.swing.SwingConstants.HORIZONTAL, 0, 100, 0);
 	private Color color = Color.white;
@@ -68,7 +67,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				final float a = slider.getValue() / 100.0f;
 				setAlpha(a);
 				display.storeLayerAlpha(LayerPanel.this, a);
-				display.repaint();
+				display.getCanvas().repaint(true);
 			}
 		});
 
@@ -173,6 +172,23 @@ public final class LayerPanel extends JPanel implements MouseListener {
 					display.getCanvas().repaint(true);
 				}
 			});
+			JMenu transp_menu = new JMenu("Overlay items"); popup.add(transp_menu);
+			final JCheckBoxMenuItem cbI = new JCheckBoxMenuItem("Images", display.transp_overlay_images);
+			final JCheckBoxMenuItem cbA = new JCheckBoxMenuItem("Areas", display.transp_overlay_areas);
+			final JCheckBoxMenuItem cbL = new JCheckBoxMenuItem("Text labels", display.transp_overlay_text_labels);
+			ActionListener lis = new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					Object src = ae.getSource();
+					if (src == cbI) display.setTranspOverlayImages(cbI.getState()); 
+					else if (src == cbA) display.setTranspOverlayAreas(cbA.getState());
+					else if (src == cbL) display.setTranspOverlayTextLabels(cbL.getState());
+				}
+			};
+			for (JCheckBoxMenuItem rb : new JCheckBoxMenuItem[]{cbI, cbA, cbL}) {
+				transp_menu.add(rb);
+				rb.addActionListener(lis);
+			}
+	
 			popup.addSeparator();
 			JMenu composites = new JMenu("Composite mode");
 			ButtonGroup group = new ButtonGroup();

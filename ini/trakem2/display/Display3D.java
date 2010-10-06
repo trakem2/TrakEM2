@@ -1,68 +1,51 @@
 package ini.trakem2.display;
 
-import ini.trakem2.tree.*;
-import ini.trakem2.utils.*;
-import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.vector.VectorString3D;
-
-import ij.ImageStack;
 import ij.ImagePlus;
-import ij.process.ImageProcessor;
-import ij.process.ByteProcessor;
-import ij.gui.ShapeRoi;
 import ij.gui.GenericDialog;
-import ij.io.DirectoryChooser;
 import ij.measure.Calibration;
+import ij3d.Content;
+import ij3d.Image3DUniverse;
+import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.Rectangle;
-import java.awt.geom.Area;
-import java.awt.MenuBar;
-import java.awt.Menu;
-import java.awt.MenuItem;
-import java.awt.CheckboxMenuItem;
-import java.awt.Component;
-import java.awt.event.ActionListener;
-import java.awt.event.ItemListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.ItemEvent;
-import java.util.*;
-import java.io.File;
-import java.awt.geom.AffineTransform;
-
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyListener;
-
-import javax.vecmath.Point3f;
-import javax.vecmath.Color3f;
-import javax.vecmath.Vector3f;
-import javax.media.j3d.View;
-import javax.media.j3d.Transform3D;
-import javax.media.j3d.PolygonAttributes;
-
-import ij3d.ImageWindow3D;
-import ij3d.Image3DUniverse;
-import ij3d.Content;
-import ij3d.Image3DMenubar;
-import customnode.CustomMeshNode;
-import customnode.CustomMesh;
-import customnode.CustomTriangleMesh;
-import customnode.CustomLineMesh;
-import customnode.CustomMultiMesh;
-
-import java.lang.reflect.Field;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Vector;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.Callable;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.media.j3d.PolygonAttributes;
+import javax.media.j3d.Transform3D;
+import javax.media.j3d.View;
+import javax.vecmath.Color3f;
+import javax.vecmath.Point3f;
+
+import customnode.CustomLineMesh;
+import customnode.CustomMesh;
+import customnode.CustomMultiMesh;
+import customnode.CustomTriangleMesh;
 
 
 /** One Display3D instance for each LayerSet (maximum). */
@@ -565,6 +548,22 @@ public final class Display3D {
 					                          0,    0, 0, 1}));
 	}
 
+	static public void showOrthoslices(final ImagePlus imp, final String title, final int wx, final int wy, final float scale2D, final Layer first) {
+		Display3D d3d = get(first.getParent());
+		d3d.universe.removeContent(title);
+		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, 1);
+		Content ct = d3d.universe.getContent(title);
+		Calibration cal = imp.getCalibration();
+		Transform3D t = new Transform3D(new double[]{1, 0, 0, wx * cal.pixelWidth * scale2D,
+													 0, 1, 0, wy * cal.pixelHeight * scale2D,
+													 0, 0, scale2D, first.getZ() * cal.pixelWidth * scale2D, // not pixelDepth!
+													 0, 0, 0, 1});
+												// why scale2D has to be there at all reflects a horrible underlying setting of the calibration, plus of the scaling in the Display3D.
+		Utils.log(t);
+		ct.applyTransform(t);
+		ct.setLocked(true);
+	}
+
 	/** Returns a stack suitable for the ImageJ 3D Viewer, either 8-bit gray or 8-bit color.
 	 *  If the PatchStack is already of the right type, it is returned,
 	 *  otherwise a copy is made in the proper type.
@@ -597,7 +596,7 @@ public final class Display3D {
 		Display3D d3d = ht_layer_sets.get(displ.getLayerSet()); // TODO profile_list is going to fail here
 		if (null == d3d) {
 			// there is no Display3D showing the pt to remove
-			Utils.log2("No Display3D contains ProjectThing: " + pt);
+			//Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
 		if (null == d3d.ht_pt_meshes.remove(pt)) {
@@ -647,7 +646,7 @@ public final class Display3D {
 
 	/** Returns a function that returns a Content object.
 	 *  Does NOT add the Content to the universe; it merely creates it. */
-	private Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
+	public Callable<Content> createMesh(final ProjectThing pt, final Displayable displ, final int resample) {
 		final double scale = 1.0; // OBSOLETE
 		return new Callable<Content>() {
 			public Content call() {
@@ -655,7 +654,7 @@ public final class Display3D {
 				try {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
-		final List triangles;
+		final List<Point3f> triangles;
 		boolean no_culling_ = false; // don't show back faces when false
 
 		final Class c;
@@ -673,7 +672,9 @@ public final class Display3D {
 			else line_mesh_mode = Integer.MAX_VALUE; // disabled
 		}
 
-		List extra_triangles = null;
+		List<Point3f> extra_triangles = null;
+		List<Color3f> triangle_colors = null,
+					  extra_triangle_colors = null;
 
 		int rs = resample;
 		if (displ instanceof AreaContainer) {
@@ -692,15 +693,23 @@ public final class Display3D {
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
 		} else if (displ instanceof Tree) {
 			// A 3D wire skeleton, using CustomLineMesh
-			triangles = ((Tree)displ).generateTriangles(scale, 12, 1);
+			final Tree.MeshData skeleton = ((Tree<?>)displ).generateSkeleton(scale, 12, 1);
+			triangles = skeleton.verts;
+			triangle_colors = skeleton.colors;
 			if (displ instanceof Treeline) {
-				extra_triangles = ((Treeline)displ).generateMesh(scale, 12);
+				final Tree.MeshData tube = ((Treeline)displ).generateMesh(scale, 12);
+				extra_triangles = tube.verts;
+				extra_triangle_colors = tube.colors;
 			} else if (displ instanceof AreaTree) {
-				extra_triangles = ((AreaTree)displ).generateMesh(scale, rs);
+				final Tree.MeshData mesh = ((AreaTree)displ).generateMesh(scale, rs);
+				extra_triangles = mesh.verts;
+				extra_triangle_colors = mesh.colors;
 			}
 			if (null != extra_triangles && extra_triangles.isEmpty()) extra_triangles = null; // avoid issues with MultiMesh
 		} else if (Connector.class == c) {
-			triangles = ((Connector)displ).generateMesh(scale, 12);
+			final Tree.MeshData octopus = ((Connector)displ).generateMesh(scale, 12);
+			triangles = octopus.verts;
+			triangle_colors = octopus.colors;
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
 			no_culling_ = true;
@@ -778,14 +787,24 @@ public final class Display3D {
 					//ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
 					cm = new CustomTriangleMesh(triangles, c3, 0);
 				}
+				
+				if (null != triangle_colors) cm.setColor(triangle_colors);
 
 				//if (null == ct) return null;
 				if (null == cm) return null;
 
-				if (null == extra_triangles) {
+				if (null == extra_triangles || 0 == extra_triangles.size()) {
 					ct = universe.createContent(cm, title);
 				} else {
-				        ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, new CustomTriangleMesh(extra_triangles, c3, 0)})), title);
+					final CustomTriangleMesh extra = new CustomTriangleMesh(extra_triangles, c3, 0);
+					if (null != extra_triangle_colors) {
+						// Set mesh properties for double-sided triangles
+						PolygonAttributes pa = extra.getAppearance().getPolygonAttributes();
+						pa.setCullFace(PolygonAttributes.CULL_NONE);
+						pa.setBackFaceNormalFlip(true);
+						extra.setColor(extra_triangle_colors);
+					}
+					ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, extra})), title);
 				}
 
 				// Set general content properties

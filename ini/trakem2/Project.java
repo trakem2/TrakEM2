@@ -35,7 +35,6 @@ import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Dissector;
-import ini.trakem2.display.ImageJCommandListener;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -45,6 +44,7 @@ import ini.trakem2.display.Profile;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.Treeline;
 import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.FSLoader;
@@ -75,7 +75,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.Vector;
 import java.util.concurrent.ScheduledFuture;
@@ -84,6 +86,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
@@ -109,9 +112,9 @@ public class Project extends DBObject {
 
 	static private class PlugInSource implements Comparable<PlugInSource> {
 		String menu;
-		Class c;
+		Class<?> c;
 		String title;
-		PlugInSource(String menu, Class c, String title) {
+		PlugInSource(String menu, Class<?> c, String title) {
 			this.menu = menu;
 			this.c = c;
 			this.title = title;
@@ -159,10 +162,9 @@ public class Project extends DBObject {
 						if (-1 == lc) continue;
 						String menu = line.substring(0, fc).trim();
 						if (!menu.equals("Project Tree") && !menu.equals("Display")) continue;
-						Class c;
 						String classname = line.substring(lc+1).trim();
 						try {
-							c = Class.forName(classname);
+							Class.forName(classname);
 						} catch (ClassNotFoundException cnfe) {
 							Utils.log2("TPlugIn class not found: " + classname);
 							continue;
@@ -258,12 +260,10 @@ public class Project extends DBObject {
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 
-	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
-	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
-
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
+		ControlWindow.getInstance(); // init
 		this.loader = loader;
 		this.project = this; // for the superclass DBObject
 		loader.addToDatabase(this);
@@ -272,11 +272,12 @@ public class Project extends DBObject {
 	/** Constructor used by the Loader to find projects. These projects contain no loader. */
 	public Project(long id, String title) {
 		super(null, id);
+		ControlWindow.getInstance(); // init
 		this.title = title;
 		this.project = this;
 	}
 
-	private ScheduledFuture autosaving = null;
+	private ScheduledFuture<?> autosaving = null;
 
 	private void restartAutosaving() {
 		// cancel current autosaving if it's running
@@ -285,12 +286,18 @@ public class Project extends DBObject {
 		} catch (Throwable t) { IJError.print(t); }
 		//
 		final int interval_in_minutes = getProperty("autosaving_interval", 0);
-		final int interval_in_seconds = interval_in_minutes * 60;
 		if (0 == interval_in_minutes) return;
 		// else, relaunch
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
-				save();
+				try {
+					SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						if (loader.hasChanges()) save();
+					}});
+				} catch (Throwable e) {
+					Utils.log("*** Autosaver failed:");
+					IJError.print(e);
+				}
 			}
 		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
 	}
@@ -415,7 +422,7 @@ public class Project extends DBObject {
 		// fetch the root layer thing and the root layer set (will load all layers and layer sets, with minimal contents of patches; gets the basic objects -profile, pipe, etc.- from the project.root_pt). Will open all existing displays for each layer.
 		LayerThing root_layer_thing = null;
 		try {
-			root_layer_thing = loader.getRootLayerThing(project, project.root_pt, project.layer_set_template, project.layer_template);
+			root_layer_thing = loader.getRootLayerThing(project, project.root_pt, Project.layer_set_template, Project.layer_template);
 			if (null == root_layer_thing) {
 				project.destroy();
 				Utils.showMessage("Could not retrieve the root layer thing.");
@@ -466,6 +473,7 @@ public class Project extends DBObject {
 	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
 	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {
 		if (Utils.wrongImageJVersion()) return null;
+		FSLoader loader = null;
 		try {
 			String dir_project = storage_folder;
 			if (null == dir_project || !new File(dir_project).isDirectory()) {
@@ -478,8 +486,8 @@ public class Project extends DBObject {
 				}
 				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
-			FSLoader loader = new FSLoader(dir_project);
-			if (!loader.isReady()) return null;
+			loader = new FSLoader(dir_project);
+
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 
 			// help the helpless users:
@@ -489,6 +497,7 @@ public class Project extends DBObject {
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
+				layer.recreateBuckets();
 				Display.createDisplay(project, layer);
 			}
 			try {
@@ -507,6 +516,7 @@ public class Project extends DBObject {
 			return project;
 		} catch (Exception e) {
 			IJError.print(e);
+			if (null != loader) loader.destroy();
 		}
 		return null;
 	}
@@ -523,6 +533,7 @@ public class Project extends DBObject {
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openFSProject(path, open_displays);
 		if (null == data) {
+			loader.destroy();
 			return null;
 		}
 		final TemplateThing root_tt = (TemplateThing)data[0];
@@ -625,10 +636,6 @@ public class Project extends DBObject {
 		return createNewProject(loader, ask_for_template, null);
 	}
 
-	static private Project createNewSubProject(Project source, Loader loader) {
-		return createNewProject(loader, false, source.root_tt, true);
-	}
-
 	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root) {
 		return createNewProject(loader, ask_for_template, template_root, false);
 	}
@@ -695,10 +702,7 @@ public class Project extends DBObject {
 		return loader;
 	}
 
-	public String getType() {
-		return "project";
-	}
-
+	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
 		String path = loader.save(this);
@@ -732,6 +736,7 @@ public class Project extends DBObject {
 			loader.destroy(); // and disconnect
 			loader = null;
 		}
+		if (null != layer_set) layer_set.destroy();
 		ControlWindow.remove(this); // AFTER loader.destroy() call.
 		if (null != template_tree) template_tree.destroy();
 		if (null != project_tree) project_tree.destroy();
@@ -740,6 +745,7 @@ public class Project extends DBObject {
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
+		synchronized (ptcache) { ptcache.clear(); }
 		return true;
 	}
 
@@ -900,12 +906,15 @@ public class Project extends DBObject {
 
 	/** Find the node in the layer tree with a Thing that contains the given object, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Layer layer) {
-		select(layer, layer_tree);
+		layer_tree.selectNode(layer);
 	}
 	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Displayable d) {
 		if (d.getClass() == LayerSet.class) select(d, layer_tree);
-		else select(d, project_tree);
+		else {
+			ProjectThing pt = findProjectThing(d); // from cache: one linear search less
+			if (null != pt) DNDTree.selectNode(pt, project_tree);
+		}
 	}
 
 	private final void select(final Object ob, final DNDTree tree) {
@@ -937,10 +946,23 @@ public class Project extends DBObject {
 		return null != lob ? (LayerThing)lob : null;
 	}
 
+	private final Map<Object,ProjectThing> ptcache = new HashMap<Object, ProjectThing>();
+	
 	/** Find a ProjectThing that contains the given object. */
 	public ProjectThing findProjectThing(final Object ob) {
-		final Object pob = root_pt.findChild(ob);
-		return null != pob ? (ProjectThing)pob : null;
+		ProjectThing pt;
+		synchronized (ptcache) { pt = ptcache.get(ob); }
+		if (null == pt) {
+			pt = (ProjectThing) root_pt.findChild(ob);
+			if (null != ob) synchronized (ptcache) { ptcache.put(ob, pt); }
+		}
+		return pt;
+	}
+
+	public void decache(final Object ob) {
+		synchronized (ptcache) {
+			ptcache.remove(ob);
+		}
 	}
 
 	public ProjectThing getRootProjectThing() {
@@ -954,7 +976,7 @@ public class Project extends DBObject {
 	/** Returns the title of the enclosing abstract node in the ProjectTree.*/
 	public String getParentTitle(final Displayable d) {
 		try {
-			ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+			ProjectThing thing = findProjectThing(d);
 			ProjectThing parent = (ProjectThing)thing.getParent();
 			if (d instanceof Profile) {
 				parent = (ProjectThing)parent.getParent(); // skip the profile_list
@@ -967,9 +989,32 @@ public class Project extends DBObject {
 		} catch (Exception e) { IJError.print(e); return null; }
 	}
 
+	public String getMeaningfulTitle2(final Displayable d) {
+		final ProjectThing thing = findProjectThing(d);
+		if (null == thing) return d.getTitle(); // happens if there is no associated node
+
+		if (!thing.getType().equals(d.getTitle())) {
+			return new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(']').toString();
+		}
+
+		// Else, search upstream for a ProjectThing whose name differs from its type
+		Thing parent = (ProjectThing)thing.getParent();
+		while (null != parent) {
+			String type = parent.getType();
+			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) break;
+			if (!ob.equals(type)) {
+				return ob.toString() + " [" + thing.getType() + "]";
+			}
+			parent = parent.getParent();
+		}
+		if (d.getTitle().equals(thing.getType())) return "[" + thing.getType() + "]";
+		return d.getTitle() + " [" + thing.getType() + "]";
+	}
+
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(final Displayable d) {
-		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		ProjectThing thing = findProjectThing(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
@@ -1001,7 +1046,7 @@ public class Project extends DBObject {
 	 *  If no user-defined name is found, then the type is prepended to the id.
 	 */
 	public String getShortMeaningfulTitle(final Displayable d) {
-		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		ProjectThing thing = findProjectThing(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		return getShortMeaningfulTitle(thing, d);
 	}
@@ -1025,7 +1070,7 @@ public class Project extends DBObject {
 		return title;
 	}
 
-	static public String getType(final Class c) {
+	static public String getType(final Class<?> c) {
 		if (AreaList.class == c) return "area_list";
 		if (DLabel.class == c) return "label";
 		String name = c.getName().toLowerCase();
@@ -1110,10 +1155,12 @@ public class Project extends DBObject {
 	@Override
 	public void exportXML(final StringBuilder sb, final String indent, final Object any) {
 		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, Object) !!");
+		throw new UnsupportedOperationException("Cannot call Project.exportXML(StringBuilder, String, Object)");
 	}
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
 	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+		Utils.showProgress(0);
 		// 1 - opening tag
 		writer.write(indent);
 		writer.write("<trakem2>\n");
@@ -1140,7 +1187,7 @@ public class Project extends DBObject {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
 		sb_body.append(in).append(">\n");
-		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
+		// 3 - export ProjectTree abstract hierarchy (skip the root since it wraps the project itself)
 		// Create table of expanded states
 		/*
 		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
@@ -1149,7 +1196,7 @@ public class Project extends DBObject {
 			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
 		}
 		*/
-		final HashMap<? extends Thing,Boolean> expanded_states = project_tree.getExpandedStates();
+		final HashMap<Thing,Boolean> expanded_states = project_tree.getExpandedStates();
 		if (null != root_pt.getChildren()) {
 			final String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
@@ -1161,7 +1208,7 @@ public class Project extends DBObject {
 	}
 
 	/** Export a complete DTD listing to export the project as XML. */
-	public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
 		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
 		// 2 - export user-defined templates
@@ -1206,18 +1253,8 @@ public class Project extends DBObject {
 		return "trakem2_" + root_tt.getType();
 	}
 
-	/** Find an instance containing the given tree. */
-	static public Project getInstance(final DNDTree ob) {
-		for (final Project project : al_open_projects) {
-			if (project.layer_tree.equals(ob)) return project;
-			if (project.project_tree.equals(ob)) return project;
-			if (project.template_tree.equals(ob)) return project;
-		}
-		return null;
-	}
-
 	/** Returns a user-understandable name for the given class. */
-	static public String getName(final Class c) {
+	static public String getName(final Class<?> c) {
 		String name = c.getName();
 		name = name.substring(name.lastIndexOf('.') + 1);
 		if (name.equals("DLabel")) return "Label";
@@ -1269,14 +1306,16 @@ public class Project extends DBObject {
 			// copy template
 			pr.root_tt = this.root_tt.clone(pr, true);
 			pr.template_tree = new TemplateTree(pr, pr.root_tt);
-			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap());
+			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap<String,TemplateThing>());
 			TemplateThing project_template = new TemplateThing("project");
 			project_template.addChild(pr.root_tt);
 			pr.ht_unique_tt.put("project", project_template);
 			// create the layers templates
 			pr.createLayerTemplates();
 			// copy LayerSet and all involved Displayable objects
+			// (A two-step process to provide the layer_set pointer and all Layer pointers to the ZDisplayable to copy and crop.)
 			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
+			LayerSet.cloneInto(this.layer_set, first, last, pr, pr.layer_set, roi, true);
 			// create layer tree
 			pr.root_lt = new LayerThing(Project.layer_set_template, pr, pr.layer_set);
 			pr.layer_tree = new LayerTree(pr, pr.root_lt);
@@ -1307,12 +1346,11 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	public void parseXMLOptions(final HashMap ht_attributes) {
+	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
-		for (final Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry prop = (Map.Entry)it.next();
+		for (Map.Entry<String,String> prop : ht_attributes.entrySet()) {
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
 	}
@@ -1486,5 +1524,96 @@ public class Project extends DBObject {
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */
 	public String getUNUId() {
 		return loader.getUNUId();
+	}
+
+	/** Removes an object from this Project. */
+	public final boolean remove(final Displayable d) {
+		final Set<Displayable> s = new HashSet<Displayable>();
+		s.add(d);
+		return removeAll(s);
+	}
+
+	/** Calls Project.removeAll(col, null) */
+	public final boolean removeAll(final Set<Displayable> col) {
+		return removeAll(col, null);
+	}
+	/** Remove any set of Displayable objects from the Layer, LayerSet and Project Tree as necessary.
+	 *  ASSUMES there aren't any nested LayerSet objects in @param col. */
+	public final boolean removeAll(final Set<Displayable> col, final DefaultMutableTreeNode top_node) {
+		// 0. Sort into Displayable and ZDisplayable
+		final Set<ZDisplayable> zds = new HashSet<ZDisplayable>();
+		final List<Displayable> ds = new ArrayList<Displayable>();
+		for (final Displayable d : col) {
+			if (d instanceof ZDisplayable) {
+				zds.add((ZDisplayable)d);
+			} else {
+				ds.add(d);
+			}
+		}
+		
+		// Displayable:
+		// 1. First the Profile from the Project Tree, one by one,
+		//    while creating a map of Layer vs Displayable list to remove in that layer:
+		final HashMap<Layer,Set<Displayable>> ml = new HashMap<Layer,Set<Displayable>>();
+		for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
+			if (d.getClass() == Profile.class) {
+				if (!project_tree.remove(false, findProjectThing(d), null)) { // like Profile.remove2
+					Utils.log("Could NOT delete " + d);
+					continue;
+				}
+				it.remove(); // remove the Profile
+				continue;
+			}
+			// The map of Layer vs Displayable list
+			Set<Displayable> l = ml.get(d.getLayer());
+			if (null == l) {
+				l = new HashSet<Displayable>();
+				ml.put(d.getLayer(), l);
+			}
+			l.add(d);
+		}
+		// 2. Then the rest, in bulk:
+		if (ml.size() > 0) {
+			for (final Map.Entry<Layer,Set<Displayable>> e : ml.entrySet()) {
+				e.getKey().removeAll(e.getValue());
+			}
+		}
+		// 3. ZDisplayable: bulk removal
+		if (zds.size() > 0) {
+			// 1. From the Project Tree:
+			Set<Displayable> not_removed = project_tree.remove(zds, top_node);
+			// 2. Then only those successfully removed, from the LayerSet:
+			zds.removeAll(not_removed);
+			layer_set.removeAll(zds);
+		}
+
+		// TODO
+		return true;
+		
+	}
+	
+	/** For undo purposes. */
+	public void resetRootProjectThing(final ProjectThing pt, final HashMap<Thing,Boolean> ptree_exp) {
+		this.root_pt = pt;
+		project_tree.reset(ptree_exp);
+	}
+	/** For undo purposes. */
+	public void resetRootTemplateThing(final TemplateThing tt, final HashMap<Thing,Boolean> ttree_exp) {
+		this.root_tt = tt;
+		template_tree.reset(ttree_exp);
+	}
+	/** For undo purposes. */
+	public void resetRootLayerThing(final LayerThing lt, final HashMap<Thing,Boolean> ltree_exp) {
+		this.root_lt = lt;
+		layer_tree.reset(ltree_exp);
+	}
+
+	public TemplateThing getRootTemplateThing() {
+		return root_tt;
+	}
+	
+	public LayerThing getRootLayerThing() {
+		return root_lt;
 	}
 }
