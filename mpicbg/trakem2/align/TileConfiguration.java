@@ -33,6 +33,8 @@ import ini.trakem2.display.graphics.SubtractInverseARGBComposite;
 
 public class TileConfiguration extends mpicbg.models.TileConfiguration
 {
+	static int visCounter = 0;
+	
 	@Override
 	public void optimize(
 			final float maxAllowedError,
@@ -54,11 +56,11 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		
 		println( "i mean min max" );
 		
-		visualizeOptimizationIterationStep( 0, 0, tiles.iterator().next() );
+		//visualizeOptimizationIterationStep( 0, 0, tiles.iterator().next() );
 		
 		while ( proceed )
 		{
-			//visualizeOptimizationIteration( i );
+			visualizeOptimizationIteration( i );
 			
 			int k = 1;
 			for ( final Tile< ? > tile : tiles )
@@ -184,7 +186,7 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		ip.drawString( "e: (" + String.format( "%.2f", minError ) + ", " + String.format( "%.2f", error ) + ", " + String.format( "%.2f", maxError ) + ")", 120, 490 );
 		
 		final ImagePlus impI = new ImagePlus( "i " + i, ip );
-		IJ.save( impI, "optimize-" + String.format( "%04d", lastLayerIndex ) + "-" + String.format( "%04d", i ) + ".tif" );
+		IJ.save( impI, "optimize-" + String.format( "%06d", visCounter++ ) + "-" + String.format( "%04d", lastLayerIndex ) + "-" + String.format( "%04d", i ) + ".tif" );
 	}
 	
 	public void visualizeOptimizationIterationStep( final int i, final int k, final Tile< ? > tile )
