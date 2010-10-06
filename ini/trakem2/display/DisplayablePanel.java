@@ -232,6 +232,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 
 		title.setToolTipText(t);
 		title2.setToolTipText(t);
+		idlabel.setText("#" + d.getId());
 	}
 
 	private class ML extends MouseAdapter {
