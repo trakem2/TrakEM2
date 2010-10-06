@@ -64,6 +64,8 @@ import javax.media.jai.PlanarImage;
 import mpicbg.imglib.container.array.Array;
 import mpicbg.imglib.container.array.ArrayContainerFactory;
 import mpicbg.imglib.container.basictypecontainer.array.ShortArray;
+import mpicbg.imglib.cursor.Cursor;
+import mpicbg.imglib.image.ImageFactory;
 import mpicbg.imglib.type.Type;
 import mpicbg.imglib.type.numeric.integer.ShortType;
 import mpicbg.imglib.type.numeric.integer.UnsignedShortType;
@@ -737,10 +739,11 @@ public class ImageSaver {
 		BufferedInputStream fis = null;
 		try {
 			fis = new BufferedInputStream(new FileInputStream(new File(path)), 4096);
-			short[] pix = new short[width * height];
-			byte[] buf = new byte[width * height * 2];
+			final byte[] buf = new byte[width * height * 2];
 			fis.read(buf);
-			for (int i=0; i<pix.length; i+=2) {
+			/*
+			short[] pix = new short[width * height];
+			for (int i=0; i<buf.length; i+=2) {
 				pix[i] = (short)(((buf[i]&0xff)<<16) + buf[1+1]);
 			}
 			// Correct but fragile, and limited to Arrays -- according to Stephan Preibisch
@@ -751,6 +754,19 @@ public class ImageSaver {
 			// pass it to the DirectAccessContainer
 			array.setLinkedType( linkedType );
 			mpicbg.imglib.image.Image<UnsignedShortType> iml = new mpicbg.imglib.image.Image<UnsignedShortType>(array, new UnsignedShortType());
+			*/
+			
+			// Correct future-proof version (notice the short[] is created by the imglib factory)
+			final ImageFactory<UnsignedShortType> factory = new ImageFactory<UnsignedShortType>( new UnsignedShortType(), new ArrayContainerFactory() );     
+			final mpicbg.imglib.image.Image<UnsignedShortType> iml = factory.createImage( new int[]{width, height} );
+			final Cursor<UnsignedShortType> c = iml.createCursor();
+
+			for (int i=0; i<buf.length; i+=2) {
+				c.fwd();
+				c.getType().set( (short)(((buf[i]&0xff)<<16) + buf[1+1]));
+			}
+
+			c.close();
 			
 			return iml;
 		} catch (FileNotFoundException e) {
