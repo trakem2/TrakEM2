@@ -61,13 +61,11 @@ import com.sun.media.jai.codec.TIFFDecodeParam;
 import com.sun.media.jai.codec.ImageCodec;
 import javax.media.jai.PlanarImage;
 
-import mpicbg.imglib.container.array.Array;
 import mpicbg.imglib.container.array.ArrayContainerFactory;
-import mpicbg.imglib.container.basictypecontainer.array.ShortArray;
 import mpicbg.imglib.cursor.Cursor;
 import mpicbg.imglib.image.ImageFactory;
 import mpicbg.imglib.type.Type;
-import mpicbg.imglib.type.numeric.integer.ShortType;
+import mpicbg.imglib.type.numeric.integer.UnsignedIntType;
 import mpicbg.imglib.type.numeric.integer.UnsignedShortType;
 
 import java.io.OutputStream;
@@ -733,7 +731,7 @@ public class ImageSaver {
 		return null;
 	}
 
-	/** Loads an image that was stored in @param path.
+	/** Loads an image that was stored in @param path as little endian.
 	 *  If the file is shorter than width * height * 2, then the remaning values will be zero. */
 	static public final mpicbg.imglib.image.Image<UnsignedShortType> load16bitRawImage(final String path, final int width, final int height) {
 		BufferedInputStream fis = null;
@@ -763,7 +761,10 @@ public class ImageSaver {
 
 			for (int i=0; i<buf.length; i+=2) {
 				c.fwd();
-				c.getType().set( (short)(((buf[i]&0xff)<<16) + buf[1+1]));
+				// little endian
+				short v = (short)( (buf[i]&0xff) | ((buf[i+1]&0xff)<<8));
+				if (0 != v) System.out.println("v != 0: " + v);
+				c.getType().set( v );
 			}
 
 			c.close();
@@ -782,6 +783,50 @@ public class ImageSaver {
 				}
 		}
 		
+		return null;
+	}
+
+	/** Create a new ImgLib image of the specified type and dimensions. */
+	static public final<T extends Type<T>> mpicbg.imglib.image.Image<T> createImage(final Class<T> type, final int[] dimensions) throws InstantiationException, IllegalAccessException {
+		final ImageFactory<T> factory = new ImageFactory<T>( type.newInstance(), new ArrayContainerFactory() );     
+		return factory.createImage( dimensions );
+	}
+
+	/** Loads an image that was stored in @param path as little endian.
+	 *  If the file is shorter than width * height * 2, then the remaning values will be zero. */
+	static public final mpicbg.imglib.image.Image<UnsignedIntType> loadUnsignedIntImage(final String path, final int width, final int height) {
+		BufferedInputStream fis = null;
+		try {
+			fis = new BufferedInputStream(new FileInputStream(new File(path)));
+			final mpicbg.imglib.image.Image<UnsignedIntType> iml = createImage(UnsignedIntType.class, new int[]{width, height});
+			final Cursor<UnsignedIntType> c = iml.createCursor();
+	
+			int ret;
+			final byte[] buf = new byte[Math.min(width * height, 16384)]; // 16 Mb at a time
+			while (-1 != (ret = fis.read(buf))) {
+				for (int i=0; i<ret; i+=4) {
+					c.fwd();
+					// little endian
+					c.getType().set(   (buf[i]&0xff)
+							        | ((buf[i+1]&0xff)<<8)
+							        | ((buf[i+2]&0xff)<<16)
+							        | ((buf[i+3]&0xff)<<24) );
+				}
+			}
+			c.close();
+
+			return iml;
+
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != fis) try {
+					fis.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			} 
+		}
+
 		return null;
 	}
 }
