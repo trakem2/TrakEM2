@@ -479,7 +479,7 @@ public class Search {
 				ActionListener listener = new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
 						final String command = ae.getActionCommand();
-						if (show2D == command) {
+						if (command.equals(show2D)) {
 							if (ob instanceof Displayable) {
 								Display.centerAt(createCoordinate((Displayable)ob), true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 							} else if (ob instanceof Layer) {
