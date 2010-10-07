@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
+import ij.gui.GenericDialog;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.AreaList;
@@ -62,6 +63,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
@@ -487,12 +489,47 @@ public class Search {
 							if (ob instanceof Layer) {
 								Display.showFront((Layer)ob);
 							} else if (ob instanceof Displayable) {
-								Displayable displ = (Displayable)ob;
-								if (!displ.isVisible()) displ.setVisible(true);
-								Display display = Display.getFront(displ.getProject());
-								if (null == display) return;
-								boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
-								display.select(displ, shift_down);
+								// How many rows are selected?
+								if (1 == table.getSelectedRowCount()) {
+									Displayable displ = (Displayable)ob;
+									if (!displ.isVisible()) displ.setVisible(true);
+									Display display = Display.getFront(displ.getProject());
+									if (null == display) return;
+									boolean shift_down = 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK);
+									display.select(displ, shift_down);
+								} else {
+									Collection<Displayable> ds = new ArrayList<Displayable>();
+									Display display = null;
+									HashSet<Layer> layers = new HashSet<Layer>();
+									for (int row : table.getSelectedRows()) {
+										final DBObject dob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(row);
+										if (null == dob || !(dob instanceof Displayable)) {
+											Utils.log("Not selecting row " + row);
+										} else {
+											Displayable d = (Displayable)dob;
+											ds.add(d);
+											if (!(d instanceof ZDisplayable)) {
+												layers.add(d.getLayer());
+											}
+											if (null == display) display = Display.getFront(dob.getProject());
+										}
+									}
+									// Filter out Displayable not in the front layer
+									if (layers.size() > 0) {
+										GenericDialog gd = new GenericDialog("All layers?");
+										String[] s = new String[]{"Only from current layer", "From " + layers.size() + " layers"};
+										gd.addChoice("Select objects from:", s, s[0]);
+										gd.showDialog();
+										if (gd.wasCanceled()) return;
+										if (0 == gd.getNextChoiceIndex()) {
+											Layer la = display.getLayer();
+											for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+												if (it.next().getLayer() != la) it.remove();
+											}
+										}
+									}
+									display.getSelection().selectAll(ds);
+								}
 							}
 						}
 					}
