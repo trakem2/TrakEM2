@@ -205,6 +205,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	static private int MAX_CHARS = 20;
 
 	public void updateTitle() {
+		idlabel.setText("#" + d.getId());
 		String t = makeUpdatedTitle();
 		if (t.length() <= MAX_CHARS) {
 			title.setText(t);
@@ -232,7 +233,6 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 
 		title.setToolTipText(t);
 		title2.setToolTipText(t);
-		idlabel.setText("#" + d.getId());
 	}
 
 	private class ML extends MouseAdapter {
