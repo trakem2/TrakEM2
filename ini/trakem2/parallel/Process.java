@@ -65,6 +65,9 @@ public class Process {
 	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc) throws Exception {
 		process(inputs, generator, n_proc, true);
 	}
+	static public final <I,O> void unbound(final Iterable<I> inputs, final TaskFactory<I,O> generator) throws Exception {
+		unbound(inputs, generator, NUM_PROCESSORS);
+	}
 	static public final <I,O> void unbound(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc) throws Exception {
 		process(inputs, generator, n_proc, false);
 	}
