@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
+import java.util.concurrent.ExecutorService;
 
 import javax.swing.JFrame;
 import javax.swing.JMenuItem;
@@ -46,6 +47,7 @@ import ini.trakem2.display.Tag;
 import ini.trakem2.display.Tree;
 import ini.trakem2.display.Treeline;
 import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.FSLoader;
 
 public class Merger {
@@ -76,6 +78,7 @@ public class Merger {
 		final HashSet<ZDisplayable> unmatched1 = new HashSet<ZDisplayable>(),
 									unmatched2 = new HashSet<ZDisplayable>(zds2);
 
+		// Remove instances of classes not accepted
 		for (final Iterator<ZDisplayable> it = unmatched2.iterator(); it.hasNext(); ) {
 			ZDisplayable zd = it.next();
 			if (!accepted.contains(zd.getClass())) {
@@ -89,51 +92,60 @@ public class Merger {
 		}
 		zds2.removeAll(empty2);
 
-		for (final ZDisplayable zd1 : zds1) {
-			if (!accepted.contains(zd1.getClass())) {
-				Utils.log("Ignoring: [A] " + zd1);
-				continue;
-			}
-			if (zd1.isDeletable()) {
-				empty1.add(zd1);
-				continue;
-			}
-			final List<Change> cs = new ArrayList<Change>();
-			for (final ZDisplayable zd2 : zds2) {
-				if (zd2.isDeletable()) {
-					empty2.add(zd2);
-					continue;
-				}
-				// Same class?
-				if (zd1.getClass() != zd2.getClass()) continue;
-				// Accepted class?
-				if (!accepted.contains(zd2.getClass())) {
-					Utils.log("Ignoring: [2] " + zd2);
-					continue;
-				}
-				if (zd1 instanceof Tree<?> && zd2 instanceof Tree<?>) {
-					Change c = compareTrees(zd1, zd2);
-					if (c.hasSimilarNodes()) {
-						cs.add(c);
-						if (1 == cs.size()) matched.put(zd1, cs);
-						unmatched2.remove(zd2);
-					}
-					// debug
-					if (zd1.getId() == zd2.getId()) {
-						Utils.log("zd1 #" + zd1.getId() + " is similar to #" + zd2.getId() + ": " + c.hasSimilarNodes());
-					}
-				}
-			}
-			if (cs.isEmpty()) {
-				unmatched1.add(zd1);
-			}
+		try {
+			ini.trakem2.parallel.Process.progressive(zds1,
+					new TaskFactory<ZDisplayable, Object>() {
+						@Override
+						public Object process(final ZDisplayable zd1) {
+							if (!accepted.contains(zd1.getClass())) {
+								Utils.log("Ignoring: [A] " + zd1);
+								return null;
+							}
+							if (zd1.isDeletable()) {
+								synchronized (empty1) {
+									empty1.add(zd1);
+								}
+								return null;
+							}
+							final List<Change> cs = new ArrayList<Change>();
+							for (final ZDisplayable zd2 : zds2) {
+								// Same class?
+								if (zd1.getClass() != zd2.getClass()) continue;
+								if (zd1 instanceof Tree<?> && zd2 instanceof Tree<?>) {
+									Change c = compareTrees(zd1, zd2);
+									if (c.hasSimilarNodes()) {
+										cs.add(c);
+										if (1 == cs.size()) {
+											synchronized (matched) {
+												matched.put(zd1, cs);
+											}
+										}
+										synchronized (unmatched2) {
+											unmatched2.remove(zd2);
+										}
+									}
+									// debug
+									if (zd1.getId() == zd2.getId()) {
+										Utils.log("zd1 #" + zd1.getId() + " is similar to #" + zd2.getId() + ": " + c.hasSimilarNodes());
+									}
+								}
+							}
+							if (cs.isEmpty()) {
+								synchronized (unmatched1) {
+									unmatched1.add(zd1);
+								}
+							}
+							return null;
+						}
+					});
+		} catch (Exception e) {
+			IJError.print(e);
 		}
-		
+
 		Utils.log("matched.size(): " + matched.size());
 		
 		makeGUI(p1, p2, empty1, empty2, matched, unmatched1, unmatched2);
 	}
-	
 
 
 	private static class Change {
