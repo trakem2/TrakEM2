@@ -115,7 +115,7 @@ public class TreeConnectorsView {
 						targetids = "";
 						break;
 					case 1:
-						targetids = Long.toString(targets.get(0).getId());
+						targetids = targets.get(0).toString();
 						break;
 					default:
 						final StringBuilder sb = new StringBuilder();
