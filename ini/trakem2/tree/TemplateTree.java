@@ -89,7 +89,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				menu.addSeparator();
 				JMenu other = new JMenu("From project...");
 				menu.add(other);
-				for (Iterator itp = ControlWindow.getProjects().iterator(); itp.hasNext(); ) {
+				for (Iterator<Project> itp = ControlWindow.getProjects().iterator(); itp.hasNext(); ) {
 					final Project pr = (Project) itp.next();
 					if (root.getProject() == pr) continue;
 					item = new JMenuItem(pr.toString());
@@ -169,7 +169,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 
 		if (command.equals("Rename...")) {
 			final GenericDialog gd = new GenericDialog("Rename");
-			gd.addStringField("New type name: ", tt.getType());
+			gd.addStringField("New type name: ", tt.getType(), 40);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			String old_name = tt.getType();
