@@ -910,13 +910,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Find an edge near the world coords x,y,layer with precision depending upon magnification,
 	 *  and adjust its confidence to @param confidence.
 	 *  @return the node whose parent edge is altered, or null if none found. */
-	protected Node<T> setEdgeConfidence(byte confidence, float x, float y, Layer layer, double magnification) {
+	protected Node<T> setEdgeConfidence(byte confidence) {
 		synchronized (node_layer_map) {
-			Node<T> nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null == nearest) return null;
-
-			if (nearest.parent.setConfidence(nearest, confidence)) return nearest;
-			return null;
+			if (null == last_visited) return null;
+			last_visited.setConfidence(confidence);
+			return last_visited;
 		}
 	}
 
@@ -1761,15 +1759,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 		}
 
-		Layer la = dc.getDisplay().getLayer();
 		final Point po = dc.getCursorLoc(); // as offscreen coords
 
-		// assumes Node.MAX_EDGE_CONFIDENCE is <= 9.
+		// Set confidence of the receiver node
 		if (keyCode >= KeyEvent.VK_0 && keyCode <= (KeyEvent.VK_0 + Node.MAX_EDGE_CONFIDENCE)) {
-			// Find an edge near the mouse position, by measuring against the middle of it
-			setEdgeConfidence((byte)(keyCode - KeyEvent.VK_0), po.x, po.y, la, dc.getMagnification());
-			Display.repaint(layer_set);
-			ke.consume();
+			if (null != setEdgeConfidence((byte)(keyCode - KeyEvent.VK_0))) {
+				Display.repaint(layer_set);
+				ke.consume();
+			}
 			return;
 		}
 

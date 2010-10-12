@@ -629,16 +629,11 @@ public abstract class Node<T> implements Taggable {
 		this.parent = null;
 		*/
 	}
-	synchronized public final boolean setConfidence(final Node<T> child, final byte conf) {
-		if (null == children) return false;
+	/** Set the confidence value of this node with its parent. */
+	synchronized public final boolean setConfidence(final byte conf) {
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
-		for (int i=0; i<children.length; i++) {
-			if (child == children[i]) {
-				children[i].confidence = conf;
-				return true;
-			}
-		}
-		return false;
+		confidence = conf;
+		return true;
 	}
 	/** Adjust the confidence value of this node with its parent. */
 	final public boolean adjustConfidence(final int inc) {
