@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JFrame;
@@ -70,9 +69,6 @@ public class Merger {
 
 		final HashMap<Displayable,List<Change>> matched = new HashMap<Displayable,List<Change>>();
 		
-		// For every Displayable in p1, find a corresponding Displayable in p2
-		// or at least one that is similar.
-		
 		final HashSet<ZDisplayable> empty1 = new HashSet<ZDisplayable>(),
 									empty2 = new HashSet<ZDisplayable>();
 
@@ -94,7 +90,9 @@ public class Merger {
 		zds2.removeAll(empty2);
 		
 		final AtomicInteger counter = new AtomicInteger(0);
-
+		
+		// For every Displayable in p1, find a corresponding Displayable in p2
+		// or at least one or more that are similar in that they have some nodes in common.
 		try {
 			ini.trakem2.parallel.Process.unbound(zds1,
 					new TaskFactory<ZDisplayable, Object>() {
@@ -164,54 +162,39 @@ public class Merger {
 		boolean root = false;
 		/** The difference in the number of nodes, in percent */
 		int diff = 0;
-		/** If the tags are all the same for all identical nodes. */
-		HashSet<Tags> different_tags = new HashSet<Tags>();
 		/** Number of nodes in d1 found also in d2 (independent of tags). */
 		int common_nodes = 0;
-		
+		/** Number of nodes present in d1 but not in d2. */
+		int d1_only = 0;
+		/** Number of nodes present in d2 but not in d1. */
+		int d2_only = 0;
+
+		/** Total number of nodes in d1. */
 		int n_nodes_d1 = 0;
+		/** Total number of nodes in d2. */
 		int n_nodes_d2 = 0;
+		
+		/** Number of tags in common (node-wise, not overall tags) */
+		int common_tags = 0;
+		/** Number of tags present in a node of d1 but not in d2. */
+		int tags_1_only = 0;
+		/** Number of tags present in a node of d1 but not in d2. */
+		int tags_2_only = 0;
 
 		Change(ZDisplayable d1, ZDisplayable d2) {
 			this.d1 = d1;
 			this.d2 = d2;
 		}
 
+		/** WARNING: if both trees have zero nodes, returns true as well. */
 		boolean identical() {
 			return !title && !transform && !root && 0 == diff
-			    && different_tags.isEmpty() && n_nodes_d1 == n_nodes_d2 && n_nodes_d1 == common_nodes;
+			    && 0 == tags_1_only && 0 == tags_2_only
+			    && 0 == d1_only && 0 == d2_only;
 		}
 
 		boolean hasSimilarNodes() {
 			return common_nodes > 0;
-		}
-	}
-
-	private static class Tags {
-		final Node<?> nd1, nd2;
-		Tags(Node<?> nd1, Node<?> nd2) {
-			this.nd1 = nd1;
-			this.nd2 = nd2;
-		}
-		String getDifferentTags() {
-			StringBuilder sb = new StringBuilder();
-			Set<Tag> tags1 = nd1.getTags(),
-					 tags2 = nd2.getTags();
-			Set<Tag> diff_tags = new HashSet<Tag>(tags1);
-			diff_tags.removeAll(tags2);
-			for (final Tag t : diff_tags) {
-				sb.append("[-]").append(t.toString()).append(", ");
-			}
-			diff_tags.clear();
-			diff_tags.addAll(tags2);
-			diff_tags.removeAll(tags1);
-			if (diff_tags.size() > 0) {
-				if (sb.length() > 0) sb.append("  /  ");
-				for (final Tag t : diff_tags) {
-					sb.append("[+]").append(t.toString()).append(", ");
-				}
-			}
-			return sb.toString();
 		}
 	}
 
@@ -233,6 +216,7 @@ public class Merger {
 		public final int hashCode() {
 			return 0;
 		}
+		/** Compares only the node's world coordinates. */
 		@Override
 		public final boolean equals(Object ob) {
 			final WNode o = (WNode)ob;
@@ -246,15 +230,45 @@ public class Merger {
 		}
 	}
 
-	static private final HashSet<WNode> asNNodes(Collection<Node<?>> nds, AffineTransform aff) {
+	static private final HashSet<WNode> asWNodes(Collection<Node<?>> nds, AffineTransform aff) {
 		final HashSet<WNode> col = new HashSet<WNode>();
 		for (final Node<?> nd : nds) {
 			col.add(new WNode(nd, aff));
 		}
 		return col;
 	}
+	
+	/** Returns three lists: the tags in common, the tags in this node but not in the other,
+	 *  and the tags in the other but not in this node. */
+	static public List<Set<Tag>> compareTags(final Node<?> nd1, final Node<?> nd2) {
+		final Set<Tag> tags1 = nd1.getTags(),
+					   tags2 = nd2.getTags();
+		if (null == tags1 && null == tags2) {
+			return null;
+		}
+		final HashSet<Tag> common = new HashSet<Tag>();
+		if (null != tags1 && null != tags2) {
+			common.addAll(tags1);
+			common.retainAll(tags2);
+		}
+		final HashSet<Tag> only1 = new HashSet<Tag>();
+		if (null != tags1) {
+			only1.addAll(tags1);
+			if (null != tags2) only1.removeAll(tags2);
+		}
+		final HashSet<Tag> only2 = new HashSet<Tag>();
+		if (null != tags2) {
+			only2.addAll(tags2);
+			if (null != tags1) only2.removeAll(tags1);
+		}
+		final List<Set<Tag>> t = new ArrayList<Set<Tag>>();
+		t.add(common);
+		t.add(only1);
+		t.add(only2);
+		return t;
+	}
 
-	private static Change compareTrees(ZDisplayable zd1, ZDisplayable zd2) {
+	private static Change compareTrees(final ZDisplayable zd1, final ZDisplayable zd2) {
 		final Tree<?> t1 = (Tree<?>)zd1,
 					  t2 = (Tree<?>)zd2;
 		Change c = new Change(zd1, zd2);
@@ -267,22 +281,23 @@ public class Merger {
 			c.transform = true;
 		}
 		// Data
-		final HashSet<WNode> nds1 = asNNodes((Collection<Node<?>>) (Collection) t1.getRoot().getSubtreeNodes(), t1.getAffineTransform());
+		final HashSet<WNode> nds1 = asWNodes((Collection<Node<?>>) (Collection) t1.getRoot().getSubtreeNodes(), t1.getAffineTransform());
 		final HashMap<WNode,WNode> nds2 = new HashMap<WNode,WNode>();
 		for (final Node<?> nd : t2.getRoot().getSubtreeNodes()) {
 			WNode nn = new WNode(nd, t2.getAffineTransform());
 			nds2.put(nn, nn);
 		}
-		
-		// What proportion of nodes is similar?
+
+		// Which nodes are similar?
 		final HashSet<WNode> diff = new HashSet<WNode>(nds1);
 		diff.removeAll(nds2.keySet());
 
 		c.common_nodes = nds1.size() - diff.size();
-
 		c.n_nodes_d1 = nds1.size();
 		c.n_nodes_d2 = nds2.size();
-		
+		c.d1_only = c.n_nodes_d1 - c.common_nodes;
+		c.d2_only = c.n_nodes_d2 - c.common_nodes;
+
 		// Same amount of nodes?
 		c.diff = nds1.size() - nds2.size();
 
@@ -299,15 +314,18 @@ public class Merger {
 		for (final WNode nd1 : nds1) {
 			final WNode nd2 = nds2.get(nd1);
 			if (null == nd2) continue;
-			if (nd1.nd.hasSameTags(nd2.nd)) continue;
-			c.different_tags.add(new Tags(nd1.nd, nd2.nd));
+			final List<Set<Tag>> t = compareTags(nd1.nd, nd2.nd);
+			if (null == t) continue;
+			c.common_tags += t.get(0).size();
+			c.tags_1_only += t.get(1).size();
+			c.tags_2_only += t.get(2).size();
 		}
 
 		return c;
 	}
 
 	private static class Row {
-		static int COLUMNS = 13;
+		static int COLUMNS = 17;
 		Change c;
 		boolean sent = false;
 		Row(Change c) {
@@ -330,16 +348,24 @@ public class Merger {
 			case 6:
 				return c.common_nodes;
 			case 7:
-				return c.diff;
+				return c.d1_only;
 			case 8:
-				return c.different_tags.size(); // number of nodes with different tags
+				return c.d2_only;
 			case 9:
-				return c.d2.getId();
+				return c.diff;
 			case 10:
-				return c.d2.getProject().getMeaningfulTitle2(c.d2);
+				return c.common_tags;
 			case 11:
-				return c.identical();
+				return c.tags_1_only;
 			case 12:
+				return c.tags_2_only;
+			case 13:
+				return c.d2.getId();
+			case 14:
+				return c.d2.getProject().getMeaningfulTitle2(c.d2);
+			case 15:
+				return c.identical();
+			case 16:
 				return sent;
 			default:
 				Utils.log("Row.getColumn: Don't know what to do with column " + i);
@@ -362,17 +388,24 @@ public class Merger {
 			case 3: return "=title?";
 			case 4: return "=affine?";
 			case 5: return "=root?";
-			case 6: return "N similar nodes";
-			case 7: return "N diff";
-			case 8: return "N diff tags";
-			case 9: return "id 2";
-			case 10: return "title 2";
-			case 11: return "Identical?";
-			case 12: return "sent";
+			case 6: return "Nodes common";
+			case 7: return "N 1 only";
+			case 8: return "N 2 only";
+			case 9: return "N diff";
+			case 10: return "Tags common";
+			case 11: return "Tags 1 only tags";
+			case 12: return "Tags 2 only tags";
+			case 13: return "id 2";
+			case 14: return "title 2";
+			case 15: return "Identical?";
+			case 16: return "sent";
 			default:
 				Utils.log("Row.getColumnName: Don't know what to do with column " + col);
 				return null;
 			}
+		}
+		static private int getSentColumn() {
+			return Row.COLUMNS -1;
 		}
 	}
 
@@ -433,12 +466,13 @@ public class Merger {
 				Utils.log2("null at " + i);
 				continue;
 			}
-			tabs.getTabComponentAt(i).setPreferredSize(new Dimension(800, 800));
+			tabs.getTabComponentAt(i).setPreferredSize(new Dimension(1024, 768));
 		}
 
 		String xml1 = new File(((FSLoader)p1.getLoader()).getProjectXMLPath()).getName();
 		String xml2 = new File(((FSLoader)p2.getLoader()).getProjectXMLPath()).getName();
 		JFrame frame = new JFrame("1: " + xml1 + "  ||  2: " + xml2);
+		tabs.setPreferredSize(new Dimension(1024, 768));
 		frame.getContentPane().add(tabs);
 		frame.pack();
 		frame.setVisible(true);
@@ -527,7 +561,7 @@ public class Merger {
 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 			final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 			final Row r = ((Model)table.getModel()).rows.get(row);
-			if (12 == column && r.sent) {
+			if (Row.getSentColumn() == column && r.sent) {
 				c.setForeground(Color.white);
 				c.setBackground(Color.green);
 				return c;
