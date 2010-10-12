@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JFrame;
 import javax.swing.JMenuItem;
@@ -91,12 +92,15 @@ public class Merger {
 			}
 		}
 		zds2.removeAll(empty2);
+		
+		final AtomicInteger counter = new AtomicInteger(0);
 
 		try {
 			ini.trakem2.parallel.Process.progressive(zds1,
 					new TaskFactory<ZDisplayable, Object>() {
 						@Override
 						public Object process(final ZDisplayable zd1) {
+							Utils.showProgress(counter.getAndIncrement() / (float)zds1.size());
 							if (!accepted.contains(zd1.getClass())) {
 								Utils.log("Ignoring: [A] " + zd1);
 								return null;
@@ -141,6 +145,8 @@ public class Merger {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+		
+		Utils.showProgress(1); // reset
 
 		Utils.log("matched.size(): " + matched.size());
 		
