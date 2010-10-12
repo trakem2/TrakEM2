@@ -326,8 +326,8 @@ public abstract class Node<T> implements Taggable {
 				final String s = Integer.toString(confidence);
 				final Dimension dim = Utils.getDimensions(s, g.getFont());
 				g.setColor(Color.white);
-				final int xc = (int)(x + (x - parent_x)/2),
-				yc = (int)(y + (y - parent_y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
+				final int xc = (int)(parent_x + (x - parent_x)/2),
+						  yc = (int)(parent_y + (y - parent_y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
 				g.fillRect(xc, yc, dim.width+2, dim.height+2);
 				g.setColor(Color.black);
 				g.drawString(s, xc+1, yc+dim.height+1);
