@@ -566,8 +566,11 @@ public class Merger {
 					final Row r = ((Model)getModel()).rows.get(row);
 					if (Utils.isPopupTrigger(me)) {
 						JPopupMenu popup = new JPopupMenu();
-						final JMenuItem send12 = new JMenuItem("Send 1 to 2"); popup.add(send12);
-						final JMenuItem send21 = new JMenuItem("Send 2 to 1"); popup.add(send21);
+						final JMenuItem replace12 = new JMenuItem("Replace 1 with 2"); popup.add(replace12);
+						final JMenuItem replace21 = new JMenuItem("Replace 2 with 1"); popup.add(replace21);
+						popup.addSeparator();
+						final JMenuItem sibling12 = new JMenuItem("Send 1 as sibling of 2"); popup.add(sibling12);
+						final JMenuItem sibling21 = new JMenuItem("Send 2 as sibling of 1"); popup.add(sibling21);
 						popup.addSeparator();
 						final JMenuItem select = new JMenuItem("Select each in its own display"); popup.add(select);
 						final JMenuItem select2 = new JMenuItem("Select and center each in its own display"); popup.add(select2);
@@ -584,18 +587,26 @@ public class Merger {
 								} else if (show3D == e.getSource()) {
 									show3D(r.c.d1);
 									show3D(r.c.d2);
-								} else if (send12 == e.getSource()) {
-									if (send(r.c.d1, r.c.d2)) {
+								} else if (replace12 == e.getSource()) {
+									if (send(r.c.d2, r.c.d1, true)) {
 										r.sent();
 									}
-								} else if (send21 == e.getSource()) {
-									if (send(r.c.d2, r.c.d1)) {
+								} else if (replace21 == e.getSource()) {
+									if (send(r.c.d1, r.c.d2, true)) {
+										r.sent();
+									}
+								} else if (sibling12 == e.getSource()) {
+									if (send(r.c.d2, r.c.d1, false)) {
+										r.sent();
+									}
+								} else if (sibling21 == e.getSource()) {
+									if (send(r.c.d1, r.c.d2, false)) {
 										r.sent();
 									}
 								}
 							}
 						};
-						for (final JMenuItem item : new JMenuItem[]{select, select2, show3D, send12, send21}) {
+						for (final JMenuItem item : new JMenuItem[]{select, select2, show3D, replace12, replace21, sibling12, sibling21}) {
 							item.addActionListener(listener);
 						}
 						popup.show(Table.this, me.getX(), me.getY());
@@ -623,7 +634,7 @@ public class Merger {
 			Display3D.show(d.getProject().findProjectThing(d));
 		}
 		/** Replace d2 with d1 in d2's project. */
-		private boolean send(ZDisplayable d1, ZDisplayable d2) {
+		private boolean send(ZDisplayable d1, ZDisplayable d2, boolean remove2) {
 			String xml1 = new File(((FSLoader)d1.getProject().getLoader()).getProjectXMLPath()).getName();
 			String xml2 = new File(((FSLoader)d2.getProject().getLoader()).getProjectXMLPath()).getName();
 			if (!Utils.check("Really replace " + d2 + " (" + xml2 + ")\n" +
@@ -635,7 +646,7 @@ public class Merger {
 			ls.addChangeTreesStep();
 			ls.add(copy);
 			d2.getProject().getProjectTree().addSibling(d2, copy);
-			d2.getProject().remove(d2);
+			if (remove2) d2.getProject().remove(d2);
 			ls.addChangeTreesStep();
 			Utils.log("Replaced " + d2 + " (from " + xml2 + ")\n" +
 					  "    with " + d1 + " (from " + xml1 + ")");
