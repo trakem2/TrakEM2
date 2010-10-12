@@ -1130,4 +1130,13 @@ public abstract class Node<T> implements Taggable {
 	public void applyToSlab(final Operation<T> op) throws Exception {
 		apply(op, new SlabIterator<T>(this));
 	}
+
+	public boolean hasSameTags(final Node<?> other) {
+		if (null == this.tags && null == other.tags) return true;
+		final Set<Tag> t1 = getTags(),
+					   t2 = other.getTags();
+		if (null == t1 || null == t2) return false; // at least one is not null
+		t1.removeAll(t2);
+		return t1.isEmpty();
+	}
 }
