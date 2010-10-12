@@ -25,6 +25,17 @@ public class Process {
 	/** Takes a Collection of inputs, applies a function to each created by the generator,
 	 *  and places their output in outputs in the same order as each input was retrieved from inputs. */
 	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc) throws Exception {
+		process(inputs, generator, outputs, n_proc, true);
+	}
+
+	/** Takes a Collection of inputs, applies a function to each created by the generator,
+	 *  and places their output in outputs in the same order as each input was retrieved from inputs;
+	 *  will not wait for executing tasks to finish before creating and submitting new tasks. */
+	static public final <I,O> void unbound(final Iterable<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc) throws Exception {
+		process(inputs, generator, outputs, n_proc, false);
+	}
+
+	static private final <I,O> void process(final Iterable<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc, final boolean bound) throws Exception {
 		final int nproc = sensible(n_proc);
 		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
 		try {
@@ -32,7 +43,7 @@ public class Process {
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
 			for (final I input : inputs) {
 				fus.add(exec.submit(generator.create(input)));
-				while (fus.size() > ahead) {
+				if (bound) while (fus.size() > ahead) {
 					// wait
 					outputs.add(fus.removeFirst().get());
 				}
@@ -52,6 +63,12 @@ public class Process {
 		progressive(inputs, generator, NUM_PROCESSORS);
 	}
 	static public final <I,O> void progressive(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc) throws Exception {
+		process(inputs, generator, n_proc, true);
+	}
+	static public final <I,O> void unbound(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc) throws Exception {
+		process(inputs, generator, n_proc, false);
+	}
+	static private final <I,O> void process(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc, final boolean bound) throws Exception {
 		final int nproc = sensible(n_proc);
 		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
 		try {
@@ -59,7 +76,7 @@ public class Process {
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
 			for (final I input : inputs) {
 				fus.add(exec.submit(generator.create(input)));
-				while (fus.size() > ahead) {
+				if (bound) while (fus.size() > ahead) {
 					fus.removeFirst().get();
 				}
 			}
