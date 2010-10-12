@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -77,6 +78,11 @@ public class TreeConnectorsView {
 			this.connector = c;
 			this.i = i;
 			this.targets = new ArrayList<Displayable>(targets);
+			for (final Iterator<Displayable> it = this.targets.iterator(); it.hasNext(); ) {
+				if (it.next().getClass() == Connector.class) {
+					it.remove();
+				}
+			}
 		}
 		final Coordinate<Node<Float>> getCoordinate(int col) {
 			switch (col) {
