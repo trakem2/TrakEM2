@@ -33,6 +33,7 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 
 import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.utils.Utils;
 
 public class SnapshotPanel extends JPanel implements MouseListener {
 
@@ -89,9 +90,14 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			}
 		}
 		// Else, repaint background to avoid flickering
+		final Layer la = display.getLayer();
+		if (null == la) {
+			Utils.log2("SnapshotPanel: null layer?");
+			return;
+		}
 
-		final double lw = d.getLayer().getLayerWidth();
-		final double lh = d.getLayer().getLayerHeight();
+		final double lw = la.getLayerWidth();
+		final double lh = la.getLayerHeight();
 		final double scale = Math.min(SIDE / lw,
 			                      SIDE / lh);
 		final int slw = (int)(lw * scale);
