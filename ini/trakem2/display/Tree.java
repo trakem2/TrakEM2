@@ -31,6 +31,8 @@ import ij.io.FileSaver;
 import ij.io.Opener;
 
 import ini.trakem2.Project;
+import ini.trakem2.analysis.Centrality;
+import ini.trakem2.analysis.Vertex;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.utils.Bureaucrat;
@@ -3494,5 +3496,46 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Collection<Node<T>> getBranchAndEndNodes() {
 		if (null == root) return new ArrayList<Node<T>>();
 		return root.getBranchAndEndNodes();
+	}
+
+	static private final<T> Vertex[] findNeighbors(final Node<T> node, final HashMap<Node<T>,Vertex> m) {
+		final Node<T> parent = node.getParent();
+		final Vertex[] neighbors = new Vertex[(null == parent ? 0 : 1) + node.getChildrenCount()];
+		int next = 0;
+		if (null != parent) neighbors[next++] = m.get(parent);
+		for (final Node<T> child : node.getChildrenNodes()) {
+			neighbors[next++] = m.get(child);
+		}
+		return neighbors;
+	}
+	
+	/** Return a representation of this Tree with Vertex instead of Node. */
+	public HashMap<Node<T>,Vertex> asVertices() {
+		final HashMap<Node<T>,Vertex> m = new HashMap<Node<T>,Vertex>();
+		if (null == root) return m;
+		// Create one Vertex per Node<T>
+		for (final Node<T> node : this.getRoot().getSubtreeNodes()) {
+			m.put(node, new Vertex());
+		}
+		// Determine the neighbors of that Vertex
+		for (final Map.Entry<Node<T>,Vertex> e : m.entrySet()) {
+			e.getValue().neighbors = findNeighbors(e.getKey(), m);
+		}
+		return m;
+	}
+
+	/** Computes betweenness centrality of each node in the tree,
+	 *  using Ulrik Brandes betweenness centrality algorithm. */
+	public HashMap<Node<T>,Float> computeCentrality() {
+		final HashMap<Node<T>,Float> cs = new HashMap<Node<T>,Float>();
+		if (null == root) return cs;
+
+		final HashMap<Node<T>,Vertex> m = asVertices();
+		Centrality.compute(m.values());
+		
+		for (final Map.Entry<Node<T>,Vertex> e : m.entrySet()) {
+			cs.put(e.getKey(), e.getValue().centrality);
+		}
+		return cs;
 	}
 }
