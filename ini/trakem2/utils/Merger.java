@@ -96,7 +96,7 @@ public class Merger {
 		final AtomicInteger counter = new AtomicInteger(0);
 
 		try {
-			ini.trakem2.parallel.Process.progressive(zds1,
+			ini.trakem2.parallel.Process.unbound(zds1,
 					new TaskFactory<ZDisplayable, Object>() {
 						@Override
 						public Object process(final ZDisplayable zd1) {
