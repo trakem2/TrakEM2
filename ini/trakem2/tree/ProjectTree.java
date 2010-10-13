@@ -219,12 +219,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Display.getFront().getFrame().toFront();
 				}
 			} else if (command.equals("many...")) {
-				ArrayList children = thing.getTemplate().getChildren();
+				ArrayList<TemplateThing> children = thing.getTemplate().getChildren();
 				if (null == children || 0 == children.size()) return;
 				String[] cn = new String[children.size()];
 				int i=0;
-				for (Iterator it = children.iterator(); it.hasNext(); ) {
-					cn[i] = ((TemplateThing)it.next()).getType();
+				for (final TemplateThing child : children) {
+					cn[i] = child.getType();
 					i++;
 				}
 				GenericDialog gd = new GenericDialog("Add many children");
@@ -239,8 +239,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					return;
 				}
 				project.getRootLayerSet().addChangeTreesStep();
-				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
-				addLeafs((ArrayList<Thing>)nc, new Runnable() {
+				final ArrayList<ProjectThing> nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
+				addLeafs(nc, new Runnable() {
 					public void run() {
 						project.getRootLayerSet().addChangeTreesStep();
 					}});
@@ -255,7 +255,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
 			} else if (command.equals("Show tabular view")) {
-				((Tree)obd).createMultiTableView();
+				((Tree<?>)obd).createMultiTableView();
 			} else if (command.equals("Show in 3D")) {
 				ini.trakem2.display.Display3D.showAndResetView(thing);
 			} else if (command.equals("Hide")) {
@@ -414,7 +414,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(final Project project, final Collection<? extends Displayable> al) {
+	public void insertSegmentations(final Collection<? extends Displayable> al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";
@@ -437,25 +437,25 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 		final DefaultMutableTreeNode node_pt_is = new DefaultMutableTreeNode(pt_is); //addChild(pt_is, ctn);
 
-		final HashMap<Class,String> types = new HashMap<Class,String>();
+		final HashMap<Class<?>,String> types = new HashMap<Class<?>,String>();
 		types.put(AreaList.class, "area_list");
 		types.put(Pipe.class, "pipe");
 		types.put(Polyline.class, "polyline");
 		types.put(Ball.class, "ball");
+		types.put(Treeline.class, "treeline");
+		types.put(AreaTree.class, "areatree");
+		types.put(Connector.class, "connector");
 
 		// now, insert a new ProjectThing if of type AreaList, Ball and/or Pipe under node_child
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			TemplateThing tt = null;
-			String type = types.get(ob.getClass());
+		for (final Displayable d : al) {
+			final String type = types.get(d.getClass());
 			if (null == type) {
-				Utils.log("insertSegmentations: ignoring " + ob);
+				Utils.log("insertSegmentations: ignoring " + d);
 				continue;
-			} else {
-				tt = getOrCreateChildTemplateThing(tt_is, type);
 			}
 			try {
-				ProjectThing one = new ProjectThing(tt, project, ob);
+				final TemplateThing tt = getOrCreateChildTemplateThing(tt_is, type);
+				ProjectThing one = new ProjectThing(tt, project, d);
 				pt_is.addChild(one);
 				//addChild(one, node_pt_is);
 				node_pt_is.add(new DefaultMutableTreeNode(one)); // at the end
@@ -637,11 +637,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			display.select(d, shift_down);
 		} else {
 			// select all basic types under this leaf
-			HashSet hs = thing.findBasicTypeChildren();
+			HashSet<ProjectThing> hs = thing.findBasicTypeChildren();
 			boolean first = true;
 			Display display = null;
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Object ptob = ((ProjectThing)it.next()).getObject();
+			for (Iterator<ProjectThing> it = hs.iterator(); it.hasNext(); ) {
+				Object ptob = it.next().getObject();
 				if (!(ptob instanceof Displayable)) {
 					Utils.log2("Skipping non-Displayable object " + ptob);
 					continue;
@@ -778,7 +778,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		// Find all potential landing nodes for this node: those with a TemplateThing type like the parent of node:
 		final String parent_type = ((ProjectThing)pt.getParent()).getTemplate().getType();
 		final List<ProjectThing> landing_pt = new ArrayList<ProjectThing>(psother.get(0).getRootProjectThing().findChildrenOfTypeR(parent_type));
-		final Comparator comparator = new Comparator<ProjectThing>() {
+		final Comparator<ProjectThing> comparator = new Comparator<ProjectThing>() {
 			public int compare(ProjectThing t1, ProjectThing t2) {
 				return t1.toString().compareTo(t2.toString());
 			}
