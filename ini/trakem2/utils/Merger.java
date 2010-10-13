@@ -518,6 +518,12 @@ public class Merger {
 				if (1 == column && tcm.sent[row]) {
 					c.setBackground(Color.green);
 					c.setForeground(Color.white);
+				} else if (isSelected) {
+					c.setForeground(table.getSelectionForeground());
+					c.setBackground(table.getSelectionBackground());
+				} else {
+					c.setBackground(Color.white);
+					c.setForeground(Color.black);
 				}
 				return c;
 			}
