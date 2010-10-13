@@ -27,6 +27,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.JTable;
+import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -370,7 +371,26 @@ public class Merger {
 		}
 		Color getColor() {
 			if (c.identical()) return Color.white;
-			if (c.hasSimilarNodes()) return Color.pink;
+			if (c.hasSimilarNodes()) {
+				if (c.d1_only > 0 && c.d2_only > 0) {
+					// Mixed changes: problem
+					return Color.magenta;
+				} else if (c.d1_only > 0) {
+					// Changes only in d1
+					return Color.orange;
+				} else if (c.d2_only > 0) {
+					// Changes only in d2
+					return Color.pink;
+				}
+				// Same for tags
+				if (c.tags_1_only > 0 && c.tags_2_only > 0) {
+					return Color.magenta;
+				} else if (c.tags_1_only > 0) {
+					return Color.orange;
+				} else if (c.tags_2_only > 0) {
+					return Color.pink;
+				}
+			}
 			return Color.red.brighter();
 		}
 		public void sent() {
