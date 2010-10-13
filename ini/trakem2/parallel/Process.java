@@ -37,7 +37,7 @@ public class Process {
 
 	static private final <I,O> void process(final Iterable<I> inputs, final TaskFactory<I,O> generator, final Collection<O> outputs, final int n_proc, final boolean bound) throws Exception {
 		final int nproc = sensible(n_proc);
-		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
+		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process." + (bound ? "progressive" : "unbound"));
 		try {
 			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
@@ -73,7 +73,7 @@ public class Process {
 	}
 	static private final <I,O> void process(final Iterable<I> inputs, final TaskFactory<I,O> generator, final int n_proc, final boolean bound) throws Exception {
 		final int nproc = sensible(n_proc);
-		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process.progressive");
+		final ExecutorService exec = Utils.newFixedThreadPool(nproc, "Process." + (bound ? "progressive" : "unbound"));
 		try {
 			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
