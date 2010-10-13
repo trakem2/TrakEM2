@@ -2327,7 +2327,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				return sb.toString();
 			}
 			void go(int row) {
-				Display.centerAt(Tree.this.createCoordinate(((NodeTableModel)this.getModel()).nodes.get(row)));
+				Node<T> node = ((NodeTableModel)this.getModel()).nodes.get(row);
+				setLastVisited(node);
+				Display.centerAt(Tree.this.createCoordinate(node));
 			}
 			void resort() {
 				if (-1 != last_sorted_column) {
