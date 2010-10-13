@@ -5288,16 +5288,22 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		Display display = front; // to ensure thread consistency to some extent
 		if (null == display || display.layer.getParent() != layer.getParent()) {
 			display = new Display(layer.getProject(), layer, displ); // gets set to front
-		} else if (display.layer != layer) {
-			display.setLayer(layer);
+		}
+		display.show(layer, displ, select, shift_down);
+	}
+	/** Set this Display to show the specific layer, centered at the @param displ, and perhaps selected,
+	 *  adding to the selection instead of clearing it if @param shift_down is true. */
+	public void show(Layer layer, Displayable displ, boolean select, boolean shift_down) {
+		if (this.layer != layer) {
+			setLayer(layer);
 		}
 		if (select) {
-			if (!shift_down) display.selection.clear();
-			display.selection.add(displ);
+			if (!shift_down) selection.clear();
+			selection.add(displ);
 		} else {
-			display.selection.clear();
+			selection.clear();
 		}
-		display.showCentered(displ);
+		showCentered(displ);
 	}
 
 	/** Center the view, if possible, on x,y. It's not possible when zoomed out, in which case it will try to do its best. */
@@ -5405,6 +5411,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Can be null. */
 	static public Display getFront() {
 		return front;
+	}
+
+	static public Display getOrCreateFront(final Project project) {
+		Display df = front;
+		if (null != df && df.project == project) return df;
+		for (final Display d : al_displays) {
+			if (d.project == project) {
+				d.frame.toFront();
+				return d;
+			}
+		}
+		LayerSet ls = project.getRootLayerSet();
+		if (0 == ls.size()) return null;
+		return new Display(project, ls.getLayer(0));
 	}
 
 	static public void setCursorToAll(final Cursor c) {
