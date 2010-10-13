@@ -10,7 +10,6 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -20,7 +19,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JFrame;
@@ -32,8 +30,6 @@ import javax.swing.JTable;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableModel;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.AreaTree;
@@ -409,7 +405,7 @@ public class Merger {
 		}
 	}
 
-	private static void makeGUI(Project p1, Project p2,
+	private static void makeGUI(final Project p1, final Project p2,
 			HashSet<ZDisplayable> empty1, HashSet<ZDisplayable> empty2,
 			HashMap<Displayable,List<Change>> matched,
 			HashSet<ZDisplayable> unmatched1,
@@ -429,37 +425,15 @@ public class Merger {
 		final Table table = new Table();
 		tabs.addTab("Matched", new JScrollPane(table));
 
-		JTable tu1 = new JTable(new SingleColumnModel(unmatched1, "Unmatched 1"));
-		JTable tu2 = new JTable(new SingleColumnModel(unmatched2, "Unmatched 2"));
-		JTable tu3 = new JTable(new SingleColumnModel(empty1, "Empty 1"));
-		JTable tu4 = new JTable(new SingleColumnModel(empty2, "Empty 2"));
-		
+		JTable tu1 = createTable(unmatched1, "Unmatched 1", p1, p2);
+		JTable tu2 = createTable(unmatched2, "Unmatched 2", p1, p2);
+		JTable tu3 = createTable(empty1, "Empty 1", p1, p2);
+		JTable tu4 = createTable(empty2, "Empty 2", p1, p2);
+
 		tabs.addTab("Unmatched 1", new JScrollPane(tu1));
 		tabs.addTab("Unmatched 2", new JScrollPane(tu2));
 		tabs.addTab("Empty 1", new JScrollPane(tu3));
 		tabs.addTab("Empty 2", new JScrollPane(tu4));
-		
-		MouseAdapter listener = new MouseAdapter() {
-			@Override
-			public void mousePressed(MouseEvent me) {
-				JTable src = (JTable)me.getSource();
-				TableModel model = src.getModel();
-				int row = src.rowAtPoint(me.getPoint()),
-					col = src.columnAtPoint(me.getPoint());
-				if (2 == me.getClickCount()) {
-					Object ob = model.getValueAt(row, col);
-					if (ob instanceof ZDisplayable) {
-						ZDisplayable zd = (ZDisplayable)ob;
-						Display display = Display.getFront(zd.getProject()); // if it exists, make it front
-						Display.showCentered(zd.getFirstLayer(), zd, true, false); // also select
-					}
-				}
-			}
-		};
-		tu1.addMouseListener(listener);
-		tu2.addMouseListener(listener);
-		tu3.addMouseListener(listener);
-		tu4.addMouseListener(listener);
 
 		for (int i=0; i<tabs.getTabCount(); i++) {
 			if (null == tabs.getTabComponentAt(i)) {
@@ -487,9 +461,12 @@ public class Merger {
 		}});
 	}
 
-	static private class SingleColumnModel extends DefaultTableModel {
-		SingleColumnModel(final HashSet<?> ds, final String title) {
-			super(asOneColumn(ds), new Vector(Arrays.asList(new String[]{title})));
+	static private class TwoColumnModel extends AbstractTableModel {
+		final List<ZDisplayable> items = new ArrayList<ZDisplayable>();
+		final boolean[] sent;
+		TwoColumnModel(final HashSet<ZDisplayable> ds, final String title) {
+			items.addAll(ds);
+			sent = new boolean[items.size()];
 		}
 		@Override
 		public boolean isCellEditable(int row, int col) {
@@ -497,16 +474,102 @@ public class Merger {
 		}
 		@Override
 		public void setValueAt(Object value, int row, int col) {}
+		@Override
+		public int getColumnCount() {
+			return 2;
+		}
+		@Override
+		public int getRowCount() {
+			return items.size();
+		}
+		@Override
+		public Object getValueAt(int row, int col) {
+			switch (col) {
+			case 0:
+				return items.get(row);
+			case 1:
+				return sent[row];
+			default:
+				return null;
+			}
+		}
+		@Override
+		public String getColumnName(int col) {
+			switch (col) {
+			case 0:
+				return "unmatched";
+			case 1:
+				return "sent";
+			default:
+				return null;
+			}
+		}
 	}
 
-	static private final Vector asOneColumn(final HashSet<?> ds) {
-		Vector v = new Vector();
-		for (Object d : ds) {
-			Vector w = new Vector();
-			w.add(d);
-			v.add(w);
-		}
-		return v;
+	static private JTable createTable(final HashSet<ZDisplayable> hs, final String column_title,
+			final Project p1, final Project p2) {
+		final TwoColumnModel tcm = new TwoColumnModel(hs, column_title);
+		final JTable table = new JTable(tcm);
+		table.setDefaultRenderer(table.getColumnClass(0), new DefaultTableCellRenderer() {
+			@Override
+			public Component getTableCellRendererComponent(JTable table, Object value,
+					boolean isSelected, boolean hasFocus, int row, int column) {
+				final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+				if (1 == column && tcm.sent[row]) {
+					c.setBackground(Color.green);
+					c.setForeground(Color.white);
+				}
+				return c;
+			}
+		});
+		
+		table.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent me) {
+				final JTable src = (JTable)me.getSource();
+				final TwoColumnModel model = (TwoColumnModel)src.getModel();
+				final int row = src.rowAtPoint(me.getPoint()),
+						  col = src.columnAtPoint(me.getPoint());
+				if (2 == me.getClickCount()) {
+					Object ob = model.getValueAt(row, col);
+					if (ob instanceof ZDisplayable) {
+						ZDisplayable zd = (ZDisplayable)ob;
+						Display df = Display.getOrCreateFront(zd.getProject());
+						df.show(zd.getFirstLayer(), zd, true, false); // also select
+					}
+				} else if (me.isPopupTrigger()) {
+					JPopupMenu popup = new JPopupMenu();
+					final JMenuItem send = new JMenuItem("Send selection"); popup.add(send);
+					send.addActionListener(new ActionListener() {
+						@Override
+						public void actionPerformed(ActionEvent ae) {
+							ArrayList<ZDisplayable> col = new ArrayList<ZDisplayable>();
+							for (final int i : src.getSelectedRows()) {
+								col.add((ZDisplayable)model.getValueAt(i, 0));
+							}
+							if (col.isEmpty()) return;
+							Project target = col.get(0).getProject() == p1 ? p2 : p1; // the other
+							LayerSet ls = target.getRootLayerSet();
+							ArrayList<ZDisplayable> copies = new ArrayList<ZDisplayable>();
+							for (ZDisplayable zd : col) {
+								copies.add((ZDisplayable) zd.clone(target, false));
+								model.sent[row] = true;
+							}
+							// 1. To the LayerSet:
+							ls.addAll(copies);
+							// 2. To the ProjectTree:
+							target.getProjectTree().insertSegmentations(copies);
+
+							// Update:
+							model.fireTableDataChanged();
+						}
+					});
+					popup.show(table, me.getX(), me.getY());
+				}
+			}
+		});
+		
+		return table;
 	}
 
 	static private final class Model extends AbstractTableModel {
@@ -578,8 +641,6 @@ public class Merger {
 	}
 
 	static private final class Table extends JTable {
-		private int last_sorted_column = -1;
-		private boolean last_sorting_order = true; // descending == true
 		Table() {
 			super();
 			getTableHeader().addMouseListener(new MouseAdapter() {
@@ -589,22 +650,20 @@ public class Merger {
 					int column = convertColumnIndexToModel(viewColumn);
 					if (-1 == column) return;
 					((Model)getModel()).sortByColumn(column, me.isShiftDown());
-					last_sorted_column = column;
-					last_sorting_order = me.isShiftDown();
 				}
 			});
 			this.addMouseListener(new MouseAdapter() {
 				public void mousePressed(MouseEvent me) {
 					final int row = Table.this.rowAtPoint(me.getPoint());
-					final int col = Table.this.columnAtPoint(me.getPoint());
+					//final int col = Table.this.columnAtPoint(me.getPoint());
 					final Row r = ((Model)getModel()).rows.get(row);
 					if (Utils.isPopupTrigger(me)) {
 						JPopupMenu popup = new JPopupMenu();
 						final JMenuItem replace12 = new JMenuItem("Replace 1 with 2"); popup.add(replace12);
 						final JMenuItem replace21 = new JMenuItem("Replace 2 with 1"); popup.add(replace21);
 						popup.addSeparator();
-						final JMenuItem sibling12 = new JMenuItem("Send 1 as sibling of 2"); popup.add(sibling12);
-						final JMenuItem sibling21 = new JMenuItem("Send 2 as sibling of 1"); popup.add(sibling21);
+						final JMenuItem sibling12 = new JMenuItem("Add 1 as sibling of 2"); popup.add(sibling12);
+						final JMenuItem sibling21 = new JMenuItem("Add 2 as sibling of 1"); popup.add(sibling21);
 						popup.addSeparator();
 						final JMenuItem select = new JMenuItem("Select each in its own display"); popup.add(select);
 						final JMenuItem select2 = new JMenuItem("Select and center each in its own display"); popup.add(select2);
@@ -622,19 +681,23 @@ public class Merger {
 									show3D(r.c.d1);
 									show3D(r.c.d2);
 								} else if (replace12 == e.getSource()) {
-									if (send(r.c.d2, r.c.d1, true)) {
+									// Replace 1 (old) with 2 (new_)
+									if (replace(r.c.d1, r.c.d2)) {
 										r.sent();
 									}
 								} else if (replace21 == e.getSource()) {
-									if (send(r.c.d1, r.c.d2, true)) {
+									// Replace 2 (old) with 1 (new_)
+									if (replace(r.c.d2, r.c.d1)) {
 										r.sent();
 									}
 								} else if (sibling12 == e.getSource()) {
-									if (send(r.c.d2, r.c.d1, false)) {
+									// add 1 (new_) as sibling of 2 (old)
+									if (addAsSibling(r.c.d2, r.c.d1)) {
 										r.sent();
 									}
 								} else if (sibling21 == e.getSource()) {
-									if (send(r.c.d1, r.c.d2, false)) {
+									// add 2 (new_) as sibling of 1 (old)
+									if (addAsSibling(r.c.d1, r.c.d2)) {
 										r.sent();
 									}
 								}
@@ -667,25 +730,40 @@ public class Merger {
 		private void show3D(Displayable d) {
 			Display3D.show(d.getProject().findProjectThing(d));
 		}
-		/** Replace d2 with d1 in d2's project. */
-		private boolean send(ZDisplayable d1, ZDisplayable d2, boolean remove2) {
-			String xml1 = new File(((FSLoader)d1.getProject().getLoader()).getProjectXMLPath()).getName();
-			String xml2 = new File(((FSLoader)d2.getProject().getLoader()).getProjectXMLPath()).getName();
-			if (!Utils.check("Really replace " + d2 + " (" + xml2 + ")\n" +
-					    	 "with " + d1 + " (" + xml1 + ") ?")) {
+		/** Replace old with new in old's project. */
+		private boolean replace(ZDisplayable old, ZDisplayable new_) {
+			String xml_old = new File(((FSLoader)old.getProject().getLoader()).getProjectXMLPath()).getName();
+			String xml_new = new File(((FSLoader)new_.getProject().getLoader()).getProjectXMLPath()).getName();
+			if (!Utils.check("Really replace " + old + " (" + xml_old + ")\n" +
+					    	 "with " + new_ + " (" + xml_new + ") ?")) {
 				return false;
 			}
-			ZDisplayable copy = (ZDisplayable) d1.clone(d2.getProject(), false);
-			LayerSet ls = d2.getLayerSet();
+			LayerSet ls = old.getLayerSet();
 			ls.addChangeTreesStep();
-			ls.add(copy);
-			d2.getProject().getProjectTree().addSibling(d2, copy);
-			if (remove2) d2.getProject().remove(d2);
+			//
+			addCopyAsSibling(old, new_);
+			old.getProject().remove(old);
+			//
 			ls.addChangeTreesStep();
-			Utils.log("Replaced " + d2 + " (from " + xml2 + ")\n" +
-					  "    with " + d1 + " (from " + xml1 + ")");
+			Utils.log("Replaced " + old + " (from " + xml_old + ")\n" +
+					  "    with " + new_ + " (from " + xml_new + ")");
 			update();
 			return true;
+		}
+		/** Add @param to_copy as a sibling of @param old. */
+		private boolean addAsSibling(ZDisplayable old, ZDisplayable to_copy) {
+			LayerSet ls = old.getLayerSet();
+			ls.addChangeTreesStep();
+			addCopyAsSibling(old, to_copy);
+			ls.addChangeTreesStep();
+			update();
+			return true;
+		}
+		private void addCopyAsSibling(ZDisplayable old, ZDisplayable to_copy) {
+			// Clone the sibling into the old's project
+			ZDisplayable copy = (ZDisplayable) to_copy.clone(old.getProject(), false);
+			old.getLayerSet().add(copy);
+			old.getProject().getProjectTree().addSibling(old, copy);
 		}
 		private void update() {
 			((Model)getModel()).fireTableDataChanged();
