@@ -649,6 +649,7 @@ public class Merger {
 	static private final class Table extends JTable {
 		Table() {
 			super();
+			setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 			getTableHeader().addMouseListener(new MouseAdapter() {
 				public void mouseClicked(MouseEvent me) { // mousePressed would fail to repaint due to asynch issues
 					if (2 != me.getClickCount()) return;
