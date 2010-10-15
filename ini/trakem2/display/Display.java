@@ -70,6 +70,7 @@ import java.awt.event.*;
 import java.util.*;
 import java.util.List;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.io.Writer;
 import java.io.File;
@@ -96,13 +97,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private Hashtable<Class<?>,JScrollPane> ht_tabs;
 	private JScrollPane scroll_patches;
-	private JPanel panel_patches;
 	private JScrollPane scroll_profiles;
-	private JPanel panel_profiles;
 	private JScrollPane scroll_zdispl;
-	private JPanel panel_zdispl;
 	private JScrollPane scroll_channels;
-	private JPanel panel_channels;
 	private JScrollPane scroll_labels;
 	private JPanel panel_labels;
 
@@ -288,7 +285,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					for (int i=0; i<d.channels.length; i++) {
 						if (d.channels[i].isActive()) {
 							d.transp_slider.setValue((int)(d.channels[i].getAlpha() * 100));
-							break;
+							return;
 						}
 					}
 				} else {
@@ -297,16 +294,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					JPanel p = null;
 					if (tab == d.scroll_zdispl) {
 						al = d.layer.getParent().getZDisplayables();
-						p = d.panel_zdispl;
 					} else if (tab == d.scroll_patches) {
 						al = d.layer.getDisplayables(Patch.class);
-						p = d.panel_patches;
 					} else if (tab == d.scroll_labels) {
 						al = d.layer.getDisplayables(DLabel.class);
-						p = d.panel_labels;
 					} else if (tab == d.scroll_profiles) {
 						al = d.layer.getDisplayables(Profile.class);
-						p = d.panel_profiles;
 					} else if (tab == d.scroll_layers) {
 						// nothing to do
 						return;
@@ -314,9 +307,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						// Choose according to tool
 						d.updateToolTab();
 						return;
+					} else {
+						// Not a TrakEM2-controlled tab
+						return;
 					}
 
-					d.updateTab(p, al);
+					d.updateTab((JScrollPane)tab, al);
 
 					if (null != d.active) {
 						// set the transp slider to the alpha value of the active Displayable if any
@@ -723,22 +719,19 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.tabs.addChangeListener(tabs_listener);
 
 		// Tab 1: Patches
-		this.panel_patches = makeTabPanel();
-		this.scroll_patches = makeScrollPane(panel_patches);
+		this.scroll_patches = makeScrollPane(makeTabPanel());
 		this.addTab("Patches", scroll_patches);
 
 		// Tab 2: Profiles
-		this.panel_profiles = makeTabPanel();
-		this.scroll_profiles = makeScrollPane(panel_profiles);
+		this.scroll_profiles = makeScrollPane(makeTabPanel());
 		this.addTab("Profiles", scroll_profiles);
 
 		// Tab 3: pipes
-		this.panel_zdispl = makeTabPanel();
-		this.scroll_zdispl = makeScrollPane(panel_zdispl);
+		this.scroll_zdispl = makeScrollPane(makeTabPanel());
 		this.addTab("Z space", scroll_zdispl);
 
 		// Tab 4: channels
-		this.panel_channels = makeTabPanel();
+		JPanel panel_channels = makeTabPanel();
 		this.scroll_channels = makeScrollPane(panel_channels);
 		this.channels = new Channel[4];
 		this.channels[0] = new Channel(this, Channel.MONO);
@@ -746,14 +739,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.channels[2] = new Channel(this, Channel.GREEN);
 		this.channels[3] = new Channel(this, Channel.BLUE);
 		//this.panel_channels.add(this.channels[0]);
-		this.panel_channels.add(this.channels[1]);
-		this.panel_channels.add(this.channels[2]);
-		this.panel_channels.add(this.channels[3]);
+		panel_channels.add(this.channels[1]);
+		panel_channels.add(this.channels[2]);
+		panel_channels.add(this.channels[3]);
 		this.addTab("Opacity", scroll_channels);
 
 		// Tab 5: labels
-		this.panel_labels = makeTabPanel();
-		this.scroll_labels = makeScrollPane(panel_labels);
+		this.scroll_labels = makeScrollPane(makeTabPanel());
 		this.addTab("Labels", scroll_labels);
 
 		// Tab 6: layers
@@ -950,7 +942,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 
 		Utils.invokeLater(new Runnable() { public void run() {
-			updateTab(panel_patches, layer.getDisplayables(Patch.class));
+			updateTab(scroll_patches, layer.getDisplayables(Patch.class));
 			Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
 		}});
 
@@ -1254,22 +1246,22 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			switch (tabs.getSelectedIndex()) {
 			case 0:
 				ht_panels.clear();
-				updateTab(panel_patches, layer.getDisplayables(Patch.class));
+				updateTab(scroll_patches, layer.getDisplayables(Patch.class));
 				break;
 			case 1:
 				ht_panels.clear();
-				updateTab(panel_profiles, layer.getDisplayables(Profile.class));
+				updateTab(scroll_profiles, layer.getDisplayables(Profile.class));
 				break;
 			case 2:
 				if (set_zdispl) {
 					ht_panels.clear();
-					updateTab(panel_zdispl, layer.getParent().getZDisplayables());
+					updateTab(scroll_zdispl, layer.getParent().getZDisplayables());
 				}
 				break;
 				// case 3: channel opacities
 			case 4:
 				ht_panels.clear();
-				updateTab(panel_labels, layer.getDisplayables(DLabel.class));
+				updateTab(scroll_labels, layer.getDisplayables(DLabel.class));
 				break;
 				// case 5: layer panels
 			}
@@ -1282,16 +1274,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (!ControlWindow.isGUIEnabled()) return;
 		Utils.invokeLater(new Runnable() { public void run() {
 			// empty the tabs, except channels and pipes
-			clearTab(panel_profiles);
-			clearTab(panel_patches);
-			clearTab(panel_labels);
+			clearTab(scroll_profiles);
+			clearTab(scroll_patches);
+			clearTab(scroll_labels);
 			// distribute Displayable to the tabs. Ignore LayerSet instances.
 			if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
 			else ht_panels.clear();
 			for (final Displayable d : layer.getParent().getZDisplayables()) {
 				d.setLayer(layer);
 			}
-			updateTab(panel_patches, layer.getDisplayables(Patch.class));
+			updateTab(scroll_patches, layer.getDisplayables(Patch.class));
 			navigator.repaint(true); // was not done when adding
 			Utils.updateComponent(tabs.getSelectedComponent());
 			//
@@ -1300,8 +1292,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	/** Remove all components from the tab. */
-	private void clearTab(final Container c) {
-		c.removeAll();
+	private void clearTab(final JScrollPane c) {
+		c.getViewport().removeAll();
 		// magic cocktail:
 		if (tabs.getSelectedComponent() == c) {
 			Utils.updateComponent(c);
@@ -1418,6 +1410,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Release all resources held by this Display and close the frame. */
 	protected void destroy() {
+		tab_updater.interrupt();
 		// Set a new front if any and remove from the list of open Displays
 		removeDisplay(this);
 		// Inactivate this Display:
@@ -2253,45 +2246,115 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	@SuppressWarnings("unused")
 	private void selectTab(Stack d) { selectTab((ZDisplayable)d); }
 
+	private final class TabUpdater extends Thread {
+		JScrollPane tab;
+		ArrayList<? extends Displayable> al;
+
+		TabUpdater() {
+			setPriority(Thread.NORM_PRIORITY);
+			setDaemon(true);
+			start();
+		}
+		
+		private void update(final JScrollPane tab, final ArrayList<? extends Displayable> al) {
+			synchronized (this) {
+				this.tab = tab;
+				this.al = al;
+				notify();
+			}
+		}
+		public void run() {
+			while (!isInterrupted()) {
+				final JScrollPane tab;
+				final ArrayList<? extends Displayable> al;
+				synchronized (this) {
+					tab = this.tab;
+					al = this.al;
+					this.tab = null;
+					this.al = null;
+				}
+				if (null != tab) {
+					final JPanel fresh = Display.this.update(tab, al);
+					Utils.log2("got fresh " + fresh);
+					if (null != fresh) {
+						try {
+							SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+								Utils.log2("setting fresh " + fresh + " to tab " + tab);
+								tab.getViewport().setView(fresh);
+								Utils.updateComponent(tabs);
+								final Displayable active = Display.this.active;
+								if (null != active) scrollToShow(active);
+							}});
+						} catch (InterruptedException e) {
+							return;
+						} catch (InvocationTargetException e) {
+							IJError.print(e);
+							return;
+						}
+					}
+				}
+				synchronized (this) {
+					if (null == this.tab) {
+						try { wait(); } catch (InterruptedException ie) { return; }
+					}
+				}
+			}
+			Utils.log2("TabUpdater Thread died");
+		}
+	}
+
+	private TabUpdater tab_updater = new TabUpdater();
+
 	/** A method to update the given tab, creating a new DisplayablePanel
 	 * for each Displayable present in the given ArrayList, and storing it
 	 * in the ht_panels (which is cleared first).
 	 * Must be invoked in the event dispatch thread. */
-	private void updateTab(final JPanel tab, final ArrayList<? extends Displayable> al) {
-		if (null == al) return;
+	private void updateTab(final JScrollPane tab, final ArrayList<? extends Displayable> al) {
+		tab_updater.update(tab, al);
+	}
+	
+	private JPanel update(final JScrollPane tab, final ArrayList<? extends Displayable> al) {
+		if (null == al) return null;
 		try {
+			final JPanel old = (JPanel) tab.getViewport().getView();
+			Utils.log2("old is: " + old);
 			if (0 == al.size()) {
-				tab.removeAll();
-			} else {
-				Component[] comp = tab.getComponents();
-				int next = 0;
-				if (1 == comp.length && comp[0].getClass() == JLabel.class) {
-					next = 1;
-					tab.remove(0);
+				if (null != old) {
+					SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						old.removeAll();
+					}});
 				}
-				// In reverse order:
-				for (ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
-					Displayable d = it.previous();
-					DisplayablePanel dp = null;
-					if (next < comp.length) {
-						dp = (DisplayablePanel)comp[next++]; // recycling panels
-						dp.set(d);
-					} else {
+				return null;
+			} else {
+				final Component[] comp;
+				if (null == old) {
+					comp = null;
+				} else {
+					comp = old.getComponents();
+					SwingUtilities.invokeAndWait(new Runnable() { public void run() {
+						old.removeAll();
+					}});
+				}
+				final JPanel fresh = makeTabPanel();
+				// Add reused DisplayablePanel instances to the new one
+				int next = 0;
+				for (final ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
+					final Displayable d = it.previous();
+					final DisplayablePanel dp;
+					if (null == comp || next >= comp.length) {
 						dp = new DisplayablePanel(Display.this, d);
-						tab.add(dp);
+					} else {
+						dp = (DisplayablePanel) comp[next++]; // recycling panels
+						dp.set(d);
 					}
+					fresh.add(dp);
 					ht_panels.put(d, dp);
 				}
-				if (next < comp.length) {
-					// remove from the end, to avoid potential repaints of other panels
-					for (int i=comp.length-1; i>=next; i--) {
-						tab.remove(i);
-					}
-				}
+				Utils.log2("return fresh: " + fresh);
+				return fresh;
 			}
-			Utils.updateComponent(tabs);
-			if (null != Display.this.active) scrollToShow(Display.this.active);
 		} catch (Throwable e) { IJError.print(e); }
+		return null;
 	}
 
 	static public void setActive(final Object event, final Displayable displ) {
@@ -3715,19 +3778,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	private void updatePanel(Displayable d) {
-		JPanel c = null;
-		if (d instanceof Profile) {
-			c = panel_profiles;
-		} else if (d instanceof Patch) {
-			c = panel_patches;
-		} else if (d instanceof DLabel) {
-			c = panel_labels;
-		} else if (d instanceof Pipe) {
-			c = panel_zdispl;
-		}
+	private void updatePanel(final Displayable d) {
+		final JScrollPane c = ht_tabs.get(d.getClass());
 		if (null == c) return;
-		DisplayablePanel dp = ht_panels.get(d);
+		final DisplayablePanel dp = ht_panels.get(d);
 		if (null != dp) {
 			dp.repaint();
 			Utils.updateComponent(c);
@@ -3744,7 +3798,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private void updatePanelIndex(final Displayable d) {
 		Utils.invokeLater(new Runnable() { public void run() {
-			updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(),
+			updateTab(ht_tabs.get(d.getClass()),
 					ZDisplayable.class.isAssignableFrom(d.getClass()) ?
 							layer.getParent().getZDisplayables()
 							: layer.getDisplayables(d.getClass()));
@@ -5254,7 +5308,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (channel != channels[i]) channels[i].setActive(false);
 			else channel.setActive(true);
 		}
-		Utils.updateComponent(panel_channels);
+		Utils.updateComponent(scroll_channels);
 		transp_slider.setValue((int)(channel.getAlpha() * 100));
 	}
 
