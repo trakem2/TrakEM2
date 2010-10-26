@@ -3497,28 +3497,27 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return root.getBranchAndEndNodes();
 	}
 
-	static private final<T> Vertex[] findNeighbors(final Node<T> node, final HashMap<Node<T>,Vertex> m) {
+	static private final<T> Collection<Vertex<Node<T>>> findNeighbors(final Node<T> node, final HashMap<Node<T>,Vertex<Node<T>>> m) {
 		final Node<T> parent = node.getParent();
-		final Vertex[] neighbors = new Vertex[(null == parent ? 0 : 1) + node.getChildrenCount()];
-		int next = 0;
-		if (null != parent) neighbors[next++] = m.get(parent);
+		final Collection<Vertex<Node<T>>> neighbors = new ArrayList<Vertex<Node<T>>>();
+		if (null != parent) neighbors.add(m.get(parent));
 		for (final Node<T> child : node.getChildrenNodes()) {
-			neighbors[next++] = m.get(child);
+			neighbors.add(m.get(child));
 		}
 		return neighbors;
 	}
-	
+
 	/** Return a representation of this Tree with Vertex instead of Node. */
-	public HashMap<Node<T>,Vertex> asVertices() {
-		final HashMap<Node<T>,Vertex> m = new HashMap<Node<T>,Vertex>();
+	public HashMap<Node<T>,Vertex<Node<T>>> asVertices() {
+		final HashMap<Node<T>,Vertex<Node<T>>> m = new HashMap<Node<T>,Vertex<Node<T>>>();
 		if (null == root) return m;
 		// Create one Vertex per Node<T>
 		for (final Node<T> node : this.getRoot().getSubtreeNodes()) {
-			m.put(node, new Vertex());
+			m.put(node, new Vertex<Node<T>>(node));
 		}
 		// Determine the neighbors of that Vertex
-		for (final Map.Entry<Node<T>,Vertex> e : m.entrySet()) {
-			e.getValue().neighbors = findNeighbors(e.getKey(), m);
+		for (final Map.Entry<Node<T>,Vertex<Node<T>>> e : m.entrySet()) {
+			e.getValue().neighbors.addAll(findNeighbors(e.getKey(), m));
 		}
 		return m;
 	}
@@ -3529,10 +3528,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final HashMap<Node<T>,Float> cs = new HashMap<Node<T>,Float>();
 		if (null == root) return cs;
 
-		final HashMap<Node<T>,Vertex> m = asVertices();
+		final HashMap<Node<T>,Vertex<Node<T>>> m = asVertices();
 		Centrality.compute(m.values());
 		
-		for (final Map.Entry<Node<T>,Vertex> e : m.entrySet()) {
+		for (final Map.Entry<Node<T>,Vertex<Node<T>>> e : m.entrySet()) {
 			cs.put(e.getKey(), e.getValue().centrality);
 		}
 		return cs;
