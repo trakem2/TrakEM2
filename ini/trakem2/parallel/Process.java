@@ -42,6 +42,9 @@ public class Process {
 			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
 			for (final I input : inputs) {
+				if (Thread.currentThread().isInterrupted()) {
+					return;
+				}
 				fus.add(exec.submit(generator.create(input)));
 				if (bound) while (fus.size() > ahead) {
 					// wait
@@ -78,6 +81,9 @@ public class Process {
 			final LinkedList<Future<O>> fus = new LinkedList<Future<O>>();
 			final int ahead = Math.max(nproc + nproc, MIN_AHEAD);
 			for (final I input : inputs) {
+				if (Thread.currentThread().isInterrupted()) {
+					return;
+				}
 				fus.add(exec.submit(generator.create(input)));
 				if (bound) while (fus.size() > ahead) {
 					fus.removeFirst().get();
