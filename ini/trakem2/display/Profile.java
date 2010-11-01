@@ -25,7 +25,6 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -966,9 +965,8 @@ public class Profile extends Displayable implements VectorData {
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			int ii = 0;
 			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				data.append(((DBObject)ob).getId());
+			for (final Displayable d : hs_linked) {
+				data.append(d.getId());
 				if (ii != len-1) data.append(',');
 				ii++;
 			}
@@ -997,8 +995,7 @@ public class Profile extends Displayable implements VectorData {
 	/** Returns true if it's linked to at least one patch in the same Layer. Otherwise returns false. */
 	public boolean isLinked() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			if (d instanceof Patch && d.layer.equals(this.layer)) return true;
 		}
 		return false;
@@ -1007,8 +1004,7 @@ public class Profile extends Displayable implements VectorData {
 	/** Returns false if the target_layer contains a profile that is directly linked to this profile. */
 	public boolean canSendTo(Layer target_layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			if (d instanceof Profile && d.layer.equals(target_layer)) return false;
 		}
 		return true;
@@ -1309,7 +1305,7 @@ public class Profile extends Displayable implements VectorData {
 		sb_body.append(indent).append("</t2_profile>\n");
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_profile";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -1373,18 +1369,18 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	public void setColor(Color c) {
-		// propagate to al linked profiles within the same profile_list
-		setColor(c, new HashSet());
+		// propagate to all linked profiles within the same profile_list
+		setColor(c, new HashSet<Profile>());
 	}
 
 	/** Exploits the fact that Profile instances among the directly linked as returned by getLinked(Profile.class) will be members of the same profile_list. */
-	private void setColor(Color c, HashSet hs_done) {
+	private void setColor(Color c, HashSet<Profile> hs_done) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		super.setColor(c);
-		HashSet hs = getLinked(Profile.class);
+		HashSet<Displayable> hs = getLinked(Profile.class);
 		if (null != hs) {
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			for (Iterator<Displayable> it = hs.iterator(); it.hasNext(); ) {
 				Profile p = (Profile)it.next();
 				p.setColor(c, hs_done);
 			}
@@ -1428,11 +1424,11 @@ public class Profile extends Displayable implements VectorData {
 			return null;
 		}
 		// collect all Profile
-		final HashSet hs = new HashSet();
+		final HashSet<Profile> hs = new HashSet<Profile>();
 		for (final ProjectThing child : al) {
 			Object ob = child.getObject();
 			if (ob instanceof Profile) {
-				hs.add(ob);
+				hs.add((Profile)ob);
 			} else {
 				Utils.log2("Render: skipping non Profile class child");
 			}
@@ -1454,14 +1450,14 @@ public class Profile extends Displayable implements VectorData {
 		}
 		if (hidden) return null;
 		// collect starts and ends
-		final HashSet hs_bases = new HashSet();
-		final HashSet hs_done = new HashSet();
+		final HashSet<Profile> hs_bases = new HashSet<Profile>();
+		final HashSet<Profile> hs_done = new HashSet<Profile>();
 		final List<Point3f> triangles = new ArrayList<Point3f>();
 		do {
 			Profile base = null;
 			// choose among existing bases
 			if (hs_bases.size() > 0) {
-				base = (Profile)hs_bases.iterator().next();
+				base = hs_bases.iterator().next();
 			} else {
 				// find a new base, simply by taking the lowest Z or remaining profiles
 				double min_z = Double.MAX_VALUE;
@@ -1481,7 +1477,7 @@ public class Profile extends Displayable implements VectorData {
 				break;
 			}
 			// crawl list to get a sequence of profiles in increasing or decreasing Z order, but not mixed z trends
-			final ArrayList al_profiles = new ArrayList();
+			final ArrayList<Profile> al_profiles = new ArrayList<Profile>();
 			//Utils.log2("Calling accumulate for base " + base);
 			al_profiles.add(base);
 			final Profile last = accumulate(hs_done, al_profiles, base, 0);
@@ -1494,7 +1490,7 @@ public class Profile extends Displayable implements VectorData {
 				// create 3D object from base to base
 				final Profile[] profiles = new Profile[al_profiles.size()];
 				al_profiles.toArray(profiles);
-				List tri = makeTriangles(profiles, scale);
+				List<Point3f> tri = makeTriangles(profiles, scale);
 				if (null != tri) triangles.addAll(tri);
 			} else {
 				// remove base
@@ -1506,8 +1502,8 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Recursive; returns the last added profile. */
-	static private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
-		final HashSet hs_linked = step.getLinked(Profile.class);
+	static private Profile accumulate(final HashSet<Profile> hs_done, final ArrayList<Profile> al, final Profile step, int z_trend) {
+		final HashSet<Displayable> hs_linked = step.getLinked(Profile.class);
 		if (al.size() > 1 && hs_linked.size() > 2) {
 			// base found
 			return step;
@@ -1515,7 +1511,7 @@ public class Profile extends Displayable implements VectorData {
 		double step_z = step.getLayer().getZ();
 		Profile next_step = null;
 		boolean started = false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+		for (Iterator<Displayable> it = hs_linked.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
 			// loop only one cycle, to move only in one direction
 			if (al.contains(ob) || started || hs_done.contains(ob)) continue;
@@ -1700,7 +1696,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPProfile.class;
 	}
 
