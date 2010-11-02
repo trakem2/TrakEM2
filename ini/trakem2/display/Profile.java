@@ -981,15 +981,20 @@ public class Profile extends Displayable implements VectorData {
 		;
 	}
 
-	/** Returns a triple array, each containing a [2][n_points] array specifiying the x,y of each left control point, backbone point and right control point respectively.*/
+	/** Returns a triple array, each containing a [2][n_points] array
+	 *  specifiying the x,y of each left control point, backbone point
+	 *  and right control point respectively. All of them are copies. */
 	public double[][][] getBezierArrays() {
 		//assumes the profile is a Bezier curve.
 		//put points and control points into PGpoint objects, as: LPRLPRLPR... (L = left control point, P = backbone point, R = right control point)
 		if (-1 == n_points) setupForDisplay(); // reload
-		final double[][][] b = new double[3][][];
-		b[0] = p_l;
-		b[1] = p;
-		b[2] = p_r;
+		final double[][][] b = new double[3][2][];
+		b[0][0] = Utils.copy(p_l[0], n_points);
+		b[0][1] = Utils.copy(p_l[1], n_points);
+		b[1][0] = Utils.copy(p[0], n_points);
+		b[1][1] = Utils.copy(p[1], n_points);
+		b[2][0] = Utils.copy(p_r[0], n_points);
+		b[2][1] = Utils.copy(p_r[1], n_points);
 		return b;
 	}
 
