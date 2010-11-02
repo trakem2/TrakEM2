@@ -280,6 +280,11 @@ public class Profile extends Displayable implements VectorData {
 		this.p_l = p_l_copy;
 		this.p_r = p_r_copy;
 	}
+	
+	/** Returns the number of backbone points. */
+	public int getPointCount() {
+		return n_points;
+	}
 
 	public boolean isClosed() {
 		return this.closed;
