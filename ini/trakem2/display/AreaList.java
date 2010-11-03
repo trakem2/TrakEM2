@@ -124,11 +124,11 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		try {
 			if (layer_set.color_cues) {
 				original_composite = g.getComposite();
-				Color c = Color.red;
+				Color c = layer_set.use_color_cue_colors ? Color.red : this.color;
 				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(alpha, 0.25f)));
 				for (final Layer la : layers) {
 					if (active_layer == la) {
-						c = Color.blue;
+						c = layer_set.use_color_cue_colors ? Color.blue : this.color;
 						continue;
 					}
 					Area area = ht_areas.get(la.getId());

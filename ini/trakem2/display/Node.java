@@ -184,20 +184,30 @@ public abstract class Node<T> implements Taggable {
 			final double magnification, final Collection<Node<T>> to_paint,
 			final Tree<T> tree, final AffineTransform to_screen,
 			final boolean with_arrows, final boolean with_confidence_boxes,
-			final boolean with_data) {
+			final boolean with_data,
+			Color above, Color below) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
 		
 		final double actZ = active_layer.getZ();
 		final double thisZ = this.la.getZ();
-		final Color node_color = null == this.color ? tree.color : this.color; 
+		final Color node_color;
+		if (null == this.color) {
+			// this node doesn't have its color set, so use tree color and given above/below colors
+			node_color = tree.color;
+		} else {
+			node_color = this.color;
+			// Depth cue colors may not be in use:
+			if (tree.color == above) above = this.color;
+			if (tree.color == below) below = this.color;
+		}
 		// Which edge color?
 		final Color local_edge_color;
 		if (active_layer == this.la) {
 			local_edge_color = node_color;
 		} // default color
 		else if (actZ > thisZ) {
-			local_edge_color = Color.red;
-		} else if (actZ < thisZ) local_edge_color = Color.blue;
+			local_edge_color = below;
+		} else if (actZ < thisZ) local_edge_color = above;
 		else local_edge_color = node_color;
 
 		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color);
@@ -255,9 +265,9 @@ public abstract class Node<T> implements Taggable {
 					// Distal either red or blue:
 					Color c = local_edge_color;
 					// If other towards higher Z:
-					if (actZ < parent.la.getZ()) c = Color.blue;
+					if (actZ < parent.la.getZ()) c = above;
 					// If other towards lower Z:
-					else if (actZ > parent.la.getZ()) c = Color.red;
+					else if (actZ > parent.la.getZ()) c = below;
 					//
 					g.setColor(c);
 					g.drawLine(parent_x, parent_y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
@@ -271,19 +281,19 @@ public abstract class Node<T> implements Taggable {
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 				} else if (thisZ < actZ && actZ < parent.la.getZ()) {
 					// proximal half in red
-					g.setColor(Color.red);
+					g.setColor(below);
 					g.drawLine(x, y, parent_x + (x - parent_x)/2, (parent_y + (y - parent_y)/2));
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 					// distal half in blue
-					g.setColor(Color.blue);
+					g.setColor(above);
 					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, parent_x, parent_y);
 				} else if (thisZ > actZ && actZ > parent.la.getZ()) {
 					// proximal half in blue
-					g.setColor(Color.blue);
+					g.setColor(above);
 					g.drawLine(x, y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 					// distal half in red
-					g.setColor(Color.red);
+					g.setColor(below);
 					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, parent_x, parent_y);
 				} else if ((thisZ < actZ && parent.la.getZ() < actZ)
 						|| (thisZ > actZ && parent.la.getZ() > actZ)) {
@@ -335,13 +345,13 @@ public abstract class Node<T> implements Taggable {
 		}
 		return tagsTask; 
 	}	
-	
+
 	static private final Color receiver_color = Color.green.brighter();
 
 	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t) {
 		paintHandle(g, srcRect, magnification, t, false);
 	}
-	
+
 	/** Paint in the context of offscreen space, without transformations. */
 	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t, final boolean paint_background) {
 		final Point2D.Double po = t.transformPoint(this.x, this.y);

@@ -193,6 +193,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		AffineTransform gt = null;
 		Stroke stroke = null;
 
+		final int n_layers_color_cue = layer_set.n_layers_color_cue;
+		final Color below, above;
+		if (layer_set.use_color_cue_colors) {
+			below = Color.red;
+			above = Color.blue;
+		} else {
+			below = this.color;
+			above = this.color;
+		}
+
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
 			final Set<Node<T>> nodes = getNodesToPaint(active_layer, layers);
@@ -235,7 +245,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final ArrayList<Runnable> tags_tasks = new ArrayList<Runnable>();
 
 				for (final Node<T> nd : nodes) {
-					final Runnable task = nd.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes, true);
+					final Runnable task = nd.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes, true, above, below);
 					if (null != task) tags_tasks.add(task);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();

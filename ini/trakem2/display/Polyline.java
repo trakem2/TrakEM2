@@ -439,7 +439,16 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			n_points = p[0].length;
 		}
 
-		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+		final boolean no_color_cues = !layer_set.color_cues;
+		final Color below, above;
+		if (layer_set.use_color_cue_colors) {
+			below = Color.red;
+			above = Color.blue;
+		} else {
+			below = this.color;
+			above = this.color;
+		}
+
 		final long layer_id = active_layer.getId();
 		final double z_current = active_layer.getZ();
 
@@ -449,10 +458,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		boolean paint = true;
 		if (z < z_current) {
 			if (no_color_cues) paint = false;
-			else g.setColor(Color.red);
+			else g.setColor(below);
 		} else if (z == z_current) g.setColor(this.color);
 		else if (no_color_cues) paint = false;
-		else g.setColor(Color.blue);
+		else g.setColor(above);
 
 		// Paint half line:
 		if (paint && n_points > 1) {
@@ -482,10 +491,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			paint = true;
 			if (z < z_current) {
 				if (no_color_cues) paint = false;
-				else g.setColor(Color.red);
+				else g.setColor(below);
 			} else if (z == z_current) g.setColor(this.color);
 			else if (no_color_cues) paint = false;
-			else g.setColor(Color.blue);
+			else g.setColor(above);
 			if (!paint) continue;
 			// paint half line towards previous point:
 			g.drawLine((int)p[0][i], (int)p[1][i],

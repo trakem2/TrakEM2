@@ -4352,6 +4352,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
 			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
 			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
+			gd.addCheckbox("Use red/blue for color cues", layer.getParent().use_color_cue_colors);
 			gd.addCheckbox("Prepaint images", layer.getParent().prepaint);
 			// --------
 			gd.showDialog();
@@ -4383,6 +4384,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
 			layer.getParent().color_cues = gd.getNextBoolean();
 			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
+			layer.getParent().use_color_cue_colors = gd.getNextBoolean();
 			layer.getParent().prepaint = gd.getNextBoolean();
 			Display.repaint(layer.getParent());
 		} else if (command.equals("Adjust snapping parameters...")) {

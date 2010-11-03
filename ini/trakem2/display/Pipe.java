@@ -560,7 +560,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			p_width_i = (double[])ob[5];
 		}
 
-		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+		final boolean no_color_cues = !layer_set.color_cues;
+		final Color below, above;
+		if (layer_set.use_color_cue_colors) {
+			below = Color.red;
+			above = Color.blue;
+		} else {
+			below = this.color;
+			above = this.color;
+		}
 
 		final long layer_id = active_layer.getId();
 
@@ -645,9 +653,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					}
 				} else {
 					double z = layer_set.getLayer(p_layer[j]).getZ();
-					if (z < z_current) g.setColor(Color.red);
+					if (z < z_current) g.setColor(below);
 					else if (z == z_current) g.setColor(this.color);
-					else g.setColor(Color.blue);
+					else g.setColor(above);
 				}
 
 				int fi = 0;
