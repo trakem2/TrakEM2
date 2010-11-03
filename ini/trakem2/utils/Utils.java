@@ -103,7 +103,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.8j 2010-10-05";
+	static public String version = "0.8k 2010-11-03";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -354,15 +354,14 @@ public class Utils implements ij.plugin.PlugIn {
 		} else if (ob instanceof Object[]) {
 			final Object[] s = (Object[])ob;
 			for (int i=0; i<s.length; i++) sb.append(Utils.toString(s[i])).append(", ");
-		} else if (ob instanceof Iterable) {
-			final Iterable s = (Iterable)ob;
-			for (Iterator it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
-		} else if (ob instanceof Map) {
+		} else if (ob instanceof Iterable<?>) {
+			final Iterable<?> s = (Iterable<?>)ob;
+			for (Iterator<?> it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
+		} else if (ob instanceof Map<?,?>) {
 			sb.setCharAt(0, '{');
 			closing = '}';
-			final Map s = (Map)ob;
-			for (Iterator it = s.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry e = (Map.Entry)it.next();
+			final Map<?,?> s = (Map<?,?>)ob;
+			for (final Map.Entry<?,?> e : s.entrySet()) {
 				sb.append(Utils.toString(e.getKey())).append(" => ").append(Utils.toString(e.getValue())).append(", ");
 			}
 		} else if (ob instanceof long[]) {
@@ -956,7 +955,7 @@ public class Utils implements ij.plugin.PlugIn {
 		final int i_first = first.getParent().indexOf(first);
 		final int i_last = last.getParent().indexOf(last);
 		gd.addChoice("Start: ", layers, layers[i_first]);
-		final Vector v = gd.getChoices();
+		final Vector<?> v = gd.getChoices();
 		final Choice cstart = (Choice)v.get(v.size()-1);
 		gd.addChoice("End: ", layers, layers[i_last]);
 		final Choice cend = (Choice)v.get(v.size()-1);
