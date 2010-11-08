@@ -139,21 +139,19 @@ public class AreaWrapper {
 		final private int flags;
 		final private boolean adding;
 		private final Layer la;
-		private final AffineTransform at, at_inv;
+		private final Displayable source;
 		private final Object arealock = new Object(),
 							 pointslock = new Object();
 		private final ExecutorService accumulator;
 		private final ScheduledExecutorService composer;
 		private final ScheduledFuture<?> composition;
 		private final Runnable interpolator;
-		private final Displayable src = AreaWrapper.this.source; // local pointer copy
 
-		Painter(Area area, double mag, Layer la, AffineTransform at, final int flags) throws Exception {
+		Painter(final Area area, final double mag, final Layer la, final Displayable source, final int flags) throws Exception {
 			super("AreaWrapper.Painter");
 			setPriority(Thread.NORM_PRIORITY);
 			this.la = la;
-			this.at = at;
-			this.at_inv = at.createInverse();
+			this.source = source;
 			this.flags = flags;
 			this.adding = (0 == (flags & alt));
 			// if adding areas, make it be a copy, to be added on mouse release
@@ -181,6 +179,13 @@ public class AreaWrapper {
 						ps = new ArrayList<Point>(points);
 						points.clear();
 						points.add(ps.get(n_points -1)); // to start the next spline from the last point
+					}
+					final AffineTransform at_inv;
+					try {
+						at_inv = source.getAffineTransform().createInverse();
+					} catch (NoninvertibleTransformException nite) {
+						IJError.print(nite);
+						return;
 					}
 					if (n_points < 2) {
 						// No interpolation required
@@ -332,21 +337,21 @@ public class AreaWrapper {
 						if (PAINT_OVERLAP == PP.paint_mode) {
 							// Nothing happens with PAINT_OVERLAP, default mode.
 						} else {
-							final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(src.getAffineTransform()).getBounds(), true);
+							final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(source.getAffineTransform()).getBounds(), true);
 							
 							// prepare undo step:
 							final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
 
 							for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
 								final Displayable d = e.getKey();
-								if (src == d) continue;
+								if (source == d) continue;
 								for (final Area a : e.getValue()) {
 									if (this.area == a) continue;
 									AffineTransform aff;
 									switch (PP.paint_mode) {
 									case PAINT_ERODE:
 										// subtract this target_area from any other Area that overlaps with it
-										aff = new AffineTransform(this.at);
+										aff = new AffineTransform(this.source.getAffineTransform());
 										aff.preConcatenate(d.at.createInverse());
 										final Area ta;
 										final Rectangle ta_bounds;
@@ -363,7 +368,7 @@ public class AreaWrapper {
 									case PAINT_EXCLUDE:
 										// subtract all other overlapping Area from the target_area
 										aff = new AffineTransform(d.at);
-										aff.preConcatenate(this.at.createInverse());
+										aff.preConcatenate(this.source.getAffineTransform().createInverse());
 										final Area q = a.createTransformedArea(aff);
 										if (q.getBounds().intersects(target_area.getBounds())) {
 											target_area.subtract(q);
@@ -377,7 +382,7 @@ public class AreaWrapper {
 							}
 
 							if (null != ops && ops.size() > 0) {
-								src.getLayerSet().addDataEditStep(ops.keySet());
+								source.getLayerSet().addDataEditStep(ops.keySet());
 								for (final Runnable r : ops.values()) {
 									r.run();
 								}
@@ -394,6 +399,13 @@ public class AreaWrapper {
 		}
 		/** For best smoothness, each mouse dragged event should be captured!*/
 		public void run() {
+			final AffineTransform at_inv;
+			try {
+				 at_inv = source.getAffineTransform().createInverse();
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return;
+			}
 			// create brush
 			while (!isInterrupted()) {
 				// detect mouse up (don't use 'flags': was recorded on starting up)
@@ -673,7 +685,7 @@ public class AreaWrapper {
 					this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
 				}
 				try {
-					this.painter = new Painter(area, mag, la, source.getAffineTransformCopy(), me.getModifiers());
+					this.painter = new Painter(area, mag, la, source, me.getModifiers());
 				} catch (Exception e) {
 					Utils.log2("Oops: " + e);
 				}
@@ -849,7 +861,6 @@ public class AreaWrapper {
 				break;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
-		long layer_id = la.getId();
 		try {
 			switch (keyCode) {
 				case KeyEvent.VK_A:
