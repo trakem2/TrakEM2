@@ -633,7 +633,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final HashMap<Color,Color3f> cached_colors = new HashMap<Color, Color3f>();
 		final Color3f cf = new Color3f(this.color);
 		cached_colors.put(this.color, cf);
-		
+
 		boolean go = true;
 		while (go) {
 			final Node<T> node = todo.removeFirst();
@@ -675,7 +675,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 			}
 		}
-		Utils.log2("Skeleton MeshData lists of same length: " + (list.size() == colors.size()));
+		//Utils.log2("Skeleton MeshData lists of same length: " + (list.size() == colors.size()));
 		return new MeshData(list, colors);
 	}
 
