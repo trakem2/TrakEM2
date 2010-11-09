@@ -22,42 +22,62 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.persistence;
 
-import ij.IJ;
+import ini.trakem2.Project;
+import ini.trakem2.display.AreaList;
+import ini.trakem2.display.AreaTree;
+import ini.trakem2.display.Ball;
+import ini.trakem2.display.Connector;
+import ini.trakem2.display.DLabel;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Dissector;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Node;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Polyline;
+import ini.trakem2.display.Profile;
+import ini.trakem2.display.Stack;
+import ini.trakem2.display.Tag;
+import ini.trakem2.display.Taggable;
+import ini.trakem2.display.Tree;
+import ini.trakem2.display.Treeline;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.tree.DTDParser;
+import ini.trakem2.tree.LayerThing;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.TemplateThing;
+import ini.trakem2.tree.Thing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.ReconstructArea;
+import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
-
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.HashSet;
-import java.io.File;
-import java.util.regex.Pattern;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-
-import ini.trakem2.tree.*;
-import ini.trakem2.display.*;
-import ini.trakem2.utils.*;
-import ini.trakem2.Project;
-
-import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.SAXException;
-import org.xml.sax.SAXParseException;
-import org.xml.sax.InputSource;
-import org.xml.sax.Attributes;
+import java.util.regex.Pattern;
 
 import mpicbg.models.TransformList;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 import mpicbg.trakem2.transform.InvertibleCoordinateTransformList;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.SAXException;
+import org.xml.sax.SAXParseException;
+import org.xml.sax.helpers.DefaultHandler;
 
 /** Creates the project objects from an XML file (TrakEM2 Markup Language Handler). */
 public class TMLHandler extends DefaultHandler {
@@ -71,19 +91,18 @@ public class TMLHandler extends DefaultHandler {
 	private Project project = null;
 	private final FSLoader loader;
 	private boolean skip = false;
-	private String base_dir;
-	private String xml_path;
+	//private String base_dir;
+	//private String xml_path;
 	/** Stores the object and its String with coma-separated links, to construct links when all objects exist. */
 	final private HashMap<Displayable,String> ht_links = new HashMap<Displayable,String>();
 
-	private Thing current_thing = null;
-	final private ArrayList al_open = new ArrayList();
+	final private ArrayList<Thing> al_open = new ArrayList<Thing>();
 	final private ArrayList<Layer> al_layers = new ArrayList<Layer>();
 	final private ArrayList<LayerSet> al_layer_sets = new ArrayList<LayerSet>();
-	final private ArrayList<HashMap> al_displays = new ArrayList<HashMap>(); // contains HashMap instances with display data.
+	final private ArrayList<HashMap<String,String>> al_displays = new ArrayList<HashMap<String,String>>(); // contains HashMap instances with display data.
 	/** To accumulate Displayable types for relinking and assigning their proper layer. */
 	final private HashMap<Long,Displayable> ht_displayables = new HashMap<Long,Displayable>();
-	final private HashMap<Long,Displayable> ht_zdispl = new HashMap<Long,Displayable>();
+	final private HashMap<Long,ZDisplayable> ht_zdispl = new HashMap<Long,ZDisplayable>();
 	final private HashMap<Long,ProjectThing> ht_oid_pt = new HashMap<Long,ProjectThing>();
 	final private HashMap<ProjectThing,Boolean> ht_pt_expanded = new HashMap<ProjectThing,Boolean>();
 	private Ball last_ball = null;
@@ -117,8 +136,8 @@ public class TMLHandler extends DefaultHandler {
 	 */
 	public TMLHandler(final String path, FSLoader loader) {
 		this.loader = loader;
-		this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
-		this.xml_path = path;
+		//this.base_dir = path.substring(0, path.lastIndexOf('/') + 1); // not File.separatorChar: TrakEM2 uses '/' always
+		//this.xml_path = path;
 		final TemplateThing[] tt;
 		try {
 			tt = DTDParser.extractTemplate(path);
@@ -188,11 +207,10 @@ public class TMLHandler extends DefaultHandler {
 		this.open_displays = open_displays;
 		// 1 - Reconstruct links using ht_links
 		// Links exist between Displayable objects.
-		for (Iterator it = ht_displayables.values().iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
-			Object olinks = ht_links.get(d);
+		for (final Displayable d : ht_displayables.values()) {
+			String olinks = ht_links.get(d);
 			if (null == olinks) continue; // not linked
-			String[] links = ((String)olinks).split(",");
+			String[] links = olinks.split(",");
 			Long lid = null;
 			for (int i=0; i<links.length; i++) {
 				try {
@@ -201,7 +219,7 @@ public class TMLHandler extends DefaultHandler {
 					Utils.log2("Ignoring incorrectly formated link '" + links[i] + "' for ob " + d);
 					continue;
 				}
-				Displayable partner = (Displayable)ht_displayables.get(lid);
+				Displayable partner = ht_displayables.get(lid);
 				if (null != partner) d.link(partner, false);
 				else Utils.log("TMLHandler: can't find partner with id=" + links[i] + " for Displayable with id=" + d.getId());
 			}
@@ -211,7 +229,7 @@ public class TMLHandler extends DefaultHandler {
 		for (final Map.Entry<Displayable,Map<Long,Map<String,String>>> lpe : all_linked_props.entrySet()) {
 			final Displayable origin = lpe.getKey();
 			for (final Map.Entry<Long,Map<String,String>> e : lpe.getValue().entrySet()) {
-				final Displayable target = (Displayable)ht_displayables.get(e.getKey());
+				final Displayable target = ht_displayables.get(e.getKey());
 				if (null == target) {
 					Utils.log("Setting linked properties for origin " + origin.getId() + ":\n\t* Could not find target displayable #" + e.getKey());
 					continue;
@@ -221,11 +239,9 @@ public class TMLHandler extends DefaultHandler {
 		}
 
 		// 2 - Add Displayable objects to ProjectThing that can contain them
-		for (Iterator it = ht_oid_pt.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			Long lid = (Long)entry.getKey();
-			ProjectThing pt = (ProjectThing)entry.getValue();
-			Object od = ht_displayables.remove(lid);
+		for (final Map.Entry<Long,ProjectThing> entry : ht_oid_pt.entrySet()) {
+			ProjectThing pt = entry.getValue();
+			Object od = ht_displayables.remove(entry.getKey());
 			//Utils.log("==== processing: Displayable [" + od + "]  vs. ProjectThing [" + pt + "]");
 			if (null != od) {
 				pt.setObject(od);
@@ -243,8 +259,7 @@ public class TMLHandler extends DefaultHandler {
 		*/
 
 		// 3 - Assign a layer pointer to ZDisplayable objects
-		for (Iterator it = ht_zdispl.values().iterator(); it.hasNext(); ) {
-			ZDisplayable zd = (ZDisplayable)it.next();
+		for (final ZDisplayable zd : ht_zdispl.values()) {
 			//zd.setLayer((Layer)zd.getLayerSet().getLayers().get(0));
 			zd.setLayer(zd.getLayerSet().getLayer(0));
 		}
@@ -311,10 +326,10 @@ public class TMLHandler extends DefaultHandler {
 			final List<Future<?>> fus = new ArrayList<Future<?>>();
 			final List<Future<?>> fus2 = new ArrayList<Future<?>>();
 
-			for (final HashMap ht_attributes : al_displays) {
-				Object ob = ht_attributes.get("layer_id");
+			for (final HashMap<String,String> ht_attributes : al_displays) {
+				String ob = ht_attributes.get("layer_id");
 				if (null == ob) continue;
-				final Long lid = new Long((String)ob);
+				final Long lid = new Long(ob);
 				dlids.add(lid);
 				final Layer la = ht_lids.get(lid);
 				if (null == la) {
@@ -322,7 +337,7 @@ public class TMLHandler extends DefaultHandler {
 					continue;
 				}
 				// to open later:
-				new Display(project, Long.parseLong((String)ht_attributes.get("id")), la, ht_attributes);
+				new Display(project, Long.parseLong(ht_attributes.get("id")), la, ht_attributes);
 				fus.add(exec.submit(new Runnable() { public void run() {
 					la.recreateBuckets();
 				}}));
@@ -428,7 +443,7 @@ public class TMLHandler extends DefaultHandler {
 					return;
 				}
 				// Create the project
-				this.project = new Project(Long.parseLong(ht_attributes.remove("id")), (String)ht_attributes.remove("title"));
+				this.project = new Project(Long.parseLong(ht_attributes.remove("id")), ht_attributes.remove("title"));
 				this.project.setTempLoader(this.loader); // temp, but will be the same anyway
 				this.project.parseXMLOptions(ht_attributes);
 				this.project.addToDatabase(); // register id
@@ -436,7 +451,7 @@ public class TMLHandler extends DefaultHandler {
 				if (null != title) this.project.setTitle(title);
 				// Add all unique TemplateThing types to the project
 				for (Iterator<TemplateThing> it = root_tt.getUniqueTypes(new HashMap<String,TemplateThing>()).values().iterator(); it.hasNext(); ) {
-					this.project.addUniqueType((TemplateThing)it.next());
+					this.project.addUniqueType(it.next());
 				}
 				this.project.addUniqueType(this.project_tt);
 				this.root_pt = new ProjectThing(this.project_tt, this.project, this.project);
@@ -453,7 +468,7 @@ public class TMLHandler extends DefaultHandler {
 				// get the previously open thing and add this new_thing to it as a child
 				int size = al_open.size();
 				if (size > 0) {
-					Thing parent = (Thing)al_open.get(size -1);
+					Thing parent = al_open.get(size -1);
 					parent.addChild(thing);
 					//Utils.log2("Adding child " + thing + " to parent " + parent);
 				}
@@ -482,9 +497,9 @@ public class TMLHandler extends DefaultHandler {
 		}
 
 		for (int i=al_open.size() -1; i>-1; i--) {
-			Thing thing = (Thing)al_open.get(i);
+			Thing thing = al_open.get(i);
 			if (thing.getType().toLowerCase().equals(qualified_name)) {
-				al_open.remove(thing);
+				al_open.remove(i);
 				break;
 			}
 		}
@@ -641,14 +656,14 @@ public class TMLHandler extends DefaultHandler {
 
 	private void addToLastOpenLayer(Displayable d) {
 		// find last open layer
-		for (int i = al_layers.size() -1; i>-1; i--) {
-			((Layer)al_layers.get(i)).addSilently(d);
+		for (int i = al_layers.size() -1; i>-1;) {
+			al_layers.get(i).addSilently(d);
 			break;
 		}
 	}
 	private void addToLastOpenLayerSet(ZDisplayable zd) {
 		// find last open layer set
-		for (int i = al_layer_sets.size() -1; i>-1; i--) {
+		for (int i = al_layer_sets.size() -1; i>-1;) {
 			al_layer_sets.get(i).addSilently(zd);
 			break;
 		}
@@ -656,8 +671,8 @@ public class TMLHandler extends DefaultHandler {
 
 	final private Map<Displayable,Map<Long,Map<String,String>>> all_linked_props = new HashMap<Displayable,Map<Long,Map<String,String>>>();
 
-	private void putLinkedProperty(final Displayable origin, final HashMap ht_attributes) {
-		final String stid = (String)ht_attributes.get("target_id");
+	private void putLinkedProperty(final Displayable origin, final HashMap<String,String> ht_attributes) {
+		final String stid = ht_attributes.get("target_id");
 		if (null == stid) {
 			Utils.log2("Can't setLinkedProperty to null target id for origin Displayable " + origin.getId());
 			return;
@@ -669,8 +684,8 @@ public class TMLHandler extends DefaultHandler {
 			Utils.log2("Unparseable target_id: " + stid + ", for origin " + origin.getId());
 			return;
 		}
-		String key = (String)ht_attributes.get("key");
-		String value = (String)ht_attributes.get("value");
+		String key = ht_attributes.get("key");
+		String value = ht_attributes.get("value");
 		if (null == key || null == value) {
 			Utils.log("Skipping linked property for Displayable " + origin.getId() + ": null key or value");
 			return;
@@ -726,7 +741,7 @@ public class TMLHandler extends DefaultHandler {
 					last_root_node = node;
 				} else {
 					final String sconf = ht_attributes.get("c");
-					((Node)nodes.getLast()).add(node, null == sconf ? Node.MAX_EDGE_CONFIDENCE : Byte.parseByte(sconf));
+					nodes.getLast().add((Node)node, null == sconf ? Node.MAX_EDGE_CONFIDENCE : Byte.parseByte(sconf));
 				}
 				// color?
 				final String scolor = ht_attributes.get("color");
@@ -783,14 +798,14 @@ public class TMLHandler extends DefaultHandler {
 				return null;
 			} else if (type.equals("path")) {
 				if (null != reca) {
-					reca.add((String)ht_attributes.get("d"));
+					reca.add(ht_attributes.get("d"));
 					return null;
 				}
 				return null;
 			} else if (type.equals("area")) {
 				reca = new ReconstructArea();
 				if (null != last_area_list) {
-					last_area_list_layer_id = Long.parseLong((String)ht_attributes.get("layer_id"));
+					last_area_list_layer_id = Long.parseLong(ht_attributes.get("layer_id"));
 				}
 				return null;
 			} else if (type.equals("area_list")) {
@@ -814,10 +829,10 @@ public class TMLHandler extends DefaultHandler {
 			} else if (type.equals("ball_ob")) {
 				// add a ball to the last open Ball
 				if (null != last_ball) {
-					last_ball.addBall(Double.parseDouble((String)ht_attributes.get("x")),
-								   Double.parseDouble((String)ht_attributes.get("y")),
-								   Double.parseDouble((String)ht_attributes.get("r")),
-								   Long.parseLong((String)ht_attributes.get("layer_id")));
+					last_ball.addBall(Double.parseDouble(ht_attributes.get("x")),
+								   Double.parseDouble(ht_attributes.get("y")),
+								   Double.parseDouble(ht_attributes.get("r")),
+								   Long.parseLong(ht_attributes.get("layer_id")));
 				}
 				return null;
 			} else if (type.equals("ball")) {
@@ -858,9 +873,9 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet(art);
 			} else if (type.equals("dd_item")) {
 				if (null != last_dissector) {
-					last_dissector.addItem(Integer.parseInt((String)ht_attributes.get("tag")),
-							       Integer.parseInt((String)ht_attributes.get("radius")),
-							       (String)ht_attributes.get("points"));
+					last_dissector.addItem(Integer.parseInt(ht_attributes.get("tag")),
+							       Integer.parseInt(ht_attributes.get("radius")),
+							       ht_attributes.get("points"));
 				}
 			} else if (type.equals("label")) {
 				DLabel label = new DLabel(project, oid, ht_attributes, ht_links);
@@ -890,8 +905,8 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayerSet(dissector);
 			} else if (type.equals("layer")) {
 				// find last open LayerSet, if any
-				for (int i = al_layer_sets.size() -1; i>-1; i--) {
-					LayerSet set = (LayerSet)al_layer_sets.get(i);
+				for (int i = al_layer_sets.size() -1; i>-1;) {
+					LayerSet set = al_layer_sets.get(i);
 					Layer layer = new Layer(project, oid, ht_attributes);
 					layer.addToDatabase();
 					set.addSilently(layer);
@@ -910,15 +925,15 @@ public class TMLHandler extends DefaultHandler {
 				return new LayerThing(template_layer_set_thing, project, -1, (null == ot ? null : (String)ot), set, null);
 			} else if (type.equals("calibration")) {
 				// find last open LayerSet if any
-				for (int i = al_layer_sets.size() -1; i>-1; i--) {
-					LayerSet set = (LayerSet)al_layer_sets.get(i);
+				for (int i = al_layer_sets.size() -1; i>-1;) {
+					LayerSet set = al_layer_sets.get(i);
 					set.restoreCalibration(ht_attributes);
 					return null;
 				}
 			} else if (type.equals("prop")) {
 				// Add property to last created Displayable
 				if (null != last_displayable) {
-					last_displayable.setProperty((String)ht_attributes.get("key"), (String)ht_attributes.get("value"));
+					last_displayable.setProperty(ht_attributes.get("key"), ht_attributes.get("value"));
 				}
 			} else if (type.equals("linked_prop")) {
 				// Add linked property to last created Displayable. Has to wait until the Displayable ids have been resolved to instances.
@@ -935,7 +950,7 @@ public class TMLHandler extends DefaultHandler {
 		return null;
 	}
 
-	final private void makeCoordinateTransform( String type, final HashMap ht_attributes )
+	final private void makeCoordinateTransform( String type, final HashMap<String,String> ht_attributes )
 	{
 		try
 		{
@@ -943,8 +958,8 @@ public class TMLHandler extends DefaultHandler {
 			
 			if ( type.equals( "ict_transform" ) )
 			{
-				final CoordinateTransform ct = ( CoordinateTransform )Class.forName( ( String )ht_attributes.get( "class" ) ).newInstance();
-				ct.init( ( String )ht_attributes.get( "data" ) );
+				final CoordinateTransform ct = ( CoordinateTransform )Class.forName( ht_attributes.get( "class" ) ).newInstance();
+				ct.init( ht_attributes.get( "data" ) );
 				if ( ct_list_stack.isEmpty() )
 				{
 					if ( last_patch != null )
@@ -957,8 +972,8 @@ public class TMLHandler extends DefaultHandler {
 			}
 			else if ( type.equals( "iict_transform" ) )
 			{
-				final InvertibleCoordinateTransform ict = ( InvertibleCoordinateTransform )Class.forName( ( String )ht_attributes.get( "class" ) ).newInstance();
-				ict.init( ( String )ht_attributes.get( "data" ) );
+				final InvertibleCoordinateTransform ict = ( InvertibleCoordinateTransform )Class.forName( ht_attributes.get( "class" ) ).newInstance();
+				ict.init( ht_attributes.get( "data" ) );
 				if ( ct_list_stack.isEmpty() )
 				{
 					if ( last_patch != null )
@@ -1001,16 +1016,16 @@ public class TMLHandler extends DefaultHandler {
 		catch ( Exception e ) { IJError.print(e); }
 	}
 
-	private final Node<?> parseBranch(String s) {
+	private final Node<Float> parseBranch(final String s) {
 		// 1 - Parse the slab
 		final int first = s.indexOf('(');
 		final int last = s.indexOf(')', first+1);
 		final String[] coords = s.substring(first+1, last).split(" ");
-		Node<?> prev = null;
-		final List<Node<?>> nodes = new ArrayList<Node<?>>();
+		Node<Float> prev = null;
+		final List<Node<Float>> nodes = new ArrayList<Node<Float>>();
 		for (int i=0; i<coords.length; i+=3) {
 			long lid = Long.parseLong(coords[i+2]);
-			Node nd = new Treeline.RadiusNode(Float.parseFloat(coords[i]), Float.parseFloat(coords[i+1]), null);
+			Node<Float> nd = new Treeline.RadiusNode(Float.parseFloat(coords[i]), Float.parseFloat(coords[i+1]), null);
 			nd.setData(0f);
 			nodes.add(nd);
 			// Add to node_layer_table for later assignment of a Layer object to the node
@@ -1045,7 +1060,7 @@ public class TMLHandler extends DefaultHandler {
 				// Add the root node of the new branch to the node at branch index
 				int openbranch = s.indexOf('{', open+1);
 				int branchindex = Integer.parseInt(s.substring(open+1, openbranch-1));
-				((Node)nodes.get(branchindex)).add(parseBranch(s.substring(open, end)), Node.MAX_EDGE_CONFIDENCE);
+				nodes.get(branchindex).add(parseBranch(s.substring(open, end)), Node.MAX_EDGE_CONFIDENCE);
 				open = s.indexOf('{', end+1);
 			}
 		}
