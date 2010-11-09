@@ -656,7 +656,7 @@ public class ManualAlignMode implements Mode {
 		public void endElement(String namespace_URI, String local_name, String qualified_name) {
 			if ("layer".equals(qualified_name)) {
 				Landmarks lm = m.get(this.layer);
-				Utils.log("Loaded " + lm.points.size() + " landmarks for layer " + layer.getParent().indexOf(layer) + ": " + layer);
+				Utils.log("Loaded " + lm.points.size() + " landmarks for layer " + (layer.getParent().indexOf(layer) + 1) + ": " + layer);
 			}
 		}
 	}
