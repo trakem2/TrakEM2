@@ -34,6 +34,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Collection;
 import java.util.HashMap;
@@ -57,6 +58,16 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	private double thickness = 0;
 
 	private LayerSet parent;
+
+	/** Compare layers by Z. */
+	static public final Comparator<Layer> COMPARATOR = new Comparator<Layer>() {
+		public final int compare(final Layer l1, final Layer l2) {
+			if (l1 == l2) return 0; // the same layer
+			if (l1.getZ() < l2.getZ()) return -1;
+			return 1; // even if same Z, prefer the second
+		}
+		public final boolean equals(Object ob) { return this == ob; }
+	};
 
 	public Layer(Project project, double z, double thickness, LayerSet parent) {
 		super(project);

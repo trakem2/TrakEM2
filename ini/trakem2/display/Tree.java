@@ -79,7 +79,6 @@ import java.util.List;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -118,16 +117,7 @@ import java.io.File;
 /** A sequence of points ordered in a set of connected branches. */
 public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
-	static private final Comparator<Layer> COMP_LAYERS = new Comparator<Layer>() {
-		public final int compare(final Layer l1, final Layer l2) {
-			if (l1 == l2) return 0; // the same layer
-			if (l1.getZ() < l2.getZ()) return -1;
-			return 1; // even if same Z, prefer the second
-		}
-		public final boolean equals(Object ob) { return this == ob; }
-	};
-
-	protected final TreeMap<Layer,Set<Node<T>>> node_layer_map = new TreeMap<Layer,Set<Node<T>>>(COMP_LAYERS);
+	protected final Map<Layer,Set<Node<T>>> node_layer_map = new HashMap<Layer,Set<Node<T>>>();
 
 	protected final Set<Node<T>> end_nodes = new HashSet<Node<T>>();
 
@@ -193,7 +183,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		AffineTransform gt = null;
 		Stroke stroke = null;
 
-		final int n_layers_color_cue = layer_set.n_layers_color_cue;
 		final Color below, above;
 		if (layer_set.use_color_cue_colors) {
 			below = Color.red;
@@ -397,7 +386,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Layer getFirstLayer() {
 		if (null == root) return null;
 		synchronized (node_layer_map) {
-			return node_layer_map.firstKey();
+			ArrayList<Layer> las = new ArrayList<Layer>(node_layer_map.keySet());
+			Collections.sort(las, Layer.COMPARATOR);
+			return las.get(0);
 		}
 	}
 
@@ -680,7 +671,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPTree.class;
 	}
 
@@ -1088,7 +1079,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
-		Node[] ns = new Node[2]; // parent and child
+		Node<T>[] ns = new Node[2]; // parent and child
 		//
 		for (final Node<T> node : nodes) {
 			if (null == node.children) continue;
@@ -2163,8 +2154,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	private class TreeNodesDataView {
 		private JFrame frame;
-		private List<Node<T>> branchnodes,
-				   endnodes,
+		private List<Node<T>> /*branchnodes,
+				   endnodes,*/
 				   allnodes,
 				   searchnodes;
 		private Table table_branchnodes = new Table(),
@@ -2314,14 +2305,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 				});
 			}
+			/*
 			Node<T> getNode(int row) {
 				return ((NodeTableModel)this.getModel()).nodes.get(row);
 			}
+			*/
+			/*
 			String getNodeTags(int row) {
 				NodeTableModel m = (NodeTableModel)this.getModel();
 				Node<T> nd = m.nodes.get(row);
 				return m.getNodeData(nd).tags;
 			}
+			*/
 			String getReviewTags(int row) {
 				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				Set<Tag> tags = nd.getTags();
@@ -2473,8 +2468,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			visited_reviews.retainAll(allnodes);
 
 			// Swap:
+			/*
 			this.branchnodes = branchnodes;
 			this.endnodes = endnodes;
+			*/
 			this.allnodes = allnodes;
 			this.searchnodes = searchnodes;
 
@@ -2796,7 +2793,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	/** Returns an empty area when there aren't any nodes in @param layer. */
+	/** In world coordinates. Returns an empty area when there aren't any nodes in @param layer. */
 	@Override
 	public Area getAreaAt(final Layer layer) {
 		synchronized (node_layer_map) {
@@ -3280,10 +3277,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		// create internals
 		t.cacheSubtree((Collection)t.root.getSubtreeNodes());
-		Set<Layer> set;
-		synchronized (t.node_layer_map) {
-			set = t.node_layer_map.keySet();
-		}
 		return t;
 	}
 
