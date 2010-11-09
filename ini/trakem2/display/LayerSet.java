@@ -73,7 +73,7 @@ import org.xml.sax.helpers.DefaultHandler;
 
 
 /** A LayerSet is a container for a list of Layer.
- *  LayerSet methods are NOT synchronized. It is your reponsibility to synchronize access to a LayerSet instance methods. Failure to do so may result in corrupted internal datastructures and overall misbehavior.
+ *  LayerSet methods are NOT synchronized. It is your reponsibility to synchronize access to a LayerSet instance methods. Failure to do so may result in corrupted internal data structures and overall misbehavior.
  */
 public final class LayerSet extends Displayable implements Bucketable { // Displayable is already extending DBObject
 
@@ -115,7 +115,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private double rot_y;
 	private double rot_z; // should be equivalent to the Displayable.rot
 	private final ArrayList<Layer> al_layers = new ArrayList<Layer>();
-	private final HashMap<Long,Layer> idlayers = new HashMap<Long,Layer>();
+
+	/** A map of Long vs Layer, that is lock-free for reading, but locks for modifying it,
+	 *  by synchronizing onto IDLAYERS_WRITE_LOCK. */
+	private HashMap<Long,Layer> idlayers = new HashMap<Long,Layer>();
+	private final Object IDLAYERS_WRITE_LOCK = new Object();
+
 	private final HashMap<Layer,Integer> layerindices = new HashMap<Layer,Integer>();
 	/** The layer in which this LayerSet lives. If null, this is the root LayerSet. */
 	private Layer parent = null;
@@ -248,7 +253,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void addSilently(final Layer layer) {
 		if (null == layer || al_layers.contains(layer)) return;
 		try {
-			idlayers.put(layer.getId(), layer);
+			synchronized (IDLAYERS_WRITE_LOCK) {
+				// Like put, but replacing the map instance
+				final HashMap<Long,Layer> m = new HashMap<Long,Layer>(idlayers);
+				m.put(layer.getId(), layer);
+				idlayers = m;
+			}
 			synchronized (layerindices) { layerindices.clear(); }
 			double z = layer.getZ();
 			int i = 0;
@@ -275,6 +285,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			throw new IllegalArgumentException("LayerSet rejected a Layer: belongs to a different project.");
 
 		if (null != idlayers.get(layer.getId())) return;
+
 		final double z = layer.getZ();
 		final int n = al_layers.size();
 		int i = 0;
@@ -289,7 +300,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			al_layers.add(layer);
 		}
 		layer.setParent(this);
-		idlayers.put(layer.getId(), layer);
+		synchronized (IDLAYERS_WRITE_LOCK) {
+			// Like put, but replacing the map instance
+			final HashMap<Long,Layer> m = new HashMap<Long,Layer>(idlayers);
+			m.put(layer.getId(), layer);
+			idlayers = m;
+		}
 		synchronized (layerindices) { layerindices.clear(); }
 		Display.updateLayerScroller(this);
 		//debug();
@@ -687,7 +703,12 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public void remove(final Layer layer) {
 		if (null == layer || null == idlayers.get(layer.getId())) return;
 		al_layers.remove(layer);
-		idlayers.remove(layer.getId());
+		synchronized (IDLAYERS_WRITE_LOCK) {
+			// Like remove, but replacing the map instance
+			final HashMap<Long,Layer> m = new HashMap<Long,Layer>(idlayers);
+			m.remove(layer.getId());
+			idlayers = m;
+		}
 		synchronized (layerindices) { layerindices.clear(); }
 		for (final ZDisplayable zd : new ArrayList<ZDisplayable>(al_zdispl)) zd.layerRemoved(layer); // may call back and add/remove ZDisplayable objects
 		Display.updateLayerScroller(this);
@@ -1272,7 +1293,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		this.al_layers.clear();
 		this.al_zdispl.clear();
-		this.idlayers.clear();
+		synchronized (IDLAYERS_WRITE_LOCK) { this.idlayers = new HashMap<Long,Layer>(); } // like .clear()
 		synchronized (layerindices) { this.layerindices.clear(); }
 		this.offscreens.clear();
 	}
@@ -2302,8 +2323,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			// Replace all layers
 			ls.al_layers.clear();
 			ls.al_layers.addAll(this.all_layers);
-			ls.idlayers.clear();
-			ls.idlayers.putAll(this.idlayers);
+			synchronized (ls.IDLAYERS_WRITE_LOCK) {
+				ls.idlayers = new HashMap<Long,Layer>(this.idlayers);
+			}
 			synchronized (ls.layerindices) {
 				ls.layerindices.clear();
 				ls.layerindices.putAll(this.layerindices);
