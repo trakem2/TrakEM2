@@ -78,7 +78,8 @@ public class Connector extends Treeline {
 		}
 		@Override
 		public void paintData(final Graphics2D g, final Rectangle srcRect,
-				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
+				final Tree<Float> tree, final AffineTransform to_screen, final Color cc,
+				final Layer active_layer) {
 			g.setColor(cc);
 			g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
 		}

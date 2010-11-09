@@ -130,6 +130,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	private boolean virtualization_enabled = false;
 
 	protected boolean color_cues = true;
+	protected boolean area_color_cues = true;
 	protected boolean use_color_cue_colors = true;
 	protected boolean paint_arrows = true;
 	protected boolean paint_edge_confidence_boxes = true;
@@ -193,6 +194,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			}
 		}
 		if (null != (data = ht_attributes.get("color_cues"))) color_cues = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("area_color_cues"))) area_color_cues = Boolean.valueOf(data.trim().toLowerCase());
 		if (null != (data = ht_attributes.get("n_layers_color_cue"))) {
 			n_layers_color_cue = Integer.parseInt(data.trim().toLowerCase());
 			if (n_layers_color_cue < -1) n_layers_color_cue = -1;
@@ -1133,6 +1135,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("snapshots_quality=\"").append(snapshots_quality).append("\"\n")
 		       .append(in).append("snapshots_mode=\"").append(snapshot_modes[snapshots_mode]).append("\"\n")
 		       .append(in).append("color_cues=\"").append(color_cues).append("\"\n")
+		       .append(in).append("area_color_cues=\"").append(area_color_cues).append("\"\n")
 		       .append(in).append("avoid_color_cue_colors=\"").append(!use_color_cue_colors).append("\"\n")
 		       .append(in).append("n_layers_color_cue=\"").append(n_layers_color_cue).append("\"\n")
 		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
@@ -1222,6 +1225,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				 .append(indent).append(TAG_ATTR1).append(type).append(" rot_z").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" snapshots_quality").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" color_cues").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" area_color_cues").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" avoid_color_cue_colors").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" n_layers_color_cue").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_arrows").append(TAG_ATTR2)

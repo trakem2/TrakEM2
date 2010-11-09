@@ -327,7 +327,8 @@ public class Treeline extends Tree<Float> {
 
 		@Override
 		public void paintData(final Graphics2D g, final Rectangle srcRect,
-				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
+				final Tree<Float> tree, final AffineTransform to_screen, final Color cc,
+				final Layer active_layer) {
 			if (null == this.parent) return; // doing it here for less total cost
 			if (0 == this.r && 0 == parent.getData()) return;
 

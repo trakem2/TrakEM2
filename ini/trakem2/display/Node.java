@@ -210,7 +210,7 @@ public abstract class Node<T> implements Taggable {
 		} else if (actZ < thisZ) local_edge_color = above;
 		else local_edge_color = node_color;
 
-		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color);
+		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color, active_layer);
 
 		//if (null == children && !paint) return null;
 
@@ -697,7 +697,8 @@ public abstract class Node<T> implements Taggable {
 	public abstract Node<T> newInstance(float x, float y, Layer layer);
 
 	abstract public void paintData(final Graphics2D g, final Rectangle srcRect,
-			final Tree<T> tree, final AffineTransform to_screen, final Color cc);
+			final Tree<T> tree, final AffineTransform to_screen, final Color cc,
+			final Layer active_layer);
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);

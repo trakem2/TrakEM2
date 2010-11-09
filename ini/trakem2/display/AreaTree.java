@@ -126,8 +126,10 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 		@Override
 		public void paintData(final Graphics2D g, final Rectangle srcRect,
-				final Tree<Area> tree, final AffineTransform to_screen, final Color cc) {
+				final Tree<Area> tree, final AffineTransform to_screen, final Color cc,
+				final Layer active_layer) {
 			if (null == aw) return;
+			if (!tree.layer_set.area_color_cues && active_layer != this.la) return;
 			Composite oc = null;
 			if (cc != tree.color) {
 				oc = g.getComposite();
