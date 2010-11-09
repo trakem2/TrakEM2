@@ -940,7 +940,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			return list;
 		}
 		// Else:
-		int i = indexOf(active_layer);
+		final int i = indexOf(active_layer);
+		if (-1 == i) {
+			Utils.log("An error ocurred: could not find an index for layer " + active_layer);
+			final ArrayList<Layer> a = new ArrayList<Layer>(); a.add(active_layer); return a;
+		}
 		int first = i - n_layers_color_cue;
 		int last = i + n_layers_color_cue;
 		if (first < 0) first = 0;
