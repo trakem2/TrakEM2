@@ -2268,7 +2268,9 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			this.all_layers = ls.getLayers(); // a copy of the list, but each object is the running instance
 			this.all_zdispl = ls.getZDisplayables(); // idem
 			this.idlayers = new HashMap<Long,Layer>(ls.idlayers);
-			this.layerindices = new HashMap<Layer,Integer>(ls.layerindices);
+			synchronized (ls.layerindices) {
+				this.layerindices = new HashMap<Layer,Integer>(ls.layerindices);
+			}
 
 			this.links = new HashMap<Displayable,Set<Displayable>>();
 			for (final ZDisplayable zd : this.all_zdispl) {
