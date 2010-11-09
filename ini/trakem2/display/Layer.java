@@ -580,15 +580,20 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public Collection<Displayable> find(final Class<?> c, final int x, final int y) {
-		return find(c, x, y, false);
+		return find(c, x, y, false, false);
 	}
 
-	/** Find the Displayable objects of Class c that contain the point. */
+	/** Find the Displayable objects of Class c that contain the point, with class equality. */
 	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only) {
-		if (Displayable.class == c) return find(x, y); // search among all
+		return find(c, x, y, visible_only, false);
+	}
+	/** Find the Displayable objects of Class c that contain the point, with instanceof if instance_of is true. */
+	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only, final boolean instance_of) {		
+		if (null != root) return root.find(c, x, y, this, visible_only, instance_of);
+		if (Displayable.class == c) return find(x, y, visible_only); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
-			Displayable d = (Displayable)al_displayables.get(i);
+			Displayable d = al_displayables.get(i);
 			if (visible_only && !d.isVisible()) continue;
 			if (d.getClass() == c && d.contains(x, y)) {
 				al.add(d);
