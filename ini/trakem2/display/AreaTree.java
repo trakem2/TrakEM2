@@ -201,6 +201,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 	}
 
+	/** Return the list of areas, in world coordinates, at the given layer, that intersect the given bounding box. */
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {
 		synchronized (node_layer_map) {
 			final Set<Node<Area>> nodes = node_layer_map.get(layer);
@@ -254,8 +255,8 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 			Rectangle box = null;
 			synchronized (node_layer_map) {
-				for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
-					for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
+				for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+					for (final AreaNode nd : (Collection<AreaNode>) nodes) {
 						if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 						else box.add((int)nd.x, (int)nd.y);
 						if (null != nd.aw) box.add(nd.aw.getArea().getBounds());
