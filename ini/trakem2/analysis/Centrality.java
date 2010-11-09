@@ -166,7 +166,9 @@ public class Centrality {
 		}
 		@Override
 		public HashSet<Vertex<T>> setValue(final HashSet<Vertex<T>> value) {
-			throw new UnsupportedOperationException();
+			HashSet<Vertex<T>> tmp = removed;
+			removed = value;
+			return tmp;
 		}
 	}
 }
