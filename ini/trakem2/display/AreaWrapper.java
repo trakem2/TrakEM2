@@ -820,9 +820,9 @@ public class AreaWrapper {
 					return;
 				case KeyEvent.VK_V: // PASTE
 					// Casting a null is fine, and addArea survives a null.
-					Area a = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
-					if (null != a) {
-						add(a.createTransformedArea(source.getAffineTransform().createInverse()), la);
+					Area wa = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
+					if (null != wa) {
+						add(wa, la); // wa is in world coordinates
 						((AreaContainer)source).calculateBoundingBox(la);
 					}
 					ke.consume();
