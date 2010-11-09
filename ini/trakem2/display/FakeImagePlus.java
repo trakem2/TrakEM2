@@ -23,21 +23,21 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import ij.process.*;
-import ij.gui.*;
-import ij.measure.*;
-import ij.*;
-import ini.trakem2.utils.Utils;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij.process.ByteProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.utils.Utils;
 
 import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.awt.image.ColorModel;
-import java.awt.geom.Point2D;
+import java.util.Collection;
 
 /** Need a non-null ImagePlus for the ImageCanvas, even if fake. */
 public class FakeImagePlus extends ImagePlus {
@@ -102,9 +102,9 @@ public class FakeImagePlus extends ImagePlus {
 			return getPixel(display.getCanvas().getMagnification(), x, y);
 		}
 		public int getPixel(double mag, final int x, final int y) {
-			final Collection under = display.getLayer().find(Patch.class, x, y, true);
+			final Collection<Displayable> under = display.getLayer().find(Patch.class, x, y, true);
 			if (null == under || under.isEmpty()) return 0; // zeros
-			for (final Patch p : (Collection<Patch>)under) {
+			for (final Patch p : (Collection<Patch>)(Collection)under) {
 				if (!p.isVisible()) continue;
 				FakeImagePlus.this.type = p.getType(); // for proper value string display
 				// TODO: edit here when adding layer mipmaps
