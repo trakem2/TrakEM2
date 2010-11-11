@@ -1,18 +1,16 @@
 package lineage;
 
-import java.util.HashMap;
-import java.lang.reflect.Method;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.FileInputStream;
-import java.io.Reader;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.Worker;
+import ij.gui.GenericDialog;
 import ini.trakem2.display.Line3D;
 import ini.trakem2.plugin.TPlugIn;
-import ij.gui.GenericDialog;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
+
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.lang.reflect.Method;
 
 public class Identify implements TPlugIn {
 
@@ -21,7 +19,7 @@ public class Identify implements TPlugIn {
 	static {
 		try {
 			Thread.currentThread().setContextClassLoader(ij.IJ.getClassLoader());
-			Class c = Class.forName("clojure.lang.Compiler");
+			Class<?> c = Class.forName("clojure.lang.Compiler");
 			Method load = c.getDeclaredMethod("load", new Class[]{Reader.class});
 			load.invoke(null, new Object[]{new InputStreamReader(Identify.class.getResourceAsStream("/lineage/identify.clj"))});
 			// As a side effect, inits clojure runtime
@@ -36,10 +34,10 @@ public class Identify implements TPlugIn {
 	 */
 	static public Object identify(Object... args) {
 		try {
-			Class RT = Class.forName("clojure.lang.RT");
+			Class<?> RT = Class.forName("clojure.lang.RT");
 			Method var = RT.getDeclaredMethod("var", new Class[]{String.class, String.class});
 			Object fn = var.invoke(null, new Object[]{"lineage.identify", "identify"});
-			Class[] cc = new Class[args.length];
+			Class<?>[] cc = new Class[args.length];
 			for (int i=0; i<cc.length; i++) cc[i] = Object.class;
 			Method invoke = Class.forName("clojure.lang.Var").getDeclaredMethod("invoke", cc);
 			return invoke.invoke(fn, args);
