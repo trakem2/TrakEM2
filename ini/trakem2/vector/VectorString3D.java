@@ -24,15 +24,15 @@ package ini.trakem2.vector;
 
 import ij.measure.Calibration;
 
-import java.util.Arrays;
-import java.util.Random;
 import java.util.ArrayList;
 import java.util.Collections;
-import Jama.Matrix;
+import java.util.Random;
+
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
-import java.awt.Color;
+
+import Jama.Matrix;
 
 
 public class VectorString3D implements VectorString {
@@ -208,12 +208,14 @@ public class VectorString3D implements VectorString {
 			this.rz[i] = zval;
 		}
 		/** Arrays are enlarged if necessary.*/
+		/*
 		final void setV(final int i, final double xval, final double yval, final double zval) {
 			if (i >= rx.length) resize(i+10);
 			this.vx[i] = xval;
 			this.vy[i] = yval;
 			this.vz[i] = zval;
 		}
+		*/
 		/** Arrays are enlarged if necessary.*/
 		final void setPV(final int i, final double rxval, final double ryval, final double rzval, final double xval, final double yval, final double zval) {
 			if (i >= rx.length) resize(i+10);
@@ -452,7 +454,7 @@ public class VectorString3D implements VectorString {
 		r.setDeps(0, dep, new int[]{0}, new double[]{1.0}, 1);
 		// the first vector is 0,0,0 unless the path is closed, in which case it contains the vector from last-to-first.
 
-		if (with_source) new_source.add((ArrayList<Point3d>)this.source.get(0).clone());
+		if (with_source) new_source.add(new ArrayList<Point3d>(this.source.get(0)));
 
 		// index over x,y,z
 		int i = 1;
@@ -500,7 +502,7 @@ public class VectorString3D implements VectorString {
 
 				if (with_source) {
 					// shallow clone: shared Point3d instances (but no shared lists)
-					new_source.add((ArrayList<Point3d>)this.source.get(i).clone()); // the next point is 'i'
+					new_source.add(new ArrayList<Point3d>(this.source.get(i))); // the next point is 'i'
 				}
 
 				if (null != dep) r.setDeps(j, dep, new int[]{i}, new double[]{1.0}, 1);
@@ -623,7 +625,7 @@ public class VectorString3D implements VectorString {
 				// resize it to length delta
 				vector.setLength(delta);
 				vector.put(j, r);
-				if (with_source) new_source.add((ArrayList<Point3d>)this.source.get(last_i).clone());
+				if (with_source) new_source.add(new ArrayList<Point3d>(this.source.get(last_i)));
 				j++;
 				dist_ahead = r.distance(j-1, x[last_i], y[last_i], z[last_i]);
 			}
@@ -724,7 +726,7 @@ public class VectorString3D implements VectorString {
 				// shallow clone the source points
 				vs.source = new ArrayList<ArrayList<Point3d>>();
 				for (ArrayList<Point3d> ap : this.source) {
-					vs.source.add((ArrayList<Point3d>)ap.clone());
+					vs.source.add(new ArrayList<Point3d>(ap));
 				}
 			}
 			vs.tags = this.tags;
@@ -743,7 +745,7 @@ public class VectorString3D implements VectorString {
 		for (ArrayList<Point3d> ap : source) { // looping with get(i) would be paint-bucket problem
 			if (i < first) continue;
 			if (i > last) break;
-			s.add((ArrayList<Point3d>)ap.clone());
+			s.add(new ArrayList<Point3d>(ap));
 			i++;
 		}
 		return s;
@@ -1163,6 +1165,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** Returns a normalized average vector, or null if not resampled. */
+	/*
 	private Vector3d makeAverageNormalizedVector() {
 		if (null == vx || null == vy || null == vz) return null;
 		final Vector3d v = new Vector3d();
@@ -1174,6 +1177,7 @@ public class VectorString3D implements VectorString {
 		v.normalize();
 		return v;
 	}
+	*/
 
 	/** The sum of all vectors, or what is the same: a vector from first to last points. */
 	public Vector3d sumVector() {
@@ -1240,10 +1244,12 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
+	/*
 	static private void transform(Transform3D trans, Transform3D rot, Vector3d v) {
 		trans.transform(v);
 		rot.transform(v);
 	}
+	*/
 
 	public Point3d computeCenterOfMass() {
 		final Point3d v = new Point3d();
@@ -1427,7 +1433,7 @@ public class VectorString3D implements VectorString {
 				// shallow clone the source points
 				vs.source = new ArrayList<ArrayList<Point3d>>();
 				for (ArrayList<Point3d> ap : this.source) {
-					vs.source.add((ArrayList<Point3d>)ap.clone());
+					vs.source.add(new ArrayList<Point3d>(ap));
 				}
 			}
 			vs.tags = this.tags;

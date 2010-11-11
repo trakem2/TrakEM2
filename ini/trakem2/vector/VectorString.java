@@ -22,9 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
-import java.util.ArrayList;
-import java.util.List;
-import javax.vecmath.Point3f;
 
 public interface VectorString {
 
