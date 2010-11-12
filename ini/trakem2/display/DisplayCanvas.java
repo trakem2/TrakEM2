@@ -2336,7 +2336,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 							// Can't accept: different active object
 							Utils.log2("rejecting: different active object");
 							target = null;
-						} else al_top.addAll(sc.al_top);
+						} else {
+							al_top.addAll(sc.al_top);
+							display.applyFilters(target);
+						}
 					}
 				}
 			} catch (Throwable t) {
