@@ -5677,7 +5677,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (filter_invert) imp.getProcessor().invert();
 		// 3: CLAHE?
 		if (filter_clahe_enabled) {
-			FastFlat.run(imp, filter_clahe_block_size, filter_clahe_histogram_bins, filter_clahe_max_slope, null);
+			FastFlat.getInstance().run(imp, filter_clahe_block_size, filter_clahe_histogram_bins, filter_clahe_max_slope, null, false);
 		}
 
 		return imp;
