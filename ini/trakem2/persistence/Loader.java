@@ -315,9 +315,9 @@ abstract public class Loader {
 
 	abstract public double[][][] fetchBezierArrays(long id);
 
-	abstract public ArrayList fetchPipePoints(long id);
+	abstract public ArrayList<?> fetchPipePoints(long id);
 
-	abstract public ArrayList fetchBallPoints(long id);
+	abstract public ArrayList<?> fetchBallPoints(long id);
 
 	abstract public Area fetchArea(long area_list_id, long layer_id);
 

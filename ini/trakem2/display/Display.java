@@ -1549,6 +1549,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		canvas.repaint(true);
 		updateFrameTitle();
 	}
+	
+	/** Repaint the canvas updating graphics, and the navigator without updating graphics. */
+	public void repaintAll3() {
+		if (repaint_disabled) return;
+		navigator.repaint(false);
+		canvas.repaint(true);
+		updateFrameTitle();
+	}
 
 	static protected void repaintSnapshots(final LayerSet set) {
 		if (repaint_disabled) return;
@@ -2613,7 +2621,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							Utils.log("Active object must be a Connector!");
 							return;
 						}
-						final List<Connector> col = (List<Connector>)(List) selection.getSelected(Connector.class);
+						final List<Connector> col = selection.get(Connector.class);
 						if (col.size() < 2) {
 							Utils.log("Select more than one Connector!");
 							return;

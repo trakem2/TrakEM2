@@ -397,7 +397,7 @@ public class Project extends DBObject {
 		project.template_tree = new TemplateTree(project, template_root);
 		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
 		// create the project Thing, to be root of the whole user Thing tree (and load all its objects)
-		HashMap hs_d = new HashMap(); // to collect all created displayables, and  then reassign to the proper layers.
+		HashMap<Long,Displayable> hs_d = new HashMap<Long,Displayable>(); // to collect all created displayables, and  then reassign to the proper layers.
 		try {
 			// create a template for the project Thing
 			TemplateThing project_template = new TemplateThing("project");
