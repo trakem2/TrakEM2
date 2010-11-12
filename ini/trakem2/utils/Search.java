@@ -208,10 +208,11 @@ public class Search {
 	}
 
 	private class DisplayableTableModel extends AbstractTableModel {
-		private Vector v_obs;
-		private Vector v_txt;
-		private Vector v_co;
-		DisplayableTableModel(Vector v_obs, Vector v_txt, Vector v_co) {
+		private static final long serialVersionUID = 1L;
+		private Vector<DBObject> v_obs;
+		private Vector<String> v_txt;
+		private Vector<Coordinate<?>> v_co;
+		DisplayableTableModel(Vector<DBObject> v_obs, Vector<String> v_txt, Vector<Coordinate<?>> v_co) {
 			super();
 			this.v_obs = v_obs;
 			this.v_txt = v_txt;
@@ -227,18 +228,20 @@ public class Search {
 		public int getColumnCount() { return 3; }
 		public Object getValueAt(int row, int col) {
 			if (0 == col) return Project.getName(v_obs.get(row).getClass());
-			else if (1 == col) return ((DBObject)v_obs.get(row)).getShortTitle();
-			else if (2 == col) return v_txt.get(row).toString();
+			else if (1 == col) return v_obs.get(row).getShortTitle();
+			else if (2 == col) return v_txt.get(row);
 			else return "";
 		}
 		public DBObject getDBObjectAt(int row) {
 			return (DBObject)v_obs.get(row);
 		}
+		/*
 		public Displayable getDisplayableAt(int row) {
 			return (Displayable)v_obs.get(row);
 		}
-		public Coordinate getCoordinateAt(int row) {
-			return (Coordinate) v_co.get(row);
+		*/
+		public Coordinate<?> getCoordinateAt(int row) {
+			return v_co.get(row);
 		}
 		public boolean isCellEditable(int row, int col) {
 			return false;
@@ -292,20 +295,19 @@ public class Search {
 		pattern = sb.toString();
 		final Pattern pat = Pattern.compile(pattern, Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
 		//Utils.log2("pattern after: " + pattern);
-		final ArrayList al = new ArrayList();
+		final ArrayList<DBObject> al = new ArrayList<DBObject>();
 		//Utils.log("types[pulldown] = " + types[pulldown.getSelectedIndex()]);
 		find(project.getRootLayerSet(), al, types[pulldown.getSelectedIndex()]);
 		//Utils.log2("found labels: " + al.size());
 		if (0 == al.size()) return;
-		final Vector v_obs = new Vector();
-		final Vector v_txt = new Vector();
-		final Vector v_co = new Vector();
-		Coordinate co = null;
-		for (final Iterator it = al.iterator(); it.hasNext(); ) {
+		final Vector<DBObject> v_obs = new Vector<DBObject>();
+		final Vector<String> v_txt = new Vector<String>();
+		final Vector<Coordinate<?>> v_co = new Vector<Coordinate<?>>();
+		Coordinate<?> co = null;
+		for (final DBObject dbo : al) {
 			if (Thread.currentThread().isInterrupted()) {
 				return;
 			}
-			final DBObject dbo = (DBObject)it.next();
 			boolean matched = false;
 			// Search in its title
 			Displayable d = null;
@@ -366,18 +368,18 @@ public class Search {
 					}
 				}
 			}
-			if (!matched && dbo instanceof Tree) {
+			if (!matched && dbo instanceof Tree<?>) {
 				// search Node tags
-				Node root = ((Tree)dbo).getRoot();
+				Node<?> root = ((Tree<?>)dbo).getRoot();
 				if (null == root) continue;
-				for (final Node nd : (Collection<Node>) root.getSubtreeNodes()) {
+				for (final Node<?> nd : root.getSubtreeNodes()) {
 					Set<Tag> tags = nd.getTags();
 					if (null == tags) continue;
 					for (final Tag tag : tags) {
 						if (pat.matcher(tag.toString()).matches()) {
 							v_obs.add(dbo);
 							v_txt.add(new StringBuilder(tag.toString()).append(" (").append(null == meaningful_title ? dbo.toString() : meaningful_title).append(')').toString());
-							v_co.add(createCoordinate((Tree)dbo, nd));
+							v_co.add(createCoordinate((Tree<?>)dbo, nd));
 						}
 					}
 				}
@@ -404,7 +406,7 @@ public class Search {
 		}}, project);
 	}
 
-	private Coordinate<Node> createCoordinate(Tree tree, Node nd) {
+	private Coordinate<Node<?>> createCoordinate(Tree<?> tree, Node<?> nd) {
 		double x = nd.getX(),
 		       y = nd.getY();
 		if (!tree.getAffineTransform().isIdentity()) {
@@ -413,7 +415,7 @@ public class Search {
 			x = dp[0];
 			y = dp[1];
 		}
-		return new Coordinate<Node>(x, y, nd.getLayer(), nd);
+		return new Coordinate<Node<?>>(x, y, nd.getLayer(), nd);
 	}
 
 	private Coordinate<Displayable> createCoordinate(final Displayable d) {
@@ -460,7 +462,7 @@ public class Search {
 			final JTable table = (JTable)me.getSource();
 			final int row = table.rowAtPoint(me.getPoint());
 			final DBObject ob = ((DisplayableTableModel)table.getModel()).getDBObjectAt(row);
-			final Coordinate co = ((DisplayableTableModel)table.getModel()).getCoordinateAt(row);
+			final Coordinate<?> co = ((DisplayableTableModel)table.getModel()).getCoordinateAt(row);
 			if (2 == me.getClickCount()) {
 				if (null != co) {
 					Display.centerAt(co);
@@ -542,22 +544,22 @@ public class Search {
 	}
 
 	/** Recursive search into nested LayerSet instances, accumulating instances of type into the list al. */
-	private void find(final LayerSet set, final ArrayList al, final Class type) {
+	private void find(final LayerSet set, final ArrayList<DBObject> al, final Class<?> type) {
 		if (type == DBObject.class) {
 			al.add(set);
 		}
-		for (ZDisplayable zd : set.getZDisplayables()) {
+		for (final ZDisplayable zd : set.getZDisplayables()) {
 			if (DBObject.class == type || Displayable.class == type) {
 				al.add(zd);
 			} else if (zd.getClass() == type) {
 				al.add(zd);
 			}
 		}
-		for (Layer layer : set.getLayers()) {
+		for (final Layer layer : set.getLayers()) {
 			if (DBObject.class == type || Layer.class == type) {
 				al.add(layer);
 			}
-			for (Displayable ob : layer.getDisplayables()) {
+			for (final Displayable ob : layer.getDisplayables()) {
 				if (DBObject.class == type || Displayable.class == type) {
 					if (ob instanceof LayerSet) find((LayerSet)ob, al, type);
 					else al.add(ob);

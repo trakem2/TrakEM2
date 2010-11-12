@@ -633,7 +633,8 @@ public final class M {
 	/** The @param ict is expected to transform the data as if this data was expressed in world coordinates,
 	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
 	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
-		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
+		final mpicbg.models.CoordinateTransformList<mpicbg.models.CoordinateTransform> chain
+		  = new mpicbg.models.CoordinateTransformList<mpicbg.models.CoordinateTransform>(); // bravo!
 		// 1 - Prepend to world
 		final mpicbg.models.AffineModel2D toworld = new mpicbg.models.AffineModel2D();
 		toworld.set(to_world);

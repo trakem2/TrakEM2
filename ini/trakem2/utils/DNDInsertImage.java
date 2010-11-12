@@ -84,7 +84,7 @@ public class DNDInsertImage implements DropTargetListener {
 				// Try file list first:
 				Object data = t.getTransferData(DataFlavor.javaFileListFlavor);
 				if (null != data) {
-					Iterator iterator = ((List)data).iterator();
+					Iterator<?> iterator = ((List<?>)data).iterator();
 					while(iterator.hasNext()) {
 						File f = (File)iterator.next();
 						String path = f.getCanonicalPath().replace('\\', '/');
@@ -116,7 +116,7 @@ public class DNDInsertImage implements DropTargetListener {
 			if (0 == success && t.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
 				// from ij.plugin.DragAndDrop class by Wayne Rasband
 				Object data = t.getTransferData(DataFlavor.javaFileListFlavor);
-				Iterator iterator = ((List)data).iterator();
+				Iterator<?> iterator = ((List<?>)data).iterator();
 				while(iterator.hasNext()) {
 					File f = (File)iterator.next();
 					String path = f.getCanonicalPath().replace('\\', '/');

@@ -2,7 +2,6 @@ package ini.trakem2.utils;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Iterator;
 
 /** A class to represent a generic undo/redo history.
  *  Keeps a list of objects and the current index.
@@ -25,7 +24,7 @@ public class History {
 
 	/** Append a new step. If max_size is set, resizes the list if larger than max_size,
 	 *  and returns all removed elements. Otherwise returns an empty list. */
-	synchronized public List<Step<?>> add(final Step step) {
+	synchronized public List<Step<?>> add(final Step<?> step) {
 		//Utils.log2("adding one step: index= " + index);
 		if (-1 == index) {
 			if (list.size() > 0) list.clear();
@@ -52,7 +51,7 @@ public class History {
 
 	/** Appends a step at the end of the list, without modifying the current index.
 	 *  If max_size is set, resizes the list if larger than max_size. */
-	synchronized public List<Step<?>> append(final Step step) {
+	synchronized public List<Step<?>> append(final Step<?> step) {
 		if (list.size() > 0) {
 			if (list.get(list.size()-1).isIdentical(step)) {
 				//Utils.log2("History: skipping appending an identical undo step.");
@@ -64,7 +63,7 @@ public class History {
 		return new ArrayList<Step<?>>();
 	}
 
-	synchronized public Step getCurrent() {
+	synchronized public Step<?> getCurrent() {
 		if (-1 == index) return null;
 		return list.get(index);
 	}
@@ -165,6 +164,6 @@ public class History {
 		 *  and return a list of them. */
 		public List<T> remove(final long id);
 		public boolean isEmpty();
-		public boolean isIdentical(final Step<T> step);
+		public boolean isIdentical(final Step<?> step);
 	}
 }

@@ -34,9 +34,15 @@ import ini.trakem2.display.Profile;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.Thing;
 
-import java.util.*;
-import java.io.*;
 import java.awt.Color;
+import java.io.BufferedOutputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.HashMap;
 
 /** For now, generates a .shapes file that I can load into Blender with the CurveMorphing CPython module by means of the load_shapes_v1.4.3.py script. 
  *
@@ -46,9 +52,9 @@ import java.awt.Color;
 public class Render {
 
 	/** All the objects found, an object for each 'profile_list'; in here the Displayable objects of type PROFILE are stored, each one packed in a Displayable[]. */
-	private Hashtable ht_objects = new Hashtable();
-	private ArrayList al_pipes = new ArrayList();
-	private ArrayList al_balls = new ArrayList();
+	private HashMap<String,Ob> ht_objects = new HashMap<String,Ob>();
+	private ArrayList<Pipe> al_pipes = new ArrayList<Pipe>();
+	private ArrayList<Ball> al_balls = new ArrayList<Ball>();
 
 	public Render(Thing thing) {
 		render(thing);
@@ -60,21 +66,19 @@ public class Render {
 		if (thing.getType().equals("profile_list")) {
 			renderObject(thing);
 		} else if (thing.getType().equals("pipe")) {
-			al_pipes.add(thing.getObject());
+			al_pipes.add((Pipe)thing.getObject());
 		} else if (thing.getType().equals("ball")) {
-			al_balls.add(thing.getObject());
+			al_balls.add((Ball)thing.getObject());
 		}
 		// the children
 		if (null == thing.getChildren()) return;
-		Iterator it = thing.getChildren().iterator();
-		while (it.hasNext()) {
-			Thing child = (Thing)it.next();
+		for (final Thing child : thing.getChildren()) {
 			if (child.getType().equals("profile_list")) {
 				renderObject(child);
 			} else if (child.getType().equals("pipe")) {
-				al_pipes.add(child.getObject());
+				al_pipes.add((Pipe)child.getObject());
 			} else if (child.getType().equals("ball")) {
-				al_balls.add(child.getObject());
+				al_balls.add((Ball)child.getObject());
 			} else {
 				render(child);
 			}
@@ -96,23 +100,22 @@ public class Render {
 		// check preconditions
 		if (!profile_list.getType().equals("profile_list")) return;
 		// do not accept an empty profile_list Thing
-		final ArrayList al = profile_list.getChildren();
+		final ArrayList<? extends Thing> al = profile_list.getChildren();
 		if (null == al || al.size() < 2) return;
 
 		// new style: follows profiles links and generates several obs, one per branch, ensuring that there is oly one profile per layer in the generated Ob for the .shapes file.
 		// 1 - gather all profiles
-		final HashSet hs = new HashSet();
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Thing child = (Thing)it.next();
+		final HashSet<Profile> hs = new HashSet<Profile>();
+		for (final Thing child : al) {
 			Object ob = child.getObject();
 			if (ob instanceof Profile) {
-				hs.add(ob);
+				hs.add((Profile)ob);
 			} else {
 				Utils.log2("Render: skipping non Profile class child");
 			}
 		}
 		String name = profile_list.getParent().getTitle();
-		final ArrayList al_used_names = new ArrayList();
+		final ArrayList<String> al_used_names = new ArrayList<String>();
 		// make unique object name, since it'll be the group
 		String name2 = name;
 		int k = 1;
@@ -152,8 +155,8 @@ public class Render {
 	}
 
 	/** Recursive; returns the last added profile. */
-	private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
-		final HashSet hs_linked = step.getLinked(Profile.class);
+	private Profile accumulate(final HashSet<Profile> hs_done, final ArrayList<Profile> al, final Profile step, int z_trend) {
+		final HashSet<Displayable> hs_linked = step.getLinked(Profile.class);
 		if (al.size() > 1 && hs_linked.size() > 2) {
 			// base found
 			return step;
@@ -161,8 +164,7 @@ public class Render {
 		double step_z = step.getLayer().getZ();
 		Profile next_step = null;
 		boolean started = false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
+		for (final Displayable ob : hs_linked) {
 			// loop only one cycle, to move only in one direction
 			if (al.contains(ob) || started || hs_done.contains(ob)) continue;
 			started = true;
@@ -200,13 +202,13 @@ public class Render {
 	}
 
 	/** Render an object from the given profile, following the chain of links, until reaching a profile that is linked to more than two profiles. */
-	private void renderSubObjects(final HashSet hs_all, final ArrayList al_used_names) {
+	private void renderSubObjects(final HashSet<Profile> hs_all, final ArrayList<String> al_used_names) {
 		int size = hs_all.size();
 		Profile[] p = new Profile[size];
 		hs_all.toArray(p);
 		// collect starts and ends
-		HashSet hs_bases = new HashSet();
-		HashSet hs_done = new HashSet();
+		HashSet<Profile> hs_bases = new HashSet<Profile>();
+		HashSet<Profile> hs_done = new HashSet<Profile>();
 		do {
 			Profile base = null;
 			// choose among existing bases
@@ -231,7 +233,7 @@ public class Render {
 				return;
 			}
 			// crawl list to get a sequence of profiles in increasing or decreasing Z order, but not mixed z trends
-			ArrayList al_profiles = new ArrayList();
+			ArrayList<Profile> al_profiles = new ArrayList<Profile>();
 			//Utils.log2("Calling accumulate for base " + base);
 			al_profiles.add(base);
 			Profile last = accumulate(hs_done, al_profiles, base, 0);
@@ -248,7 +250,7 @@ public class Render {
 				String name = createName(al_used_names);
 				String name2 = name;
 				int k = 1;
-				while (ht_objects.contains(name2)) {
+				while (ht_objects.containsKey(name2)) {
 					name2 = name + "_" + k;
 				}
 				name = name2;
@@ -267,7 +269,7 @@ public class Render {
 
 	private int counter = 0;
 
-	private String createName(final ArrayList al_used_names) {
+	private String createName(final ArrayList<String> al_used_names) {
 		String[] s = new String[al_used_names.size()];
 		al_used_names.toArray(s);
 		if (1 == s.length) return s[0];

@@ -32,13 +32,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 
-import java.lang.reflect.Field;
-import java.awt.Color;
-import java.awt.PopupMenu;
-import java.awt.MenuItem;
-import java.awt.ItemSelectable;
-import java.awt.event.ItemEvent;
-
 import javax.swing.SwingUtilities;
 
 import ini.trakem2.display.Display;

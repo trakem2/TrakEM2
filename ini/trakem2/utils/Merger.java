@@ -227,10 +227,19 @@ public class Merger {
 		}
 	}
 
-	static private final HashSet<WNode> asWNodes(Collection<Node<?>> nds, AffineTransform aff) {
+	/*
+	static private final HashSet<WNode> asWNodes(final Collection<Node<?>> nds, final AffineTransform aff) {
 		final HashSet<WNode> col = new HashSet<WNode>();
 		for (final Node<?> nd : nds) {
 			col.add(new WNode(nd, aff));
+		}
+		return col;
+	}
+	*/
+	static private final HashSet<WNode> asWNodes(final Tree<?> tree) {
+		final HashSet<WNode> col = new HashSet<WNode>();
+		for (final Node<?> nd : tree.getRoot().getSubtreeNodes()) {
+			col.add(new WNode(nd, tree.getAffineTransform()));
 		}
 		return col;
 	}
@@ -278,7 +287,7 @@ public class Merger {
 			c.transform = true;
 		}
 		// Data
-		final HashSet<WNode> nds1 = asWNodes((Collection<Node<?>>) (Collection) t1.getRoot().getSubtreeNodes(), t1.getAffineTransform());
+		final HashSet<WNode> nds1 = asWNodes(t1);
 		final HashMap<WNode,WNode> nds2 = new HashMap<WNode,WNode>();
 		for (final Node<?> nd : t2.getRoot().getSubtreeNodes()) {
 			WNode nn = new WNode(nd, t2.getAffineTransform());
@@ -328,7 +337,7 @@ public class Merger {
 		Row(Change c) {
 			this.c = c;
 		}
-		Object getColumn(int i) {
+		Comparable<?> getColumn(int i) {
 			switch (i) {
 			case 0:
 				return c.d1.getClass().getSimpleName();
@@ -482,6 +491,7 @@ public class Merger {
 	}
 
 	static private class TwoColumnModel extends AbstractTableModel {
+		private static final long serialVersionUID = 1L;
 		final List<ZDisplayable> items = new ArrayList<ZDisplayable>();
 		final boolean[] sent;
 		TwoColumnModel(final HashSet<ZDisplayable> ds, final String title) {
@@ -531,6 +541,7 @@ public class Merger {
 		final TwoColumnModel tcm = new TwoColumnModel(hs, column_title);
 		final JTable table = new JTable(tcm);
 		table.setDefaultRenderer(table.getColumnClass(0), new DefaultTableCellRenderer() {
+			private static final long serialVersionUID = 1L;
 			@Override
 			public Component getTableCellRendererComponent(JTable table, Object value,
 					boolean isSelected, boolean hasFocus, int row, int column) {
@@ -599,6 +610,7 @@ public class Merger {
 	}
 
 	static private final class Model extends AbstractTableModel {
+		private static final long serialVersionUID = 1L;
 		ArrayList<Row> rows;
 		Model(ArrayList<Row> rows) {
 			this.rows = rows;
@@ -606,14 +618,15 @@ public class Merger {
 		public void sortByColumn(final int column, final boolean descending) {
 			final ArrayList<Row> rows = new ArrayList<Row>(this.rows);
 			Collections.sort(rows, new Comparator<Row>() {
-				public int compare(Row o1, Row o2) {
+				@SuppressWarnings("unchecked")
+				public final int compare(Row o1, Row o2) {
 					if (descending) {
 						Row tmp = o1;
 						o1 = o2;
 						o2 = tmp;
 					}
-					Object val1 = getValueAt(rows.indexOf(o1), column);
-					Object val2 = getValueAt(rows.indexOf(o2), column);
+					Comparable<?> val1 = getValueAt(rows.indexOf(o1), column);
+					Comparable<?> val2 = getValueAt(rows.indexOf(o2), column);
 					return ((Comparable)val1).compareTo((Comparable)val2);
 				}
 			});
@@ -622,7 +635,7 @@ public class Merger {
 			fireTableStructureChanged();
 		}
 		@Override
-		public Object getValueAt(int row, int col) {
+		public Comparable<?> getValueAt(int row, int col) {
 			return rows.get(row).getColumn(col);
 		}
 		@Override
@@ -647,6 +660,8 @@ public class Merger {
 	}
 	
 	static private final class CustomCellRenderer extends DefaultTableCellRenderer {
+		private static final long serialVersionUID = 1L;
+
 		public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
 			final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 			final Row r = ((Model)table.getModel()).rows.get(row);
@@ -667,6 +682,7 @@ public class Merger {
 	}
 
 	static private final class Table extends JTable {
+		private static final long serialVersionUID = 1L;
 		Table() {
 			super();
 			setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
