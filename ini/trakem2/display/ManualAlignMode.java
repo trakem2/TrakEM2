@@ -26,7 +26,6 @@ import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Font;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Collection;
@@ -154,7 +153,7 @@ public class ManualAlignMode implements Mode {
 		/** Sets the point at @param index to the new location. */
 		synchronized public void set(final int index, final float x_d, final float y_d) {
 			if (index < 0 || index >= points.size()) return;
-			Point p = points.remove(index);
+			points.remove(index);
 			points.add(index, new Point(new float[]{x_d, y_d}));
 		}
 
@@ -218,7 +217,7 @@ public class ManualAlignMode implements Mode {
 			}
 		}
 
-		display.repaint();
+		display.repaintAll3();
 	}
 
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {

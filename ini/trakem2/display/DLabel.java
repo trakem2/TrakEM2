@@ -323,6 +323,7 @@ public class DLabel extends Displayable implements VectorData {
 	/** When closed, the editor sets the text to the label. */
 	private class Editor extends JFrame implements WindowListener {
 
+		private static final long serialVersionUID = 1L;
 		private DLabel label;
 		private JTextArea jta;
 
@@ -468,7 +469,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	@Override
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DPDLabel.class;
 	}
 

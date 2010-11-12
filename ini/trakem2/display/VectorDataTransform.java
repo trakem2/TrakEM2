@@ -1,13 +1,11 @@
 package ini.trakem2.display;
 
-import java.awt.geom.Area;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import ini.trakem2.display.Layer;
-import mpicbg.models.CoordinateTransform;
-import java.util.List;
-import java.util.ArrayList;
 import ini.trakem2.utils.M;
+
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.util.ArrayList;
+import java.util.List;
 
 final public class VectorDataTransform {
 	final public Layer layer;

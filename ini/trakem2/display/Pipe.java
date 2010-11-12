@@ -24,37 +24,31 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Vector3;
-import ini.trakem2.persistence.DBObject;
 import ini.trakem2.vector.VectorString3D;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Rectangle;
+import java.awt.Composite;
+import java.awt.Graphics2D;
 import java.awt.Polygon;
-import java.awt.event.MouseEvent;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.geom.Area;
-import java.awt.Shape;
 
 import javax.vecmath.Point3f;
 
@@ -547,7 +541,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		double[][] p_r = this.p_r;
 		double[][] p_l = this.p_l;
 		double[][] p_i = this.p_i;
-		double[] p_width = this.p_width;
+		//double[] p_width = this.p_width;
 		double[] p_width_i = this.p_width_i;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
@@ -556,7 +550,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			p_l = (double[][])ob[1];
 			p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
-			p_width = (double[])ob[4];
+			//p_width = (double[])ob[4];
 			p_width_i = (double[])ob[5];
 		}
 
@@ -601,10 +595,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		// paint the tube in 2D:
 		if (n_points > 1 && p_i[0].length > 1) { // need the second check for repaints that happen before generating the interpolated points.
 			double angle = 0;
-			double a0 = Math.toRadians(0);
+			//double a0 = Math.toRadians(0);
 			double a90 = Math.toRadians(90);
-			double a180 = Math.toRadians(180);
-			double a270 = Math.toRadians(270);
+			//double a180 = Math.toRadians(180);
+			//double a270 = Math.toRadians(270);
 			final int n = p_i[0].length;
 			final double[] r_side_x = new double[n];
 			final double[] r_side_y = new double[n];
@@ -948,14 +942,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	synchronized private void setupForDisplay() {
 		// load points
 		if (null == p || null == p_l || null == p_r) {
-			ArrayList al = project.getLoader().fetchPipePoints(id);
+			ArrayList<?> al = project.getLoader().fetchPipePoints(id);
 			n_points = al.size();
 			p = new double[2][n_points];
 			p_l = new double[2][n_points];
 			p_r = new double[2][n_points];
 			p_layer = new long[n_points];
 			p_width = new double[n_points];
-			Iterator it = al.iterator();
+			Iterator<?> it = al.iterator();
 			int i = 0;
 			while (it.hasNext()) {
 				Object[] ob = (Object[])it.next();
@@ -978,10 +972,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		final int n = p_i[0].length; // the number of interpolated points
 		if (n < 2) return null;
 		double angle = 0;
-		final double a0 = Math.toRadians(0);
+		//final double a0 = Math.toRadians(0);
 		final double a90 = Math.toRadians(90);
-		final double a180 = Math.toRadians(180);
-		final double a270 = Math.toRadians(270);
+		//final double a180 = Math.toRadians(180);
+		//final double a270 = Math.toRadians(270);
 		double[] r_side_x = new double[n];
 		double[] r_side_y = new double[n];
 		double[] l_side_x = new double[n];
@@ -1021,7 +1015,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
 
 		// local pointers, since they may be transformed
-		int n_points = this.n_points;
+		//int n_points = this.n_points;
 		//double[][] p = this.p;
 		//double[][] p_r = this.p_r;
 		//double[][] p_l = this.p_l;
@@ -1031,7 +1025,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			//p = (double[][])ob[0];
-			n_points = p[0].length;
+			//n_points = p[0].length;
 			//p_l = (double[][])ob[1];
 			//p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
@@ -1168,10 +1162,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
 
 		double angle = 0;
-		double a0 = Math.toRadians(0);
+		//double a0 = Math.toRadians(0);
 		double a90 = Math.toRadians(90);
-		double a180 = Math.toRadians(180);
-		double a270 = Math.toRadians(270);
+		//double a180 = Math.toRadians(180);
+		//double a270 = Math.toRadians(270);
 		int n = p_i[0].length; // the number of interpolated points
 		final double[] r_side_x = new double[n];
 		final double[] r_side_y = new double[n];
@@ -1301,27 +1295,27 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
 		double[][] p = this.p;
-		double[][] p_r = this.p_r;
-		double[][] p_l = this.p_l;
+		//double[][] p_r = this.p_r;
+		//double[][] p_l = this.p_l;
 		double[][] p_i = this.p_i;
-		double[] p_width = this.p_width;
+		//double[] p_width = this.p_width;
 		double[] p_width_i = this.p_width_i;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
 			n_points = p[0].length;
-			p_l = (double[][])ob[1];
-			p_r = (double[][])ob[2];
+			//p_l = (double[][])ob[1];
+			//p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
-			p_width = (double[])ob[4];
+			//p_width = (double[])ob[4];
 			p_width_i = (double[])ob[5];
 		}
 
 		double angle = 0;
-		double a0 = Math.toRadians(0);
+		//double a0 = Math.toRadians(0);
 		double a90 = Math.toRadians(90);
-		double a180 = Math.toRadians(180);
-		double a270 = Math.toRadians(270);
+		//double a180 = Math.toRadians(180);
+		//double a270 = Math.toRadians(270);
 		int n = p_i[0].length; // the number of interpolated points
 		double[] r_side_x = new double[n];
 		double[] r_side_y = new double[n];
@@ -1355,7 +1349,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		int last = 0; // the last backbone point in the subpolygon present in the layer
 
 		boolean add_pol = false;
-		final ArrayList al = new ArrayList();
+		final ArrayList<Polygon> al = new ArrayList<Polygon>();
 
 		for (int j=0; j<n_points; j++) {
 			if (layer_id != p_layer[j]) {
@@ -1404,7 +1398,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Pipe:
 		unlinkAll(Patch.class);
 
-		HashSet hs = new HashSet();
+		HashSet<Long> hs = new HashSet<Long>();
 		boolean must_lock = false;
 		for (int l=0; l<n_points; l++) {
 			// avoid repeating the ones that have been done
@@ -1422,13 +1416,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			final Polygon[] perimeters = getSubPerimeters(layer);
 			if (null == perimeters) continue;
 
-			// catch all displayables of the current Layer
-			final ArrayList al = layer.getDisplayables(Patch.class);
-
 			// for each Patch, check if it underlays this profile's bounding box
 			final Rectangle box = new Rectangle();
-			for (Iterator itd = al.iterator(); itd.hasNext(); ) {
-				final Displayable displ = (Displayable)itd.next();
+			for (final Displayable displ : layer.getDisplayables(Patch.class)) {
 				// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 				for (int i=0; i<perimeters.length; i++) {
 					if (perimeters[i].intersects(displ.getBoundingBox(box))) {
@@ -1505,9 +1495,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			int ii = 0;
 			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				data.append(((DBObject)ob).getId());
+			for (final Displayable d : hs_linked) {
+				data.append(d.getId());
 				if (ii != len-1) data.append(",");
 				ii++;
 			}
@@ -1658,7 +1647,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Calibrated. */
-	synchronized public List generateTriangles(double scale, int parallels, int resample) {
+	synchronized public List<Point3f> generateTriangles(double scale, int parallels, int resample) {
 		if (n_points < 2) return null;
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
@@ -1668,10 +1657,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Accepts an arrays as that returned from methods generateJoints and makeTube: first dimension is the list of points, second dimension is the number of vertices defining the circular cross section of the tube, and third dimension is the x,y,z of each vertex. */
-	static public List generateTriangles(final double[][][] all_points, final double scale) {
+	static public List<Point3f> generateTriangles(final double[][][] all_points, final double scale) {
 		int n = all_points.length;
 		final int parallels = all_points[0].length -1;
-		List list = new ArrayList();
+		List<Point3f> list = new ArrayList<Point3f>();
 		for (int i=0; i<n-1; i++) { //minus one since last is made with previous
 			for (int j=0; j<parallels; j++) { //there are 12+12 triangles for each joint //it's up to 12+1 because first point is repeated at the end
 				// first triangle in the quad
@@ -1695,19 +1684,19 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
 		double[][] p = this.p;
-		double[][] p_r = this.p_r;
-		double[][] p_l = this.p_l;
+		//double[][] p_r = this.p_r;
+		//double[][] p_l = this.p_l;
 		double[][] p_i = this.p_i;
-		double[] p_width = this.p_width;
+		//double[] p_width = this.p_width;
 		double[] p_width_i = this.p_width_i;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
 			n_points = p[0].length;
-			p_l = (double[][])ob[1];
-			p_r = (double[][])ob[2];
+			//p_l = (double[][])ob[1];
+			//p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
-			p_width = (double[])ob[4];
+			//p_width = (double[])ob[4];
 			p_width_i = (double[])ob[5];
 		}
 
@@ -1929,19 +1918,19 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
 		double[][] p = this.p;
-		double[][] p_r = this.p_r;
-		double[][] p_l = this.p_l;
+		//double[][] p_r = this.p_r;
+		//double[][] p_l = this.p_l;
 		double[][] p_i = this.p_i;
-		double[] p_width = this.p_width;
+		//double[] p_width = this.p_width;
 		double[] p_width_i = this.p_width_i;
 		if (!this.at.isIdentity()) {
 			final Object[] ob = getTransformedData();
 			p = (double[][])ob[0];
 			n_points = p[0].length;
-			p_l = (double[][])ob[1];
-			p_r = (double[][])ob[2];
+			//p_l = (double[][])ob[1];
+			//p_r = (double[][])ob[2];
 			p_i = (double[][])ob[3];
-			p_width = (double[])ob[4];
+			//p_width = (double[])ob[4];
 			p_width_i = (double[])ob[5];
 		}
 
@@ -2056,6 +2045,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return r;
 	}
 
+	/*
 	// debug ---------------
 	static private void showShape(final Shape shape) {
 		Area area = new Area(shape);
@@ -2071,6 +2061,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		sr.drawPixels(bp);
 		imp.show();
 	}
+	*/
 
 	@Override
 	public ResultsTable measure(ResultsTable rt) {
@@ -2094,7 +2085,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPPipe.class;
 	}
 

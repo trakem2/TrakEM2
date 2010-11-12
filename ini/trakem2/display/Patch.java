@@ -764,7 +764,7 @@ public final class Patch extends Displayable implements ImageData {
 		return Math.pow(256, pow) - 1;
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_patch";
 		if (hs.contains(type)) return;
 		// The Patch itself:
@@ -1053,12 +1053,13 @@ public final class Patch extends Displayable implements ImageData {
 	 * sets it.  If there is only one transform, it replaces it by a list
 	 * containing both.
 	 */
+	@SuppressWarnings("unchecked")
 	public final void appendCoordinateTransform(final CoordinateTransform ct) {
 		if (null == this.ct)
 			setCoordinateTransform(ct);
 		else {
 			final CoordinateTransformList< CoordinateTransform > ctl;
-			if (this.ct instanceof CoordinateTransformList)
+			if (this.ct instanceof CoordinateTransformList<?>)
 				ctl = (CoordinateTransformList< CoordinateTransform >)this.ct.clone();
 			else {
 				ctl = new CoordinateTransformList< CoordinateTransform >();
@@ -1218,15 +1219,15 @@ public final class Patch extends Displayable implements ImageData {
 					ImagePlus imp = getImagePlus();
 					if (null != imp) imp.copy(false);
 				} else if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
-					CoordinateTransformList list = null;
+					CoordinateTransformList<CoordinateTransform> list = null;
 					if (null != ct) {
-						list = new CoordinateTransformList();
+						list = new CoordinateTransformList<CoordinateTransform>();
 						list.add(this.ct);
 					}
 					if (0 == mod) { //SHIFT is not down
 						AffineModel2D am = new AffineModel2D();
 						am.set(this.at);
-						if (null == list) list = new CoordinateTransformList();
+						if (null == list) list = new CoordinateTransformList<CoordinateTransform>();
 						list.add(am);
 					}
 					ImageProcessor ip;
@@ -1263,7 +1264,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	@Override
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DPPatch.class;
 	}
 
@@ -1290,8 +1291,8 @@ public final class Patch extends Displayable implements ImageData {
 			super.to1(d);
 			final Patch p = (Patch) d;
 			boolean mipmaps = false;
-			if (p.min != min || p.max != max || p.ct != ct || (p.ct == ct && ct instanceof CoordinateTransformList)) {
-				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct != ct) + " " + (p.ct == ct && ct instanceof CoordinateTransformList));
+			if (p.min != min || p.max != max || p.ct != ct || (p.ct == ct && ct instanceof CoordinateTransformList<?>)) {
+				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct != ct) + " " + (p.ct == ct && ct instanceof CoordinateTransformList<?>));
 				mipmaps = true;
 			}
 			p.min = min;
@@ -1479,7 +1480,7 @@ public final class Patch extends Displayable implements ImageData {
 		}
 
 		if (null != ct) {
-			final CoordinateTransformList t = new CoordinateTransformList();
+			final CoordinateTransformList<CoordinateTransform> t = new CoordinateTransformList<CoordinateTransform>();
 			t.add(ct);
 			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
@@ -1594,7 +1595,7 @@ public final class Patch extends Displayable implements ImageData {
 			if (null != sc) patch_affine.preConcatenate( sc );
 
 			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, 32, p.getOWidth(), p.getOHeight() );
-			final mpicbg.ij.TransformMeshMapping mapping = new mpicbg.ij.TransformMeshMapping( mesh );
+			final mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
 			
 			// 4. Convert the patch to the required type
 			final ImageProcessor pi;

@@ -31,10 +31,11 @@ import java.awt.Dimension;
 
 public class Channel extends JPanel implements ItemListener, MouseListener {
 
+	private static final long serialVersionUID = 1L;
+
 	static public final int HEIGHT = 52;
 
 	private JCheckBox c;
-	private JLabel title;
 
 	private Display display;
 

@@ -75,7 +75,6 @@ public final class Display3D {
 	/** If the LayerSet dimensions are too large, then limit to max 2048 for width or height and setup a scale.*/
 	private final double scale = 1.0; // OBSOLETE: meshes are now generated with imglib ShapeList images.
 
-	private String selected = null;
 
 	// To fork away from the EventDispatchThread
 	static private ExecutorService launchers = Utils.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), "Display3D-launchers");
@@ -223,16 +222,6 @@ public final class Display3D {
 		}
 	}
 
-	/** Reads the #ID in the name, which is immutable. */
-	private ProjectThing find(String name) {
-		long id = Long.parseLong(name.substring(name.lastIndexOf('#')+1));
-		for (final ProjectThing pt : ht_pt_meshes.keySet()) {
-			Displayable d = (Displayable) pt.getObject();
-			if (d.getId() == id) return pt;
-		}
-		return null;
-	}
-
 	static private boolean check_j3d = true;
 	static private boolean has_j3d_3dviewer = false;
 
@@ -240,7 +229,7 @@ public final class Display3D {
 		if (check_j3d) {
 			check_j3d = false;
 			try {
-				Class p3f = Class.forName("javax.vecmath.Point3f");
+				Class.forName("javax.vecmath.Point3f");
 				has_j3d_3dviewer = true;
 			} catch (ClassNotFoundException cnfe) {
 				Utils.log("Java 3D not installed.");
@@ -248,7 +237,7 @@ public final class Display3D {
 				return false;
 			}
 			try {
-				Class ij3d = Class.forName("ij3d.ImageWindow3D");
+				Class.forName("ij3d.ImageWindow3D");
 				has_j3d_3dviewer = true;
 			} catch (ClassNotFoundException cnfe) {
 				Utils.log("3D Viewer not installed.");
@@ -400,9 +389,9 @@ public final class Display3D {
 		// A list of all generated Content objects
 		final Vector<Future<Content>> list = new Vector<Future<Content>>();
 
-		for (final Iterator it = hs.iterator(); it.hasNext(); ) {
+		for (final Iterator<ProjectThing> it = hs.iterator(); it.hasNext(); ) {
 			// obtain the Displayable object under the node
-			final ProjectThing child = (ProjectThing)it.next();
+			final ProjectThing child = it.next();
 
 			Object obc = child.getObject();
 			final Displayable displ = obc.getClass().equals(String.class) ? null : (Displayable)obc;
@@ -421,7 +410,7 @@ public final class Display3D {
 			final Display3D d3d;
 			if (null != displ) d3d = Display3D.get(displ.getLayerSet());
 			else if (child.getType().equals("profile_list")) {
-				ArrayList al_children = child.getChildren();
+				ArrayList<ProjectThing> al_children = child.getChildren();
 				if (null == al_children || 0 == al_children.size()) continue;
 				// else, get the first Profile and get its LayerSet
 				d3d = Display3D.get(((Displayable)((ProjectThing)al_children.get(0)).getObject()).getLayerSet());
@@ -655,9 +644,9 @@ public final class Display3D {
 
 		// the list 'triangles' is really a list of Point3f, which define a triangle every 3 consecutive points. (TODO most likely Bene Schmid got it wrong: I don't think there's any need to have the points duplicated if they overlap in space but belong to separate triangles.)
 		final List<Point3f> triangles;
-		boolean no_culling_ = false; // don't show back faces when false
+		//boolean no_culling_ = false;
 
-		final Class c;
+		final Class<?> c;
 		final boolean line_mesh;
 		final int line_mesh_mode;
 		if (null == displ) {
@@ -691,7 +680,7 @@ public final class Display3D {
 			// Pipe and Polyline
 			// adjustResampling();  // fails horribly, needs first to correct mesh-generation code
 			triangles = ((Line3D)displ).generateTriangles(scale, 12, 1 /*Display3D.this.resample*/);
-		} else if (displ instanceof Tree) {
+		} else if (displ instanceof Tree<?>) {
 			// A 3D wire skeleton, using CustomLineMesh
 			final Tree.MeshData skeleton = ((Tree<?>)displ).generateSkeleton(scale, 12, 1);
 			triangles = skeleton.verts;
@@ -712,7 +701,7 @@ public final class Display3D {
 			triangle_colors = octopus.colors;
 		} else if (null == displ && pt.getType().equals("profile_list")) {
 			triangles = Profile.generateTriangles(pt, scale);
-			no_culling_ = true;
+			//no_culling_ = true;
 		} else {
 			Utils.log("Unrecognized type for 3D mesh generation: " + (null != displ ? displ.getClass() : null) + " : " + displ);
 			triangles = null;
@@ -864,7 +853,7 @@ public final class Display3D {
 			if (1 == transp) {
 				Utils.log("WARNING: adding a 3D object fully transparent.");
 			}
-			List triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), d3d.scale);
+			List<Point3f> triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), d3d.scale);
 			Content ct = d3d.universe.createContent(new CustomTriangleMesh(triangles, new Color3f(color), 0), title);
 			ct.setTransparency(transp);
 			ct.setLocked(true);
@@ -961,7 +950,7 @@ public final class Display3D {
 			if (null != d3d.universe.getContent(title)) return true;
 		}
 		if (d.getClass() == Profile.class) {
-			Content content = getProfileContent(d);
+			if (null != getProfileContent(d)) return true;
 		}
 		return false;
 	}
@@ -981,7 +970,7 @@ public final class Display3D {
 	static public Future<Boolean> setColor(final Displayable d, final Color color) {
 		final Display3D d3d = getDisplay(d.getLayer().getParent());
 		if (null == d3d) return null; // no 3D displays open
-		return d3d.executors.submit(new Callable() { public Boolean call() {
+		return d3d.executors.submit(new Callable<Boolean>() { public Boolean call() {
 			Content content = d3d.universe.getContent(makeTitle(d));
 			if (null == content) content = getProfileContent(d);
 			if (null != content) {
@@ -1008,7 +997,7 @@ public final class Display3D {
 				if (pa.isStack()) {
 					title = pa.getProject().getLoader().getFileName(pa);
 					for (Display3D dd : ht_layer_sets.values()) {
-						for (Iterator cit = dd.universe.getContents().iterator(); cit.hasNext(); ) {
+						for (Iterator<?> cit = dd.universe.getContents().iterator(); cit.hasNext(); ) {
 							Content c = (Content)cit.next();
 							if (c.getName().startsWith(title)) {
 								c.setTransparency(1 - alpha);

@@ -25,32 +25,27 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
 import ini.trakem2.Project;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Search;
-import ini.trakem2.persistence.DBObject;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Iterator;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.Stroke;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
-import java.awt.geom.Rectangle2D;
-import java.awt.geom.Point2D;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
-import java.awt.event.MouseEvent;
-import java.awt.BasicStroke;
-import java.awt.Stroke;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
 
 /** Implements the Double Dissector method with scale-invariant grouped labels.
@@ -298,8 +293,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			boolean must_lock = false;
 			for (int i=0; i<n_points; i++) {
 				Layer la = layer_set.getLayer(p_layer[0]);
-				for (Iterator it = la.getDisplayables(Patch.class).iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : la.getDisplayables(Patch.class)) {
 					d.getBoundingBox(r);
 					if (r.contains((int)po[0][i], (int)po[1][i])) {
 						link(d, true);
@@ -499,8 +493,6 @@ public class Dissector extends ZDisplayable implements VectorData {
 			y_p = (int)p.y;
 		}
 
-		final boolean is_zoom_invariant = "true".equals(project.getProperty("dissector_zoom"));
-
 		// find if the click is within radius of an existing point for the current layer
 		for (Item tmp : al_items) {
 			index = tmp.find(lid, x_p, y_p, mag);
@@ -509,6 +501,9 @@ public class Dissector extends ZDisplayable implements VectorData {
 				break;
 			}
 		}
+
+
+		//final boolean is_zoom_invariant = "true".equals(project.getProperty("dissector_zoom"));
 
 		// TODO: if zoom invariant, should check for nearest point. Or nearest point anyway, when deleting
 		// (but also for adding a new one?)
@@ -628,7 +623,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return true;
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_dissector";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -702,7 +697,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DPDissector.class;
 	}
 

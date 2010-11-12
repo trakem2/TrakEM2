@@ -632,7 +632,8 @@ public class Selection {
 		return al;
 	}
 
-	/** Returns a list of selected Displayable of class c only.*/
+	/** Returns a list of selected Displayable of class c only.
+	 *  Same as getSelected(Class) but returning a List of the desired type. */
 	public <T extends Displayable> List<T> get(final Class<T> c) {
 		if (Displayable.class == c) {
 			return (List<T>)getSelected();

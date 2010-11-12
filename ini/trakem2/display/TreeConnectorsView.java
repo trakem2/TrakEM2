@@ -166,6 +166,7 @@ public class TreeConnectorsView {
 	}
 
 	private class Table extends JTable {
+		private static final long serialVersionUID = 1L;
 		Table() {
 			super();
 			getTableHeader().addMouseListener(new MouseAdapter() {
@@ -221,7 +222,7 @@ public class TreeConnectorsView {
 	}
 
 	private class TargetsTableModel extends AbstractTableModel {
-
+		private static final long serialVersionUID = 1L;
 		List<Row> rows = null;
 
 		synchronized public void setData(final Collection<Connector> connectors) {

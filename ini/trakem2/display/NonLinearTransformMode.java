@@ -1,44 +1,26 @@
 package ini.trakem2.display;
 
-import ij.ImagePlus;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Paintable;
-import ini.trakem2.display.graphics.GraphicsSource;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
+
+import java.awt.BasicStroke;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.Stroke;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.Future;
-import java.awt.BasicStroke;
-import java.awt.Image;
-import java.awt.Composite;
-import java.awt.Rectangle;
-import java.awt.Graphics2D;
-import java.awt.Stroke;
-import java.awt.event.MouseEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
 
-import mpicbg.ij.Mapping;
-import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.transform.CoordinateTransformList;
-import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.models.CoordinateTransformMesh;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
-import mpicbg.trakem2.transform.AffineModel2D;
-import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -46,6 +28,12 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
+import mpicbg.trakem2.transform.AffineModel2D;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
 public class NonLinearTransformMode extends GroupingMode {
 
@@ -316,13 +304,13 @@ public class NonLinearTransformMode extends GroupingMode {
 				}
 
 				/* Flush images */
-				for ( GroupingMode.ScreenPatchRange spr : new HashSet< GroupingMode.ScreenPatchRange >( screenPatchRanges.values() ) )
+				for ( GroupingMode.ScreenPatchRange<?> spr : new HashSet< GroupingMode.ScreenPatchRange<?> >( screenPatchRanges.values() ) )
 				{
 					spr.flush();
 				}
 
 				/* Wait until all mipmaps are regenerated */
-				for ( Future fu : futures )
+				for ( Future<?> fu : futures )
 					try
 					{
 						fu.get();
