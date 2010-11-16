@@ -208,8 +208,8 @@ public class Connector extends Treeline {
 		}
 	}
 
-	public boolean intersectsOrigin(final Area area) {
-		if (null == root) return false;
+	public boolean intersectsOrigin(final Area area, final Layer la) {
+		if (null == root || root.la != la) return false;
 		final Area a = root.getArea();
 		a.transform(this.at);
 		return M.intersects(area, a);

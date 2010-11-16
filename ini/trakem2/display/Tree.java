@@ -3126,7 +3126,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							if (col.isEmpty()) return null;
 							// Outgoing or incoming?
 							for (final Connector c : (Collection<Connector>)(Collection)col) {
-								if (c.intersectsOrigin(a)) {
+								if (c.intersectsOrigin(a, nd.la)) {
 									synchronized (outgoing) {
 										outgoing.add(c);
 									}
