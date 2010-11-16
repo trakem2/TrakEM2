@@ -25,6 +25,7 @@ package ini.trakem2.tree;
 import ij.measure.ResultsTable;
 
 import ini.trakem2.Project;
+import ini.trakem2.display.AreaContainer;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.DisplayablePanel;
@@ -692,6 +693,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			if (d.isVisible()) {
 				ResultsTable rt = d.measure(ht.get(d.getClass()));
 				if (null != rt) ht.put(d.getClass(), rt);
+				// Areas:
+				if (object instanceof AreaContainer) {
+					ResultsTable rta = ((AreaContainer)object).measureAreas(ht.get(AreaContainer.class));
+					if (null != rta) ht.put(AreaContainer.class, rta);
+				}
 			} else {
 				Utils.log("Measure: skipping hidden object " + d.getProject().getMeaningfulTitle(d));
 			}

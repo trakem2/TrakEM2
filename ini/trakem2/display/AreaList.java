@@ -1399,4 +1399,32 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			return false;
 		}
 	}
+
+	@Override
+	public ResultsTable measureAreas(ResultsTable rt) {
+		if (0 == ht_areas.size()) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Area results", new String[]{"id", "name-id", "layer index", "area"});
+		final double nameId = getNameId();
+		final Calibration cal = layer_set.getCalibration();
+		final String units = cal.getUnit();
+		// Sort by Layer
+		final TreeMap<Layer,Area> sm = new TreeMap<Layer, Area>(Layer.COMPARATOR);
+		for (final Map.Entry<Long,Area> e : ht_areas.entrySet()) {
+			sm.put(layer_set.getLayer(e.getKey()), e.getValue());
+		}
+		for (final Map.Entry<Layer,Area> e : sm.entrySet()) {
+			Area area = e.getValue();
+			if (area.isEmpty()) continue;
+			rt.incrementCounter();
+			rt.addLabel("units", units);
+			rt.addValue(0, this.id);
+			rt.addValue(1, nameId);
+			rt.addValue(2, layer_set.indexOf(e.getKey()) + 1); // 1-based
+			// measure surface
+			double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
+			double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
+			rt.addValue(3, surface);
+		}
+		return rt;
+	}
 }

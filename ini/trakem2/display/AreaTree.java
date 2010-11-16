@@ -1,5 +1,8 @@
 package ini.trakem2.display;
 
+import fiji.geom.AreaCalculations;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.AreaUtils;
@@ -30,6 +33,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
@@ -543,5 +547,44 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			if (an.getData().contains(lx, ly)) return true;
 		}
 		return false;
+	}
+
+
+	@Override
+	public ResultsTable measureAreas(ResultsTable rt) {
+		if (null == root) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Area results", new String[]{"id", "name-id", "layer index", "area"});
+		final double nameId = getNameId();
+		final Calibration cal = layer_set.getCalibration();
+		final String units = cal.getUnit();
+		final TreeMap<Layer,Collection<Area>> sm = new TreeMap<Layer,Collection<Area>>(Layer.COMPARATOR);
+		// Sort by layer index
+		synchronized (node_layer_map) {
+			for (final Node<Area> nd : root.getSubtreeNodes()) {
+				Area area = nd.getData();
+				if (null == area || area.isEmpty()) continue;
+				Collection<Area> col = sm.get(nd.getLayer());
+				if (null == col) {
+					col = new ArrayList<Area>();
+					sm.put(nd.getLayer(), col);
+				}
+				col.add(area);
+			}
+		}
+		for (final Map.Entry<Layer,Collection<Area>> e : sm.entrySet()) {
+			final int index = layer_set.indexOf(e.getKey()) + 1; // 1-based
+			for (final Area area : e.getValue()) {
+				rt.incrementCounter();
+				rt.addLabel("units", units);
+				rt.addValue(0, this.id);
+				rt.addValue(1, nameId);
+				rt.addValue(2, index);
+				// measure surface
+				double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
+				double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
+				rt.addValue(3, surface);
+			}
+		}
+		return rt;
 	}
 }
