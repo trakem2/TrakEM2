@@ -103,8 +103,8 @@ public final class Display3D {
 				Utils.log("No layer was found nearest to "+scaledZ);
 				return;
 			}
-			Coordinate coordinate = new Coordinate(p.x/cal.pixelWidth,p.y/cal.pixelHeight,l,null);
-			display.centerAt(coordinate);
+			Coordinate<?> coordinate = new Coordinate<Object>(p.x/cal.pixelWidth,p.y/cal.pixelHeight,l,null);
+			display.center(coordinate);
 		}
 	}
 
