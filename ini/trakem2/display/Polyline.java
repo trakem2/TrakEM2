@@ -563,7 +563,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	static private class TraceParameters {
 		boolean update = true;
 		ImagePlus virtual = null;
-		double scale = 1;
+		//double scale = 1;
 		ComputeCurvatures hessian = null;
 		TracerThread tracer = null; // catched thread for KeyEvent to attempt to stop it
 	}
@@ -622,7 +622,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				hessian.run();
 
 				tr.virtual = virtual;
-				tr.scale = scale;
+				//tr.scale = scale;
 				tr.hessian = hessian;
 				tr.update = false;
 
@@ -1129,7 +1129,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Exports to type t2_polyline. */
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_polyline";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -1154,12 +1154,12 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Calibrated. */
-	synchronized public List generateTriangles(double scale, int parallels, int resample) {
+	synchronized public List<Point3f> generateTriangles(double scale, int parallels, int resample) {
 		return generateTriangles(scale, parallels, resample, layer_set.getCalibrationCopy());
 	}
 
 	/** Returns a list of Point3f that define a polyline in 3D, for usage with an ij3d CustomLineMesh CONTINUOUS. @param parallels is ignored. */
-	synchronized public List generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
+	synchronized public List<Point3f> generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
 		if (-1 == n_points) setupForDisplay();
 
 		if (0 == n_points) return null;
@@ -1176,7 +1176,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			p = this.p;
 		}
 
-		final ArrayList list = new ArrayList();
+		final ArrayList<Point3f> list = new ArrayList<Point3f>();
 		final double KW = scale * cal.pixelWidth * resample;
 		final double KH = scale * cal.pixelHeight * resample;
 
@@ -1421,7 +1421,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPPolyline.class;
 	}
 
