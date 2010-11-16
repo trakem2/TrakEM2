@@ -713,7 +713,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 
-	/** Returns are in local coords. */
+	/** Returns area in local coords. */
 	public Area getArea() {
 		return new Area(new Rectangle2D.Float(x, y, 1, 1)); // a "little square" -- sinful! xDDD
 	}
