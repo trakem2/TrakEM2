@@ -673,6 +673,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private final class ScrollerModel extends DefaultBoundedRangeModel {
+		private static final long serialVersionUID = 1L;
 		int index;
 		ScrollerModel(final Layer la) {
 			this.index = la.getParent().indexOf(la);
