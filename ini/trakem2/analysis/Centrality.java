@@ -1,9 +1,5 @@
 package ini.trakem2.analysis;
 
-import ij.measure.Calibration;
-import ini.trakem2.display.Node;
-import ini.trakem2.utils.Utils;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -13,8 +9,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javax.vecmath.Point3f;
 
 /** Following pseudo-code from:
  *  Ulrik Brandes. 2001. A faster algorithm for betweenness centrality.
@@ -83,48 +77,32 @@ public class Centrality {
 			}
 		}
 	}
-
-	static private final <T> Point3f world(final Vertex<T> v) {
-		if (null == v) return null;
-		Node<?> nd = (Node<?>)v.data;
-		Point3f p = new Point3f(nd.getX(), nd.getY(), nd.getLayer().getParent().indexOf(nd.getLayer()));
-		Calibration cal = nd.getLayer().getParent().getCalibration();
-		p.x = p.x * (float)cal.pixelWidth + 2505;
-		p.y = p.y * (float)cal.pixelHeight + 3141;
-		return p;
-	}
 	
 	/** Find the chain of nodes, over branch points if necessary, that have not yet been processed. */
 	static private final <T> List<Vertex<T>> findChain(
 			final Vertex<T> origin,
 			final Vertex<T> parent,
 			final Set<Vertex<T>> processed) {
-		Utils.log2("findChain: searching for origin " + world(origin));
 		final ArrayList<Vertex<T>> chain = new ArrayList<Vertex<T>>();
-		Utils.log2("-- added to chain: " + world(origin));
 		chain.add(origin);
 
 		Vertex<T> o = origin;
 		Vertex<T> p = parent;
 
 		A: while (true) {
-			if (chain.size() > 50) { Utils.log2("-- infinite loop"); return chain; }
-			if (1 == o.neighbors.size()) { Utils.log2("-- reached end point"); break; }
+			if (1 == o.neighbors.size()) { break; }
 			Vertex<T> o2 = o;
 			for (final Vertex<T> v : o.neighbors) {
 				if (v == p || processed.contains(v) || v.centrality < p.centrality) {
 					continue;
 				}
 				chain.add(v);
-				Utils.log2("-- added to chain: " + world(v));
-
 				p = o;
 				o = v;
 				continue A; // there can only be one unexplored path
 			}
 			if (o2 == o) break;
 		}
-		Utils.log2("findChain: returning chain of " + chain.size());
 		return chain;
 	}
 
@@ -170,10 +148,7 @@ public class Centrality {
 			}
 			
 			// Determine which branches have been removed at this etching step
-			System.out.println("## remaining branch points: " + branch_vertices.size());
-
 			final Set<Collection<Vertex<T>>> etched_branches = new HashSet<Collection<Vertex<T>>>();
-			final Set<Vertex<T>> tmp = new HashSet<Vertex<T>>();
 			for (final Vertex<T> r : removed) {
 				for (final Vertex<T> w : r.neighbors) {
 					if (w.isBranching() && w.centrality >= r.centrality) {
@@ -207,16 +182,7 @@ public class Centrality {
 					it.remove();
 				}
 			}
-			Utils.log2("branch vertices: " + branch_vertices.size() + ", vs: " + vs.size() + ", removed: " + removed.size());
-
 			if (0 == branch_vertices.size()) {
-				// The last, central branch
-				/*
-				vs.addAll(removed); // undo the etching
-				HashSet<Collection<Vertex<T>>> bs = new HashSet<Collection<Vertex<T>>>();
-				bs.add(vs);
-				steps.add(new EtchingStep<T>(0, bs));
-				*/
 				break;
 			}
 		}

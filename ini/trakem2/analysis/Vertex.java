@@ -94,7 +94,6 @@ public class Vertex<T> {
 
 		while (true) {
 			if (1 == c.size()) {
-				System.out.println("2: returning chain of " + chain.size());
 				return chain;
 			}
 			for (final Vertex<T> v : c) {
