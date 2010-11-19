@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /** A class to express a Vertex in a graph.
@@ -49,7 +50,7 @@ public class Vertex<T> {
 	static public<T> ArrayList<Vertex<T>> clone(final Collection<Vertex<T>> vs) {
 		final ArrayList<Vertex<T>> copies = new ArrayList<Vertex<T>>(vs.size());
 		if (1 == vs.size()) {
-			// neighbors will be null
+			// neighbors will be empty
 			copies.add(new Vertex<T>(vs.iterator().next().data));
 			return copies;
 		}
@@ -65,5 +66,47 @@ public class Vertex<T> {
 			copies.add(copy);
 		}
 		return copies;
+	}
+	
+	public boolean isBranching() {
+		return neighbors.size() > 2;
+	}
+
+	public boolean isEnding() {
+		return 1 == neighbors.size();
+	}
+
+	/** From this vertex to the next branch vertex or end vertex, both inclusive.
+	 *  The @param exclude is the neighbor to ignore.
+	 *  @throws IllegalArgumentException if @param exclude is not a neighbor. */
+	public List<Vertex<T>> getBranch(final Vertex<T> parent) {
+		if (!neighbors.contains(parent)) throw new IllegalArgumentException("'parent' vertex is not a neighbor");
+		//
+		final List<Vertex<T>> chain = new ArrayList<Vertex<T>>();
+		chain.add(this);
+		if (isBranching()) {
+			return chain;
+		}
+		// Iterate until the next branch or end vertex.
+		Vertex<T> o = this,
+		          p = parent;
+		Collection<Vertex<T>> c = this.neighbors;
+
+		while (true) {
+			if (1 == c.size()) {
+				System.out.println("2: returning chain of " + chain.size());
+				return chain;
+			}
+			for (final Vertex<T> v : c) {
+				if (v == p) continue;
+				chain.add(v);
+				if (v.isBranching() || v.isEnding()) {
+					return chain;
+				}
+				p = o;
+				o = v;
+				c = v.neighbors;
+			}
+		}
 	}
 }
