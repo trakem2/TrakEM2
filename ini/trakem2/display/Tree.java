@@ -165,7 +165,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				return nodes;
 			}
 			// Else, just the active layer, if any
-			return node_layer_map.get(active_layer);
+			return new HashSet<Node<T>>(node_layer_map.get(active_layer));
 		}
 	}
 
