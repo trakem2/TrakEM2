@@ -49,7 +49,7 @@ public class TranslationModel3D extends mpicbg.models.TranslationModel3D impleme
 	}
 	
 	@Override
-	public TranslationModel3D clone()
+	public TranslationModel3D copy()
 	{
 		final TranslationModel3D m = new TranslationModel3D();
 		m.translation[ 0 ] = translation[ 0 ];

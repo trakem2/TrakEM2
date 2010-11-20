@@ -125,7 +125,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 	/**
 	 * TODO Make this more efficient
 	 */
-	final public MovingLeastSquaresTransform clone()
+	final public MovingLeastSquaresTransform copy()
 	{
 		final MovingLeastSquaresTransform t = new MovingLeastSquaresTransform();
 		t.init( toDataString() );

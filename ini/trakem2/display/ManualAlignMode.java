@@ -492,7 +492,7 @@ public class ManualAlignMode implements Mode {
 				matches.add(new PointMatch(lm2.points.get(i), lm1.points.get(i)));
 			}
 
-			AbstractAffineModel2D< ? > mod = model.clone();
+			AbstractAffineModel2D< ? > mod = model.copy();
 			try {
 				mod.fit(matches);
 			} catch (Throwable t) {

@@ -790,7 +790,7 @@ public final class Patch extends Displayable implements ImageData {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		copy.ct = null == ct ? null : this.ct.clone();
+		copy.ct = null == ct ? null : this.ct.copy();
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
@@ -811,7 +811,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		public TransformProperties(final Patch p) {
 			this.at = new AffineTransform(p.at);
-			this.ct = null == p.ct ? null : p.ct.clone();
+			this.ct = null == p.ct ? null : p.ct.copy();
 			this.bounds = p.getBoundingBox(null);
 			this.o_width = p.o_width;
 			this.o_height = p.o_height;
@@ -1060,7 +1060,7 @@ public final class Patch extends Displayable implements ImageData {
 		else {
 			final CoordinateTransformList< CoordinateTransform > ctl;
 			if (this.ct instanceof CoordinateTransformList<?>)
-				ctl = (CoordinateTransformList< CoordinateTransform >)this.ct.clone();
+				ctl = (CoordinateTransformList< CoordinateTransform >)this.ct.copy();
 			else {
 				ctl = new CoordinateTransformList< CoordinateTransform >();
 				ctl.add(this.ct);
@@ -1281,7 +1281,7 @@ public final class Patch extends Displayable implements ImageData {
 			super(patch);
 			this.min = patch.min;
 			this.max = patch.max;
-			this.ct = null == ct ? null : patch.ct.clone();
+			this.ct = null == ct ? null : patch.ct.copy();
 			// channels is visualization
 			// path is absolute
 			// type is dependent on path, so absolute
@@ -1297,7 +1297,7 @@ public final class Patch extends Displayable implements ImageData {
 			}
 			p.min = min;
 			p.max = max;
-			p.ct = null == ct ? null : (CoordinateTransform) ct.clone();
+			p.ct = null == ct ? null : (CoordinateTransform) ct.copy();
 
 			if (mipmaps) {
 				p.project.getLoader().regenerateMipMaps(p);

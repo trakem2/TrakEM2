@@ -146,7 +146,7 @@ public class Stack extends ZDisplayable implements ImageData
 		this.depth = depth;
 		this.min = min;
 		this.max = max;
-		this.ict = null == ict ? null : this.ict.clone();
+		this.ict = null == ict ? null : this.ict.copy();
 		this.file_path = file_path;
 	}
 
