@@ -703,7 +703,9 @@ public class AreaWrapper {
 					src.getLayerSet().addDataEditStep(src);
 				}
 			});
-			if (Utils.isControlDown(me)) {
+			if (Utils.isControlDown(me) && me.isShiftDown()) {
+				Segmentation.trainedSegmentation(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
+			} else if (Utils.isControlDown(me)) {
 				// Grow with blow tool
 				try {
 					blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);

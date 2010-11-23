@@ -46,6 +46,7 @@ import java.util.concurrent.RejectedExecutionException;
 
 import plugin.Lasso;
 
+import trainableSegmentation.Weka_Segmentation;
 
 public class Segmentation {
 
@@ -171,6 +172,72 @@ public class Segmentation {
 		}
 		void run() {
 		}
+	}
+	static public Bureaucrat trainedSegmentation(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
+		return trainedSegmentation(aw, layer, srcRect, x_p_w, y_p_w, Arrays.asList(new Runnable[]{post_task}));
+	}
+
+	static public Bureaucrat trainedSegmentation(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) {
+		// Capture pointers before they are set to null
+		final AreaContainer ac = (AreaContainer)aw.getSource();
+		final AffineTransform source_aff = aw.getSource().getAffineTransform();
+		final Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
+		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
+			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
+			Utils.log2("fmp box is " + box);
+			ImagePlus imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+
+			final Area area = new Area();
+
+			Weka_Segmentation ws = new Weka_Segmentation(imp);
+            /*
+			if (!ws.loadNewImage(imp)) {
+				IJ.error("Failed to load the ImagePlus into Weka_Segmentation");
+				return;
+			}
+            */
+
+			if (!ws.loadClassifier("/home/mark/fiji-20100824163202/classifier.model")) {
+				IJ.error("Failed to load the classifier...");
+				return;
+			}
+
+            /*
+			if (!ws.loadTrainingData("/home/mark/fiji-20100824163202/data.arff")) {
+				IJ.error("Failed to load the training data...");
+				return;
+			}
+            */
+
+			ImagePlus probabilityImage = ws.getProbabilityMaps();
+			probabilityImage.show();
+
+
+
+
+
+
+
+
+
+
+			// Instead, compose an Area that is local to the AreaWrapper's area
+			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, box.x, box.y);
+			try {
+				aff.preConcatenate(source_aff.createInverse());
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return;
+			}
+			aw.getArea().add(area.createTransformedArea(aff));
+			ac.calculateBoundingBox(layer);
+
+			Display.repaint(layer);
+
+		}}, layer.getProject());
+		if (null != post_tasks) for (Runnable task : post_tasks) burro.addPostTask(task);
+		burro.goHaveBreakfast();
+		return burro;
 	}
 
 	static public Bureaucrat fastMarching(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task) {
@@ -435,4 +502,5 @@ public class Segmentation {
 	static public BlowCommander blowRoi(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) throws Exception {
 		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, post_tasks);
 	}
+
 }
