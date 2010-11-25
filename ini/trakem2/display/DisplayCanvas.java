@@ -197,7 +197,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				invalid_volatile = false;
 				clipRect = null; // paint all
 			}
-			// 
+			//
 			// Now paint the BufferedImage into the accelerated image
 			//
 			final Graphics2D g = volatileImage.createGraphics();
@@ -239,11 +239,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						if (active_painted) continue;
 						else active_painted = d == active;
 					}
-					if (must_paint_active && !active_painted) {
-						// Active may not have been part of top array if it was added new and the offscreen image was not updated,
-						// which is the case for any non-image object
-						active.paint(g, srcRect, magnification, true, c_alphas, active_layer, layers);
-					}
+				}
+				if (must_paint_active && !active_painted) {
+					// Active may not have been part of top array if it was added new and the offscreen image was not updated,
+					// which is the case for any non-image object
+					// Or, when selecting an object if there were none selected yet.
+					active.paint(g, srcRect, magnification, true, c_alphas, active_layer, layers);
 				}
 			}
 
@@ -2453,7 +2454,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		return first_non_patch;
 	}
-	
+
 	@Deprecated
 	public BufferedImage paintOffscreen(final Layer active_layer, final int g_width, final int g_height,
 			final Rectangle srcRect, final double magnification, final Displayable active,
