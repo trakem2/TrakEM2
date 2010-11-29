@@ -426,7 +426,7 @@ public class AreaWrapper {
 				final Runnable task = new Runnable() {
 					public void run() {
 						final AffineTransform aff = new AffineTransform(1, 0, 0, 1, p.x, p.y);
-						aff.concatenate(at_inv);
+						aff.preConcatenate(at_inv);
 						final Area slash = slashInInts(brush.createTransformedArea(aff));
 						synchronized (arealock) {
 							if (0 == (flags & alt)) {
