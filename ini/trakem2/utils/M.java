@@ -401,7 +401,7 @@ public final class M {
 		apply(vdt, a, false);
 	}
 
-	/** Parts of @param a not intersected by any of @pram vdt rois will be left untouched if @param remove_outside is true. */
+	/** Parts of @param a not intersected by any of @param vdt rois will be left untouched if @param remove_outside is false. */
 	static final public void apply(final VectorDataTransform vdt, final Area a, final boolean remove_outside) {
 		final Area b = new Area();
 		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {

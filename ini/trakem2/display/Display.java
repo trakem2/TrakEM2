@@ -466,7 +466,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Creates a new Display with adjusted magnification to fit in the screen. */
 	static public void createDisplay(final Project project, final Layer layer) {
-		Utils.invokeLater(new Runnable() { public void run() {
+		// Really execute in a second round of event dispatch thread
+		// to enable the calling component to repaint back to normal
+		// and the events to terminate.
+		SwingUtilities.invokeLater(new Runnable() { public void run() {
 			Display display = new Display(project, layer);
 			Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
 			Rectangle srcRect = new Rectangle(0, 0, (int)layer.getLayerWidth(), (int)layer.getLayerHeight());
@@ -485,7 +488,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			display.frame.pack();
 		}});
 	}
-	
+
 	//
 	// The only two methods that ever modify the set of al_displays
 	//
