@@ -1251,7 +1251,7 @@ public final class FSLoader extends Loader {
 			if (null == label) label = "";
 			Patch patch = null;
 			if (as_copy) {
-				patch_path = target_dir + imp_patch_i.getTitle() + ".zip";
+				patch_path = target_dir + cleanSlashes(imp_patch_i.getTitle()) + ".zip";
 				ini.trakem2.io.ImageSaver.saveAsZip(imp_patch_i, patch_path);
 				patch = new Patch(project, label + " " + title + " " + i, pos_x, pos_y, imp_patch_i);
 			} else if (virtual) {
@@ -1284,6 +1284,11 @@ public final class FSLoader extends Loader {
 
 		// return the last patch
 		return previous_patch;
+	}
+
+	/** Replace forward slashes and backslashes with hyphens. */
+	private final String cleanSlashes(final String s) {
+		return s.replace('\\', '-').replace('/', '-');
 	}
 
 	/** Specific options for the Loader which exist as attributes to the Project XML node. */
