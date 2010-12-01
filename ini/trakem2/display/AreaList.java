@@ -33,7 +33,6 @@ import ij.gui.ShapeRoi;
 import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.utils.AreaUtils;
@@ -60,6 +59,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -68,6 +68,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 
@@ -810,7 +812,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Export all given AreaLists as one per pixel value, what is called a "labels" file; a file dialog is offered to save the image as a tiff stack. */
-	static public void exportAsLabels(final java.util.List<Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
+	static public void exportAsLabels(final List<Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
 		// survive everything:
 		if (null == list || 0 == list.size()) {
 			Utils.log("Null or empty list.");
@@ -820,6 +822,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
 		}
+
+		Utils.log2("exportAsLabels: list.size() is " + list.size());
 
 		// Current AmiraMeshEncoder supports ByteProcessor only: 256 labels max, including background at zero.
 		if (as_amira_labels && list.size() > 255) {
@@ -852,8 +856,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 		// Create image according to roi and scale
 		final int width, height;
-		Rectangle broi = null;
+		final Rectangle broi;
 		if (null == roi) {
+			broi = null;
 			width = (int)(layer_set.getLayerWidth() * scale);
 			height = (int)(layer_set.getLayerHeight() * scale);
 		} else {
@@ -868,8 +873,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			String label = d.getProperty("label");
 			if (null != label) label_values.add(Integer.parseInt(label));
 		}
-		int lowest = 0;
-		int highest = 0;
+		int lowest=0, highest=0;
 		if (label_values.size() > 0) {
 			lowest = label_values.first();
 			highest = label_values.last();
@@ -877,15 +881,17 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		int n_non_labeled = list.size() - label_values.size();
 		int max_label_value = highest + n_non_labeled;
 
-		final ImageStack stack = new ImageStack(width, height);
-		// processor type:
-		int type = ImagePlus.GRAY8;
-		if (max_label_value > 255) { // 0 is background, and 255 different arealists
-			type = ImagePlus.GRAY16;
-			if (max_label_value > 65535) { // 0 is background, and 65535 different arealists
-				type = ImagePlus.GRAY32;
+		int type_ = ImagePlus.GRAY8;
+		if (max_label_value > 255) {
+			type_ = ImagePlus.GRAY16;
+			if (max_label_value > 65535) {
+				type_ = ImagePlus.GRAY32;
 			}
 		}
+		final int type = type_;
+	
+		final ImageStack stack = new ImageStack(width, height);
+
 		Calibration cal = layer_set.getCalibration();
 
 		String amira_params = null;
@@ -921,47 +927,86 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			}
 			labels.put(d, label);
 		}
+		
+		//final Area world = new Area(new Rectangle(0, 0, width, height));
 
-		final Area world = new Area(new Rectangle(0, 0, width, height));
+		final ExecutorService exec = Utils.newFixedThreadPool("labels");
+		final Map<Integer,ImageProcessor> slices = Collections.synchronizedMap(new TreeMap<Integer,ImageProcessor>());
+		final List<Future<?>> fus = new ArrayList<Future<?>>();
+		final List<Layer> layers = layer_set.getLayers().subList(first_layer, last_layer+1);
+	
+		for (int k = 0; k < layers.size(); k++) {
+			final Layer la = layers.get(k);
+			final int slice = k;
+			fus.add(exec.submit(new Runnable() {
+				public void run() {		
+					Utils.showProgress(slice / len);
+					final ImageProcessor ip = Utils.createProcessor(type, width, height);
 
-		int count = 0;
-		for (final Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
-			Utils.showProgress(count/len);
-			count++;
-			ImageProcessor ip = Utils.createProcessor(type, width, height);
-			if (!(ip instanceof ByteProcessor)) {
-				ip.setMinAndMax(lowest, highest);
-			}
-			// paint here all arealist that paint to the layer 'la'
-			for (final Displayable d : list) {
-				if (visible_only && !d.isVisible()) continue;
-				ip.setValue(labels.get(d));
-				AreaList ali = (AreaList)d;
-				Area area = ali.getArea(la);
-				if (null == area) {
-					Utils.log2("Layer " + la + " id: " + d.getId() + " area is " + area);
-					continue;
+					// paint here all arealist that paint to the layer 'la'
+					for (final Displayable d : list) {
+						if (visible_only && !d.isVisible()) continue;
+						//ip.setValue(labels.get(d));
+						AreaList ali = (AreaList)d;
+						final Area area = ali.getArea(la);
+						if (null == area) {
+							//Utils.log2("Layer " + la + " id: " + d.getId() + " area is " + area);
+							continue;
+						}
+						// Transform: the scale and the roi
+						final AffineTransform aff = new AffineTransform();
+						// reverse order of transformations:
+						/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+						/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+						/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+						final Area aroi = area.createTransformedArea(aff);
+
+						/*// ShapeRoi is BROKEN: some areas on the edges fail to paint at random
+						Rectangle b = aroi.getBounds();
+						if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
+							aroi.intersect(world); // work around ij.gui.ShapeRoi bug
+						}
+						ShapeRoi sroi = new ShapeRoi(aroi); // TODO replace with imglib's ShapeList -- ShapeRoi is not reliable.
+						ip.setRoi(sroi);
+						ip.fill(sroi.getMask());
+						*/
+
+						final float value = labels.get(d);
+						for (final Polygon pol : M.getPolygons(aroi)) {
+							final Rectangle bounds = pol.getBounds();
+							final int maxY = Math.min(height, bounds.y + bounds.height);
+							final int maxX = Math.min(width, bounds.x + bounds.width);
+							final int minX = Math.max(0, bounds.x);
+							for (int y = Math.max(0, bounds.y); y < maxY; y++) {
+								for (int x = minX; x < maxX; x++) {
+									// Must ask the Area, not the Polygon: could be a hole!
+									if (aroi.contains(x, y)) {
+										ip.setf(x, y, value);
+									}
+								}
+							}
+						}
+
+						slices.put(slice, ip);
+					}
 				}
-				// Transform: the scale and the roi
-				AffineTransform aff = new AffineTransform();
-				// reverse order of transformations:
-				/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
-				/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
-				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
-				Area aroi = area.createTransformedArea(aff);
-				Rectangle b = aroi.getBounds();
-				if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
-					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
-				}
-				ShapeRoi sroi = new ShapeRoi(aroi);
-				ip.setRoi(sroi);
-				ip.fill(sroi.getMask());
-			}
-			stack.addSlice(la.getZ() * cal.pixelWidth + "", ip);
+			}));
 		}
+
+		Utils.wait(fus);
+		exec.shutdownNow();
+
+		for (final Map.Entry<Integer,ImageProcessor> e : slices.entrySet()) {
+			final Layer la = layers.get(e.getKey());
+			stack.addSlice(la.getZ() * cal.pixelWidth + "", e.getValue());
+			if (ImagePlus.GRAY8 != type) {
+				e.getValue().setMinAndMax(lowest, highest);
+			}
+		}
+
 		Utils.showProgress(1);
 		// Save via file dialog:
-		ImagePlus imp = new ImagePlus("Labels", stack); 
+		ImagePlus imp = new ImagePlus("Labels", stack);
 		if (as_amira_labels) imp.setProperty("Info", amira_params);
 		imp.setCalibration(layer_set.getCalibrationCopy());
 		if (to_file) {

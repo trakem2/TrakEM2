@@ -5017,7 +5017,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final float scale = (float)(gd.getNextNumber() / 100);
-			java.util.List<Displayable> al = (java.util.List<Displayable>)(0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelected(AreaList.class));
+			java.util.List<Displayable> al = (java.util.List<Displayable>)(0 == gd.getNextChoiceIndex() ? layer.getParent().getZDisplayables(AreaList.class) : selection.getSelectedSorted(AreaList.class));
 			if (null == al) {
 				Utils.log("No area lists found to export.");
 				return;
