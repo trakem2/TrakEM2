@@ -647,7 +647,7 @@ public class Selection {
 
 	/** Returns the subset of selected objects of Class c, in the proper order according to the Layer.indexOf or the LayerSet.indexOf.
 	 *  Class c cannot be Displayable (returns null); must be any Displayable subclass. */
-	public Collection<Displayable> getSelectedSorted(final Class<? extends Displayable> c) {
+	public List<Displayable> getSelectedSorted(final Class<? extends Displayable> c) {
 		if (Displayable.class == c) return null;
 		final ArrayList<Displayable> al = getSelected(c);
 		final TreeMap<Integer,Displayable> tm = new TreeMap<Integer,Displayable>();
@@ -656,7 +656,7 @@ public class Selection {
 		} else {
 			for (final Displayable d : al) tm.put(d.getLayer().indexOf(d), d);
 		}
-		return tm.values();
+		return new ArrayList<Displayable>(tm.values());
 	}
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/
