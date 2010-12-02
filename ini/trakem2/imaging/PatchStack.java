@@ -22,29 +22,29 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.imaging;
 
-import java.awt.Rectangle;
-import java.awt.Image;
-import java.awt.Window;
-import java.awt.Color;
-import java.awt.geom.Point2D;
-import java.awt.geom.AffineTransform;
-import java.awt.image.PixelGrabber;
-import java.awt.image.BufferedImage;
-import java.awt.image.IndexColorModel;
-import java.awt.Graphics2D;
-import java.util.Properties;
-import java.util.HashSet;
-import ij.*;
-import ij.process.*;
-import ij.gui.*;
-import ij.measure.*;
-import ij.io.*;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.LookUpTable;
+import ij.gui.Roi;
+import ij.io.FileInfo;
+import ij.measure.Calibration;
+import ij.process.ColorProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
+import ij.process.MedianCut;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+
+import java.awt.Color;
+import java.awt.Image;
+import java.awt.Rectangle;
+import java.awt.Window;
+import java.util.HashSet;
+import java.util.Properties;
 
 
 
@@ -629,7 +629,7 @@ public class PatchStack extends ImagePlus {
 
 	/** Remove all awts and snaps from the loader's cache, and repaint (which will remake as many as needed) */
 	public void decacheAll() {
-		final HashSet hs = new HashSet(); // record already flushed imps, since there can be shared imps among Patch instances (for example in stacks)
+		final HashSet<ImagePlus> hs = new HashSet<ImagePlus>(); // record already flushed imps, since there can be shared imps among Patch instances (for example in stacks)
 		final Loader loader = patch[currentSlice-1].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			ImagePlus imp = loader.fetchImagePlus(patch[i]);
