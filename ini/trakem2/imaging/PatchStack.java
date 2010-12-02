@@ -371,6 +371,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	// only need to override one, as the others point to this method
+	@Override
 	public ImageStatistics getStatistics(int nOptions, int nBins, double histMin, double histMax) {
 		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
 		if (null!=this.roi) imp.setRoi(this.roi); // to be sure!
