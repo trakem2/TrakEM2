@@ -67,8 +67,7 @@ public class PatchStack extends ImagePlus {
 		Rectangle b = patch[0].getBoundingBox(null);
 		this.width = b.width;
 		this.height = b.height;
-		if (patch.length > 1) this.stack = new VirtualStack(width, height);
-		else this.stack = null;
+		this.stack = new VirtualStack(width, height);
 		this.ip = null; // will be retrieved on the fly when necessary
 		this.changes = false;
 		called = new boolean[patch.length];
@@ -641,7 +640,7 @@ public class PatchStack extends ImagePlus {
 		}
 	}
 
-	private class VirtualStack extends ImageStack {
+	final class VirtualStack extends ImageStack {
 
 		VirtualStack(int width, int height) {
 			super(width, height);
