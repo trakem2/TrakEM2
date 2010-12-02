@@ -1,27 +1,26 @@
 package ini.trakem2.imaging;
 
-import ij.plugin.ContrastEnhancer;
+import ij.ImagePlus;
 import ij.gui.GenericDialog;
-import ij.measure.Measurements;
 import ij.measure.Calibration;
+import ij.measure.Measurements;
+import ij.plugin.ContrastEnhancer;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import ij.process.StackStatistics;
-import ij.ImagePlus;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Patch;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+
 import java.lang.reflect.Field;
 import java.util.ArrayList;
-import java.util.Vector;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.Collection;
-import java.util.concurrent.Future;
-import java.util.concurrent.Executors;
+import java.util.TreeMap;
+import java.util.Vector;
 import java.util.concurrent.ExecutorService;
-import ini.trakem2.display.Patch;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
+import java.util.concurrent.Future;
 
 public class ContrastEnhancerWrapper {
 
@@ -165,7 +164,8 @@ public class ContrastEnhancerWrapper {
 			if (equalize) {
 				for (final Patch p : patches) {
 					if (Thread.currentThread().isInterrupted()) return false;
-					ImageProcessor ip = p.getImageProcessor();
+					p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 3);
+					ImageProcessor ip = p.getImageProcessor().duplicate(); // a throw-away copy
 					if (this.from_existing_min_and_max) {
 						ip.setMinAndMax(p.getMin(), p.getMax());
 					}
@@ -220,7 +220,8 @@ public class ContrastEnhancerWrapper {
 
 			for (final Patch p : patches) {
 				if (Thread.currentThread().isInterrupted()) return false;
-				ImageProcessor ip = p.getImageProcessor();
+				p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 3);
+				ImageProcessor ip = p.getImageProcessor().duplicate(); // a throw-away copy
 				if (this.from_existing_min_and_max) {
 					ip.setMinAndMax(p.getMin(), p.getMax());
 				}
@@ -245,7 +246,7 @@ public class ContrastEnhancerWrapper {
 
 	private void regenerateMipMaps(final Patch p) {
 		// submit for regeneration
-		final Future fu = p.getProject().getLoader().regenerateMipMaps(p);
+		final Future<?> fu = p.getProject().getLoader().regenerateMipMaps(p);
 		// ... and when done, decache any images
 		tasks.add(waiter.submit(new Runnable() {
 			public void run() {
@@ -261,7 +262,7 @@ public class ContrastEnhancerWrapper {
 		}));
 	}
 
-	final Vector<Future> tasks = new Vector<Future>();
+	final Vector<Future<?>> tasks = new Vector<Future<?>>();
 
 	/** Waits until all tasks have finished executing. */
 	public void shutdown() {
@@ -273,7 +274,7 @@ public class ContrastEnhancerWrapper {
 			}
 		}));
 		// ... and wait until all tasks are executed
-		for (Future fu : new Vector<Future>(tasks)) {
+		for (Future<?> fu : new Vector<Future<?>>(tasks)) {
 			if (null != fu) {
 				try {
 					fu.get();
