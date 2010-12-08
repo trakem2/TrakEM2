@@ -4761,6 +4761,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					try {
 						setMode(new ContrastAdjustmentMode(Display.this, list));
 					} catch (Exception e) {
+						e.printStackTrace();
 						Utils.log("All images must be of the same type!");
 					}
 				}
