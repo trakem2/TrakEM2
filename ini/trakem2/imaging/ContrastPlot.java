@@ -9,8 +9,10 @@ import ij.process.ImageStatistics;
 
 /** Copied and modified from Wayne Rasband's ImageJ ContrastPlot inner class in
  *  ij.plugin.frame.ContrastAdjuster class, in ImageJ 1.43h. */
-public class ContrastPlot extends Canvas {
-	
+public class ContrastPlot extends Canvas
+{	
+	private static final long serialVersionUID = 1L;
+
 	static final int WIDTH = 128, HEIGHT=64;
 	double defaultMin = 0;
 	double defaultMax = 255;
@@ -19,11 +21,14 @@ public class ContrastPlot extends Canvas {
 	int[] histogram;
 	int hmax;
 	Image os;
-	Graphics osg;
 	Color color = Color.gray;
 	
-	public ContrastPlot() {
+	public ContrastPlot(final double defaultMin, final double defaultMax, final double firstMin, final double firstMax) {
 		setSize(WIDTH+1, HEIGHT+1);
+		this.defaultMin = defaultMin;
+		this.defaultMax = defaultMax;
+		this.min = firstMin;
+		this.max = firstMax;
 	}
 
 	/** Overrides Component getPreferredSize(). Added to work 
@@ -95,7 +100,7 @@ public class ContrastPlot extends Canvas {
 		if (histogram!=null) {
 			if (os==null && hmax!=0) {
 				os = createImage(WIDTH,HEIGHT);
-				osg = os.getGraphics();
+				Graphics osg = os.getGraphics();
 				osg.setColor(Color.white);
 				osg.fillRect(0, 0, WIDTH, HEIGHT);
 				osg.setColor(color);
@@ -116,13 +121,14 @@ public class ContrastPlot extends Canvas {
 		//System.out.println(" hmax " + hmax + "\n x1,y1 " + x1 +", "+ y1 + "\n min,max " + min +", " + max + "\n defaultMin,Max: " + defaultMin +"," + defaultMax + "\n WIDTH,HEIGHT " + WIDTH +"," + HEIGHT);
 	}
 
-	/** Set new min and max and repaint. */
+	/** Set new min and max (of the image, not of the plot) and repaint. */
 	public void update(double min, double max) {
 		this.min = min;
 		this.max = max;
 		repaint();
 	}
 
+	/** Set default min and max (of the image, not of the plot). */
 	public void setDefaultMinAndMax(double min, double max) {
 		defaultMin = min;
 		defaultMax = max;
