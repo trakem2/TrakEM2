@@ -530,6 +530,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		this.layer = layer;
 		IJ.addEventListener(this);
+		Display.addDisplay(this);
 	}
  
 	/** A new Display from scratch, to show the given Layer. */
