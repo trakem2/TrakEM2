@@ -47,6 +47,8 @@ public class ProjectToolbar implements MouseListener {
 	/**A tool to align objects from two different layers.*/
 	public static final int BRUSH = Toolbar.SPARE4;
 
+	public static final int WAND = Toolbar.SPARE5;
+
 	static private String startup_macros = null;
 
 	static private ProjectToolbar instance = null;
@@ -193,7 +195,9 @@ public class ProjectToolbar implements MouseListener {
 	}
 
 	static public int getToolId() {
-		return Toolbar.getToolId();
+		int tool = Toolbar.getToolId();
+		if (Toolbar.WAND == tool) return ProjectToolbar.WAND;
+		return tool;
 	}
 
 	public void mousePressed(MouseEvent me) {

@@ -690,30 +690,41 @@ public class AreaWrapper {
 					Utils.log2("Oops: " + e);
 				}
 			}
-		} else if (ProjectToolbar.PENCIL == tool) {
-			final Displayable src = this.source;
+		} else {
 			final ArrayList<Runnable> ptasks = new ArrayList<Runnable>();
 			if (null != post_mouseReleased_tasks) {
 				ptasks.addAll(post_mouseReleased_tasks);
 				post_mouseReleased_tasks = null; // avoid running them twice
 			}
+			final Displayable src = this.source;
 			ptasks.add(new Runnable() {
 				public void run() {
 					// Add data edit step when done for undo/redo
 					src.getLayerSet().addDataEditStep(src);
 				}
 			});
-			if (Utils.isControlDown(me)) {
-				// Grow with blow tool
-				try {
-					blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
 
-				} catch (Exception e) {
-					IJError.print(e);
+			if (ProjectToolbar.PENCIL == tool) {
+				ptasks.add(new Runnable() {
+					public void run() {
+						// Add data edit step when done for undo/redo
+						src.getLayerSet().addDataEditStep(src);
+					}
+				});
+				if (Utils.isControlDown(me)) {
+					// Grow with blow tool
+					try {
+						blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
+
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+				} else {
+					// Grow with fast marching
+					Segmentation.fastMarching(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
 				}
-			} else {
-				// Grow with fast marching
-				Segmentation.fastMarching(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
+			} else if (ProjectToolbar.WAND == tool) {
+				Segmentation.magicWand(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks, me.isShiftDown(), me.isAltDown());
 			}
 		}
 	}

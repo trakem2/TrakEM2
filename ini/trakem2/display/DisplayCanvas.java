@@ -452,13 +452,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
 						break;
 					case ProjectToolbar.PENCIL:
+					case ProjectToolbar.WAND:
 						Composite co = g2d.getComposite();
 						if (IJ.isWindows()) g2d.setColor(Color.yellow);
 						else g2d.setXORMode(Color.yellow); // XOR on yellow for best contrast
 						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
 							     (int)((yMouse -srcRect.y -Segmentation.fmp.height/2) * magnification),
 							     (int)(Segmentation.fmp.width  * magnification),
-							     (int)(Segmentation.fmp.height * magnification)); 
+							     (int)(Segmentation.fmp.height * magnification));
 						g2d.setComposite(co); // undo XOR mode
 						break;
 				}
@@ -639,6 +640,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 
 		switch (tool) {
+		/*
 		case Toolbar.WAND:
 			if (null != active && active instanceof Patch) {
 				me.translatePoint(-(int) active.getX(), -(int) active.getY());
@@ -647,6 +649,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// TODO should use LayerStack virtualization ... then scale back the ROI
 			}
 			return;
+		*/
 		case ProjectToolbar.PENCIL:
 			if (null != active && active.isVisible() && active.getClass() == Profile.class) {
 				Profile prof = (Profile) active;
@@ -1392,7 +1395,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 							   yMouse - brushSize/2,
 							   brushSize+1,
 							   brushSize+1 );
-				} else if (ProjectToolbar.PENCIL == tool) {
+				} else if (ProjectToolbar.PENCIL == tool || ProjectToolbar.WAND == tool) {
 					// repaint area where the fast-marching box is
 					r = new Rectangle( xMouse - Segmentation.fmp.width/2 - 2,
 							   yMouse - Segmentation.fmp.height/2 - 2,
@@ -2224,7 +2227,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (extra < 2) extra = 2;
 				extra += 4; // for good measure
 				this.repaint(new Rectangle((int)(mwe.getX() / magnification) + srcRect.x - brushSize/2 - extra, (int)(mwe.getY() / magnification) + srcRect.y - brushSize/2 - extra, brushSize+extra, brushSize+extra), 0);
-			} else if (ProjectToolbar.PENCIL == tool) {
+			} else if (ProjectToolbar.PENCIL == tool || ProjectToolbar.WAND == tool) {
 				// resize area to consider for fast-marching
 				int w = Segmentation.fmp.width;
 				int h = Segmentation.fmp.height;
