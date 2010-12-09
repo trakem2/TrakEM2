@@ -1523,10 +1523,20 @@ public final class Patch extends Displayable implements ImageData {
 		}
 	}
 
-	/** Creates an ImageProcessor of the specified type.
-	 *  @param scale may be up to 1.0.
-	 *  Patches are painted in the order given in the @param patches list. */
+	/** Defaults to setMinAndMax = true. */
 	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background) {
+		return makeFlatImage(type, layer, srcRect, scale, patches, background, true);
+	}
+	
+	/** Creates an ImageProcessor of the specified type.
+	 *  @param type Any of ImagePlus.GRAY_8, GRAY_16, GRAY_32 or COLOR_RGB.
+	 *  @param srcRect the box in world coordinates to make an image out of.
+	 *  @param scale may be up to 1.0.
+	 *  @param patches The list of patches to paint. The first gets painted first (at the bottom).
+	 *  @param background The color with which to paint the outsides where no image paints into.
+	 *  @param setMinAndMax defines whether the min and max of each Patch is set before pasting the Patch.
+	 */
+	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background, final boolean setMinAndMax) {
 		final ImageProcessor ip;
 		final int W, H;
 		if (scale < 1) {
@@ -1598,20 +1608,24 @@ public final class Patch extends Displayable implements ImageData {
 			final mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
 			
 			// 4. Convert the patch to the required type
-			final ImageProcessor pi;
+			ImageProcessor pi = p.getImageProcessor();
+			if (setMinAndMax) {
+				pi = pi.duplicate();
+				pi.setMinAndMax(p.min, p.max);
+			}
 			switch ( type )
 			{
 			case ImagePlus.GRAY8:
-				pi = p.getImageProcessor().convertToByte( true );
+				pi = pi.convertToByte( true );
 				break;
 			case ImagePlus.GRAY16:
-				pi = p.getImageProcessor().convertToShort( true );
+				pi = pi.convertToShort( true );
 				break;
 			case ImagePlus.GRAY32:
-				pi = p.getImageProcessor().convertToFloat();
+				pi = pi.convertToFloat();
 				break;
 			default: // ImagePlus.COLOR_RGB and COLOR_256
-				pi = p.getImageProcessor().convertToRGB();
+				pi = pi.convertToRGB();
 				break;
 			}
 			
