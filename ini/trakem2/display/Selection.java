@@ -232,6 +232,8 @@ public class Selection {
 				if (null != display) {
 					if (null == this.active) {
 						this.active = the_active = queue.getLast();
+					} else {
+						the_active = this.active;
 					}
 				}
 			}
