@@ -495,6 +495,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	
 	/** Swap the current al_displays list with a new list that has the @param display in it. */
 	static private final void addDisplay(final Display display) {
+		Utils.log2("addDisplay: " + display);
+		Utils.printCaller(new Object(), 5);
 		if (null == display) return;
 		synchronized (DISPLAY_LOCK) {
 			final Set<Display> a = new HashSet<Display>();
@@ -502,11 +504,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			a.add(display);
 			al_displays = a;
 			front = display;
+			Utils.log2("addDisplay: al_displays.size(): " + al_displays.size());
 		}
 	}
 
 	/** Swap the current al_displays list with a new list that lacks the @param dispaly, and set a new front if needed. */
 	static private final void removeDisplay(final Display display) {
+		Utils.log2("removeDisplay: " + display);
+		Utils.printCaller(new Object(), 5);
 		if (null == display) return;
 		synchronized (DISPLAY_LOCK) {
 			Set<Display> a = new HashSet<Display>(al_displays);
@@ -519,6 +524,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 			}
 			al_displays = a;
+			Utils.log2("removeDisplay: al_displays.size(): " + al_displays.size());
 		}
 	}
 

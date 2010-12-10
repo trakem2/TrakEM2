@@ -228,7 +228,7 @@ public class Project extends DBObject {
 	*/
 
 	/** Keep track of all open projects. */
-	static private ArrayList<Project> al_open_projects = new ArrayList<Project>();
+	static private Vector<Project> al_open_projects = new Vector<Project>();
 
 	private Loader loader;
 
@@ -311,7 +311,7 @@ public class Project extends DBObject {
 
 	/** Return a copy of the list of all open projects. */
 	static public ArrayList<Project> getProjects() {
-		return new ArrayList<Project>(al_open_projects);
+		return new ArrayList<Project>(al_open_projects); // calls toArray() on al_open_projects, which is a synchronized method.
 	}
 
 	/** Create a new PostgreSQL-based TrakEM2 project. */
@@ -563,16 +563,16 @@ public class Project extends DBObject {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			Hashtable ht_exp = (Hashtable)f.get(project.project_tree);
-			for (Iterator it = ht_pt_expanded.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				ProjectThing pt = (ProjectThing)entry.getKey();
-				Boolean expanded = (Boolean)entry.getValue();
+			Hashtable<TreePath,Boolean> ht_exp = (Hashtable<TreePath,Boolean>) f.get(project.project_tree);
+			for (Iterator<?> it = ht_pt_expanded.entrySet().iterator(); it.hasNext(); ) {
+				Map.Entry<ProjectThing,Boolean> entry = (Map.Entry<ProjectThing,Boolean>) it.next();
+				ProjectThing pt = entry.getKey();
+				Boolean expanded = entry.getValue();
 				//project.project_tree.expandPath(new TreePath(project.project_tree.findNode(pt, project.project_tree).getPath()));
 				// WARNING the above is wrong in that it will expand the whole thing, not just set the state of the node!!
 				// So the ONLY way to do it is to start from the child-most leafs of the tree, and apply the expanding to them upward. This is RIDICULOUS, how can it be so broken
 				// so, hackerous:
-				DefaultMutableTreeNode nd = project.project_tree.findNode(pt, project.project_tree);
+				DefaultMutableTreeNode nd = DNDTree.findNode(pt, project.project_tree);
 				//if (null == nd) Utils.log2("null node for " + pt);
 				//else Utils.log2("path: " + new TreePath(nd.getPath()));
 				if (null == nd) {
@@ -1393,13 +1393,13 @@ public class Project extends DBObject {
 		if (null == value) ht_props.remove(key);
 		else ht_props.put(key, value);
 	}
-	private final boolean addBox(final GenericDialog gd, final Class c) {
+	private final boolean addBox(final GenericDialog gd, final Class<?> c) {
 		final String name = Project.getName(c);
 		final boolean link = "true".equals(ht_props.get(name.toLowerCase() + "_nolinks"));
 		gd.addCheckbox(name, link);
 		return link;
 	}
-	private final void setLinkProp(final boolean before, final boolean after, final Class c) {
+	private final void setLinkProp(final boolean before, final boolean after, final Class<?> c) {
 		if (before) {
 			if (!after) ht_props.remove(Project.getName(c).toLowerCase()+"_nolinks");
 		} else if (after) {
