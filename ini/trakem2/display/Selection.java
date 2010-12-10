@@ -180,7 +180,6 @@ public class Selection {
 			// entire 2D bounds:
 			roi = new ShapeRoi(display.getLayerSet().get2DBounds());
 		}
-		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
 		Area aroi = new Area(M.getShape(shroi));
@@ -188,9 +187,11 @@ public class Selection {
 		Rectangle bounds = shroi.getBounds();
 		affine.translate(bounds.x, bounds.y);
 		aroi = aroi.createTransformedArea(affine);
-		Collection<Displayable> al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
+
+		Collection<Displayable> al = new ArrayList<Displayable>(display.getLayer().getDisplayables(Displayable.class, aroi, visible_only, true));
 		al.addAll(display.getLayer().getParent().findZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only, true));
 		final Rectangle tmp = new Rectangle();
+
 		if (visible_only) {
 			for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
