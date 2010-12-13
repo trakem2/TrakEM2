@@ -440,6 +440,16 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return false;
 	}
 
+	/** Returns true if any of the Displayable objects are of the given class; if {@param visible_only} is true,
+	 * will return true only if at least one of the matched objects is visible. */
+	public boolean contains(final Class<?> c, final boolean visible_only) {
+		for (final Displayable d : al_displayables) {
+			if (visible_only && !d.isVisible()) continue;
+			if (d.getClass() == c) return true;
+		}
+		return false;
+	}
+
 	/** Count instances of the given Class. */
 	public int count(final Class<?> c) {
 		int n = 0;
