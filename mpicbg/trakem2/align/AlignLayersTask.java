@@ -115,7 +115,7 @@ final public class AlignLayersTask
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
-		final Vector v = gd.getChoices();
+		final Vector<?> v = gd.getChoices();
 		final Choice cstart = (Choice) v.get(v.size() -3);
 		final Choice cref = (Choice) v.get(v.size() -2);
 		final Choice cend = (Choice) v.get(v.size() -1);
@@ -188,13 +188,13 @@ final public class AlignLayersTask
 		// find the first non-empty layer, and remove all empty layers
 		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
 			Layer la = it.next();
-			if (!la.contains(Patch.class)) {
+			if (!la.contains(Patch.class, true)) {
 				it.remove();
 				continue;
 			}
 			if (null == box) {
 				// The first layer:
-				box = la.getMinimalBoundingBox(Patch.class);
+				box = la.getMinimalBoundingBox(Patch.class, true); // Only for visible patches
 			}
 		}
 		if (0 == layerRange.size()) {
@@ -234,7 +234,7 @@ final public class AlignLayersTask
 			features1.addAll( features2 );
 			features2.clear();
 			
-			final Rectangle box3 = layer.getMinimalBoundingBox( Patch.class );
+			final Rectangle box3 = layer.getMinimalBoundingBox( Patch.class, true );
 			
 			if ( box3 == null || ( box3.width == 0 && box3.height == 0 ) ) continue; // skipping empty layer
 			
@@ -356,14 +356,14 @@ final public class AlignLayersTask
 
 		final Align.Param p = Align.param.clone();
 
-		// find the first non-empty layer, and remove all empty layers
+		// Remove all empty layers
 		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
-			if (!it.next().contains(Patch.class)) {
+			if (!it.next().contains(Patch.class, true)) {
 				it.remove();
 			}
 		}
 		if (0 == layerRange.size()) {
-			Utils.log("All layers in range are empty!");
+			Utils.log("No layers in range show any images!");
 			return;
 		}
 		
@@ -371,7 +371,7 @@ final public class AlignLayersTask
 		if ( layerRange.size() < 2 ) return;
 
 		final List<Patch> all = new ArrayList<Patch>();
-		for (final Layer la : layerRange) all.addAll((Collection<Patch>)(Collection)la.getDisplayables(Patch.class));
+		for (final Layer la : layerRange) all.addAll((Collection<Patch>)(Collection)la.getDisplayables(Patch.class, true));
 
 		AlignTask.transformPatchesAndVectorData(all, new Runnable() { public void run() {
 
@@ -404,8 +404,8 @@ final public class AlignLayersTask
 			features1.clear();
 			features2.clear();
 			
-			final Rectangle box1 = layer1.getMinimalBoundingBox( Patch.class );
-			final Rectangle box2 = layer2.getMinimalBoundingBox( Patch.class );
+			final Rectangle box1 = layer1.getMinimalBoundingBox( Patch.class, true );
+			final Rectangle box2 = layer2.getMinimalBoundingBox( Patch.class, true );
 			
 			/* calculate the common scale factor for both flat images */
 			final float scale = Math.min(  1.0f, ( float )p.sift.maxOctaveSize / ( float )Math.max( box1.width, Math.max( box1.height, Math.max( box2.width, box2.height ) ) ) );
@@ -533,8 +533,9 @@ final public class AlignLayersTask
 	                		imp2.getWidth(), imp2.getHeight());
 
 					final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
-					
-					for ( final Displayable disp : layer2.getDisplayables( Patch.class ) )
+
+					// Transform visible patches only
+					for ( final Displayable disp : layer2.getDisplayables( Patch.class, true ) )
 					{
 						try {								
 							final Patch patch = ( Patch )disp;
