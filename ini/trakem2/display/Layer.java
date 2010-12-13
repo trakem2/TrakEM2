@@ -547,6 +547,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
+	/** Check class identity with equality, so no superclasses or interfaces are possible. */
 	synchronized public ArrayList<Displayable> getDisplayables(final Class<?> c, final boolean visible_only) {
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final Displayable d : al_displayables) {
@@ -885,9 +886,14 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Returns null if no Displayable objects of class c exist. */
 	public Rectangle getMinimalBoundingBox(final Class<?> c) {
+		return getMinimalBoundingBox(c, true);
+	}
+
+	/** Returns null if no Displayable objects of class c exist (or are visible if {@param visible_only} is true). */
+	public Rectangle getMinimalBoundingBox(final Class<?> c, final boolean visible_only) {
 		Rectangle box = null;
 		Rectangle tmp = new Rectangle();
-		for (final Displayable d : getDisplayables(c)) {
+		for (final Displayable d : getDisplayables(c, visible_only)) {
 			tmp = d.getBoundingBox(tmp);
 			if (null == box) {
 				box = (Rectangle)tmp.clone();
