@@ -390,7 +390,7 @@ final public class AlignLayersTask
 
 		final int n_proc = Runtime.getRuntime().availableProcessors() > 1 ? 2 : 1;
 		final ExecutorService exec = Utils.newFixedThreadPool(n_proc, "alignLayersNonLinearly");
-		
+
 		int s = 0;
 		for ( int i = 1; i < layerRange.size(); ++i )
 		{
@@ -581,17 +581,24 @@ final public class AlignLayersTask
 				else
 					IJ.log( "No model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			}
-			IJ.showProgress( ++s, layerRange.size() );	
+			IJ.showProgress( ++s, layerRange.size() );
 		}
 
 		exec.shutdown();
 
 		if (propagateTransform)	Utils.log("Propagation not implemented yet for non-linear layer alignment.");
-		/* TODO do this
-		if ( propagateTransform )
+
+		/* // CANNOT be done (at least not trivially:
+		 * //an appropriate "scale" cannot be computed, and the box2 is part of the spline computation.
+		if ( propagateTransform && null != lastTransform )
 		{
-			for (Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
-				la.apply( Displayable.class, a );
+			for (final Layer la : l.getParent().getLayers(last > first ? last +1 : first -1, last > first ? l.getParent().size() -1 : 0)) {
+				// Transform visible patches only
+				final Rectangle box2 = la.getMinimalBoundingBox( Patch.class, true );
+				for ( final Displayable disp : la.getDisplayables( Patch.class, true ) )
+				{
+					// ...
+				}
 			}
 		}
 		*/
