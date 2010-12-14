@@ -675,10 +675,15 @@ public class Treeline extends Tree<Float> {
 					// the vector perpendicular to the plane is 0,0,1
 					// the vector from parent to child is:
 					Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
-					Vector3f cross = new Vector3f();
-					cross.cross(vpc, vplane);
-					cross.normalize(); // not needed?
-					aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
+					
+					if (x == parx && y == pary) {
+						aa.set(0, 0, 1, 0);
+					} else {
+						Vector3f cross = new Vector3f();
+						cross.cross(vpc, vplane);
+						cross.normalize(); // not needed?
+						aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
+					}
 					t.set(aa);
 
 
