@@ -2882,6 +2882,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Mask image borders (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Mask image borders (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Remove alpha masks (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Remove alpha masks (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
 		item = new JMenuItem("Split images under polyline ROI"); item.addActionListener(this); adjust_menu.add(item);
 		Roi roi = canvas.getFakeImagePlus().getRoi();
 		if (null == roi || roi.getType() != Roi.POLYLINE) item.setEnabled(false);
@@ -3906,22 +3909,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				else Utils.log("Could not revert Patch " + p.getTitle() + " #" + p.getId());
 			}
 		} else if (command.equals("Remove alpha mask")) {
-			final ArrayList<Displayable> patches = selection.getSelected(Patch.class); 
-			if (patches.size() > 0) {
-				Bureaucrat.createAndStart(new Worker.Task("Removing alpha mask" + (patches.size() > 1 ? "s" : "")) { public void exec() {
-					final ArrayList<Future> jobs = new ArrayList<Future>();
-					for (final Displayable d : patches) {
-						final Patch p = (Patch) d;
-						p.setAlphaMask(null);
-						Future job = p.getProject().getLoader().regenerateMipMaps(p); // submit to queue
-						if (null != job) jobs.add(job);
-					}
-					// join all
-					for (final Future job : jobs) try {
-						job.get();
-					} catch (Exception ie) {}
-				}}, patches.get(0).getProject());
-			}
+			Display.removeAlphaMasks(selection.get(Patch.class));
 		} else if (command.equals("Undo")) {
 			Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
 				layer.getParent().undoOneStep();
@@ -4805,6 +4793,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});
+		} else if (command.equals("Remove alpha masks (layer-wise)...")) {
+			final GenericDialog gd = new GenericDialog("Remove alpha masks");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.addCheckbox("Visible only", true);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			Collection<Layer> layers = layer.getParent().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex() +1);
+			final boolean visible_only = gd.getNextBoolean();
+			final Collection<Patch> patches = new ArrayList<Patch>();
+			for (Layer l : layers) {
+				patches.addAll((Collection<Patch>)(Collection)l.getDisplayables(Patch.class, visible_only));
+			}
+			Display.removeAlphaMasks(patches);
+		} else if (command.equals("Remove alpha masks (selected images)...")) {
+			Display.removeAlphaMasks(selection.get(Patch.class));
 		} else if (command.equals("Split images under polyline ROI")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return;
@@ -6175,5 +6178,22 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			la.getParent().enlargeToFit(selection.getAffected());
 			la.getParent().addTransformStepWithData(col);
 		}});
+	}
+
+	static public Bureaucrat removeAlphaMasks(final Collection<Patch> patches) {
+		return Bureaucrat.createAndStart(new Worker.Task("Remove alpha masks" + (patches.size() > 1 ? "s" : "")) {
+			public void exec() {
+				if (null == patches || patches.isEmpty()) return;
+				final ArrayList<Future<Boolean>> jobs = new ArrayList<Future<Boolean>>();
+				for (final Patch p : patches) {
+					p.setAlphaMask(null);
+					Future<Boolean> job = p.getProject().getLoader().regenerateMipMaps(p); // submit to queue
+					if (null != job) jobs.add(job);
+				}
+				// join all
+				for (final Future<?> job : jobs) try {
+					job.get();
+				} catch (Exception ie) {}
+			}}, patches.iterator().next().getProject());
 	}
 }
