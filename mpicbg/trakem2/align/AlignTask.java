@@ -743,15 +743,19 @@ final public class AlignTask
 		Utils.log( "Montage done." );
 	}
 	
-	
 	final static public Bureaucrat alignMultiLayerMosaicTask( final Layer l )
+	{
+		return alignMultiLayerMosaicTask( l, null );
+	}
+	
+	final static public Bureaucrat alignMultiLayerMosaicTask( final Layer l, final Patch nail )
 	{
 		Worker worker = new Worker( "Aligning multi-layer mosaic", false, true )
 		{
 			public void run()
 			{
 				startedWorking();
-				try { alignMultiLayerMosaic( l ); }
+				try { alignMultiLayerMosaic( l, nail ); }
 				catch ( Throwable e ) { IJError.print( e ); }
 				finally { finishedWorking(); }
 			}
@@ -765,7 +769,7 @@ final public class AlignTask
 	 * 
 	 * @param l the current layer
 	 */
-	final public static void alignMultiLayerMosaic( final Layer l )
+	final public static void alignMultiLayerMosaic( final Layer l, final Patch nail )
 	{
 		/* layer range and misc */
 		
@@ -833,7 +837,7 @@ final public class AlignTask
 		for ( int i = first; i != last + d; i += d )
 			layerRange.add( layers.get( i ) );
 
-		alignMultiLayerMosaicTask( layerRange, cp, p, pcp, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles, deform );
+		alignMultiLayerMosaicTask( layerRange, nail, cp, p, pcp, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles, deform );
 	}
 	
 	final static private boolean alignGraphs(
@@ -971,6 +975,7 @@ final public class AlignTask
 
 	public static final void alignMultiLayerMosaicTask(
 			final List< Layer > layerRange,
+			final Patch nail,
 			final Align.Param cp,
 			final Align.ParamOptimize p,
 			final Align.ParamOptimize pcp,
@@ -988,10 +993,9 @@ final public class AlignTask
 		final List< AbstractAffineTile2D< ? > > previousLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final HashMap< Patch, PointMatch > tileCenterPoints = new HashMap< Patch, PointMatch >();
 		
-		List< Patch > fixedPatches = new ArrayList< Patch >();
-		final Displayable active = Display.getFront().getActive();
-		if ( active != null && active instanceof Patch )
-			fixedPatches.add( ( Patch )active );
+		Collection< Patch > fixedPatches = new HashSet< Patch >();
+		if ( null != nail )
+			fixedPatches.add( nail );
 		
 		Layer previousLayer = null;
 		
@@ -1020,7 +1024,7 @@ final public class AlignTask
 				currentLayerPatchTiles.put( t.getPatch(), t );
 			
 			final List< AbstractAffineTile2D< ? > > csCurrentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-			final List< AbstractAffineTile2D< ? > > csFixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+			final Set< AbstractAffineTile2D< ? > > csFixedTiles = new HashSet< AbstractAffineTile2D< ? > > ();
 			Align.tilesFromPatches( cp, patches, fixedPatches, csCurrentLayerTiles, csFixedTiles );
 			
 			final HashMap< Tile< ? >, AbstractAffineTile2D< ? > > tileTiles = new HashMap< Tile< ? >, AbstractAffineTile2D<?> >();

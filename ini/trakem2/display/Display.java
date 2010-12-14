@@ -4296,7 +4296,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Align multi-layer mosaic")) {
 			final Layer la = layer; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep();
-			Bureaucrat burro = AlignTask.alignMultiLayerMosaicTask( la );
+			Bureaucrat burro = AlignTask.alignMultiLayerMosaicTask( la, active instanceof Patch ? (Patch)active : null );
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().enlargeToFit(getLayerSet().getDisplayables(Patch.class));
 				la.getParent().addTransformStep();

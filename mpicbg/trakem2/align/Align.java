@@ -930,6 +930,7 @@ public class Align
 	
 	
 	/**
+	 * If a Patch is locked or in fixedPatches, its corresponding Tile is added to fixedTiles.
 	 * 
 	 * @param p 
 	 * @param patches
@@ -942,9 +943,9 @@ public class Align
 	final static public void tilesFromPatches(
 			final Param p,
 			final List< ? extends Patch > patches,
-			final List< ? extends Patch > fixedPatches,
+			final Collection< ? extends Patch > fixedPatches,
 			final List< AbstractAffineTile2D< ? > > tiles,
-			final List< AbstractAffineTile2D< ? > > fixedTiles )
+			final Collection< AbstractAffineTile2D< ? > > fixedTiles )
 	{
 		for ( final Patch patch : patches )
 		{
