@@ -384,7 +384,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			Displayable[] displ = new Displayable[al_displayables.size()]; // to avoid concurrent modifications
 			al_displayables.toArray(displ);
 			for (int i=0; i<displ.length; i++) {
-				if (!displ[i].remove(false)) { // will call back Layer.remove(Displayable)
+				if (!displ[i].remove2(false)) { // will call back Layer.remove(Displayable)
 					Utils.log("Could not delete " + displ[i]);
 					return false;
 				}
