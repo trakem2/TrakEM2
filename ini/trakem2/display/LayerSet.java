@@ -2879,8 +2879,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		Utils.log2("No buckets for layer " + la);
 	}
 
-	/** Get all Displayable or ZDisplayable of the given class. */
-	public<T extends Displayable> List<T> getAll(Class<T> c) {
+	/** Get all Displayable or ZDisplayable of the given class.
+	 *  Classes are tested by equality, except for ZDisplayable.class.
+	 *  Will also consider Displayable.class and subclasses in
+	 *  a similar fashion, by calling Layer.getAll(c). */
+	public<T extends Displayable> List<T> getAll(final Class<T> c) {
 		final ArrayList<T> al = new ArrayList<T>();
 		if (null == c) return al;
 		if (ZDisplayable.class == c) {
