@@ -237,7 +237,6 @@ public final class FSLoader extends Loader {
 		}
 		//
 		if (null == path) {
-			String user = System.getProperty("user.name");
 			OpenDialog od = new OpenDialog("Select Project", OpenDialog.getDefaultDirectory(), null);
 			String file = od.getFileName();
 			if (null == file || file.toLowerCase().startsWith("null")) return null;
@@ -435,12 +434,12 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Loaded in full from XML file */
-	public ArrayList fetchPipePoints(long id) {
+	public ArrayList<?> fetchPipePoints(long id) {
 		return null;
 	}
 
 	/** Loaded in full from XML file */
-	public ArrayList fetchBallPoints(long id) {
+	public ArrayList<?> fetchBallPoints(long id) {
 		return null;
 	}
 
@@ -875,18 +874,6 @@ public final class FSLoader extends Loader {
 		return null;
 	}
 
-	/**
-	 * TODO
-	 *   Never used.  Was this planned to be what we do no with DBObject.getUniqueId()?
-	 */
-	private final String makeFileTitle(final Patch p) {
-		String title = p.getTitle();
-		if (null == title) return "image-" + p.getId();
-		title = asSafePath(title);
-		if (0 == title.length()) return "image-" + p.getId();
-		return title;
-	}
-
 	/** Associate patch with imp, and all slices as well if any. */
 	private void cacheAll(final Patch p, final ImagePlus imp) {
 		if (p.isStack()) {
@@ -1111,7 +1098,7 @@ public final class FSLoader extends Loader {
 				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
 					e.setValue(FSLoader.makeRelativePath(xml_path, e.getValue()));
 				}
-				for (final Stack st : (Collection<Stack>) (Collection) project.getRootLayerSet().getZDisplayables(Stack.class)) {
+				for (final Stack st : project.getRootLayerSet().getAll(Stack.class)) {
 					String path = st.getFilePath();
 					if (!isRelativePath(path)) {
 						String path2 = makeRelativePath(st.getFilePath());
@@ -1400,13 +1387,13 @@ public final class FSLoader extends Loader {
 	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
 	public Bureaucrat regenerateMipMaps(final Collection<? extends Displayable> patches) {
 		return Bureaucrat.createAndStart(new Worker.Task("Regenerating mipmaps") { public void exec() {
-			final List<Future> fus = new ArrayList<Future>();
+			final List<Future<?>> fus = new ArrayList<Future<?>>();
 			for (final Displayable d : patches) {
 				if (d.getClass() != Patch.class) continue;
 				fus.add(d.getProject().getLoader().regenerateMipMaps((Patch) d));
 			}
 			// Wait until all done
-			for (final Future fu : fus) try {
+			for (final Future<?> fu : fus) try {
 				if (null != fu) fu.get(); // fu could be null if a task was not submitted because it's already being done or it failed in some way.
 			} catch (Exception e) { IJError.print(e); }
 		}}, Project.findProject(this));
@@ -1592,6 +1579,7 @@ public final class FSLoader extends Loader {
 	}
 	
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
+	/*
 	static final private byte[] meanResizeInHalf(final FloatProcessorT2 source, final int sourceWidth, final int sourceHeight, final int targetWidth, final int targetHeight) {
 		final float[] sourceData = source.getFloatPixels();
 		final float[] targetData = new float[targetWidth * targetHeight];
@@ -1611,6 +1599,7 @@ public final class FSLoader extends Loader {
 		source.setPixels(targetWidth, targetHeight, targetData);
 		return (byte[])source.convertToByte(false).getPixels();
 	}
+	*/
 
 	/** Queue/unqueue for mipmap removal on shutdown without saving. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {
@@ -2238,7 +2227,7 @@ public final class FSLoader extends Loader {
 				}
 				for (int i=1; i<nums.length; i++) {
 					try {
-						long num = Long.parseLong(nums[i]);
+						Long.parseLong(nums[i]);
 					} catch (NumberFormatException nfe) {
 						Utils.logAll("Invalid UNUId folder: at least one block is not a number. Try again or cancel.");
 						return obtainUNUIdFolder();
@@ -2658,20 +2647,6 @@ public final class FSLoader extends Loader {
 		return dir_storage + fi.fileName;
 	}
 
-	/** Generates layer-wise mipmaps with constant tile width and height. The mipmaps include only images.
-	 *  Mipmaps area generated all the way down until the entire canvas fits within one single tile.
-	 */
-	public Bureaucrat generateLayerMipMaps(final Layer[] la, final int starting_level) {
-		// hard-coded dimensions for layer mipmaps.
-		final int WIDTH = 512;
-		final int HEIGHT = 512;
-		//
-		// Each tile needs some coding system on where it belongs. For example in its file name, such as <layer_id>_Xi_Yi
-		// 
-		// Generate the starting level mipmaps, and then the others from it by gaussian or whatever is indicated in the project image_resizing_mode property.
-		return null;
-	}
-
 	/** Convert old-style storage folders to new style. */
 	public boolean fixStorageFolders() {
 		try {
@@ -2844,7 +2819,6 @@ public final class FSLoader extends Loader {
 	{
 		ImagePlus imp = null;
 		String path = null;
-		long n_bytes = 0;
 		ImageLoadingLock plock = null;
 		synchronized (db_lock) {
 			try {
