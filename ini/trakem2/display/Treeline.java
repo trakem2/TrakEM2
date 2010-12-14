@@ -730,11 +730,9 @@ public class Treeline extends Tree<Float> {
 
 	static private final List<Point3f> transform(final Transform3D t, final List<Point3f> plane, final float x, final float y, final float z, final float radius) {
 		final List<Point3f> ps = new ArrayList<Point3f>(plane.size());
-		for (Point3f p : plane) {
-			p = new Point3f(p);
-			p.x *= radius;
-			p.y *= radius;
-			p.z *= radius;
+		for (final Point3f p2 : plane) {
+			final Point3f p = new Point3f(p2);
+			p.scale(radius);
 			t.transform(p);
 			p.x += x;
 			p.y += y;
