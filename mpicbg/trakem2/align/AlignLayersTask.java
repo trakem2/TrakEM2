@@ -226,7 +226,7 @@ final public class AlignLayersTask
 		int s = 0;
 		for ( final Layer layer : layerRange )
 		{
-			if ( Thread.currentThread().isInterrupted() ) break;
+			if ( Thread.currentThread().isInterrupted() ) return;
 			
  			final long t0 = System.currentTimeMillis();
 			
@@ -315,7 +315,9 @@ final public class AlignLayersTask
 				{
 					modelFound = false;
 				}
-				
+
+				if ( Thread.currentThread().isInterrupted() ) return;
+
 				if ( modelFound )
 				{
 					IJ.log( "Model found for layer \"" + layer.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t1 ) + " ms" );
@@ -338,6 +340,9 @@ final public class AlignLayersTask
 			}
 			IJ.showProgress( ++s, layerRange.size() );
 		}
+		
+		if ( Thread.currentThread().isInterrupted() ) return;
+		
 		if ( propagateTransform )
 		{
 			final LayerSet layerSet = l.getParent();
