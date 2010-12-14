@@ -2689,7 +2689,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			nodes = node_layer_map.remove(la);
 		}
 		if (null == nodes) return true;
-		final List<Tree<T>> siblings = new ArrayList<Tree<T>>();
 		for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
 			final Node<T> nd = it.next();
 			it.remove();
@@ -2698,7 +2697,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				switch (nd.getChildrenCount()) {
 					case 1:
 						this.root = nd.children[0];
-						nd.children[0] = null;
+						this.root.parent = null;
+						nd.children[0] = null; // does not matter
 						break;
 					case 0:
 						this.root = null;
@@ -2706,14 +2706,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					default:
 						// split: the first child remains as root:
 						this.root = nd.children[0];
+						this.root.parent = null;
 						nd.children[0] = null;
-						// ... and the rest of children become a new Tree each when done
+						// ... and the rest of children become children of the new root
 						for (int i=1; i<nd.children.length; i++) {
-							Tree<T> t = newInstance();
-							t.addToDatabase();
-							t.root = nd.children[i];
-							nd.children[i] = null;
-							siblings.add(t);
+							nd.children[i].parent = null;
+							this.root.add(nd.children[i], nd.children[i].confidence);
+							nd.children[i] = null; // does not matter
 						}
 						break;
 				}
@@ -2728,16 +2727,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 				}
 				nd.parent.remove(nd);
-			}
-		}
-		if (!siblings.isEmpty()) {
-			this.clearCache();
-			if (null != this.root) this.cacheSubtree(root.getSubtreeNodes());
-			for (Tree<T> t : siblings) {
-				t.cacheSubtree(t.root.getSubtreeNodes());
-				t.calculateBoundingBox(la);
-				layer_set.add(t);
-				project.getProjectTree().addSibling(this, t);
 			}
 		}
 		this.calculateBoundingBox(la);
