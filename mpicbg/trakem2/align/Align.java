@@ -831,6 +831,7 @@ public class Align
 					if ( graph.contains( t ) )
 					{
 						pleaseFix = false;
+						break;
 					}
 			if ( pleaseFix )
 				tc.fixTile( graph.iterator().next() );
