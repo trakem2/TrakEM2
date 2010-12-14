@@ -1163,7 +1163,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	public synchronized void setLayer(final Layer new_layer) {
-		if (null == new_layer || new_layer == this.layer || new_layer.getParent() != this.layer.getParent()) return;
+		setLayer(new_layer, false);
+	}
+
+	private synchronized void setLayer(final Layer new_layer, final boolean bypass_checks) {
+		if (!bypass_checks) {
+			if (null == new_layer || new_layer == this.layer || new_layer.getParent() != this.layer.getParent()) return;
+		}
 
 		final Layer current_layer = this.layer;
 
@@ -3766,9 +3772,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Repair possibly missing panels and other components by simply resetting the same Layer */
 	public void repairGUI() {
-		Layer layer = this.layer;
-		this.layer = null;
-		setLayer(layer);
+		setLayer(layer, true);
 	}
 
 	public void actionPerformed(final ActionEvent ae) {
