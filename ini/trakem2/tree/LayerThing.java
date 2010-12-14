@@ -188,13 +188,13 @@ public final class LayerThing extends DBObject implements TitledThing {
 
 	public JMenuItem[] getPopupItems(ActionListener listener) {
 		JMenuItem item;
-		ArrayList al_items = new ArrayList();
+		ArrayList<JMenuItem> al_items = new ArrayList<JMenuItem>();
 
 		JMenu menu = new JMenu("Add...");
-		ArrayList tc = template.getChildren();
+		ArrayList<TemplateThing> tc = template.getChildren();
 		if (null != tc) {
-			for (Iterator it = tc.iterator(); it.hasNext(); ) {
-				item = new JMenuItem("new " + ((Thing)it.next()).getType().replace('_', ' ')); // changing underscores for spaces, for the 'layer_set' type to read nice
+			for (Iterator<TemplateThing> it = tc.iterator(); it.hasNext(); ) {
+				item = new JMenuItem("new " + it.next().getType().replace('_', ' ')); // changing underscores for spaces, for the 'layer_set' type to read nice
 				item.addActionListener(listener);
 				menu.add(item);
 			}
@@ -329,8 +329,8 @@ public final class LayerThing extends DBObject implements TitledThing {
 	public Thing findChild(Object ob) {
 		if (this.object.equals(ob)) return this;
 		if (null == al_children) return null;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			Thing found = ((Thing)it.next()).findChild(ob);
+		for (Iterator<LayerThing> it = al_children.iterator(); it.hasNext(); ) {
+			Thing found = it.next().findChild(ob);
 			if (null != found) return found;
 		}
 		return null;
