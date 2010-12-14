@@ -294,14 +294,12 @@ public final class LayerThing extends DBObject implements TitledThing {
 		if (check && !Utils.check("Really delete " + this.toString() + (object instanceof Layer && ((Layer)object).getDisplayables().size() > 0 ? " and all its children?" : ""))) return false;
 		// remove the children, which will propagate to their own objects
 		if (null != al_children) {
-			Object[] ob = new Object[al_children.size()];
+			LayerThing[] ob = new LayerThing[al_children.size()];
 			al_children.toArray(ob);
 			for (int i=0; i<ob.length; i++) {
-				if (ob[i] instanceof DBObject) {
-					if (!((DBObject)ob[i]).remove(false)) {
-						Utils.log("Could not delete " + ob[i]);
-						return false;
-					}
+				if ( ! ob[i].remove(false)) {
+					Utils.log("Could not delete " + ob[i]);
+					return false;
 				}
 			}
 			al_children.clear();
@@ -314,6 +312,7 @@ public final class LayerThing extends DBObject implements TitledThing {
 				Utils.log("Could not delete " + object);
 				return false;
 			}
+			Display.repaint();
 		}
 
 		// remove the Thing itself
