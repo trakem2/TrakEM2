@@ -1025,6 +1025,7 @@ public final class FSLoader extends Loader {
 		return result;
 	}
 
+	/** The saveAs called from menus via saveTask. */
 	public String saveAs(Project project) {
 		String path = super.saveAs(project, null, false);
 		if (null != path) {
@@ -1089,12 +1090,12 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Try to make all paths in ht_paths be relative to the given xml_path.
-	 *  This is intended for making all paths relative when saving to XML for the first time. */
+	 *  This is intended for making all paths relative when saving to XML for the first time.
+	 *  {@code dir_storage} and {@code dir_mipmaps} remain untouched--otherwise,
+	 *  after a {@code saveAs}, images would not be found. */
 	protected void makeAllPathsRelativeTo(final String xml_path, final Project project) {
 		synchronized (db_lock) {
 			try {
-				this.dir_storage = FSLoader.makeRelativePath(xml_path, this.dir_storage);
-				this.dir_mipmaps = FSLoader.makeRelativePath(xml_path, this.dir_mipmaps);
 				for (final Map.Entry<Long,String> e : ht_paths.entrySet()) {
 					e.setValue(FSLoader.makeRelativePath(xml_path, e.getValue()));
 				}
