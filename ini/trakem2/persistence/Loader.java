@@ -2602,11 +2602,11 @@ while (it.hasNext()) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality, Color.black);
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false, Color.black);
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
 	}
 	
@@ -2620,10 +2620,10 @@ while (it.hasNext()) {
 	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
 	}
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, active);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
 		final Calibration impCalibration = layer.getParent().getCalibrationCopy();
@@ -2634,11 +2634,11 @@ while (it.hasNext()) {
 		return imp;
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background) {
 		return getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 
 		try {
 			// if quality is specified, then a larger image is generated:
@@ -2818,7 +2818,6 @@ while (it.hasNext()) {
 	public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final ArrayList<Patch> patches, final Color background) {
 		return Patch.makeFlatImage(type, layer, srcRect, scale, patches, background);
 	}
-
 
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
 		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null);
