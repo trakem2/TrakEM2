@@ -4459,19 +4459,22 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			burro.goHaveBreakfast();
 		} else if (command.equals("Reroot")) {
 			if (!(active instanceof Tree<?>)) return;
-			Point p = canvas.consumeLastPopupPoint();
-			if (null == p) return;
 			getLayerSet().addDataEditStep(active);
-			((Tree)active).reRoot(p.x, p.y, layer, canvas.getMagnification());
-			getLayerSet().addDataEditStep(active);
-			Display.repaint(getLayerSet());
+			if (((Tree)active).reRoot(((Tree)active).getLastVisited())) {
+				getLayerSet().addDataEditStep(active);
+				Display.repaint(getLayerSet());
+			} else {
+				getLayerSet().removeLastUndoStep();
+			}
 		} else if (command.equals("Part subtree")) {
 			if (!(active instanceof Tree<?>)) return;
 			if (!Utils.check("Really part the subtree?")) return;
-			Point p = canvas.consumeLastPopupPoint();
-			if (null == p) return;
-			List<ZDisplayable> ts = ((Tree)active).splitNear(p.x, p.y, layer, canvas.getMagnification());
-			if (null == ts) return;
+			getLayerSet().addChangeTreesStep();
+			List<ZDisplayable> ts = ((Tree)active).splitAt(((Tree)active).getLastVisited());
+			if (null == ts) {
+				getLayerSet().removeLastUndoStep();
+				return;
+			}
 			Displayable elder = Display.this.active;
 			for (ZDisplayable t : ts) {
 				if (t == elder) continue;

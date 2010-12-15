@@ -722,7 +722,17 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				Utils.log("No node near " + x + ", " + y + ", " + layer);
 				return false;
 			}
+			
+			return reRoot(nd);
+		}
+	}
 
+	/** @param nd A node of this Tree. */
+	public boolean reRoot(final Node<T> nd) {
+		if (null == nd) return false;
+		synchronized (node_layer_map) {
+			Set<Node<T>> nodes = node_layer_map.get(nd.la);
+			if (null == nodes || !nodes.contains(nd)) return false;
 			end_nodes.add(this.root);
 			end_nodes.remove(nd);
 			nd.setRoot();
@@ -741,7 +751,6 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				x = (float)po.x;
 				y = (float)po.y;
 			}
-			ArrayList<Tree<T>> a;
 			synchronized (node_layer_map) {
 				// Search within the nodes in layer
 				Set<Node<T>> nodes = node_layer_map.get(layer);
@@ -760,6 +769,23 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					Utils.log("Cannot split at a root point!");
 					return null;
 				}
+				return splitAt(nd);
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	/** @param nd A node of this Tree. */
+	public List<Tree<T>> splitAt(final Node<T> nd) {
+		if (null == nd) return null;
+		try {
+			ArrayList<Tree<T>> a;
+			synchronized (node_layer_map) {
+				// Sanity check:
+				final Set<Node<T>> nodes = node_layer_map.get(nd.la);
+				if (null == nodes || !nodes.contains(nd)) return null;
 				// Cache the children of 'nd'
 				Collection<Node<T>> subtree_nodes = new ArrayList<Node<T>>(nd.getSubtreeNodes());
 				// Remove any review stacks for the nodes in the subtree
