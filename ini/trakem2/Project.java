@@ -709,6 +709,7 @@ public class Project extends DBObject {
 		return path;
 	}
 
+	/** This is not the saveAs used from the menus; this one is meant for programmatic access. */
 	public String saveAs(String xml_path, boolean overwrite) {
 		return loader.saveAs(xml_path, overwrite);
 	}
