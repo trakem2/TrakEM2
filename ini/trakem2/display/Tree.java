@@ -110,9 +110,8 @@ import java.awt.event.MouseAdapter;
 import fiji.geom.AreaCalculations;
 import java.io.File;
 
-// Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
-// That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
-// In practice, I want to reuse Polyline's semiautomatic tracing and thus I am using Polylines for each slab.
+// To remove the warnings, both the Node and the Tree would have to know about the type of Node used.
+// So: a recursive declaration of Node<T, N extends Node<T,N>> is required.
 
 /** A sequence of points ordered in a set of connected branches. */
 public abstract class Tree<T> extends ZDisplayable implements VectorData {
