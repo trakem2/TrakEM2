@@ -2534,35 +2534,10 @@ while (it.hasNext()) {
 				if (!target_dir.endsWith("/")) target_dir += "/";
 			}
 			if (layer.length > 1) {
-				// 1 - determine stack voxel depth (by choosing one, if there are layers with different thickness)
-				double voxel_depth = 1;
-				if (null != target_dir) { // otherwise, saving separately
-					ArrayList al_thickness = new ArrayList();
-					for (int i=0; i<layer.length; i++) {
-						Double t = new Double(layer[i].getThickness());
-						if (!al_thickness.contains(t)) al_thickness.add(t);
-					}
-					if (1 == al_thickness.size()) { // trivial case
-						voxel_depth = ((Double)al_thickness.get(0)).doubleValue();
-					} else {
-						String[] st = new String[al_thickness.size()];
-						for (int i=0; i<st.length; i++) {
-							st[i] = al_thickness.get(i).toString();
-						}
-						GenericDialog gdd = new GenericDialog("Choose voxel depth");
-						gdd.addChoice("voxel depth: ", st, st[0]);
-						gdd.showDialog();
-						if (gdd.wasCanceled()) {
-							finishedWorking();
-							return;
-						}
-						voxel_depth = ((Double)al_thickness.get(gdd.getNextChoiceIndex())).doubleValue();
-					}
-				}
-
-				// 2 - get all slices
+				// Get all slices
 				ImageStack stack = null;
 				for (int i=0; i<layer.length; i++) {
+					if (Thread.currentThread().isInterrupted()) return;
 					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
