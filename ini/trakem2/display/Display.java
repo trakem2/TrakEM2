@@ -4174,7 +4174,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				int i_start = gd.getNextChoiceIndex();
 				int i_end = gd.getNextChoiceIndex();
 				ArrayList<Layer> al = new ArrayList<Layer>();
-				ArrayList al_zd = layer.getParent().getZDisplayables();
+				ArrayList<ZDisplayable> al_zd = layer.getParent().getZDisplayables();
 				ZDisplayable[] zd = new ZDisplayable[al_zd.size()];
 				al_zd.toArray(zd);
 				for (int i=i_start, j=0; i <= i_end; i++, j++) {
