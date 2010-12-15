@@ -3757,79 +3757,58 @@ while (it.hasNext()) {
 
 
 	/** List of jobs running on this Loader. */
-	private ArrayList al_jobs = new ArrayList();
+	private ArrayList<Bureaucrat> jobs = new ArrayList<Bureaucrat>();
 	private JPopupMenu popup_jobs = null;
-	private final Object popup_lock = new Object();
-	private boolean popup_locked = false;
 
 	/** Adds a new job to monitor.*/
 	public void addJob(Bureaucrat burro) {
-		synchronized (popup_lock) {
-			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-			popup_locked = true;
-			al_jobs.add(burro);
-			popup_locked = false;
-			popup_lock.notifyAll();
+		synchronized (jobs) {
+			jobs.add(burro);
 		}
 	}
 	public void removeJob(Bureaucrat burro) {
-		synchronized (popup_lock) {
-			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-			popup_locked = true;
+		synchronized (jobs) {
 			if (null != popup_jobs && popup_jobs.isVisible()) {
 				popup_jobs.setVisible(false);
 			}
-			al_jobs.remove(burro);
-			popup_locked = false;
-			popup_lock.notifyAll();
+			jobs.remove(burro);
 		}
 	}
-	public JPopupMenu getJobsPopup(Display display) {
-		synchronized (popup_lock) {
-			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-			popup_locked = true;
+	public JPopupMenu getJobsPopup(final Display display) {
+		synchronized (jobs) {
 			this.popup_jobs = new JPopupMenu("Cancel jobs:");
 			int i = 1;
-			for (Iterator it = al_jobs.iterator(); it.hasNext(); ) {
-				Bureaucrat burro = (Bureaucrat)it.next();
+			for (final Bureaucrat burro : jobs) {
 				JMenuItem item = new JMenuItem("Job " + i + ": " + burro.getTaskName());
 				item.addActionListener(display);
 				popup_jobs.add(item);
 				i++;
 			}
-			popup_locked = false;
-			popup_lock.notifyAll();
 		}
 		return popup_jobs;
 	}
 	/** Names as generated for popup menu items in the getJobsPopup method. If the name is null, it will cancel the last one. Runs in a separate thread so that it can immediately return. */
 	public void quitJob(final String name) {
-		new Thread () { public void run() { setPriority(Thread.NORM_PRIORITY);
-		Object ob = null;
-		synchronized (popup_lock) {
-			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-			popup_locked = true;
-			if (null == name && al_jobs.size() > 0) {
-				ob = al_jobs.get(al_jobs.size()-1);
-			}  else {
-				int i = Integer.parseInt(name.substring(4, name.indexOf(':')));
-				if (i >= 1 && i <= al_jobs.size()) ob = al_jobs.get(i-1); // starts at 1
-			}
-			popup_locked = false;
-			popup_lock.notifyAll();
-		}
-		if (null != ob) {
-			// will wait until worker returns
-			((Bureaucrat)ob).quit(); // will require the lock
-		}
-		synchronized (popup_lock) {
-			while (popup_locked) try { popup_lock.wait(); } catch (InterruptedException ie) {}
-			popup_locked = true;
-			popup_jobs = null;
-			popup_locked = false;
-			popup_lock.notifyAll();
-		}
-		Utils.showStatus("Job canceled.", false);
+		new Thread () {
+			public void run() {
+				setPriority(Thread.NORM_PRIORITY);
+				Bureaucrat burro = null;
+				synchronized (jobs) {
+					if (null == name && jobs.size() > 0) {
+						burro = jobs.get(jobs.size()-1);
+					}  else {
+						int i = Integer.parseInt(name.substring(4, name.indexOf(':')));
+						if (i >= 1 && i <= jobs.size()) burro = jobs.get(i-1); // starts at 1
+					}
+				}
+				if (null != burro) {
+					// will wait until worker returns
+					burro.quit(); // will require the lock
+				}
+				synchronized (jobs) {
+					popup_jobs = null;
+				}
+				Utils.showStatus("Job canceled.", false);
 		}}.start();
 	}
 
