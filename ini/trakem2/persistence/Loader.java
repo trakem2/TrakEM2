@@ -2818,7 +2818,7 @@ while (it.hasNext()) {
 	public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final ArrayList<Patch> patches, final Color background) {
 		return Patch.makeFlatImage(type, layer, srcRect, scale, patches, background);
 	}
-
+ 
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
 		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null);
 	}

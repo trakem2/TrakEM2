@@ -4148,7 +4148,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addNumericField("Width: ", srcRect.width, 0);
 			gd.addNumericField("height: ", srcRect.height, 0);
 			// connect the above 3 fields:
-			Vector numfields = gd.getNumericFields();
+			Vector<?> numfields = gd.getNumericFields();
 			UpdateDimensionField udf = new UpdateDimensionField(srcRect.width, srcRect.height, (TextField) numfields.get(1), (TextField) numfields.get(2), (TextField) numfields.get(0), (Scrollbar) gd.getSliders().get(0));
 			for (Object ob : numfields) ((TextField)ob).addTextListener(udf);
 
