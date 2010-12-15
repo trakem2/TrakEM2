@@ -2930,6 +2930,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		menu = new JMenu("Display");
 		item = new JMenuItem("Resize canvas/LayerSet...");   item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Autoresize canvas/LayerSet");  item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Resize canvas/LayerSet to ROI"); item.addActionListener(this); menu.add(item);
+		item.setEnabled(null != canvas.getFakeImagePlus().getRoi());
 		item = new JMenuItem("Properties ..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Calibration..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Grid overlay..."); item.addActionListener(this); menu.add(item);
@@ -3974,6 +3976,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			resizeCanvas();
 		} else if (command.equals("Autoresize canvas/LayerSet")) {
 			layer.getParent().setMinimumDimensions();
+		} else if (command.equals("Resize canvas/LayerSet to ROI")) {
+			Roi roi = canvas.getFakeImagePlus().getRoi();
+			if (null == roi) {
+				Utils.log("No ROI present!");
+				return;
+			}
+			resizeCanvas(roi.getBounds());
 		} else if (command.equals("Import image")) {
 			importImage();
 		} else if (command.equals("Import next image")) {
@@ -5782,6 +5791,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		for (final Display d : al_displays) {
 			d.selection.removeFromPrev(displ);
 		}
+	}
+
+	public void resizeCanvas(final Rectangle bounds) {
+		if (bounds.width <= 0|| bounds.height <= 0) throw new IllegalArgumentException("width and height must be larger than zero.");
+		layer.getParent().setDimensions(bounds.x, bounds.y, bounds.width, bounds.height);
 	}
 
 	public void resizeCanvas() {
