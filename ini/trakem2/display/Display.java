@@ -4469,14 +4469,19 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Part subtree")) {
 			if (!(active instanceof Tree<?>)) return;
 			if (!Utils.check("Really part the subtree?")) return;
-			getLayerSet().addChangeTreesStep();
+			LayerSet.DoChangeTrees step = getLayerSet().addChangeTreesStep();
+			Set<DoStep> deps = new HashSet<DoStep>();
+			deps.add(new Displayable.DoEdit(active).init(active, new String[]{"data"})); // I hate java
+			step.addDependents(deps);
 			List<ZDisplayable> ts = ((Tree)active).splitAt(((Tree)active).getLastVisited());
 			if (null == ts) {
 				getLayerSet().removeLastUndoStep();
 				return;
 			}
 			Displayable elder = Display.this.active;
+			HashSet<DoStep> deps2 = new HashSet<DoStep>();
 			for (ZDisplayable t : ts) {
+				deps2.add(new Displayable.DoEdit(t).init(t, new String[]{"data"}));
 				if (t == elder) continue;
 				getLayerSet().add(t); // will change Display.this.active !
 				project.getProjectTree().addSibling(elder, t);
@@ -4484,7 +4489,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			selection.clear();
 			selection.selectAll(ts);
 			selection.add(elder);
-			getLayerSet().addChangeTreesStep();
+			LayerSet.DoChangeTrees step2 = getLayerSet().addChangeTreesStep();
+			step2.addDependents(deps2);
 			Display.repaint(getLayerSet());
 		} else if (command.equals("Show tabular view")) {
 			if (!(active instanceof Tree<?>)) return;

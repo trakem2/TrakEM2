@@ -2261,7 +2261,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Records the state of the LayerSet.al_layers, each Layer.al_displayables and all the trees and unique types of Project. */
-	static private class DoChangeTrees implements DoStep {
+	static protected class DoChangeTrees implements DoStep {
 		final LayerSet ls;
 		final HashMap<Thing,Boolean> ttree_exp, ptree_exp, ltree_exp;
 		final Thing troot, proot, lroot;
