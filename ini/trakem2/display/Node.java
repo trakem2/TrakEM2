@@ -214,8 +214,8 @@ public abstract class Node<T> implements Taggable {
 
 		//if (null == children && !paint) return null;
 
-		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
-		if (null == parent && !paint) return null;
+		//final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
+		//if (null == parent && !paint) return null;
 
 		final float[] fps = new float[4];
 		final int parent_x, parent_y;
@@ -237,7 +237,7 @@ public abstract class Node<T> implements Taggable {
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
 
 		final Runnable tagsTask;
-		if (paint) {
+		if (with_arrows && null != tags) {
 			tagsTask = new Runnable() {
 				public void run() {
 					paintTags(g, x, y, local_edge_color);
@@ -245,7 +245,7 @@ public abstract class Node<T> implements Taggable {
 			};
 		} else tagsTask = null;
 
-		if (null == parent) return tagsTask;
+		//if (null == parent) return tagsTask;
 
 		synchronized (this) {
 			if (null != parent) {
@@ -307,6 +307,12 @@ public abstract class Node<T> implements Taggable {
 					}
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 				}
+			} else if (with_arrows && !active) {
+				// paint a gray handle for the root
+				g.setColor(active_layer == this.la ? Color.gray : local_edge_color);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("S", (int)x -3, (int)y + 4); // TODO ensure Font is proper
 			}
 			if (null != children) {
 				final float[] fp = new float[2];
