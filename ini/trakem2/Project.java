@@ -528,6 +528,7 @@ public class Project extends DBObject {
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.
 	 *  Only one project may be opened at a time.
 	 */
+	@SuppressWarnings("unchecked")
 	synchronized static public Project openFSProject(final String path, final boolean open_displays) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
@@ -539,7 +540,7 @@ public class Project extends DBObject {
 		final TemplateThing root_tt = (TemplateThing)data[0];
 		final ProjectThing root_pt = (ProjectThing)data[1];
 		final LayerThing root_lt = (LayerThing)data[2];
-		final HashMap ht_pt_expanded = (HashMap)data[3];
+		final HashMap<ProjectThing,Boolean> ht_pt_expanded = (HashMap<ProjectThing,Boolean>)data[3];
 
 		final Project project = (Project)root_pt.getObject();
 		project.createLayerTemplates();
@@ -563,16 +564,15 @@ public class Project extends DBObject {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			Hashtable ht_exp = (Hashtable)f.get(project.project_tree);
-			for (Iterator it = ht_pt_expanded.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				ProjectThing pt = (ProjectThing)entry.getKey();
-				Boolean expanded = (Boolean)entry.getValue();
+			Hashtable<Object,Object> ht_exp = (Hashtable<Object,Object>) f.get(project.project_tree);
+			for (Map.Entry<ProjectThing,Boolean> entry : ht_pt_expanded.entrySet()) {
+				ProjectThing pt = entry.getKey();
+				Boolean expanded = entry.getValue();
 				//project.project_tree.expandPath(new TreePath(project.project_tree.findNode(pt, project.project_tree).getPath()));
 				// WARNING the above is wrong in that it will expand the whole thing, not just set the state of the node!!
 				// So the ONLY way to do it is to start from the child-most leafs of the tree, and apply the expanding to them upward. This is RIDICULOUS, how can it be so broken
 				// so, hackerous:
-				DefaultMutableTreeNode nd = project.project_tree.findNode(pt, project.project_tree);
+				DefaultMutableTreeNode nd = DNDTree.findNode(pt, project.project_tree);
 				//if (null == nd) Utils.log2("null node for " + pt);
 				//else Utils.log2("path: " + new TreePath(nd.getPath()));
 				if (null == nd) {
@@ -888,7 +888,7 @@ public class Project extends DBObject {
 		}
 		// find the Thing
 		DefaultMutableTreeNode root = (DefaultMutableTreeNode)project_tree.getModel().getRoot();
-		Enumeration e = root.depthFirstEnumeration();
+		Enumeration<?> e = root.depthFirstEnumeration();
 		DefaultMutableTreeNode node = null;
 		while (e.hasMoreElements()) {
 			node = (DefaultMutableTreeNode)e.nextElement();
@@ -1394,13 +1394,13 @@ public class Project extends DBObject {
 		if (null == value) ht_props.remove(key);
 		else ht_props.put(key, value);
 	}
-	private final boolean addBox(final GenericDialog gd, final Class c) {
+	private final boolean addBox(final GenericDialog gd, final Class<?> c) {
 		final String name = Project.getName(c);
 		final boolean link = "true".equals(ht_props.get(name.toLowerCase() + "_nolinks"));
 		gd.addCheckbox(name, link);
 		return link;
 	}
-	private final void setLinkProp(final boolean before, final boolean after, final Class c) {
+	private final void setLinkProp(final boolean before, final boolean after, final Class<?> c) {
 		if (before) {
 			if (!after) ht_props.remove(Project.getName(c).toLowerCase()+"_nolinks");
 		} else if (after) {

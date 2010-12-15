@@ -340,7 +340,7 @@ abstract public class Loader {
 	/** Add to the cache, or if already there, make it be the last (to be flushed the last). */
 	public void cache(final Displayable d, final ImagePlus imp) {
 		synchronized (db_lock) {
-			final long id = d.getId(); // each Displayable has a unique id for each database, not for different databases, that's why the cache is NOT shared.
+			// each Displayable has a unique id for each database, not for different databases, that's why the cache is NOT shared.
 			if (Patch.class == d.getClass()) {
 				cache((Patch)d, imp);
 				return;
@@ -404,14 +404,14 @@ abstract public class Loader {
 		}
 	}
 
-       /** Retrieves a zipped ImagePlus from the given InputStream. The stream is not closed and must be closed elsewhere. No error checking is done as to whether the stream actually contains a zipped tiff file. */
-       protected ImagePlus unzipTiff(InputStream i_stream, String title) {
-               ImagePlus imp;
-               try {
-                       // Reading a zipped tiff file in the database
+	/** Retrieves a zipped ImagePlus from the given InputStream. The stream is not closed and must be closed elsewhere. No error checking is done as to whether the stream actually contains a zipped tiff file. */
+	protected ImagePlus unzipTiff(InputStream i_stream, String title) {
+		ImagePlus imp;
+		try {
+			// Reading a zipped tiff file in the database
 
 
-                       /* // works but not faster
+			/* // works but not faster
                        byte[] bytes = null;
                        // new style: RAM only
                        ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -446,35 +446,35 @@ abstract public class Loader {
                                System.arraycopy(b[i], 0, bytes, i*buflen, buflen);
                        }
                        System.arraycopy(b[b.length-1], 0, bytes, buflen * (b.length-1), len);
-                       */
+			 */
 
 
-                       //OLD, creates tmp file (archive style)
-                       ZipInputStream zis = new ZipInputStream(i_stream);
-                       ByteArrayOutputStream out = new ByteArrayOutputStream();
-                       byte[] buf = new byte[4096]; //copying savagely from ImageJ's Opener.openZip()
-                       ZipEntry entry = zis.getNextEntry(); // I suspect this is needed as an iterator
-                       int len;
-                       while (true) {
-                               len = zis.read(buf);
-                               if (len<0) break;
-                               out.write(buf, 0, len);
-                       }
-                       zis.close();
-                       byte[] bytes = out.toByteArray();
+			//OLD, creates tmp file (archive style)
+			ZipInputStream zis = new ZipInputStream(i_stream);
+			ByteArrayOutputStream out = new ByteArrayOutputStream();
+			byte[] buf = new byte[4096]; //copying savagely from ImageJ's Opener.openZip()
+			//ZipEntry entry = zis.getNextEntry(); // I suspect this is needed as an iterator
+			int len;
+			while (true) {
+				len = zis.read(buf);
+				if (len<0) break;
+				out.write(buf, 0, len);
+			}
+			zis.close();
+			byte[] bytes = out.toByteArray();
 
-                       ij.IJ.redirectErrorMessages();
-                       imp = opener.openTiff(new ByteArrayInputStream(bytes), title);
+			ij.IJ.redirectErrorMessages();
+			imp = opener.openTiff(new ByteArrayInputStream(bytes), title);
 
-                       //old
-                       //ij.IJ.redirectErrorMessages();
-                       //imp = new Opener().openTiff(i_stream, title);
-               } catch (Exception e) {
-                       IJError.print(e);
-                       return null;
-               }
-               return imp;
-       }
+			//old
+			//ij.IJ.redirectErrorMessages();
+			//imp = new Opener().openTiff(i_stream, title);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		return imp;
+	}
 
 	///////////////////
 
@@ -618,7 +618,7 @@ abstract public class Loader {
 
 	static public void printCacheStatus() {
 		int i = 1;
-		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+		for (final Loader lo : new ArrayList<Loader>(v_loaders)) {
 			Utils.log2("Loader " + (i++) + " : mawts: " + lo.mawts.size());
 		}
 	}
@@ -631,7 +631,7 @@ abstract public class Loader {
 	
 	static public void printCaches() {
 		int i = 1;
-		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+		for (final Loader lo : new ArrayList<Loader>(v_loaders)) {
 			Utils.log2("Loader " + (i++) + ":");
 			lo.mawts.debug();
 		}
@@ -717,7 +717,7 @@ abstract public class Loader {
 	private final long releaseAndFlushOthers(final long min_free_bytes) {
 		if (1 == v_loaders.size()) return 0;
 		long released = 0;
-		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+		for (final Loader lo : new ArrayList<Loader>(v_loaders)) {
 			if (lo == this) continue;
 			synchronized (lo.db_lock) {
 				try {
@@ -790,7 +790,7 @@ abstract public class Loader {
 	}
 
 	static public void releaseAllCaches() {
-		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
+		for (final Loader lo : new ArrayList<Loader>(v_loaders)) { // calls v_loaders.toArray, synchronized.
 			lo.releaseAll();
 		}
 	}
@@ -1932,7 +1932,7 @@ abstract public class Loader {
 							al_p.add(q, pa[i]);
 						}
 					}
-					final ArrayList<Patch> al_p2 = (ArrayList<Patch>)al_p.clone(); // shallow copy of the ordered list
+					final ArrayList<Patch> al_p2 = new ArrayList<Patch>(al_p); // shallow copy of the ordered list
 					// 2 - discard the first and last 25% (TODO: a proper histogram clustering analysis and histogram examination should apply here)
 					if (pa.length > 3) { // under 4 images, use them all
 						int i=0;
@@ -2297,7 +2297,7 @@ while (it.hasNext()) {
 									k++;
 								}
 							}
-							for (final Future fu : a) {
+							for (final Future<?> fu : a) {
 								try {
 									if (wo.hasQuitted()) return;
 									fu.get();
@@ -2598,15 +2598,15 @@ while (it.hasNext()) {
 		}
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, final boolean quality) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, final boolean quality) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, null, quality, Color.black);
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, false, Color.black);
 	}
 
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, Color.black);
 	}
 	
@@ -2620,10 +2620,10 @@ while (it.hasNext()) {
 	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background) {
 		return getFlatImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
 	}
-	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class clazz, List al_displ, boolean quality, final Color background, final Displayable active) {
+	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 		final Image bi = getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, active);
 		final ImagePlus imp = new ImagePlus(layer.getPrintableTitle(), bi);
 		final Calibration impCalibration = layer.getParent().getCalibrationCopy();
@@ -2657,14 +2657,10 @@ while (it.hasNext()) {
 			}
 
 			// dimensions
-			int x = 0;
-			int y = 0;
 			int w = 0;
 			int h = 0;
 			Rectangle srcRect = (null == srcRect_) ? null : (Rectangle)srcRect_.clone();
 			if (null != srcRect) {
-				x = srcRect.x;
-				y = srcRect.y;
 				w = srcRect.width;
 				h = srcRect.height;
 			} else {
@@ -2824,7 +2820,7 @@ while (it.hasNext()) {
 	}
 
 
-	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
 		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null);
 	}
 
@@ -2850,7 +2846,7 @@ while (it.hasNext()) {
 	 *
 	 * Returns the watcher thread, for joining purposes, or null if the dialog is canceled or preconditions ar enot passed.
 	 */
-	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir) {
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir) {
 		if (null == layer || 0 == layer.length) return null;
 		// choose target directory
 		if (null == target_dir) {
@@ -2868,7 +2864,7 @@ while (it.hasNext()) {
 
 		final String dir = target_dir;
 		final double max_scale = max_scale_;
-		final float jpeg_quality = ij.plugin.JpegWriter.getQuality() / 100.0f;
+		final float jpeg_quality = FileSaver.getJpegQuality() / 100.0f;
 		Utils.log("Using jpeg quality: " + jpeg_quality);
 
 		Worker worker = new Worker("Creating prescaled tiles") {
@@ -2994,7 +2990,7 @@ while (it.hasNext()) {
 	}
 
 	/** Will overwrite if the file path exists. */
-	private void makeTile(Layer layer, Rectangle srcRect, double mag, int c_alphas, int type, Class clazz, final float jpeg_quality, String file_path) throws Exception {
+	private void makeTile(Layer layer, Rectangle srcRect, double mag, int c_alphas, int type, Class<?> clazz, final float jpeg_quality, String file_path) throws Exception {
 		ImagePlus imp = null;
 		if (srcRect.width > 0 && srcRect.height > 0) {
 			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
@@ -3787,6 +3783,7 @@ while (it.hasNext()) {
 		}}.start();
 	}
 
+	@SuppressWarnings("unchecked")
 	static public final void printMemState() {
 		final StringBuilder sb = new StringBuilder("mem in use: ").append((IJ.currentMemory() * 100.0f) / MAX_MEMORY).append("%\n");
 		int i = 0;
@@ -3905,12 +3902,12 @@ while (it.hasNext()) {
 	public Future<Boolean> removeMipMaps(final Patch patch) { return null; }
 
 	/** Returns generateMipMaps(al, false). */
-	public Bureaucrat generateMipMaps(final ArrayList al) {
+	public Bureaucrat generateMipMaps(final ArrayList<Displayable> al) {
 		return generateMipMaps(al, false);
 	}
 
 	/** Does nothing and returns null unless overriden. */
-	public Bureaucrat generateMipMaps(final ArrayList al, boolean overwrite) { return null; }
+	public Bureaucrat generateMipMaps(final ArrayList<Displayable> al, boolean overwrite) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean isMipMapsEnabled() { return false; }
@@ -4125,10 +4122,11 @@ while (it.hasNext()) {
 
 	// Dummy class to provide access the notifyListeners from Image
 	static private final class ImagePlusAccess extends ImagePlus {
-		final int CLOSE = CLOSED; // from super class ImagePlus
+		final int CLOSE = CLOSED; // from super class ImagePlus, which is not visible
 		final int OPEN = OPENED;
 		final int UPDATE = UPDATED;
 		private Vector<ij.ImageListener> my_listeners;
+		@SuppressWarnings("unchecked")
 		public ImagePlusAccess() {
 			super();
 			try {
@@ -4143,13 +4141,13 @@ while (it.hasNext()) {
 			try {
 				for (ij.ImageListener listener : my_listeners) {
 					switch (action) {
-						case CLOSED:
+						case CLOSE:
 							listener.imageClosed(imp);
 							break;
-						case OPENED:
+						case OPEN:
 							listener.imageOpened(imp);
 							break;
-						case UPDATED: 
+						case UPDATE: 
 							listener.imageUpdated(imp);
 							break;
 					}
@@ -4202,7 +4200,7 @@ while (it.hasNext()) {
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 
 	static private ExecutorService preloader = null;
-	static private Collection<FutureTask> preloads = new Vector<FutureTask>();
+	static private Collection<FutureTask<Image>> preloads = new Vector<FutureTask<Image>>();
 
 	static private int num_preloader_threads = Math.min(4, Runtime.getRuntime().availableProcessors() -1);
 	
@@ -4239,7 +4237,7 @@ while (it.hasNext()) {
 		if (null == preloader) setupPreloader(null);
 		else return;
 		synchronized (preloads) {
-			for (final FutureTask fu : preloads) fu.cancel(false);
+			for (final FutureTask<Image> fu : preloads) fu.cancel(false);
 		}
 		preloads.clear();
 		try {
@@ -4249,9 +4247,10 @@ while (it.hasNext()) {
 		} catch (Throwable t) { Utils.log2("Ignoring error with preloading"); }
 	}
 	/** Returns null when on low memory condition. */
+	@SuppressWarnings("unchecked")
 	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
 		if (low_memory_conditions || num_preloader_threads < 1) return null;
-		final FutureTask<Image>[] fu = (FutureTask<Image>[])new FutureTask[1];
+		final FutureTask<Image>[] fu = (FutureTask<Image>[]) new FutureTask[1];
 		fu[0] = new FutureTask<Image>(new Callable<Image>() {
 			public Image call() {
 				//Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
