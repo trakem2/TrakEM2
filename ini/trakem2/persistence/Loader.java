@@ -4418,6 +4418,7 @@ while (it.hasNext()) {
 		IFormatReader fr = null;
 		try {
 			fr = new ChannelSeparator();
+			fr.setGroupFiles(false);
 			fr.setId(path);
 			return new Dimension(fr.getSizeX(), fr.getSizeY());
 		} catch (FormatException fe) {
