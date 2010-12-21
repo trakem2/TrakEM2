@@ -1,44 +1,41 @@
 package ini.trakem2.display;
 
-import java.awt.Graphics2D;
-import java.awt.Color;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
-import java.awt.geom.PathIterator;
-import java.awt.geom.Area;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.Point;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.HashMap;
-import java.awt.event.MouseEvent;
-import java.awt.event.KeyEvent;
-import java.awt.event.InputEvent;
-
-import ini.trakem2.display.Layer;
-import ini.trakem2.imaging.Segmentation;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.OptionPanel;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.vector.VectorString3D;
-
 import ij.gui.GenericDialog;
 import ij.gui.OvalRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.process.FloatPolygon;
+import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.OptionPanel;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.vector.VectorString3D;
 
-import java.util.concurrent.Executors;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.PathIterator;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -273,6 +270,7 @@ public class AreaWrapper {
 			if (area == target_area) return;
 			if (null != area) {
 				synchronized (arealock) {
+					if (null == area) return;
 					if (fill) g.fill(area.createTransformedArea(aff));
 					else      g.draw(area.createTransformedArea(aff)); // won't be perfect except on mouse release
 				}
@@ -282,7 +280,7 @@ public class AreaWrapper {
 		final AtomicBoolean quitted = new AtomicBoolean(false);
 
 		/** This method must be called exactly and only once.*/
-		final synchronized void quit() {
+		final void quit() {
 			//if (!this.paint) return; // already quit
 			//this.paint = false;
 			if (isInterrupted()) return;
@@ -329,66 +327,69 @@ public class AreaWrapper {
 				}
 
 				if (adding) {
+					final Area added;
+
 					synchronized (arealock) {
-						this.target_area.add(area);
+						added = new Area(this.target_area);
+						added.add(area);
+					}
 
-						// now, depending on paint mode, alter the new target area:
+					// now, depending on paint mode, alter the new target area:
 
-						if (PAINT_OVERLAP == PP.paint_mode) {
-							// Nothing happens with PAINT_OVERLAP, default mode.
-						} else {
-							final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(source.getAffineTransform()).getBounds(), true);
-							
-							// prepare undo step:
-							final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
+					if (PAINT_OVERLAP == PP.paint_mode) {
+						// Nothing happens with PAINT_OVERLAP, default mode.
+					} else {
+						final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, added.createTransformedArea(source.getAffineTransform()).getBounds(), true);
 
-							for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
-								final Displayable d = e.getKey();
-								if (source == d) continue;
-								for (final Area a : e.getValue()) {
-									if (this.area == a) continue;
-									AffineTransform aff;
-									switch (PP.paint_mode) {
-									case PAINT_ERODE:
-										// subtract this target_area from any other Area that overlaps with it
-										aff = new AffineTransform(this.source.getAffineTransform());
-										aff.preConcatenate(d.at.createInverse());
-										final Area ta;
-										final Rectangle ta_bounds;
-										synchronized (arealock) {
-											ta = target_area.createTransformedArea(aff);
-											ta_bounds = ta.getBounds();
-										}
-										if (a.getBounds().intersects(ta_bounds)) {
-											ops.put(d, new Runnable() { public void run() {
-												a.subtract(ta);
-											}});
-										}
-										break;
-									case PAINT_EXCLUDE:
-										// subtract all other overlapping Area from the target_area
-										aff = new AffineTransform(d.at);
-										aff.preConcatenate(this.source.getAffineTransform().createInverse());
-										final Area q = a.createTransformedArea(aff);
-										if (q.getBounds().intersects(target_area.getBounds())) {
-											target_area.subtract(q);
-										}
-										break;
-									default:
-										Utils.log2("Can't handle paint mode " + PP.paint_mode);
-										break;
+						// prepare undo step:
+						final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
+
+						for (final Map.Entry<Displayable,List<Area>> e : other_areas.entrySet()) {
+							final Displayable d = e.getKey();
+							if (source == d) continue;
+							for (final Area a : e.getValue()) {
+								if (this.area == a) continue;
+								AffineTransform aff;
+								switch (PP.paint_mode) {
+								case PAINT_ERODE:
+									// subtract this target_area from any other Area that overlaps with it
+									aff = new AffineTransform(this.source.getAffineTransform());
+									aff.preConcatenate(d.at.createInverse());
+									final Area ta = added.createTransformedArea(aff);
+									final Rectangle ta_bounds = ta.getBounds();
+									if (a.getBounds().intersects(ta_bounds)) {
+										ops.put(d, new Runnable() { public void run() {
+											a.subtract(ta);
+										}});
 									}
+									break;
+								case PAINT_EXCLUDE:
+									// subtract all other overlapping Area from the target_area
+									aff = new AffineTransform(d.at);
+									aff.preConcatenate(this.source.getAffineTransform().createInverse());
+									final Area q = a.createTransformedArea(aff);
+									if (q.getBounds().intersects(added.getBounds())) {
+										added.subtract(q);
+									}
+									break;
+								default:
+									Utils.log2("Can't handle paint mode " + PP.paint_mode);
+									break;
 								}
-							}
-
-							if (null != ops && ops.size() > 0) {
-								source.getLayerSet().addDataEditStep(ops.keySet());
-								for (final Runnable r : ops.values()) {
-									r.run();
-								}
-								something_eroded = true;
 							}
 						}
+
+						if (null != ops && ops.size() > 0) {
+							source.getLayerSet().addDataEditStep(ops.keySet());
+							for (final Runnable r : ops.values()) {
+								r.run();
+							}
+							something_eroded = true;
+						}
+					}
+					synchronized (arealock) {
+						this.target_area.reset();
+						this.target_area.add(added);
 					}
 				}
 				// else do nothing, the subtract is already done
