@@ -257,7 +257,6 @@ abstract public class Loader {
 
 		exec.shutdownNow();
 		guiExec.quit();
-		gcrunner.interrupt();
 	}
 
 	/**Retrieve next id from a sequence for a new DBObject to be added.*/
@@ -525,95 +524,6 @@ abstract public class Loader {
 			return true; // optimism!
 		}
 		return releaseMemory(n_bytes) >= n_bytes; // will also release from other caches
-	}
-
-	final static private class GCRunner extends Thread {
-		private volatile boolean run = false;
-		private volatile long initial = Long.MAX_VALUE;
-		final private int MAX_ITERATIONS = 3;
-		GCRunner() {
-			super("GCRunner");
-			setPriority(Thread.NORM_PRIORITY);
-			setDaemon(true);
-			start();
-		}
-		final void trigger() {
-			synchronized (this) {
-				run = true;
-				initial = IJ.currentMemory();
-				notify();
-			}
-		}
-		public final void run() {
-			while (true) {
-				synchronized (this) {
-					try { wait(); } catch (InterruptedException ie) { return; }
-				}
-				worker: while (run) {
-					synchronized (this) {
-						run = false;
-					}
-
-					long now = initial;
-					long sleep = 50; // initial value
-					int iterations = 0;
-					Utils.showStatus("Clearing memory...");
-					do {
-						System.gc();
-						Thread.yield();
-						// 'run' should be false. If true, re-read initial values and iterations, for a new request came in:
-						if (run) {
-							Utils.log2("reinit GC after iter " + (iterations + 1));
-							continue worker;
-						}
-						try { Thread.sleep(sleep); } catch (InterruptedException ie) { return; }
-						sleep += sleep; // incremental
-						now = IJ.currentMemory();
-						try {
-							Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
-							int i = 1;
-							for (final Loader l : v_loaders) {
-								Utils.log2("\t" + i + ":  mawts: " + l.mawts.size());
-							}
-						} catch (Exception e) {}
-						iterations++;
-					} while ((now + (now/10)) >= initial && iterations < MAX_ITERATIONS); // 10% is acceptable
-					Utils.showStatus("Memory cleared.");
-				}
-			}
-		}
-	}
-
-	private static final GCRunner gcrunner = new GCRunner();
-
-	/** Trigger garbage collection in a separate thread. */
-	public final void triggerGC() {
-		gcrunner.trigger();
-	}
-
-	/** This method tries to cope with the lack of real time garbage collection in java (that is, lack of predictable time for memory release). */
-	@Deprecated
-	public final int runGC() {
-		//Utils.printCaller("runGC", 4);
-		final long initial = IJ.currentMemory();
-		long now = initial;
-		final int max = 7;
-		long sleep = 50; // initial value
-		int iterations = 0;
-		Utils.showStatus("Clearing memory...");
-		do {
-			//Runtime.getRuntime().runFinalization(); // enforce it
-			System.gc();
-			Thread.yield();
-			try { Thread.sleep(sleep); } catch (InterruptedException ie) {}
-			sleep += sleep; // incremental
-			now = IJ.currentMemory();
-			Utils.log2("\titer " + iterations + "  initial: " + initial  + " now: " + now);
-			Utils.log2("\t  mawts: " + mawts.size());
-			iterations++;
-		} while (now >= initial && iterations < max);
-		Utils.showStatus("Memory cleared.");
-		return iterations + 1;
 	}
 
 	static public void printCacheStatus() {
