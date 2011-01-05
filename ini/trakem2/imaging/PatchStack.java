@@ -48,9 +48,13 @@ import java.util.Properties;
 
 
 
-/** Assumed is all Patch instances in the array are of the same size, live in consecutive layers of the same thickness. 
+/** Assumed is all Patch instances in the array are of the same size,
+ * live in consecutive layers of the same thickness. 
  *
- * The superclass ImagePlus uses the 'ip' pointer for a single ImageProcessor whose pixels getr replaced every time a new slice is selected from the stack, when there is a stack. Here the 'ip' pointer is used for the current slice, which is the currently active Patch.
+ * The superclass ImagePlus uses the 'ip' pointer for a single ImageProcessor
+ * whose pixels get replaced every time a new slice is selected from the stack,
+ * when there is a stack. Here the 'ip' pointer is used for the current slice,
+ * which is the currently active Patch.
  * */
 public class PatchStack extends ImagePlus {
 
@@ -394,18 +398,18 @@ public class PatchStack extends ImagePlus {
 		Utils.log("PatchStack: Can't setDimensions.");
 	}
 
-	/** Override to return zero */
+	/** Override to return 1. */
 	public int getNChannels() {
-		return 0;
+		return 1;
 	}
 
 	public int getNSlices() {
 		return patch.length;
 	}
 
-	/** Override to return zero */
+	/** Override to return 1. */
 	public int getNFrames() {
-		return 0;
+		return 1;
 	}
 
 	/** Override to return width, height, 1, patch.length, 1*/
@@ -496,7 +500,7 @@ public class PatchStack extends ImagePlus {
 			//no need//updateAndRepaintWindow();
 			return;
 		}
-		if (index>= 1 && index <= patch.length) {
+		if (index >= 1 && index <= patch.length) {
 			Roi roi = getRoi();
 			if (null != roi) roi.endPaste();
 			currentSlice = index;
@@ -641,6 +645,18 @@ public class PatchStack extends ImagePlus {
 		}
 	}
 
+	@Override
+	public void setPosition(int channel, int slice, int frame) {
+		if (slice >= 1 && slice <= patch.length) {
+			currentSlice = slice;
+		}
+	}
+	
+	@Override
+	public int getStackIndex(int channel, int slice, int frame) {
+		return slice;
+	}
+
 	final class VirtualStack extends ImageStack {
 
 		VirtualStack(int width, int height) {
@@ -747,7 +763,7 @@ public class PatchStack extends ImagePlus {
 
 		/** Override: always false. */
 		public boolean isRGB() {
-			return false;
+			return getType() == COLOR_RGB;
 		}
 
 		/** Override: always false. */
