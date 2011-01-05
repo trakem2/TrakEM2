@@ -566,8 +566,7 @@ public final class Display3D {
 		d3d.universe.removeContent(title);
 		PatchStack ps = p.makePatchStack();
 		ImagePlus imp = get8BitStack(ps);
-		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
-		Content ct = d3d.universe.getContent(title);
+		Content ct = d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		setTransform(ct, ps.getPatch(0));
 		ct.setLocked(true); // locks the added content
 	}
@@ -581,8 +580,7 @@ public final class Display3D {
 		d3d.universe.removeContent(title);
 		PatchStack ps = p.makePatchStack();
 		ImagePlus imp = get8BitStack(ps);
-		d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
-		Content ct = d3d.universe.getContent(title);
+		Content ct = d3d.universe.addVoltex(imp, null, title, 0, new boolean[]{true, true, true}, d3d.resample);
 		setTransform(ct, ps.getPatch(0));
 		ct.setLocked(true); // locks the added content
 	}
@@ -602,8 +600,7 @@ public final class Display3D {
 	static public void showOrthoslices(final ImagePlus imp, final String title, final int wx, final int wy, final float scale2D, final Layer first) {
 		Display3D d3d = get(first.getParent());
 		d3d.universe.removeContent(title);
-		d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, 1);
-		Content ct = d3d.universe.getContent(title);
+		Content ct = d3d.universe.addOrthoslice(imp, null, title, 0, new boolean[]{true, true, true}, 1);
 		Calibration cal = imp.getCalibration();
 		Transform3D t = new Transform3D(new double[]{1, 0, 0, wx * cal.pixelWidth * scale2D,
 													 0, 1, 0, wy * cal.pixelHeight * scale2D,
