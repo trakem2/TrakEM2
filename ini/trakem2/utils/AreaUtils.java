@@ -5,7 +5,11 @@ import ij.process.ImageProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.vector.Editions;
+import ini.trakem2.vector.SkinMaker;
+import ini.trakem2.vector.VectorString2D;
 
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -411,5 +415,36 @@ public final class AreaUtils {
 		Utils.log2("Done!");
 
 		return area;
+	}
+
+	/** Interpolate areas only if they are made of a single shape each.
+	 *  Assumes that areas are in the same coordinate system.
+	 * @throws Exception */
+	static public final Area[] singularInterpolation(final Area a1, final Area a2, final int nInterpolates) throws Exception {
+		if (!a1.isSingular() || !a2.isSingular()) {
+			return null;
+		}
+		Utils.log2("nInterpolates: " + nInterpolates);
+		VectorString2D vs1 = M.asVectorString2D(M.getPolygons(a1).iterator().next(), 0);
+		VectorString2D vs2 = M.asVectorString2D(M.getPolygons(a2).iterator().next(), 1);
+		
+		Editions ed = new Editions(vs1, vs2, Math.min(vs1.getAverageDelta(), vs2.getAverageDelta()), true);
+		
+		double[][][] d = SkinMaker.getMorphedPerimeters(vs1, vs2, nInterpolates, ed);
+		
+		Area[] a = new Area[d.length];
+		for (int i=0; i<d.length; i++) {
+			double[] x = d[i][0];
+			double[] y = d[i][1];
+			int[] xi = new int[x.length];
+			int[] yi = new int[y.length];
+			for (int k=0; k<x.length; k++) {
+				xi[k] = (int) x[k];
+				yi[k] = (int) y[k];
+			}
+			a[i] = new Area(new Polygon(xi, yi, xi.length));
+		}
+
+		return a;
 	}
 }
