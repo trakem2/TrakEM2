@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.display.VectorDataTransform;
 
 import ij.gui.PolygonRoi;
@@ -775,5 +776,15 @@ public final class M {
 		c.subtract(b);
 
 		return new Area[]{b, c};
+	}
+
+	public static VectorString2D asVectorString2D(final Polygon pol, final double z) throws Exception {
+		double[] x = new double[pol.npoints];
+		double[] y = new double[pol.npoints];
+		for (int i=0; i<x.length; i++) {
+			x[i] = pol.xpoints[i];
+			y[i] = pol.ypoints[i];
+		}
+		return new VectorString2D(x, y, z, true);
 	}
 }
