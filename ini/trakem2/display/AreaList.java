@@ -1472,4 +1472,49 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 		return rt;
 	}
+
+	/** Interpolate areas between the given first and last layers,
+	 * both of which must contain an area.
+	 * 
+	 * @return false if the interpolation could not be done. 
+	 * @throws Exception */
+	public boolean interpolate(final Layer first, final Layer last) throws Exception {
+		Area start = null;
+		int istart = 0;
+		int inext = -1;
+		HashSet<Layer> touched = new HashSet<Layer>();
+
+		for (final Layer la : layer_set.getLayers(first, last)) {
+			inext++;
+			Area next = getArea(la);
+			if (null == next) continue;
+			if (null == start || 0 == inext - istart -1) { // skip for first area or for no space in between
+				start = next;
+				istart = inext;
+				continue;
+			}
+			// Interpolate from start to next
+			Area[] as = AreaUtils.singularInterpolation(start, next, inext - istart -1);
+
+			if (null == as) {
+				// NOT SINGULAR: must use BinaryInterpolation2D
+				// TODO
+			} else {
+				int k = 0;
+				for (final Layer la2 : layer_set.getLayers(istart+2, inext)) {
+					addArea(la2.getId(), as[k++]);
+					touched.add(la2);
+				}
+			}
+			
+			// Prepare next range
+			start = next;
+			istart = inext;
+			next = null;
+		}
+
+		for (Layer la : touched) calculateBoundingBox(la);
+
+		return true;
+	}
 }
