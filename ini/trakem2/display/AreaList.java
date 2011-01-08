@@ -1479,14 +1479,25 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	 * @return false if the interpolation could not be done. 
 	 * @throws Exception */
 	public boolean interpolate(final Layer first, final Layer last) throws Exception {
+
+		int i1 = layer_set.indexOf(first);
+		int i2 = layer_set.indexOf(last);
+		if (i1 > i2) {
+			int tmp = i1;
+			i1 = i2;
+			i2 = tmp;
+		}
+		final List<Layer> range = layer_set.getLayers().subList(i1, i2+1);
+
 		Area start = null;
 		int istart = 0;
 		int inext = -1;
-		HashSet<Layer> touched = new HashSet<Layer>();
 
-		for (final Layer la : layer_set.getLayers(first, last)) {
+		final HashSet<Layer> touched = new HashSet<Layer>();
+
+		for (final Layer la : range) {
 			inext++;
-			Area next = getArea(la);
+			final Area next = getArea(la);
 			if (null == next) continue;
 			if (null == start || 0 == inext - istart -1) { // skip for first area or for no space in between
 				start = next;
@@ -1494,23 +1505,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				continue;
 			}
 			// Interpolate from start to next
-			Area[] as = AreaUtils.singularInterpolation(start, next, inext - istart -1);
+			final Area[] as = AreaUtils.singularInterpolation(start, next, inext - istart -1);
 
 			if (null == as) {
 				// NOT SINGULAR: must use BinaryInterpolation2D
 				// TODO
 			} else {
-				int k = 0;
-				for (final Layer la2 : layer_set.getLayers(istart+2, inext)) {
-					addArea(la2.getId(), as[k++]);
+				for (int k=0; k<as.length; k++) {
+					final Layer la2 = range.get(k + istart + 1);
+					addArea(la2.getId(), as[k]);
 					touched.add(la2);
 				}
 			}
-			
-			// Prepare next range
+
+			// Prepare next interval
 			start = next;
 			istart = inext;
-			next = null;
 		}
 
 		for (Layer la : touched) calculateBoundingBox(la);
