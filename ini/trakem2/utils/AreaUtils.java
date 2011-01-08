@@ -1,6 +1,9 @@
 package ini.trakem2.utils;
 
+import ij.ImagePlus;
+import ij.gui.Roi;
 import ij.measure.Calibration;
+import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
@@ -22,11 +25,13 @@ import java.util.TreeMap;
 import javax.vecmath.Point3f;
 
 import marchingcubes.MCTriangulator;
+import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D;
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
 import mpicbg.imglib.image.Image;
+import mpicbg.imglib.image.display.imagej.ImageJFunctions;
+import mpicbg.imglib.type.logic.BitType;
 import mpicbg.imglib.type.numeric.integer.ByteType;
-//import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 
 
 public final class AreaUtils {
@@ -445,5 +450,52 @@ public final class AreaUtils {
 		}
 
 		return a;
+	}
+
+	static public final Area[] manyToManyInterpolation(final Area a1, final Area a2, final int nInterpolates) {
+		final Rectangle b = a1.getBounds();
+		b.add(a2.getBounds());
+		final AffineTransform translate = new AffineTransform(1, 0, 0, 1, -b.x, -b.y);
+
+		final ShapeList<BitType> shapeList1 = new ShapeListCached<BitType>(new int[]{b.width, b.height}, new BitType(false), 32);
+		shapeList1.addShape(a1.createTransformedArea(translate), new BitType(true), new int[]{0});
+		final Image<BitType> img1 = new Image<BitType>(shapeList1, shapeList1.getBackground(), "ShapeListContainer");
+
+		final ShapeList<BitType> shapeList2 = new ShapeListCached<BitType>(new int[]{b.width, b.height}, new BitType(false), 32);
+		shapeList2.addShape(a2.createTransformedArea(translate), new BitType(true), new int[]{0});
+		final Image<BitType> img2 = new Image<BitType>(shapeList2, shapeList2.getBackground(), "ShapeListContainer");
+
+		final float inc = 1.0f / (nInterpolates + 1);
+
+		final BinaryInterpolation2D interpol = new BinaryInterpolation2D(img1, img2, inc);
+		if (!interpol.checkInput()) {
+			System.out.println("Error: " + interpol.getErrorMessage());
+			return null;
+		}
+
+		final Area[] as = new Area[nInterpolates];
+		final AffineTransform back = new AffineTransform(1, 0, 0, 1, b.x, b.y);
+
+		// TODO paralelize, which needs the means to call process() in parallel too--currently it cannot,
+		// the result would get overwritten.
+		
+		for (int i=1; i<=nInterpolates; i++) {
+			interpol.setWeight( 1 - inc * i );
+			if (!interpol.process()) {
+				System.out.println("Error: " + interpol.getErrorMessage());
+				return null;
+			}
+			ImagePlus imp = ImageJFunctions.copyToImagePlus(interpol.getResult(), ImagePlus.GRAY8);
+			// BitType gets copied to 0 and 255 in 8-bit ByteProcessor
+			ThresholdToSelection ts = new ThresholdToSelection();
+			ts.setup("", imp);
+			ImageProcessor ip = imp.getProcessor();
+			ip.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
+			ts.run(ip);
+			Roi roi = imp.getRoi();
+			as[i-1] = null == roi ? new Area() : M.getArea(roi).createTransformedArea(back);
+		}
+		
+		return as;
 	}
 }
