@@ -1506,12 +1506,13 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				continue;
 			}
 			// Interpolate from start to next
-			final Area[] as = AreaUtils.singularInterpolation(start, next, inext - istart -1);
+			Area[] as = AreaUtils.singularInterpolation(start, next, inext - istart -1);
 
 			if (null == as) {
 				// NOT SINGULAR: must use BinaryInterpolation2D
-				// TODO
-			} else {
+				as = AreaUtils.manyToManyInterpolation(start, next, inext - istart -1);
+			}
+			if (null != as) {
 				for (int k=0; k<as.length; k++) {
 					final Layer la2 = range.get(k + istart + 1);
 					addArea(la2.getId(), as[k]);
