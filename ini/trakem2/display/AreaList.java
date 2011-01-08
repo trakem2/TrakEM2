@@ -1406,6 +1406,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return new ArrayList<Long>(ht_areas.keySet());
 	}
 
+	/** In world coordinates, a copy of the area at {@param layer}. May be null. */
 	@Override
 	public Area getAreaAt(final Layer layer) {
 		final Area a = getArea(layer);
