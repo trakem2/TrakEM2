@@ -65,6 +65,7 @@ import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Line2D;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.image.BufferedImage;
 import java.awt.event.*;
 import java.util.*;
@@ -2507,6 +2508,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			}
+
 			if (AreaList.class == aclass) {
 				item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
 				ArrayList<?> al = selection.getSelected();
@@ -2515,6 +2517,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (it.next().getClass() == AreaList.class) n++;
 				}
 				if (n < 2) item.setEnabled(false);
+				addAreaMenu(popup, active);
 				popup.addSeparator();
 			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
@@ -2623,7 +2626,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				});
 				popup.add(item);
-				
 				popup.addSeparator();
 			} else if (Connector.class == aclass) {
 				item = new JMenuItem("Merge"); item.addActionListener(new ActionListener() {
@@ -2667,6 +2669,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				});
 				popup.add(item);
 				item.setEnabled(selection.getSelected(Connector.class).size() > 1);
+				popup.addSeparator();
 			}
 
 			item = new JMenuItem("Duplicate"); item.addActionListener(this); popup.add(item);
@@ -3021,6 +3024,139 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		//canvas.add(popup);
 		return popup;
+	}
+
+	private void addAreaMenu(final JPopupMenu popup2, final Displayable active) {
+		// TODO could support AreaContainer, hence AreaTree
+		final ActionListener listener = new ActionListener() {
+			@Override
+			public void actionPerformed(final ActionEvent ae) {
+				final String command = ae.getActionCommand();
+				Bureaucrat.createAndStart(new Worker.Task(command) {
+					public void exec() {
+						if (command.equals("Copy area")) {
+							if (null == active || !(active instanceof AreaList)) return;
+							AreaList ali = (AreaList)active;
+							Area area = ali.getArea(getLayer());
+							if (null == area) return;
+							DisplayCanvas.setCopyBuffer(ali.getClass(), area.createTransformedArea(ali.getAffineTransform()));
+						} else if (command.equals("Paste area")) {
+							if (null == active || !(active instanceof AreaList)) return;
+							AreaList ali = (AreaList)active;
+							Area wa = (Area) DisplayCanvas.getCopyBuffer(ali.getClass());
+							if (null == wa) return;
+							try {
+								getLayerSet().addDataEditStep(ali);
+								ali.addArea(getLayer().getId(), wa.createTransformedArea(ali.getAffineTransform().createInverse()));
+								ali.calculateBoundingBox(getLayer());
+								getLayerSet().addDataEditStep(ali);
+							} catch (NoninvertibleTransformException e) {
+								IJError.print(e);
+								getLayerSet().undoOneStep();
+							}
+						} else if (command.equals("Interpolate gaps towards previous area")) {
+							if (null == active || !(active instanceof AreaList)) return;
+							AreaList ali = (AreaList)active;
+							// Is there an area in this layer?
+							Layer current = getLayer();
+							if (null == ali.getArea(current)) return;
+							// Find a layer before the current that has an area
+							LayerSet ls = getLayerSet();
+							if (0 == ls.indexOf(current)) return; // already at first
+							Layer previous = null;
+							// Iterate layers towards the first layer
+							for (ListIterator<Layer> it = ls.getLayers().listIterator(ls.indexOf(current)); it.hasPrevious(); ) {
+								Layer la = it.previous();
+								if (null != ali.getArea(la)) {
+									previous = la;
+									break;
+								}
+							}
+							if (null == previous) return; // all empty
+							try {
+								ls.addDataEditStep(ali);
+								ali.interpolate(previous, current);
+								ls.addDataEditStep(ali);
+							} catch (Exception e) {
+								IJError.print(e);
+								ls.undoOneStep();
+							}
+						} else if (command.equals("Interpolate gaps towards next area")) {
+							if (null == active || !(active instanceof AreaList)) return;
+							AreaList ali = (AreaList)active;
+							// Is there an area in this layer?
+							Layer current = getLayer();
+							if (null == ali.getArea(current)) return;
+							// Find a layer after the current that has an area
+							LayerSet ls = getLayerSet();
+							if (ls.size() -1 == ls.indexOf(current)) return; // already at the end
+							Layer next = null;
+							// Iterate towards the next layer
+							for (ListIterator<Layer> it = ls.getLayers().listIterator(ls.indexOf(current)+1); it.hasNext(); ) {
+								Layer la = it.next();
+								if (null != ali.getArea(la)) {
+									next = la;
+									break;
+								}
+							}
+							if (null == next) return; // all empty
+							try {
+								ls.addDataEditStep(ali);
+								ali.interpolate(current, next);
+								ls.addDataEditStep(ali);
+							} catch (Exception e) {
+								IJError.print(e);
+								ls.undoOneStep();
+							}
+						} else if (command.equals("Interpolate all gaps")) {
+							if (null == active || !(active instanceof AreaList)) return;
+							AreaList ali = (AreaList)active;
+							// find the first and last layers with areas
+							Layer first = null;
+							Layer last = null;
+							LayerSet ls = getLayerSet();
+							List<Layer> las = ls.getLayers();
+							for (Layer la : las) {
+								if (null == first && null != ali.getArea(la)) {
+									first = la;
+									break;
+								}
+							}
+							for (ListIterator<Layer> it = las.listIterator(las.size()); it.hasPrevious(); ) {
+								Layer la = it.previous();
+								if (null == last && null != ali.getArea(la)) {
+									last = la;
+									break;
+								}
+							}
+							Utils.log2(first, last);
+							if (null != first && first != last) {
+								try {
+									ls.addDataEditStep(ali);
+									ali.interpolate(first, last);
+									ls.addDataEditStep(ali);
+								} catch (Exception e) {
+									IJError.print(e);
+									ls.undoOneStep();
+								}
+							}
+						}
+					}
+				}, active.getProject());
+			}
+		};
+
+		JMenu interpolate = new JMenu("Areas");
+		JMenuItem item = new JMenuItem("Interpolate gaps towards previous area"); item.addActionListener(listener); interpolate.add(item);
+		item = new JMenuItem("Interpolate gaps towards next area"); item.addActionListener(listener); interpolate.add(item);
+		item = new JMenuItem("Interpolate all gaps"); item.addActionListener(listener); interpolate.add(item);
+		interpolate.addSeparator();
+		item = new JMenuItem("Copy area"); item.addActionListener(listener); interpolate.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0, true));
+		item = new JMenuItem("Paste area"); item.addActionListener(listener); interpolate.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, 0, true));
+		item.setEnabled(null != DisplayCanvas.getCopyBuffer(active.getClass()));
+		popup.add(interpolate);
 	}
 
 	private ActionListener getTreePathMeasureListener(final Tree tree) {
