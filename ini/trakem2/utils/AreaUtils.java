@@ -424,7 +424,6 @@ public final class AreaUtils {
 		if (!a1.isSingular() || !a2.isSingular()) {
 			return null;
 		}
-		Utils.log2("nInterpolates: " + nInterpolates);
 		VectorString2D vs1 = M.asVectorString2D(M.getPolygons(a1).iterator().next(), 0);
 		VectorString2D vs2 = M.asVectorString2D(M.getPolygons(a2).iterator().next(), 1);
 		
