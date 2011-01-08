@@ -834,18 +834,25 @@ public class AreaWrapper {
 					// Casting a null is fine, and addArea survives a null.
 					Area wa = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
 					if (null != wa) {
+						source.getLayerSet().addDataEditStep(source);
 						add(wa, la); // wa is in world coordinates
 						((AreaContainer)source).calculateBoundingBox(la);
+						source.getLayerSet().addDataEditStep(source);
 					}
 					ke.consume();
 					return;
 				case KeyEvent.VK_F: // fill all holes
+					source.getLayerSet().addDataEditStep(source);
 					fillHoles();
+					source.getLayerSet().addDataEditStep(source);
 					ke.consume();
 					return;
 				case KeyEvent.VK_X: // remove area from current layer, if any
+					if (area.isEmpty()) return;
+					source.getLayerSet().addDataEditStep(source);
 					area.reset();
 					((AreaContainer)source).calculateBoundingBox(la);
+					source.getLayerSet().addDataEditStep(source);
 					ke.consume();
 					return;
 			}
