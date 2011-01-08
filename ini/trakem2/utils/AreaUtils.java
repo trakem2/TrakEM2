@@ -359,7 +359,9 @@ public final class AreaUtils {
 	}
 
 	/** Extract the Area of the image for the given pixel value.
-	 *  ThresholdToSelection is way faster than this, just use it. */
+	 *  ThresholdToSelection is way faster than this, just use it.
+	 *  It's BROKEN do not use. */
+	/*
 	static public final Area extractArea(final ImageProcessor ip, final float val) {
 		final int height = ip.getHeight();
 		final int width = ip.getWidth();
@@ -374,38 +376,33 @@ public final class AreaUtils {
 			box.y = y;
 			box.width = val == prev ? 1 : 0;
 
-			if (0 == y % 50) Utils.log("Done up to " + y);
-
 			for (int x=1; x<width; x++) {
 
 				float pix = ip.getPixelValue(x, y);
 
-				if (pix == val) {
-					if (prev == val) {
+				if (val == pix) {
+					if (pix == prev) {
 						box.width++;
 						continue;
-					} else {
-						// start box
-						box.x = x;
-						prev = pix;
-						box.width = 1;
-						continue;
 					}
-				} else if (box.width > 0) {
-					// break current box and add it
+					// Else, add previous one
 					segments.add(new Area(box));
-					// Reset
+					// ... and start a new box
 					box.x = x;
-					box.width = 0;
+					box.y = y;
+					box.width = 1;
+					prev = pix;
 				}
 			}
 
 			// At end of line, add the last
-			if (box.width > 0) segments.add(new Area(box));
+			segments.add(new Area(box));
 
+			// Join a few
 			if (segments.size() > 32) {
 				final Area a = new Area(segments.get(0));
-				for (int i=segments.size()-1; i>0; i--) a.add(segments.get(i));
+				final int len = segments.size();
+				for (int i=1; i<len; i++) a.add(segments.get(i));
 				area.add(a);
 				segments.clear();
 			}
@@ -413,14 +410,14 @@ public final class AreaUtils {
 
 		if (segments.size() > 0) {
 			final Area a = new Area(segments.get(0));
-			for (int i=segments.size()-1; i>0; i--) a.add(segments.get(i));
+			final int len = segments.size();
+			for (int i=1; i<len; i++) a.add(segments.get(i));
 			area.add(a);
 		}
 
-		Utils.log2("Done!");
-
 		return area;
 	}
+	*/
 
 	/** Interpolate areas only if they are made of a single shape each.
 	 *  Assumes that areas are in the same coordinate system.
