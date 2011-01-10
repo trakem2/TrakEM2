@@ -638,19 +638,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** After reloading a project from the database, open the Displays that the project had. */
 	static public Bureaucrat openLater() {
-		final Hashtable<Display,Object[]> ht_later_local;
+		final HashMap<Display,Object[]> ht_later_local;
+		final Project[] ps;
 		synchronized (ht_later) {
 			if (0 == ht_later.size()) return null;
-			ht_later_local = new Hashtable<Display,Object[]>(ht_later);
+			ht_later_local = new HashMap<Display,Object[]>(ht_later);
 			ht_later.keySet().removeAll(ht_later_local.keySet());
+			HashSet<Project> unique = new HashSet<Project>();
+			for (Display d : ht_later_local.keySet()) {
+				unique.add(d.project);
+			}
+			ps = unique.toArray(new Project[unique.size()]);
 		}
 		final Worker worker = new Worker.Task("Opening displays") {
 			public void exec() {
 				try {
 					Thread.sleep(300); // waiting for Swing
 
-		for (Enumeration<Display> e = ht_later_local.keys(); e.hasMoreElements(); ) {
-			final Display d = e.nextElement();
+		for (final Display d : ht_later_local.keySet()) {
 			addDisplay(d); // must be set as front before repainting any ZDisplayable!
 			Object[] props = ht_later_local.get(d);
 			if (ControlWindow.isGUIEnabled()) d.makeGUI(d.layer, props);
@@ -676,7 +681,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 			}
 		};
-		return Bureaucrat.createAndStart(worker, ht_later_local.keySet().iterator().next().getProject()); // gets the project from the first Display
+		return Bureaucrat.createAndStart(worker, ps);
 	}
 
 	private final class ScrollerModel extends DefaultBoundedRangeModel {
