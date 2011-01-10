@@ -8,6 +8,7 @@ import ij.process.ImageProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.imaging.BinaryInterpolation2D;
 import ini.trakem2.vector.Editions;
 import ini.trakem2.vector.SkinMaker;
 import ini.trakem2.vector.VectorString2D;
@@ -25,7 +26,7 @@ import java.util.TreeMap;
 import javax.vecmath.Point3f;
 
 import marchingcubes.MCTriangulator;
-import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D;
+//import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D; // using ini.trakem2.imaging.BinaryInterpolation2D until imglib's algorithms jar is released
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
 import mpicbg.imglib.image.Image;
