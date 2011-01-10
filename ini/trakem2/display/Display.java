@@ -632,6 +632,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		this.layer = layer;
 		IJ.addEventListener(this);
+		
+		// addDisplay(this) will be called inside the loop in openLater, see below
 	}
 
 	/** After reloading a project from the database, open the Displays that the project had. */
@@ -1672,7 +1674,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		for (final Display d : al_displays) {
 			if (d.layer.getParent() == set) {
 				for (final ZDisplayable zd : coll) {
-					if (front == d) zd.setLayer(d.layer); // this is obsolete now
+					if (front == d) zd.setLayer(d.layer); // this is obsolete now, TODO
 				}
 				d.addAll(coll);
 			}
@@ -5603,7 +5605,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		LayerSet ls = project.getRootLayerSet();
 		if (0 == ls.size()) return null;
-		return new Display(project, ls.getLayer(0));
+		return new Display(project, ls.getLayer(0)); // sets it to front
 	}
 
 	static public void setCursorToAll(final Cursor c) {
