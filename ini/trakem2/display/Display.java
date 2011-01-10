@@ -5581,6 +5581,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Can be null. */
 	static public Display getFront() {
+		Collection<Display> ds = al_displays;
+		if (null == front && ds.size() > 0) {
+			// Should never happen, this is a safety net
+			Utils.log2("Fixing error with null 'Display.getFront()'");
+			Display d = ds.iterator().next();
+			d.frame.toFront();
+			front = d;
+		}
 		return front;
 	}
 
