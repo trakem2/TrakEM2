@@ -1477,14 +1477,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Find all Display instances that contain a Layer of the given project and close them without removing the Display entries from the database. */
 	static synchronized public void close(final Project project) {
-		/* // concurrent modifications if more than 1 Display are being removed asynchronously
-		for (final Display d : al_displays) {
-			if (d.getLayer().getProject().equals(project)) {
-				it.remove();
-				d.destroy();
-			}
-		}
-		*/
 		Display[] d = new Display[al_displays.size()];
 		al_displays.toArray(d);
 		for (int i=0; i<d.length; i++) {
