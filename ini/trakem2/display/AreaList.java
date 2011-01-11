@@ -423,8 +423,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		sb_body.append(in).append("style=\"stroke:none;fill-opacity:").append(alpha).append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n");
 		sb_body.append(indent).append(">\n");
 		for (final Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
+			final Area area = entry.getValue();
+			if (null == area || area.isEmpty()) continue;
 			sb_body.append(in).append("<t2_area layer_id=\"").append(entry.getKey()).append("\">\n");
-			exportArea(sb_body, in + "\t", entry.getValue());
+			exportArea(sb_body, in + "\t", area);
 			sb_body.append(in).append("</t2_area>\n");
 		}
 		super.restXML(sb_body, in, any);
