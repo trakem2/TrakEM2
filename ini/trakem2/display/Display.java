@@ -3140,6 +3140,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								}
 							}
 						}
+
+						Display.repaint(getLayer());
 					}
 				}, active.getProject());
 			}
