@@ -1499,7 +1499,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		for (final Layer la : range) {
 			inext++;
 			final Area next = getArea(la);
-			if (null == next) continue;
+			if (null == next || next.isEmpty()) continue;
 			if (null == start || 0 == inext - istart -1) { // skip for first area or for no space in between
 				start = next;
 				istart = inext;
