@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -473,6 +474,11 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 				AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
 
+				// Prepare for paste command:
+				if (null != nd && null == nd.aw && ke.getKeyCode() == KeyEvent.VK_V) {
+					nd.getData(); // creates an.aw
+				}
+
 				if (null != nd && null != nd.aw) {
 					nd.aw.setSource(this);
 					nd.aw.keyPressed(ke, dc, layer);
@@ -586,5 +592,62 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			}
 		}
 		return rt;
+	}
+
+	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@param nd} to it. 
+	 * @throws Exception */
+	public boolean interpolateTowardsParent(final Node<Area> nd) throws Exception {
+		if (null == nd || null == nd.parent) return false;
+		Area first = nd.getData();
+		if (null == first || first.isEmpty()) {
+			return false;
+		}
+		final LinkedList<Node<Area>> chain = new LinkedList<Node<Area>>();
+		Node<Area> p = nd.parent;
+		while (null != p && (null == p.getData() || p.getData().isEmpty())) {
+			chain.add(p);
+			p = p.parent;
+		}
+		if (p == nd.parent) {
+			// Nothing to interpolate
+			return false;
+		}
+
+		Area last = p.getData();
+
+		// Make areas relative to the nodes:
+		first = first.createTransformedArea(new AffineTransform(1, 0, 0, 1, -nd.x, -nd.y));
+		last = last.createTransformedArea(new AffineTransform(1, 0, 0, 1, -p.x, -p.y));
+		// Remove translations
+		final Rectangle bfirst = first.getBounds();
+		final Rectangle blast = last.getBounds();
+		final int minx = Math.min(bfirst.x, blast.x);
+		final int miny = Math.min(bfirst.y, blast.y);
+		final AffineTransform rmtrans = new AffineTransform(1, 0, 0, 1, -minx, -miny);
+		first = first.createTransformedArea(rmtrans);
+		last = last.createTransformedArea(rmtrans);
+		// Interpolate
+		final Area[] as;
+		if (first.isSingular() && last.isSingular()) {
+			as = AreaUtils.singularInterpolation(first, last, chain.size());
+		} else {
+			as = AreaUtils.manyToManyInterpolation(first, last, chain.size());
+		}
+		// Assign each area
+		for (final Area interpolated : as) {
+			final Node<Area> target = chain.removeFirst();
+			interpolated.transform(new AffineTransform(1, 0, 0, 1, minx + target.x, miny + target.y));
+			target.setData(interpolated);
+		}
+
+		return true;
+	}
+
+	/** Assumes {@param nd} is an AreaNode. Otherwise fails with {@link ClassCastException}.
+	 * @param nd An AreaNode. */
+	public void addWorldAreaTo(final Node<?> nd, final Area a) {
+		AreaNode an = (AreaNode) nd;
+		if (null == an.aw) an.getData(); // creates an.aw
+		an.aw.add(a, layer);
 	}
 }
