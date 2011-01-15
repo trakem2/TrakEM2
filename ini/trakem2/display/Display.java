@@ -3069,15 +3069,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								getLayerSet().addDataEditStep(atree);
 							} catch (Exception e) {
 								IJError.print(e);
-								getLayerSet().undoOneStep();
+								getLayerSet().removeLastUndoStep();
 							}
 						} else if (command.equals("Interpolate gaps towards parent")) {
+							if (null == nd.getDataCopy() || ((Area)nd.getData()).isEmpty()) {
+								Utils.log("Can't interpolate: node lacks an area!");
+								return;
+							}
 							ls.addDataEditStep(atree);
 							try {
 								if (atree.interpolateTowardsParent((AreaTree.AreaNode)nd)) {
 									ls.addDataEditStep(atree);
 								} else {
-									ls.undoOneStep();
+									Utils.log("Nothing to interpolate: the parent node already has an area.");
+									ls.removeLastUndoStep();
 								}
 							} catch (Exception e) {
 								IJError.print(e);
