@@ -2516,12 +2516,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (it.next().getClass() == AreaList.class) n++;
 				}
 				if (n < 2) item.setEnabled(false);
-				addAreaMenu(popup, active);
+				addAreaListAreasMenu(popup, active);
 				popup.addSeparator();
 			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			} else if (Treeline.class == aclass || AreaTree.class == aclass) {
+				if (AreaTree.class == aclass) addAreaTreeAreasMenu(popup, (AreaTree)active);
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Part subtree"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Mark"); item.addActionListener(this); popup.add(item);
@@ -3025,8 +3026,82 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return popup;
 	}
 
-	private void addAreaMenu(final JPopupMenu popup2, final Displayable active) {
-		// TODO could support AreaContainer, hence AreaTree
+	private void addAreaTreeAreasMenu(final JPopupMenu popup, final AreaTree atree) {
+		final ActionListener listener = new ActionListener() {
+			private final Node<?> findNearestNode() {
+				final Layer la = getLayer();
+				final Point p = canvas.consumeLastPopupPoint();
+				final Node<?> lv = atree.getLastVisited();
+				boolean use_last_visited = false;
+				if (null != lv) {
+					float[] xy = new float[]{lv.x, lv.y};
+					atree.getAffineTransform().transform(xy, 0, xy, 0, 1);
+					use_last_visited = lv.getLayer() == la && canvas.getSrcRect().contains((int)xy[0], (int)xy[1]);
+				}
+				// Last visited node must be within the field of view in order to be used
+				// if no node lays near the clicked point.
+				return atree.findNodeNear(p.x, p.y, la, canvas, use_last_visited);
+			}
+			@Override
+			public void actionPerformed(final ActionEvent ae) {
+				final String command = ae.getActionCommand();
+				final LayerSet ls = atree.getLayerSet();
+				
+				Bureaucrat.createAndStart(new Worker.Task(command) {
+					@Override
+					public void exec() {
+						final Node<?> nd = findNearestNode();
+						if (null == nd) {
+							Utils.log("No node found in the field of view!");
+							return;
+						}
+						if (command.equals("Copy area")) {
+							Area area = (Area) nd.getData();
+							if (null == area) return;
+							DisplayCanvas.setCopyBuffer(atree.getClass(), area.createTransformedArea(atree.getAffineTransform()));
+						} else if (command.equals("Paste area")) {
+							Area wa = (Area) DisplayCanvas.getCopyBuffer(atree.getClass());
+							if (null == wa) return;
+							try {
+								getLayerSet().addDataEditStep(atree);
+								atree.addWorldAreaTo(nd, wa);
+								atree.calculateBoundingBox(nd.getLayer());
+								getLayerSet().addDataEditStep(atree);
+							} catch (Exception e) {
+								IJError.print(e);
+								getLayerSet().undoOneStep();
+							}
+						} else if (command.equals("Interpolate gaps towards parent")) {
+							ls.addDataEditStep(atree);
+							try {
+								if (atree.interpolateTowardsParent((AreaTree.AreaNode)nd)) {
+									ls.addDataEditStep(atree);
+								} else {
+									ls.undoOneStep();
+								}
+							} catch (Exception e) {
+								IJError.print(e);
+								ls.undoOneStep();
+							}
+							Display.repaint();
+						}
+					}
+				}, atree.getProject());
+			}
+		};
+
+		JMenu interpolate = new JMenu("Areas");
+		JMenuItem item = new JMenuItem("Interpolate gaps towards parent"); item.addActionListener(listener); interpolate.add(item);
+		interpolate.addSeparator();
+		item = new JMenuItem("Copy area"); item.addActionListener(listener); interpolate.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0, true));
+		item = new JMenuItem("Paste area"); item.addActionListener(listener); interpolate.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_V, 0, true));
+		item.setEnabled(null != DisplayCanvas.getCopyBuffer(active.getClass()));
+		popup.add(interpolate);
+	}
+
+	private void addAreaListAreasMenu(final JPopupMenu popup2, final Displayable active) {
 		final ActionListener listener = new ActionListener() {
 			@Override
 			public void actionPerformed(final ActionEvent ae) {
