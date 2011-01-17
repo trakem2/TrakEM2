@@ -3071,32 +3071,38 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								IJError.print(e);
 								getLayerSet().removeLastUndoStep();
 							}
-						} else if (command.equals("Interpolate gaps towards parent")) {
-							if (null == nd.getDataCopy() || ((Area)nd.getData()).isEmpty()) {
-								Utils.log("Can't interpolate: node lacks an area!");
-								return;
-							}
-							ls.addDataEditStep(atree);
-							try {
-								if (atree.interpolateTowardsParent((AreaTree.AreaNode)nd)) {
-									ls.addDataEditStep(atree);
-								} else {
-									Utils.log("Nothing to interpolate: the parent node already has an area.");
-									ls.removeLastUndoStep();
-								}
-							} catch (Exception e) {
-								IJError.print(e);
-								ls.undoOneStep();
-							}
-							Display.repaint();
+						} else if (command.equals("Interpolate gaps towards parent (node-centric)")) {
+							interpolate(nd, true);
+						} else if (command.equals("Interpolate gaps towards parent (absolute)")) {
+							interpolate(nd, false);
 						}
+					}
+					private final void interpolate(final Node<?> nd, final boolean node_centric) {
+						if (null == nd.getDataCopy() || ((Area)nd.getData()).isEmpty()) {
+							Utils.log("Can't interpolate: node lacks an area!");
+							return;
+						}
+						ls.addDataEditStep(atree);
+						try {
+							if (atree.interpolateTowardsParent((AreaTree.AreaNode)nd, node_centric)) {
+								ls.addDataEditStep(atree);
+							} else {
+								Utils.log("Nothing to interpolate: the parent node already has an area.");
+								ls.removeLastUndoStep();
+							}
+						} catch (Exception e) {
+							IJError.print(e);
+							ls.undoOneStep();
+						}
+						Display.repaint();
 					}
 				}, atree.getProject());
 			}
 		};
 
 		JMenu interpolate = new JMenu("Areas");
-		JMenuItem item = new JMenuItem("Interpolate gaps towards parent"); item.addActionListener(listener); interpolate.add(item);
+		JMenuItem item = new JMenuItem("Interpolate gaps towards parent (node-centric)"); item.addActionListener(listener); interpolate.add(item);
+		item = new JMenuItem("Interpolate gaps towards parent (absolute)"); item.addActionListener(listener); interpolate.add(item);
 		interpolate.addSeparator();
 		item = new JMenuItem("Copy area"); item.addActionListener(listener); interpolate.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0, true));

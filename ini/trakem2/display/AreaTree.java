@@ -594,9 +594,13 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return rt;
 	}
 
-	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@param nd} to it. 
+	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@param nd} to it.
+	 * 
+	 * @param nd The node to start interpolating from, towards its nearest parent with an area.
+	 * @param node_centric If true, consider areas relative to the node coordinates. If false, relative to the overall AreaTree.
+	 * 
 	 * @throws Exception */
-	public boolean interpolateTowardsParent(final Node<Area> nd) throws Exception {
+	public boolean interpolateTowardsParent(final Node<Area> nd, final boolean node_centric) throws Exception {
 		if (null == nd || null == nd.parent) return false;
 		Area first = nd.getData();
 		if (null == first || first.isEmpty()) {
@@ -615,17 +619,20 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 		Area last = p.getData();
 
-		// Make areas relative to the nodes:
-		first = first.createTransformedArea(new AffineTransform(1, 0, 0, 1, -nd.x, -nd.y));
-		last = last.createTransformedArea(new AffineTransform(1, 0, 0, 1, -p.x, -p.y));
-		// Remove translations
-		final Rectangle bfirst = first.getBounds();
-		final Rectangle blast = last.getBounds();
-		final int minx = Math.min(bfirst.x, blast.x);
-		final int miny = Math.min(bfirst.y, blast.y);
-		final AffineTransform rmtrans = new AffineTransform(1, 0, 0, 1, -minx, -miny);
-		first = first.createTransformedArea(rmtrans);
-		last = last.createTransformedArea(rmtrans);
+		int minx = 0, miny = 0;
+		if (node_centric) {
+			// Make areas relative to the nodes:
+			first = first.createTransformedArea(new AffineTransform(1, 0, 0, 1, -nd.x, -nd.y));
+			last = last.createTransformedArea(new AffineTransform(1, 0, 0, 1, -p.x, -p.y));
+			// Remove translations
+			final Rectangle bfirst = first.getBounds();
+			final Rectangle blast = last.getBounds();
+			minx = Math.min(bfirst.x, blast.x);
+			miny = Math.min(bfirst.y, blast.y);
+			final AffineTransform rmtrans = new AffineTransform(1, 0, 0, 1, -minx, -miny);
+			first = first.createTransformedArea(rmtrans);
+			last = last.createTransformedArea(rmtrans);
+		}
 		// Interpolate
 		final Area[] as;
 		if (first.isSingular() && last.isSingular()) {
@@ -636,7 +643,9 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		// Assign each area
 		for (final Area interpolated : as) {
 			final Node<Area> target = chain.removeFirst();
-			interpolated.transform(new AffineTransform(1, 0, 0, 1, minx + target.x, miny + target.y));
+			if (node_centric) {
+				interpolated.transform(new AffineTransform(1, 0, 0, 1, minx + target.x, miny + target.y));
+			}
 			target.setData(interpolated);
 		}
 
