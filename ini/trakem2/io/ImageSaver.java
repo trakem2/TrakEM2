@@ -59,7 +59,19 @@ import com.sun.media.jai.codec.TIFFEncodeParam;
 import com.sun.media.jai.codec.TIFFDecodeParam;
 import com.sun.media.jai.codec.ImageCodec;
 import javax.media.jai.PlanarImage;
+
+import ome.xml.model.enums.DimensionOrder;
+import ome.xml.model.primitives.PositiveInteger;
+import ome.xml.model.enums.PixelType;
+
 import java.io.OutputStream;
+
+import loci.common.services.ServiceFactory;
+import loci.formats.FormatTools;
+import loci.formats.IFormatWriter;
+import loci.formats.meta.IMetadata;
+import loci.formats.out.JPEG2000Writer;
+import loci.formats.services.OMEXMLService;
 
 /** Provides the necessary thread-safe image file saver utilities. */
 public class ImageSaver {
@@ -169,7 +181,7 @@ public class ImageSaver {
 				ios = ImageIO.createImageOutputStream(f);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
-				param.setCompressionMode(param.MODE_EXPLICIT);
+				param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 				param.setCompressionQuality(quality);
 				if (as_grey && bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
 					grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
@@ -721,5 +733,61 @@ public class ImageSaver {
 			}
 		}
 		return null;
+	}
+
+	/** */
+	static public final void writeJpeg2000(final String path, final ImageProcessor ip, final int type) throws Exception {
+		final int pixelType, samplesPerPixel;
+		final byte[] b;
+		if (type == ImagePlus.COLOR_RGB) {
+			pixelType = FormatTools.INT32;
+			samplesPerPixel = 4;
+			final int[] pix = (int[]) ip.getPixels();
+			b = new byte[pix.length * 4];
+			for (int i=0, j=0; i<pix.length; i++) {
+				final int p = pix[i];
+				b[j++] = (byte)(p >> 24);
+				b[j++] = (byte)((p >> 16) & 0xff);
+				b[j++] = (byte)((p >> 8) & 0xff);
+				b[j++] = (byte)(p & 0xff);
+			}
+		} else if (type == ImagePlus.GRAY8){
+			pixelType = FormatTools.UINT8;
+			samplesPerPixel = 1;
+			b = (byte[]) ip.getPixels();
+		} else {
+			throw new Exception("writeJpeg2000 accepts only 8-bit or ARGB.");
+		}
+		final IFormatWriter writer = new JPEG2000Writer();
+	    try {
+	    	final ServiceFactory factory = new ServiceFactory();
+	    	final OMEXMLService service = factory.getInstance(OMEXMLService.class);
+	    	final IMetadata meta = service.createOMEXMLMetadata();
+	    	meta.createRoot();
+	    	meta.setImageID("Image:0", 0);
+	    	meta.setPixelsID("Pixels:0", 0);
+	    	meta.setPixelsBinDataBigEndian(Boolean.TRUE, 0, 0);
+	    	meta.setPixelsDimensionOrder(DimensionOrder.XYZCT, 0);
+	    	meta.setPixelsType(
+	    			PixelType.fromString(FormatTools.getPixelTypeString(pixelType)), 0);
+	    	meta.setPixelsSizeX(new PositiveInteger(ip.getWidth()), 0);
+	    	meta.setPixelsSizeY(new PositiveInteger(ip.getHeight()), 0);
+	    	meta.setPixelsSizeZ(new PositiveInteger(1), 0);
+	    	meta.setPixelsSizeC(new PositiveInteger(samplesPerPixel), 0);
+	    	meta.setPixelsSizeT(new PositiveInteger(1), 0);
+	    	meta.setChannelID("Channel:0:0", 0, 0);
+	    	meta.setChannelSamplesPerPixel(new PositiveInteger(samplesPerPixel), 0, 0);
+
+	    	// write image plane to disk
+	    	System.out.println("Writing image to '" + path + "'...");
+	    	
+	    	writer.setMetadataRetrieve(meta);
+	    	writer.setId(path);
+	    	writer.savePlane(0, b);
+	    } catch (Throwable t) {
+	    	t.printStackTrace();
+	    } finally {
+	    	writer.close();
+	    }
 	}
 }
