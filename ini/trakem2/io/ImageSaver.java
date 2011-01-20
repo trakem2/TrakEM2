@@ -737,10 +737,9 @@ public class ImageSaver {
 
 	/** */
 	static public final void writeJpeg2000(final String path, final ImageProcessor ip, final int type) throws Exception {
-		final int pixelType, samplesPerPixel;
+		final int samplesPerPixel;
 		final byte[] b;
 		if (type == ImagePlus.COLOR_RGB) {
-			pixelType = FormatTools.INT32;
 			samplesPerPixel = 4;
 			final int[] pix = (int[]) ip.getPixels();
 			b = new byte[pix.length * 4];
@@ -752,7 +751,6 @@ public class ImageSaver {
 				b[j++] = (byte)(p & 0xff);
 			}
 		} else if (type == ImagePlus.GRAY8){
-			pixelType = FormatTools.UINT8;
 			samplesPerPixel = 1;
 			b = (byte[]) ip.getPixels();
 		} else {
@@ -763,6 +761,7 @@ public class ImageSaver {
 	    	final ServiceFactory factory = new ServiceFactory();
 	    	final OMEXMLService service = factory.getInstance(OMEXMLService.class);
 	    	final IMetadata meta = service.createOMEXMLMetadata();
+	    	final int pixelType = FormatTools.UINT8;
 	    	meta.createRoot();
 	    	meta.setImageID("Image:0", 0);
 	    	meta.setPixelsID("Pixels:0", 0);
