@@ -169,7 +169,7 @@ public class ImageSaver {
 				ios = ImageIO.createImageOutputStream(f);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
-				param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+				param.setCompressionMode(param.MODE_EXPLICIT);
 				param.setCompressionQuality(quality);
 				if (as_grey && bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
 					grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
@@ -501,6 +501,7 @@ public class ImageSaver {
 		return grey;
 	}
 
+	@SuppressWarnings("serial")
 	static public final void debugAlpha() {
 		// create an image with an alpha channel
 		BufferedImage bi = new BufferedImage(512, 512, BufferedImage.TYPE_INT_ARGB);
