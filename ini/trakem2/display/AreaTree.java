@@ -600,7 +600,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	 * @param node_centric If true, consider areas relative to the node coordinates. If false, relative to the overall AreaTree.
 	 * 
 	 * @throws Exception */
-	public boolean interpolateTowardsParent(final Node<Area> nd, final boolean node_centric) throws Exception {
+	public boolean interpolateTowardsParent(final Node<Area> nd, final boolean node_centric, final boolean always_use_distance_map) throws Exception {
 		if (null == nd || null == nd.parent) return false;
 		Area first = nd.getData();
 		if (null == first || first.isEmpty()) {
@@ -635,7 +635,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 		// Interpolate
 		final Area[] as;
-		if (first.isSingular() && last.isSingular()) {
+		if (!always_use_distance_map && first.isSingular() && last.isSingular()) {
 			as = AreaUtils.singularInterpolation(first, last, chain.size());
 		} else {
 			as = AreaUtils.manyToManyInterpolation(first, last, chain.size());

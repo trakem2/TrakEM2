@@ -41,6 +41,7 @@ import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
 import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -3084,7 +3085,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						}
 						ls.addDataEditStep(atree);
 						try {
-							if (atree.interpolateTowardsParent((AreaTree.AreaNode)nd, node_centric)) {
+							if (atree.interpolateTowardsParent((AreaTree.AreaNode)nd, node_centric, project.getBooleanProperty(AreaUtils.always_interpolate_areas_with_distance_map))) {
 								ls.addDataEditStep(atree);
 							} else {
 								Utils.log("Nothing to interpolate: the parent node already has an area.");
@@ -3103,6 +3104,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		JMenu interpolate = new JMenu("Areas");
 		JMenuItem item = new JMenuItem("Interpolate gaps towards parent (node-centric)"); item.addActionListener(listener); interpolate.add(item);
 		item = new JMenuItem("Interpolate gaps towards parent (absolute)"); item.addActionListener(listener); interpolate.add(item);
+		item = new JMenuItem("Area interpolation options..."); item.addActionListener(Display.this); interpolate.add(item);
 		interpolate.addSeparator();
 		item = new JMenuItem("Copy area"); item.addActionListener(listener); interpolate.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0, true));
@@ -3160,7 +3162,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							if (null == previous) return; // all empty
 							try {
 								ls.addDataEditStep(ali);
-								ali.interpolate(previous, current);
+								ali.interpolate(previous, current, project.getBooleanProperty(AreaUtils.always_interpolate_areas_with_distance_map));
 								ls.addDataEditStep(ali);
 							} catch (Exception e) {
 								IJError.print(e);
@@ -3187,7 +3189,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							if (null == next) return; // all empty
 							try {
 								ls.addDataEditStep(ali);
-								ali.interpolate(current, next);
+								ali.interpolate(current, next, project.getBooleanProperty(AreaUtils.always_interpolate_areas_with_distance_map));
 								ls.addDataEditStep(ali);
 							} catch (Exception e) {
 								IJError.print(e);
@@ -3218,7 +3220,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							if (null != first && first != last) {
 								try {
 									ls.addDataEditStep(ali);
-									ali.interpolate(first, last);
+									ali.interpolate(first, last, project.getBooleanProperty(AreaUtils.always_interpolate_areas_with_distance_map));
 									ls.addDataEditStep(ali);
 								} catch (Exception e) {
 									IJError.print(e);
@@ -3237,6 +3239,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		JMenuItem item = new JMenuItem("Interpolate gaps towards previous area"); item.addActionListener(listener); interpolate.add(item);
 		item = new JMenuItem("Interpolate gaps towards next area"); item.addActionListener(listener); interpolate.add(item);
 		item = new JMenuItem("Interpolate all gaps"); item.addActionListener(listener); interpolate.add(item);
+		item = new JMenuItem("Area interpolation options..."); item.addActionListener(Display.this); interpolate.add(item);
 		interpolate.addSeparator();
 		item = new JMenuItem("Copy area"); item.addActionListener(listener); interpolate.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0, true));
@@ -5339,6 +5342,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				return;
 			}
 			selection.measure();
+		} else if (command.equals("Area interpolation options...")) {
+			GenericDialog gd = new GenericDialog("Area interpolation");
+			boolean a = project.getBooleanProperty(AreaUtils.always_interpolate_areas_with_distance_map);
+			gd.addCheckbox("Always use distance map method", a);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			project.setProperty(AreaUtils.always_interpolate_areas_with_distance_map, gd.getNextBoolean() ? "true" : null);
 		} else {
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
