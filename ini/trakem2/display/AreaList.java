@@ -1481,7 +1481,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	 * 
 	 * @return false if the interpolation could not be done. 
 	 * @throws Exception */
-	public boolean interpolate(final Layer first, final Layer last) throws Exception {
+	public boolean interpolate(final Layer first, final Layer last, final boolean always_use_distance_map) throws Exception {
 
 		int i1 = layer_set.indexOf(first);
 		int i2 = layer_set.indexOf(last);
@@ -1508,7 +1508,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				continue;
 			}
 			// Interpolate from start to next
-			Area[] as = AreaUtils.singularInterpolation(start, next, inext - istart -1);
+			Area[] as = always_use_distance_map? null : AreaUtils.singularInterpolation(start, next, inext - istart -1);
 
 			if (null == as) {
 				// NOT SINGULAR: must use BinaryInterpolation2D

@@ -37,6 +37,9 @@ import mpicbg.imglib.type.numeric.integer.ByteType;
 
 public final class AreaUtils {
 
+	/** Project property key. */
+	static public final String always_interpolate_areas_with_distance_map = "always_interpolate_areas_with_distance_map";
+	
 	private AreaUtils() {}
 
 	/** Expects areas in local coordinates to the Displayable @param d.
