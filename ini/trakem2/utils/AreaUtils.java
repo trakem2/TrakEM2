@@ -22,6 +22,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 
@@ -453,7 +458,7 @@ public final class AreaUtils {
 		return a;
 	}
 
-	static public final Area[] manyToManyInterpolation(final Area a1, final Area a2, final int nInterpolates) {
+	static public final Area[] manyToManyInterpolation(final Area a1, final Area a2, final int nInterpolates) throws InterruptedException, ExecutionException {
 		final Rectangle b = a1.getBounds();
 		b.add(a2.getBounds());
 		final AffineTransform translate = new AffineTransform(1, 0, 0, 1, -b.x, -b.y);
@@ -477,24 +482,42 @@ public final class AreaUtils {
 		final Area[] as = new Area[nInterpolates];
 		final AffineTransform back = new AffineTransform(1, 0, 0, 1, b.x, b.y);
 
-		// TODO paralelize, which needs the means to call process() in parallel too--currently it cannot,
+		// TODO parallelize, which needs the means to call process() in parallel too--currently it cannot,
 		// the result would get overwritten.
 		
-		for (int i=1; i<=nInterpolates; i++) {
-			interpol.setWeight( 1 - inc * i );
-			if (!interpol.process()) {
-				System.out.println("Error: " + interpol.getErrorMessage());
-				return null;
+		ExecutorService exec = Executors.newFixedThreadPool(Math.min(nInterpolates, Runtime.getRuntime().availableProcessors()));
+		ArrayList<Future<Area>> fus = new ArrayList<Future<Area>>();
+		
+		try {
+
+			for (int i=1; i<=nInterpolates; i++) {
+				final float weight = 1 - inc * i;
+				fus.add(exec.submit(new Callable<Area>() {
+					@Override
+					public Area call() throws Exception {
+						Image<BitType> imb = interpol.process(weight);
+						ImagePlus imp = ImageJFunctions.copyToImagePlus(imb, ImagePlus.GRAY8);
+						// BitType gets copied to 0 and 255 in 8-bit ByteProcessor
+						ThresholdToSelection ts = new ThresholdToSelection();
+						ts.setup("", imp);
+						ImageProcessor ip = imp.getProcessor();
+						ip.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
+						ts.run(ip);
+						Roi roi = imp.getRoi();
+						return null == roi ? new Area() : M.getArea(roi).createTransformedArea(back);
+					}
+				}));
 			}
-			ImagePlus imp = ImageJFunctions.copyToImagePlus(interpol.getResult(), ImagePlus.GRAY8);
-			// BitType gets copied to 0 and 255 in 8-bit ByteProcessor
-			ThresholdToSelection ts = new ThresholdToSelection();
-			ts.setup("", imp);
-			ImageProcessor ip = imp.getProcessor();
-			ip.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
-			ts.run(ip);
-			Roi roi = imp.getRoi();
-			as[i-1] = null == roi ? new Area() : M.getArea(roi).createTransformedArea(back);
+
+			int i = 0;
+			for (Future<Area> fu : fus) {
+				as[i++] = fu.get();
+			}
+
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			exec.shutdown();
 		}
 		
 		return as;
