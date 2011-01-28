@@ -22,49 +22,47 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.io;
 
-import ij.ImagePlus;
 import ij.ImageJ;
-import ij.process.ImageProcessor;
-import ij.measure.Calibration;
+import ij.ImagePlus;
 import ij.io.FileInfo;
 import ij.io.TiffEncoder;
+import ij.measure.Calibration;
+import ij.process.ImageProcessor;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
-import java.awt.image.BufferedImage;
 import java.awt.Graphics;
 import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.awt.image.PixelGrabber;
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
-import java.util.HashMap;
-import java.util.Map;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriter;
-import javax.imageio.ImageWriteParam;
+
 import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.spi.IIORegistry;
+import javax.imageio.spi.ServiceRegistry;
+import javax.imageio.stream.ImageInputStream;
 import javax.imageio.stream.ImageOutputStream;
-
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.persistence.FSLoader;
-
-import com.sun.media.jai.codec.TIFFEncodeParam;
-import com.sun.media.jai.codec.TIFFDecodeParam;
-import com.sun.media.jai.codec.ImageCodec;
+import javax.imageio.stream.MemoryCacheImageInputStream;
 import javax.media.jai.PlanarImage;
-
-import ome.xml.model.enums.DimensionOrder;
-import ome.xml.model.primitives.PositiveInteger;
-import ome.xml.model.enums.PixelType;
-
-import java.io.OutputStream;
 
 import loci.common.services.ServiceFactory;
 import loci.formats.FormatTools;
@@ -72,6 +70,18 @@ import loci.formats.IFormatWriter;
 import loci.formats.meta.IMetadata;
 import loci.formats.out.JPEG2000Writer;
 import loci.formats.services.OMEXMLService;
+import ome.xml.model.enums.DimensionOrder;
+import ome.xml.model.enums.PixelType;
+import ome.xml.model.primitives.PositiveInteger;
+
+import com.sun.media.imageio.plugins.jpeg2000.J2KImageWriteParam;
+import com.sun.media.imageioimpl.plugins.jpeg2000.J2KImageReader;
+import com.sun.media.imageioimpl.plugins.jpeg2000.J2KImageReaderSpi;
+import com.sun.media.imageioimpl.plugins.jpeg2000.J2KImageWriter;
+import com.sun.media.imageioimpl.plugins.jpeg2000.J2KImageWriterSpi;
+import com.sun.media.jai.codec.ImageCodec;
+import com.sun.media.jai.codec.TIFFDecodeParam;
+import com.sun.media.jai.codec.TIFFEncodeParam;
 
 /** Provides the necessary thread-safe image file saver utilities. */
 public class ImageSaver {
@@ -437,8 +447,12 @@ public class ImageSaver {
 		return false;
 	}
 
-	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final Image awt, final String path, final float quality) {
+		return saveAsJpegAlpha(awt, path, quality, "jpeg");
+	}
+	
+	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
+	static public final boolean saveAsJpegAlpha(final Image awt, final String path, final float quality, final String codec) {
 		BufferedImage bi = null;
 		if (awt instanceof BufferedImage) {
 			bi = (BufferedImage)awt;
@@ -446,10 +460,10 @@ public class ImageSaver {
 			bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
 			bi.createGraphics().drawImage(awt, 0, 0, null);
 		}
-		return saveAsJpegAlpha(bi, path, quality);
+		return saveAsJpegAlpha(bi, path, quality, codec);
 	}
 
-	/** Open a jpeg file including the alpha channel if it has one. */
+	/** Open a jpeg or jp2 or j2k file including the alpha channel if it has one. */
 	static public BufferedImage openJpegAlpha(final String path) {
 		return openImage(path, true);
 	}
@@ -735,58 +749,183 @@ public class ImageSaver {
 		return null;
 	}
 
-	/** */
-	static public final void writeJpeg2000(final String path, final ImageProcessor ip, final int type) throws Exception {
-		final int samplesPerPixel;
-		final byte[] b;
-		if (type == ImagePlus.COLOR_RGB) {
-			samplesPerPixel = 4;
-			final int[] pix = (int[]) ip.getPixels();
-			b = new byte[pix.length * 4];
-			for (int i=0, j=0; i<pix.length; i++) {
-				final int p = pix[i];
-				b[j++] = (byte)(p >> 24);
-				b[j++] = (byte)((p >> 16) & 0xff);
-				b[j++] = (byte)((p >> 8) & 0xff);
-				b[j++] = (byte)(p & 0xff);
-			}
-		} else if (type == ImagePlus.GRAY8){
-			samplesPerPixel = 1;
-			b = (byte[]) ip.getPixels();
-		} else {
-			throw new Exception("writeJpeg2000 accepts only 8-bit or ARGB.");
-		}
-		final IFormatWriter writer = new JPEG2000Writer();
-	    try {
-	    	final ServiceFactory factory = new ServiceFactory();
-	    	final OMEXMLService service = factory.getInstance(OMEXMLService.class);
-	    	final IMetadata meta = service.createOMEXMLMetadata();
-	    	final int pixelType = FormatTools.UINT8;
-	    	meta.createRoot();
-	    	meta.setImageID("Image:0", 0);
-	    	meta.setPixelsID("Pixels:0", 0);
-	    	meta.setPixelsBinDataBigEndian(Boolean.TRUE, 0, 0);
-	    	meta.setPixelsDimensionOrder(DimensionOrder.XYZCT, 0);
-	    	meta.setPixelsType(
-	    			PixelType.fromString(FormatTools.getPixelTypeString(pixelType)), 0);
-	    	meta.setPixelsSizeX(new PositiveInteger(ip.getWidth()), 0);
-	    	meta.setPixelsSizeY(new PositiveInteger(ip.getHeight()), 0);
-	    	meta.setPixelsSizeZ(new PositiveInteger(1), 0);
-	    	meta.setPixelsSizeC(new PositiveInteger(samplesPerPixel), 0);
-	    	meta.setPixelsSizeT(new PositiveInteger(1), 0);
-	    	meta.setChannelID("Channel:0:0", 0, 0);
-	    	meta.setChannelSamplesPerPixel(new PositiveInteger(samplesPerPixel), 0, 0);
+	// JPEG2000
+	
+	static private final J2KImageWriterSpi writer_spi;
+	static private final J2KImageReaderSpi reader_spi;
 
-	    	// write image plane to disk
-	    	System.out.println("Writing image to '" + path + "'...");
-	    	
-	    	writer.setMetadataRetrieve(meta);
-	    	writer.setId(path);
-	    	writer.savePlane(0, b);
-	    } catch (Throwable t) {
-	    	t.printStackTrace();
-	    } finally {
-	    	writer.close();
-	    }
+	static {
+		IIORegistry registry = IIORegistry.getDefaultInstance();
+		Iterator<J2KImageWriterSpi> iter = ServiceRegistry.lookupProviders(J2KImageWriterSpi.class);
+		registry.registerServiceProviders(iter);
+		writer_spi = registry.getServiceProviderByClass(J2KImageWriterSpi.class);
+
+	    Iterator<J2KImageReaderSpi> iter2 =
+	      ServiceRegistry.lookupProviders(J2KImageReaderSpi.class);
+	    registry.registerServiceProviders(iter2);
+	    reader_spi = registry.getServiceProviderByClass(J2KImageReaderSpi.class);
 	}
+	
+	static public final boolean saveAsJPEG2000(final BufferedImage img, final String path, final double quality) {
+		ImageOutputStream ios = null;
+		try {
+			ios = ImageIO.createImageOutputStream(new File(path));
+
+			final J2KImageWriter writer = new J2KImageWriter(writer_spi);
+			writer.setOutput(ios);
+
+			// lossless: J2KImageWriteParam.FILTER_53
+			// lossy: J2KImageWriteParam.FILTER_97
+
+			final IIOImage iioImage = new IIOImage(img, null, null);
+			final J2KImageWriteParam param = (J2KImageWriteParam) writer.getDefaultWriteParam();
+
+			//param.setCodeBlockSize(codeBlockSize); // defaults to new int[]{64, 64}
+			param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+			param.setCompressionType("JPEG2000");
+			param.setLossless(false);
+			param.setFilter(J2KImageWriteParam.FILTER_97); // lossy
+			param.setEncodingRate(quality);
+
+			writer.write(null, iioImage, param);
+
+			return true;
+		} catch (Throwable t) {
+			t.printStackTrace();
+		} finally {
+			if (null != ios) try { ios.close(); } catch (IOException ioe) { ioe.printStackTrace(); }
+		}
+
+		return false;
+	}
+
+	static public final boolean saveAsJPEG2000(final Image awt, final String path, final double quality) {
+		try {
+			BufferedImage bi = null;
+			if (awt instanceof BufferedImage) {
+				bi = (BufferedImage)awt;
+			} else {
+				bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+				bi.createGraphics().drawImage(awt, 0, 0, null);
+			}
+			return saveAsJPEG2000(bi, path, quality);
+		} catch (Exception e) {
+			IJError.print(e);
+			return false;
+		}
+	}
+
+	static public final BufferedImage openJPEG2000(final String path) {
+		return openJPEG2000(path, true);
+	}
+
+	static public final BufferedImage openJPEG2000(final String path, final boolean ensure_premultiplied_alpha) {
+		J2KImageReader reader = null;
+		ImageInputStream is = null;
+		try {
+			Utils.log2("path is: " + path + "\n and file exists: " + new File(path).exists());
+			is = new MemoryCacheImageInputStream(new BufferedInputStream(new FileInputStream(new File(path)), 4096));
+			reader = new J2KImageReader(reader_spi);
+			reader.setInput(is);
+			BufferedImage img = reader.read(0);
+			if (ensure_premultiplied_alpha || img.getType() == BufferedImage.TYPE_INT_ARGB || img.getType() == BufferedImage.TYPE_CUSTOM) {
+				// Premultiply alpha, for speed (makes a huge difference)
+				final BufferedImage imgPre = new BufferedImage( img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_ARGB_PRE );
+				imgPre.createGraphics().drawImage( img, 0, 0, null );
+				img.flush();
+				return imgPre;
+			}
+			return img;
+		} catch (Throwable t) {
+			t.printStackTrace();
+		} finally {
+			try {
+				if (null != reader) reader.dispose();
+				if (null != is) is.close();
+			} catch (Throwable t) { t.printStackTrace(); }
+		}
+		return null;
+	}
+	
+	static public final boolean saveJpeg2000(final String path, final ImageProcessor ip, final int type) throws IOException {
+		if (type == ImagePlus.COLOR_RGB) {
+			return saveAsJpeg2000( path, (int[]) ip.getPixels(), ip.getWidth(), ip.getHeight() );
+		} else if (type == ImagePlus.GRAY8) {
+			return saveAsJpeg2000((byte[]) ip.getPixels(), ip.getWidth(), ip.getHeight(), 1, path);
+		}
+		
+		throw new IllegalArgumentException("Image must be 8-bit or ARGB.");
+	}
+
+	static public final boolean saveJpeg2000(final String path, final BufferedImage img) {
+		try {
+			final int width = img.getWidth();
+			final int height = img.getHeight();
+			final int[] pixels = new int[width * height];
+			PixelGrabber pg = new PixelGrabber(img, 0, 0, width, height, pixels, 0, width);
+			try {
+				pg.grabPixels();
+			} catch (InterruptedException e) {};
+			return saveAsJpeg2000(path, pixels, width, height);
+		} catch (Throwable t) {
+			t.printStackTrace();
+		}
+		return false;
+	}
+
+	static private final boolean saveAsJpeg2000(final String path, final int[] pixels, final int width, final int height) {
+		final byte[] b = new byte[pixels.length * 4];
+		for (int i=0, j=0; i<pixels.length; i++) {
+			final int p = pixels[i];
+			b[j++] = (byte)((p >> 16) & 0xff); // R
+			b[j++] = (byte)((p >> 8) & 0xff);  // G
+			b[j++] = (byte)(p & 0xff);         // B
+			b[j++] = (byte)(p >> 24);          // A
+		}
+		return saveAsJpeg2000(b, width, height, 4, path);
+	}
+
+	static private final boolean saveAsJpeg2000(final byte[] pixels, final int width, final int height, final int samplesPerPixel, final String path) {
+			final IFormatWriter writer = new JPEG2000Writer();
+			try {
+				final ServiceFactory factory = new ServiceFactory();
+				final OMEXMLService service = factory.getInstance(OMEXMLService.class);
+				final IMetadata meta = service.createOMEXMLMetadata();
+				meta.createRoot();
+				meta.setImageID("Image:0", 0);
+				meta.setPixelsID("Pixels:0", 0);
+				meta.setPixelsBinDataBigEndian(Boolean.TRUE, 0, 0);
+				meta.setPixelsDimensionOrder(DimensionOrder.XYZCT, 0);
+				meta.setPixelsType(
+					PixelType.fromString(FormatTools.getPixelTypeString(FormatTools.UINT8)), 0);
+				meta.setPixelsSizeX(new PositiveInteger(width), 0);
+				meta.setPixelsSizeY(new PositiveInteger(height), 0);
+				meta.setPixelsSizeZ(new PositiveInteger(1), 0);
+				meta.setPixelsSizeC(new PositiveInteger(samplesPerPixel), 0);
+				meta.setPixelsSizeT(new PositiveInteger(1), 0);
+				meta.setChannelID("Channel:0:0", 0, 0);
+				meta.setChannelSamplesPerPixel(new PositiveInteger(samplesPerPixel), 0, 0);
+
+				// write image plane to disk
+				System.out.println("Writing image to '" + path + "'...");
+
+				for (String s : writer.getCompressionTypes()) {
+					System.out.println("compression type: " + s);
+				}
+				System.out.println("current compression type: " + writer.getCompression());
+				
+				writer.setMetadataRetrieve(meta);
+				writer.setInterleaved(true);
+				writer.setId(path);
+				writer.saveBytes(0, pixels);
+				return true;
+			}
+			catch (Throwable t) {
+				t.printStackTrace();
+			}
+			finally {
+				try { writer.close(); } catch (Throwable t) { t.printStackTrace(); }
+			}
+			return false;
+		}
 }
