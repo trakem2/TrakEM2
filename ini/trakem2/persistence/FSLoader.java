@@ -87,11 +87,14 @@ import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -2538,10 +2541,41 @@ public final class FSLoader extends Loader {
 	static public ExecutorService repainter = null;
 	static public ScheduledExecutorService autosaver = null;
 
+	static private final class DONE implements Future<Boolean>
+	{
+		@Override
+		public boolean cancel(boolean mayInterruptIfRunning) {
+			return true;
+		}
+		@Override
+		public Boolean get() throws InterruptedException, ExecutionException {
+			return true;
+		}
+		@Override
+		public Boolean get(long timeout, TimeUnit unit)
+				throws InterruptedException, ExecutionException,
+				TimeoutException {
+			return true;
+		}
+		@Override
+		public boolean isCancelled() {
+			return false;
+		}
+		@Override
+		public boolean isDone() {
+			return true;
+		}
+	};
+	
 	/** Queue the regeneration of mipmaps for the Patch; returns immediately, having submitted the job to an executor queue;
 	 *  returns a Future if the task was submitted, null if not. */
 	@Override
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
+
+		if (!isMipMapsEnabled()) {
+			return new DONE();
+		}
+		
 		synchronized (gm_lock) {
 			try {
 				Future<Boolean> fu = regenerating_mipmaps.get(patch);

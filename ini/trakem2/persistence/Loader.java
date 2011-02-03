@@ -3020,8 +3020,13 @@ while (it.hasNext()) {
 		addedPatchFrom(path, p);
 		last_opened_path = path; // WARNING may be altered concurrently
 		if (isMipMapsEnabled()) {
-			if (synch_mipmap_generation) generateMipMaps(p);
-			else regenerateMipMaps(p); // queue for regeneration
+			if (synch_mipmap_generation) {
+				try {
+					regenerateMipMaps(p).get(); // wait
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+			} else regenerateMipMaps(p); // queue for regeneration
 		}
 		return p;
 	}
