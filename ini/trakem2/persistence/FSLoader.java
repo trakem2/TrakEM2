@@ -1262,7 +1262,7 @@ public final class FSLoader extends Loader {
 				if (virtual) cache(patch, imp_patch_i); // each slice separately
 				else cache(patch, imp_stack); // uses the entire stack, shared among all Patch instances
 			}
-			if (isMipMapsEnabled()) regenerateMipMaps(patch); // submit for regeneration
+			if (isMipMapsRegenerationEnabled()) regenerateMipMaps(patch); // submit for regeneration
 			if (null != previous_patch) patch.link(previous_patch);
 			layer.add(patch);
 			previous_patch = patch;
@@ -2389,8 +2389,8 @@ public final class FSLoader extends Loader {
 		} while (w >= 32 && h >= 32); // not smaller than 32x32
 	}
 
-	/** Checks whether this Loader is using a directory of image pyramids for each Patch or not. */
-	public boolean isMipMapsEnabled() {
+	@Override
+	public boolean usesMipMapsFolder() {
 		return null != dir_mipmaps;
 	}
 
@@ -2517,7 +2517,7 @@ public final class FSLoader extends Loader {
 
 				// Regenerate in the case of not asking for an image under 32x32
 				double scale = 1 / Math.pow(2, level);
-				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsEnabled()) {
+				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsRegenerationEnabled()) {
 					// regenerate in a separate thread
 					regenerateMipMaps(patch);
 					return REGENERATING;
@@ -2572,10 +2572,10 @@ public final class FSLoader extends Loader {
 	@Override
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
 
-		if (!isMipMapsEnabled()) {
+		if (!isMipMapsRegenerationEnabled()) {
 			return new DONE();
 		}
-		
+
 		synchronized (gm_lock) {
 			try {
 				Future<Boolean> fu = regenerating_mipmaps.get(patch);

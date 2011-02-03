@@ -928,7 +928,7 @@ abstract public class Loader {
 				if (null == mawts) {
 					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
 				}
-				if (level >= 0 && isMipMapsEnabled()) {
+				if (level >= 0 && isMipMapsRegenerationEnabled()) {
 					// 1 - check if the exact level is cached
 					final Image mawt = mawts.get(id, level);
 					if (null != mawt) {
@@ -945,7 +945,7 @@ abstract public class Loader {
 		Image mawt = null;
 
 		// 2 - check if the exact file is present for the desired level
-		if (level >= 0 && isMipMapsEnabled()) {
+		if (level >= 0 && isMipMapsRegenerationEnabled()) {
 			synchronized (plock) {
 				synchronized (db_lock) {
 					mawt = mawts.get(id, level);
@@ -1913,7 +1913,7 @@ abstract public class Loader {
 					}
 
 					setMipMapsRegeneration(true);
-					if (isMipMapsEnabled()) {
+					if (isMipMapsRegenerationEnabled()) {
 						// recreate files
 						for (Patch p : al) fus.add(regenerateMipMaps(p));
 					}
@@ -2556,7 +2556,7 @@ while (it.hasNext()) {
 			//   - double the size if mipmaps is enabled
 			double scaleP = scale;
 			if (quality) {
-				if (isMipMapsEnabled()) {
+				if (isMipMapsRegenerationEnabled()) {
 					// just double the size
 					scaleP = scale + scale;
 					if (scaleP > 1.0) scaleP = 1.0;
@@ -2686,7 +2686,7 @@ while (it.hasNext()) {
 				if (quality) {
 					// need to scale back down
 					Image scaled = null;
-					if (!isMipMapsEnabled() || scale >= 0.499) { // there are no proper mipmaps above 50%, so there's need for SCALE_AREA_AVERAGING.
+					if (!isMipMapsRegenerationEnabled() || scale >= 0.499) { // there are no proper mipmaps above 50%, so there's need for SCALE_AREA_AVERAGING.
 						scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
 						if (ImagePlus.GRAY8 == type) {
 							// getScaledInstance generates RGB images for some reason.
@@ -3019,7 +3019,7 @@ while (it.hasNext()) {
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(path, p);
 		last_opened_path = path; // WARNING may be altered concurrently
-		if (isMipMapsEnabled()) {
+		if (isMipMapsRegenerationEnabled()) {
 			if (synch_mipmap_generation) {
 				try {
 					regenerateMipMaps(p).get(); // wait
@@ -3071,7 +3071,7 @@ while (it.hasNext()) {
 		Patch p = new Patch(project, imp.getTitle(), x, y, imp);
 		addedPatchFrom(path, p);
 		last_opened_path = path; // WARNING may be altered concurrently
-		if (isMipMapsEnabled()) regenerateMipMaps(p);
+		if (isMipMapsRegenerationEnabled()) regenerateMipMaps(p);
 		return p;
 	}
 
@@ -3803,6 +3803,10 @@ while (it.hasNext()) {
 		mipmaps_regen = b;
 	}
 
+	/** Whether mipmaps should be generated. This depends on both the internal flag
+	 * (whether the user wants to use mipmaps) and on whether there is a writable mipmaps folder available. */
+	public boolean isMipMapsRegenerationEnabled() { return mipmaps_regen && usesMipMapsFolder(); }
+
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {}
 
@@ -3824,7 +3828,7 @@ while (it.hasNext()) {
 	public Bureaucrat generateMipMaps(final ArrayList<Displayable> al, boolean overwrite) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
-	public boolean isMipMapsEnabled() { return false; }
+	public boolean usesMipMapsFolder() { return false; }
 
 	/** Does nothing and returns zero unless overriden. */
 	public int getClosestMipMapLevel(final Patch patch, int level, int max_level) {return 0;}
@@ -4102,7 +4106,7 @@ while (it.hasNext()) {
 		new FileSaver(imp).saveAsTiff(path);
 		Patch pa = new Patch(Project.findProject(this), imp.getTitle(), x, y, imp);
 		addedPatchFrom(path, pa);
-		if (isMipMapsEnabled()) regenerateMipMaps(pa);
+		if (isMipMapsRegenerationEnabled()) regenerateMipMaps(pa);
 		return pa;
 	}
 

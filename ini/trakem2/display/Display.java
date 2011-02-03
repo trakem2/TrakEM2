@@ -5311,7 +5311,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gd.addChoice("snapshots_mode", LayerSet.snapshot_modes, LayerSet.snapshot_modes[layer.getParent().getSnapshotsMode()]);
 		gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
 		Loader lo = getProject().getLoader();
-		boolean using_mipmaps = lo.isMipMapsEnabled();
+		boolean using_mipmaps = lo.isMipMapsRegenerationEnabled();
 		gd.addCheckbox("enable_mipmaps", using_mipmaps);
 		gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
 		double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();

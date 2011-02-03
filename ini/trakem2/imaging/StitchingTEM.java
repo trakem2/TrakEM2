@@ -411,7 +411,7 @@ public class StitchingTEM {
 		ImageProcessor ip = null;
 		Loader loader =  p.getProject().getLoader();
 		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
-		if (loader.isMipMapsEnabled() && loader.checkMipMapFileExists(p, scale)) 
+		if (loader.isMipMapsRegenerationEnabled() && loader.checkMipMapFileExists(p, scale)) 
 		{
 			
 			// Read the transform image from the patch (this way we avoid the JPEG artifacts)
