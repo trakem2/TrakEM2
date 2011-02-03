@@ -4577,58 +4577,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				getLayerSet().addTransformStepWithData(col);
 			}});
 		} else if (command.equals("Properties ...")) { // NOTE the space before the dots, to distinguish from the "Properties..." command that works on Displayable objects.
-			GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
-			//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
-			gd.addSlider("layer_scroll_step: ", 1, layer.getParent().size(), Display.this.scroll_step);
-			gd.addChoice("snapshots_mode", LayerSet.snapshot_modes, LayerSet.snapshot_modes[layer.getParent().getSnapshotsMode()]);
-			gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
-			Loader lo = getProject().getLoader();
-			boolean using_mipmaps = lo.isMipMapsEnabled();
-			gd.addCheckbox("enable_mipmaps", using_mipmaps);
-			gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
-			double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
-			gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
-			gd.addCheckbox("Show arrow heads in Treeline/AreaTree", layer.getParent().paint_arrows);
-			gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
-			gd.addCheckbox("Show color cues", layer.getParent().color_cues);
-			gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
-			gd.addCheckbox("Show color cues for areas", layer.getParent().area_color_cues);
-			gd.addCheckbox("Use red/blue for color cues", layer.getParent().use_color_cue_colors);
-			gd.addCheckbox("Prepaint images", layer.getParent().prepaint);
-			// --------
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			// --------
-			int sc = (int) gd.getNextNumber();
-			if (sc < 1) sc = 1;
-			Display.this.scroll_step = sc;
-			updateInDatabase("scroll_step");
-			//
-			layer.getParent().setSnapshotsMode(gd.getNextChoiceIndex());
-			layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
-			//
-			boolean generate_mipmaps = gd.getNextBoolean();
-			if (using_mipmaps && generate_mipmaps) {
-				// nothing changed
-			} else {
-				if (using_mipmaps) { // and !generate_mipmaps
-					lo.flushMipMaps(true);
-				} else {
-					// not using mipmaps before, and true == generate_mipmaps
-					lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
-				}
-			}
-			//
-			layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
-			layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
-			layer.getParent().paint_arrows = gd.getNextBoolean();
-			layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
-			layer.getParent().color_cues = gd.getNextBoolean();
-			layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
-			layer.getParent().area_color_cues = gd.getNextBoolean();
-			layer.getParent().use_color_cue_colors = gd.getNextBoolean();
-			layer.getParent().prepaint = gd.getNextBoolean();
-			Display.repaint(layer.getParent());
+			adjustProperties();
 		} else if (command.equals("Adjust snapping parameters...")) {
 			AlignTask.p_snap.setup("Snap");
 		} else if (command.equals("Adjust fast-marching parameters...")) {
@@ -5355,6 +5304,63 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}});
 	}
 
+	public void adjustProperties() {
+		GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
+		//gd.addNumericField("layer_scroll_step: ", this.scroll_step, 0);
+		gd.addSlider("layer_scroll_step: ", 1, layer.getParent().size(), Display.this.scroll_step);
+		gd.addChoice("snapshots_mode", LayerSet.snapshot_modes, LayerSet.snapshot_modes[layer.getParent().getSnapshotsMode()]);
+		gd.addCheckbox("prefer_snapshots_quality", layer.getParent().snapshotsQuality());
+		Loader lo = getProject().getLoader();
+		boolean using_mipmaps = lo.isMipMapsEnabled();
+		gd.addCheckbox("enable_mipmaps", using_mipmaps);
+		gd.addCheckbox("enable_layer_pixels virtualization", layer.getParent().isPixelsVirtualizationEnabled());
+		double max = layer.getParent().getLayerWidth() < layer.getParent().getLayerHeight() ? layer.getParent().getLayerWidth() : layer.getParent().getLayerHeight();
+		gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
+		gd.addCheckbox("Show arrow heads in Treeline/AreaTree", layer.getParent().paint_arrows);
+		gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
+		gd.addCheckbox("Show color cues", layer.getParent().color_cues);
+		gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
+		gd.addCheckbox("Show color cues for areas", layer.getParent().area_color_cues);
+		gd.addCheckbox("Use red/blue for color cues", layer.getParent().use_color_cue_colors);
+		gd.addCheckbox("Prepaint images", layer.getParent().prepaint);
+		// --------
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		// --------
+		int sc = (int) gd.getNextNumber();
+		if (sc < 1) sc = 1;
+		Display.this.scroll_step = sc;
+		updateInDatabase("scroll_step");
+		//
+		layer.getParent().setSnapshotsMode(gd.getNextChoiceIndex());
+		layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
+		//
+		boolean generate_mipmaps = gd.getNextBoolean();
+		if (using_mipmaps && generate_mipmaps) {
+			// nothing changed
+		} else {
+			if (using_mipmaps) { // and !generate_mipmaps
+				lo.setMipMapsRegeneration(false);
+				lo.flushMipMaps(true);
+			} else {
+				// not using mipmaps before, and true == generate_mipmaps
+				lo.setMipMapsRegeneration(true);
+				lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
+			}
+		}
+		//
+		layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
+		layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
+		layer.getParent().paint_arrows = gd.getNextBoolean();
+		layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
+		layer.getParent().color_cues = gd.getNextBoolean();
+		layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
+		layer.getParent().area_color_cues = gd.getNextBoolean();
+		layer.getParent().use_color_cue_colors = gd.getNextBoolean();
+		layer.getParent().prepaint = gd.getNextBoolean();
+		Display.repaint(layer.getParent());
+	}
+		
 	private static class UpdateDimensionField implements TextListener {
 		final TextField width, height, scale;
 		final Scrollbar bar;
