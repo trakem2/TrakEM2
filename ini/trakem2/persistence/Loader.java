@@ -41,6 +41,7 @@ import ij.io.Opener;
 import ij.io.OpenDialog;
 import ij.io.TiffEncoder;
 import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij.process.StackStatistics;
 import ij.process.ImageStatistics;
@@ -2730,7 +2731,7 @@ while (it.hasNext()) {
 	}
  
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
-		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null);
+		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null, true);
 	}
 
 	/** Generate 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
@@ -2753,10 +2754,18 @@ while (it.hasNext()) {
 	 * Best results obtained when the srcRect approaches or is a square. Black space will pad the right and bottom edges when the srcRect is not exactly a square.
 	 * Only the area within the srcRect is ever included, even if actual data exists beyond.
 	 *
-	 * Returns the watcher thread, for joining purposes, or null if the dialog is canceled or preconditions ar enot passed.
+	 * @return The watcher thread, for joining purposes, or null if the dialog is canceled or preconditions are not passed.
+	 * @throws IllegalArgumentException if the type is not ImagePlus.GRAY8 or Imageplus.COLOR_RGB.
 	 */
-	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir) {
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir, final boolean from_original_images) {
 		if (null == layer || 0 == layer.length) return null;
+		switch (type) {
+		case ImagePlus.GRAY8:
+		case ImagePlus.COLOR_RGB:
+			break;
+		default:
+			throw new IllegalArgumentException("Can only export for web with 8-bit or RGB");
+		}
 		// choose target directory
 		if (null == target_dir) {
 			DirectoryChooser dc = new DirectoryChooser("Choose target directory");
@@ -2773,6 +2782,7 @@ while (it.hasNext()) {
 
 		final String dir = target_dir;
 		final double max_scale = max_scale_;
+		final int jpeg_quality_int = FileSaver.getJpegQuality();
 		final float jpeg_quality = FileSaver.getJpegQuality() / 100.0f;
 		Utils.log("Using jpeg quality: " + jpeg_quality);
 
@@ -2847,39 +2857,181 @@ while (it.hasNext()) {
 				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, jpeg_quality, tile_dir + "0_0_0.jpg");
 			} else {
 				// create piramid of tiles
-				double scale = 1; //max_scale; // WARNING if scale is different than 1, it will FAIL to set the next scale properly.
-				int scale_pow = 0;
-				int n_et = n_edge_tiles; // cached for local modifications in the loop, works as loop controler
-				while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from hich then powers of two were taken to make up for the edge_length
-					int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
-					for (int row=0; row<n_et; row++) {
-						for (int col=0; col<n_et; col++) {
-							final int i_tile = row * n_et + col;
-							Utils.showProgress(i_tile /  (double)(n_et * n_et));
+				if (from_original_images) {
+					Utils.log("Exporting from web using original images\n  JPEG compression: " + jpeg_quality);
+					// Create a giant 8-bit image of the whole layer from original images
+					double scale = 1;
+					
+					Utils.log("Export srcRect: " + srcRect);
+					
+					// WARNING: the snapshot will most likely be smaller than the virtual square image being chopped into tiles
+					ImageProcessor snapshot = makeFlatImage(type, layer[iz], srcRect, scale, (ArrayList<Patch>)(List)layer[iz].getDisplayables(Patch.class, true), Color.black);
+					
+					int scale_pow = 0;
+					int n_et = n_edge_tiles;
+					ExecutorService exec = Utils.newFixedThreadPool("export-for-web");
+					ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
+					try {
+						while (n_et >= best[1]) {
+							
+							new ImagePlus("snapshot " + scale_pow, snapshot).show();
+							
+							final int tile_side = 256;
+							final int snapWidth = snapshot.getWidth();
+							final int snapHeight = snapshot.getHeight();
+							final ImageProcessor source = snapshot;
+							for (int row=0; row<n_et; row++) {
+								for (int col=0; col<n_et; col++) {
+									
+									final String path = new StringBuilder(tile_dir).append(row).append('_').append(col).append('_').append(scale_pow).append(".jpg").toString();
+									final int tileXStart = col * tile_side;
+									final int tileYStart = row * tile_side;
+									final int pixelOffset = tileYStart * snapWidth + tileXStart;
 
-							if (0 == i_tile % 100) {
-								releaseToFit(tile_side * tile_side * 4 * 2); // RGB int[] images
+									fus.add(exec.submit(new Callable<Boolean>() {
+										public Boolean call() {
+											if (ImagePlus.GRAY8 == type) {
+												final byte[] pixels = (byte[]) source.getPixels();
+												final byte[] p = new byte[tile_side * tile_side];
+												
+												for (int y=0, sourceIndex=pixelOffset; y < tile_side && tileYStart + y < snapHeight; sourceIndex = pixelOffset + y * snapWidth, y++) {
+													final int offsetL = y * tile_side;
+													for (int x=0; x < tile_side && tileXStart + x < snapWidth; sourceIndex++, x++) {
+														p[offsetL + x] = pixels[sourceIndex];
+													}
+												}
+												return ImageSaver.saveAsGreyJpeg(p, tile_side, tile_side, path, jpeg_quality);
+											} else {
+												final int[] pixels = (int[]) source.getPixels();
+												final int[] p = new int[tile_side * tile_side];
+												
+												for (int y=0, sourceIndex=pixelOffset; y < tile_side && tileYStart + y < snapHeight; sourceIndex = pixelOffset + y * snapWidth, y++) {
+													final int offsetL = y * tile_side;
+													for (int x=0; x < tile_side && tileXStart + x < snapWidth; sourceIndex++, x++) {
+														p[offsetL + x] = pixels[sourceIndex];
+													}
+												}
+												return ImageSaver.saveAsARGBJpeg(p, tile_side, tile_side, path, jpeg_quality);
+											}
+										}
+									}));
+								}
 							}
-
-							if (this.quit) {
-								cleanUp();
-								return;
+							//
+							scale_pow++;
+							scale = 1 / Math.pow(2, scale_pow); // works as magnification
+							n_et /= 2;
+							//
+							Utils.wait(fus);
+							fus.clear();
+							// Scale snapshot in half with area averaging
+							final ImageProcessor nextSnapshot;
+							if (ImagePlus.GRAY8 == type) {
+								nextSnapshot = new ByteProcessor((int)(srcRect.width * scale), (int)(srcRect.height * scale));							
+								final byte[] p1 = (byte[]) snapshot.getPixels();
+								final byte[] p2 = (byte[]) nextSnapshot.getPixels();
+								final int width1 = snapshot.getWidth();
+								final int width2 = nextSnapshot.getWidth();
+								final int height2 = nextSnapshot.getHeight();
+								int i = 0;
+								for (int y1=0, y2=0; y2 < height2; y1 += 2, y2++) {
+									final int offset1a = y1 * width1;
+									final int offset1b = (y1 + 1) * width1;
+									for (int x1=0, x2=0; x2 < width2; x1 += 2, x2++) {
+										p2[i++] = (byte)( (   (p1[offset1a + x1] & 0xff) + (p1[offset1a + x1 + 1] & 0xff)
+															+ (p1[offset1b + x1] & 0xff) + (p1[offset1b + x1 + 1] & 0xff) ) /4 );
+									}
+								}
+							} else {
+								nextSnapshot = new ColorProcessor((int)(srcRect.width * scale), (int)(srcRect.height * scale));
+								final int[] p1 = (int[]) snapshot.getPixels();
+								final int[] p2 = (int[]) nextSnapshot.getPixels();
+								final int width1 = snapshot.getWidth();
+								final int width2 = nextSnapshot.getWidth();
+								final int height2 = nextSnapshot.getHeight();
+								int i = 0;
+								for (int y1=0, y2=0; y2 < height2; y1 += 2, y2++) {
+									final int offset1a = y1 * width1;
+									final int offset1b = (y1 + 1) * width1;
+									for (int x1=0, x2=0; x2 < width2; x1 += 2, x2++) {
+										final int ka = p1[offset1a + x1],
+												  kb = p1[offset1a + x1 + 1],
+												  kc = p1[offset1b + x1],
+												  kd = p1[offset1b + x1 + 1];
+										// Average each channel independently
+										p2[i++] =
+											    (((   ((ka >> 16) & 0xff)        // red
+											        + ((kb >> 16) & 0xff)
+											        + ((kc >> 16) & 0xff)
+											        + ((kd >> 16) & 0xff) ) / 4) << 16)
+											  + (((   ((ka >> 8) & 0xff)         // green
+												    + ((kb >> 8) & 0xff)
+												    + ((kc >> 8) & 0xff)
+												    + ((kd >> 8) & 0xff) ) / 4) << 8)
+												+ (   (ka & 0xff)                // blue
+												    + (kb & 0xff)
+												    + (kc & 0xff)
+												    + (kd & 0xff) ) / 4;
+									}
+								}
 							}
-							Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row,
-									                   srcRect.y + tile_side*col,
-											   tile_side,
-											   tile_side); // in absolute coords, magnification later.
-							// crop bounds
-							if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
-							if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
-							// negative tile sizes will be made into black tiles
-							// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-							makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I inversed it.
+							// Assign for next iteration
+							snapshot = nextSnapshot;
+							
+							// Scale snapshot with a TransformMesh
+							/*
+							AffineModel2D aff = new AffineModel2D();
+							aff.set(0.5f, 0, 0, 0.5f, 0, 0);
+							ImageProcessor scaledSnapshot = new ByteProcessor((int)(snapshot.getWidth() * scale), (int)(snapshot.getHeight() * scale));							
+							final CoordinateTransformMesh mesh = new CoordinateTransformMesh( aff, 32, snapshot.getWidth(), snapshot.getHeight() );
+							final mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
+							mapping.mapInterpolated(snapshot, scaledSnapshot, Runtime.getRuntime().availableProcessors());
+							// Assign for next iteration
+							snapshot = scaledSnapshot;
+							snapshotPixels = (byte[]) scaledSnapshot.getPixels();
+							*/
+							
 						}
+					} catch (Throwable t) {
+						IJError.print(t);
+					} finally {
+						exec.shutdown();
 					}
-					scale_pow++;
-					scale = 1 / Math.pow(2, scale_pow); // works as magnification
-					n_et /= 2;
+				} else {
+					double scale = 1; //max_scale; // WARNING if scale is different than 1, it will FAIL to set the next scale properly.
+					int scale_pow = 0;
+					int n_et = n_edge_tiles; // cached for local modifications in the loop, works as loop controler
+					while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from which then powers of two were taken to make up for the edge_length
+						int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
+						for (int row=0; row<n_et; row++) {
+							for (int col=0; col<n_et; col++) {
+								final int i_tile = row * n_et + col;
+								Utils.showProgress(i_tile /  (double)(n_et * n_et));
+
+								if (0 == i_tile % 100) {
+									releaseToFit(tile_side * tile_side * 4 * 2); // RGB int[] images
+								}
+
+								if (this.quit) {
+									cleanUp();
+									return;
+								}
+								Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row, // TODO row and col are inverted
+										srcRect.y + tile_side*col,
+										tile_side,
+										tile_side); // in absolute coords, magnification later.
+								// crop bounds
+								if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
+								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
+								// negative tile sizes will be made into black tiles
+								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
+								makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
+							}
+						}
+						scale_pow++;
+						scale = 1 / Math.pow(2, scale_pow); // works as magnification
+						n_et /= 2;
+					}
 				}
 			}
 		}

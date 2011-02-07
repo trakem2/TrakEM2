@@ -4389,6 +4389,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addMessage("");
 			gd.addCheckbox("Save to file", false);
 			gd.addCheckbox("Save for web", false);
+			gd.addCheckbox("Use original images", true);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			scale = gd.getNextNumber() / 100;
@@ -4429,8 +4430,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final boolean quality = gd.getNextBoolean();
 			final boolean save_to_file = gd.getNextBoolean();
 			final boolean save_for_web = gd.getNextBoolean();
+			final boolean use_original_images = gd.getNextBoolean();
 			// in its own thread
-			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type);
+			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images);
 			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, quality, background);
 
 		} else if (command.equals("Lock")) {
@@ -6465,5 +6467,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					job.get();
 				} catch (Exception ie) {}
 			}}, patches.iterator().next().getProject());
+	}
+
+	/** Get the current ROI, if any. */
+	public Roi getRoi() {
+		return canvas.getFakeImagePlus().getRoi();
 	}
 }
