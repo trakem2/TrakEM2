@@ -30,6 +30,13 @@ import ij.io.FileInfo;
 import ij.io.TiffEncoder;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
+import java.awt.image.IndexColorModel;
+import java.awt.image.Raster;
+import java.awt.image.SampleModel;
+import java.awt.image.WritableRaster;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.io.BufferedOutputStream;
@@ -54,6 +61,7 @@ import javax.imageio.stream.ImageOutputStream;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
 
 import com.sun.media.jai.codec.TIFFEncodeParam;
 import com.sun.media.jai.codec.TIFFDecodeParam;
@@ -151,6 +159,46 @@ public class ImageSaver {
 		boolean b = saveAsJpeg(bi, path, quality, as_grey);
 		bi.flush();
 		return b;
+	}
+
+	static public final BufferedImage createGrayImage(final byte[] pixels, final int width, final int height) {
+		WritableRaster wr = Loader.GRAY_LUT.createCompatibleWritableRaster(1, 1);
+		SampleModel sm = wr.getSampleModel().createCompatibleSampleModel(width, height);
+		DataBuffer db = new DataBufferByte(pixels, width*height, 0);
+		WritableRaster raster = Raster.createWritableRaster(sm, db, null);
+		return new BufferedImage(Loader.GRAY_LUT, raster, false, null);
+	}
+
+	static public final boolean saveAsGreyJpeg(final byte[] pixels, final int width, final int height, final String path, final float quality) {
+		return saveAsJpeg(createGrayImage(pixels, width, height), path, quality, true);
+	}
+
+	static public final IndexColorModel RGBA_COLOR_MODEL;
+	static {
+		byte[] r = new byte[256];
+		byte[] g = new byte[256];
+		byte[] b = new byte[256];
+		byte[] a = new byte[256];
+		for(int i=0; i<256; i++) {
+			r[i]=(byte)i;
+			g[i]=(byte)i;
+			b[i]=(byte)i;
+			a[i]=(byte)i;
+		}
+		RGBA_COLOR_MODEL = new IndexColorModel(8, 256, r, g, b, a);
+	}
+
+	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
+		WritableRaster wr = RGBA_COLOR_MODEL.createCompatibleWritableRaster(1, 1);
+		SampleModel sm = wr.getSampleModel().createCompatibleSampleModel(width, height);
+		DataBuffer dataBuffer = new DataBufferInt(pixels, width*height, 0);
+		WritableRaster rgbRaster = Raster.createWritableRaster(sm, dataBuffer, null);
+		return new BufferedImage(RGBA_COLOR_MODEL, rgbRaster, false, null);
+	}
+
+	/** Save as ARGB jpeg. */
+	static public final boolean saveAsARGBJpeg(final int[] pixels, final int width, final int height, final String path, final float quality) {
+		return saveAsJpeg(createARGBImage(pixels, width, height), path, quality, false);
 	}
 
 	/** Will not flush the given BufferedImage. */
