@@ -217,7 +217,7 @@ public class ImageSaver {
 				ios = ImageIO.createImageOutputStream(f);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
-				param.setCompressionMode(param.MODE_EXPLICIT);
+				param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 				param.setCompressionQuality(quality);
 				if (as_grey && bi.getType() != BufferedImage.TYPE_BYTE_GRAY) {
 					grey = new BufferedImage(bi.getWidth(), bi.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
