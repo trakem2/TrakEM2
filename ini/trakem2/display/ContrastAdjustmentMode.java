@@ -172,7 +172,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		// Create GUI
 		this.frame = new JFrame("Contrast adjustment");
 		frame.addWindowListener(new WindowAdapter() {
-			public void windowClosed(WindowEvent we) {
+			public void windowClosing(WindowEvent we) {
 				display.getCanvas().cancelTransform();
 			}
 		});
