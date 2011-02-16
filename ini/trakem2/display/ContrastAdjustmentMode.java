@@ -327,20 +327,18 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		gb.setConstraints(buttons, c);
 		panel.add(buttons);
 
-
-
 		frame.getContentPane().add(panel);
 		
 		Utils.invokeLater(new Runnable() { public void run() {
+
+			min_max.set(minslider.getValue(), maxslider.getValue());
+			
 			frame.pack();
 
 			// after calling pack
 			Dimension dim = new Dimension(plot.getWidth(), 15);
 			minslider.setMinimumSize(dim);
 			maxslider.setMinimumSize(dim);
-
-			min_max.set(0, sliderRange);
-			updateLabelsAndPlot(0, sliderRange);
 
 			frame.pack(); // again
 
