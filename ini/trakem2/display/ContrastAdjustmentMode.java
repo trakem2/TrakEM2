@@ -164,6 +164,11 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		Utils.log2("transformed min, max: " + transformed.getMin() + ", " + transformed.getMax());
 		ImageStatistics stats = ImageStatistics.getStatistics(transformed, Measurements.AREA + Measurements.MEAN + Measurements.MODE + Measurements.MIN_MAX, layer.getParent().getCalibrationCopy());
 		Utils.log2("stats.min " + stats.min + ", stats.max " + stats.max);
+		// correct min and max, which for some reason can be wrong (the min can be zero, for example):
+		if (stats.min < initial.getMin()) stats.min = initial.getMin();
+		if (stats.max > initial.getMax()) stats.max = initial.getMax();
+
+		// stats is giving a minimum of zero even if its wrong
 		plot = new ContrastPlot(initial.getMin(), initial.getMax(), first.getMin(), first.getMax());
 		plot.setHistogram(stats, Color.black);
 
@@ -243,8 +248,18 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		double firstMin = (first.getMin() - initial.getMin()) * ratio;
 		double firstMax = (first.getMax() - initial.getMin()) * ratio;
 		plot.update(first.getMin(), first.getMax());
-		final JSlider minslider = createSlider(panel, gb, c, "Minimum", monoFont, sliderRange, (int)firstMin);
-		final JSlider maxslider = createSlider(panel, gb, c, "Maximum", monoFont, sliderRange, (int)firstMax);
+		
+		
+		int sliderMin = (int)firstMin;
+		int sliderMax = (int)firstMax;
+		// Prevent potential errors
+		if (sliderMin < 0) sliderMin = 0;
+		if (sliderMax > sliderRange -1) sliderMax = sliderRange -1;		
+		if (sliderMin > sliderMax) sliderMin = sliderMax;
+		Utils.log2("After checking, slider min and max values are: " + sliderMin + ", " + sliderMax + " for range " + sliderRange);
+		
+		final JSlider minslider = createSlider(panel, gb, c, "Minimum", monoFont, sliderRange, sliderMin);
+		final JSlider maxslider = createSlider(panel, gb, c, "Maximum", monoFont, sliderRange, sliderMax);
 		ChangeListener adl = new ChangeListener() {
 			public void stateChanged(ChangeEvent ce) {
 				double smin = minslider.getValue();
