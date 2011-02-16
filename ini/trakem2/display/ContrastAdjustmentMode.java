@@ -373,6 +373,8 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		Utils.log2("createSlider range: " + sliderRange + ", start: " + start);
 		
 		JSlider s = new JSlider(JSlider.HORIZONTAL, 0, sliderRange, start);
+		s.setPaintLabels(false);
+		s.setPaintTicks(false);
 		s.setBackground(Color.white);
 		c.gridy++;
 		c.insets = new Insets(2, 10, 0, 10);
