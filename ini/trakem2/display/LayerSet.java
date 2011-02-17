@@ -1720,15 +1720,10 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			}
 		}
 	}
+	/** Recreate the buckets of every layer in which the {@link Displayable} has data. */
 	final private void removeFromBuckets(final Displayable zd, final int old_stack_index) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return;
-			// pre-build stack index table
-			final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>();
-			int i = 0;
-			for (final ZDisplayable d : al_zdispl) {
-				new_stack_indices.put(d, i++);
-			}
 			for (final Long lid : zd.getLayerIds()) {
 				final Layer la = getLayer(lid);
 				final LayerBucket lb = lbucks.get(la);
@@ -1736,28 +1731,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 					nbmsg(la);
 					continue;
 				}
-				final Collection<Bucket> buckets = lb.db_map.remove(zd);
-				if (null == buckets) { // TODO the buckets for d could be null as well if d didn't have any data, i.e true == d.isDeletable()
-					recreateBuckets(getLayer(lid), false); // regenerate
-				} else {
-					boolean error = false;
-					for (final Bucket bu : buckets) {
-						if (!bu.remove(zd, old_stack_index, new_stack_indices)) { // will reindex the buckets
-							// FIX ERROR TODO
-							error = true;
-							break;
-						}
-					}
-					if (error) {
-						Utils.log2("Fixing buckets for layer " + la);
-						recreateBuckets(la, false);
-					}
-					// THERE IS AN ERROR somewhere, but I can't find it.
-					// The code above simply fixes it silently.
-				}
+				recreateBuckets(getLayer(lid), false);
 			}
 		}
 	}
+	
 	/** Will also rebuild the indices once the ones to remove are out. */
 	final private void removeFromBuckets(final Map<ZDisplayable,Integer> old_stack_indices) {
 		synchronized (lbucks) {

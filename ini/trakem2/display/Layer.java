@@ -299,6 +299,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
+	/** Will recreate the buckets; if you intend to remove many, use "removeAll" instead,
+	 *  so that the expensive operation of recreating the buckets is done only once. */
 	public synchronized boolean remove(final Displayable displ) {
 		if (null == displ || null == al_displayables) {
 			Utils.log2("Layer can't remove Displayable " + displ.getId());
@@ -309,19 +311,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			Utils.log2("Layer.remove: not found: " + displ);
 			return false;
 		}
-		al_displayables.remove(displ);
-		// remove from Bucket AFTER modifying stack index, so it gets reindexed properly
-		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
-		int i = 0;
-		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
-		if (null != root) {
-			final Collection<Bucket> bus = db_map.remove(displ);
-			// bus may be null if the object, like a profile, didn't have any data and was deleted while empty
-			if (null != bus)
-				for (Bucket bu : bus)
-					bu.remove(displ, old_stack_index, new_stack_indices);
-		}
-
+		al_displayables.remove(old_stack_index);
+		if (null != root) recreateBuckets();
 		parent.removeFromOffscreens(this);
 		Display.remove(this, displ);
 		return true;
@@ -331,27 +322,17 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	public synchronized boolean removeAll(final Set<Displayable> ds) {
 		if (null == ds || null == al_displayables) return false;
 		// Ensure list is iterated only once: don't ask for index every time!
-		final ArrayList<Integer> old_stack_indices = new ArrayList<Integer>(ds.size());
-		int i = 0;
 		for (final Iterator<Displayable> it = al_displayables.iterator(); it.hasNext(); ) {
 			final Displayable d = it.next();
 			if (ds.contains(d)) {
 				it.remove();
 				parent.removeFromOffscreens(this);
 				Display.remove(this, d);
-				old_stack_indices.add(i);
 			}
-			i++;
-			if (old_stack_indices.size() == ds.size()) break;
 		}
-		// New stack indices:
-		final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>(al_displayables.size());
-		i = 0;
-		for (final Displayable d : al_displayables) new_stack_indices.put(d, i++);
-		//
-		if (null != root) root.removeAll(old_stack_indices, new_stack_indices);
+		if (null != root) recreateBuckets();
 		Display.updateVisibleTabs(this.project);
-		return ds.size() == old_stack_indices.size();
+		return true;
 	}
 
 	/** Used for reconstruction purposes. */
