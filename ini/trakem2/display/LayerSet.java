@@ -902,22 +902,20 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	public boolean removeAll(final Set<ZDisplayable> zds) {
 		if (null == zds || null == al_zdispl) return false;
 		// Ensure list is iterated only once: don't ask for index every time!
-		final HashMap<ZDisplayable,Integer> old_stack_indices = new HashMap<ZDisplayable, Integer>(zds.size());
-		int i = 0;
+		int count = 0;
 		for (final Iterator<ZDisplayable> it = al_zdispl.iterator(); it.hasNext(); ) {
 			final ZDisplayable zd = it.next();
 			if (zds.contains(zd)) {
 				it.remove();
 				removeFromOffscreens(zd);
 				Display.remove(zd);
-				old_stack_indices.put(zd, i);
+				count++;
+				if (zds.size() == count) break;
 			}
-			i++;
-			if (old_stack_indices.size() == zds.size()) break;
 		}
-		removeFromBuckets(old_stack_indices);
+		removeFromBuckets(zds);
 		Display.updateVisibleTabs(this.project);
-		return zds.size() == old_stack_indices.size();
+		return true;
 	}
 
 	public boolean contains(final Layer layer) {
@@ -1735,39 +1733,23 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			}
 		}
 	}
-	
-	/** Will also rebuild the indices once the ones to remove are out. */
-	final private void removeFromBuckets(final Map<ZDisplayable,Integer> old_stack_indices) {
+
+	/** Recreate the buckets for all layers involved. */
+	final private void removeFromBuckets(final Collection<ZDisplayable> zds) {
 		synchronized (lbucks) {
 			if (lbucks.isEmpty()) return;
-			final HashSet<Bucket> touched = new HashSet<Bucket>();
-			for (final Map.Entry<ZDisplayable,Integer> e : old_stack_indices.entrySet()) {
-				final ZDisplayable zd = e.getKey();
-				for (final Long lid : zd.getLayerIds()) {
-					final LayerBucket lb = lbucks.get(getLayer(lid));
-					if (null == lb) {
-						nbmsg(getLayer(lid));
-						continue;
-					}
-					final Collection<Bucket> buckets = lb.db_map.remove(zd);
-					if (null == buckets) {
-						recreateBuckets(getLayer(lid), false); // regenerate
-					} else {
-						final int i = e.getValue();
-						for (final Bucket bu : buckets) {
-							bu.remove(zd, i, null); // AVOID reindexing
-							touched.add(bu);
-						}
-					}
+			final Set<Layer> touched = new HashSet<Layer>();
+			for (final ZDisplayable zd : zds) {
+				touched.addAll(zd.getLayersWithData());
+			}
+			for (final Layer la : touched) {
+				final LayerBucket lb = lbucks.remove(la);
+				if (null == lb) {
+					nbmsg(la);
+					continue;
 				}
+				lbucks.put(la, new LayerBucket(la));
 			}
-			// pre-build stack index table
-			final HashMap<Displayable,Integer> new_stack_indices = new HashMap<Displayable,Integer>();
-			int i = 0;
-			for (final ZDisplayable d : al_zdispl) {
-				new_stack_indices.put(d, i++);
-			}
-			for (final Bucket bu : touched) bu.reindex(new_stack_indices); // so it is done only once per Bucket
 		}
 	}
 	/** Used ONLY by move up/down/top/bottom. */
