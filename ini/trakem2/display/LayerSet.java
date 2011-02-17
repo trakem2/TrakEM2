@@ -1979,7 +1979,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		return step;
 	}
 	/** Includes all ZDisplayable that paint at any of the given layers. */
-	public Collection<Displayable> addTransformStepWithData(final Collection<Layer> layers) {
+	public Collection<Displayable> addTransformStepWithDataForAll(final Collection<Layer> layers) {
 		if (layers.isEmpty()) return Collections.emptyList();
 		final Set<Displayable> hs = new HashSet<Displayable>();
 		for (final Layer layer : layers) hs.addAll(layer.getDisplayables());

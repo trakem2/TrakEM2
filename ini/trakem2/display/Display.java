@@ -4533,7 +4533,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Utils.showMessage("Montage needs 2 or more images selected");
 				return;
 			}
-			final Collection<Displayable> col = la.getParent().addTransformStepWithData(Arrays.asList(new Layer[]{la}));
+			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
 			// find any locked patches
 			final ArrayList<Patch> fixed = new ArrayList<Patch>();
 			for (final Patch p : patches) {
@@ -4555,7 +4555,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
-			final Collection<Displayable> col = getLayerSet().addTransformStepWithData(layers);
+			final Collection<Displayable> col = getLayerSet().addTransformStepWithDataForAll(layers);
 			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
 			if (null == burro) return;
 			burro.addPostTask(new Runnable() { public void run() {
@@ -4570,7 +4570,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
-			final Collection<Displayable> col = getLayerSet().addTransformStepWithData(layers);
+			final Collection<Displayable> col = getLayerSet().addTransformStepWithDataForAll(layers);
 			Bureaucrat burro = AlignTask.montageLayersTask(layers);
 			burro.addPostTask(new Runnable() { public void run() {
 				Collection<Displayable> ds = new ArrayList<Displayable>();
@@ -6432,7 +6432,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.showMessage("Montage needs 2 or more images selected");
 			return;
 		}
-		final Collection<Displayable> col = la.getParent().addTransformStepWithData(Arrays.asList(new Layer[]{la}));
+		final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
 		Bureaucrat burro;
 		switch (type) {
 			case 0:
