@@ -78,6 +78,10 @@ public class Bucket {
 	}
 
 	synchronized final void populate(final Bucketable container, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map) {
+		// Reset
+		if (null != this.map) this.map.clear();
+		this.children = null;
+		// Refill:
 		final HashMap<Integer,Displayable> list = new HashMap<Integer,Displayable>();
 		int i = 0;
 		// cache all bounding boxes
