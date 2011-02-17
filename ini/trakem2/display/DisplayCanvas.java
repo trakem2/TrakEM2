@@ -1143,46 +1143,55 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		display.getMode().srcRectUpdated(srcRect, magnification);
 	}
 
-	public void setDrawingSize(int new_width, int new_height,
-			boolean adjust_srcRect) {
-		// adjust srcRect!
-		if (adjust_srcRect) {
-			double mag = super.getMagnification();
-			// This method is very important! Make it fit perfectly.
-			if (srcRect.width * mag < new_width) {
-				// expand
-				if (new_width > imageWidth * mag) {
-					// too large, limit
-					srcRect.x = 0;
-					srcRect.width = imageWidth;
-				} else {
-					srcRect.width = (int) Math.ceil(new_width / mag);
-					if (srcRect.x + srcRect.width > imageWidth) {
-						srcRect.x = imageWidth - srcRect.width;
-					}
-				}
-			} else {
-				// shrink
-				srcRect.width = (int) Math.ceil(new_width / mag);
-			}
-			if (srcRect.height * mag < new_height) {
-				// expand
-				if (new_height > imageHeight * mag) {
-					// too large, limit
-					srcRect.y = 0;
-					srcRect.height = imageHeight;
-				} else {
-					srcRect.height = (int) Math.ceil(new_height / mag);
-					if (srcRect.y + srcRect.height > imageHeight) {
-						srcRect.y = imageHeight - srcRect.height;
-					}
-				}
-			} else {
-				// shrink
-				srcRect.height = (int) Math.ceil(new_height / mag);
-			}
-		}
+	public void setDrawingSize(int new_width, int new_height) {
+		adjustSrcRect(new_width, new_height);
 		super.setDrawingSize(new_width, new_height);
+	}
+
+	/** Adjust srcRect and internal variables to the canvas' bounds. */
+	public void adjustDimensions() {
+		final Rectangle r = getBounds();
+		adjustSrcRect(r.width, r.height);
+		super.dstWidth = r.width;
+		super.dstHeight = r.height;
+	}
+
+	/** Adjust srcRect to new dimensions. */
+	public void adjustSrcRect(int new_width, int new_height) {
+		double mag = super.getMagnification();
+		// This method is very important! Make it fit perfectly.
+		if (srcRect.width * mag < new_width) {
+			// expand
+			if (new_width > imageWidth * mag) {
+				// too large, limit
+				srcRect.x = 0;
+				srcRect.width = imageWidth;
+			} else {
+				srcRect.width = (int) Math.ceil(new_width / mag);
+				if (srcRect.x + srcRect.width > imageWidth) {
+					srcRect.x = imageWidth - srcRect.width;
+				}
+			}
+		} else {
+			// shrink
+			srcRect.width = (int) Math.ceil(new_width / mag);
+		}
+		if (srcRect.height * mag < new_height) {
+			// expand
+			if (new_height > imageHeight * mag) {
+				// too large, limit
+				srcRect.y = 0;
+				srcRect.height = imageHeight;
+			} else {
+				srcRect.height = (int) Math.ceil(new_height / mag);
+				if (srcRect.y + srcRect.height > imageHeight) {
+					srcRect.y = imageHeight - srcRect.height;
+				}
+			}
+		} else {
+			// shrink
+			srcRect.height = (int) Math.ceil(new_height / mag);
+		}
 	}
 
 	private void zoomIn2(int x, int y) {

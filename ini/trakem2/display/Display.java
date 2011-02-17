@@ -130,8 +130,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private JScrollBar scroller;
 
 	private DisplayCanvas canvas; // WARNING this is an AWT component, since it extends ImageCanvas
-	private JPanel canvas_panel; // and this is a workaround, to better (perhaps) integrate the awt canvas inside a JSplitPane
-	private JSplitPane split;
+	private JPanel all;
 
 	private JPopupMenu popup = null;
 	
@@ -145,8 +144,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Handle drop events, to insert image files. */
 	private DNDInsertImage dnd;
-
-	private boolean size_adjusted = false;
 
 	private int scroll_step = 1;
 
@@ -225,6 +222,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return al_displays.size();
 	}
 
+	/*
 	static private MouseListener frame_mouse_listener = new MouseAdapter() {
 		public void mouseReleased(MouseEvent me) {
 			Object source = me.getSource();
@@ -240,39 +238,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		}
 	};
+	*/
 
-	private int last_frame_state = Frame.NORMAL;
-
+	private ComponentListener canvas_size_listener = new ComponentAdapter() {
+		public void componentResized(ComponentEvent ce) {
+			canvas.adjustDimensions();
+			canvas.repaint(true);
+			navigator.repaint(false); // update srcRect red frame position/size
+		}
+	};
+	
 	// THIS WHOLE SYSTEM OF LISTENERS IS BROKEN:
 	// * when zooming in, the window growths in width a few pixels.
 	// * when enlarging the window quickly, the canvas is not resized as large as it should.
 	// -- the whole problem: swing threading, which I am not handling properly. It's hard.
-	static private ComponentListener component_listener = new ComponentAdapter() {
-		public void componentResized(ComponentEvent ce) {
-			final Display d = getDisplaySource(ce);
-			if (null != d) {
-				d.size_adjusted = true; // works in combination with mouseReleased to call pack(), avoiding infinite loops.
-				d.adjustCanvas();
-				d.navigator.repaint(false); // upate srcRect red frame position/size
-				int frame_state = d.frame.getExtendedState();
-				if (frame_state != d.last_frame_state) { // this setup avoids infinite loops (for pack() calls componentResized as well
-					d.last_frame_state = frame_state;
-					if (Frame.ICONIFIED != frame_state) d.pack();
-				}
-			}
-		}
+	private ComponentListener display_frame_listener = new ComponentAdapter() {
 		public void componentMoved(ComponentEvent ce) {
-			Display d = getDisplaySource(ce);
-			if (null != d) d.updateInDatabase("position");
-		}
-		private Display getDisplaySource(ComponentEvent ce) {
-			final Object source = ce.getSource();
-			for (final Display d : al_displays) {
-				if (source == d.frame) {
-					return d;
-				}
-			}
-			return null;
+			updateInDatabase("position");
 		}
 	};
 
@@ -826,46 +808,77 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		updateLayerScroller(layer);
 		this.scroller.addAdjustmentListener(scroller_listener);
 
-		// Toolbar
-		// Left panel, contains the transp slider, the tabbed pane, the navigation panel and the layer scroller
-		JPanel left = new JPanel();
-		left.setBackground(Color.white);
-		BoxLayout left_layout = new BoxLayout(left, BoxLayout.Y_AXIS);
-		left.setLayout(left_layout);
-		toolbar_panel = new ToolbarPanel();
-		left.add(toolbar_panel);
-		left.add(transp_slider);
-		left.add(tabs);
-		left.add(navigator);
-		left.add(scroller);
+		// LAYOUT
+		final GridBagLayout layout = new GridBagLayout();
+		final GridBagConstraints c = new GridBagConstraints();
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.fill = GridBagConstraints.NONE;
+		c.weightx = 0;
+		c.weighty = 0;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.ipadx = 0;
+		c.ipady = 0;
+		c.gridwidth = 1;
+		c.gridheight = 1;
+		
+		this.all = new JPanel();
+		all.setBackground(Color.white);
+		all.setLayout(layout);
+
+		c.insets = new Insets(0, 0, 0, 5);
+		
+		// 1
+		toolbar_panel = new ToolbarPanel(); // fixed dimensions
+		layout.setConstraints(toolbar_panel, c);
+		all.add(toolbar_panel);
+	
+		// 2
+		c.gridy++;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		layout.setConstraints(transp_slider, c);
+		all.add(transp_slider);
+		
+		// 3
+		c.gridy++;
+		c.weighty = 1;
+		c.fill = GridBagConstraints.BOTH;
+		layout.setConstraints(tabs, c);
+		all.add(tabs);
+		
+		// 4
+		c.gridy++;
+		c.weighty = 0;
+		c.fill = GridBagConstraints.NONE;
+		layout.setConstraints(navigator, c);
+		all.add(navigator);
+		
+		// 5
+		c.gridy++;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		layout.setConstraints(scroller, c);
+		all.add(scroller);
 
 		// Canvas
 		this.canvas = new DisplayCanvas(this, (int)Math.ceil(layer.getLayerWidth()), (int)Math.ceil(layer.getLayerHeight()));
-		this.canvas_panel = new JPanel();
-		GridBagLayout gb = new GridBagLayout();
-		this.canvas_panel.setLayout(gb);
-		GridBagConstraints c = new GridBagConstraints();
+
+		c.insets = new Insets(0, 0, 0, 0);
 		c.fill = GridBagConstraints.BOTH;
 		c.anchor = GridBagConstraints.NORTHWEST;
-		gb.setConstraints(this.canvas_panel, c);
-		gb.setConstraints(this.canvas, c);
-
+		c.gridx = 1;
+		c.gridy = 0;
+		c.gridheight = GridBagConstraints.REMAINDER;
+		c.weightx = 1;
+		c.weighty = 1;
+		layout.setConstraints(this.canvas, c);
+		all.add(canvas);
+		
 		// prevent new Displays from screwing up if input is globally disabled
 		if (!project.isInputEnabled()) this.canvas.setReceivesInput(false);
 
-		this.canvas_panel.add(canvas);
-
+		this.canvas.addComponentListener(canvas_size_listener);
 		this.navigator.addMouseWheelListener(canvas);
-
 		this.transp_slider.addKeyListener(canvas);
-
-		// Split pane to contain everything
-		this.split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, left, canvas_panel);
-		this.split.setOneTouchExpandable(true); // NOT present in all L&F (?)
-		this.split.setBackground(Color.white);
-
-		// fix
-		gb.setConstraints(split.getRightComponent(), c);
 
 		// JFrame to show the split pane
 		this.frame = ControlWindow.createJFrame(layer.toString());
@@ -876,9 +889,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			this.frame.setMenuBar(ij.Menus.getMenuBar());
 		}
 		this.frame.addWindowListener(window_listener);
-		this.frame.addComponentListener(component_listener);
-		this.frame.getContentPane().add(split);
-		this.frame.addMouseListener(frame_mouse_listener);
+		this.frame.addComponentListener(display_frame_listener);
+		this.frame.getContentPane().add(all);
+		//this.frame.addMouseListener(frame_mouse_listener);
 
 		if (null != props) {
 			// restore canvas
@@ -916,7 +929,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 		// add keyListener to the whole frame
 		this.tabs.addKeyListener(canvas);
-		this.canvas_panel.addKeyListener(canvas);
 		this.frame.addKeyListener(canvas);
 
 		this.frame.pack();
@@ -1161,10 +1173,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gb.setConstraints(sp, c);
 		p.add(sp);
 		return p;
-	}
-
-	public JPanel getCanvasPanel() {
-		return canvas_panel;
 	}
 
 	public DisplayCanvas getCanvas() {
@@ -1455,13 +1463,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 		}
 
-		frame.removeComponentListener(component_listener);
+		//frame.removeComponentListener(component_listener);
 		frame.removeWindowListener(window_listener);
 		frame.removeWindowFocusListener(window_listener);
 		frame.removeWindowStateListener(window_listener);
 		frame.removeKeyListener(canvas);
-		frame.removeMouseListener(frame_mouse_listener);
-		canvas_panel.removeKeyListener(canvas);
+		//frame.removeMouseListener(frame_mouse_listener);
 		canvas.removeKeyListener(canvas);
 		tabs.removeChangeListener(tabs_listener);
 		tabs.removeKeyListener(canvas);
@@ -1600,18 +1607,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		for (final Display d : al_displays) {
 			if (d.layer.getParent() == ls) d.pack();
 		}
-	}
-
-	private void adjustCanvas() {
-		Utils.invokeLater(new Runnable() { public void run() {
-			Rectangle r = split.getRightComponent().getBounds();
-			canvas.setDrawingSize(r.width, r.height, true);
-			// fix not-on-top-left problem
-			canvas.setLocation(0, 0);
-			//frame.pack(); // don't! Would go into an infinite loop
-			canvas.repaint(true);
-			updateInDatabase("srcRect");
-		}});
 	}
 
 	/** Grab the last selected display (or create an new one if none) and show in it the layer,centered on the Displayable object. */
