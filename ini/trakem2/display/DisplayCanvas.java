@@ -1925,6 +1925,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						if (Math.abs(active.getAlpha() - 0.5f) > 0.001f) active.setAlpha(0.5f);
 						else active.setAlpha(1.0f);
 						display.setTransparencySlider(active.getAlpha());
+						Display.repaint();
 						ke.consume();
 					}
 				} else {
