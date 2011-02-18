@@ -242,9 +242,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private ComponentListener canvas_size_listener = new ComponentAdapter() {
 		public void componentResized(ComponentEvent ce) {
-			canvas.adjustDimensions();
-			canvas.repaint(true);
-			navigator.repaint(false); // update srcRect red frame position/size
+			DisplayCanvas c = (DisplayCanvas) ce.getSource();
+			c.adjustDimensions();
+			c.repaint(true);
+			if (c == canvas) navigator.repaint(false); // update srcRect red frame position/size
 		}
 	};
 	
@@ -2946,6 +2947,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show layers as orthoslices in 3D"); item.addActionListener(this); menu.add(item);
+		//item = new JMenuItem("Split canvas vertically"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -4485,6 +4487,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final boolean invert = gd.getNextBoolean();
 			final LayerStack stack = new LayerStack(layers, new Rectangle(x, y, width, height), scale, type, Patch.class, max_dim, invert);
 			Display3D.showOrthoslices(stack.getImagePlus(), "LayerSet [" + x + "," + y + "," + width + "," + height + "] " + first + "--" + last, x, y, scale, layers.get(0));
+		//} else if (command.equals("Split canvas vertically")) {
+		//	splitCanvasVertically();
 		} else if (command.equals("Align stack slices")) {
 			if (getActive() instanceof Patch) {
 				final Patch slice = (Patch)getActive();
@@ -5307,6 +5311,58 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 		}});
 	}
+
+	/*// DOESN'T WORK: would need separate listeners and separate Selection, or disable selection altogether.
+	private void splitCanvasVertically() {
+		Utils.invokeLater(new Runnable() { public void run() {
+		// Find the deepest component that it's not a Container
+		Point absp = MouseInfo.getPointerInfo().getLocation();
+		Component c = Display.this.all;
+		do {
+			Point p = new Point(absp);
+			SwingUtilities.convertPointFromScreen(p, c);
+			c = c.getComponentAt(p);
+		} while (c instanceof Container);
+		
+		Utils.log2("Found c: " + c);
+		
+		Container parent = c.getParent(); // before it will change
+		
+		Rectangle b = c.getBounds();
+		DisplayCanvas newCanvas = new DisplayCanvas(Display.this, b.width/2, b.height);
+		newCanvas.setMagnification(Display.this.canvas.getMagnification());
+		Rectangle r = Display.this.canvas.getSrcRect();
+		newCanvas.setSrcRect(r.x, r.y, r.width, r.height);
+		newCanvas.addComponentListener(canvas_size_listener);
+		newCanvas.setPreferredSize(new Dimension(b.width/2, b.height));
+		JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, c, newCanvas);
+		split.setDividerLocation(0.5);
+		
+		if (parent == Display.this.all) {
+			GridBagLayout gb = (GridBagLayout) parent.getLayout();
+			GridBagConstraints gbc = new GridBagConstraints();
+			gbc.anchor = GridBagConstraints.NORTHWEST;
+			gbc.fill = GridBagConstraints.BOTH;
+			gbc.gridwidth = 1;
+			gbc.gridheight = 5;
+			gbc.weightx = 1;
+			gbc.weighty = 1;
+			gb.setConstraints(split, gbc);
+			parent.remove(c);
+			parent.add(split);
+		} else if (parent instanceof JSplitPane) {
+			JSplitPane sp = (JSplitPane) parent;
+			if (sp.getRightComponent() == c) {
+				sp.setRightComponent(split);
+			} else {
+				sp.setLeftComponent(split);
+			}
+		}
+		
+		Display.this.frame.pack();
+		}});
+	}
+	*/
 
 	public void adjustProperties() {
 		GenericDialog gd = new GenericDialog("Properties", Display.this.frame);
