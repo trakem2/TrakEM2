@@ -808,70 +808,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		updateLayerScroller(layer);
 		this.scroller.addAdjustmentListener(scroller_listener);
 
-		// LAYOUT
-		final GridBagLayout layout = new GridBagLayout();
-		final GridBagConstraints c = new GridBagConstraints();
-		c.anchor = GridBagConstraints.NORTHWEST;
-		c.fill = GridBagConstraints.NONE;
-		c.weightx = 0;
-		c.weighty = 0;
-		c.gridx = 0;
-		c.gridy = 0;
-		c.ipadx = 0;
-		c.ipady = 0;
-		c.gridwidth = 1;
-		c.gridheight = 1;
-		
-		this.all = new JPanel();
-		all.setBackground(Color.white);
-		all.setLayout(layout);
-
-		c.insets = new Insets(0, 0, 0, 5);
-		
-		// 1
-		toolbar_panel = new ToolbarPanel(); // fixed dimensions
-		layout.setConstraints(toolbar_panel, c);
-		all.add(toolbar_panel);
-	
-		// 2
-		c.gridy++;
-		c.fill = GridBagConstraints.HORIZONTAL;
-		layout.setConstraints(transp_slider, c);
-		all.add(transp_slider);
-		
-		// 3
-		c.gridy++;
-		c.weighty = 1;
-		c.fill = GridBagConstraints.BOTH;
-		layout.setConstraints(tabs, c);
-		all.add(tabs);
-		
-		// 4
-		c.gridy++;
-		c.weighty = 0;
-		c.fill = GridBagConstraints.NONE;
-		layout.setConstraints(navigator, c);
-		all.add(navigator);
-		
-		// 5
-		c.gridy++;
-		c.fill = GridBagConstraints.HORIZONTAL;
-		layout.setConstraints(scroller, c);
-		all.add(scroller);
 
 		// Canvas
 		this.canvas = new DisplayCanvas(this, (int)Math.ceil(layer.getLayerWidth()), (int)Math.ceil(layer.getLayerHeight()));
 
-		c.insets = new Insets(0, 0, 0, 0);
-		c.fill = GridBagConstraints.BOTH;
-		c.anchor = GridBagConstraints.NORTHWEST;
-		c.gridx = 1;
-		c.gridy = 0;
-		c.gridheight = GridBagConstraints.REMAINDER;
-		c.weightx = 1;
-		c.weighty = 1;
-		layout.setConstraints(this.canvas, c);
-		all.add(canvas);
+		populateFrame();
 		
 		// prevent new Displays from screwing up if input is globally disabled
 		if (!project.isInputEnabled()) this.canvas.setReceivesInput(false);
@@ -1003,6 +944,72 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				ControlWindow.setLookAndFeel();
 			}
 		});
+	}
+
+	/** Add all components to the "all" JPanel with a GridBagLayout. */
+	private void populateFrame() {
+		// LAYOUT
+		final GridBagLayout layout = new GridBagLayout();
+		final GridBagConstraints c = new GridBagConstraints();
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.fill = GridBagConstraints.NONE;
+		c.weightx = 0;
+		c.weighty = 0;
+		c.gridx = 0;
+		c.gridy = 0;
+		c.ipadx = 0;
+		c.ipady = 0;
+		c.gridwidth = 1;
+		c.gridheight = 1;
+		
+		this.all = new JPanel();
+		all.setBackground(Color.white);
+		all.setLayout(layout);
+
+		c.insets = new Insets(0, 0, 0, 5);
+		
+		// 1
+		toolbar_panel = new ToolbarPanel(); // fixed dimensions
+		layout.setConstraints(toolbar_panel, c);
+		all.add(toolbar_panel);
+	
+		// 2
+		c.gridy++;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		layout.setConstraints(transp_slider, c);
+		all.add(transp_slider);
+		
+		// 3
+		c.gridy++;
+		c.weighty = 1;
+		c.fill = GridBagConstraints.BOTH;
+		layout.setConstraints(tabs, c);
+		all.add(tabs);
+		
+		// 4
+		c.gridy++;
+		c.weighty = 0;
+		c.fill = GridBagConstraints.NONE;
+		layout.setConstraints(navigator, c);
+		all.add(navigator);
+		
+		// 5
+		c.gridy++;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		layout.setConstraints(scroller, c);
+		all.add(scroller);
+
+		// Next column: the canvas
+		c.insets = new Insets(0, 0, 0, 0);
+		c.fill = GridBagConstraints.BOTH;
+		c.anchor = GridBagConstraints.NORTHWEST;
+		c.gridx = 1;
+		c.gridy = 0;
+		c.gridheight = GridBagConstraints.REMAINDER;
+		c.weightx = 1;
+		c.weighty = 1;
+		layout.setConstraints(this.canvas, c);
+		all.add(canvas);
 	}
 
 	static public void repaintToolbar() {
