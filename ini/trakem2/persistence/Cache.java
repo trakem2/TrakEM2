@@ -117,18 +117,18 @@ public class Cache {
 	}
 
 	private final class ImagePlusUsers {
-		final Set<Pyramid> users = new HashSet<Pyramid>();
+		final Set<Long> users = new HashSet<Long>();
 		final ImagePlus imp;
-		ImagePlusUsers(final ImagePlus imp, final Pyramid firstUser) {
+		ImagePlusUsers(final ImagePlus imp, final Long firstUser) {
 			this.imp = imp;
 			users.add(firstUser);
 		}
-		final void addUser(final Pyramid p) {
-			users.add(p);
+		final void addUser(final Long id) {
+			users.add(id);
 		}
 		/** When the number of users is zero, it removes itself from imps. */
-		final void removeUser(final Pyramid p) {
-			users.remove(p);
+		final void removeUser(final Long id) {
+			users.remove(id);
 			if (users.isEmpty()) imps.remove(getPath(imp));
 		}
 	}
@@ -255,6 +255,13 @@ public class Cache {
 		return null == u ? null : u.imp;
 	}
 	
+	public final ImagePlus getAndAddUser(final String path, final long id) {
+		final ImagePlusUsers u = imps.get(path);
+		if (null == u) return null;
+		u.addUser(id);
+		return u.imp;
+	}
+	
 	public final ImagePlus get(final long id) {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return null;
@@ -365,6 +372,12 @@ public class Cache {
 		}
 	}
 	
+	public final void updateImagePlusPath(final String oldPath, final String newPath) {
+		final ImagePlusUsers u = imps.remove(oldPath);
+		if (null == u) return;
+		imps.put(newPath, u);
+	}
+	
 	/** Returns null if the ImagePlus was preprocessed. */
 	static public final String getPath(final ImagePlus imp) {
 		final FileInfo fi = imp.getOriginalFileInfo();
@@ -373,7 +386,7 @@ public class Cache {
 		if (null == dir) {
 			return fi.url;
 		}
-		return dir + "/" + fi.fileName;
+		return dir + fi.fileName;
 	}
 	
 	/** @param maxdim is max(width, height) of the Patch wrapping @param imp;
@@ -389,9 +402,9 @@ public class Cache {
 			final ImagePlusUsers u = imps.get(path); // u is null if path is null
 			if (null == u) {
 				fit(Cache.size(imp)); // AFTER adding it to the pyramids
-				if (null != path) imps.put(path, new ImagePlusUsers(imp, p));
+				if (null != path) imps.put(path, new ImagePlusUsers(imp, id));
 			} else {
-				u.addUser(p);
+				u.addUser(id);
 			}
 			//
 			count++;
@@ -401,13 +414,17 @@ public class Cache {
 			else if (imp != p.imp) {
 				// Remove from old
 				final ImagePlusUsers u1 = imps.get(getPath(p.imp));
-				u1.removeUser(p);
+				u1.removeUser(id);
 				// Add to new, which may have to be created
 				final String path = getPath(imp);
 				final ImagePlusUsers u2 = imps.get(path);
 				if (null == u2) {
-					if (null != path) imps.put(path, new ImagePlusUsers(imp, p));
-				} else u2.addUser(p);
+					if (null != path) {
+						imps.put(path, new ImagePlusUsers(imp, id));
+					}
+				} else {
+					u2.addUser(id);
+				}
 			}
 			fit(p.replace(imp));
 		}
@@ -442,7 +459,7 @@ public class Cache {
 		final ImagePlus imp = p.imp;
 		//
 		final ImagePlusUsers u = imps.get(p);
-		u.removeUser(p);
+		u.removeUser(p.id);
 		if (u.users.isEmpty()) {
 			addBytes(p.replace(null));
 		}

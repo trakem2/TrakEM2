@@ -528,10 +528,17 @@ public final class FSLoader extends Loader {
 			}
 		}
 
-
 		synchronized (plock) {
-			imp = mawts.get(path); // could have been loaded by a different Patch that uses the same path,
-								   // such as other slices of a stack or duplicated images.
+			imp = mawts.get(p.getId());
+			if (null == imp) {
+				// Try shared ImagePlus cache
+				imp = mawts.get(path); // could have been loaded by a different Patch that uses the same path,
+				// such as other slices of a stack or duplicated images.
+				if (null != imp) {
+					mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
+				}
+				Utils.log2("found cached imp: " + imp + " for path: " + path);
+			}
 			if (null != imp) {
 				// was loaded by a different thread
 				switch (format) {
@@ -546,7 +553,6 @@ public final class FSLoader extends Loader {
 			}
 
 			// going to load:
-
 
 			// reserve memory:
 			n_bytes = estimateImageFileSize(p, 0);
@@ -568,26 +574,7 @@ public final class FSLoader extends Loader {
 						removeImageLoadingLock(plock);
 						return null;
 					}
-					// update all clients of the stack, if any
 					if (null != slice) {
-						String rel_path = getPath(p); // possibly relative
-						final int r_isl = rel_path.lastIndexOf("-----#slice");
-						if (-1 != r_isl) rel_path = rel_path.substring(0, r_isl); // should always happen
-						for (Iterator<Map.Entry<Long,String>> it = ht_paths.entrySet().iterator(); it.hasNext(); ) {
-							final Map.Entry<Long,String> entry = it.next();
-							final String str = entry.getValue(); // this is like calling getPath(p)
-							//Utils.log2("processing " + str);
-							if (0 != str.indexOf(rel_path)) {
-								//Utils.log2("SKIP str is: " + str + "\t but path is: " + rel_path);
-								continue; // get only those whose path is identical, of course!
-							}
-							final int isl = str.lastIndexOf("-----#slice=");
-							if (-1 != isl) {
-								//int i_slice = Integer.parseInt(str.substring(isl + 12));
-								final long lid = entry.getKey();
-								mawts.put(lid, imp, (int)Math.max(p.getWidth(), p.getHeight()));
-							}
-						}
 						// set proper active slice
 						final int ia = Integer.parseInt(slice.substring(12));
 						imp.setSlice(ia);
@@ -596,9 +583,9 @@ public final class FSLoader extends Loader {
 						// for non-stack images
 						// OBSOLETE and wrong //p.putMinAndMax(imp); // non-destructive contrast: min and max -- WRONG, it's destructive for ColorProcessor and ByteProcessor!
 							// puts the Patch min and max values into the ImagePlus processor.
-						mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
 					}
+					mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
 					// imp is cached, so:
 					removeImageLoadingLock(plock);
 
@@ -889,23 +876,26 @@ public final class FSLoader extends Loader {
 	}
 
 	/** For the Patch and for any associated slices if the patch is part of a stack. */
-	private void updatePaths(final Patch patch, final String path, final boolean is_stack) {
+	private void updatePaths(final Patch patch, final String new_path, final boolean is_stack) {
 		synchronized (db_lock) {
 			try {
 				// ensure the old path is cached in the Patch, to get set as the original if there is no original.
+				String old_path = getAbsolutePath(patch);
 				if (is_stack) {
+					old_path = old_path.substring(0, old_path.lastIndexOf("-----#slice"));
 					for (Patch p : patch.getStackPatches()) {
 						long pid = p.getId();
 						String str = ht_paths.get(pid);
 						int isl = str.lastIndexOf("-----#slice=");
-						updatePatchPath(p, path + str.substring(isl));
+						updatePatchPath(p, new_path + str.substring(isl));
 					}
 				} else {
-					Utils.log2("path to set: " + path);
+					Utils.log2("path to set: " + new_path);
 					Utils.log2("path before: " + ht_paths.get(patch.getId()));
-					updatePatchPath(patch, path);
+					updatePatchPath(patch, new_path);
 					Utils.log2("path after: " + ht_paths.get(patch.getId()));
 				}
+				mawts.updateImagePlusPath(old_path, new_path);
 			} catch (Throwable e) {
 				IJError.print(e);
 			}
