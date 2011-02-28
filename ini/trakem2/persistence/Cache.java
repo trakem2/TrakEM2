@@ -255,13 +255,6 @@ public class Cache {
 		return null == u ? null : u.imp;
 	}
 	
-	public final ImagePlus getAndAddUser(final String path, final long id) {
-		final ImagePlusUsers u = imps.get(path);
-		if (null == u) return null;
-		u.addUser(id);
-		return u.imp;
-	}
-	
 	public final ImagePlus get(final long id) {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return null;
