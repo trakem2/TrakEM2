@@ -1743,10 +1743,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			}
 			vs.addDependent(p_width_i);
 			// Resample to the largest of the two:
-			double avg_delta = vs.getAverageDelta();
-			double unit = null != cal ? 1 / cal.pixelWidth : 1;
-			double delta = Math.max(avg_delta, unit) * resample;
-			if (delta > avg_delta * 10) delta = avg_delta * 10;
+			double avg_delta = vs.getAverageDelta(); // calibrated
+			double delta = Math.max(avg_delta, 1); // can't use resample, pipes would look very segmented
 			vs.resample(delta);
 			//vs.resample(vs.getAverageDelta() * resample);
 
