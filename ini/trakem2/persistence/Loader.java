@@ -885,7 +885,9 @@ abstract public class Loader {
 	private final Map<String,ImageLoadingLock> ht_plocks = new HashMap<String,ImageLoadingLock>();
 
 	protected final ImageLoadingLock getOrMakeImageLoadingLock(final long id, final int level) {
-		final String key = new StringBuilder().append(id).append('.').append(level).toString();
+		return getOrMakeImageLoadingLock(new StringBuilder().append(id).append('.').append(level).toString());
+	}
+	protected final ImageLoadingLock getOrMakeImageLoadingLock(final String key) {
 		ImageLoadingLock plock = ht_plocks.get(key);
 		if (null != plock) return plock;
 		plock = new ImageLoadingLock(key);
@@ -3776,6 +3778,9 @@ while (it.hasNext()) {
 			ini.trakem2.scripting.PatchScript.run(p, imp, path);
 			// Update Patch image properties:
 			if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
+				// Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
+				imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;
+				//
 				cache(p, imp);
 				p.updatePixelProperties(imp);
 			} else {
@@ -3789,6 +3794,8 @@ while (it.hasNext()) {
 			IJError.print(e);
 		}
 	}
+	
+	static public final int PREPROCESSED = -999999;
 
 	///////////////////////
 

@@ -522,7 +522,7 @@ public final class FSLoader extends Loader {
 					path = path.substring(0, i_sl);
 				}
 
-				plock = getOrMakeImageLoadingLock(p.getId(), 0);
+				plock = getOrMakeImageLoadingLock(path);
 			} catch (Throwable t) {
 				handleCacheError(t);
 				return null;
@@ -531,9 +531,10 @@ public final class FSLoader extends Loader {
 
 
 		synchronized (plock) {
-			imp = mawts.get(p.getId());
+			imp = mawts.get(path); // could have been loaded by a different Patch that uses the same path,
+								   // such as other slices of a stack or duplicated images.
 			if (null != imp) {
-				// was loaded by a different thread -- TODO the slice of the stack could be wrong!
+				// was loaded by a different thread
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						return imp.getProcessor();

@@ -1,13 +1,16 @@
 package ini.trakem2.persistence;
 
 import ij.ImagePlus;
+import ij.io.FileInfo;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Image;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /** Access is not synchronized, that is your duty.
@@ -15,7 +18,7 @@ import java.util.TreeMap;
  *  The current setup depends on calls to removeAndFlushSome to clean up empty slots;
  *  otherwise these slots are never cleaned up to avoid O(n) overhead (worst case)
  *  when removing a Pyramid for a given id, or O(1) cost of checking whether the first interval
- *  is empty and removing it. Granted, the latter could be done in all calls to @method append,
+ *  is empty and removing it. Granted, the latter could be done in all calls to {@method append},
  *  but in the current setup this overhead is just not necessary.
  *  
  *  This Cache self-regulates the size to stay always at or below max_bytes.
@@ -112,6 +115,26 @@ public class Cache {
 			}
 		}
 	}
+
+	private final class ImagePlusUsers {
+		final Set<Pyramid> users = new HashSet<Pyramid>();
+		final ImagePlus imp;
+		ImagePlusUsers(final ImagePlus imp, final Pyramid firstUser) {
+			this.imp = imp;
+			users.add(firstUser);
+		}
+		final void addUser(final Pyramid p) {
+			users.add(p);
+		}
+		/** When the number of users is zero, it removes itself from imps. */
+		final void removeUser(final Pyramid p) {
+			users.remove(p);
+			if (users.isEmpty()) imps.remove(getPath(imp));
+		}
+	}
+	
+	/** Keep a table of loaded ImagePlus. */
+	private final HashMap<String,ImagePlusUsers> imps = new HashMap<String,ImagePlusUsers>();
 	
 	static private final int[] PIXEL_SIZE = new int[]{1, 2, 4, 1, 4}; // GRAY0, GRAY16, GRAY32, COLOR_256 and COLOR_RGB
 	static private final int OVERHEAD = 1024; // in bytes: what a LUT would take (256 * 3) plus some extra
@@ -226,6 +249,11 @@ public class Cache {
 		
 		return p.images[level];
 	}
+
+	public final ImagePlus get(final String path) {
+		final ImagePlusUsers u = imps.get(path);
+		return null == u ? null : u.imp;
+	}
 	
 	public final ImagePlus get(final long id) {
 		final Pyramid p = pyramids.get(id);
@@ -284,6 +312,7 @@ public class Cache {
 		bytes = 0;
 		last_interval = new HashMap<Long, Pyramid>(MAX_INTERVAL_SIZE);
 		intervals.add(last_interval);
+		imps.clear();
 	}
 	
 	private final void update(final Pyramid p) {
@@ -336,6 +365,17 @@ public class Cache {
 		}
 	}
 	
+	/** Returns null if the ImagePlus was preprocessed. */
+	static public final String getPath(final ImagePlus imp) {
+		final FileInfo fi = imp.getOriginalFileInfo();
+		if (Loader.PREPROCESSED == fi.fileFormat) return null;
+		final String dir = fi.directory;
+		if (null == dir) {
+			return fi.url;
+		}
+		return dir + "/" + fi.fileName;
+	}
+	
 	/** @param maxdim is max(width, height) of the Patch wrapping @param imp;
 	 *  that is, the dimensions of the mipmap image. */
 	public final void put(final long id, final ImagePlus imp, final int maxdim) {
@@ -344,11 +384,31 @@ public class Cache {
 			p = new Pyramid(id, imp, maxdim);
 			pyramids.put(id, p);
 			append(p);
-			fit(Cache.size(imp)); // AFTER adding it
+			//
+			final String path = getPath(imp); // may be null, in which case it is not stored in imps
+			final ImagePlusUsers u = imps.get(path); // u is null if path is null
+			if (null == u) {
+				fit(Cache.size(imp)); // AFTER adding it to the pyramids
+				if (null != path) imps.put(path, new ImagePlusUsers(imp, p));
+			} else {
+				u.addUser(p);
+			}
+			//
 			count++;
 		} else {
 			update(p);
 			if (null == p.imp) count++;
+			else if (imp != p.imp) {
+				// Remove from old
+				final ImagePlusUsers u1 = imps.get(getPath(p.imp));
+				u1.removeUser(p);
+				// Add to new, which may have to be created
+				final String path = getPath(imp);
+				final ImagePlusUsers u2 = imps.get(path);
+				if (null == u2) {
+					if (null != path) imps.put(path, new ImagePlusUsers(imp, p));
+				} else u2.addUser(p);
+			}
 			fit(p.replace(imp));
 		}
 	}
@@ -374,14 +434,23 @@ public class Cache {
 	
 	/** Remove only the ImagePlus, if there. */
 	public final ImagePlus removeImagePlus(final long id) {
-		final Pyramid p = pyramids.get(id);
+		return removeImagePlus(pyramids.get(id));
+	}
+	
+	private final ImagePlus removeImagePlus(final Pyramid p) {
 		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
-		addBytes(p.replace(null));
+		//
+		final ImagePlusUsers u = imps.get(p);
+		u.removeUser(p);
+		if (u.users.isEmpty()) {
+			addBytes(p.replace(null));
+		}
+		//
 		count--;
 		if (0 == p.n_images) {
-			p.interval.remove(id);
-			pyramids.remove(id);
+			p.interval.remove(p.id);
+			pyramids.remove(p.id);
 		}
 		return imp;
 	}
@@ -390,8 +459,7 @@ public class Cache {
 		final Pyramid p = pyramids.remove(id);
 		if (null == p) return;
 		if (null != p.imp) {
-			addBytes(p.replace(null)); // the imp may need cleanup
-			count--;
+			removeImagePlus(p);
 		}
 		count -= p.n_images;
 		for (int i=0; i<p.images.length; i++) {
@@ -437,17 +505,24 @@ public class Cache {
 			for (final Iterator<Pyramid> it = interval.values().iterator(); it.hasNext(); ) {
 				final Pyramid p = it.next();
 				if (null != p.imp) {
-					final long s = p.replace(null); // the imp may need cleanup
-					size -= s;
-					addBytes(s);
-					count--;
-					if (size >= min_bytes) {
-						if (0 == p.n_images) {
-							pyramids.remove(p.id);
-							it.remove();
-							if (interval.isEmpty()) intervals.removeFirst();
+					final String path = getPath(p.imp);
+					final ImagePlusUsers u = imps.get(path);
+					if (1 == u.users.size()) {
+						//
+						imps.remove(path);
+						//
+						final long s = p.replace(null); // the imp may need cleanup
+						size -= s;
+						addBytes(s);
+						count--;
+						if (size >= min_bytes) {
+							if (0 == p.n_images) {
+								pyramids.remove(p.id);
+								it.remove();
+								if (interval.isEmpty()) intervals.removeFirst();
+							}
+							return size;
 						}
-						return size;
 					}
 				}
 				for (int i=0; i<p.images.length && p.n_images > 0; i++) {
@@ -480,19 +555,26 @@ public class Cache {
 			for (final Iterator<Pyramid> it = interval.values().iterator(); it.hasNext(); ) {
 				final Pyramid p = it.next();
 				if (null != p.imp) {
-					final long s = p.replace(null);
-					size -= s;
-					addBytes(s);
-					p.replace(null); // the imp may need cleanup
-					n--;
-					count--;
-					if (0 == n) {
-						if (0 == p.n_images) {
-							pyramids.remove(p.id);
-							it.remove();
-							if (interval.isEmpty()) intervals.removeFirst();
+					final String path = getPath(p.imp);
+					final ImagePlusUsers u = imps.get(path);
+					if (1 == u.users.size()) {
+						//
+						imps.remove(path);
+						//
+						final long s = p.replace(null);
+						size -= s;
+						addBytes(s);
+						p.replace(null); // the imp may need cleanup
+						n--;
+						count--;
+						if (0 == n) {
+							if (0 == p.n_images) {
+								pyramids.remove(p.id);
+								it.remove();
+								if (interval.isEmpty()) intervals.removeFirst();
+							}
+							return size;
 						}
-						return size;
 					}
 				}
 				for (int i=0; i<p.images.length; i++) {
@@ -541,6 +623,11 @@ public class Cache {
 				for (int k=0; k<levels.length; k++) levels[k] = null == p.images[k] ? 0 : 1;
 				Utils.log2("      levels: " + Utils.toString(levels));
 			}
+		}
+		Utils.log2("----");
+		for (Map.Entry<String,ImagePlusUsers> e : imps.entrySet()) {
+			ImagePlusUsers u = e.getValue();
+			Utils.log2(u.users.size() + " ImagePlusUsers of " + e.getKey());
 		}
 		Utils.log2("----");
 		// Analytics
