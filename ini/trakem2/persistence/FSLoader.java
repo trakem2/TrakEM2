@@ -477,7 +477,6 @@ public final class FSLoader extends Loader {
 				int i_sl = -1;
 				if (null != path) i_sl = path.lastIndexOf("-----#slice=");
 				if (-1 != i_sl) {
-					// activate proper slice
 					if (null != imp) {
 						// check that the stack is large enough (user may have changed it)
 						final int ia = Integer.parseInt(path.substring(i_sl + 12));

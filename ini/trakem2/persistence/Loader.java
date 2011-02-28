@@ -2784,7 +2784,6 @@ while (it.hasNext()) {
 
 		final String dir = target_dir;
 		final double max_scale = max_scale_;
-		final int jpeg_quality_int = FileSaver.getJpegQuality();
 		final float jpeg_quality = FileSaver.getJpegQuality() / 100.0f;
 		Utils.log("Using jpeg quality: " + jpeg_quality);
 
