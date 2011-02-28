@@ -168,12 +168,14 @@ public class ControlWindow {
 				tabs = null;
 			}
 			if (null != frame) {
-				frame.setVisible(false);
-				frame.dispose();
+				final JFrame fr = frame;
+				SwingUtilities.invokeLater(new Runnable() { public void run() {
+					fr.setVisible(false);
+					fr.dispose();
+					if (null != ij.gui.Toolbar.getInstance()) ij.gui.Toolbar.getInstance().repaint();
+				}});
 				frame = null;
 				ProjectToolbar.destroy();
-				if (null != ij.gui.Toolbar.getInstance()) ij.gui.Toolbar.getInstance().repaint();
-				//ij.WindowManager.removeWindow(frame);
 			}
 			if (null != tool_listener && null != ij.gui.Toolbar.getInstance()) {
 				ij.gui.Toolbar.getInstance().removeMouseListener(tool_listener);
