@@ -507,7 +507,7 @@ public class Cache {
 				if (null != p.imp) {
 					final String path = getPath(p.imp);
 					final ImagePlusUsers u = imps.get(path);
-					if (1 == u.users.size()) {
+					if (null == path || 1 == u.users.size()) {
 						//
 						imps.remove(path);
 						//
@@ -557,7 +557,7 @@ public class Cache {
 				if (null != p.imp) {
 					final String path = getPath(p.imp);
 					final ImagePlusUsers u = imps.get(path);
-					if (1 == u.users.size()) {
+					if (null == path || 1 == u.users.size()) {
 						//
 						imps.remove(path);
 						//
