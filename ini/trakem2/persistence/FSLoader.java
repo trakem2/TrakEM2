@@ -543,9 +543,18 @@ public final class FSLoader extends Loader {
 				// was loaded by a different thread
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
-						return imp.getProcessor();
+						if (null != slice) {
+							return imp.getStack().getProcessor(Integer.parseInt(slice.substring(12)));
+						} else {
+							return imp.getProcessor();
+						}
 					case Layer.IMAGEPLUS:
-						return imp;
+						if (null != slice) {
+							imp.setSlice(Integer.parseInt(slice.substring(12)));
+							return imp;
+						} else {
+							return imp.getProcessor();
+						}
 					default:
 						Utils.log("FSLoader.fetchImage: Unknown format " + format);
 						return null;
