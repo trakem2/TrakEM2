@@ -79,14 +79,18 @@ final public class AlignLayersTask
 	static protected bunwarpj.Param elasticParam = new bunwarpj.Param();
 	
 	private AlignLayersTask(){}
-	
 	final static public Bureaucrat alignLayersTask ( final Layer l )
+	{
+		return alignLayersTask( l, null );
+	}
+	
+	final static public Bureaucrat alignLayersTask ( final Layer l, final Rectangle fov )
 	{
 		Worker worker = new Worker("Aligning layers", false, true) {
 			public void run() {
 				startedWorking();
 				try {
-					alignLayers(l);
+					alignLayers(l, fov);
 				} catch (Throwable e) {
 					IJError.print(e);
 				} finally {
@@ -97,8 +101,12 @@ final public class AlignLayersTask
 		return Bureaucrat.createAndStart(worker, l.getProject());
 	}
 	
-	
 	final static public void alignLayers( final Layer l )
+	{
+		alignLayers(l, null);
+	}
+	
+	final static public void alignLayers( final Layer l, final Rectangle fov )
 	{
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
@@ -168,24 +176,25 @@ final public class AlignLayersTask
 
 		// From ref to first:
 		if (ref - first > 0) {
-			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, first, propagateTransform);
-			else alignLayersLinearlyJob(l, ref, first, propagateTransform);
+			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, first, propagateTransform, fov);
+			else alignLayersLinearlyJob(l, ref, first, propagateTransform, fov);
 		}
 		// From ref to last:
 		if (last - ref > 0) {
-			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, last, propagateTransform);
-			else alignLayersLinearlyJob(l, ref, last, propagateTransform);
+			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, last, propagateTransform, fov);
+			else alignLayersLinearlyJob(l, ref, last, propagateTransform, fov);
 		}
 	}
 	
 	
-	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
+	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last,
+			final boolean propagateTransform, final Rectangle fov )
 	{
 		final List< Layer > layerRange = l.getParent().getLayers(first, last); // will reverse order if necessary
 		
 		final Align.Param p = Align.param.clone();
-		Rectangle box = null;
 		// find the first non-empty layer, and remove all empty layers
+		Rectangle box = fov;
 		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
 			Layer la = it.next();
 			if (!la.contains(Patch.class, true)) {
@@ -214,8 +223,8 @@ final public class AlignLayersTask
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 		final SIFT ijSIFT = new SIFT( sift );
 		
-		Rectangle box1 = null;
-		Rectangle box2 = null;
+		Rectangle box1 = fov;
+		Rectangle box2 = fov;
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
 		List< PointMatch > candidates = new ArrayList< PointMatch >();
@@ -238,8 +247,8 @@ final public class AlignLayersTask
 			
 			if ( box3 == null || ( box3.width == 0 && box3.height == 0 ) ) continue; // skipping empty layer
 			
-			box1 = box2;
-			box2 = box3;
+			box1 = null == fov ? box2 : fov;
+			box2 = null == fov ? box3 : fov;
 			
 			final ImageProcessor flatImage = layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
 
@@ -355,7 +364,8 @@ final public class AlignLayersTask
 		}
 	}
 	
-	final static public void alignLayersNonLinearlyJob( final Layer l, final int first, final int last, final boolean propagateTransform )
+	final static public void alignLayersNonLinearlyJob( final Layer l, final int first, final int last,
+			final boolean propagateTransform, final Rectangle fov )
 	{
 		final List< Layer > layerRange = l.getParent().getLayers(first, last); // will reverse order if necessary
 
@@ -409,8 +419,8 @@ final public class AlignLayersTask
 			features1.clear();
 			features2.clear();
 			
-			final Rectangle box1 = layer1.getMinimalBoundingBox( Patch.class, true );
-			final Rectangle box2 = layer2.getMinimalBoundingBox( Patch.class, true );
+			final Rectangle box1 = null == fov ? layer1.getMinimalBoundingBox( Patch.class, true ) : fov;
+			final Rectangle box2 = null == fov ? layer2.getMinimalBoundingBox( Patch.class, true ) : fov;
 			
 			/* calculate the common scale factor for both flat images */
 			final float scale = Math.min(  1.0f, ( float )p.sift.maxOctaveSize / ( float )Math.max( box1.width, Math.max( box1.height, Math.max( box2.width, box2.height ) ) ) );

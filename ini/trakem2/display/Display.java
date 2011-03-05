@@ -4506,9 +4506,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Align layers with manual landmarks")) {
 			setMode(new ManualAlignMode(Display.this));
 		} else if (command.equals("Align layers")) {
+			Roi roi = canvas.getFakeImagePlus().getRoi();
+			if (null != roi) {
+				YesNoCancelDialog yn = new YesNoCancelDialog(frame, "Use ROI?", "Snapshot layers using the ROI bounds?\n" + roi.getBounds());
+				if (yn.cancelPressed()) return;
+				if (!yn.yesPressed()) {
+					roi = null;
+				}
+			}
 			final Layer la = layer; // caching, since scroll wheel may change it
 			la.getParent().addTransformStep(la.getParent().getLayers());
-			Bureaucrat burro = AlignLayersTask.alignLayersTask( la );
+			Bureaucrat burro = AlignLayersTask.alignLayersTask( la, null == roi ? null : roi.getBounds() );
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().enlargeToFit(getLayerSet().getDisplayables(Patch.class));
 				la.getParent().addTransformStep(la.getParent().getLayers());
