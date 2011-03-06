@@ -863,6 +863,12 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		;
 	}
 
+	protected String getLayerThingTitle() {
+		LayerThing lt = project.findLayerThing(this);
+		if (null == lt || null == lt.getTitle() || 0 == lt.getTitle().trim().length()) return "";
+		return lt.getTitle();
+	}
+	
 	public String getTitle() {
 		LayerThing lt = project.findLayerThing(this);
 		if (null == lt || null == lt.getTitle() || 0 == lt.getTitle().trim().length()) return this.toString();

@@ -3803,8 +3803,19 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final double percent = magnification*100.0;
 			scale = new StringBuilder(" (").append(Utils.d2s(percent, percent==(int)percent ? 0 : 1)).append("%)").toString();
 		}
-		final Calibration cal = layer.getParent().getCalibration();
-		final String title = new StringBuilder().append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size()).append(' ').append((null == layer.getTitle() ? "" : layer.getTitle())).append(scale).append(" -- ").append(getProject().toString()).append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true)).append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true)).append(' ').append(cal.getUnit()).toString();
+		final LayerSet ls = layer.getParent();
+		final Calibration cal = ls.getCalibration();
+		final Layer last = ls.getLayer(ls.size()-1);
+		final double depth = (last.getZ() - ls.getLayer(0).getZ() + last.getThickness()) * cal.pixelWidth;
+		final String title = new StringBuilder()
+			.append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size())
+			.append(' ').append(layer.getLayerThingTitle())
+			.append(scale)
+			.append(" -- ").append(getProject().toString())
+			.append(' ').append(' ').append(Utils.cutNumber(layer.getParent().getLayerWidth() * cal.pixelWidth, 2, true))
+			.append('x').append(Utils.cutNumber(layer.getParent().getLayerHeight() * cal.pixelHeight, 2, true))
+			.append('x').append(Utils.cutNumber(depth, 2, true))
+			.append(' ').append(cal.getUnit()).toString();
 		Utils.invokeLater(new Runnable() { public void run() {
 			frame.setTitle(title);
 		}});
