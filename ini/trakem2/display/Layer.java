@@ -184,7 +184,14 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	public String toString() {
 		if (null == parent) return new StringBuilder("z=").append(Utils.cutNumber(z, 4)).toString();
 		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
-		return "z=" + Utils.cutNumber(z, 4);
+		//return "z=" + Utils.cutNumber(z, 4);
+		
+		final String unit = parent.getCalibration().getUnit();
+		if (unit.equals("pixel")) {
+			return "z=" + Utils.cutNumber(z, 4);
+		}
+		return "z=" + (z * parent.getCalibration().pixelWidth) + " " + unit
+			+ " (" + Utils.cutNumber(z, 4) + " px)";
 	}
 
 	/** Add a displayable and update all Display instances showing this Layer. */
