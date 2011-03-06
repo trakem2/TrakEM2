@@ -4869,6 +4869,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			try {
 				IJ.run(canvas.getFakeImagePlus(), "Properties...", "");
 				Display.updateTitle(getLayerSet());
+				project.getLayerTree().updateUILater(); // repaint layer names
 			} catch (RuntimeException re) {
 				Utils.log2("Calibration dialog canceled.");
 			}
