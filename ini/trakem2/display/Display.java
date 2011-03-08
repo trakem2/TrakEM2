@@ -118,8 +118,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private OptionPanel filter_options;
 	private JScrollPane scroll_filter_options;
 
-	static protected int scrollbar_width = 0;
-
 	private JEditorPane annot_editor;
 	private JLabel annot_label;
 	private JPanel annot_panel;
@@ -690,13 +688,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private void makeGUI(final Layer layer, final Object[] props) {
 		// gather properties
-		Point p = null;
+		final Point p;
 		double mag = 1.0D;
 		Rectangle srcRect = null;
 		if (null != props) {
 			p = (Point)props[0];
 			mag = ((Double)props[1]).doubleValue();
 			srcRect = (Rectangle)props[2];
+		} else {
+			p = null;
 		}
 
 		// transparency slider
@@ -742,9 +742,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.channels[2] = new Channel(this, Channel.GREEN);
 		this.channels[3] = new Channel(this, Channel.BLUE);
 		//this.panel_channels.add(this.channels[0]);
-		this.panel_channels.add(this.channels[1]);
-		this.panel_channels.add(this.channels[2]);
-		this.panel_channels.add(this.channels[3]);
+		addGBRow(this.panel_channels, this.channels[1], null);
+		addGBRow(this.panel_channels, this.channels[2], this.channels[1]);
+		addGBRow(this.panel_channels, this.channels[3], this.channels[2]);
 		this.addTab("Opacity", scroll_channels);
 
 		// Tab 5: labels
@@ -822,7 +822,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		c.gridwidth = 1;
 		c.gridheight = 1;
 		
-		this.all = new JPanel();
+		Display.this.all = new JPanel();
 		all.setBackground(Color.white);
 		all.setLayout(layout);
 
@@ -870,11 +870,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		c.gridheight = GridBagConstraints.REMAINDER;
 		c.weightx = 1;
 		c.weighty = 1;
-		layout.setConstraints(this.canvas, c);
+		layout.setConstraints(Display.this.canvas, c);
 		all.add(canvas);
 		
 		// prevent new Displays from screwing up if input is globally disabled
-		if (!project.isInputEnabled()) this.canvas.setReceivesInput(false);
+		if (!project.isInputEnabled()) Display.this.canvas.setReceivesInput(false);
 
 		this.canvas.addComponentListener(canvas_size_listener);
 		this.navigator.addMouseWheelListener(canvas);
@@ -891,7 +891,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.frame.addWindowListener(window_listener);
 		this.frame.addComponentListener(display_frame_listener);
 		this.frame.getContentPane().add(all);
-		//this.frame.addMouseListener(frame_mouse_listener);
+		//Display.this.frame.addMouseListener(frame_mouse_listener);
 
 		if (null != props) {
 			// restore canvas
@@ -904,13 +904,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			sel[2] = ((cs&0xff00)>>8);
 			sel[3] =  (cs&0xff);
 			// restore channel alphas
-			this.c_alphas = ((Integer)props[4]).intValue();
+			Display.this.c_alphas = ((Integer)props[4]).intValue();
 			channels[0].setAlpha( (float)((c_alphas&0xff000000)>>24) / 255.0f , 0 != sel[0]);
 			channels[1].setAlpha( (float)((c_alphas&0xff0000)>>16) / 255.0f ,   0 != sel[1]);
 			channels[2].setAlpha( (float)((c_alphas&0xff00)>>8) / 255.0f ,      0 != sel[2]);
 			channels[3].setAlpha( (float) (c_alphas&0xff) / 255.0f ,            0 != sel[3]);
 			// restore visibility in the working c_alphas
-			this.c_alphas = ((0 != sel[0] ? (int)(255 * channels[0].getAlpha()) : 0)<<24) + ((0 != sel[1] ? (int)(255 * channels[1].getAlpha()) : 0)<<16) + ((0 != sel[2] ? (int)(255 * channels[2].getAlpha()) : 0)<<8) + (0 != sel[3] ? (int)(255 * channels[3].getAlpha()) : 0);
+			Display.this.c_alphas = ((0 != sel[0] ? (int)(255 * channels[0].getAlpha()) : 0)<<24) + ((0 != sel[1] ? (int)(255 * channels[1].getAlpha()) : 0)<<16) + ((0 != sel[2] ? (int)(255 * channels[2].getAlpha()) : 0)<<8) + (0 != sel[3] ? (int)(255 * channels[3].getAlpha()) : 0);
 		}
 
 		if (null != active && null != layer) {
@@ -931,78 +931,74 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.tabs.addKeyListener(canvas);
 		this.frame.addKeyListener(canvas);
 
-		this.frame.pack();
-		ij.gui.GUI.center(this.frame);
-		this.frame.setVisible(true);
-		ProjectToolbar.setProjectToolbar(); // doesn't get it through events
-
-		final Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-
-		if (null != props) {
-			// fix positioning outside the screen (dual to single monitor)
-			if (p.x >= 0 && p.x < screen.width - 50 && p.y >= 0 && p.y <= screen.height - 50) this.frame.setLocation(p);
-			else frame.setLocation(0, 0);
-		}
-
-		// fix excessive size
-		final Rectangle box = this.frame.getBounds();
-		int x = box.x;
-		int y = box.y;
-		int width = box.width;
-		int height = box.height;
-		if (box.width > screen.width) { x = 0; width = screen.width; }
-		if (box.height > screen.height) { y = 0; height = screen.height; }
-		if (x != box.x || y != box.y) {
-			this.frame.setLocation(x, y + (0 == y ? 30 : 0)); // added insets for bad window managers
-			updateInDatabase("position");
-		}
-		if (width != box.width || height != box.height) {
-			this.frame.setSize(new Dimension(width -10, height -30)); // added insets for bad window managers
-		}
-		if (null == props) {
-			// try to optimize canvas dimensions and magn
-			double magn = layer.getLayerHeight() / screen.height;
-			if (magn > 1.0) magn = 1.0;
-			long size = 0;
-			// limit magnification if appropriate
-			for (final Displayable pa : layer.getDisplayables(Patch.class)) {
-				final Rectangle ba = pa.getBoundingBox();
-				size += (long)(ba.width * ba.height);
-			}
-			if (size > 10000000) canvas.setInitialMagnification(0.25); // 10 Mb
-			else {
-				this.frame.setSize(new Dimension((int)(screen.width * 0.66), (int)(screen.height * 0.66)));
-			}
-		}
-
-		Utils.invokeLater(new Runnable() { public void run() {
-			updateTab(panel_patches, layer.getDisplayables(Patch.class));
-			Utils.updateComponent(tabs); // otherwise fails in FreeBSD java 1.4.2 when reconstructing
-		}});
-
-		// Set the calibration of the FakeImagePlus to that of the LayerSet
-		((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
-
-		updateFrameTitle(layer);
-		// Set the FakeImagePlus as the current image
-		setTempCurrentImage();
-
 		// create a drag and drop listener
-		dnd = new DNDInsertImage(this);
-
-		// start a repainting thread
-		if (null != props) {
-			canvas.repaint(true); // repaint() is unreliable
-		}
-
-		// Set the minimum size of the tabbed pane on the left, so it can be completely collapsed now that it has been properly displayed. This is a patch to the lack of respect for the setDividerLocation method.
-		Utils.invokeLater(new Runnable() {
+		dnd = new DNDInsertImage(Display.this);
+		
+		Utils.invokeLater(new Runnable()  {
 			public void run() {
-				tabs.setMinimumSize(new Dimension(0, 100));
-				Display.scrollbar_width = Display.this.scroll_patches.getVerticalScrollBar().getPreferredSize().width; // using scroll_patches since it's the one selected by default and thus visible and painted
+				Display.this.frame.pack();
+				ij.gui.GUI.center(Display.this.frame);
+				Display.this.frame.setVisible(true);
+				ProjectToolbar.setProjectToolbar(); // doesn't get it through events
+
+				final Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+
+				if (null != props) {
+					// fix positioning outside the screen (dual to single monitor)
+					if (p.x >= 0 && p.x < screen.width - 50 && p.y >= 0 && p.y <= screen.height - 50) Display.this.frame.setLocation(p);
+					else frame.setLocation(0, 0);
+				}
+
+				// fix excessive size
+				final Rectangle box = Display.this.frame.getBounds();
+				int x = box.x;
+				int y = box.y;
+				int width = box.width;
+				int height = box.height;
+				if (box.width > screen.width) { x = 0; width = screen.width; }
+				if (box.height > screen.height) { y = 0; height = screen.height; }
+				if (x != box.x || y != box.y) {
+					Display.this.frame.setLocation(x, y + (0 == y ? 30 : 0)); // added insets for bad window managers
+					updateInDatabase("position");
+				}
+				if (width != box.width || height != box.height) {
+					Display.this.frame.setSize(new Dimension(width -10, height -30)); // added insets for bad window managers
+				}
+				if (null == props) {
+					// try to optimize canvas dimensions and magn
+					double magn = layer.getLayerHeight() / screen.height;
+					if (magn > 1.0) magn = 1.0;
+					long size = 0;
+					// limit magnification if appropriate
+					for (final Displayable pa : layer.getDisplayables(Patch.class)) {
+						final Rectangle ba = pa.getBoundingBox();
+						size += (long)(ba.width * ba.height);
+					}
+					if (size > 10000000) canvas.setInitialMagnification(0.25); // 10 Mb
+					else {
+						Display.this.frame.setSize(new Dimension((int)(screen.width * 0.66), (int)(screen.height * 0.66)));
+					}
+				}
+
+				updateTab(panel_patches, layer.getDisplayables(Patch.class));
+				
+				// re-layout:
+				tabs.validate();
+
+				// Set the calibration of the FakeImagePlus to that of the LayerSet
+				((FakeImagePlus)canvas.getFakeImagePlus()).setCalibrationSuper(layer.getParent().getCalibrationCopy());
+
+				updateFrameTitle(layer);
+				// Set the FakeImagePlus as the current image
+				setTempCurrentImage();
+
+				// start a repainting thread
+				if (null != props) {
+					canvas.repaint(true); // repaint() is unreliable
+				}
+
 				ControlWindow.setLookAndFeel();
-			}
-		});
+		}});
 	}
 
 	static public void repaintToolbar() {
@@ -1125,13 +1121,32 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private JPanel makeTabPanel() {
 		JPanel panel = new JPanel();
-		BoxLayout layout = new BoxLayout(panel, BoxLayout.Y_AXIS);
-		panel.setLayout(layout);
+		panel.setLayout(new GridBagLayout());
 		return panel;
 	}
 
 	private JScrollPane makeScrollPane(Component c) {
-		JScrollPane jsp = new JScrollPane(c);
+		JPanel p = new JPanel();
+		GridBagLayout gb = new GridBagLayout();
+		p.setLayout(gb);
+		//
+		GridBagConstraints co = new GridBagConstraints();
+		co.anchor = GridBagConstraints.NORTHWEST;
+		co.fill = GridBagConstraints.HORIZONTAL;
+		co.gridy = 0;
+		co.weighty = 0;
+		gb.setConstraints(c, co);
+		p.add(c);
+		//
+		JPanel padding = new JPanel();
+		padding.setPreferredSize(new Dimension(0,0));
+		co.fill = GridBagConstraints.BOTH;
+		co.gridy = 1;
+		co.weighty = 1;
+		gb.setConstraints(padding, co);
+		p.add(padding);		
+		//
+		JScrollPane jsp = new JScrollPane(p);
 		jsp.setBackground(Color.white); // no effect
 		jsp.getViewport().setBackground(Color.white); // no effect
 		// adjust scrolling to use one DisplayablePanel as the minimal unit
@@ -1141,6 +1156,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		jsp.setPreferredSize(new Dimension(250, 300));
 		jsp.setMinimumSize(new Dimension(250, 300));
 		return jsp;
+	}
+
+	private void addGBRow(Container container, Component comp, Component previous) {
+		GridBagLayout gb = (GridBagLayout) container.getLayout();
+		GridBagConstraints c = null;
+		if (null == previous) {
+			Utils.log2("null previous -------------");
+			c = new GridBagConstraints();
+			c.anchor = GridBagConstraints.NORTHWEST;
+			c.fill = GridBagConstraints.HORIZONTAL;
+			c.gridy = 0;
+		} else {
+			c = gb.getConstraints(previous);
+			c.gridy += 1;
+		}
+		gb.setConstraints(comp, c);
+		container.add(comp);
 	}
 
 	private JPanel makeAnnotationsPanel(JEditorPane ep, JLabel label) {
@@ -2285,6 +2317,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					tab.remove(0);
 				}
 				// In reverse order:
+				Component last_dp = null;
 				for (ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
 					Displayable d = it.previous();
 					DisplayablePanel dp = null;
@@ -2293,8 +2326,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						dp.set(d);
 					} else {
 						dp = new DisplayablePanel(Display.this, d);
-						tab.add(dp);
+						addGBRow(tab, dp, last_dp);
 					}
+					last_dp = dp;
 					ht_panels.put(d, dp);
 				}
 				if (next < comp.length) {
@@ -3922,7 +3956,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		synchronized (layer_channels) {
 			panel_layers.removeAll();
 			
-			final GridBagLayout gb = new GridBagLayout();
+			final GridBagLayout gb = (GridBagLayout) panel_layers.getLayout();
 			panel_layers.setLayout(gb);
 			
 			final GridBagConstraints c = new GridBagConstraints();

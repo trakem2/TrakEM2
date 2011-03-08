@@ -27,6 +27,8 @@ import javax.swing.*;
 import java.awt.event.*;
 import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 
 
 public class Channel extends JPanel implements ItemListener, MouseListener {
@@ -52,6 +54,7 @@ public class Channel extends JPanel implements ItemListener, MouseListener {
 		this.c = new JCheckBox();
 		this.c.setSelected(true);
 		this.c.addItemListener(this);
+		this.c.setBackground(Color.white);
 		String t = "mono";
 		switch (channel) {
 			case RED: t = "red"; break;
@@ -61,16 +64,68 @@ public class Channel extends JPanel implements ItemListener, MouseListener {
 		}
 		JLabel title = new JLabel("   " + t);
 		title.addMouseListener(this);
-		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-		add(c);
-		add(title);
+		setBackground(Color.white);
+		GridBagLayout gb = new GridBagLayout();
+		setLayout(gb);
 
-		Dimension dim = new Dimension(250, HEIGHT);
-		setMinimumSize(dim);
-		setMaximumSize(dim);
+		GridBagConstraints co = new GridBagConstraints();
+		co.anchor = GridBagConstraints.NORTHWEST;
+		
+		JPanel emptyTop = new JPanel();
+		emptyTop.setBackground(Color.white);
+		co.gridx = 0;
+		co.gridy = 0;
+		co.gridwidth = 2;
+		co.weightx = 1;
+		co.weighty = 1;
+		co.fill = GridBagConstraints.BOTH;
+		gb.setConstraints(emptyTop, co);
+		add(emptyTop);
+		
+		co.gridx = 0;
+		co.gridy = 1;
+		co.gridwidth = 1;
+		co.weightx = 0;
+		co.weighty = 0;
+		co.fill = GridBagConstraints.NONE;
+		gb.setConstraints(this.c, co);
+		add(this.c);
+		
+		co.gridx = 1;
+		co.gridy = 1;
+		co.gridwidth = 1;
+		co.fill = GridBagConstraints.HORIZONTAL;
+		co.weightx = 0;
+		co.weighty = 0;
+		gb.setConstraints(title, co);
+		add(title);
+		
+		JPanel padding = new JPanel();
+		padding.setBackground(Color.white);
+		co.gridx = 2;
+		co.gridy = 1;
+		co.gridwidth = 1;
+		co.fill = GridBagConstraints.BOTH;
+		co.weightx = 1;
+		co.weighty = 0;
+		gb.setConstraints(padding, co);
+		add(padding);
+		
+		JPanel emptyBottom = new JPanel();
+		emptyBottom.setBackground(Color.white);
+		co.gridx = 0;
+		co.gridy = 2;
+		co.gridwidth = 2;
+		co.fill = GridBagConstraints.BOTH;
+		co.weightx = 1;
+		co.weighty = 1;
+		gb.setConstraints(emptyBottom, co);
+		add(emptyBottom);
+
+		setMinimumSize(new Dimension(200, HEIGHT));
+		setPreferredSize(new Dimension(248, HEIGHT));
 
 		addMouseListener(this);
-		setBackground(Color.white);
 		setBorder(BorderFactory.createLineBorder(Color.black));
 	}
 

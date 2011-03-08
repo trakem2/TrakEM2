@@ -134,10 +134,8 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		add(sp);
 		add(titles);
 
-		Dimension dim = new Dimension(250 - Display.scrollbar_width, HEIGHT);
-		setMinimumSize(dim);
-		setMaximumSize(dim);
-		//setPreferredSize(dim);
+		setMinimumSize(new Dimension(200, HEIGHT));
+		setPreferredSize(new Dimension(248, DisplayablePanel.HEIGHT));
 
 		addMouseListener(this);
 		setBackground(Color.white);
