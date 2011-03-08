@@ -3921,12 +3921,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private synchronized void recreateLayerPanels(final Layer layer) {
 		synchronized (layer_channels) {
 			panel_layers.removeAll();
+			
+			final GridBagLayout gb = new GridBagLayout();
+			panel_layers.setLayout(gb);
+			
+			final GridBagConstraints c = new GridBagConstraints();
+			c.anchor = GridBagConstraints.NORTHWEST;
+			c.fill = GridBagConstraints.HORIZONTAL;
+			c.gridx = 0;
+			c.gridy = 0;
 
 			if (0 == layer_panels.size()) {
 				for (final Layer la : layer.getParent().getLayers()) {
 					final LayerPanel lp = new LayerPanel(this, la);
 					layer_panels.put(la, lp);
+					gb.setConstraints(lp, c);
 					this.panel_layers.add(lp);
+					c.gridy += 1;
 				}
 			} else {
 				// Set theory at work: keep old to reuse
@@ -3937,7 +3948,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						lp = new LayerPanel(this, la);
 						layer_panels.put(la, lp);
 					}
+					gb.setConstraints(lp, c);
 					this.panel_layers.add(lp);
+					c.gridy += 1;
 				}
 				for (final Iterator<Map.Entry<Integer,LayerPanel>> it = layer_alpha.entrySet().iterator(); it.hasNext(); ) {
 					final Map.Entry<Integer,LayerPanel> e = it.next();
