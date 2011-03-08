@@ -2750,7 +2750,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Utils.getControlModifier(), true));
 		item = new JMenuItem("Redo");item.addActionListener(this); popup.add(item);
 		if (!layer.getParent().canRedo() || canvas.isTransforming()) item.setEnabled(false);
-		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK | Event.CTRL_MASK, true));
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_Z, Event.SHIFT_MASK | Utils.getControlModifier(), true));
 		popup.addSeparator();
 
 		// Would get so much simpler with a clojure macro ...
