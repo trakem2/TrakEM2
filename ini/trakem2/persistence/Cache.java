@@ -371,10 +371,11 @@ public class Cache {
 		imps.put(newPath, u);
 	}
 	
-	/** Returns null if the ImagePlus was preprocessed. */
+	/** Returns null if the ImagePlus was preprocessed or doesn't have an original FileInfo
+	 * (which means the image does not come from a file). */
 	static public final String getPath(final ImagePlus imp) {
 		final FileInfo fi = imp.getOriginalFileInfo();
-		if (Loader.PREPROCESSED == fi.fileFormat) return null;
+		if (null == fi || Loader.PREPROCESSED == fi.fileFormat) return null;
 		final String dir = fi.directory;
 		if (null == dir) {
 			return fi.url;
