@@ -168,7 +168,7 @@ public final class Display3D {
 		// Add a behavior to catch control + mouse-click on
 		// objects in the 3D viewer and centre the front Display
 		// on that point:
-		this.universe.setInteractiveBehavior(new ControlClickBehavior(universe));
+		this.universe.addInteractiveBehavior(new ControlClickBehavior(universe));
 	}
 
 	/*
@@ -815,7 +815,7 @@ public final class Display3D {
 				// If it exists, remove and add as new:
 				universe.removeContent(title);
 
-				CustomMesh cm = null;
+				final CustomMesh cm;
 
 				if (line_mesh) {
 					//ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
@@ -838,8 +838,7 @@ public final class Display3D {
 				
 				if (null != triangle_colors) cm.setColor(triangle_colors);
 
-				//if (null == ct) return null;
-				if (null == cm) return null;
+				//if (null == cm) return null;
 
 				if (null == extra_triangles || 0 == extra_triangles.size()) {
 					ct = universe.createContent(cm, title);
