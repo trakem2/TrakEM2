@@ -24,7 +24,6 @@ package ini.trakem2.display;
 
 import ini.trakem2.utils.Utils;
 
-import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JSlider;
