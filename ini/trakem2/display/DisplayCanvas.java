@@ -189,6 +189,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// Recreate volatileImage ONLY if necessary: when null, when incompatible, or when dimensions have changed
 			// Otherwise, just paint on top of it
 			final int w = getWidth(), h = getHeight();
+			if (0 == w || 0 == h) return;
 			if (null == volatileImage || volatileImage.getWidth() != w
 			  || volatileImage.getHeight() != h || volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (null != volatileImage) volatileImage.flush();
@@ -480,7 +481,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		} catch (Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
-			//IJError.print(e);
+			IJError.print(e);
 		} finally {
 			synchronized (lock_paint) {
 				lock_paint.unlock();
@@ -2495,6 +2496,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public BufferedImage paintOffscreen(final Layer active_layer, final List<Layer> layers, final ArrayList<Displayable> al_paint, final Displayable active, final int g_width, final int g_height, final int c_alphas, final Loader loader, final HashMap<Color,Layer> hm, final ArrayList<LayerPanel> blending_list, final int mode, final GraphicsSource graphics_source, final boolean prepaint, int first_non_patch) {
 		try {
+			if (0 == g_width || 0 == g_height) return null;
 			// ALMOST, but not always perfect //if (null != clipRect) g.setClip(clipRect);
 
 			// prepare the canvas for the srcRect and magnification
