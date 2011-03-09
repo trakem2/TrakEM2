@@ -4900,9 +4900,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			lay.getParent().addDataEditStep(ds);
 		} else if (command.equals("Unlink all selected images")) {
 			if (Utils.check("Really unlink selected images?")) {
-				for (final Displayable d : selection.getSelected(Patch.class)) {
+				Collection<Displayable> ds = selection.getSelected(Patch.class);
+				for (final Displayable d : ds) {
 					d.unlink();
 				}
+				Display.updateCheckboxes(ds, DisplayablePanel.LINK_STATE);
 			}
 		} else if (command.equals("Unlink all")) {
 			if (Utils.check("Really unlink all objects from all layers?")) {
@@ -4910,7 +4912,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				for (final Displayable d : ds) {
 					d.unlink();
 				}
-				Display.updateCheckboxes(ds, DisplayablePanel.LOCK_STATE);
+				Display.updateCheckboxes(ds, DisplayablePanel.LINK_STATE);
 			}
 		} else if (command.equals("Calibration...")) {
 			try {
