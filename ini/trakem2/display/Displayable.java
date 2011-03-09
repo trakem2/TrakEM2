@@ -88,6 +88,19 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	protected Composite getComposite( byte mode ) {
 		return Displayable.getComposite(mode, alpha);
 	}
+	/**
+	 * Sets the composite mode, which determines how is this image
+	 * painted to the screen relative to the other images.
+	 * For example, a 16-bit image with a red LUT may be set, with the COMPOSITE_COLOR_YCBCR mode,
+	 * to contribute towards the red channel only of an underlying set of grayscale electron microscopy images.
+	 * 
+	 * @param mode Any of the COMPOSITE_* modes available.
+	 * @throws IllegalArgumentException if the {@param mode} is not valid.
+	 */
+	public void setCompositeMode(final byte mode) {
+		if (mode < 0 || mode > 5) throw new IllegalArgumentException("Invalid composite mode: " + mode);
+		this.compositeMode = mode;
+	}
 	static public Composite getComposite( byte mode, float alpha )
 	{
 		final Composite composite;
