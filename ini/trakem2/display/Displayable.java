@@ -1947,7 +1947,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
-		@SuppressWarnings("unchecked")
+		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private final Object duplicate(final Object ob, final String field) {
 			if (ob instanceof Color) {
 				final Color c = (Color)ob;
