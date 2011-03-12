@@ -1211,4 +1211,28 @@ public class Ball extends ZDisplayable implements VectorData {
 		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
 		getLayerSet().addEditStep(current);
 	}
+
+	/** Set the x,y,radius raw pixel values for the ball at index i.
+	 * When done setting values, call repaint(true, null).
+	 * @throws IndexOutOfBoundsException if i &lt; 0 or i &gt;= the number of points. */
+	public void set(final int i, final double x, final double y, final Layer la, final double radius) {
+		if (i < 0 || i > n_points) throw new IndexOutOfBoundsException("i must be 0<=i<n_points, but it is " + i);
+		p[0][i] = x;
+		p[1][i] = y;
+		p_layer[i] = la.getId();
+		p_width[i] = radius;
+	}
+
+	/** Return the number of balls. */
+	public int getCount() {
+		return n_points;
+	}
+
+	/** Set the radius (raw pixel value) for the ball at index i.
+	 * When done setting values, call repaint(true, null).
+	 * @throws IndexOutOfBoundsException if i &lt; 0 or i &gt;= the number of points. */
+	public void setRadius(final int i, final double radius) {
+		if (i < 0 || i > n_points) throw new IndexOutOfBoundsException("i must be 0<=i<n_points, but it is " + i);
+		p_width[i] = radius;
+	}
 }
