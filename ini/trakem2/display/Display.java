@@ -1162,7 +1162,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		GridBagLayout gb = (GridBagLayout) container.getLayout();
 		GridBagConstraints c = null;
 		if (null == previous) {
-			Utils.log2("null previous -------------");
 			c = new GridBagConstraints();
 			c.anchor = GridBagConstraints.NORTHWEST;
 			c.fill = GridBagConstraints.HORIZONTAL;
