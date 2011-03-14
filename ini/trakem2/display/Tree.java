@@ -3379,7 +3379,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		public Point3f getFirstNodeCoordinates() {
 			return new Point3f(firstx, firsty, (float)(path.get(0).la.getZ() * cal.pixelWidth));
 		}
-		public Point3f getLastNodeCoordiantes() {
+		public Point3f getLastNodeCoordinates() {
 			if (1 == path.size()) {
 				return getFirstNodeCoordinates();
 			}
