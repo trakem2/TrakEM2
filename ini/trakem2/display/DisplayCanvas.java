@@ -2000,7 +2000,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_PAGE_UP: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
+					layer.getParent().addUndoMoveStep(active);
 					layer.getParent().move(LayerSet.UP, active);
+					layer.getParent().addUndoMoveStep(active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -2009,7 +2011,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_PAGE_DOWN: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
+					layer.getParent().addUndoMoveStep(active);
 					layer.getParent().move(LayerSet.DOWN, active);
+					layer.getParent().addUndoMoveStep(active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -2018,7 +2022,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_HOME: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
+					layer.getParent().addUndoMoveStep(active);
 					layer.getParent().move(LayerSet.TOP, active);
+					layer.getParent().addUndoMoveStep(active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();
@@ -2027,7 +2033,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_END: // as in Inkscape
 				if (null != active) {
 					update_graphics = true;
+					layer.getParent().addUndoMoveStep(active);
 					layer.getParent().move(LayerSet.BOTTOM, active);
+					layer.getParent().addUndoMoveStep(active);
 					Display.repaint(layer, active, 5);
 					Display.updatePanelIndex(layer, active);
 					ke.consume();

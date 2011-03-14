@@ -2350,6 +2350,57 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
+	/** To undo moving up/down/top/bottom. */
+	public DoStep createUndoMoveStep(final Displayable d) {
+		return d instanceof ZDisplayable ?
+			new LayerSet.DoMoveZDisplayable(this)
+			: new Layer.DoMoveDisplayable(d.getLayer());
+	}
+
+	/** To undo moving up/down/top/bottom. */
+	public void addUndoMoveStep(final Displayable d) {
+		addUndoStep(createUndoMoveStep(d));
+	}
+	
+	static protected class DoMoveZDisplayable implements DoStep {
+		final ArrayList<ZDisplayable> al_zdispl;
+		final LayerSet ls;
+		HashSet<DoStep> dependents = null;
+		DoMoveZDisplayable(final LayerSet ls) {
+			this.ls = ls;
+			this.al_zdispl = new ArrayList<ZDisplayable>(ls.al_zdispl);
+		}
+		@Override
+		public boolean apply(int action) {
+			// Replace all ZDisplayable
+			ls.al_zdispl.clear();
+			ls.al_zdispl.addAll(this.al_zdispl);
+			Display.update(ls, false);
+			return true;
+		}
+		@Override
+		public boolean isEmpty() {
+			return false;
+		}
+		@Override
+		public Displayable getD() {
+			return null;
+		}
+		@Override
+		public boolean isIdenticalTo(Object ob) {
+			if (!(ob instanceof DoMoveZDisplayable)) return false;
+			final DoMoveZDisplayable dmz = (DoMoveZDisplayable)ob;
+			if (dmz.ls != this.ls) return false;
+			if (dmz.al_zdispl.size() != this.al_zdispl.size()) return false;
+			for (int i=0; i<this.al_zdispl.size(); ++i) {
+				if (dmz.al_zdispl.get(i) != this.al_zdispl.get(i)) return false;
+			}
+			return true;
+		}
+	}
+	
+	
+
 	private Overlay overlay = null;
 
 	/** Return the current Overlay or a new one if none yet. */

@@ -28,6 +28,7 @@ import ij.ImagePlus;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
+import ini.trakem2.display.LayerSet.DoMoveZDisplayable;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.utils.IJError;
@@ -1149,6 +1150,45 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			return true;
 		}
 	}
+	
+	static protected class DoMoveDisplayable implements DoStep {
+		final ArrayList<Displayable> al_displayables;
+		final Layer layer;
+		HashSet<DoStep> dependents = null;
+		DoMoveDisplayable(final Layer layer) {
+			this.layer = layer;
+			this.al_displayables = new ArrayList<Displayable>(layer.al_displayables);
+		}
+		@Override
+		public boolean apply(int action) {
+			// Replace all ZDisplayable
+			layer.al_displayables.clear();
+			layer.al_displayables.addAll(this.al_displayables);
+			Display.update(layer);
+			return true;
+		}
+		@Override
+		public boolean isEmpty() {
+			return false;
+		}
+		@Override
+		public Displayable getD() {
+			return null;
+		}
+		@Override
+		public boolean isIdenticalTo(Object ob) {
+			if (!(ob instanceof DoMoveDisplayable)) return false;
+			final DoMoveDisplayable dm = (DoMoveDisplayable)ob;
+			if (dm.layer != this.layer) return false;
+			if (dm.al_displayables.size() != this.al_displayables.size()) return false;
+			for (int i=0; i<this.al_displayables.size(); ++i) {
+				if (dm.al_displayables.get(i) != this.al_displayables.get(i)) return false;
+			}
+			return true;
+		}
+	}
+	
+	
 
 	private Overlay overlay = null;
 

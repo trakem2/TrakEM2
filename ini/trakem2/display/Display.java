@@ -4074,25 +4074,33 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Move to top")) {
 			if (null == active) return;
 			canvas.setUpdateGraphics(true);
+			getLayerSet().addUndoMoveStep(active);
 			layer.getParent().move(LayerSet.TOP, active);
+			getLayerSet().addUndoMoveStep(active);
 			Display.repaint(layer.getParent(), active, 5);
 			//Display.updatePanelIndex(layer, active);
 		} else if (command.equals("Move up")) {
 			if (null == active) return;
 			canvas.setUpdateGraphics(true);
+			getLayerSet().addUndoMoveStep(active);
 			layer.getParent().move(LayerSet.UP, active);
+			getLayerSet().addUndoMoveStep(active);
 			Display.repaint(layer.getParent(), active, 5);
 			//Display.updatePanelIndex(layer, active);
 		} else if (command.equals("Move down")) {
 			if (null == active) return;
 			canvas.setUpdateGraphics(true);
+			getLayerSet().addUndoMoveStep(active);
 			layer.getParent().move(LayerSet.DOWN, active);
+			getLayerSet().addUndoMoveStep(active);
 			Display.repaint(layer.getParent(), active, 5);
 			//Display.updatePanelIndex(layer, active);
 		} else if (command.equals("Move to bottom")) {
 			if (null == active) return;
 			canvas.setUpdateGraphics(true);
+			getLayerSet().addUndoMoveStep(active);
 			layer.getParent().move(LayerSet.BOTTOM, active);
+			getLayerSet().addUndoMoveStep(active);
 			Display.repaint(layer.getParent(), active, 5);
 			//Display.updatePanelIndex(layer, active);
 		} else if (command.equals("Duplicate, link and send to next layer")) {
