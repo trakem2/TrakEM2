@@ -2303,9 +2303,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	 * for each Displayable present in the given ArrayList, and storing it
 	 * in the ht_panels (which is cleared first).
 	 * Must be invoked in the event dispatch thread. */
-	private void updateTab(final JPanel tab, final ArrayList<? extends Displayable> al) {
+	private void updateTab(Container tab, final ArrayList<? extends Displayable> al) {
 		if (null == al) return;
 		try {
+			if (0 != tab.getComponentCount() && !(tab.getComponent(0) instanceof DisplayablePanel)) {
+				tab = (Container) tab.getComponent(0);
+			}
 			if (0 == al.size()) {
 				tab.removeAll();
 			} else {
