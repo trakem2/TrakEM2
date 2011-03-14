@@ -528,7 +528,7 @@ public abstract class Node<T> implements Taggable {
 	 *  including both a (the first element) and b (the last element).
 	 *  Thanks to Johannes Schindelin.
 	 */
-	public static<I> List<Node<I>> findPath(Node<I> a, Node<I> b) {
+	public static <I> List<Node<I>> findPath(Node<I> a, Node<I> b) {
 	    int degreeA = a.computeDegree(),
 	    	degreeB = b.computeDegree();
 	    final List<Node<I>> listA = new ArrayList<Node<I>>(),
