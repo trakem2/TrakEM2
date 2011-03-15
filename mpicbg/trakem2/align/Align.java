@@ -9,6 +9,7 @@ import java.awt.geom.AffineTransform;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1028,8 +1029,31 @@ public class Align
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
 	
-	
+	/** Used to decide whether a Patch is to be included or not in the image snapshot
+	 * of a {@link Layer}, for layer-wise alignment purposes.*/
+	static public interface Filter {
+		public boolean accept(Patch patch);
+	}
+
+	/**
+	 * Align a range of layers by accumulating pairwise alignments of contiguous layers.
+	 * 
+	 * @param layers The range of layers to align pairwise.
+	 * @param numThreads The number of threads to use.
+	 */
 	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads )
+	{
+		alignLayersLinearly(layers, numThreads, null);
+	}
+
+	/**
+	 * Align a range of layers by accumulating pairwise alignments of contiguous layers.
+	 * 
+	 * @param layers The range of layers to align pairwise.
+	 * @param numThreads The number of threads to use.
+	 * @param filter The {@link Align.Filter} to decide which {@link Patch} instances to use in each {@param Layer}. Can be null.
+	 */
+	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads, final Filter filter )
 	{
 		param.sift.maxOctaveSize = 1600;
 		
@@ -1068,8 +1092,15 @@ public class Align
 			box1 = box2;
 			box2 = box3;
 			
+			final List<Patch> patches = l.getAll(Patch.class);
+			if (null != filter) {
+				for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
+					if (!filter.accept(it.next())) it.remove();
+				}
+			}
+			
 			ijSIFT.extractFeatures(
-					l.getProject().getLoader().getFlatImage( l, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor(),
+					l.getProject().getLoader().getFlatImage( l, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor(),
 					features2 );
 			IJ.log( features2.size() + " features extracted in layer \"" + l.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
 			
