@@ -4537,7 +4537,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final int first = gd.getNextChoiceIndex(),
 					  last = gd.getNextChoiceIndex();
 			final List<Layer> layers = getLayerSet().getLayers(first, last);
-			final int max_dim = (int)gd.getNextNumber();
+			final int max_dim = Math.min((int)gd.getNextNumber(), Math.max(width, height));
 			float scale = 1;
 			if (max_dim < Math.max(width, height)) {
 				scale = max_dim / (float)Math.max(width, height);
