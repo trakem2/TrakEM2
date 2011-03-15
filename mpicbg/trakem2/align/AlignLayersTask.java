@@ -123,6 +123,8 @@ final public class AlignLayersTask
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ] );
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
+		gd.addStringField("Use only images whose title matches:", "", 30);
+		gd.addCheckbox("Use visible images only", true);
 		final Vector<?> v = gd.getChoices();
 		final Choice cstart = (Choice) v.get(v.size() -3);
 		final Choice cref = (Choice) v.get(v.size() -2);
@@ -155,6 +157,19 @@ final public class AlignLayersTask
 		final int first = gd.getNextChoiceIndex();
 		final int ref = gd.getNextChoiceIndex();
 		final int last = gd.getNextChoiceIndex();
+		
+		final String toMatch1 = gd.getNextString().trim();
+		final String toMatch2 = 0 == toMatch1.length() ? null : ".*" + toMatch1 + ".*";
+		final boolean visibleOnly = gd.getNextBoolean();
+		
+		final Align.Filter filter = new Align.Filter() {
+			@Override
+			public final boolean accept(final Patch patch) {
+				if (visibleOnly && !patch.isVisible()) return false;
+				if (null != toMatch2 && !patch.getTitle().matches(toMatch2)) return false;
+				return true;
+			}
+		};
 
 		final GenericDialog gd2 = new GenericDialog( "Align Layers" );
 		
@@ -176,19 +191,19 @@ final public class AlignLayersTask
 
 		// From ref to first:
 		if (ref - first > 0) {
-			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, first, propagateTransform, fov);
-			else alignLayersLinearlyJob(l, ref, first, propagateTransform, fov);
+			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, first, propagateTransform, fov, filter);
+			else alignLayersLinearlyJob(l, ref, first, propagateTransform, fov, filter);
 		}
 		// From ref to last:
 		if (last - ref > 0) {
-			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, last, propagateTransform, fov);
-			else alignLayersLinearlyJob(l, ref, last, propagateTransform, fov);
+			if (useBUnwarpJ) alignLayersNonLinearlyJob(l, ref, last, propagateTransform, fov, filter);
+			else alignLayersLinearlyJob(l, ref, last, propagateTransform, fov, filter);
 		}
 	}
 	
 	
 	final static public void alignLayersLinearlyJob( final Layer l, final int first, final int last,
-			final boolean propagateTransform, final Rectangle fov )
+			final boolean propagateTransform, final Rectangle fov, final Align.Filter filter )
 	{
 		final List< Layer > layerRange = l.getParent().getLayers(first, last); // will reverse order if necessary
 		
@@ -250,7 +265,14 @@ final public class AlignLayersTask
 			box1 = null == fov ? box2 : fov;
 			box2 = null == fov ? box3 : fov;
 			
-			final ImageProcessor flatImage = layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
+			final List<Patch> patches = l.getAll(Patch.class);
+			if (null != filter) {
+				for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
+					if (!filter.accept(it.next())) it.remove();
+				}
+			}
+			
+			final ImageProcessor flatImage = layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
 
 			ijSIFT.extractFeatures(
 					flatImage,
@@ -365,7 +387,7 @@ final public class AlignLayersTask
 	}
 	
 	final static public void alignLayersNonLinearlyJob( final Layer l, final int first, final int last,
-			final boolean propagateTransform, final Rectangle fov )
+			final boolean propagateTransform, final Rectangle fov, final Align.Filter filter )
 	{
 		final List< Layer > layerRange = l.getParent().getLayers(first, last); // will reverse order if necessary
 
@@ -428,7 +450,13 @@ final public class AlignLayersTask
 			
 			final Future<ImageProcessor> fu1 = exec.submit(new Callable<ImageProcessor>() {
 				public ImageProcessor call() {
-					final ImageProcessor ip1 = loader.getFlatImage( layer1, box1, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
+					final List<Patch> patches = l.getAll(Patch.class);
+					if (null != filter) {
+						for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
+							if (!filter.accept(it.next())) it.remove();
+						}
+					}
+					final ImageProcessor ip1 = loader.getFlatImage( layer1, box1, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
 					ijSIFT1.extractFeatures(
 							ip1,
 							features1 );
@@ -437,7 +465,13 @@ final public class AlignLayersTask
 				}});
 			final Future<ImageProcessor> fu2 = exec.submit(new Callable<ImageProcessor>() {
 				public ImageProcessor call() {
-					final ImageProcessor ip2 = loader.getFlatImage( layer2, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, true ).getProcessor();
+					final List<Patch> patches = l.getAll(Patch.class);
+					if (null != filter) {
+						for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
+							if (!filter.accept(it.next())) it.remove();
+						}
+					}
+					final ImageProcessor ip2 = loader.getFlatImage( layer2, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
 					ijSIFT2.extractFeatures(
 							ip2,
 							features2 );
