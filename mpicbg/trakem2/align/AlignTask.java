@@ -283,6 +283,15 @@ final public class AlignTask
 			}});
 	}
 
+	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final AffineTransform a) {
+		AlignTask.transformPatchesAndVectorData(patches,
+			new Runnable() { public void run() {
+				for (final Patch p : patches) {
+					p.getAffineTransform().preConcatenate(a);
+				}
+			}});
+	}
+
 	/*
 	final static public Map<Long,Patch.TransformProperties> createTransformPropertiesTable(final Collection<Patch> patches) {
 		final Map<Long,Patch.TransformProperties> tp = new HashMap<Long,Patch.TransformProperties>();
