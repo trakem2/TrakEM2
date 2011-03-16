@@ -1558,6 +1558,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	/** Close this Display window. */
 	public boolean remove(boolean check) {
 		if (check) {
 			if (!Utils.check("Delete the Display ?")) return false;

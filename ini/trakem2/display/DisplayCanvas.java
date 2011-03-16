@@ -1786,11 +1786,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return; // only zoom is enabled, above
 		}
 
-		if (KeyEvent.VK_W == keyCode) {
-			display.remove(false); // will call back the canvas.flush()
-			ke.consume();
-			return;
-		} else if (KeyEvent.VK_S == keyCode && 0 == ke.getModifiers() && display.getProject().getLoader().isAsynchronous()) {
+		if (KeyEvent.VK_S == keyCode && 0 == ke.getModifiers() && display.getProject().getLoader().isAsynchronous()) {
 			display.getProject().getLoader().saveTask(display.getProject(), "Save");
 			ke.consume();
 			return;
