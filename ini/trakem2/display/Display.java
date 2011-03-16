@@ -51,6 +51,7 @@ import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.imaging.StitchingTEM;
@@ -2923,6 +2924,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Split images under polyline ROI"); item.addActionListener(this); adjust_menu.add(item);
 		Roi roi = canvas.getFakeImagePlus().getRoi();
 		if (null == roi || roi.getType() != Roi.POLYLINE) item.setEnabled(false);
+		item = new JMenuItem("Blend (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Blend (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
 		popup.add(adjust_menu);
 
 		JMenu script = new JMenu("Script");
@@ -4828,11 +4832,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			// Take the active if it's a Patch
 			if (!(active instanceof Patch)) return;
 			Display.snap((Patch)active);
-		} else if (command.equals("Blend")) {
-			HashSet<Patch> patches = new HashSet<Patch>();
-			for (final Displayable d : selection.getSelected()) {
-				if (d.getClass() == Patch.class) patches.add((Patch)d);
-			}
+		} else if (command.equals("Blend") || command.equals("Blend (selected images)...")) {
+			HashSet<Patch> patches = new HashSet<Patch>(selection.get(Patch.class));
 			if (patches.size() > 1) {
 				GenericDialog gd = new GenericDialog("Blending");
 				gd.addCheckbox("Respect current alpha mask", true);
@@ -4842,6 +4843,29 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			} else {
 				IJ.log("Please select more than one overlapping image.");
 			}
+		} else if (command.equals("Blend (layer-wise)...")) {
+			GenericDialog gd = new GenericDialog("Blending");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.addCheckbox("Respect current alpha mask", true);
+			gd.addMessage("Filter:");
+			gd.addStringField("Use only images whose title matches:", "", 30);
+			gd.addCheckbox("Blend visible patches only", true);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final boolean respect_alpha_mask = gd.getNextBoolean();
+			final String toMatch = gd.getNextString().trim();
+			final String regex = 0 == toMatch.length() ? null : ".*" + toMatch + ".*";
+			final boolean visible_only = gd.getNextBoolean();
+			Blending.blendLayerWise(getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()),
+					respect_alpha_mask,
+					new Filter<Patch>() {
+						@Override
+						public final boolean accept(final Patch patch) {
+							if (visible_only && !patch.isVisible()) return false;
+							if (null == regex) return true;
+							return patch.getTitle().matches(regex);
+						}
+					});
 		} else if (command.equals("Montage")) {
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
 			// make an undo step!

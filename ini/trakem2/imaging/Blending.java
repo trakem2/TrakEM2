@@ -3,19 +3,24 @@
  */
 package ini.trakem2.imaging;
 
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Display;
+import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.IJError;
-import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.models.NoninvertibleModelException;
 
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
@@ -24,15 +29,37 @@ import java.util.ArrayList;
 
 import ij.process.ByteProcessor;
 
-import java.util.concurrent.FutureTask;
+import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Callable;
 
 /** Utility functions for blending images together, to remove contrast seams.
  *  Inspired and guided by Stephan Preibisch's blending functions in his Stitching plugins. */
 public final class Blending {
 
+	static public final Bureaucrat blend(final List<Layer> layers, final boolean respect_current_mask, final Filter<Patch> filter) {
+		return Bureaucrat.createAndStart(
+				new Worker.Task("Blending layer-wise") {
+					public void exec() {
+						blendLayerWise(layers, respect_current_mask, filter);
+					}
+				}, layers.get(0).getProject());
+	}
+
+	static public final void blendLayerWise(final List<Layer> layers, final boolean respect_current_mask, final Filter<Patch> filter) {
+		for (final Layer layer : layers) {
+			final List<Patch> patches = layer.getAll(Patch.class);
+			final Set<Patch> s = new HashSet<Patch>();
+			if (null != filter) {
+				for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
+					final Patch p = it.next();
+					if (filter.accept(p)) s.add(p);
+				}
+			}
+			blendPatches(s, respect_current_mask);
+		}
+	}
+	
 	/** For each file, find the weight for the alpha mask according to
 	 *  wether the pixel overlaps with other images (weighted alpha
 	 *  dependent on the distante to the image border and of that on
@@ -42,61 +69,79 @@ public final class Blending {
 	static public final Bureaucrat blend(final Set<Patch> patches, final boolean respect_current_mask) {
 		if (null == patches || patches.size() < 2) return null;
 
-		return Bureaucrat.createAndStart(new Worker("Blending images") {
-			public void run() {
-				try {
-					startedWorking();
+		return Bureaucrat.createAndStart(
+			new Worker.Task("Blending images") {
+				public void exec() {
+					blendPatches(patches, respect_current_mask);
+				}
+			}, patches.iterator().next().getProject());
+	}
+	
+	static public final void blendPatches(final Set<Patch> patches, final boolean respect_current_mask) {
+		ExecutorService exe = null;
+		try {
+			if (null == patches || patches.size() < 2) return;
 
-					for (final Patch p : patches) {
-						if (null != p.getCoordinateTransform()) {
-							Utils.log("CANNOT blend: at least one image has a coordinate transform.\nBlending of coordinate-transformed images will be enabled in the near future.");
-							return;
-						}
-					}
-
-					final HashMap<Patch,TransformMesh> meshes = new HashMap<Patch,TransformMesh>();
-					for (final Patch p : patches) {
-						meshes.put(p, null == p.getCoordinateTransform() ? null
-												 : new TransformMesh(p.getCoordinateTransform(), 32, p.getOWidth(), p.getOHeight()));
-					}
-
-					ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-					final ArrayList<FutureTask> futures = new ArrayList<FutureTask>();
-
-					for (final Patch p : patches) {
-						if (Thread.currentThread().isInterrupted()) break;
-						FutureTask future = new FutureTask(new Runnable() { public void run() {
-							final int pLayerIndex = p.getLayer().indexOf( p );
-							final Set< Patch > overlapping = new HashSet< Patch >();
-							for ( Patch op : patches )
-								if ( p.getLayer().indexOf( op ) < pLayerIndex )
-									overlapping.add( op );
-							if (setBlendingMask(p, overlapping, meshes, respect_current_mask)) {
-								p.updateMipMaps();
-							}
-						}}, null);
-						futures.add(future);
-						exe.submit(future);
-					}
-
-					// join all:
-					for (final FutureTask future : futures) {
-						if (Thread.currentThread().isInterrupted()) break;
-						try {
-							future.get();
-						} catch (InterruptedException ie) {} // thrown when canceled
-					}
-
-					exe.shutdownNow();
-
-				} catch (Exception e) {
-					IJError.print(e);
-				} finally {
-					finishedWorking();
-					Display.repaint();
+			final Layer layer = patches.iterator().next().getLayer();
+			
+			for (final Patch p : patches) {
+				if (null != p.getCoordinateTransform()) {
+					Utils.log("CANNOT blend: at least one image has a coordinate transform.\nBlending of coordinate-transformed images will be enabled in the near future.");
+					return;
+				}
+				if (p.getLayer() != layer) {
+					Utils.log("CANNOT blend: all images must belong to the same layer!\n  Otherwise the overlap cannot be computed.");
+					return;
 				}
 			}
-		}, patches.iterator().next().getProject());
+
+			final HashMap<Patch,TransformMesh> meshes = new HashMap<Patch,TransformMesh>();
+			for (final Patch p : patches) {
+				meshes.put(p, null == p.getCoordinateTransform() ? null
+						: new TransformMesh(p.getCoordinateTransform(), 32, p.getOWidth(), p.getOHeight()));
+			}
+
+			exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+			final List<Future<?>> futures = Collections.synchronizedList(new ArrayList<Future<?>>());
+
+			// Cache the indices that determine overlap order within the layer
+			final HashMap<Patch,Integer> indices = new HashMap<Patch,Integer>();
+			int i = 0;
+			for (final Displayable d : layer.getDisplayables()) {
+				if (d.getClass() == Patch.class && patches.contains((Patch)d)) {
+					indices.put((Patch)d, i);
+				}
+				i += 1;
+			}
+			
+			for (final Patch p : patches) {
+				if (Thread.currentThread().isInterrupted()) break;
+				futures.add(exe.submit(new Runnable() { public void run() {
+					final int pLayerIndex = indices.get(p);
+					final Set<Patch> overlapping = new HashSet<Patch>();
+					for (final Patch op : patches) {
+						if (indices.get(op) < pLayerIndex) overlapping.add(op);
+					}
+					if (setBlendingMask(p, overlapping, meshes, respect_current_mask)) {
+						futures.add(p.updateMipMaps());
+					}
+				}}, null));
+			}
+
+			// join all:
+			for (final Future<?> future : futures) {
+				if (Thread.currentThread().isInterrupted()) break;
+				try {
+					future.get();
+				} catch (InterruptedException ie) {} // thrown when canceled
+			}
+
+		} catch (Exception e) {
+			IJError.print(e);
+		} finally {
+			if (null != exe) exe.shutdown();
+			Display.repaint();
+		}
 	}
 
 	/** Returns true if a new mask has been set to Patch p. */
@@ -201,6 +246,9 @@ public final class Blending {
 
 			return true;
 		}
+		
+
+		Utils.log("Nothing to blend in image " + p);
 
 		return false;
 	}
