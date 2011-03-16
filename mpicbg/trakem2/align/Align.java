@@ -25,6 +25,7 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
 
 import mpicbg.ij.FeatureTransform;
@@ -1028,12 +1029,6 @@ public class Align
 		for ( AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
-	
-	/** Used to decide whether a Patch is to be included or not in the image snapshot
-	 * of a {@link Layer}, for layer-wise alignment purposes.*/
-	static public interface Filter {
-		public boolean accept(Patch patch);
-	}
 
 	/**
 	 * Align a range of layers by accumulating pairwise alignments of contiguous layers.
@@ -1051,9 +1046,9 @@ public class Align
 	 * 
 	 * @param layers The range of layers to align pairwise.
 	 * @param numThreads The number of threads to use.
-	 * @param filter The {@link Align.Filter} to decide which {@link Patch} instances to use in each {@param Layer}. Can be null.
+	 * @param filter The {@link Filter} to decide which {@link Patch} instances to use in each {@param Layer}. Can be null.
 	 */
-	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads, final Filter filter )
+	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads, final Filter<Patch> filter )
 	{
 		param.sift.maxOctaveSize = 1600;
 		

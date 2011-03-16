@@ -21,12 +21,12 @@ import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
@@ -162,7 +162,7 @@ final public class AlignLayersTask
 		final String toMatch2 = 0 == toMatch1.length() ? null : ".*" + toMatch1 + ".*";
 		final boolean visibleOnly = gd.getNextBoolean();
 		
-		final Align.Filter filter = new Align.Filter() {
+		final Filter<Patch> filter = new Filter<Patch>() {
 			@Override
 			public final boolean accept(final Patch patch) {
 				if (visibleOnly && !patch.isVisible()) return false;
@@ -203,7 +203,7 @@ final public class AlignLayersTask
 	
 	
 	final static public void alignLayersLinearlyJob( final LayerSet layerSet, final int first, final int last,
-			final boolean propagateTransform, final Rectangle fov, final Align.Filter filter )
+			final boolean propagateTransform, final Rectangle fov, final Filter<Patch> filter )
 	{
 		final List< Layer > layerRange = layerSet.getLayers(first, last); // will reverse order if necessary
 		
@@ -386,7 +386,7 @@ final public class AlignLayersTask
 	}
 	
 	final static public void alignLayersNonLinearlyJob( final LayerSet layerSet, final int first, final int last,
-			final boolean propagateTransform, final Rectangle fov, final Align.Filter filter )
+			final boolean propagateTransform, final Rectangle fov, final Filter<Patch> filter )
 	{
 		final List< Layer > layerRange = layerSet.getLayers(first, last); // will reverse order if necessary
 
