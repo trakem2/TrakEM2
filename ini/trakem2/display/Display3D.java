@@ -126,6 +126,7 @@ public final class Display3D {
 	private Lock u_lock = new Lock();
 
 	private LayerSet layer_set;
+	/** The dimensions of the LayerSet in 2D. */
 	private double width, height;
 	private int resample = -1; // unset
 	static private final int DEFAULT_RESAMPLE = 4;
@@ -977,19 +978,23 @@ public final class Display3D {
 		return fu;
 	}
 
-	/** Estimate a scaling factor, to be used as a multiplier of the suggested default resampling. */
-	private final double estimateScale() {
-		final int max_dimension = this.layer_set.getPixelsMaxDimension();
-		return Math.max(width, height) > max_dimension ?
+	static public final int estimateResamplingFactor(final LayerSet ls, final double width, final double height) {
+		final int max_dimension = ls.getPixelsMaxDimension();
+		return (int)(DEFAULT_RESAMPLE / (Math.max(width, height) > max_dimension ?
 			  max_dimension / Math.max(width, height)
-			: 1;
+			: 1));
+	}
+
+	/** Estimate a scaling factor, to be used as a multiplier of the suggested default resampling. */
+	private final int estimateResamplingFactor() {
+		return estimateResamplingFactor(layer_set, width, height);
 	}
 
 	// This method has the exclusivity in adjusting the resampling value, and it also returns it.
 	synchronized private final int adjustResampling() {
 		if (resample > 0) return resample;
 		final GenericDialog gd = new GenericDialog("Resample");
-		final int default_resample = (int)(DEFAULT_RESAMPLE / estimateScale());
+		final int default_resample = estimateResamplingFactor();
 		gd.addSlider("Resample: ", 1, Math.max(default_resample, 100), -1 != resample ? resample : default_resample);
 		gd.showDialog();
 		if (gd.wasCanceled()) {
