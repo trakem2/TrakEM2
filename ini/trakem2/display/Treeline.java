@@ -769,12 +769,8 @@ public class Treeline extends Tree<Float> {
 
 				switch (ke.getKeyCode()) {
 					case KeyEvent.VK_O:
-						layer_set.addDataEditStep(this);
 						if (askAdjustRadius(p.x, p.y, layer, dc.getMagnification())) {
 							ke.consume();
-							layer_set.addDataEditStep(this); // current state
-						} else {
-							layer_set.removeLastUndoStep(); // dialog canceled
 						}
 						break;
 				}
@@ -791,7 +787,16 @@ public class Treeline extends Tree<Float> {
 		if (null == nodes) return false;
 
 		RadiusNode nd = (RadiusNode) findClosestNodeW(nodes, x, y, magnification);
+		if (null == nd) {
+			Node<Float> last = getLastVisited();
+			if (last.getLayer() == layer) nd = (RadiusNode)last;
+		}
 		if (null == nd) return false;
+
+		return askAdjustRadius(nd);
+	}
+	
+	protected boolean askAdjustRadius(final Node<Float> nd) {
 
 		GenericDialog gd = new GenericDialog("Adjust radius");
 		final Calibration cal = layer.getParent().getCalibration();
@@ -836,6 +841,7 @@ public class Treeline extends Tree<Float> {
 		};
 		// Apply to:
 		try {
+			layer_set.addDataEditStep(this);
 			switch (gd.getNextChoiceIndex()) {
 				case 0:
 					// Just the node
@@ -852,8 +858,10 @@ public class Treeline extends Tree<Float> {
 				default:
 					return false;
 			}
+			layer_set.addDataEditStep(this);
 		} catch (Exception e) {
 			IJError.print(e);
+			layer_set.undoOneStep();
 		}
 
 		calculateBoundingBox(layer);

@@ -1878,6 +1878,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		if (ProjectToolbar.PEN == ProjectToolbar.getToolId() && 0 == (modifiers ^ Event.SHIFT_MASK) && KeyEvent.VK_C == keyCode) {
 			nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
+			if (null == nd) {
+				Node<T> last = getLastVisited();
+				if (null != last && layer == last.getLayer()) nd = last;
+			}
 			if (null != nd && adjustNodeColors(nd)) {
 				ke.consume();
 				return;
@@ -3686,5 +3690,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			pairs.add(createMeasurementPair(np));
 		}
 		return pairs;
+	}
+
+	/** Drop all tags from the nodes of this tree. */
+	public void dropAllTags() {
+		if (null == root) return;
+		for (final Node<T> nd : root.getSubtreeNodes()) {
+			nd.removeAllTags();
+		}
 	}
 }

@@ -37,6 +37,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.analysis.Graph;
+import ini.trakem2.display.Displayable.SliderListener;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
@@ -2559,11 +2560,140 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				if (AreaTree.class == aclass) addAreaTreeAreasMenu(popup, (AreaTree)active);
 				item = new JMenuItem("Reroot"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Part subtree"); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Mark"); item.addActionListener(this); popup.add(item);
-				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Join"); item.addActionListener(this); popup.add(item);
 				item = new JMenuItem("Show tabular view"); item.addActionListener(this); popup.add(item);
 				final Collection<Tree> trees = selection.get(Tree.class);
+				
+				//
+				JMenu nodeMenu = new JMenu("Nodes");
+				item = new JMenuItem("Mark"); item.addActionListener(this); nodeMenu.add(item);
+				item = new JMenuItem("Clear marks (selected Trees)"); item.addActionListener(this); nodeMenu.add(item);
+				final JMenuItem nodeColor = new JMenuItem("Color..."); nodeMenu.add(nodeColor);
+				nodeColor.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.SHIFT_MASK, true));
+				final JMenuItem nodePairColor = new JMenuItem("Color path between two nodes tagged as..."); nodeMenu.add(nodePairColor);
+				final JMenuItem nodeRadius = active instanceof Treeline ? new JMenuItem("Radius...") : null;
+				if (null != nodeRadius) {
+					nodeMenu.add(nodeRadius);
+					nodeRadius.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, 0, true));
+				}
+				final JMenuItem removeAllTags = new JMenuItem("Drop all tags (selected trees)"); nodeMenu.add(removeAllTags);
+				final JMenuItem removeTag = new JMenuItem("Drop all occurrences of tag..."); nodeMenu.add(removeTag);
+				
+				popup.add(nodeMenu);
+				final ActionListener ln = new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent ae) {
+						if (null == active) {
+							Utils.showMessage("No tree selected!");
+							return;
+						}
+						if (!(active instanceof Tree)) {
+							Utils.showMessage("The selected object is not a Tree!");
+							return;
+						}
+						final Tree tree = (Tree)active;
+						final Object src = ae.getSource();
+						//
+						if (src == nodeColor) {
+							Node nd = tree.getLastVisited();
+							if (null == nd) {
+								Utils.showMessage("Select a node first by clicking on it\nor moving the mouse over it and pushing 'g'.");
+								return;
+							}
+							tree.adjustNodeColors(nd); // sets an undo step
+						} else if (src == nodePairColor) {
+							final TreeMap<String,Tag> sm = getTags(tree);
+							if (null == sm) return;
+							if (1 == sm.size()) {
+								Utils.showMessage("Need at least two different tags in the tree!");
+								return;
+							}
+							Color color = tree.getColor();
+							GenericDialog gd = new GenericDialog("Node colors");
+							gd.addSlider("Red: ", 0, 255, color.getRed());
+							gd.addSlider("Green: ", 0, 255, color.getGreen());
+							gd.addSlider("Blue: ", 0, 255, color.getBlue());
+							final String[] stags = asStrings(sm);
+							sm.keySet().toArray(stags);
+							gd.addChoice("Upstream tag:", stags, stags[0]);
+							gd.addChoice("Downstream tag:", stags, stags[1]);
+							gd.showDialog();
+							if (gd.wasCanceled()) return;
+							final Color newColor = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
+							final Tag upstreamTag = sm.get(gd.getNextChoice());
+							final Tag downstreamTag = sm.get(gd.getNextChoice());
+							final List<Tree<?>.NodePath> pairs = tree.findTaggedPairs(upstreamTag, downstreamTag);
+							if (null == pairs || pairs.isEmpty()) {
+								Utils.showMessage("No pairs found for '" + upstreamTag + "' and '" + downstreamTag + "'");
+								return;
+							}
+							getLayerSet().addDataEditStep(tree);
+							for (final Tree<?>.NodePath pair : pairs) {
+								for (final Node<?> nd : pair.path) {
+									nd.setColor(newColor);
+								}
+							}
+							getLayerSet().addDataEditStep(tree);
+							Display.repaint();
+						} else if (src == nodeRadius) {
+							if (!(tree instanceof Treeline)) return;
+							Node nd = tree.getLastVisited();
+							if (null == nd) {
+								Utils.showMessage("Select a node first by clicking on it\nor moving the mouse over it and pushing 'g'.");
+								return;
+							}
+							((Treeline)tree).askAdjustRadius(nd); // sets an undo step
+						} else if (src == removeAllTags) {
+							if (!Utils.check("Really remove all tags from all selected trees?")) return;
+							List<Tree> sel = selection.get(Tree.class);
+							getLayerSet().addDataEditStep(new HashSet<Displayable>(sel));
+							try {
+								for (Tree t : sel) {
+									t.dropAllTags();
+								}
+								getLayerSet().addDataEditStep(new HashSet<Displayable>(sel)); // current state
+							} catch (Exception e) {
+								getLayerSet().undoOneStep();
+								IJError.print(e);
+							}
+							Display.repaint();
+						} else if (src == removeTag) {
+							TreeMap<String,Tag> tags = getTags(tree);
+							String[] ts = asStrings(tags);
+							GenericDialog gd = new GenericDialog("Remove tags");
+							gd.addChoice("Tag:", ts, ts[0]);
+							String[] c = new String[]{"Active tree", "All selected trees and connectors", "All trees and connectors"};
+							gd.addChoice("From: ", c, c[0]);
+							gd.showDialog();
+							if (gd.wasCanceled()) return;
+							HashSet<Displayable> ds = new HashSet<Displayable>();
+							final Tag tag = tags.get(gd.getNextChoice());
+							switch (gd.getNextChoiceIndex()) {
+								case 0: ds.add(tree); break;
+								case 1: ds.addAll(selection.get(Tree.class));
+								case 2: ds.addAll(getLayerSet().getZDisplayables(Tree.class, true));
+							}
+							getLayerSet().addDataEditStep(ds);
+							try {
+								for (Displayable d : ds) {
+									Tree t = (Tree)d;
+									t.removeTag(tag);
+								}
+								getLayerSet().addDataEditStep(ds);
+							} catch (Exception e) {
+								getLayerSet().undoOneStep();
+								IJError.print(e);
+							}
+							Display.repaint();
+						}
+					}
+				};
+				for (JMenuItem a : new JMenuItem[]{nodeColor, nodePairColor, nodeRadius, removeAllTags, removeTag}) {
+					if (null == a) continue;
+					a.addActionListener(ln);
+				}
+				
+				//
 				JMenu review = new JMenu("Review");
 				final JMenuItem tgenerate = new JMenuItem("Generate review stacks (selected Trees)"); review.add(tgenerate);
 				tgenerate.setEnabled(trees.size() > 0);
@@ -2610,16 +2740,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				popup.add(review);
 
 				JMenu go = new JMenu("Go");
-				item = new JMenuItem("Previous branch point or start"); item.addActionListener(this); go.add(item);
+				item = new JMenuItem("Previous branch node or start"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_B, 0, true));
-				item = new JMenuItem("Next branch point or end"); item.addActionListener(this); go.add(item);
+				item = new JMenuItem("Next branch node or end"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_N, 0, true));
 				item = new JMenuItem("Root"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0, true));
 				go.addSeparator();
-				item = new JMenuItem("Last added point"); item.addActionListener(this); go.add(item);
+				item = new JMenuItem("Last added node"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_L, 0, true));
-				item = new JMenuItem("Last edited point"); item.addActionListener(this); go.add(item);
+				item = new JMenuItem("Last edited node"); item.addActionListener(this); go.add(item);
 				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_E, 0, true));
 				popup.add(go);
 				
@@ -3286,28 +3416,29 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		popup.add(interpolate);
 	}
 
+	static private final TreeMap<String,Tag> getTags(final Tree tree) {
+		final Set<Tag> tags = tree.findTags();
+		if (tags.isEmpty()) {
+			Utils.log("The nodes of the tree '" + tree + "' don't have any tags!");
+			return null;
+		}
+		TreeMap<String,Tag> sm = new TreeMap<String,Tag>();
+		for (final Tag t : tags) sm.put(t.toString(), t);
+		return sm;
+	}
+	static private final String[] asStrings(final TreeMap<String,Tag> tags) {
+		if (null == tags) return null;
+		final String[] stags = new String[tags.size()];
+		tags.keySet().toArray(stags);
+		return stags;
+	}
+	
 	private ActionListener getTreePathMeasureListener(final Tree tree) {
 		return new ActionListener() {
-			private TreeMap<String,Tag> getTags() {
-				final Set<Tag> tags = tree.findTags();
-				if (tags.isEmpty()) {
-					Utils.log("The nodes of the tree '" + tree + "' don't have any tags!");
-					return null;
-				}
-				TreeMap<String,Tag> sm = new TreeMap<String,Tag>();
-				for (final Tag t : tags) sm.put(t.toString(), t);
-				return sm;
-			}
-			private String[] asStrings(final TreeMap<String,Tag> tags) {
-				if (null == tags) return null;
-				final String[] stags = new String[tags.size()];
-				tags.keySet().toArray(stags);
-				return stags;
-			}
 			public void actionPerformed(ActionEvent ae) {
 				final String command = ae.getActionCommand();
 				if (command.equals("Shortest distances between all pairs of nodes tagged as...")) {
-					final TreeMap<String,Tag> sm = getTags();
+					final TreeMap<String,Tag> sm = getTags(tree);
 					if (null == sm) return;
 					if (1 == sm.size()) {
 						Utils.showMessage("Need at least two different tags in the tree!");
@@ -4835,12 +4966,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				dataedits2.add(new Displayable.DoEdit(active).init(active, new String[]{"data"}));
 				getLayerSet().addChangeTreesStep(dataedits2);
 			}
-		} else if (command.equals("Previous branch point or start")) {
+		} else if (command.equals("Previous branch node or start")) {
 			if (!(active instanceof Tree<?>)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			center(((Treeline)active).findPreviousBranchOrRootPoint(p.x, p.y, layer, canvas));
-		} else if (command.equals("Next branch point or end")) {
+		} else if (command.equals("Next branch node or end")) {
 			if (!(active instanceof Tree<?>)) return;
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
@@ -4850,10 +4981,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
 			center(((Tree)active).createCoordinate(((Tree<?>)active).getRoot()));
-		} else if (command.equals("Last added point")) {
+		} else if (command.equals("Last added node")) {
 			if (!(active instanceof Tree<?>)) return;
 			center(((Treeline)active).getLastAdded());
-		} else if (command.equals("Last edited point")) {
+		} else if (command.equals("Last edited node")) {
 			if (!(active instanceof Tree<?>)) return;
 			center(((Treeline)active).getLastEdited());
 		} else if (command.equals("Reverse point order")) {
