@@ -778,7 +778,7 @@ public final class M {
 		return new Area[]{b, c};
 	}
 
-	public static VectorString2D asVectorString2D(final Polygon pol, final double z) throws Exception {
+	public static final VectorString2D asVectorString2D(final Polygon pol, final double z) throws Exception {
 		double[] x = new double[pol.npoints];
 		double[] y = new double[pol.npoints];
 		for (int i=0; i<x.length; i++) {
@@ -786,5 +786,19 @@ public final class M {
 			y[i] = pol.ypoints[i];
 		}
 		return new VectorString2D(x, y, z, true);
+	}
+	
+	public static final double volumeOfTruncatedCone(final double r1, final double r2, final double height) {
+		return Math.PI * (r1 * r1 + r1 * r2 + r2 * r2) * height / 3;
+	}
+
+	public static final double lateralAreaOfTruncatedCone(final double r1, final double r2, final double height) {
+		return Math.PI * (r1 + r2) * Math.sqrt(Math.pow(r2 - r1, 2) + height * height);
+	}
+
+	/** The lateral area plus the two circles. */
+	public static final double totalAreaOfTruncatedCone(final double r1, final double r2, final double height) {
+		return lateralAreaOfTruncatedCone(r1, r2, height)
+			+ Math.PI * (r1 * r1 + r2 * r2);
 	}
 }
