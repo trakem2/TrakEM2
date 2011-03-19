@@ -1429,9 +1429,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return false;
 	}
 
+	/** The node currently being dragged or edited in some way. */
 	protected void setActive(Node<T> nd) {
 		this.active = nd;
 	}
+	/** The node currently being dragged or edited in some way. */
 	protected Node<T> getActive() { return active; }
 
 	protected void setLastEdited(Node<T> nd) {
@@ -1442,10 +1444,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		this.last_added = nd;
 		setLastVisited(nd);
 	}
-	protected void setLastMarked(Node<T> nd) {
+	public void setLastMarked(Node<T> nd) {
 		this.marked = nd;
 		setLastVisited(nd);
 	}
+	/** The node that paints in green, which is the receiver of events. */
 	protected void setLastVisited(Node<T> nd) {
 		this.last_visited = nd;
 	}
@@ -1885,7 +1888,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	private boolean adjustNodeColors(final Node<T> nd) {
+	protected boolean adjustNodeColors(final Node<T> nd) {
 		final Color color = null == nd.color ? this.color : nd.color;
 		GenericDialog gd = new GenericDialog("Node colors");
 		gd.addSlider("Red: ", 0, 255, color.getRed());
@@ -3590,6 +3593,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			this(a, b, Node.findPath(a, b));
 		}
 
+		/** Assumes that a is the first element in path, and b the last,
+		 * and that a has a lower degree than b (that is, a is upstream of b). */
 		public NodePath(Node<T> a, Node<T> b, List<Node<T>> path) {
 			super(a, b);
 			this.path = path;
