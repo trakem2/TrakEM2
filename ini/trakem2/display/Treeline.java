@@ -909,11 +909,13 @@ public class Treeline extends Tree<Float> {
 		}
 		@Override
 		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
-			// TODO
-			if (null == rt) rt = Utils.createResultsTable(getResultsTableTitle(),
-					new String[]{"id", "index", "length", "volume",
-					"shortest diameter", "longest diameter",
-					"average diameter", "stdDev diameter"});
+			if (null == rt) {
+				final String unit = layer_set.getCalibration().getUnit();
+				rt = Utils.createResultsTable(getResultsTableTitle(),
+					new String[]{"id", "index", "length " + unit, "volume " + unit + "^3",
+					"shortest diameter " + unit, "longest diameter " + unit,
+					"average diameter " + unit, "stdDev diameter"});
+			}
 			rt.incrementCounter();
 			rt.addValue(0, Treeline.this.id);
 			rt.addValue(1, index);

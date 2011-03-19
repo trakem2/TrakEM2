@@ -688,9 +688,11 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 		@Override
 		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
-			// TODO
-			if (null == rt) rt = Utils.createResultsTable(getResultsTableTitle(),
-					new String[]{"id", "index", "length", "volume"});
+			if (null == rt) {
+				final String unit = layer_set.getCalibration().getUnit();
+				rt = Utils.createResultsTable(getResultsTableTitle(),
+					new String[]{"id", "index", "length " + unit, "volume " + unit + "^3"});
+			}
 			rt.incrementCounter();
 			rt.addValue(0, AreaTree.this.id);
 			rt.addValue(1, index);
