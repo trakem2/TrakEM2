@@ -130,7 +130,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** For creating snapshots. */
 	private boolean snapshots_quality = true;
 
-	/** The maximum size of either width or height when virtuzaling pixel access to the layers.*/
+	/** The maximum size of either width or height when virtualizing pixel access to the layers.*/
 	private int max_dimension = 1024;
 	private boolean virtualization_enabled = false;
 
