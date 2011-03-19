@@ -1,6 +1,7 @@
 package ini.trakem2.display;
 
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -10,6 +11,7 @@ import ini.trakem2.utils.ProjectToolbar;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.awt.Point;
 import java.awt.Choice;
@@ -874,5 +876,99 @@ public class Treeline extends Tree<Float> {
 			else box.add(nd.getSegment().getBounds());
 		}
 		return box;
+	}
+	
+	private class RadiusMeasurementPair extends Tree<Float>.MeasurementPair
+	{
+		public RadiusMeasurementPair(Tree<Float>.NodePath np) {
+			super(np);
+		}
+		/** A list of calibrated radii, one per node in the path.*/
+		@Override
+		protected List<Float> calibratedData() {
+			final ArrayList<Float> data = new ArrayList<Float>();
+			final AffineTransform aff = new AffineTransform(Treeline.this.at);
+			final Calibration cal = layer_set.getCalibration();
+			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
+			final float[] fp = new float[4];
+			for (final Node<Float> nd : super.path) {
+				Float r = nd.getData();
+				if (null == r) data.add(null);
+				fp[0] = nd.x;
+				fp[1] = nd.y;
+				fp[2] = nd.x + r.floatValue();
+				fp[3] = nd.y;
+				aff.transform(fp, 0, fp, 0, 2);
+				data.add((float)Math.sqrt(Math.pow(fp[2] - fp[0], 2) + Math.pow(fp[3] - fp[1], 2)));
+			}
+			return data;
+		}
+		@Override
+		public String getResultsTableTitle() {
+			return "Treeline tagged pairs";
+		}
+		@Override
+		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
+			// TODO
+			if (null == rt) rt = Utils.createResultsTable(getResultsTableTitle(),
+					new String[]{"id", "index", "length", "volume",
+					"shortest diameter", "longest diameter",
+					"average diameter", "stdDev diameter"});
+			rt.incrementCounter();
+			rt.addValue(0, Treeline.this.id);
+			rt.addValue(1, index);
+			rt.addValue(2, distance);
+			double minRadius = Double.MAX_VALUE,
+				   maxRadius = 0,
+				   sumRadii = 0,
+				   volume = 0;
+			int i = 0;
+			double last_r = 0;
+			Point3f last_p = null;
+			final Iterator<Point3f> itp = coords.iterator();
+			final Iterator<Float> itr = data.iterator();
+			while (itp.hasNext()) {
+				final double r = itr.next();
+				final Point3f p = itp.next();
+				//
+				minRadius = Math.min(minRadius, r);
+				maxRadius = Math.max(maxRadius, r);
+				sumRadii += r;
+				//
+				if (i > 0) {
+					volume += M.volumeOfTruncatedCone(r, last_r, p.distance(last_p));
+				}
+				//
+				i += 1;
+				last_r = r;
+				last_p = p;
+			}
+			final int count = path.size();
+			final double avgRadius = (sumRadii / count);
+			// Compute standard deviation of the diameters:
+			double s = 0;
+			for (final Float r : data) s += Math.pow(2 * (r - avgRadius), 2);
+			final double stdDev = Math.sqrt(s / count);
+			//
+			rt.addValue(3, volume);
+			rt.addValue(4, minRadius * 2);
+			rt.addValue(5, maxRadius * 2);
+			rt.addValue(6, avgRadius * 2);
+			rt.addValue(7, stdDev);
+			return rt;
+		}
+		@Override
+		public MeshData createMesh(final double scale, final int parallels) {
+			Treeline sub = new Treeline(project, -1, title, width, height, alpha, visible, color, locked, new AffineTransform(Treeline.this.at));
+			sub.layer_set = Treeline.this.layer_set;
+			sub.root = path.get(0);
+			sub.cacheSubtree(path);
+			return sub.generateMesh(scale, parallels);
+		}
+	}
+	
+	@Override
+	protected MeasurementPair createMeasurementPair(NodePath np) {
+		return new RadiusMeasurementPair(np);
 	}
 }

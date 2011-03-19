@@ -3385,14 +3385,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 			return new Point3f(fpB[0], fpB[1], (float)(path.get(path.size()-1).la.getZ() * cal.pixelWidth));
 		}
-		/** @throws an Exception if a path cannot be found between @param a and @param b. */
 		public MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b) {
-			if (a == b) {
-				this.path = new ArrayList<Node<I>>();
-				this.path.add(a);
-			} else {
-				this.path = Node.findPath(a, b);
-			}
+			this(tree, a, b, Node.findPath(a, b));
+		}
+		/** @throws an Exception if a path cannot be found between @param a and @param b. */
+		private MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b, final List<Node<I>> path) {
+			this.path = path;
 			this.cal = tree.layer_set.getCalibrationCopy();
 			this.tree = tree;
 			this.a = a;
@@ -3553,5 +3551,135 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			cs.put(e.getKey(), e.getValue().centrality);
 		}
 		return cs;
+	}
+	
+	public class Pair {
+		/** Two nodes of a tree; there is a unique path that goes from a to b. */
+		public Node<T> a, b;
+
+		public Pair(Node<T> a, Node<T> b) {
+			this.a = a;
+			this.b = b;
+		}
+		
+		/** The calibrated distance from a to b. */
+		public double measureDistance() throws Exception {
+			return new MeasurePathDistance<T>(Tree.this, a, b).getDistance();
+		}
+
+		/** The list of associated data element with each node. */
+		private List<T> getData(final List<Node<T>> path) {
+			final ArrayList<T> d = new ArrayList<T>();
+			for (final Node<T> nd : path) {
+				d.add(nd.getData());
+			}
+			return d;
+		}
+
+		/** The list of data elements associated with each node in the path, ordered from a to b (both included). */
+		public List<T> getData() {
+			return getData(Node.findPath(a, b));
+		}
+	}
+	
+	public class NodePath extends Pair {
+		/** The ordered list of nodes from a to b, both included. */
+		final protected List<Node<T>> path;
+
+		public NodePath(Node<T> a, Node<T> b) {
+			this(a, b, Node.findPath(a, b));
+		}
+
+		public NodePath(Node<T> a, Node<T> b, List<Node<T>> path) {
+			super(a, b);
+			this.path = path;
+		}
+		
+		public List<Node<T>> getPath() {
+			return path;
+		}
+	}
+	
+	public abstract class MeasurementPair extends NodePath
+	{
+		/** The calibrated path distance between nodes a and b, measured
+		 * as the sum of all the distances between all consecutive pairs
+		 * of nodes between a and b. */
+		final public double distance;
+		/** The ordered list of calibrated data elements of each node in the path
+		 * of nodes between a and b, both included. */
+		final public List<T> data;
+		/** The ordered list of calibrated coordinates of all nodes in the path
+		 * of nodes between a and b, both included. */
+		final public List<Point3f> coords;
+		
+		public MeasurementPair(NodePath np) {
+			this(np.a, np.b, np.path);
+		}
+		public MeasurementPair(Node<T> a, Node<T> b, List<Node<T>> path) {
+			super(a, b, path);
+			this.distance = new MeasurePathDistance<T>(Tree.this, a, b, path).getDistance();
+			this.data = calibratedData();
+			this.coords = new ArrayList<Point3f>();
+			final AffineTransform aff = toCalibration();
+			final float[] fp = new float[2];
+			for (final Node<T> nd : path) {
+				fp[0] = nd.x;
+				fp[1] = nd.y;
+				aff.transform(fp, 0, fp, 0, 1);
+				coords.add(new Point3f(fp[0], fp[1], (float)nd.getLayer().getCalibratedZ()));
+			}
+		}
+		abstract protected List<T> calibratedData();
+		abstract public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample);
+		abstract public MeshData createMesh(final double scale, final int resample);
+		abstract public String getResultsTableTitle();
+		@Override
+		public double measureDistance() {
+			return distance;
+		}
+		@Override
+		public List<T> getData() {
+			return data;
+		}
+		/** Concatenate the affine of the Tree and an affine that expresses the x,y calibration. */
+		protected final AffineTransform toCalibration() {
+			final AffineTransform aff = new AffineTransform(Tree.this.at);
+			final Calibration cal = layer_set.getCalibration();
+			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
+			return aff;
+		}
+	}
+	
+	protected abstract MeasurementPair createMeasurementPair(NodePath np);
+	
+	public List<NodePath> findTaggedPairs(final Tag upstream, final Tag downstream) {
+		final ArrayList<NodePath> pairs = new ArrayList<NodePath>();
+		if (null == root) return pairs;
+		for (final Node<T> nd : root.getSubtreeNodes()) {
+			if (nd.hasTag(downstream)) {
+				List<Node<T>> path = new ArrayList<Node<T>>();
+				path.add(nd);
+				Node<T> parent = nd.getParent();
+				while (!parent.hasTag(upstream)) {
+					path.add(parent);
+					parent = parent.getParent();
+					if (null == parent) break;
+				}
+				if (null == parent) continue;
+				path.add(parent);
+				Collections.reverse(path);
+				pairs.add(new NodePath(parent, nd, path));
+			}
+		}
+		return pairs;
+	}
+	
+	public List<MeasurementPair> measureTaggedPairs(final Tag upstream, final Tag downstream) {
+		final ArrayList<MeasurementPair> pairs = new ArrayList<MeasurementPair>();
+		for (final NodePath np : findTaggedPairs(upstream, downstream)) {
+			pairs.add(createMeasurementPair(np));
+		}
+		return pairs;
 	}
 }

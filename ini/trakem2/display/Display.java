@@ -2627,8 +2627,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				JMenuItem dist_to_root = new JMenuItem("Distance from this node to root"); tmeasure.add(dist_to_root);
 				JMenuItem dist_to_tag = new JMenuItem("Distance from this node to all nodes tagged as..."); tmeasure.add(dist_to_tag);
 				JMenuItem dist_to_mark = new JMenuItem("Distance from this node to the marked node"); tmeasure.add(dist_to_mark);
+				JMenuItem dist_pairs = new JMenuItem("Shortest distances between all pairs of nodes tagged as..."); tmeasure.add(dist_pairs);
 				final ActionListener tma = getTreePathMeasureListener((Tree<?>)active);
-				for (JMenuItem mi : new JMenuItem[]{dist_to_root, dist_to_tag, dist_to_mark}) {
+				for (JMenuItem mi : new JMenuItem[]{dist_to_root, dist_to_tag, dist_to_mark, dist_pairs}) {
 					mi.addActionListener(tma);
 				}
 				popup.add(tmeasure);
@@ -3287,8 +3288,59 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private ActionListener getTreePathMeasureListener(final Tree tree) {
 		return new ActionListener() {
+			private TreeMap<String,Tag> getTags() {
+				final Set<Tag> tags = tree.findTags();
+				if (tags.isEmpty()) {
+					Utils.log("The nodes of the tree '" + tree + "' don't have any tags!");
+					return null;
+				}
+				TreeMap<String,Tag> sm = new TreeMap<String,Tag>();
+				for (final Tag t : tags) sm.put(t.toString(), t);
+				return sm;
+			}
+			private String[] asStrings(final TreeMap<String,Tag> tags) {
+				if (null == tags) return null;
+				final String[] stags = new String[tags.size()];
+				tags.keySet().toArray(stags);
+				return stags;
+			}
 			public void actionPerformed(ActionEvent ae) {
 				final String command = ae.getActionCommand();
+				if (command.equals("Shortest distances between all pairs of nodes tagged as...")) {
+					final TreeMap<String,Tag> sm = getTags();
+					if (null == sm) return;
+					if (1 == sm.size()) {
+						Utils.showMessage("Need at least two different tags in the tree!");
+						return;
+					}
+					final String[] stags = asStrings(sm);
+					sm.keySet().toArray(stags);
+					GenericDialog gd = new GenericDialog("Choose tag");
+					gd.addChoice("Upstream tag:", stags, stags[0]);
+					gd.addChoice("Downstream tag:", stags, stags[1]);
+					gd.addNumericField("Scale:", 1, 2);
+					LayerSet ls = tree.getLayerSet();
+					final int resample = Display3D.estimateResamplingFactor(ls, ls.getLayerWidth(), ls.getLayerHeight());
+					gd.addSlider("Resample: ", 1, Math.max(resample, 100), resample);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					final Tag upstreamTag = sm.get(gd.getNextChoice());
+					final Tag downstreamTag = sm.get(gd.getNextChoice());
+					final List<Tree<?>.MeasurementPair> pairs = tree.measureTaggedPairs(upstreamTag, downstreamTag);
+					ResultsTable rt = null;
+					int index = 0;
+					for (final Tree<?>.MeasurementPair pair : pairs) {
+						rt = pair.toResultsTable(rt, index++, 1.0, resample);
+						Utils.showProgress(((double)index) / pairs.size());
+					}
+					if (index > 0) {
+						rt.show(pairs.get(0).getResultsTableTitle());
+					} else {
+						Utils.logAll("No pairs found for '" + upstreamTag + "' and '" + downstreamTag + "'");
+					}
+					return;
+				}
+				// Measurements related to the node under the mouse
 				Point p = getCanvas().consumeLastPopupPoint();
 				Node clicked = tree.findClosestNodeW(p.x, p.y, getLayer(), canvas.getMagnification());
 				if (null == clicked) {

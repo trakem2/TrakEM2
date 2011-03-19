@@ -39,6 +39,8 @@ import java.util.TreeMap;
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
 
+import customnode.CustomTriangleMesh;
+
 public class AreaTree extends Tree<Area> implements AreaContainer {
 
 	private boolean fill_paint = true;
@@ -509,7 +511,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 		return box;
 	}
-
+	
 	public MeshData generateMesh(final double scale, final int resample) {
 		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
@@ -527,7 +529,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		// Determine colors by proximity to a node, since there isn't any other way.
 		// TODO
 		Utils.log("WARNING: AreaTree multicolor 3D mesh is not yet implemented.");
-		final Color3f cf = new Color3f(this.color);
+		final Color3f cf = new Color3f(color);
 		for (int i=0; i<ps.size(); i++) colors.add(cf);
 		
 		return new MeshData(ps, colors);
@@ -658,5 +660,57 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		AreaNode an = (AreaNode) nd;
 		if (null == an.aw) an.getData(); // creates an.aw
 		an.aw.add(a, layer);
+	}
+	
+
+	private class AreaMeasurementPair extends Tree<Area>.MeasurementPair
+	{
+		public AreaMeasurementPair(Tree<Area>.NodePath np) {
+			super(np);
+		}
+		/** A list of calibrated areas, one per node in the path.*/
+		@Override
+		protected List<Area> calibratedData() {
+			final ArrayList<Area> data = new ArrayList<Area>();
+			final AffineTransform aff = new AffineTransform(AreaTree.this.at);
+			final Calibration cal = layer_set.getCalibration();
+			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
+			for (final Node<Area> nd : super.path) {
+				Area a = nd.getData();
+				if (null == a) data.add(null);
+				data.add(a.createTransformedArea(aff));
+			}
+			return data;
+		}
+		@Override
+		public String getResultsTableTitle() {
+			return "AreaTree tagged pairs";
+		}
+		@Override
+		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
+			// TODO
+			if (null == rt) rt = Utils.createResultsTable(getResultsTableTitle(),
+					new String[]{"id", "index", "length", "volume"});
+			rt.incrementCounter();
+			rt.addValue(0, AreaTree.this.id);
+			rt.addValue(1, index);
+			rt.addValue(2, distance);
+			CustomTriangleMesh mesh = new CustomTriangleMesh(createMesh(scale, resample).verts);
+			rt.addValue(3, mesh.getVolume());
+			return rt;
+		}
+		@Override
+		public MeshData createMesh(final double scale, final int resample) {
+			AreaTree sub = new AreaTree(project, -1, "", width, height, alpha, true, color, false, new AffineTransform(at));
+			sub.layer_set = AreaTree.this.layer_set;
+			sub.root = path.get(0);
+			sub.cacheSubtree(path);
+			return sub.generateMesh(scale, resample);
+		}
+	}
+	
+	@Override
+	protected MeasurementPair createMeasurementPair(NodePath np) {
+		return new AreaMeasurementPair(np);
 	}
 }
