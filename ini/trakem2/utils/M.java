@@ -789,7 +789,12 @@ public final class M {
 	}
 	
 	public static final double volumeOfTruncatedCone(final double r1, final double r2, final double height) {
-		return Math.PI * (r1 * r1 + r1 * r2 + r2 * r2) * height / 3;
+		return Math.PI
+				* (  r1 * r1
+				   + r1 * r2
+				   + r2 * r2)
+				* height
+				/ 3;
 	}
 
 	public static final double lateralAreaOfTruncatedCone(final double r1, final double r2, final double height) {
