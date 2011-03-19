@@ -362,6 +362,13 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	public double getZ() { return z; }
 	public double getThickness() { return thickness; }
+	
+	public double getCalibratedZ() {
+		return z * parent.getCalibration().pixelWidth; // not pixelDepth ... 
+	}
+	public double getCalibratedThickness() {
+		return thickness * parent.getCalibration().pixelWidth; // not pixelDepth ...
+	}
 
 	/** Remove this layer and all its contents from the project. */
 	public boolean remove(boolean check) {
