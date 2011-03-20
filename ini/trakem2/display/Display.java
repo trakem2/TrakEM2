@@ -3459,7 +3459,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					final Tag downstreamTag = sm.get(gd.getNextChoice());
 					final List<Tree<?>.MeasurementPair> pairs = tree.measureTaggedPairs(upstreamTag, downstreamTag);
 					ResultsTable rt = null;
-					int index = 0;
+					int index = 1;
 					for (final Tree<?>.MeasurementPair pair : pairs) {
 						rt = pair.toResultsTable(rt, index++, 1.0, resample);
 						Utils.showProgress(((double)index) / pairs.size());
