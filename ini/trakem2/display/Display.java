@@ -26,6 +26,7 @@ import ij.*;
 import ij.gui.*;
 import ij.io.OpenDialog;
 import ij.io.DirectoryChooser;
+import ij.io.SaveDialog;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.process.ImageProcessor;
@@ -56,6 +57,7 @@ import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
 import ini.trakem2.imaging.StitchingTEM;
+import ini.trakem2.io.NeuroML;
 
 import javax.swing.*;
 import javax.swing.text.Document;
@@ -75,6 +77,10 @@ import java.util.*;
 import java.util.List;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.io.File;
 import java.util.concurrent.Future;
@@ -3096,6 +3102,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item.setEnabled(null != active && Tree.class.isInstance(active));
 		item = new JMenuItem("Tags..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Connectivity graph..."); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("NeuroML..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Display");
@@ -5567,6 +5574,68 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Bureaucrat.createAndStart(new Worker.Task("Connectivity graph") {
 				public void exec() {
 					Graph.extractAndShowGraph(getLayerSet());
+				}
+			}, getProject());
+		} else if (command.equals("NeuroML...")) {
+			GenericDialog gd = new GenericDialog("Export NeuroML");
+			String[] a = new String[]{"NeuroML (arbors and synapses)", "MorphML (arbors)"};
+			gd.addChoice("Type:", a, a[0]);
+			String[] b = new String[]{"All treelines and areatrees", "Selected treelines and areatrees"};
+			gd.addChoice("Export:", b, b[0]);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			final int type = gd.getNextChoiceIndex();
+			final int export = gd.getNextChoiceIndex();
+			//
+			SaveDialog sd = new SaveDialog("Choose .mml file", null, ".mml");
+			String filename = sd.getFileName();
+			if (null == filename) return; // canceled
+			final File f = new File(sd.getDirectory() + filename);
+			//
+			Bureaucrat.createAndStart(new Worker.Task("Export NeuroML") {
+				public void exec() {
+					OutputStreamWriter w = null;
+					try {
+						final Set<Tree<?>> trees = new HashSet<Tree<?>>();
+						Collection<? extends Displayable> ds = null;
+						switch (export) {
+						case 0:
+							ds = getLayerSet().getZDisplayables();
+							break;
+						case 1:
+							ds = selection.getSelected();
+							break;
+						}
+						for (final Displayable d : ds) {
+							if (d.getClass() == Treeline.class || d.getClass() == AreaTree.class) {
+								trees.add((Tree<?>)d);
+							}
+						}
+						if (trees.isEmpty()) {
+							Utils.showMessage("No trees to export!");
+							return;
+						}
+						//
+						w = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f), 65536), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
+						//
+						switch (type) {
+						case 0:
+							NeuroML.exportNeuroML(trees, w);
+							break;
+						case 1:
+							NeuroML.exportMorphML(trees, w);
+							break;
+						}
+						//
+						w.flush();
+						w.close();
+						//
+					} catch (Throwable t) {
+						IJError.print(t);
+						try {
+							if (null != w) w.close();
+						} catch (Exception ee) { IJError.print(ee); }
+					}
 				}
 			}, getProject());
 		} else if (command.equals("Measure")) {
