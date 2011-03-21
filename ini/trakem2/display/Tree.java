@@ -2098,14 +2098,19 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 	/** Expects Area in world coords. */
 	public boolean intersects(final Layer layer, final Area area) {
-		Set<Node<T>> nodes = node_layer_map.get(layer);
-		if (null == nodes || nodes.isEmpty()) return false;
+		return null != firstIntersectingNode(layer, area);
+	}
+	/** Expects Area in world coords.
+	 * @return The first {@link Node} that intersects the {@param area} at the given {@param layer}, or null if none do. */
+	public Node<T> firstIntersectingNode(final Layer layer, final Area area) {
+		final Set<Node<T>> nodes = node_layer_map.get(layer);
+		if (null == nodes || nodes.isEmpty()) return null;
 		try {
-			return null != findFirstIntersectingNode(nodes, area.createTransformedArea(this.at.createInverse()));
+			return findFirstIntersectingNode(nodes, area.createTransformedArea(this.at.createInverse()));
 		} catch (NoninvertibleTransformException e) {
 			IJError.print(e);
 		}
-		return false;
+		return null;
 	}
 
 	/** Expects an Area in local coordinates. */
