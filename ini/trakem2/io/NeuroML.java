@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -123,18 +124,10 @@ public final class NeuroML {
 		w.write("\"/>\n  </segment>\n");
 	}
 
-	static private final String units(final Tree<?> d) {
-		final Calibration cal = d.getLayerSet().getCalibration();
-		final String unit = cal.getUnit().toLowerCase();
-		if (unit.equals("nm") || unit.matches("^nanometers*$")) return "nanometers";
-		if (unit.equals("µm") || unit.matches("^micrometers*$")) return "micrometers";
-		return cal.getUnits();
-	}
-
-	
 	static private final class HalfSynapse {
 		private Connector c;
 		private Tree<?> t;
+		@SuppressWarnings("unused")
 		private Node<?> node;
 		private long segmentId;
 
@@ -204,6 +197,7 @@ public final class NeuroML {
 		
 		// Header
 		w.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+		w.write("<!-- Exported from TrakEM2 '" + Utils.version + "' at " + new Date() + "\nTrakEM2 software by Albert Cardona, Institute of Neuroinformatics of the University of Zurich and ETH Zurich -->\n");
 		w.write("<morphml xmlns=\"http://morphml.org/morphml/schema\"\n");
 		w.write("  xmlns:meta=\"http://morphml.org/metadata/schema\"\n");
 		w.write("  xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
@@ -241,6 +235,7 @@ public final class NeuroML {
 		
 		// Header
 		w.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+		 + "<!-- Exported from TrakEM2 '" + Utils.version + "' at " + new Date() + "\nTrakEM2 software by Albert Cardona, Institute of Neuroinformatics of the University of Zurich and ETH Zurich -->\n"
 		 + "<neuroml xmlns=\"http://morphml.org/neuroml/schema\"\n"
 		 + " xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
 		 + " xmlns:net=\"http://morphml.org/networkml/schema\"\n" 
