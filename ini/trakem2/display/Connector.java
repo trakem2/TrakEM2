@@ -214,6 +214,14 @@ public class Connector extends Treeline {
 		a.transform(this.at);
 		return M.intersects(area, a);
 	}
+	
+	/** Whether the area of the root node intersects the world coordinates {@param wx}, {@param wy} at {@link Layer} {@param la}. */
+	public boolean intersectsOrigin(final double wx, final double wy, final Layer la) {
+		if (null == root || root.la != la) return false;
+		final Area a = root.getArea();
+		a.transform(this.at);
+		return a.contains(wx, wy);
+	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
 	public Set<Displayable> getOrigins(final Class<?> c) {
