@@ -396,7 +396,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 		// individual items will be added as soon as parsed
 	}
 
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		AffineTransform gt = null;
 		Stroke stroke = null;
 		AffineTransform aff = this.at;
@@ -419,6 +420,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (null != stroke) g.setStroke(stroke);
 	}
 
+	@Override
 	public Layer getFirstLayer() {
 		double min_z = Double.MAX_VALUE;
 		Layer min_la = this.layer; // so a null pointer is not returned
@@ -432,6 +434,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return min_la;
 	}
 
+	@Override
 	public boolean linkPatches() {
 		if (0 == al_items.size()) return false;
 		unlinkAll(Patch.class);
@@ -446,6 +449,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return false;
 	}
 
+	@Override
 	public boolean contains(Layer layer, int x, int y) {
 		final long lid = layer.getId();
 		Point2D.Double po = inverseTransformPoint(x, y);
@@ -458,6 +462,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	/** Returns a deep copy. */
+	@Override
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Dissector copy = new Dissector(pr, nid, this.title, this.width, this.height, this.alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
@@ -468,6 +473,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return copy;
 	}
 
+	@Override
 	public boolean isDeletable() {
 		if (0 == al_items.size()) return true;
 		return false;
@@ -480,6 +486,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	private Rectangle bbox = null;
 
+	@Override
 	public void mousePressed(MouseEvent me, Layer la, int x_p, int y_p, double mag) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
@@ -550,6 +557,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
+	@Override
 	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
@@ -587,6 +595,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
+	@Override
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		this.item = null;
 		this.index = -1;
@@ -636,6 +645,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		;
 	}
 
+	@Override
 	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
 		sb_body.append(indent).append("<t2_dissector\n");
 		final String in = indent + "\t";
@@ -660,6 +670,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	 * - second line: the number of items included in this dissector
 	 *  and then a list of 5 tab-separated columns: item tag, radius, x, y, z
 	 */
+	@Override
 	public String getInfo() {
 		final StringBuilder sb = new StringBuilder("title: ").append(this.title).append("\nitems: ").append(al_items.size()).append('\n').append("tag\tradius\tx\ty\tz\n");
 		for (final Item item : al_items) {
@@ -674,6 +685,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		paintAsBox(g);
 	}
 
+	@Override
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
 		Area ai;
 		try {
@@ -729,6 +741,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	/** Retain the data within the layer range, and through out all the rest. */
+	@Override
 	synchronized public boolean crop(List<Layer> range) {
 		HashSet<Long> lids = new HashSet<Long>();
 		for (Layer l : range) {
@@ -746,12 +759,14 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return true;
 	}
 
+	@Override
 	protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
 		for (Item item : al_items) item.layerRemoved(la.getId());
 		return true;
 	}
 
+	@Override
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		float[] fp = null;
 		mpicbg.models.CoordinateTransform chain = null;
@@ -781,6 +796,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		return true;
 	}
 
+	@Override
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
 		final float[] fp = new float[2];
 		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
