@@ -941,6 +941,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		synchronized (node_layer_map) {
 			if (null == last_visited) return null;
 			last_visited.setConfidence(confidence);
+			updateViewData(last_visited);
 			return last_visited;
 		}
 	}
