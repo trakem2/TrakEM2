@@ -718,6 +718,15 @@ public class Ball extends ZDisplayable implements VectorData {
 		return b;
 	}
 
+	/** Returns a Point3f for every x,y,z ball, in calibrated world space. */
+	public List<Point3f> asWorldPoints() {
+		final ArrayList<Point3f> ps = new ArrayList<Point3f>();
+		for (final double[] d : getWorldBalls()) {
+			ps.add(new Point3f((float)d[0], (float)d[1], (float)d[2]));
+		}
+		return ps;
+	}
+
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		if (0 == n_points) return;
