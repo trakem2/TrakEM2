@@ -574,6 +574,7 @@ public class ImageSaver {
 		g.drawImage(some, 0, 0, null);
 		some.flush();
 		g.drawImage(awt, 0, 0, null);
+		@SuppressWarnings("serial")
 		java.awt.Canvas canvas = new java.awt.Canvas() {
 			public void paint(Graphics g) {
 				g.drawImage(background, 0, 0, null);
