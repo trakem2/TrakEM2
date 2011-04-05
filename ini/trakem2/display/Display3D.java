@@ -5,13 +5,12 @@ import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.Image3DUniverse;
+import ij3d.UniverseListener;
 import ij3d.behaviors.InteractiveBehavior;
 import ij3d.behaviors.Picker;
-
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.vector.VectorString3D;
 
@@ -24,6 +23,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
@@ -44,8 +44,8 @@ import javax.media.j3d.PolygonAttributes;
 import javax.media.j3d.Transform3D;
 import javax.media.j3d.View;
 import javax.vecmath.Color3f;
-import javax.vecmath.Point3f;
 import javax.vecmath.Point3d;
+import javax.vecmath.Point3f;
 
 import customnode.CustomLineMesh;
 import customnode.CustomMesh;
@@ -111,7 +111,7 @@ public final class Display3D {
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable<LayerSet,Display3D> ht_layer_sets = new Hashtable<LayerSet,Display3D>();
 	/**Control calls to new Display3D. */
-	static private Lock htlock = new Lock();
+	static private Object htlock = new Object();
 
 	/** The sky will fall on your head if you modify any of the objects contained in this table -- which is a copy of the original, but the objects are the originals. */
 	static public Hashtable<LayerSet,Display3D> getMasterTable() {
@@ -119,11 +119,9 @@ public final class Display3D {
 	}
 
 	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
-	private Hashtable<ProjectThing,Content> ht_pt_meshes = new Hashtable<ProjectThing,Content>();
+	private Map<ProjectThing,String> ht_pt_meshes = Collections.synchronizedMap(new HashMap<ProjectThing,String>());
 
 	private Image3DUniverse universe;
-
-	private Lock u_lock = new Lock();
 
 	private LayerSet layer_set;
 	/** The dimensions of the LayerSet in 2D. */
@@ -170,6 +168,49 @@ public final class Display3D {
 		// objects in the 3D viewer and centre the front Display
 		// on that point:
 		this.universe.addInteractiveBehavior(new ControlClickBehavior(universe));
+		
+		this.universe.addUniverseListener(new UniverseListener() {
+			@Override
+			public void universeClosed() {
+				synchronized (ht_pt_meshes) {
+					ht_pt_meshes.clear();
+				}
+			}
+			@Override
+			public void transformationUpdated(View arg0) {
+			}
+			@Override
+			public void transformationStarted(View arg0) {
+			}
+			@Override
+			public void transformationFinished(View arg0) {
+			}
+			@Override
+			public void contentSelected(Content arg0) {
+				// TODO could select in TrakEM2's Display
+			}
+			@Override
+			public void contentRemoved(Content arg0) {
+				String name = arg0.getName();
+				synchronized (ht_pt_meshes) {
+					for (final Iterator<Map.Entry<ProjectThing,String>> it = ht_pt_meshes.entrySet().iterator(); it.hasNext(); ) {
+						if (name.equals(it.next().getValue())) {
+							it.remove();
+							break;
+						}
+					}
+				}
+			}
+			@Override
+			public void contentChanged(Content arg0) {
+			}
+			@Override
+			public void contentAdded(Content arg0) {
+			}
+			@Override
+			public void canvasResized() {
+			}
+		});
 	}
 
 	/*
@@ -314,7 +355,6 @@ public final class Display3D {
 	/** Get an existing Display3D for the given LayerSet, or create a new one for it (and cache it). */
 	static public Display3D get(final LayerSet ls) {
 		synchronized (htlock) {
-			htlock.lock();
 			try {
 				// test:
 				if (!hasLibs()) return null;
@@ -335,9 +375,6 @@ public final class Display3D {
 				return ht_layer_sets.get(ls);
 			} catch (Exception e) {
 				IJError.print(e);
-			} finally {
-				// executed even when returning from within the try-catch block
-				htlock.unlock();
 			}
 		}
 		return null;
@@ -349,15 +386,19 @@ public final class Display3D {
 	}
 
 	static public void setWaitingCursor() {
-		for (Display3D d3d : ht_layer_sets.values()) {
-			d3d.universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-		}
+		Utils.invokeLater(new Runnable() { public void run() {
+			for (Display3D d3d : ht_layer_sets.values()) {
+				d3d.universe.getWindow().setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+			}
+		}});
 	}
 
 	static public void doneWaiting() {
-		for (Display3D d3d : ht_layer_sets.values()) {
-			d3d.universe.getWindow().setCursor(Cursor.getDefaultCursor());
-		}
+		Utils.invokeLater(new Runnable() { public void run() {
+			for (Display3D d3d : ht_layer_sets.values()) {
+				d3d.universe.getWindow().setCursor(Cursor.getDefaultCursor());
+			}
+		}});
 	}
 
 	static public Future<Vector<Future<Content>>> show(ProjectThing pt) {
@@ -485,7 +526,11 @@ public final class Display3D {
 				Utils.log("Could not get a proper 3D display for node " + displ);
 				return null; // java3D not installed most likely
 			}
-			if (d3d.ht_pt_meshes.contains(child)) {
+			boolean already;
+			synchronized (d3d.ht_pt_meshes) {
+				already = d3d.ht_pt_meshes.containsKey(child);
+			}
+			if (already) {
 				Utils.log2("Already here: " + child);
 				continue; // already here
 			}
@@ -648,18 +693,15 @@ public final class Display3D {
 			//Utils.log2("No Display3D contains ProjectThing: " + pt);
 			return;
 		}
-		if (null == d3d.ht_pt_meshes.remove(pt)) {
-			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
-			return; // not contained here
+		String name;
+		synchronized (d3d.ht_pt_meshes) {
+			name = d3d.ht_pt_meshes.remove(pt);
 		}
-		/*
-		String title = makeTitle(displ);
-		//Utils.log(d3d.universe.contains(title) + ": Universe contains " + displ);
-		d3d.universe.removeContent(title); // WARNING if the title changes, problems: will need a table of pt vs title as it was when added to the universe. At the moment titles are not editable for basic types, but this may change in the future. TODO the future is here: titles are editable for basic types.
-		*/
-		Utils.log2(Utils.toString(d3d.ht_pt_meshes));
-		Content ct = d3d.ht_pt_meshes.get(pt);
-		if (null != ct) d3d.universe.removeContent(ct.getName());
+		if (null == name) {
+			Utils.log2("No mesh contained within " + d3d + " for ProjectThing " + pt);
+			return;
+		}
+		d3d.universe.removeContent(name);
 	}
 
 
@@ -808,68 +850,65 @@ public final class Display3D {
 
 		Content ct = null;
 
-		synchronized (u_lock) {
-			u_lock.lock();
-			try {
-				Color3f c3 = new Color3f(color);
+		try {
+			Color3f c3 = new Color3f(color);
 
-				// If it exists, remove and add as new:
-				universe.removeContent(title);
+			// If it exists, remove and add as new:
+			universe.removeContent(title);
 
-				final CustomMesh cm;
+			final CustomMesh cm;
 
-				if (line_mesh) {
-					//ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
-					cm = new CustomLineMesh(triangles, line_mesh_mode, c3, 0);
-				} else if (no_culling) {
-					// create a mesh with the same color and zero transparency (that is, full opacity)
-					CustomTriangleMesh mesh = new CustomTriangleMesh(triangles, c3, 0);
+			if (line_mesh) {
+				//ct = universe.createContent(new CustomLineMesh(triangles, line_mesh_mode, c3, 0), title);
+				cm = new CustomLineMesh(triangles, line_mesh_mode, c3, 0);
+			} else if (no_culling) {
+				// create a mesh with the same color and zero transparency (that is, full opacity)
+				CustomTriangleMesh mesh = new CustomTriangleMesh(triangles, c3, 0);
+				// Set mesh properties for double-sided triangles
+				PolygonAttributes pa = mesh.getAppearance().getPolygonAttributes();
+				pa.setCullFace(PolygonAttributes.CULL_NONE);
+				pa.setBackFaceNormalFlip(true);
+				mesh.setColor(c3);
+				// After setting properties, add to the viewer
+				//ct = universe.createContent(mesh, title);
+				cm = mesh;
+			} else {
+				//ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
+				cm = new CustomTriangleMesh(triangles, c3, 0);
+			}
+
+			if (null != triangle_colors) cm.setColor(triangle_colors);
+
+			//if (null == cm) return null;
+
+			if (null == extra_triangles || 0 == extra_triangles.size()) {
+				ct = universe.createContent(cm, title);
+			} else {
+				final CustomTriangleMesh extra = new CustomTriangleMesh(extra_triangles, c3, 0);
+				if (null != extra_triangle_colors) {
 					// Set mesh properties for double-sided triangles
-					PolygonAttributes pa = mesh.getAppearance().getPolygonAttributes();
+					PolygonAttributes pa = extra.getAppearance().getPolygonAttributes();
 					pa.setCullFace(PolygonAttributes.CULL_NONE);
 					pa.setBackFaceNormalFlip(true);
-					mesh.setColor(c3);
-					// After setting properties, add to the viewer
-					//ct = universe.createContent(mesh, title);
-					cm = mesh;
-				} else {
-					//ct = universe.createContent(new CustomTriangleMesh(triangles, c3, 0), title);
-					cm = new CustomTriangleMesh(triangles, c3, 0);
+					extra.setColor(extra_triangle_colors);
 				}
-				
-				if (null != triangle_colors) cm.setColor(triangle_colors);
-
-				//if (null == cm) return null;
-
-				if (null == extra_triangles || 0 == extra_triangles.size()) {
-					ct = universe.createContent(cm, title);
-				} else {
-					final CustomTriangleMesh extra = new CustomTriangleMesh(extra_triangles, c3, 0);
-					if (null != extra_triangle_colors) {
-						// Set mesh properties for double-sided triangles
-						PolygonAttributes pa = extra.getAppearance().getPolygonAttributes();
-						pa.setCullFace(PolygonAttributes.CULL_NONE);
-						pa.setBackFaceNormalFlip(true);
-						extra.setColor(extra_triangle_colors);
-					}
-					ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, extra})), title);
-				}
-
-				// Set general content properties
-				ct.setTransparency(1f - alpha);
-				// Default is unlocked (editable) transformation; set it to locked:
-				ct.setLocked(true);
-
-				// register mesh -- TODO is this necessary any longer?
-				ht_pt_meshes.put(pt, ct);
-
-			} catch (Throwable e) {
-				Utils.logAll("Mesh generation failed for \"" + title + "\"  from " + pt);
-				IJError.print(e);
-				e.printStackTrace();
-			} finally {
-				u_lock.unlock();
+				ct = universe.createContent(new CustomMultiMesh(Arrays.asList(new CustomMesh[]{cm, extra})), title);
 			}
+
+			// Set general content properties
+			ct.setTransparency(1f - alpha);
+			// Default is unlocked (editable) transformation; set it to locked:
+			ct.setLocked(true);
+
+			// register mesh title
+			synchronized (ht_pt_meshes) {
+				ht_pt_meshes.put(pt, ct.getName());
+			}
+
+		} catch (Throwable e) {
+			Utils.logAll("Mesh generation failed for \"" + title + "\"  from " + pt);
+			IJError.print(e);
+			e.printStackTrace();
 		}
 
 		Utils.log2(pt.toString() + " n points: " + triangles.size());
