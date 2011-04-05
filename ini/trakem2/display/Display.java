@@ -6359,6 +6359,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return false;
 	}
 
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public void hideDeselected(final boolean not_images) {
 		// hide deselected
 		final ArrayList all = layer.getParent().getZDisplayables(); // a copy
@@ -6748,7 +6749,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static private List<Patch> getPatchStacks(final LayerSet ls) {
 		HashSet<Patch> stacks = new HashSet<Patch>();
-		for (Patch pa : (Collection<Patch>) (Collection) ls.getDisplayables(Patch.class)) {
+		for (Patch pa : ls.getAll(Patch.class)) {
+			if (stacks.contains(pa)) continue;
 			PatchStack ps = pa.makePatchStack();
 			if (1 == ps.getNSlices()) continue;
 			stacks.add(ps.getPatch(0));
@@ -6769,7 +6771,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				burro = AlignTask.alignSelectionTask(selection);
 				break;
 			case 1:
-				burro = StitchingTEM.montageWithPhaseCorrelation( (Collection<Patch>) (Collection) selection.getSelected(Patch.class));
+				burro = StitchingTEM.montageWithPhaseCorrelation(selection.get(Patch.class));
 				break;
 			default:
 				Utils.log("Unknown montage type " + type);
