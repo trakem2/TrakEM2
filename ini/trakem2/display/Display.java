@@ -4281,22 +4281,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			duplicateLinkAndSendTo(active, 0, layer.getParent().previous(layer));
 		} else if (command.equals("Duplicate, link and send to...")) {
 			// fix non-scrolling popup menu
-			GenericDialog gd = new GenericDialog("Send to");
-			gd.addMessage("Duplicate, link and send to...");
-			String[] sl = new String[layer.getParent().size()];
-			int next = 0;
-			for (Iterator it = layer.getParent().getLayers().iterator(); it.hasNext(); ) {
-				sl[next++] = project.findLayerThing(it.next()).toString();
-			}
-			gd.addChoice("Layer: ", sl, sl[layer.getParent().indexOf(layer)]);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			Layer la = layer.getParent().getLayer(gd.getNextChoiceIndex());
-			if (layer == la) {
-				Utils.showMessage("Can't duplicate, link and send to the same layer.");
-				return;
-			}
-			duplicateLinkAndSendTo(active, 0, la);
+			Utils.invokeLater(new Runnable() { public void run() {
+				GenericDialog gd = new GenericDialog("Send to");
+				gd.addMessage("Duplicate, link and send to...");
+				String[] sl = new String[layer.getParent().size()];
+				int next = 0;
+				for (final Layer la : layer.getParent().getLayers()) {
+					sl[next++] = project.findLayerThing(la).toString();
+				}
+				gd.addChoice("Layer: ", sl, sl[layer.getParent().indexOf(layer)]);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				Layer la = layer.getParent().getLayer(gd.getNextChoiceIndex());
+				if (layer == la) {
+					Utils.showMessage("Can't duplicate, link and send to the same layer.");
+					return;
+				}
+				duplicateLinkAndSendTo(active, 0, la);
+			}});
 		} else if (-1 != command.indexOf("z = ")) {
 			// this is an item from the "Duplicate, link and send to" menu of layer z's
 			Layer target_layer = layer.getParent().getLayer(Double.parseDouble(command.substring(command.lastIndexOf(' ') +1)));
@@ -4500,7 +4502,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			gd.addChoice("Stacks:", stack_titles, stack_titles[0]);
 
-			Vector vc = gd.getChoices();
+			Vector<?> vc = gd.getChoices();
 			final Choice choice_target_landmarks = (Choice) vc.get(0);
 			final Choice choice_source_projects = (Choice) vc.get(1);
 			final Choice choice_source_landmarks = (Choice) vc.get(2);
