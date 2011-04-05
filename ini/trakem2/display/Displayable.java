@@ -525,6 +525,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (null == title || 0 == title.length()) return;
 		this.title = title;
 		Display.updateTitle(layer, this); // update the DisplayablePanel(s) that show this Patch
+		Search.repaint(this);
 		updateInDatabase("title");
 	}
 

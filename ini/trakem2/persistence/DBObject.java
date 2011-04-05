@@ -80,7 +80,6 @@ public class DBObject {
 	}
 
 	public boolean updateInDatabase(String key) {
-		Search.repaint(this);
 		return project.getLoader().updateInDatabase(this, key);
 	}
 	public boolean updateInDatabase(Set<String> keys) {
