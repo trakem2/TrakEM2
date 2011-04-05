@@ -807,7 +807,7 @@ public class DBLoader extends Loader {
 			Project[] projects = null;
 			try {
 				ResultSet r = connection.prepareStatement("SELECT title, id FROM ab_projects ORDER BY id").executeQuery();
-				ArrayList al_projects = new ArrayList();
+				ArrayList<Project> al_projects = new ArrayList<Project>();
 				while (r.next()) {
 					al_projects.add(new Project(r.getLong("id"), r.getString("title")));
 				}
