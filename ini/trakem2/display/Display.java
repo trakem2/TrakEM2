@@ -3227,6 +3227,32 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							interpolate(nd, true);
 						} else if (command.equals("Interpolate gaps towards parent (absolute)")) {
 							interpolate(nd, false);
+						} else if (command.equals("Interpolate all gaps")) {
+							GenericDialog gd = new GenericDialog("Interpolate");
+							String[] a = new String[]{"node-centric", "absolute"};
+							gd.addChoice("Mode", a, a[0]);
+							gd.addCheckbox("Always use distance map", project.getBooleanProperty(AreaUtils.always_interpolate_areas_with_distance_map));
+							String[] b = new String[]{"All selected AreaTrees", "Active AreaTree"};
+							gd.addChoice("Process", b, b[0]);
+							gd.showDialog();
+							if (gd.wasCanceled()) return;
+							boolean node_centric = 0 == gd.getNextChoiceIndex();
+							boolean use_distance_map = gd.getNextBoolean();
+							boolean all = 0 == gd.getNextChoiceIndex();
+							Set<Displayable> s = new HashSet<Displayable>();
+							if (all) s.addAll(selection.get(AreaTree.class));
+							else s.add(atree);
+							// Store current state for undo
+							ls.addDataEditStep(s);
+							try {
+								for (final Displayable d : s) {
+									((AreaTree)d).interpolateAllGaps(node_centric, use_distance_map);
+								}
+								ls.addDataEditStep(s);
+							} catch (Exception e) {
+								IJError.print(e);
+								ls.undoOneStep();
+							}
 						}
 					}
 					private final void interpolate(final Node<?> nd, final boolean node_centric) {
@@ -3255,6 +3281,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		JMenu interpolate = new JMenu("Areas");
 		JMenuItem item = new JMenuItem("Interpolate gaps towards parent (node-centric)"); item.addActionListener(listener); interpolate.add(item);
 		item = new JMenuItem("Interpolate gaps towards parent (absolute)"); item.addActionListener(listener); interpolate.add(item);
+		item = new JMenuItem("Interpolate all gaps"); item.addActionListener(listener); interpolate.add(item);
 		item = new JMenuItem("Area interpolation options..."); item.addActionListener(Display.this); interpolate.add(item);
 		interpolate.addSeparator();
 		item = new JMenuItem("Copy area"); item.addActionListener(listener); interpolate.add(item);

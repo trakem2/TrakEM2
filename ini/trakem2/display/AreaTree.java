@@ -28,11 +28,14 @@ import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -557,7 +560,6 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return false;
 	}
 
-
 	@Override
 	public ResultsTable measureAreas(ResultsTable rt) {
 		if (null == root) return rt;
@@ -652,6 +654,50 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 
 		return true;
+	}
+	
+	/** Processes shorter chains first. */
+	public boolean interpolateAllGaps(final boolean node_centric, final boolean always_use_distance_map) throws Exception {
+		if (null == root) return false;
+		// Find all nodes that have an area
+		Map<Node<Area>,Integer> m = new HashMap<Node<Area>,Integer>();
+		for (final Node.NodeIterator<Area> it = new Node.FilteredIterator<Area>(root) {
+				public boolean accept(ini.trakem2.display.Node<Area> node) {
+					return null != node.getData() && !node.getData().isEmpty();
+				}
+			}; it.hasNext(); ) {
+			final Node<Area> node = it.next();
+			// Skip root node
+			if (null == node.parent) continue;
+			// Gather the chain towards the nearest parent with an area
+			final LinkedList<Node<Area>> chain = new LinkedList<Node<Area>>();
+			Node<Area> p = node.parent;
+			while (null != p && (null == p.getData() || p.getData().isEmpty())) {
+				chain.add(p);
+				p = p.parent;
+			}
+			// Skip pairs of nodes with areas
+			if (1 == chain.size()) continue;
+			// Record
+			m.put(node, chain.size());
+		}
+		// Sort by size
+		ArrayList<Map.Entry<Node<Area>,Integer>> l = new ArrayList<Map.Entry<Node<Area>,Integer>>(m.entrySet());
+		Collections.sort(l, new Comparator<Map.Entry<Node<Area>,Integer>>() {
+			@Override
+			public int compare(Map.Entry<Node<Area>, Integer> o1,
+					Map.Entry<Node<Area>, Integer> o2) {
+				return o1.getValue() - o2.getValue();
+			}
+		});
+		// Process in order: shorter chains first
+		boolean processed = false;
+		for (Map.Entry<Node<Area>,Integer> e : l) {
+			Node<Area> node = e.getKey();
+			processed |= interpolateTowardsParent(node, node_centric, always_use_distance_map);
+		}
+		
+		return processed;
 	}
 
 	/** Assumes {@param nd} is an AreaNode. Otherwise fails with {@link ClassCastException}.
