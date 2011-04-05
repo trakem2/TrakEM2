@@ -3253,6 +3253,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								IJError.print(e);
 								ls.undoOneStep();
 							}
+							Display.repaint();
 						}
 					}
 					private final void interpolate(final Node<?> nd, final boolean node_centric) {
