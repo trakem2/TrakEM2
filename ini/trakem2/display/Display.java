@@ -312,7 +312,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private class SetLayerThread extends Thread {
 
 		private volatile Layer layer;
-		private final Lock lock = new Lock();
+		private final Object lock = new Object();
 
 		SetLayerThread() {
 			super("SetLayerThread");
