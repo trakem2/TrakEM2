@@ -226,24 +226,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		return al_displays.size();
 	}
 
-	/*
-	static private MouseListener frame_mouse_listener = new MouseAdapter() {
-		public void mouseReleased(MouseEvent me) {
-			Object source = me.getSource();
-			for (final Display d : al_displays) {
-				if (d.frame == source) {
-					if (d.size_adjusted) {
-						d.pack();
-						d.size_adjusted = false;
-						Utils.log2("mouse released on JFrame");
-					}
-					break;
-				}
-			}
-		}
-	};
-	*/
-
 	private ComponentListener canvas_size_listener = new ComponentAdapter() {
 		public void componentResized(ComponentEvent ce) {
 			canvas.adjustDimensions();
@@ -251,16 +233,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			navigator.repaint(false); // update srcRect red frame position/size
 		}
 	};
-	
-	// THIS WHOLE SYSTEM OF LISTENERS IS BROKEN:
-	// * when zooming in, the window growths in width a few pixels.
-	// * when enlarging the window quickly, the canvas is not resized as large as it should.
-	// -- the whole problem: swing threading, which I am not handling properly. It's hard.
+
+	/*// Currently not in use
 	private ComponentListener display_frame_listener = new ComponentAdapter() {
 		public void componentMoved(ComponentEvent ce) {
 			updateInDatabase("position");
 		}
 	};
+	*/
 
 	static private ChangeListener tabs_listener = new ChangeListener() {
 		/** Listen to tab changes. */
@@ -895,9 +875,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			this.frame.setMenuBar(ij.Menus.getMenuBar());
 		}
 		this.frame.addWindowListener(window_listener);
-		this.frame.addComponentListener(display_frame_listener);
+		//this.frame.addComponentListener(display_frame_listener);
 		this.frame.getContentPane().add(all);
-		//Display.this.frame.addMouseListener(frame_mouse_listener);
 
 		if (null != props) {
 			// restore canvas
