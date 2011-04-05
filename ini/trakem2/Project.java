@@ -343,16 +343,12 @@ public class Project extends DBObject {
 		// query the database for existing projects
 		Project[] projects = loader.getProjects();
 		if (null == projects) {
-			Utils.showMessage("Can't talk to database (null list).");
+			Utils.showMessage("Can't talk to database (null list of projects).");
 			loader.destroy();
 			return null;
 		}
 		Project project = null;
-		if (null == projects) {
-			Utils.showMessage("Can't fetch list of projects.");
-			loader.destroy();
-			return null;
-		} else if (0 == projects.length) {
+		if (0 == projects.length) {
 			Utils.showMessage("No projects in this database.");
 			loader.destroy();
 			return null; 
@@ -903,7 +899,6 @@ public class Project extends DBObject {
 		// not found:
 		return false;
 	}
-
 
 	/** Find the node in the layer tree with a Thing that contains the given object, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Layer layer) {
