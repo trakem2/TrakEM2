@@ -95,16 +95,18 @@ public class Search {
 
 	private Class<?>[] types = null;
 
-
-	/** Creates the GUI for searching text in any TrakEM2 element. */
-	public Search() {
+	static public final void showWindow() {
 		if (null != instance) {
 			instance.makeGUI();
 		} else {
-			instance = this;
-			types =  new Class[]{DBObject.class, Displayable.class, DLabel.class, Patch.class, AreaList.class, Profile.class, Pipe.class, Ball.class, Layer.class, Dissector.class, Polyline.class, Treeline.class, AreaTree.class, Connector.class};
-			makeGUI();
+			instance = new Search();
 		}
+	}
+
+	/** Creates the GUI for searching text in any TrakEM2 element. */
+	private Search() {
+		types =  new Class[]{DBObject.class, Displayable.class, DLabel.class, Patch.class, AreaList.class, Profile.class, Pipe.class, Ball.class, Layer.class, Dissector.class, Polyline.class, Treeline.class, AreaTree.class, Connector.class};
+		makeGUI();
 	}
 
 	private void tryCloseTab(KeyEvent ke) {

@@ -4830,7 +4830,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Adjust arealist paint parameters...")) {
 			AreaWrapper.PP.setup();
 		} else if (command.equals("Search...")) {
-			new Search();
+			Search.showWindow();
 		} else if (command.equals("Select all")) {
 			selection.selectAll();
 			repaint(Display.this.layer, selection.getBox(), 0);

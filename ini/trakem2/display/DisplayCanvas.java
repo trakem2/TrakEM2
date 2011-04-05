@@ -1791,7 +1791,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			ke.consume();
 			return;
 		} else if (KeyEvent.VK_F == keyCode && Utils.isControlDown(ke)) {
-			new Search();
+			Search.showWindow();
 			ke.consume();
 			return;
 		}
