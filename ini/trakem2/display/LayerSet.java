@@ -2737,7 +2737,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** Use method findZDisplayables(...) instead. */
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	@Deprecated
 	public ArrayList<ZDisplayable> getZDisplayables(final Class<?> c, final Layer layer, final Area aroi, final boolean visible_only, final boolean instance_of) {
 		if (!ZDisplayable.class.isAssignableFrom(c)) return new ArrayList<ZDisplayable>();
@@ -2894,6 +2894,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	 *  Classes are tested by equality, except for ZDisplayable.class.
 	 *  Will also consider Displayable.class and subclasses in
 	 *  a similar fashion, by calling Layer.getAll(c). */
+	@SuppressWarnings("unchecked")
 	public<T extends Displayable> List<T> getAll(final Class<T> c) {
 		final ArrayList<T> al = new ArrayList<T>();
 		if (null == c) return al;
