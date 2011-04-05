@@ -2926,6 +2926,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final Layer active_layer = display.getLayer();
 			final Point po = getCursorLoc(); // in offscreen coords
 			for (final ZDisplayable zd : display.getLayerSet().getDisplayableList()) {
+				if (!zd.isVisible()) continue;
 				if (!(zd instanceof Tree<?>)) continue;
 				final Tree<?> t = (Tree<?>)zd;
 				final Layer la = t.toClosestPaintedNode(active_layer, po.x, po.y, magnification);
