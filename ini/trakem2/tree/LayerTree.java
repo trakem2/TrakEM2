@@ -336,7 +336,6 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 						tt = thing.getChildTemplate("Layer");
 						ob = layer;
 					} else return; // click on a desired, existing layer.
-					if (null == layer) return;
 					layer.getProject().getLoader().importStack(layer, null, true);
 				} else if (thing.getObject() instanceof Layer) {
 					Layer layer = (Layer)thing.getObject();
@@ -497,7 +496,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					updateList(ls);
 				}
 			} else if (command.equals("Search...")) {
-				new Search();
+				Search.showWindow();
 			} else if (command.equals("Reset layer Z and thickness")) {
 				LayerSet ls = ((LayerSet)thing.getObject());
 				List<Layer> layers = ls.getLayers();
