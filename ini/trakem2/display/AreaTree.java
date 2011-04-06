@@ -35,7 +35,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -705,7 +704,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	public void addWorldAreaTo(final Node<?> nd, final Area a) {
 		AreaNode an = (AreaNode) nd;
 		if (null == an.aw) an.getData(); // creates an.aw
-		an.aw.add(a, layer);
+		an.aw.add(a, nd.la);
 	}
 	
 
