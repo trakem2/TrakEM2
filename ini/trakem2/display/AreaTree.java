@@ -676,7 +676,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				p = p.parent;
 			}
 			// Skip pairs of nodes with areas
-			if (1 == chain.size()) continue;
+			if (chain.isEmpty()) continue;
 			// Record
 			m.put(node, chain.size());
 		}
