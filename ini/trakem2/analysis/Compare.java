@@ -690,15 +690,13 @@ public class Compare {
 		}
 	}
 
-	static private class ChainMatchComparator implements Comparator {
+	static private class ChainMatchComparator implements Comparator<ChainMatch> {
 		/** Sort by the given distance type. */
 		final int distance_type;
 		ChainMatchComparator(final int distance_type) {
 			this.distance_type = distance_type;
 		}
-		public int compare(final Object ob1, final Object ob2) {
-			ChainMatch cm1 = (ChainMatch)ob1;
-			ChainMatch cm2 = (ChainMatch)ob2;
+		public int compare(final ChainMatch cm1, final ChainMatch cm2) {
 			// select for smallest physical distance of the center of mass
 			// double val = cm1.phys_dist - cm2.phys_dist;
 			/*
@@ -1562,6 +1560,7 @@ public class Compare {
 	 * @param show_3D Whether to show any 3D data.
 	 * @param show_condensed_3D If show_3D, whether to show the condensed vector strings, i.e. the "average" pipes.
 	 * @param show_sources_3D If show_3D, whether to show the source pipes from which the condensed vector string was generated.
+	 * @param source_color_table Which colors to give to the pipes of which Project.
 	 * @param show_envelope_3D If show_3D, whether to generate the variability envelope.
 	 * @param envelope_alpha If show_envelope_3D, the envelope takes an alpha value between 0 (total transparency) and 1 (total opacity)
 	 * @param delta_envelope The delta to resample the envelope to. When smaller than or equal to 1, no envelope resampling occurs.
@@ -1569,7 +1568,7 @@ public class Compare {
 	 * @param heat_map If show_3D, whether to color the variability with a Fire LUT.
 	 *                 If not show_condensed_3D, then the variability is shown in color-coded 3D spheres placed at the entry point to the neuropile.
 	 * @param map_condensed If not null, all VectorString3D are put into this map.
-	 * @param projects The list of projects to use.
+	 * @param projects The projects to use.
 	 * */
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
 						     final String[] ignore,
