@@ -1126,27 +1126,29 @@ public class Compare {
 			if (3 == cp.transform_type) {
 				// '3' means moving least squares computed from 3D landmarks
 				Utils.log2("Moving Least Squares Registration based on common fiducial points");
-				// Find fiducial points
+				// Find fiducial points, if any
 				HashMap<Project,Map<String,Tuple3d>> fiducials = new HashMap<Project,Map<String,Tuple3d>>();
 				for (Project pr : p) {
 					Set<ProjectThing> fids = pr.getRootProjectThing().findChildrenOfTypeR("fiducial_points");
 					if (null == fids || 0 == fids.size()) {
-						Utils.log2("No fiducial points found in project: " + pr);
-						return null;
+						Utils.log("No fiducial points found in project: " + pr);
+					} else {
+						fiducials.put(pr, Compare.extractPoints(fids.iterator().next())); // the first fiducial group
 					}
-					fiducials.put(pr, Compare.extractPoints(fids.iterator().next())); // the first fiducial group
 				}
-				// Register all VectorString3D relative to the first project:
-				final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
-				final Calibration cal2 = p[0].getRootLayerSet().getCalibrationCopy();
-				for (Chain chain : chains) {
-					Project pr = chain.pipes.get(0).getProject();
-					if (pr == p[0]) continue; // first project is reference, no need to transform.
-					lvs.clear();
-					lvs.add(chain.vs);
-					chain.vs = transferVectorStrings(lvs, fiducials.get(pr), fiducials.get(p[0])).get(0);
-					// Set (but do not apply!) the calibration of the reference project
-					chain.vs.setCalibration(cal2);
+				if (!fiducials.isEmpty()) {
+					// Register all VectorString3D relative to the first project:
+					final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
+					final Calibration cal2 = p[0].getRootLayerSet().getCalibrationCopy();
+					for (Chain chain : chains) {
+						Project pr = chain.pipes.get(0).getProject();
+						if (pr == p[0]) continue; // first project is reference, no need to transform.
+						lvs.clear();
+						lvs.add(chain.vs);
+						chain.vs = transferVectorStrings(lvs, fiducials.get(pr), fiducials.get(p[0])).get(0);
+						// Set (but do not apply!) the calibration of the reference project
+						chain.vs.setCalibration(cal2);
+					}
 				}
 			} else if (cp.transform_type < 3) {
 				// '0', '1' and '2' involve a 3D affine computed from the 3 axes
@@ -1573,7 +1575,7 @@ public class Compare {
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
 						     final String[] ignore,
 						     final boolean show_cata_dialog,
-			                             final boolean generate_plots, final boolean show_plots, final String plot_dir_,
+						     final boolean generate_plots, final boolean show_plots, final String plot_dir_,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
 						     final Map<Project,Color> sources_color_table,
 						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope, final int envelope_type,
@@ -1634,6 +1636,7 @@ public class Compare {
 
 		Utils.log2("Gathering chains...");
 
+		// Gather chains that do not match the ignore regexes
 		Object[] ob = gatherChains(p, cp, ignore); // will transform them as well to the reference found in the first project in the p array
 		ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
 		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
@@ -1652,6 +1655,7 @@ public class Compare {
 		for (Chain chain : chains) {
 			String title = chain.getCellTitle();
 			final String t = title.toLowerCase();
+			/* // Commented out non-general code
 			// ignore:
 			if (-1 != t.indexOf("unknown")) continue;
 			if (-1 != t.indexOf("peduncle")
@@ -1666,11 +1670,12 @@ public class Compare {
 				m.put(t, chain.vs);
 				continue;
 			}
-			if (0 == t.indexOf("lineage") || 0 == t.indexOf("branch")) continue; // unnamed
-			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
+			*/
 
-			// DEBUG:
-			//if (! (title.startsWith("DPLd") || title.startsWith("BAmv1")) ) continue;
+			/* // Commented out non-general code
+			if (0 == t.indexOf("lineage") || 0 == t.indexOf("branch")) continue; // unnamed
+			*/
+			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
 
 			Utils.log("Accepting " + title);
 
@@ -1829,9 +1834,18 @@ public class Compare {
 				}
 				if (show_sources_3D) {
 					if (null != sources_color_table) {
+						final HashSet<String> titles = new HashSet<String>();
 						for (Chain chain : bc) {
-							Color c = sources_color_table.get(chain.getRoot().getProject());
-							Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), null != c ? c : Color.gray);
+							final Color c = sources_color_table.get(chain.getRoot().getProject());
+							final String title = chain.getCellTitle();
+							String t = title;
+							int i = 2;
+							while (titles.contains(t)) {
+								t = title + "-" + i;
+								i += 1;
+							}
+							titles.add(t);
+							Display3D.addMesh(common_ls, chain.vs, t, null != c ? c : Color.gray);
 						}
 					} else {
 						for (Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
