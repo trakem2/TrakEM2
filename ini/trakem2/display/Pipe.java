@@ -747,7 +747,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					//for the very first point, drag the right control point, not the left.
 					index_r = index_l;
 					index_l = -1;
-				} else {
+				}
+				if (n_points > 1) {
 					generateInterpolatedPoints(0.05);
 				}
 				repaint(false, layer);
