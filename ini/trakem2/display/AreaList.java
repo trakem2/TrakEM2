@@ -338,7 +338,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			if (0 == bounds.width && 0 == bounds.height) {
 				ht_areas.remove(lid);
 			}
-			calculateBoundingBox(la);
+			new Thread() {
+				{ setPriority(Thread.NORM_PRIORITY); }
+				public void run() {
+					calculateBoundingBox(la); // synchronized, so forking a thread to do it is fine
+				}
+			}.start();
 		}}}));
 		aw.setSource(null);
 	}
@@ -361,34 +366,69 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
-	public boolean calculateBoundingBox(final Layer la) {
+	synchronized public boolean calculateBoundingBox(final Layer la) {
 		try {
 			// check preconditions
 			if (0 == ht_areas.size()) return false;
-			final Area[] area = new Area[ht_areas.size()];
-			ht_areas.values().toArray(area);
-			final Rectangle[] b = new Rectangle[area.length];
-			Rectangle box = null;
-			for (int i=0; i<area.length; i++) {
-				b[i] = area[i].getBounds();
-				if (null == box) box = (Rectangle)b[i].clone();
-				else box.add(b[i]);
+			// Check whether the area at Layer la is already contained in the bounding box
+			if (null != la) {
+				final Area a = ht_areas.get(la.getId());
+				if (null == a || a.isEmpty()) return true; // nothing to do
+				final Rectangle b = a.getBounds();
+				if (b.x >= 0 && b.y >=0) {
+					if (b.width <= this.width && b.height <= this.height) {
+						return true; // area already included in the bounding box
+					}
+					// Else, grow the bounding box but don't transform any areas
+					this.width = b.x + b.width - this.width;
+					this.height = b.y + b.height - this.height;
+					updateInDatabase("dimensions");
+					return true;
+				}
 			}
-			if (null == box || 0 == box.width || 0 == box.height) return false; // empty AreaList
+			// Else, compute new bounding box
+			Rectangle box = null;
+			if (null == la || 0 == this.width || 0 == this.height) {
+				for (final Area a : ht_areas.values()) {
+					Rectangle b = a.getBounds();
+					if (null == box) box = new Rectangle(b);
+					else box.add(b);
+				}
+			} else {
+				Area a = ht_areas.get(la.getId());
+				if (null != a) {
+					box = new Rectangle(0, 0, (int)this.width, (int)this.height);
+					box.add(a.getBounds());
+				}
+			}
+			// If null, the AreaList was empty
+			// If box.x,y are 0, then no transform is necessary
+			// If box.width,height are zero, the AreaList was empty
+			if (null == box || 0 == box.x || 0 == box.y || 0 == box.width || 0 == box.height) return false;
 
 			final AffineTransform atb = new AffineTransform();
 			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
-			/*
-			final Map.Entry<Long,Area>[] entry = (Map.Entry<Long,Area>[])new Map.Entry[area.length];
-			ht_areas.entrySet().toArray(entry);
-			for (int i=0; i<area.length; i++) {
-				entry[i].setValue(area[i].createTransformedArea(atb));
+
+			// Guess if multithreaded processing would help
+			if (ht_areas.size() > 1 && (box.width > 2048 || box.height > 2048 || ht_areas.size() > 10)) {
+				// Multithreaded
+				final ExecutorService exec = Utils.newFixedThreadPool("AreaList-CBB");
+				final List<Future<?>> fus = new ArrayList<Future<?>>();
+				for (final Area a : ht_areas.values()) {
+					fus.add(exec.submit(new Runnable() {
+						public void run() {
+							a.transform(atb);
+						}
+					}));
+				}
+				Utils.wait(fus);
+				exec.shutdown();
+			} else {
+				// Single threaded
+				for (final Area a : ht_areas.values()) {
+					a.transform(atb);
+				}
 			}
-			*/
-			for (final Area a : ht_areas.values()) {
-				a.transform(atb);
-			}
-			//this.translate(box.x, box.y);
 			this.at.translate(box.x, box.y);
 			this.width = box.width;
 			this.height = box.height;
