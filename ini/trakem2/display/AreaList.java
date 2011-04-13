@@ -360,7 +360,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		aw = null;
 	}
 
-	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
+	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in.
+	 * @param la is the currently active Layer.
+	 */
+	@Override
 	public boolean calculateBoundingBox(final Layer la) {
 		try {
 			// check preconditions
@@ -368,7 +371,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			// Check whether the area at Layer la is already contained in the bounding box
 			if (null != la) {
 				final Area a = ht_areas.get(la.getId());
-				if (null == a || a.isEmpty()) return true; // nothing to do
+				if (null == a || a.isEmpty()) return false; // nothing to do
 				final Rectangle b = a.getBounds();
 				if (b.x >= 0 && b.y >= 0) {
 					if (b.width <= this.width && b.height <= this.height) {
@@ -391,14 +394,16 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			// Else, compute new bounding box
 			Rectangle box = null;
 			if (null == la || 0 == this.width || 0 == this.height) {
+				// Inspect the bounds of all areas in all sections
 				for (final Area a : ht_areas.values()) {
 					Rectangle b = a.getBounds();
 					if (null == box) box = new Rectangle(b);
 					else box.add(b);
 				}
 			} else {
-				Area a = ht_areas.get(la.getId());
-				if (null != a) {
+				// Add the bounds of the selected area to the current bounds
+				final Area a = ht_areas.get(la.getId());
+				if (null != a && !a.isEmpty()) {
 					box = new Rectangle(0, 0, (int)this.width, (int)this.height);
 					box.add(a.getBounds());
 				}
