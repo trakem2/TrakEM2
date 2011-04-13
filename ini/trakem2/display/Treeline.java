@@ -871,9 +871,9 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node<Float>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<Float>> nodes) {
 		Rectangle box = null;
-		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
+		for (final RadiusNode nd : (Collection<RadiusNode>) nodes) {
 			if (null == nd.parent) {
 				if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 				else box.add((int)nd.x, (int)nd.y);

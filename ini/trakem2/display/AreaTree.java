@@ -501,12 +501,15 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node<Area>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<Area>> nodes) {
 		Rectangle box = null;
-		for (final AreaNode nd : (Collection<AreaNode>)(Collection)nodes) {
+		for (final AreaNode nd : (Collection<AreaNode>) nodes) {
 			final Rectangle b;
 			if (null == nd.aw || nd.aw.getArea().isEmpty()) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-			else b = nd.aw.getArea().getBounds();
+			else {
+				b = nd.aw.getArea().getBounds();
+				b.add(new Rectangle((int)nd.x, (int)nd.y, 1, 1)); // the node itself, if not contained
+			}
 			//
 			if (null == box) box = b;
 			else box.add(b);

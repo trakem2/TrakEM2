@@ -304,7 +304,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	// Call always from within a synchronized (node_layer_map) block.
-	protected Rectangle getBounds(final Collection<Node<T>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<T>> nodes) {
 		Rectangle b = null;
 		for (final Node<T> nd : nodes) {
 			if (null == b) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);

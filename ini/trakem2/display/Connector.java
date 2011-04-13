@@ -445,7 +445,7 @@ public class Connector extends Treeline {
 	protected boolean requireAltDownToEditRadius() { return false; }
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node<Float>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<Float>> nodes) {
 		final Rectangle nb = new Rectangle();
 		Rectangle box = null;
 		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
