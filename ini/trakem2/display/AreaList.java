@@ -383,7 +383,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			}
 
 			// If box.x,y are 0, then no transform is necessary
-			if (0 == box.x || 0 == box.y) {
+			if (0 == box.x && 0 == box.y) {
 				// no translation necessary, but must adjust width and height
 				this.width = box.width;
 				this.height = box.height;
