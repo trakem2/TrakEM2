@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
@@ -263,6 +265,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			}
 			
 			Rectangle box = null;
+			int countNodes = 0;
 			// Compute bounds for all nodes in all layers
 			synchronized (node_layer_map) {
 				for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
@@ -270,6 +273,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 					if (null == b) continue;
 					if (null == box) box = b;
 					else box.add(b);
+					countNodes += nodes.size();
 				}
 			}
 
@@ -286,10 +290,32 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
 
 			// now adjust points to make min_x,min_y be the x,y
-			for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
-				for (final AreaNode nd : (Collection<AreaNode>) nodes) {
-					nd.translate(-box.x, -box.y); // just the x,y itself
-					if (null != nd.aw) nd.aw.getArea().transform(aff);
+			synchronized (node_layer_map) {
+				if (node_layer_map.size() < 10 && countNodes < 100 ) {
+					for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+						for (final AreaNode nd : (Collection<AreaNode>) nodes) {
+							nd.translate(-box.x, -box.y); // just the x,y itself
+							if (null != nd.aw) nd.aw.getArea().transform(aff);
+						}
+					}
+				} else {
+					ExecutorService exe = Utils.newFixedThreadPool("AreaTree-CBB");
+					Collection<Future<?>> fus = new ArrayList<Future<?>>();
+					final float dx = -box.x;
+					final float dy = -box.y;
+					for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+						fus.add(exe.submit(new Runnable() {
+							public void run() {
+								// WARNING potential concurrent modification exception of 'nodes'
+								for (final AreaNode nd : (Collection<AreaNode>) nodes) {
+									nd.translate(dx, dy); // just the x,y itself
+									if (null != nd.aw) nd.aw.getArea().transform(aff);
+								}
+							}
+						}));
+					}
+					Utils.wait(fus);
+					exe.shutdown();
 				}
 			}
 			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
