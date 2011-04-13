@@ -338,12 +338,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			if (0 == bounds.width && 0 == bounds.height) {
 				ht_areas.remove(lid);
 			}
-			new Thread() {
-				{ setPriority(Thread.NORM_PRIORITY); }
-				public void run() {
-					calculateBoundingBox(la); // synchronized, so forking a thread to do it is fine
-				}
-			}.start();
+			calculateBoundingBox(la);
 		}}}));
 		aw.setSource(null);
 	}
@@ -366,7 +361,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
-	synchronized public boolean calculateBoundingBox(final Layer la) {
+	public boolean calculateBoundingBox(final Layer la) {
 		try {
 			// check preconditions
 			if (0 == ht_areas.size()) return false;
