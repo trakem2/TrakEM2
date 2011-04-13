@@ -261,18 +261,20 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				this.height = 0;
 				return false;
 			}
-
+			
 			Rectangle box = null;
+			// Compute bounds for all nodes in all layers
 			synchronized (node_layer_map) {
 				for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
-					for (final AreaNode nd : (Collection<AreaNode>) nodes) {
-						if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-						else box.add((int)nd.x, (int)nd.y);
-						if (null != nd.aw) box.add(nd.aw.getArea().getBounds());
-					}
+					Rectangle b = getBounds(nodes);
+					if (null == b) continue;
+					if (null == box) box = b;
+					else box.add(b);
 				}
 			}
 
+			if (null == box) return false; // empty
+			
 			this.width = box.width;
 			this.height = box.height;
 
@@ -283,12 +285,13 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
 
-			// now readjust points to make min_x,min_y be the x,y
-			for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
-				for (final Node<Area> nd : nodes) {
+			// now adjust points to make min_x,min_y be the x,y
+			for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+				for (final AreaNode nd : (Collection<AreaNode>) nodes) {
 					nd.translate(-box.x, -box.y); // just the x,y itself
-					nd.getData().transform(aff);
-				}}
+					if (null != nd.aw) nd.aw.getArea().transform(aff);
+				}
+			}
 			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
 			return true;

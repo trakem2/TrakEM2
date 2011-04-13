@@ -368,53 +368,31 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		try {
 			// check preconditions
 			if (0 == ht_areas.size()) return false;
-			// Check whether the area at Layer la is already contained in the bounding box
-			if (null != la) {
-				final Area a = ht_areas.get(la.getId());
-				if (null == a || a.isEmpty()) return false; // nothing to do
-				final Rectangle b = a.getBounds();
-				if (b.x >= 0 && b.y >= 0) {
-					if (b.width <= this.width && b.height <= this.height) {
-						return true; // area already included in the bounding box
-					}
-					if (1 == ht_areas.size()) {
-						this.width = b.width;
-						this.height = b.height;
-						a.transform(new AffineTransform(1, 0, 0, 1, -b.x, -b.y));
-						this.at.translate(b.x, b.y);
-					} else {
-						// Else, grow the bounding box but don't transform any areas
-						this.width = b.x + b.width;
-						this.height = b.y + b.height;
-					}
-					updateInDatabase("dimensions");
-					return true;
-				}
-			}
-			// Else, compute new bounding box
-			Rectangle box = null;
-			if (null == la || 0 == this.width || 0 == this.height) {
-				// Inspect the bounds of all areas in all sections
-				for (final Area a : ht_areas.values()) {
-					Rectangle b = a.getBounds();
-					if (null == box) box = new Rectangle(b);
-					else box.add(b);
-				}
-			} else {
-				// Add the bounds of the selected area to the current bounds
-				final Area a = ht_areas.get(la.getId());
-				if (null != a && !a.isEmpty()) {
-					box = new Rectangle(0, 0, (int)this.width, (int)this.height);
-					box.add(a.getBounds());
-				}
-			}
-			// If null, the AreaList was empty
-			// If box.x,y are 0, then no transform is necessary
-			// If box.width,height are zero, the AreaList was empty
-			if (null == box || 0 == box.x || 0 == box.y || 0 == box.width || 0 == box.height) return false;
 
-			final AffineTransform atb = new AffineTransform();
-			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
+			Rectangle box = null;
+			for (final Area a : ht_areas.values()) {
+				if (null == a || a.isEmpty()) continue;
+				if (null == box) box = a.getBounds();
+				else box.add(a.getBounds());
+			}
+
+			// If null, the AreaList was empty
+			// If box.width,height are zero, the AreaList was empty
+			if (null == box || 0 == box.width || 0 == box.height) {
+				return false;
+			}
+
+			// If box.x,y are 0, then no transform is necessary
+			if (0 == box.x || 0 == box.y) {
+				// no translation necessary, but must adjust width and height
+				this.width = box.width;
+				this.height = box.height;
+				updateInDatabase("dimensions");
+				return true;
+			}
+
+			// make local to overall box, so that box starts now at 0,0
+			final AffineTransform atb = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
 
 			// Guess if multithreaded processing would help
 			if (ht_areas.size() > 1 && (box.width > 2048 || box.height > 2048 || ht_areas.size() > 10)) {

@@ -331,9 +331,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// No need to translate
 				return false;
 			}
-			
+
 			synchronized (node_layer_map) {
-				// now readjust points to make min_x,min_y be the x,y
+				// now adjust points to make min_x,min_y be the x,y
 				for (final Collection<Node<T>> nodes : node_layer_map.values()) {
 					for (final Node<T> nd : nodes) {
 						nd.translate(-box.x, -box.y); }}
