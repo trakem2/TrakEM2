@@ -370,13 +370,20 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				final Area a = ht_areas.get(la.getId());
 				if (null == a || a.isEmpty()) return true; // nothing to do
 				final Rectangle b = a.getBounds();
-				if (b.x >= 0 && b.y >=0) {
+				if (b.x >= 0 && b.y >= 0) {
 					if (b.width <= this.width && b.height <= this.height) {
 						return true; // area already included in the bounding box
 					}
-					// Else, grow the bounding box but don't transform any areas
-					this.width = b.x + b.width - this.width;
-					this.height = b.y + b.height - this.height;
+					if (1 == ht_areas.size()) {
+						this.width = b.width;
+						this.height = b.height;
+						a.transform(new AffineTransform(1, 0, 0, 1, -b.x, -b.y));
+						this.at.translate(b.x, b.y);
+					} else {
+						// Else, grow the bounding box but don't transform any areas
+						this.width = b.x + b.width;
+						this.height = b.y + b.height;
+					}
 					updateInDatabase("dimensions");
 					return true;
 				}
