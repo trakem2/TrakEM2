@@ -174,8 +174,6 @@ public abstract class ZDisplayable extends Displayable {
 		return this.layer_set;
 	}
 
-	public void setPosition(FallLine fl) {}
-
 	/** Retain the data within the layer range, and through out all the rest. */
 	public boolean crop(List<Layer> range) {
 		return true;

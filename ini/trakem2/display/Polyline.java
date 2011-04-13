@@ -1416,10 +1416,6 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 	}
 
-	public void setPosition(FallLine fl) {
-		// Where are we now?
-	}
-
 	@Override
 	final Class<?> getInternalDataPackageClass() {
 		return DPPolyline.class;
