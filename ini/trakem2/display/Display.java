@@ -50,7 +50,6 @@ import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Dispatcher;
-import ini.trakem2.utils.Lock;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.OptionPanel;
@@ -102,17 +101,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private JFrame frame;
 	private JTabbedPane tabs;
 
-	private Hashtable<Class<?>,JScrollPane> ht_tabs;
-	private JScrollPane scroll_patches;
-	private JPanel panel_patches;
-	private JScrollPane scroll_profiles;
-	private JPanel panel_profiles;
-	private JScrollPane scroll_zdispl;
-	private JPanel panel_zdispl;
+	private Hashtable<Class<?>,RollingPanel> ht_tabs;
+	private RollingPanel panel_patches;
+	private RollingPanel panel_profiles;
+	private RollingPanel panel_zdispl;
 	private JScrollPane scroll_channels;
 	private JPanel panel_channels;
-	private JScrollPane scroll_labels;
-	private JPanel panel_labels;
+	private RollingPanel panel_labels;
 
 	private JPanel panel_layers;
 	private JScrollPane scroll_layers;
@@ -263,16 +258,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					// recreate contents
 					ArrayList<?extends Displayable> al = null;
 					JPanel p = null;
-					if (tab == d.scroll_zdispl) {
+					if (tab == d.panel_zdispl) {
 						al = d.layer.getParent().getZDisplayables();
 						p = d.panel_zdispl;
-					} else if (tab == d.scroll_patches) {
+					} else if (tab == d.panel_patches) {
 						al = d.layer.getDisplayables(Patch.class);
 						p = d.panel_patches;
-					} else if (tab == d.scroll_labels) {
+					} else if (tab == d.panel_labels) {
 						al = d.layer.getDisplayables(DLabel.class);
 						p = d.panel_labels;
-					} else if (tab == d.scroll_profiles) {
+					} else if (tab == d.panel_profiles) {
 						al = d.layer.getDisplayables(Profile.class);
 						p = d.panel_profiles;
 					} else if (tab == d.scroll_layers) {
@@ -705,19 +700,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.tabs.addChangeListener(tabs_listener);
 
 		// Tab 1: Patches
-		this.panel_patches = makeTabPanel();
-		this.scroll_patches = makeScrollPane(panel_patches);
-		this.addTab("Patches", scroll_patches);
+		this.panel_patches = new RollingPanel(this, Patch.class);
+		this.addTab("Patches", panel_patches);
 
 		// Tab 2: Profiles
-		this.panel_profiles = makeTabPanel();
-		this.scroll_profiles = makeScrollPane(panel_profiles);
-		this.addTab("Profiles", scroll_profiles);
+		this.panel_profiles = new RollingPanel(this, Profile.class);
+		this.addTab("Profiles", panel_profiles);
 
-		// Tab 3: pipes
-		this.panel_zdispl = makeTabPanel();
-		this.scroll_zdispl = makeScrollPane(panel_zdispl);
-		this.addTab("Z space", scroll_zdispl);
+		// Tab 3: ZDisplayables
+		this.panel_zdispl = new RollingPanel(this, ZDisplayable.class);
+		this.addTab("Z space", panel_zdispl);
 
 		// Tab 4: channels
 		this.panel_channels = makeTabPanel();
@@ -734,9 +726,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.addTab("Opacity", scroll_channels);
 
 		// Tab 5: labels
-		this.panel_labels = makeTabPanel();
-		this.scroll_labels = makeScrollPane(panel_labels);
-		this.addTab("Labels", scroll_labels);
+		this.panel_labels = new RollingPanel(this, DLabel.class);
+		this.addTab("Labels", panel_labels);
 
 		// Tab 6: layers
 		this.panel_layers = makeTabPanel();
@@ -765,20 +756,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.scroll_filter_options.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
 		this.addTab("Live filter", this.scroll_filter_options);
 
-		this.ht_tabs = new Hashtable<Class<?>,JScrollPane>();
-		this.ht_tabs.put(Patch.class, scroll_patches);
-		this.ht_tabs.put(Profile.class, scroll_profiles);
-		this.ht_tabs.put(ZDisplayable.class, scroll_zdispl);
-		this.ht_tabs.put(AreaList.class, scroll_zdispl);
-		this.ht_tabs.put(Pipe.class, scroll_zdispl);
-		this.ht_tabs.put(Polyline.class, scroll_zdispl);
-		this.ht_tabs.put(Treeline.class, scroll_zdispl);
-		this.ht_tabs.put(AreaTree.class, scroll_zdispl);
-		this.ht_tabs.put(Connector.class, scroll_zdispl);
-		this.ht_tabs.put(Ball.class, scroll_zdispl);
-		this.ht_tabs.put(Dissector.class, scroll_zdispl);
-		this.ht_tabs.put(DLabel.class, scroll_labels);
-		this.ht_tabs.put(Stack.class, scroll_zdispl);
+		this.ht_tabs = new Hashtable<Class<?>,RollingPanel>();
+		this.ht_tabs.put(Patch.class, panel_patches);
+		this.ht_tabs.put(Profile.class, panel_profiles);
+		this.ht_tabs.put(ZDisplayable.class, panel_zdispl);
+		this.ht_tabs.put(AreaList.class, panel_zdispl);
+		this.ht_tabs.put(Pipe.class, panel_zdispl);
+		this.ht_tabs.put(Polyline.class, panel_zdispl);
+		this.ht_tabs.put(Treeline.class, panel_zdispl);
+		this.ht_tabs.put(AreaTree.class, panel_zdispl);
+		this.ht_tabs.put(Connector.class, panel_zdispl);
+		this.ht_tabs.put(Ball.class, panel_zdispl);
+		this.ht_tabs.put(Dissector.class, panel_zdispl);
+		this.ht_tabs.put(DLabel.class, panel_labels);
+		this.ht_tabs.put(Stack.class, panel_zdispl);
 		// channels not included
 		// layers not included
 		// tools not included
@@ -1142,6 +1133,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		jsp.setMinimumSize(new Dimension(250, 300));
 		return jsp;
 	}
+	
+	private JScrollPane makeRollingScrollPane(final RollingPanel c) {
+		JScrollPane jsp = new JScrollPane(c);
+		jsp.setBackground(Color.white); // no effect
+		jsp.getViewport().setBackground(Color.white); // no effect
+		// adjust scrolling to use one DisplayablePanel as the minimal unit
+		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
+		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
+		jsp.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+		jsp.setVerticalScrollBarPolicy(javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
+		jsp.setPreferredSize(new Dimension(250, 300));
+		jsp.setMinimumSize(new Dimension(250, 300));
+		return jsp;
+	}
 
 	private void addGBRow(Container container, Component comp, Component previous) {
 		GridBagLayout gb = (GridBagLayout) container.getLayout();
@@ -1268,8 +1273,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			// @#$%^! The above works half the times, so explicit repaint as well:
 			Component c = tabs.getSelectedComponent();
 			if (null == c) {
-				c = scroll_patches;
-				tabs.setSelectedComponent(scroll_patches);
+				c = panel_patches;
+				tabs.setSelectedComponent(panel_patches);
 			}
 			Utils.updateComponent(c);
 
@@ -1731,13 +1736,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private void remove(final Displayable displ) {
 		final DisplayablePanel ob = ht_panels.remove(displ);
 		if (null != ob) {
-			final JScrollPane jsp = ht_tabs.get(displ.getClass());
-			if (null != jsp) {
+			final RollingPanel rp = ht_tabs.get(displ.getClass());
+			if (null != rp) {
 				Utils.invokeLater(new Runnable() { public void run() {
-					JPanel p = (JPanel)jsp.getViewport().getView();
-					final boolean visible = isPartiallyWithinViewport(jsp.getViewport(), ob);
-					p.remove(ob);
-					if (visible) Utils.revalidateComponent(p);
+					rp.updateList();
 				}});
 			}
 		}
@@ -2245,25 +2247,25 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	@SuppressWarnings("unused")
 	private void selectTab(Patch patch) {
-		tabs.setSelectedComponent(scroll_patches);
-		scrollToShow(scroll_patches, ht_panels.get(patch));
+		tabs.setSelectedComponent(panel_patches);
+		panel_patches.scrollToShow(patch);
 	}
 
 	@SuppressWarnings("unused")
 	private void selectTab(Profile profile) {
-		tabs.setSelectedComponent(scroll_profiles);
-		scrollToShow(scroll_profiles, ht_panels.get(profile));
+		tabs.setSelectedComponent(panel_profiles);
+		panel_profiles.scrollToShow(profile);
 	}
 
 	@SuppressWarnings("unused")
 	private void selectTab(DLabel label) {
-		tabs.setSelectedComponent(scroll_labels);
-		scrollToShow(scroll_labels, ht_panels.get(label));
+		tabs.setSelectedComponent(panel_labels);
+		panel_labels.scrollToShow(label);
 	}
 
 	private void selectTab(ZDisplayable zd) {
-		tabs.setSelectedComponent(scroll_zdispl);
-		scrollToShow(scroll_zdispl, ht_panels.get(zd));
+		tabs.setSelectedComponent(panel_zdispl);
+		panel_zdispl.scrollToShow(zd);
 	}
 
 	@SuppressWarnings("unused")
@@ -2290,45 +2292,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	 * in the ht_panels (which is cleared first).
 	 * Must be invoked in the event dispatch thread. */
 	private void updateTab(Container tab, final ArrayList<? extends Displayable> al) {
-		if (null == al) return;
-		try {
-			if (0 != tab.getComponentCount() && !(tab.getComponent(0) instanceof DisplayablePanel)) {
-				tab = (Container) tab.getComponent(0);
-			}
-			if (0 == al.size()) {
-				tab.removeAll();
-			} else {
-				Component[] comp = tab.getComponents();
-				int next = 0;
-				if (1 == comp.length && comp[0].getClass() == JLabel.class) {
-					next = 1;
-					tab.remove(0);
-				}
-				// In reverse order:
-				Component last_dp = null;
-				for (ListIterator<? extends Displayable> it = al.listIterator(al.size()); it.hasPrevious(); ) {
-					Displayable d = it.previous();
-					DisplayablePanel dp = null;
-					if (next < comp.length) {
-						dp = (DisplayablePanel)comp[next++]; // recycling panels
-						dp.set(d);
-					} else {
-						dp = new DisplayablePanel(Display.this, d);
-						addGBRow(tab, dp, last_dp);
-					}
-					last_dp = dp;
-					ht_panels.put(d, dp);
-				}
-				if (next < comp.length) {
-					// remove from the end, to avoid potential repaints of other panels
-					for (int i=comp.length-1; i>=next; i--) {
-						tab.remove(i);
-					}
-				}
-			}
-			Utils.updateComponent(tabs);
-			if (null != Display.this.active) scrollToShow(Display.this.active);
-		} catch (Throwable e) { IJError.print(e); }
+		
+		Utils.log2("tab is: " + tab.getClass());
+		
+		if (tab instanceof RollingPanel) {
+			((RollingPanel)tab).updateList();
+		}
 	}
 
 	static public void setActive(final Object event, final Displayable displ) {
@@ -3918,9 +3887,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Check if a panel for the given Displayable is completely visible in the JScrollPane */
 	public boolean isWithinViewport(final Displayable d) {
 		Component comp = tabs.getSelectedComponent();
-		if (!(comp instanceof JScrollPane)) return false;
-		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		if (ht_tabs.get(d.getClass()) == scroll) return isWithinViewport(scroll, ht_panels.get(d));
+		if (!(comp instanceof RollingPanel)) return false;
+		final RollingPanel rp = (RollingPanel)tabs.getSelectedComponent();
+		if (ht_tabs.get(d.getClass()) == rp) return rp.isShowing(d);
 		return false;
 	}
 
@@ -3938,42 +3907,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	/** Check if a panel for the given Displayable is partially visible in the JScrollPane */
 	public boolean isPartiallyWithinViewport(final Displayable d) {
-		final JScrollPane scroll = ht_tabs.get(d.getClass());
-		if (tabs.getSelectedComponent() == scroll) return isPartiallyWithinViewport(scroll.getViewport(), ht_panels.get(d));
-		return false;
+		final RollingPanel rp = ht_tabs.get(d.getClass());
+		return rp.isShowing(d);
 	}
 
-	/** Check if a panel for the given Displayable is at least partially visible in the JScrollPane */
-	private boolean isPartiallyWithinViewport(final JViewport view, final DisplayablePanel dp) {
-		if(null == dp) {
-			//Utils.log2("Display.isPartiallyWithinViewport: null DisplayablePanel ??");
-			return false; // to fast for you baby
-		}
-		final int vheight = view.getExtentSize().height,
-		      	  py = view.getViewPosition().y,
-			  y = dp.getY();
-		// Test if not outside view
-		return !(y + DisplayablePanel.HEIGHT < py || y > py + vheight);
-	}
-
-	/** A function to make a Displayable panel be visible in the screen, by scrolling the viewport of the JScrollPane. */
-	private void scrollToShow(final Displayable d) {
-		if (!(tabs.getSelectedComponent() instanceof JScrollPane)) return;
-		final JScrollPane scroll = (JScrollPane)tabs.getSelectedComponent();
-		if (d instanceof ZDisplayable && scroll == scroll_zdispl) {
-			scrollToShow(scroll_zdispl, ht_panels.get(d));
-			return;
-		}
-		final Class c = d.getClass();
-		if (Patch.class == c && scroll == scroll_patches) {
-			scrollToShow(scroll_patches, ht_panels.get(d));
-		} else if (DLabel.class == c && scroll == scroll_labels) {
-			scrollToShow(scroll_labels, ht_panels.get(d));
-		} else if (Profile.class == c && scroll == scroll_profiles) {
-			scrollToShow(scroll_profiles, ht_panels.get(d));
-		}
-	}
-
+	// for Layer panels
 	private void scrollToShow(final JScrollPane scroll, final JPanel dp) {
 		if (null == dp) return;
 		Utils.invokeLater(new Runnable() { public void run() {
@@ -4239,6 +4177,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	@Deprecated
 	static public void updatePanelIndex(final Layer layer, final Displayable displ) {
 		for (final Display d : al_displays) {
 			if (d.layer == layer || displ instanceof ZDisplayable) {
@@ -4247,12 +4186,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
+	@Deprecated
 	private void updatePanelIndex(final Displayable d) {
 		Utils.invokeLater(new Runnable() { public void run() {
-			updateTab( (JPanel) ht_tabs.get(d.getClass()).getViewport().getView(),
-					ZDisplayable.class.isAssignableFrom(d.getClass()) ?
-							layer.getParent().getZDisplayables()
-							: layer.getDisplayables(d.getClass()));
+			ht_tabs.get(d.getClass()).updateList();
 		}});
 	}
 
@@ -6019,7 +5956,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 
 			canvas.showCentered(box);
-			scrollToShow(displ);
+			ht_tabs.get(displ.getClass()).scrollToShow(displ);
 			if (displ instanceof ZDisplayable) {
 				// scroll to first layer that has a point
 				ZDisplayable zd = (ZDisplayable)displ;
