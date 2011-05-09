@@ -799,7 +799,7 @@ public class Treeline extends Tree<Float> {
 	protected boolean askAdjustRadius(final Node<Float> nd) {
 
 		GenericDialog gd = new GenericDialog("Adjust radius");
-		final Calibration cal = layer.getParent().getCalibration();
+		final Calibration cal = layer_set.getCalibration();
 		String unit = cal.getUnit(); 
 		if (!unit.toLowerCase().startsWith("pixel")) {
 			final String[] units = new String[]{"pixels", unit};
