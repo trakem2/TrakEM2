@@ -40,6 +40,8 @@ import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Event;
 import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.util.Collection;
@@ -122,7 +124,10 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		titles.add(title);
 		titles.add(title2);
 		titles.add(idlabel);
-		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
+		GridBagLayout gb = new GridBagLayout();
+		GridBagConstraints co = new GridBagConstraints();
+		//setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
+		this.setLayout(gb);
 		JPanel checkboxes = new JPanel();
 		checkboxes.setBackground(Color.white);
 		checkboxes.setLayout(new GridLayout(3,1));
@@ -130,11 +135,25 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		checkboxes.add(c);
 		checkboxes.add(c_locked);
 		checkboxes.add(c_linked);
+		//
+		co.anchor = GridBagConstraints.NORTHWEST;
+		co.weightx = 0;
+		//
+		co.gridx = 0;
+		gb.setConstraints(checkboxes, co);
 		add(checkboxes);
+		//
+		co.gridx = 1;
+		gb.setConstraints(sp, co);
 		add(sp);
+		//
+		co.gridx = 2;
+		co.weightx = 1;
+		co.fill = GridBagConstraints.HORIZONTAL;
+		gb.setConstraints(titles, co);
 		add(titles);
 
-		setMinimumSize(new Dimension(200, DisplayablePanel.HEIGHT));
+		setMinimumSize(new Dimension(230, DisplayablePanel.HEIGHT));
 		setPreferredSize(new Dimension(248, DisplayablePanel.HEIGHT));
 
 		addMouseListener(this);
