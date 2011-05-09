@@ -137,6 +137,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		checkboxes.add(c_linked);
 		//
 		co.anchor = GridBagConstraints.NORTHWEST;
+		co.fill = GridBagConstraints.VERTICAL;
 		co.weightx = 0;
 		//
 		co.gridx = 0;
