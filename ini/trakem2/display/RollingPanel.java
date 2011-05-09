@@ -10,6 +10,8 @@ import java.awt.event.AdjustmentEvent;
 import java.awt.event.AdjustmentListener;
 import java.awt.event.ComponentEvent;
 import java.awt.event.ComponentListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,7 +19,7 @@ import java.util.Map;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 
-public class RollingPanel extends JPanel implements ComponentListener, AdjustmentListener
+public class RollingPanel extends JPanel implements ComponentListener, AdjustmentListener, MouseWheelListener
 {
 	private static final long serialVersionUID = 1L;
 	private final Display display;
@@ -73,6 +75,8 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 		// Finally:
 		this.addComponentListener(this);
 		this.scrollBar.addAdjustmentListener(this);
+		this.addMouseWheelListener(this);
+		this.scrollBar.addMouseWheelListener(this);
 	}
 
 	public final void updateList() {
@@ -117,21 +121,23 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 			this.scrollBar.setValue(0);
 			first = 0;
 		}
+		// Correct for inverse list:
+		first = list.size() - first -1;
+
+		int last = first - numCanFit +1;
+		if (last < 0) {
+			first = Math.min(numCanFit, count) -1;
+			last = 0;
+		}
 		
-		if (list.size() - numCanFit < first) {
-			first = Math.max(0, list.size() - numCanFit); // at least 0
-		}
-		int max = numCanFit;
-		if (first + max > list.size()) {
-			max = list.size() - first;
-		}
 		this.cInner.anchor = GridBagConstraints.NORTHWEST;
 		this.cInner.fill = GridBagConstraints.HORIZONTAL;
+		this.cInner.weightx = 0;
 		this.cInner.weighty = 0;
 		this.cInner.gridy = 0;
 		int i;
-		for (i=0; i < max; ++i) {
-			Displayable d = list.get(first + i);
+		for (i=first; i >= last ; --i) {
+			Displayable d = list.get(i);
 			DisplayablePanel dp = new DisplayablePanel(display, d);
 			this.current.put(d, dp);
 			this.gbInner.setConstraints(dp, this.cInner);
@@ -139,6 +145,7 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 			this.cInner.gridy += 1;
 		}
 		this.cInner.fill = GridBagConstraints.BOTH;
+		this.cInner.weightx = 1;
 		this.cInner.weighty = 1;
 		this.gbInner.setConstraints(this.filler, this.cInner);
 		this.inner.add(this.filler);
@@ -197,5 +204,13 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 			updateList();
 		}
 		super.update(g);
+	}
+
+	@Override
+	public void mouseWheelMoved(MouseWheelEvent e) {
+		final int newVal = this.scrollBar.getValue() + (e.getWheelRotation() > 0 ? 1 : -1);
+		if (newVal >= 0 && newVal <= this.scrollBar.getMaximum()) {
+			this.scrollBar.setValue(newVal);
+		}
 	}
 }
