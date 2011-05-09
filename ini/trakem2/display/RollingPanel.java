@@ -192,7 +192,8 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 		final DisplayablePanel dp = current.get(d);
 		if (null == dp) {
 			// Linear look-up but it's acceptable
-			this.scrollBar.setValue(getList().indexOf(d));
+			final List<? extends Displayable> list = getList();
+			this.scrollBar.setValue(list.size() - list.indexOf(d) -1);
 		} else {
 			dp.repaint(); // for select on click to repaint the background
 		}
