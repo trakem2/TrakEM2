@@ -4,7 +4,6 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.AdjustmentEvent;
@@ -18,7 +17,7 @@ import java.util.Map;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
 
-class RollingPanel extends JPanel implements ComponentListener, AdjustmentListener
+public class RollingPanel extends JPanel implements ComponentListener, AdjustmentListener
 {
 	private static final long serialVersionUID = 1L;
 	private final Display display;
@@ -28,8 +27,7 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 	private final JScrollBar scrollBar;
 	private final GridBagLayout gbInner;
 	private final GridBagConstraints cInner;
-	
-	
+
 	/**
 	 * @param display
 	 * @param source The list of Displayable instances, a fraction of which is shown here.
@@ -37,19 +35,21 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 	protected RollingPanel(final Display display, final Class<?> clazz) {
 		this.display = display;
 		this.clazz = clazz;
-		
+		//
 		this.current = new HashMap<Displayable, DisplayablePanel>();
 		this.inner = new JPanel();
 		this.filler = new JPanel();
-		this.scrollBar = new JScrollBar();
-		this.scrollBar.addAdjustmentListener(this);
-		this.scrollBar.setUnitIncrement(1);
-		this.scrollBar.setBlockIncrement(1);
 		this.gbInner = new GridBagLayout();
 		this.cInner = new GridBagConstraints();
-		
 		this.inner.setLayout(this.gbInner);
 		this.inner.setBackground(Color.white);
+		//
+		this.scrollBar = new JScrollBar();
+		this.scrollBar.setUnitIncrement(1);
+		this.scrollBar.setBlockIncrement(1);
+		this.scrollBar.setMaximum(getList().size());
+		
+		this.setBackground(Color.white);
 
 		final GridBagLayout gb = new GridBagLayout();
 		final GridBagConstraints c = new GridBagConstraints();
@@ -69,6 +69,10 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 		c.fill = GridBagConstraints.VERTICAL;
 		gb.setConstraints(scrollBar, c);
 		this.add(scrollBar);
+
+		// Finally:
+		this.addComponentListener(this);
+		this.scrollBar.addAdjustmentListener(this);
 	}
 
 	public final void updateList() {
@@ -81,18 +85,28 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 	
 	private final void updateList2() {
 		final List<? extends Displayable> list = getList();
-		
-		Utils.log2("clazz is " + clazz.getSimpleName() + " and list size: " + list.size() + " and scrollbar maximum: " + scrollBar.getMaximum());
-		
+		final int count = getList().size();
 		
 		if (list.isEmpty()) {
 			this.current.clear();
 			if (this.inner.getComponentCount() > 0) {
 				this.inner.removeAll();
-				this.inner.revalidate();
+				this.scrollBar.setMaximum(0);
+				this.revalidate();
+				if (clazz == Patch.class) Utils.log2("empty list, removeAll, revalidate");
 			}
 			return;
 		}
+
+		final int numCanFit = (int)Math.floor(inner.getBounds().height / (float)DisplayablePanel.HEIGHT);
+		
+		if (!(this.scrollBar.getMaximum() == count && this.scrollBar.getVisibleAmount() == numCanFit)) {
+			this.scrollBar.getModel().setRangeProperties(
+					Math.max(0, this.scrollBar.getValue()),
+					numCanFit,
+					0, count, false);
+		}
+		
 		// For now, replace all always
 		this.current.clear();
 		this.inner.removeAll();
@@ -100,18 +114,23 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 		// Scrollbar value:
 		int first = this.scrollBar.getValue();
 		if (-1 == first) {
-			updateScrollBar();
+			this.scrollBar.setValue(0);
 			first = 0;
 		}
-		final int nShowing = (int)Math.ceil(inner.getBounds().height / (float)DisplayablePanel.HEIGHT);
-		if (list.size() - nShowing < first) {
-			first = list.size() - nShowing;   // TODO is there an error?
+		
+		if (list.size() - numCanFit < first) {
+			first = Math.max(0, list.size() - numCanFit); // at least 0
+		}
+		int max = numCanFit;
+		if (first + max > list.size()) {
+			max = list.size() - first;
 		}
 		this.cInner.anchor = GridBagConstraints.NORTHWEST;
 		this.cInner.fill = GridBagConstraints.HORIZONTAL;
 		this.cInner.weighty = 0;
 		this.cInner.gridy = 0;
-		for (int i=0; i < nShowing; ++i) {
+		int i;
+		for (i=0; i < max; ++i) {
 			Displayable d = list.get(first + i);
 			DisplayablePanel dp = new DisplayablePanel(display, d);
 			this.current.put(d, dp);
@@ -123,18 +142,8 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 		this.cInner.weighty = 1;
 		this.gbInner.setConstraints(this.filler, this.cInner);
 		this.inner.add(this.filler);
-		
-		Utils.log2("current size: " + current.size());
-		
-		this.inner.revalidate();
-	}
-	
-	private final void updateScrollBar() {
-		final int count = getList().size();
-		if (this.scrollBar.getMaximum() != count) {
-			this.scrollBar.setMaximum(count);
-		}
-		this.scrollBar.setVisibleAmount((int) Math.ceil(this.getBounds().height / (float)DisplayablePanel.HEIGHT));
+
+		this.inner.validate();
 	}
 
 	private final List<? extends Displayable> getList() {
@@ -150,16 +159,15 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 
 	@Override
 	public void componentResized(ComponentEvent e) {
-		updateScrollBar();
 		updateList();
 	}
 
 	@Override
 	public void componentMoved(ComponentEvent e) {}
+
 	@Override
 	public void componentShown(ComponentEvent e) {
 		if (0 == this.inner.getComponentCount()) {
-			updateScrollBar();
 			updateList();
 		}
 	}
@@ -173,15 +181,19 @@ class RollingPanel extends JPanel implements ComponentListener, AdjustmentListen
 		updateList();
 	}
 
-	public void scrollToShow(Displayable zd) {
-		//TODO
-		Utils.log2("scrollToShow not implemented yet");
+	public void scrollToShow(Displayable d) {
+		final DisplayablePanel dp = current.get(d);
+		if (null == dp) {
+			// Linear look-up but it's acceptable
+			this.scrollBar.setValue(getList().indexOf(d));
+		} else {
+			dp.repaint(); // for select on click to repaint the background
+		}
 	}
-	
+
 	@Override
 	public void update(Graphics g) {
 		if (0 == this.inner.getComponentCount()) {
-			updateScrollBar();
 			updateList();
 		}
 		super.update(g);

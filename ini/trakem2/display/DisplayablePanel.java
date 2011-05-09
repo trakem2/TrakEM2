@@ -134,7 +134,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		add(sp);
 		add(titles);
 
-		setMinimumSize(new Dimension(200, HEIGHT));
+		setMinimumSize(new Dimension(200, DisplayablePanel.HEIGHT));
 		setPreferredSize(new Dimension(248, DisplayablePanel.HEIGHT));
 
 		addMouseListener(this);
@@ -150,16 +150,6 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		c_linked.setSelected(d.isLinked());
 		updateTitle();
 		sp.set(d);
-	}
-
-	public void setActive(final boolean active) {
-		Utils.invokeLater(new Runnable() { public void run() {
-			if (active) {
-				setBackground(Color.cyan);
-			} else {
-				setBackground(Color.white);
-			}
-		}});
 	}
 
 	public void paint(final Graphics g) {

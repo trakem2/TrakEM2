@@ -256,19 +256,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				} else {
 					// recreate contents
-					ArrayList<?extends Displayable> al = null;
 					JPanel p = null;
 					if (tab == d.panel_zdispl) {
-						al = d.layer.getParent().getZDisplayables();
 						p = d.panel_zdispl;
 					} else if (tab == d.panel_patches) {
-						al = d.layer.getDisplayables(Patch.class);
 						p = d.panel_patches;
 					} else if (tab == d.panel_labels) {
-						al = d.layer.getDisplayables(DLabel.class);
 						p = d.panel_labels;
 					} else if (tab == d.panel_profiles) {
-						al = d.layer.getDisplayables(Profile.class);
 						p = d.panel_profiles;
 					} else if (tab == d.scroll_layers) {
 						// nothing to do
@@ -279,13 +274,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						return;
 					}
 
-					d.updateTab(p, al);
+					d.updateTab(p);
 
 					if (null != d.active) {
 						// set the transp slider to the alpha value of the active Displayable if any
 						d.transp_slider.setValue((int)(d.active.getAlpha() * 100));
-						DisplayablePanel dp = d.ht_panels.get(d.active);
-						if (null != dp) dp.setActive(true);
 					}
 				}
 				break;
@@ -956,7 +949,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				}
 
-				updateTab(panel_patches, layer.getDisplayables(Patch.class));
+				updateTab(panel_patches);
 				
 				// re-layout:
 				tabs.validate();
@@ -1133,20 +1126,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		jsp.setMinimumSize(new Dimension(250, 300));
 		return jsp;
 	}
-	
-	private JScrollPane makeRollingScrollPane(final RollingPanel c) {
-		JScrollPane jsp = new JScrollPane(c);
-		jsp.setBackground(Color.white); // no effect
-		jsp.getViewport().setBackground(Color.white); // no effect
-		// adjust scrolling to use one DisplayablePanel as the minimal unit
-		jsp.getVerticalScrollBar().setBlockIncrement(DisplayablePanel.HEIGHT); // clicking within the track
-		jsp.getVerticalScrollBar().setUnitIncrement(DisplayablePanel.HEIGHT); // clicking on an arrow
-		jsp.setHorizontalScrollBarPolicy(javax.swing.ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-		jsp.setVerticalScrollBarPolicy(javax.swing.ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
-		jsp.setPreferredSize(new Dimension(250, 300));
-		jsp.setMinimumSize(new Dimension(250, 300));
-		return jsp;
-	}
 
 	private void addGBRow(Container container, Component comp, Component previous) {
 		GridBagLayout gb = (GridBagLayout) container.getLayout();
@@ -1257,7 +1236,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			 */
 
-			updateVisibleTab(null == new_layer || current_layer.getParent() != new_layer.getParent());
+			updateVisibleTab();
 
 			updateFrameTitle(new_layer); // to show the new 'z'
 			// select the Layer in the LayerTree
@@ -1287,40 +1266,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void updateVisibleTabs() {
 		for (final Display d : al_displays) {
-			d.updateVisibleTab(true);
+			d.updateVisibleTab();
 		}
 	}
 	static public void updateVisibleTabs(final Project p) {
 		for (final Display d : al_displays) {
-			if (d.project == p) d.updateVisibleTab(true);
+			if (d.project == p) d.updateVisibleTab();
 		}
 	}
 
 	/** Recreate the tab that is being shown. */
-	private void updateVisibleTab(final boolean set_zdispl) {
+	private void updateVisibleTab() {
 		Utils.invokeLater(new Runnable() { public void run() {
-			// update only the visible tab
-			switch (tabs.getSelectedIndex()) {
-			case 0:
-				ht_panels.clear();
-				updateTab(panel_patches, layer.getDisplayables(Patch.class));
-				break;
-			case 1:
-				ht_panels.clear();
-				updateTab(panel_profiles, layer.getDisplayables(Profile.class));
-				break;
-			case 2:
-				if (set_zdispl) {
-					ht_panels.clear();
-					updateTab(panel_zdispl, layer.getParent().getZDisplayables());
-				}
-				break;
-				// case 3: channel opacities
-			case 4:
-				ht_panels.clear();
-				updateTab(panel_labels, layer.getDisplayables(DLabel.class));
-				break;
-				// case 5: layer panels
+			Component c = tabs.getSelectedComponent();
+			if (c instanceof RollingPanel) {
+				((RollingPanel)c).updateList();
 			}
 		}});
 	}
@@ -1330,31 +1290,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.layer = layer;
 		if (!ControlWindow.isGUIEnabled()) return;
 		Utils.invokeLater(new Runnable() { public void run() {
-			// empty the tabs, except channels and pipes
-			clearTab(panel_profiles);
-			clearTab(panel_patches);
-			clearTab(panel_labels);
-			// distribute Displayable to the tabs. Ignore LayerSet instances.
-			if (null == ht_panels) ht_panels = new Hashtable<Displayable,DisplayablePanel>();
-			else ht_panels.clear();
-			for (final Displayable d : layer.getParent().getZDisplayables()) {
-				d.setLayer(layer);
-			}
-			updateTab(panel_patches, layer.getDisplayables(Patch.class));
 			navigator.repaint(true); // was not done when adding
-			Utils.updateComponent(tabs.getSelectedComponent());
-			//
 			setActive(active);
+			updateTab((Container)tabs.getSelectedComponent());
 		}});
-	}
-
-	/** Remove all components from the tab. */
-	private void clearTab(final Container c) {
-		c.removeAll();
-		// magic cocktail:
-		if (tabs.getSelectedComponent() == c) {
-			Utils.updateComponent(c);
-		}
 	}
 
 	/** A class to listen to the transparency_slider of the DisplayablesSelectorWindow. */
@@ -1432,7 +1371,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void update() {
 		for (final Display d : al_displays) {
 			d.updateLayerScroller(d.layer);
-			d.updateVisibleTab(true);
+			d.updateVisibleTab();
 			d.toolbar_panel.repaint();
 			d.navigator.repaint(true);
 			d.canvas.repaint(true);
@@ -1707,7 +1646,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private final void addAll(final Collection<? extends Displayable> coll) {
 		// if any of the elements in the collection matches the type of the current tab, update that tab
 		// ... it's easier to just update the front tab
-		updateVisibleTab(true);
+		updateVisibleTab();
 		selection.clear();
 		navigator.repaint(true);
 	}
@@ -1715,9 +1654,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Add it to the proper panel, at the top, and set it active. */
 	private final void add(final Displayable d, final boolean activate, final boolean repaint_snapshot) {
 		if (activate) {
-			DisplayablePanel dp = ht_panels.get(d);
-			if (null != dp) dp.setActive(true);
-			else updateVisibleTab(d instanceof ZDisplayable);
+			updateVisibleTab();
 			selection.clear();
 			selection.add(d);
 			Display.repaint(d.getLayerSet()); // update the al_top list to contain the active one, or background image for a new Patch.
@@ -2138,8 +2075,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			// deactivate previously active
 			if (null != prev_active) {
-				final DisplayablePanel ob = ht_panels.get(prev_active);
-				if (null != ob) ob.setActive(false);
 				// erase "decorations" of the previously active
 				canvas.repaint(selection.getBox(), 4);
 				// Adjust annotation doc
@@ -2156,8 +2091,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			// activate the new active
 			if (null != displ) {
-				final DisplayablePanel ob = ht_panels.get(displ);
-				if (null != ob) ob.setActive(true);
 				updateInDatabase("active_displayable_id");
 				if (displ.getClass() != Patch.class) project.select(displ); // select the node in the corresponding tree, if any.
 				// select the proper tab, and scroll to visible
@@ -2287,14 +2220,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	@SuppressWarnings("unused")
 	private void selectTab(Stack d) { selectTab((ZDisplayable)d); }
 
-	/** A method to update the given tab, creating a new DisplayablePanel
-	 * for each Displayable present in the given ArrayList, and storing it
-	 * in the ht_panels (which is cleared first).
-	 * Must be invoked in the event dispatch thread. */
-	private void updateTab(Container tab, final ArrayList<? extends Displayable> al) {
-		
-		Utils.log2("tab is: " + tab.getClass());
-		
+	/** Must be invoked in the event dispatch thread. */
+	private void updateTab(Container tab) {
 		if (tab instanceof RollingPanel) {
 			((RollingPanel)tab).updateList();
 		}
