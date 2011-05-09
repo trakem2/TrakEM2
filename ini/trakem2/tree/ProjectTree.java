@@ -74,6 +74,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 	*/
 
+	private static final long serialVersionUID = 1L;
 	private DefaultMutableTreeNode selected_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
@@ -589,7 +590,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	 *  If a Displayable is not found, it returns it in a set of not found objects.
 	 *  If all are removed, returns an empty set. */
 	public final Set<Displayable> remove(final Set<? extends Displayable> displayables, final DefaultMutableTreeNode top) {
-		final Enumeration en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
+		final Enumeration<?> en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
 		final HashSet<DefaultMutableTreeNode> to_remove = new HashSet<DefaultMutableTreeNode>();
 		final HashSet<Displayable> remaining = new HashSet<Displayable>(displayables);
 		while (en.hasMoreElements()) {
@@ -637,28 +638,22 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			display.select(d, shift_down);
 		} else {
 			// select all basic types under this leaf
-			HashSet<ProjectThing> hs = thing.findBasicTypeChildren();
-			boolean first = true;
+			final List<Displayable> ds = thing.findChildrenOfType(Displayable.class);
 			Display display = null;
-			for (Iterator<ProjectThing> it = hs.iterator(); it.hasNext(); ) {
-				Object ptob = it.next().getObject();
-				if (!(ptob instanceof Displayable)) {
-					Utils.log2("Skipping non-Displayable object " + ptob);
-					continue;
-				}
-				Displayable d = (Displayable)ptob;
+			for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+				final Displayable d = it.next();
 				if (null == display) {
 					display = Display.getFront(d.getProject());
 					if (null == display) return;
 				}
-				if (!d.isVisible()) d.setVisible(true);
-				if (first) {
-					display.select(d, shift_down);
-					first = false;
-				} else {
-					display.select(d, true);
+				if (!d.isVisible()) {
+					Utils.log("Skipping non-visible object " + d);
+					it.remove();
 				}
 			}
+			if (null == display) return;
+			if (!shift_down) display.getSelection().clear();
+			display.getSelection().selectAll(ds);
 		}
 	}
 
@@ -716,6 +711,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	static protected final Color ACTIVE_DISPL_COLOR = new Color(1.0f, 1.0f, 0.0f, 0.5f);
 
 	protected final class ProjectThingNodeRenderer extends DNDTree.NodeRenderer {
+		private static final long serialVersionUID = 1L;
+
 		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
 			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
@@ -761,6 +758,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	 *  transforming the VectorData as appropriate to fall onto the same locations on the images.
 	 *  The ids of the copied objects will be new and unique for the target project.
 	 *  A dialog opens asking for options. */
+	@SuppressWarnings("unchecked")
 	public boolean sendToSiblingProject(final DefaultMutableTreeNode node) {
 		ArrayList<Project> ps = Project.getProjects();
 		if (1 == ps.size()) {
