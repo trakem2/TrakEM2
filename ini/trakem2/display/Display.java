@@ -1236,7 +1236,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			 */
 
-			updateVisibleTab();
+			if (tabs.getSelectedComponent() == panel_zdispl) {
+				// no need, doesn't change
+			} else {
+				updateVisibleDisplayableTab();
+			}
 
 			updateFrameTitle(new_layer); // to show the new 'z'
 			// select the Layer in the LayerTree
@@ -1266,17 +1270,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void updateVisibleTabs() {
 		for (final Display d : al_displays) {
-			d.updateVisibleTab();
+			d.updateVisibleDisplayableTab();
 		}
 	}
 	static public void updateVisibleTabs(final Project p) {
 		for (final Display d : al_displays) {
-			if (d.project == p) d.updateVisibleTab();
+			if (d.project == p) d.updateVisibleDisplayableTab();
 		}
 	}
 
 	/** Recreate the tab that is being shown. */
-	private void updateVisibleTab() {
+	private void updateVisibleDisplayableTab() {
 		Utils.invokeLater(new Runnable() { public void run() {
 			Component c = tabs.getSelectedComponent();
 			if (c instanceof RollingPanel) {
@@ -1291,8 +1295,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (!ControlWindow.isGUIEnabled()) return;
 		Utils.invokeLater(new Runnable() { public void run() {
 			navigator.repaint(true); // was not done when adding
+			// Order matters: first set active
 			setActive(active);
-			updateTab((Container)tabs.getSelectedComponent());
+			Container c = (Container)tabs.getSelectedComponent();
+			if (c != panel_zdispl) updateTab(c);
 		}});
 	}
 
@@ -1371,7 +1377,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	static public void update() {
 		for (final Display d : al_displays) {
 			d.updateLayerScroller(d.layer);
-			d.updateVisibleTab();
+			d.updateVisibleDisplayableTab();
 			d.toolbar_panel.repaint();
 			d.navigator.repaint(true);
 			d.canvas.repaint(true);
@@ -1646,7 +1652,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	private final void addAll(final Collection<? extends Displayable> coll) {
 		// if any of the elements in the collection matches the type of the current tab, update that tab
 		// ... it's easier to just update the front tab
-		updateVisibleTab();
+		updateVisibleDisplayableTab();
 		selection.clear();
 		navigator.repaint(true);
 	}
@@ -1654,7 +1660,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	/** Add it to the proper panel, at the top, and set it active. */
 	private final void add(final Displayable d, final boolean activate, final boolean repaint_snapshot) {
 		if (activate) {
-			updateVisibleTab();
+			updateVisibleDisplayableTab();
 			selection.clear();
 			selection.add(d);
 			Display.repaint(d.getLayerSet()); // update the al_top list to contain the active one, or background image for a new Patch.
