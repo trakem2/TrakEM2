@@ -26,7 +26,6 @@ import ini.trakem2.utils.Utils;
 
 import javax.swing.JPanel;
 import javax.swing.JCheckBox;
-import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
@@ -42,7 +41,6 @@ import java.awt.Event;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.util.Collection;
 import java.util.Set;
@@ -118,41 +116,65 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		idlabel.setForeground(GRAYISH);
 		titles = new JPanel();
 		updateTitle();
-		BoxLayout bt = new BoxLayout(titles, BoxLayout.Y_AXIS);
-		titles.setLayout(bt);
-		titles.setBackground(Color.white);
-		titles.add(title);
-		titles.add(title2);
-		titles.add(idlabel);
+		
+		
 		GridBagLayout gb = new GridBagLayout();
 		GridBagConstraints co = new GridBagConstraints();
-		//setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
 		this.setLayout(gb);
-		JPanel checkboxes = new JPanel();
-		checkboxes.setBackground(Color.white);
-		checkboxes.setLayout(new GridLayout(3,1));
-		checkboxes.setMaximumSize(new Dimension(26, 50));
-		checkboxes.add(c);
-		checkboxes.add(c_locked);
-		checkboxes.add(c_linked);
-		//
+
+
+		// Column of checkboxes
 		co.anchor = GridBagConstraints.NORTHWEST;
-		co.fill = GridBagConstraints.VERTICAL;
-		co.weightx = 0;
-		//
+		co.fill = GridBagConstraints.NONE;
 		co.gridx = 0;
-		gb.setConstraints(checkboxes, co);
-		add(checkboxes);
+		co.gridy = 0;
+		gb.setConstraints(c, co);
+		add(c);
 		//
+		co.gridy = 1;
+		co.anchor = GridBagConstraints.WEST;
+		co.fill = GridBagConstraints.VERTICAL;
+		co.weighty = 1;
+		gb.setConstraints(c_locked, co);
+		add(c_locked);
+		//
+		co.gridy = 2;
+		co.anchor = GridBagConstraints.SOUTHWEST;
+		co.weighty = 0;
+		gb.setConstraints(c_linked, co);
+		add(c_linked);
+		
+		// Snapshot panel
+		co.anchor = GridBagConstraints.NORTHWEST;
+		co.fill = GridBagConstraints.NONE;
 		co.gridx = 1;
+		co.gridy = 0;
+		co.gridheight = 3;
 		gb.setConstraints(sp, co);
 		add(sp);
-		//
-		co.gridx = 2;
+		
+		// Column of strings
+		co.gridheight = 1;
 		co.weightx = 1;
 		co.fill = GridBagConstraints.HORIZONTAL;
-		gb.setConstraints(titles, co);
-		add(titles);
+		co.gridx = 2;
+		co.gridy = 0;
+		gb.setConstraints(title, co);
+		add(title);
+		//
+		co.gridy = 1;
+		co.anchor = GridBagConstraints.WEST;
+		co.fill = GridBagConstraints.BOTH;
+		co.weighty = 1;
+		gb.setConstraints(title2, co);
+		add(title2);
+		//
+		co.gridy = 2;
+		co.anchor = GridBagConstraints.SOUTHWEST;
+		co.fill = GridBagConstraints.HORIZONTAL;
+		co.weighty = 0;
+		gb.setConstraints(idlabel, co);
+		add(idlabel);
 
 		setMinimumSize(new Dimension(230, DisplayablePanel.HEIGHT));
 		setPreferredSize(new Dimension(248, DisplayablePanel.HEIGHT));
