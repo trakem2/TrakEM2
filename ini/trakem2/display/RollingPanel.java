@@ -3,6 +3,7 @@ package ini.trakem2.display;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -110,10 +111,8 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 					numCanFit,
 					0, count, false);
 		}
-		
-		// For now, replace all always
+
 		this.current.clear();
-		this.inner.removeAll();
 
 		// Scrollbar value:
 		int first = this.scrollBar.getValue();
@@ -129,28 +128,52 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 			first = Math.min(numCanFit, count) -1;
 			last = 0;
 		}
-		
+
+		// Reuse panels only if the exact same number is to be used
+		final DisplayablePanel[] toReuse;
+		final boolean notReusing;
+		if (first - last + 1 != inner.getComponentCount() -1) {
+			this.inner.removeAll();
+			notReusing = true;
+			toReuse = null;
+		} else {
+			notReusing = false;
+			toReuse = new DisplayablePanel[first - last + 1];
+			int i = 0;
+			for (final Component c : inner.getComponents()) {
+				if (DisplayablePanel.class == c.getClass()) {
+					toReuse[i++] = (DisplayablePanel)c;
+				}
+			}
+		}
+
 		this.cInner.anchor = GridBagConstraints.NORTHWEST;
 		this.cInner.fill = GridBagConstraints.HORIZONTAL;
 		this.cInner.weightx = 0;
 		this.cInner.weighty = 0;
 		this.cInner.gridy = 0;
-		int i;
-		for (i=first; i >= last ; --i) {
-			Displayable d = list.get(i);
-			DisplayablePanel dp = new DisplayablePanel(display, d);
+		for (int i=first, k=0; i >= last ; --i, ++k) {
+			final Displayable d = list.get(i);
+			final DisplayablePanel dp;
+			if (notReusing) {
+				dp = new DisplayablePanel(display, d);
+				this.gbInner.setConstraints(dp, this.cInner);
+				this.inner.add(dp);
+				this.cInner.gridy += 1;
+			} else {
+				dp = toReuse[k];
+				dp.set(d);
+			}
 			this.current.put(d, dp);
-			this.gbInner.setConstraints(dp, this.cInner);
-			this.inner.add(dp);
-			this.cInner.gridy += 1;
 		}
-		this.cInner.fill = GridBagConstraints.BOTH;
-		this.cInner.weightx = 1;
-		this.cInner.weighty = 1;
-		this.gbInner.setConstraints(this.filler, this.cInner);
-		this.inner.add(this.filler);
-
-		this.inner.validate();
+		if (notReusing) {
+			this.cInner.fill = GridBagConstraints.BOTH;
+			this.cInner.weightx = 1;
+			this.cInner.weighty = 1;
+			this.gbInner.setConstraints(this.filler, this.cInner);
+			this.inner.add(this.filler);
+			this.inner.validate();
+		}
 	}
 
 	private final List<? extends Displayable> getList() {
