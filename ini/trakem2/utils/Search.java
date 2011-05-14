@@ -477,6 +477,8 @@ public class Search {
 					Utils.log2("Search: Unhandable table selection: " + ob);
 				}
 			} else if (Utils.isPopupTrigger(me)) {
+				final int numRowsSelected = table.getSelectedRowCount();
+				if (0 == numRowsSelected) return;
 				JPopupMenu popup = new JPopupMenu();
 				final String show2D = "Show";
 				final String select = "Select in display";
@@ -494,7 +496,9 @@ public class Search {
 								Display.showFront((Layer)ob);
 							} else if (ob instanceof Displayable) {
 								// How many rows are selected?
-								if (1 == table.getSelectedRowCount()) {
+								if (0 == numRowsSelected) {
+									return;
+								} else if (1 == numRowsSelected) {
 									Displayable displ = (Displayable)ob;
 									if (!displ.isVisible()) displ.setVisible(true);
 									Display display = Display.getFront(displ.getProject());
