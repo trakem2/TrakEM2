@@ -103,6 +103,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		JMenu node_menu = new JMenu("Node");
 		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
 		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
+		item = new JMenuItem("Collapse nodes of children nodes"); item.addActionListener(this); node_menu.add(item);
 		popup.add(node_menu);
 
 		JMenu send_menu = new JMenu("Send to");
@@ -313,6 +314,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				move(selected_node, -1);
 			} else if (command.equals("Move down")) {
 				move(selected_node, 1);
+			} else if (command.equals("Collapse nodes of children nodes")) {
+				if (null == selected_node) return;
+				Enumeration<?> c = selected_node.children();
+				while (c.hasMoreElements()) {
+					DefaultMutableTreeNode child = (DefaultMutableTreeNode) c.nextElement();
+					if (child.isLeaf()) continue;
+					collapsePath(new TreePath(child.getPath()));
+				}
 			} else if (command.equals("Sibling project")) {
 				sendToSiblingProjectTask(selected_node);
 			} else {
