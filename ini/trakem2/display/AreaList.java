@@ -1056,7 +1056,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UBs-surface", "UB-surface", "AVGs-surface", "AVG-surface", "max diameter", "Sum of tops", "name-id"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results",
+				new String[]{"id", "volume", "LB-surface", "UBs-surface",
+				"UB-surface", "AVGs-surface", "AVG-surface", "max diameter",
+				"Sum of tops", "name-id", "Xcm", "Ycm", "Zcm"});
 		rt.incrementCounter();
 		rt.addLabel("units", layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
@@ -1070,6 +1073,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		rt.addValue(7, m[4]); // max diameter
 		rt.addValue(8, m[5]); // sum of all cappings (tops and bottoms)
 		rt.addValue(9, getNameId());
+		rt.addValue(10, m[6]); // X of the center of mass
+		rt.addValue(11, m[7]); // Y
+		rt.addValue(12, m[8]); // Z
 		return rt;
 	}
 
@@ -1080,19 +1086,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	 *  [2] Upper Bound Surface Smoothed: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
 	 *  [3] Upper Bound Surface: measure raw pixelated perimeter lengths per section, multiply by thickness to get lateral area. Plus top and bottoms.
 	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas.
-	 *  [5] All tops and bottoms: Sum of all included surface areas that are not part of side area. */
+	 *  [5] All tops and bottoms: Sum of all included surface areas that are not part of side area.
+	 *  [6] X coordinate of the center of mass.
+	 *  [7] Y coordinate of the center of mass.
+	 *  [8] Z coordinate of the center of mass. */
 	public double[] measure() {
 		if (0 == ht_areas.size()) return new double[6]; // zeros
 
 		// prepare suitable transform
-		AffineTransform aff = (AffineTransform)this.at.clone();
+		AffineTransform aff = new AffineTransform(this.at);
 		AffineTransform aff2 = new AffineTransform();
-		// remove translation
+		// remove translation (for no reason other than historical, and that it may
+		//   help avoid numerical overflows)
 		Rectangle box = getBoundingBox(null);
 		aff2.translate(-box.x, -box.y);
 		aff.preConcatenate(aff2);
 		aff2 = null;
-		box = null;
 
 		double volume = 0;
 		double lower_bound_surface_h = 0;
@@ -1137,10 +1146,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				Utils.log("Could not find a layer at index " + layer_index);
 				continue;
 			}
+			
+			final Layer la = layers.get(layer_index);
 
 			// fetch Area
 			Area area = e.getValue();
-			if (UNLOADED == area) area = loadLayer(layer.getId());
+			if (UNLOADED == area) area = loadLayer(la.getId());
 			// Transform area to world coordinates
 			area = area.createTransformedArea(aff);
 
@@ -1151,7 +1162,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			//Utils.log2(layer_index + " pixel_area: " + pixel_area + "  surface " + surface);
 
 			// measure volume
-			double thickness = layer.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
+			double thickness = la.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
 			volume += surface * thickness;
 
 			//Utils.log2(layer_index + "  volume: " + volume);
@@ -1273,7 +1284,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			prev_thickness = thickness;
 
 			// Iterate points:
-			final float z = (float) layer.getZ();
+			final float z = (float) la.getZ();
 			for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); pit.next()) {
 				switch (pit.currentSegment(coords)) {
 					case PathIterator.SEG_MOVETO:
@@ -1286,6 +1297,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						break;
 				}
 			}
+			Utils.log2("z is: " + z + " :: z * fpixelWidth: " + z * fpixelWidth + " ::: fpixelWidth, fpixelHeight: " + fpixelWidth + ", " + fpixelHeight);
 		}
 
 		// finish last:
@@ -1297,15 +1309,31 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		// Compute maximum diameter
 		double max_diameter_sq = 0;
 		final int lp = points.size();
-		for (int i=0; i<lp; i++) {
-			final Point3f p = points.get(i);
-			for (int j=i; j<lp; j++) {
-				double len = p.distanceSquared(points.get(j));
-				if (len > max_diameter_sq) max_diameter_sq = len;
+		final Point3f c;
+		if (lp > 0) {
+			c = new Point3f(points.get(0)); // center of mass
+			for (int i=0; i<lp; i++) {
+				final Point3f p = points.get(i);
+				for (int j=i; j<lp; j++) {
+					double len = p.distanceSquared(points.get(j));
+					if (len > max_diameter_sq) max_diameter_sq = len;
+				}
+				if (0 == i) continue;
+				c.x += p.x;
+				c.y += p.y;
+				c.z += p.z;
 			}
+		} else {
+			c = new Point3f(Float.NaN, Float.NaN, Float.NaN);
 		}
+		// Translate the center of mass 
+		c.x = box.x + c.x / lp;
+		c.y = box.y + c.y / lp;
+		c.z /= lp;
 
-		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq), all_tops_and_bottoms};
+		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed,
+				upper_bound_surface, Math.sqrt(max_diameter_sq), all_tops_and_bottoms,
+				c.x, c.y, c.z};
 	}
 
 	@Override
