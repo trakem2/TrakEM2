@@ -712,6 +712,39 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		((DefaultTreeModel)getModel()).insertNodeInto(node, (DefaultMutableTreeNode)enode.getParent(), index + 1);
 		return node;
 	}
+	
+	/** Attempt to add the {@param d} as a {@link ProjectThing} child of type {@param childType}
+	 * to the parent {@link ProjectThing} {@param parent}. A new {@link DefaultMutableTreeNode}
+	 * will be added to the {@link DefaultMutableTreeNode} that encapsulates the {@param parent}.
+	 * 
+	 * Will fail by returning null if:
+	 *  1. The {@param parent} {@link ProjectThing} cannot have a child of type {@param childType}.
+	 *  2. The {@link ProjectThing} constructor throws an Exception, for example if {@link d} is null.
+	 *  3. The {@param parent} {@link ProjectThing#addChild(Thing)} returns false.
+	 *  
+	 *  @return The new {@link DefaultMutableTreeNode}.
+	 * */
+	public DefaultMutableTreeNode addChild(final ProjectThing parent, final String childType, final Displayable d) {
+		if (!parent.canHaveAsChild(childType)) {
+			Utils.log("The type '" + parent.getType() + "' cannot have as child the type '" + childType + "'");
+			return null;
+		}
+		ProjectThing pt;
+		try {
+			pt = new ProjectThing(project.getTemplateThing(childType), project, d);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		if (!parent.addChild(pt)) {
+			Utils.log("Could not add child to " + parent);
+			return null;
+		}
+		DefaultMutableTreeNode parentNode = DNDTree.findNode(parent, this);
+		DefaultMutableTreeNode node = new DefaultMutableTreeNode(pt);
+		((DefaultTreeModel)getModel()).insertNodeInto(node, parentNode, parentNode.getChildCount());
+		return node;
+	}
 
 	protected DNDTree.NodeRenderer createNodeRenderer() {
 		return new ProjectThingNodeRenderer();
