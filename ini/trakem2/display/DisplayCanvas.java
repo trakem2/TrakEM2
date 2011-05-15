@@ -1970,6 +1970,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				}
 				break;
+			case KeyEvent.VK_L:
+				if (null != active && active instanceof ZDisplayable) {
+					display.getProject().getProjectTree().tryAddNewConnector(active, true);
+				}
+				break;
 		}
 
 		if (ke.isConsumed()) return;
