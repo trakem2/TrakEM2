@@ -969,4 +969,44 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	protected Thing getRootThing() {
 		return project.getRootProjectThing();
 	}
+
+	/** If the parent node of {@param active} can accept a Connector or has a direct child
+	 * node that can accept a {@link Connector}, add a new {@link Connector} and return it.
+	 * 
+	 * @param d The {@link Displayable} that serves as reference, to decide which node to add the new {@link Connector}.
+	 * @param selectNode Whether to select the new node containing the {@link Connector} in the ProjectTree.
+	 * 
+	 * @return The newly created {@link Connector}. */
+	public Connector tryAddNewConnector(final Displayable d, final boolean selectNode) {
+		ProjectThing pt = project.findProjectThing(d);
+		ProjectThing parent = (ProjectThing) pt.getParent();
+		TemplateThing connectorType = project.getTemplateThing("connector");
+		boolean add = false;
+		if (parent.canHaveAsChild(connectorType)) {
+			// Add as a sibling of pt
+			add = true;
+		} else {
+			// Inspect if any of the sibling nodes can have it as child
+			for (final ProjectThing child : parent.getChildren()) {
+				if (child.canHaveAsChild(connectorType)) {
+					parent = child;
+					add = true;
+					break;
+				}
+			}
+		}
+		Connector c = null;
+		DefaultMutableTreeNode node = null;
+		if (add) {
+			c = new Connector(project, connectorType.getType()); // reuse same String instance
+			node = addChild(parent, connectorType.getType(), c);
+		}
+		if (null != node) {
+			d.getLayerSet().add(c);
+			if (selectNode) setSelectionPath(new TreePath(node.getPath()));
+			return c;
+		}
+		Utils.logAll("Could not add a new Connector related to " + d);
+		return null;
+	}
 }
