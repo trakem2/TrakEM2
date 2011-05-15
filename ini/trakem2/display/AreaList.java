@@ -1297,7 +1297,6 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						break;
 				}
 			}
-			Utils.log2("z is: " + z + " :: z * fpixelWidth: " + z * fpixelWidth + " ::: fpixelWidth, fpixelHeight: " + fpixelWidth + ", " + fpixelHeight);
 		}
 
 		// finish last:
