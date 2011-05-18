@@ -1904,6 +1904,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					// TODO this is just a hack really. Should just fall back to default switch option.
 					// The whole keyPressed method needs revision: should not break from it when not using the key.
 				}
+				break;
 			case KeyEvent.VK_ESCAPE: // cancel transformation
 				if (isTransforming()) cancelTransform();
 				else {
@@ -1970,9 +1971,16 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				}
 				break;
-			case KeyEvent.VK_L:
+		}
+
+		switch (keyChar) {
+			case ':':
+			case ';':
 				if (null != active && active instanceof ZDisplayable) {
-					display.getProject().getProjectTree().tryAddNewConnector(active, true);
+					if (null != display.getProject().getProjectTree().tryAddNewConnector(active, true)) {
+						ProjectToolbar.setTool(ProjectToolbar.PEN);
+					}
+					ke.consume();
 				}
 				break;
 		}
