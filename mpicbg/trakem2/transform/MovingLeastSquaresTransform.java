@@ -91,6 +91,24 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		return data.toString();
 	}
 
+	static private final Comparator< PointMatch > SORTER = new Comparator< PointMatch >() {
+		@Override
+		public final int compare(final PointMatch o1, final PointMatch o2) {
+			final float[] p1 = o1.getP1().getW();
+			final float[] p2 = o1.getP2().getW();
+			final float dx = p1[0] - p2[0];
+			if ( dx < 0) return -1;
+			if ( 0 == dx)
+			{
+				final float dy = p1[1] - p1[1];
+				if ( dy < 0 ) return -1;
+				if ( 0 == dy ) return 0;
+				return 1;
+			}
+			return 1;
+		}
+	};
+	
 	private final void toDataString( final StringBuilder data )
 	{
 		if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
@@ -104,28 +122,11 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 
 		// Sort matches, so that they are always written the same way
 		// Will help lots git and .zip to reduce XML file size
-		/* // TODO evaluate the time cost
-		ArrayList< PointMatch > pms = new ArrayList< PointMatch >( matches );
-		Collections.sort( pms, new Comparator< PointMatch >() {
-			@Override
-			public int compare(PointMatch o1, PointMatch o2) {
-				float[] p1 = o1.getP1().getW();
-				float[] p2 = o1.getP2().getW();
-				float dx = p1[0] - p2[0];
-				if ( dx < 0) return -1;
-				if ( 0 == dx)
-				{
-					float dy = p1[1] - p1[1];
-					if ( dy < 0 ) return -1;
-					if ( 0 == dy ) return 0;
-					return 1;
-				}
-				return 1;
-			}
-		});
-		*/
 
-		for ( PointMatch m : matches )
+		final ArrayList< PointMatch > pms = new ArrayList< PointMatch >( matches );
+		Collections.sort( pms, SORTER );
+
+		for ( PointMatch m : pms )
 		{
 			final float[] p1 = m.getP1().getL();
 			final float[] p2 = m.getP2().getW();
