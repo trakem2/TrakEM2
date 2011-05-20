@@ -65,7 +65,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -96,6 +95,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.regex.Pattern;
+import java.util.zip.GZIPInputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -261,7 +261,8 @@ public final class FSLoader extends Loader {
 		Object[] data = null;
 
 		// parse file, according to expected format as indicated by the extension:
-		if (this.project_file_path.toLowerCase().endsWith(".xml")) {
+		final String lcFilePath = this.project_file_path.toLowerCase();
+		if (lcFilePath.matches(".*(\\.xml|\\.xml\\.gz)")) {
 			InputStream i_stream = null;
 			TMLHandler handler = new TMLHandler(this.project_file_path, this);
 			if (handler.isUnreadable()) {
@@ -276,6 +277,9 @@ public final class FSLoader extends Loader {
 						i_stream = new java.net.URL(this.project_file_path).openStream();
 					} else {
 						i_stream = new BufferedInputStream(new FileInputStream(this.project_file_path));
+					}
+					if (lcFilePath.endsWith(".gz")) {
+						i_stream  = new GZIPInputStream(i_stream);
 					}
 					InputSource input_source = new InputSource(i_stream);
 					parser.parse(input_source, handler);
@@ -1048,7 +1052,14 @@ public final class FSLoader extends Loader {
 			return null;
 		}
 		String path2 = path;
-		if (!path2.endsWith(".xml")) path2 += ".xml";
+		String extension = ".xml";
+		if (path2.endsWith(extension)) {} // all fine
+		else if (path2.endsWith(".xml.gz")) extension = ".xml.gz";
+		else {
+			// neither matches, add the default ".xml"
+			path2 += extension;
+		}
+		
 		File fxml = new File(path2);
 		if (!fxml.canWrite()) {
 			// write to storage folder instead
@@ -1064,7 +1075,7 @@ public final class FSLoader extends Loader {
 				if (!parent.endsWith("/")) parent += "/";
 				String name = fxml.getName();
 				name = name.substring(0, name.length() - 4);
-				path2 =  parent + name + "-" +  i + ".xml";
+				path2 =  parent + name + "-" +  i + extension;
 				fxml = new File(path2);
 				i++;
 			}

@@ -105,6 +105,7 @@ import java.util.Collections;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Vector;
+import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
@@ -3512,7 +3513,12 @@ while (it.hasNext()) {
 
 			final File ftmp = IJ.isWindows() ? fxml : new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
 			final FileOutputStream fos = new FileOutputStream(ftmp);
-			java.io.Writer writer = new OutputStreamWriter(new BufferedOutputStream(fos), "8859_1");
+			java.io.Writer writer;
+			if (fxml.getName().endsWith(".xml.gz")) {
+				writer = new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(fos)), "8859_1");
+			} else {
+				writer = new OutputStreamWriter(new BufferedOutputStream(fos), "8859_1");
+			}
 			try {
 				writer.write(sb_header.toString());
 				sb_header = null;
@@ -3551,6 +3557,7 @@ while (it.hasNext()) {
 			// On successful renaming, then:
 			setChanged(false);
 			path = fxml.getAbsolutePath().replace('\\', '/');
+			project.setTitle(fxml.getName());
 
 			// Remove the patches_dir if empty (can happen when doing a "save" on a FSLoader project if no new Patch have been created that have no path.
 			if (export_images) {
@@ -3667,7 +3674,6 @@ while (it.hasNext()) {
 			i++;
 		}
 		if (null != patches_dir2) patches_dir = patches_dir2;
-		if (null == patches_dir) return null;
 		try {
 			dir.mkdir();
 		} catch (Exception e) {

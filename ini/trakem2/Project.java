@@ -180,7 +180,7 @@ public class Project extends DBObject {
 						} catch (ClassNotFoundException cnfe) {
 							Utils.log("Could not find TPlugIn class " + classname);
 						}
-					};
+					}
 				} finally {
 					br.close();
 				}
@@ -256,7 +256,7 @@ public class Project extends DBObject {
 
 	private LayerTree layer_tree = null;
 
-	private String title = "Project"; // default  // TODO should be an attribute in the ProjectThing that holds it
+	private String title = "Project";
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 
