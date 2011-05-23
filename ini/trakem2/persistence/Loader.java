@@ -112,6 +112,8 @@ import java.util.zip.ZipOutputStream;
 
 import javax.swing.JMenu;
 
+import amira.AmiraMeshDecoder;
+
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
@@ -2337,7 +2339,14 @@ while (it.hasNext()) {
 						add_background = gd.getNextBoolean();
 					}
 					releaseToFit(new File(path).length() * 3);
-					final ImagePlus imp = openImagePlus(path);
+					final ImagePlus imp;
+					if (path.toLowerCase().endsWith(".am")) {
+						AmiraMeshDecoder decoder = new AmiraMeshDecoder();
+						if (decoder.open(path)) imp = new ImagePlus(path, decoder.getStack());
+						else imp = null;
+					} else {
+						imp = openImagePlus(path);
+					}
 					if (null == imp) {
 						Utils.log("Could not open image at " + path);
 						return;
