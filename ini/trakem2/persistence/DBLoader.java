@@ -1210,7 +1210,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory2();
+			//releaseMemory2();
 
 			PGpolygon p = null;
 			try {
@@ -1258,7 +1258,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory2();
+			//releaseMemory2();
 
 			Area area = new Area();
 			try {
@@ -1287,7 +1287,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory2();
+			//releaseMemory2();
 
 			ArrayList al = new ArrayList();
 			try {
@@ -1323,7 +1323,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory2();
+			//releaseMemory2();
 
 			ArrayList al = new ArrayList();
 			try {
@@ -2452,7 +2452,7 @@ public class DBLoader extends Loader {
 				return null;
 			}
 
-			releaseMemory2();
+			//releaseMemory2();
 
 			InputStream i_stream = null;
 			try {
@@ -2468,7 +2468,7 @@ public class DBLoader extends Loader {
 					imp = unzipTiff(i_stream, p.getTitle());
 					//sw.elapsed();
 					i_stream.close();
-					mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
+					mawts.put(id, imp);
 				}
 				r.close();
 				// if the working is not there, fetch the original instead
@@ -2481,7 +2481,7 @@ public class DBLoader extends Loader {
 						imp = unzipTiff(i_stream, p.getTitle()); // will apply the preprocessor plugin to it as well
 						//sw.elapsed();
 						i_stream.close();
-						mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
+						mawts.put(id, imp);
 					}
 					r.close();
 				}

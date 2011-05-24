@@ -199,40 +199,10 @@ abstract public class Loader {
 		return REGENERATING == awt || NOT_FOUND == awt;
 	}
 
-	/** The maximum amount of heap taken by all caches from all open projects. */
-	static private float heap_fraction = 0.4f;
-	
-	static private final Object HEAPLOCK = new Object();
-	
-	static public final void setHeapFraction(final float fraction) {
-		synchronized (HEAPLOCK) {
-			if (fraction < 0 || fraction > 1) {
-				Utils.log("Invalid heap fraction: " + fraction);
-				return;
-			}
-			if (fraction > 0.4f) {
-				Utils.log("WARNING setting a heap fraction larger than recommended 0.4: " + fraction);
-			}
-			Loader.heap_fraction = fraction;
-			for (final Loader l : v_loaders) l.setMaxBytes((long)(MAX_MEMORY * fraction));
-		}
-	}
-
-	transient protected final Cache mawts = new Cache((long)(MAX_MEMORY * heap_fraction));
+	transient protected final Cache mawts = new Cache(db_lock);
 	
 	static transient protected Vector<Loader> v_loaders = new Vector<Loader>(); // Vector: synchronized
 
-	private final void setMaxBytes(final long max_bytes) {
-		synchronized (db_lock) {
-			try {
-				mawts.setMaxBytes(max_bytes);
-				Utils.log2("Cache max bytes: " + mawts.getMaxBytes());
-			} catch (Throwable t) {
-				handleCacheError(t);
-			}
-		}
-	}
-	
 	static public void debug() {
 		Utils.log2("v_loaders: " + Utils.toString(v_loaders));
 	}
@@ -245,7 +215,7 @@ abstract public class Loader {
 		}
 
 		Utils.log2("MAX_MEMORY: " + MAX_MEMORY);
-		Utils.log2("cache size: " + mawts.getMaxBytes());
+		Utils.log2("cache size: " + mawts.count());
 	}
 
 	/** Release all memory and unregister itself. Child Loader classes should call this method in their destroy() methods. */
@@ -363,7 +333,7 @@ abstract public class Loader {
 						|| cached != imp
 						|| (1 == imp.getStackSize() && imp.getProcessor().getPixels() != cached.getProcessor().getPixels())
 				) {
-					mawts.put(id, imp, (int)Math.max(p.getWidth(), p.getHeight()));
+					mawts.put(id, imp);
 				} else {
 					mawts.get(id); // send to the end
 				}
@@ -378,7 +348,7 @@ abstract public class Loader {
 		if (null == imp || null == imp.getProcessor()) return;
 		synchronized (db_lock) {
 			try {
-				mawts.put(id, imp, Math.max(imp.getWidth(), imp.getHeight()));
+				mawts.put(id, imp);
 			} catch (Throwable t) {
 				handleCacheError(t);
 			}
@@ -521,19 +491,16 @@ abstract public class Loader {
 	 *  @return true if that many have been released; but if less needed to be released,
 	 *  it will return false. */
 	public final boolean releaseToFit(final long n_bytes) {
-		if (n_bytes > MAX_MEMORY) {
-			Utils.log("WARNING: Can't fit " + n_bytes + " bytes in memory.");
-			// Try anyway
-			releaseAllCaches();
-			return true; // optimism!
+		synchronized (db_lock) {
+			mawts.cleanup();
 		}
-		return releaseMemory(n_bytes) >= n_bytes; // will also release from other caches
+		return true;
 	}
 
 	static public void printCacheStatus() {
 		int i = 1;
 		for (final Loader lo : new ArrayList<Loader>(v_loaders)) {
-			Utils.log2("Loader " + (i++) + " : mawts: " + lo.mawts.size());
+			Utils.log2("Loader " + (i++) + " : mawts: " + lo.mawts.count());
 		}
 	}
 
@@ -607,100 +574,6 @@ abstract public class Loader {
 	static final long measureSize(final Image img) {
 		if (null == img) return 0;
 		return img.getWidth(null) * img.getHeight(null) * 4 + 100;
-	}
-	
-	/** A lock to acquire before freeing any memory. This lock is shared across all loaders.
-	 *  Synchronizing on this lock, any number of loaders cannot deadlock on each other
-	 *  by trying to free each other.*/
-	static private final Object CROSSLOCK = new Object();
-
-	/** Free up to @param min_free_bytes. Locks on db_lock. */
-	public final long releaseMemory(final long min_free_bytes) {
-		synchronized (CROSSLOCK) {
-			synchronized (db_lock) {
-				try {
-					return releaseMemory2(min_free_bytes);
-				} catch (Throwable e) {
-					IJError.print(e);
-					return 0;
-				}
-			}
-		}
-	}
-	
-	private final long releaseAndFlushOthers(final long min_free_bytes) {
-		if (1 == v_loaders.size()) return 0;
-		long released = 0;
-		for (final Loader lo : new ArrayList<Loader>(v_loaders)) {
-			if (lo == this) continue;
-			synchronized (lo.db_lock) {
-				try {
-					released += lo.mawts.removeAndFlushSome(min_free_bytes);
-					if (released >= min_free_bytes) return released;
-				} catch (Throwable t) {
-					lo.handleCacheError(t);
-				}
-			}
-		}
-		return released;
-	}
-	
-	@Deprecated
-	protected final long releaseMemory2() {
-		return releaseMemory2(MIN_FREE_BYTES);
-	}
-
-	/** Non-locking version (but locks on the other Loader's db_lock).
-	 *  @return How much memory was actually removed, in bytes. */
-	private final long releaseMemory2(final long min_free_bytes) {
-		long released = 0;
-		try {
-			// First from other loaders, if any
-			released += releaseAndFlushOthers(min_free_bytes);
-			if (released >= min_free_bytes) return released;
-				
-			// Then from here
-			if (0 != mawts.size()) {
-				try {
-					released += mawts.ensureFree(min_free_bytes);
-				} catch (Throwable t) {
-					handleCacheError(t);
-				}
-				if (released >= min_free_bytes) return released;
-			}
-
-			// Sanity check:
-			if (0 == mawts.size()) {
-				// Remove any autotraces
-				Polyline.flushTraceCache(Project.findProject(this));
-				// TODO should measure the polyline trace cache and add it to 'released'
-				
-				Thread.yield();
-				// The cache shed less than min_free_bytes, and perhaps the system cannot take more:
-				if (!enoughFreeMemory(min_free_bytes)) {
-					Utils.log("TrakEM: empty cache -- please free up some memory");
-					if (ij.WindowManager.getWindowCount() != Display.getDisplayCount()) {
-						Utils.log("For example, close other open images.");
-					}
-				}
-			}
-			
-			// The above may decide not to release anything, and thus fail to return and get here.
-			// mawts.ensureFree doesn't take into account actual used memory:
-			// it only considers whether the cache itself has reached its maximum.
-			// So add a sanity check, because other sources of images may interfere.
-			// Since RAM cannot be reliably estimated to be free,
-			// this is a weak attempt at actually releasing min_free_bytes
-			// when there are other images opened AND enoughFreeMemory is false.
-			// The check for other images is a weak reassurance that we are not allucinating.
-			if (!enoughFreeMemory(min_free_bytes) && ij.WindowManager.getWindowCount() != Display.getDisplayCount()) {
-				released += releaseAndFlushOthers(min_free_bytes);
-				if (released < min_free_bytes) released += mawts.removeAndFlushSome(min_free_bytes);
-			}
-		} catch (Throwable e) {
-			handleCacheError(e);
-		}
-		return released;
 	}
 
 	static public void releaseAllCaches() {
@@ -3872,16 +3745,13 @@ while (it.hasNext()) {
 
 	@SuppressWarnings("unchecked")
 	static public final void printMemState() {
-		final StringBuilder sb = new StringBuilder("mem in use: ").append((IJ.currentMemory() * 100.0f) / MAX_MEMORY).append("%\n");
+		System.out.println(new StringBuilder("mem in use: ").append((IJ.currentMemory() * 100.0f) / MAX_MEMORY).append('%').toString());
 		int i = 0;
 		for (final Loader lo : (Vector<Loader>)v_loaders.clone()) {
-			long b = lo.mawts.getBytes();
-			long mb = lo.mawts.getMaxBytes();
-			sb.append(++i).append(": cache size: " ).append(b).append(" / ").append(mb)
-			.append(" (").append((100 * b) / (float)mb).append("%)")
-			.append(" (ids: ").append(lo.mawts.size()).append(')');
+			System.out.println("Loader " + i);
+			lo.mawts.debug();
+			i += 1;
 		}
-		Utils.log2(sb.toString());
 	}
 
 	/** Fixes paths before presenting them to the file system, in an OS-dependent manner. */

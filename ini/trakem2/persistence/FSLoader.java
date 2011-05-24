@@ -539,7 +539,7 @@ public final class FSLoader extends Loader {
 				imp = mawts.get(path); // could have been loaded by a different Patch that uses the same path,
 				// such as other slices of a stack or duplicated images.
 				if (null != imp) {
-					mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
+					mawts.put(p.getId(), imp);
 				}
 				Utils.log2("found cached imp: " + imp + " for path: " + path);
 			}
@@ -598,7 +598,7 @@ public final class FSLoader extends Loader {
 							// puts the Patch min and max values into the ImagePlus processor.
 						if (Layer.IMAGEPROCESSOR == format) ip = imp.getProcessor();
 					}
-					mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
+					mawts.put(p.getId(), imp);
 					// imp is cached, so:
 					removeImageLoadingLock(plock);
 
@@ -2911,7 +2911,7 @@ public final class FSLoader extends Loader {
 //						}
 						return null;
 					} else {
-						mawts.put( stack.getId(), imp, (int)Math.max(stack.getWidth(), stack.getHeight()));
+						mawts.put( stack.getId(), imp );
 					}
 
 				} catch (Exception e) {
