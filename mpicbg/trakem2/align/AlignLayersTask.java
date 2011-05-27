@@ -31,23 +31,19 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
-import java.awt.Rectangle;
-import java.awt.geom.AffineTransform;
 import java.awt.Choice;
-import java.awt.event.ItemListener;
+import java.awt.Rectangle;
 import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Vector;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.Callable;
-import java.util.Vector;
-
-import bunwarpj.Transformation;
-import bunwarpj.bUnwarpJ_;
-import bunwarpj.trakem2.transform.CubicBSplineTransform;
 
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
@@ -65,6 +61,9 @@ import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
+import bunwarpj.Transformation;
+import bunwarpj.bUnwarpJ_;
+import bunwarpj.trakem2.transform.CubicBSplineTransform;
 
 /**
  * Register a range of layers using linear or non-linear transformations.
@@ -74,8 +73,14 @@ import mpicbg.trakem2.transform.TranslationModel2D;
  */
 final public class AlignLayersTask
 {
+	static protected int LINEAR = 0, BUNWARPJ = 1, ELASTIC = 2;
+	static protected int mode = LINEAR;
+	final static String[] modeStrings = new String[]{
+		"least squares (linear feature correspondences)",
+		"bUnwarpJ (non-linear cubic B-Splines)",
+		"elastic (non-linear block correspondences)" };
+	
 	static protected boolean propagateTransform = false;
-	static protected boolean useBUnwarpJ = false;
 	static protected bunwarpj.Param elasticParam = new bunwarpj.Param();
 	
 	private AlignLayersTask(){}
@@ -101,12 +106,12 @@ final public class AlignLayersTask
 		return Bureaucrat.createAndStart(worker, l.getProject());
 	}
 	
-	final static public void alignLayers( final Layer l )
+	final static public void alignLayers( final Layer l ) throws Exception
 	{
 		alignLayers(l, null);
 	}
 	
-	final static public void alignLayers( final Layer l, final Rectangle fov )
+	final static public void alignLayers( final Layer l, final Rectangle fov ) throws Exception
 	{
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
@@ -117,6 +122,8 @@ final public class AlignLayersTask
 		//Align.param.sift.maxOctaveSize = 1024;
 		
 		final GenericDialog gd = new GenericDialog( "Align Layers" );
+		
+		gd.addChoice( "mode :", modeStrings, modeStrings[ LINEAR ] );
 		
 		gd.addMessage( "Layer Range:" );
 		final int sel = l.getParent().indexOf(l);
@@ -154,6 +161,8 @@ final public class AlignLayersTask
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
 		
+		mode = gd.getNextChoiceIndex();
+		
 		final int first = gd.getNextChoiceIndex();
 		final int ref = gd.getNextChoiceIndex();
 		final int last = gd.getNextChoiceIndex();
@@ -171,33 +180,42 @@ final public class AlignLayersTask
 			}
 		};
 
-		final GenericDialog gd2 = new GenericDialog( "Align Layers" );
+		if ( mode == ELASTIC )
+			new ElasticAlign().exec( l.getParent(), first, last, propagateTransform, fov, filter );
+		else
+		{
+			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
 		
-		Align.param.addFields( gd2 );
-		gd2.addCheckbox( "use bUnwarpJ (non-linear cubic B-Splines)", useBUnwarpJ );
-		
-		gd2.addMessage( "Miscellaneous:" );
-		gd2.addCheckbox( "propagate after last transform", propagateTransform );
-		
-		gd2.showDialog();
-		if ( gd2.wasCanceled() ) return;
-		
-		Align.param.readFields( gd2 );
-		
-		useBUnwarpJ = gd2.getNextBoolean();
-		propagateTransform = gd2.getNextBoolean();
-		
-		if (useBUnwarpJ && !elasticParam.showDialog()) return;
+			Align.param.addFields( gd2 );
+			
+			gd2.addMessage( "Miscellaneous:" );
+			gd2.addCheckbox( "propagate after last transform", propagateTransform );
+			
+			gd2.showDialog();
+			if ( gd2.wasCanceled() ) return;
+			
+			Align.param.readFields( gd2 );
+			
+			propagateTransform = gd2.getNextBoolean();
+			
+			if ( mode == BUNWARPJ && !elasticParam.showDialog() ) return;
 
-		// From ref to first:
-		if (ref - first > 0) {
-			if (useBUnwarpJ) alignLayersNonLinearlyJob(l.getParent(), ref, first, propagateTransform, fov, filter);
-			else alignLayersLinearlyJob(l.getParent(), ref, first, propagateTransform, fov, filter);
-		}
-		// From ref to last:
-		if (last - ref > 0) {
-			if (useBUnwarpJ) alignLayersNonLinearlyJob(l.getParent(), ref, last, propagateTransform, fov, filter);
-			else alignLayersLinearlyJob(l.getParent(), ref, last, propagateTransform, fov, filter);
+			// From ref to first:
+			if (ref - first > 0)
+			{
+				if ( mode == BUNWARPJ )
+					alignLayersNonLinearlyJob(l.getParent(), ref, first, propagateTransform, fov, filter);
+				else
+					alignLayersLinearlyJob(l.getParent(), ref, first, propagateTransform, fov, filter);
+			}
+			// From ref to last:
+			if (last - ref > 0)
+			{
+				if ( mode == BUNWARPJ )
+					alignLayersNonLinearlyJob(l.getParent(), ref, last, propagateTransform, fov, filter);
+				else
+					alignLayersLinearlyJob(l.getParent(), ref, last, propagateTransform, fov, filter);
+			}
 		}
 	}
 	
