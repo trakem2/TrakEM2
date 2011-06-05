@@ -57,6 +57,7 @@ public class TreeConnectorsView {
 					tcv.frame.setVisible(true);
 					tcv.frame.toFront();
 				} else {
+					// Create and store in the Map of 'open'
 					new TreeConnectorsView(tree);
 				}
 			}
@@ -69,15 +70,24 @@ public class TreeConnectorsView {
 		tcv.frame.dispose();
 	}
 
+	static private final Comparator<Displayable> IDSorter = new Comparator<Displayable>() {
+		@Override
+		public int compare(Displayable o1, Displayable o2) {
+			if (o1.getId() < o1.getId()) return -1;
+			return 1;
+		}
+	};
+	
 	private class Row {
 		final Connector connector;
 		final int i;
-		final ArrayList<Displayable> targets;
-		String targetids;
-		Row(final Connector c, final int i, final Set<Displayable> targets) {
+		final ArrayList<Displayable> origins, targets;
+		String originids, targetids;
+		Row(final Connector c, final int i, final ArrayList<Displayable> origins, final ArrayList<Displayable> targets) {
 			this.connector = c;
 			this.i = i;
-			this.targets = new ArrayList<Displayable>(targets);
+			this.origins = origins;
+			this.targets = targets;
 			for (final Iterator<Displayable> it = this.targets.iterator(); it.hasNext(); ) {
 				if (it.next().getClass() == Connector.class) {
 					it.remove();
@@ -87,47 +97,62 @@ public class TreeConnectorsView {
 		final Coordinate<Node<Float>> getCoordinate(int col) {
 			switch (col) {
 				case 0:
+				case 1:
 					return connector.getCoordinateAtOrigin();
-				default:
+				case 2:
 					return connector.getCoordinate(i);
+				default:
+					Utils.log2("Can't deal with column " + col);
+					return null;
 			}
 		}
-		final long getFirstTargetId() {
-			switch (targets.size()) {
-				case 0:
-					return 0; // let the empty targets get sorted to the top
-				default:
-					return targets.iterator().next().getId();
-			}
+		private final long getFirstId(final ArrayList<Displayable> c) {
+			if (c.isEmpty())
+					return 0;
+			else
+					return c.get(0).getId();
 		}
 		final long getColumn(final int col) {
 			switch (col) {
 				case 0:
 					return connector.getId();
+				case 1:
+					return getFirstId(origins);
+				case 2:
+					return getFirstId(targets);
 				default:
-					return getFirstTargetId();
+					Utils.log2("Don't know how to deal with column " + col);
+					return 0;
 			}
 		}
-		final String getTargetIds() {
-			if (null == targetids) {
-				switch (targets.size()) {
+		private final String getIds(String ids, final ArrayList<Displayable> ds) {
+			if (null == ids) {
+				switch (ds.size()) {
 					case 0:
-						targetids = "";
+						ids = "";
 						break;
 					case 1:
-						targetids = targets.get(0).toString();
+						ids = ds.get(0).toString();
 						break;
 					default:
 						final StringBuilder sb = new StringBuilder();
-						for (final Displayable d : targets) {
+						for (final Displayable d : ds) {
 							sb.append(d).append(',').append(' ');
 						}
 						sb.setLength(sb.length() -2);
-						targetids = sb.toString();
+						ids = sb.toString();
 						break;
 				}
 			}
+			return ids;
+		}
+		final String getTargetIds() {
+			targetids = getIds(targetids, targets);
 			return targetids;
+		}
+		final String getOriginIds() {
+			originids = getIds(originids, origins);
+			return originids;
 		}
 	}
 
@@ -229,8 +254,12 @@ public class TreeConnectorsView {
 			this.rows = new ArrayList<Row>(connectors.size());
 			for (final Connector c : connectors) {
 				int i = 0;
+				final ArrayList<Displayable> origins = new ArrayList<Displayable>(c.getOrigins(VectorData.class, true));
+				Collections.sort(origins, IDSorter);
 				for (final Set<Displayable> targets : c.getTargets(VectorData.class, true)) {
-					this.rows.add(new Row(c, i++, targets));
+					final ArrayList<Displayable> ts = new ArrayList<Displayable>(targets);
+					Collections.sort(ts, IDSorter);
+					this.rows.add(new Row(c, i++, origins, ts));
 				}
 			}
 			SwingUtilities.invokeLater(new Runnable() {public void run() {
@@ -239,11 +268,12 @@ public class TreeConnectorsView {
 			}});
 		}
 
-		public int getColumnCount() { return 2; }
+		public int getColumnCount() { return 3; }
 		public String getColumnName(final int col) {
 			switch (col) {
 				case 0: return "Connector id";
-				case 1: return "Target id";
+				case 1: return "Origin id";
+				case 2: return "Target id";
 				default: return null;
 			}
 		}
@@ -251,7 +281,8 @@ public class TreeConnectorsView {
 		public Object getValueAt(final int row, final int col) {
 			switch (col) {
 				case 0: return rows.get(row).connector.getId();
-				case 1: return rows.get(row).getTargetIds();
+				case 1: return rows.get(row).getOriginIds();
+				case 2: return rows.get(row).getTargetIds();
 				default: return null;
 			}
 		}
