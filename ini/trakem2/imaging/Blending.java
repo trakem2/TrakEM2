@@ -50,7 +50,9 @@ public final class Blending {
 		for (final Layer layer : layers) {
 			final List<Patch> patches = layer.getAll(Patch.class);
 			final Set<Patch> s = new HashSet<Patch>();
-			if (null != filter) {
+			if (null == filter) {
+				s.addAll(patches);
+			} else {
 				for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
 					final Patch p = it.next();
 					if (filter.accept(p)) s.add(p);
