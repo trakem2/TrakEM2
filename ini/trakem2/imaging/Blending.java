@@ -105,6 +105,8 @@ public final class Blending {
 
 			exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
 			final List<Future<?>> futures = Collections.synchronizedList(new ArrayList<Future<?>>());
+			final List<Future<?>> futures2 = Collections.synchronizedList(new ArrayList<Future<?>>());
+
 
 			// Cache the indices that determine overlap order within the layer
 			final HashMap<Patch,Integer> indices = new HashMap<Patch,Integer>();
@@ -115,7 +117,7 @@ public final class Blending {
 				}
 				i += 1;
 			}
-			
+
 			for (final Patch p : patches) {
 				if (Thread.currentThread().isInterrupted()) break;
 				futures.add(exe.submit(new Runnable() { public void run() {
@@ -125,18 +127,14 @@ public final class Blending {
 						if (indices.get(op) < pLayerIndex) overlapping.add(op);
 					}
 					if (setBlendingMask(p, overlapping, meshes, respect_current_mask)) {
-						futures.add(p.updateMipMaps());
+						futures2.add(p.updateMipMaps());
 					}
 				}}, null));
 			}
 
 			// join all:
-			for (final Future<?> future : futures) {
-				if (Thread.currentThread().isInterrupted()) break;
-				try {
-					future.get();
-				} catch (InterruptedException ie) {} // thrown when canceled
-			}
+			Utils.waitIfAlive(futures, false);
+			Utils.waitIfAlive(futures2, false);
 
 		} catch (Exception e) {
 			IJError.print(e);
