@@ -41,6 +41,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.persistence.FilePathRepair;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
 
@@ -104,6 +105,24 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
 	private CoordinateTransform ct = null;
+
+	/** Create a new Patch and register the associated {@param filepath}
+	 * with the project's loader.
+	 * 
+	 * This method is intended for scripting, to avoid having to create a new Patch
+	 * and then call {@link Loader#addedPatchFrom(String, Patch)}, which is easy to forget.
+	 * 
+	 * @return the new Patch.
+	 * @throws Exception if the image cannot be loaded from the {@param filepath}, or it's an unsupported type such as a composite image or a hyperstack. */
+	static public final Patch createPatch(final Project project, final String filepath) throws Exception {
+		ImagePlus imp = project.getLoader().openImagePlus(filepath);
+		if (null == imp) throw new Exception("Cannot create Patch: the image cannot be opened from filepath " + filepath);
+		if (imp.isComposite()) throw new Exception("Cannot create Patch: composite images are not supported. Convert them to RGB first.");
+		if (imp.isHyperStack()) throw new Exception("Cannot create Patch: hyperstacks are not supported.");
+		Patch p = new Patch(project, new File(filepath).getName(), 0, 0, imp);
+		project.getLoader().addedPatchFrom(filepath, p);
+		return p;
+	}
 
 	/** Construct a Patch from an image. */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
