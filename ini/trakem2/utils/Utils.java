@@ -1491,6 +1491,17 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
+	static public final void waitIfAlive(final Collection<Future<?>> fus, final boolean throwException) {
+		for (final Future<?> fu : fus) {
+			if (Thread.currentThread().isInterrupted()) return;
+			if (null != fu) try {
+				fu.get(); // wait until done
+			} catch (Exception e) {
+				if (throwException) IJError.print(e);
+			}
+		}
+	}
+
 	/** Convert a D:\\this\that\there to D://this/that/there/
 	 *  Notice it adds an ending backslash. */
 	static public final String fixDir(String path) {
