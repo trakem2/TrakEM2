@@ -168,7 +168,7 @@ final public class AlignTask
 		Align.paramOptimize.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+		gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
 		gd.addCheckbox( "consider largest graph only", largestGraphOnly );
 		gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
 		gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
@@ -199,7 +199,7 @@ final public class AlignTask
 				Align.paramOptimize.addFields( gd );
 				
 				gd.addMessage( "Miscellaneous:" );
-				gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+				gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
 				gd.addCheckbox( "consider largest graph only", largestGraphOnly );
 				gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
 				gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
@@ -795,7 +795,7 @@ final public class AlignTask
 		gd1.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		
 		gd1.addMessage( "Miscellaneous:" );
-		gd1.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+		gd1.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
 		gd1.addCheckbox( "consider largest graph only", largestGraphOnly );
 		gd1.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
 		gd1.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
