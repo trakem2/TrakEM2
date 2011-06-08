@@ -967,7 +967,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			labels.put(d, label);
 		}
 
-		final ExecutorService exec = Utils.newFixedThreadPool(1, "labels"); // TODO  remove the 1
+		final ExecutorService exec = Utils.newFixedThreadPool("labels");
 		final Map<Integer,ImageProcessor> slices = Collections.synchronizedMap(new TreeMap<Integer,ImageProcessor>());
 		final List<Future<?>> fus = new ArrayList<Future<?>>();
 		final List<Layer> layers = layer_set.getLayers().subList(first_layer, last_layer+1);
