@@ -39,7 +39,6 @@ import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.paint.USHORTPaint;
-import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -51,30 +50,17 @@ import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
-import java.awt.Paint;
-import java.awt.PaintContext;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.Transparency;
-import java.awt.color.ColorSpace;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
-import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.ComponentColorModel;
-import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
-import java.awt.image.Raster;
-import java.awt.image.SampleModel;
-import java.awt.image.WritableRaster;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -92,8 +78,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
-
-import sun.awt.image.BytePackedRaster;
 
 import amira.AmiraMeshEncoder;
 
