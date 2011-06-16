@@ -33,8 +33,12 @@ import ij.gui.ShapeRoi;
 import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.display.paint.USHORTPaint;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -55,6 +59,8 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -839,15 +845,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Export all given AreaLists as one per pixel value, what is called a "labels" file; a file dialog is offered to save the image as a tiff stack. */
-	static public void exportAsLabels(final List<Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
+	static public void exportAsLabels(final List<Displayable> listToPaint, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
 		// survive everything:
-		if (null == list || 0 == list.size()) {
+		if (null == listToPaint || 0 == listToPaint.size()) {
 			Utils.log("Null or empty list.");
 			return;
 		}
 		if (scale < 0 || scale > 1) {
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
+		}
+		
+		// Select the subset to paint
+		final ArrayList<AreaList> list = new ArrayList<AreaList>();
+		for (final Displayable d : listToPaint) {
+			if (visible_only && !d.isVisible()) continue;
+			if (d instanceof AreaList) list.add((AreaList)d);
 		}
 
 		Utils.log2("exportAsLabels: list.size() is " + list.size());
@@ -860,7 +873,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
 			Utils.log(sb.toString());
-			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
+			ArrayList<AreaList> li = new ArrayList<AreaList>(list);
 			list.clear();
 			list.addAll(li.subList(0, 255));
 		}
@@ -942,9 +955,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final float len = last_layer - first_layer + 1;
 
 		// Assign labels
-		final HashMap<Displayable,Integer> labels = new HashMap<Displayable,Integer>();
-		for (final Displayable d : list) {
-			if (visible_only && !d.isVisible()) continue;
+		final HashMap<AreaList,Integer> labels = new HashMap<AreaList,Integer>();
+		for (final AreaList d : list) {
 			String slabel = d.getProperty("label");
 			int label;
 			if (null != slabel) {
@@ -954,8 +966,6 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			}
 			labels.put(d, label);
 		}
-		
-		//final Area world = new Area(new Rectangle(0, 0, width, height));
 
 		final ExecutorService exec = Utils.newFixedThreadPool("labels");
 		final Map<Integer,ImageProcessor> slices = Collections.synchronizedMap(new TreeMap<Integer,ImageProcessor>());
@@ -966,56 +976,129 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			final Layer la = layers.get(k);
 			final int slice = k;
 			fus.add(exec.submit(new Runnable() {
-				public void run() {		
+				public void run() {
 					Utils.showProgress(slice / len);
-					final ImageProcessor ip = Utils.createProcessor(type, width, height);
-
-					// paint here all arealist that paint to the layer 'la'
-					for (final Displayable d : list) {
-						if (visible_only && !d.isVisible()) continue;
-						//ip.setValue(labels.get(d));
-						AreaList ali = (AreaList)d;
-						final Area area = ali.getArea(la);
-						if (null == area) {
-							//Utils.log2("Layer " + la + " id: " + d.getId() + " area is " + area);
-							continue;
+					
+					final ImageProcessor ip;
+					
+					if (ImagePlus.GRAY8 == type) {
+						final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+						final Graphics2D g = bi.createGraphics();
+						
+						for (final AreaList ali : list) {
+							final Area area = ali.getArea(la);
+							if (null == area || area.isEmpty()) continue;
+							// Transform: the scale and the roi
+							final AffineTransform aff = new AffineTransform();
+							// reverse order of transformations:
+							/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+							/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+							g.setTransform(aff);
+							final int label = labels.get(ali);
+							g.setColor(new Color(label, label, label));
+							g.fill(area);
 						}
-						// Transform: the scale and the roi
-						final AffineTransform aff = new AffineTransform();
-						// reverse order of transformations:
-						/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
-						/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
-						/* 1 - To world coordinates: */ aff.concatenate(ali.at);
-						final Area aroi = area.createTransformedArea(aff);
-
-						/*// ShapeRoi is BROKEN: some areas on the edges fail to paint at random
-						Rectangle b = aroi.getBounds();
-						if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
-							aroi.intersect(world); // work around ij.gui.ShapeRoi bug
+						g.dispose();
+						ip = new ByteProcessor(bi);
+						bi.flush();
+						
+					} else if (ImagePlus.GRAY16 == type) {
+						final USHORTPaint paint = new USHORTPaint((short)0);
+						final BufferedImage bi = new BufferedImage(paint.getComponentColorModel(), paint.getComponentColorModel().createCompatibleWritableRaster(width, height), false, null);
+						final Graphics2D g = bi.createGraphics();
+						//final ColorSpace ugray = ColorSpace.getInstance(ColorSpace.CS_GRAY);
+						
+						int painted = 0;
+						
+						for (final AreaList ali : list) {
+							final Area area = ali.getArea(la);
+							if (null == area || area.isEmpty()) continue;
+							// Transform: the scale and the roi
+							final AffineTransform aff = new AffineTransform();
+							// reverse order of transformations:
+							/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+							/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+							// Fill
+							g.setTransform(aff);
+							
+							// The color doesn't work: paints in a stretched 8-bit mode
+							//g.setColor(new Color(ugray, new float[]{((float)labels.get(d)) / range}, 1));
+							
+							Utils.log2("value: " + labels.get(ali).shortValue());
+							paint.setValue(labels.get(ali).shortValue());
+							g.setPaint(paint);
+							
+							g.fill(area); //.createTransformedArea(aff));
+							
+							painted += 1;
 						}
-						ShapeRoi sroi = new ShapeRoi(aroi); // TODO replace with imglib's ShapeList -- ShapeRoi is not reliable.
-						ip.setRoi(sroi);
-						ip.fill(sroi.getMask());
-						*/
+						g.dispose();
+						ip = new ShortProcessor(bi);
+						bi.flush();
+						
+						Utils.log2("painted: " + painted);
 
-						final float value = labels.get(d);
-						for (final Polygon pol : M.getPolygons(aroi)) {
-							final Rectangle bounds = pol.getBounds();
-							final int maxY = Math.min(height, bounds.y + bounds.height);
-							final int maxX = Math.min(width, bounds.x + bounds.width);
-							final int minX = Math.max(0, bounds.x);
-							for (int y = Math.max(0, bounds.y); y < maxY; y++) {
-								for (int x = minX; x < maxX; x++) {
-									// Must ask the Area, not the Polygon: could be a hole!
-									if (aroi.contains(x, y)) {
-										ip.setf(x, y, value);
-									}
+					} else {
+						// Option 1: could use the same as above, but shifted by 65536, so that 65537 is 1, 65538 is 2, etc.
+						//           and keep doing it until no more need to be shifted.
+						//           The PROBLEM: cannot keep the order without complicated gymnastics to remember
+						//           which label in which image has to be merged to the final image, which prevent
+						//           a simple one-pass blitter.
+						// 
+						// Option 2: paint each arealist, extract the image, use it as a mask for filling:
+			
+						final FloatProcessor fp = new FloatProcessor(width, height);
+						final float[] fpix = (float[]) fp.getPixels();
+						ip = fp;
+
+						final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+						final Graphics2D gbi = bi.createGraphics();
+						
+						for (final AreaList ali : list) {
+							final Area area = ali.getArea(la);
+							if (null == area || area.isEmpty()) {
+								continue;
+							}
+							// Transform: the scale and the roi
+							// reverse order of transformations:
+							final AffineTransform aff = new AffineTransform();
+							/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+							/* 2 - To ROI coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+							final Area s = area.createTransformedArea(aff);
+							final Rectangle sBounds = s.getBounds();
+							// Need to paint at all?
+							if (0 == sBounds.width || 0 == sBounds.height || !sBounds.intersects(0, 0, width, height)) continue;
+							// Paint shape
+							gbi.setColor(Color.white);
+							gbi.fill(s);
+							// Read out painted region
+							final int x0 = Math.max(0, sBounds.x);
+							final int y0 = Math.max(0, sBounds.y);
+							final int xN = Math.min(width, sBounds.x + sBounds.width);
+							final int yN = Math.min(height, sBounds.y + sBounds.height);
+							// Get the array
+							final byte[] bpix = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData();
+							final float value = labels.get(ali);
+							// For every non-black pixel, set a 'value' pixel in the FloatProcessor
+							for (int y = y0; y < yN; ++y) {
+								for (int x = x0; x < xN; ++x) {
+									final int pos = y * width + x;
+									if (0 == bpix[pos]) continue; // black
+									fpix[pos] = value;
 								}
 							}
+							// Clear image region
+							gbi.setColor(Color.black);
+							gbi.fill(s);
 						}
-
-						slices.put(slice, ip);
+						gbi.dispose();
+						bi.flush();
 					}
+	
+					slices.put(slice, ip);
 				}
 			}));
 		}

@@ -3905,7 +3905,7 @@ while (it.hasNext()) {
 	}
 
 	/** Tries up to MAX_RETRIES to open an ImagePlus at path if there is an OutOfMemoryError. */
-	protected final ImagePlus openImagePlus(final String path) {
+	public final ImagePlus openImagePlus(final String path) {
 		return openImagePlus(path, 0);
 	}
 

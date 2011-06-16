@@ -141,6 +141,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean paint_edge_confidence_boxes = true;
 	protected int n_layers_color_cue = 0; // -1 means all
 	protected boolean prepaint = true;
+	protected int preload_ahead = 0;
 
 	private Calibration calibration = new Calibration(); // default values
 
@@ -211,6 +212,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != (data = ht_attributes.get("paint_arrows"))) paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
 		if (null != (data = ht_attributes.get("paint_edge_confidence_boxes"))) paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
 		if (null != (data = ht_attributes.get("prepaint"))) prepaint = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("preload_ahead"))) preload_ahead = Integer.parseInt(data);
 	}
 
 	/** For reconstruction purposes: set the active layer to the ZDisplayable objects. Recurses through LayerSets in the children layers. */
@@ -1164,6 +1166,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
 		       .append(in).append("paint_edge_confidence_boxes=\"").append(paint_edge_confidence_boxes).append("\"\n")
 		       .append(in).append("prepaint=\"").append(prepaint).append("\"\n")
+		       .append(in).append("preload_ahead=\"").append(preload_ahead).append("\"\n")
 		       // TODO: alpha! But it's not necessary.
 		;
 		sb_body.append(indent).append(">\n");
@@ -1253,6 +1256,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				 .append(indent).append(TAG_ATTR1).append(type).append(" n_layers_color_cue").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_arrows").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_edge_confidence_boxes").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" preload_ahead").append(TAG_ATTR2)
 			;
 			sb_header.append(indent).append("<!ELEMENT t2_calibration EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_calibration pixelWidth").append(TAG_ATTR2)
