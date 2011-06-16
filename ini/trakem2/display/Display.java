@@ -3775,7 +3775,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				String type = command;
 				if (type.equals("Image")) type = "Patch";
 				else if (type.equals("Text")) type = "DLabel";
-				Class c = Class.forName("ini.trakem2.display." + type);
+				Class<?> c = Class.forName("ini.trakem2.display." + type);
 
 				java.util.List<Displayable> a = new ArrayList<Displayable>();
 				if (null != aroi) {
@@ -3823,18 +3823,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (!(comp instanceof RollingPanel)) return false;
 		final RollingPanel rp = (RollingPanel)tabs.getSelectedComponent();
 		if (ht_tabs.get(d.getClass()) == rp) return rp.isShowing(d);
-		return false;
-	}
-
-	private boolean isWithinViewport(JScrollPane scroll, DisplayablePanel dp) {
-		if(null == dp) return false;
-		JViewport view = scroll.getViewport();
-		java.awt.Dimension dimensions = view.getExtentSize();
-		java.awt.Point p = view.getViewPosition();
-		int y = dp.getY();
-		if ((y + DisplayablePanel.HEIGHT - p.y) <= dimensions.height && y >= p.y) {
-			return true;
-		}
 		return false;
 	}
 
@@ -3902,7 +3890,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	public void updateFrameTitle() {
 		updateFrameTitle(layer);
 	}
-	private void updateFrameTitle(Layer layer) {
+	private void updateFrameTitle(final Layer layer) {
 		// From ij.ImagePlus class, the solution:
 		String scale = "";
 		final double magnification = canvas.getMagnification();
