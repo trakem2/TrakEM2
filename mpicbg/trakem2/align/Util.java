@@ -140,7 +140,7 @@ public class Util
 			try
 			{
 				final Features fe = ( Features )ob;
-				Utils.log( fe.key == null ? "key is null" : key.equals( fe.key ) ? "key is equal" : "key is not equal" );
+//				Utils.log( fe.key == null ? "key is null" : key.equals( fe.key ) ? "key is equal" : "key is not equal" );
 				if ( fe.key != null && key.equals( fe.key ) )
 					return fe.features;
 			}
