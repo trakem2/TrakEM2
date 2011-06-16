@@ -321,6 +321,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// Does not use the thread, rather just sets it within the context of the calling thread (would be the same as making the caller thread wait.)
 		final void setAndWait(final Layer layer) {
 			if (null != layer) {
+				
+				if (layer.getParent().preload_ahead > 0) {
+					preloadImagesAhead(Display.this.layer, layer, layer.getParent().preload_ahead);
+				}
+				
 				Display.this.setLayer(layer);
 				Display.this.updateInDatabase("layer_id");
 				createColumnScreenshots();
@@ -358,6 +363,77 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		for (final Display d : al_displays) {
 			if (d.layer.getParent() == ls) d.clearColumnScreenshots();
 		}
+	}
+
+	private final ImagePreloader imagePreloader = new ImagePreloader();
+	
+	private final class ImagePreloader extends Thread {
+		private Layer oldLayer, newLayer;
+		private int nLayers;
+		private boolean restart = false;
+		
+		ImagePreloader() {
+			setPriority(Thread.NORM_PRIORITY);
+			setDaemon(true);
+			start();
+		}
+		
+		final void reset(final Layer oldLayer, final Layer newLayer, final int nLayers) {
+			synchronized (this) {
+				this.restart = true;
+				this.oldLayer = oldLayer;
+				this.newLayer = newLayer;
+				this.nLayers = nLayers;
+				notify();
+			}
+		}
+		
+		@Override
+		public void run() {
+			while (!isInterrupted()) {
+				final Layer oldLayer, newLayer;
+				final int nLayers;
+				synchronized (this) {
+					try {
+						if (!restart) wait();
+					} catch (InterruptedException e) {
+						return;
+					}
+					oldLayer = this.oldLayer;
+					newLayer = this.newLayer;
+					this.oldLayer = null;
+					this.newLayer = null;
+					nLayers = this.nLayers;
+					restart = false;
+				}
+				
+				final LayerSet ls = oldLayer.getParent();
+				final int old_layer_index = ls.indexOf(oldLayer);
+				final int new_layer_index = ls.indexOf(newLayer);
+				final int sign = new_layer_index - old_layer_index;
+			
+				final Area aroi = new Area(canvas.getSrcRect());
+				final double mag = canvas.getMagnification();
+			
+				// Preload from most distant ahead to least.
+				// The assumption being that least distant are already cached.
+				//Utils.log2("-- started");
+				for (final Layer la : ls.getLayers(Math.max(0, Math.min(new_layer_index + sign * nLayers, ls.size() -1)), new_layer_index)) {
+					if (restart) break;
+					for (final Displayable d : la.getDisplayables(Patch.class, aroi, true)) {
+						if (restart) break;
+						if (isInterrupted()) return;
+						project.getLoader().fetchImage((Patch)d, mag);
+						//Utils.log2("preloaded #" + d.getId() + " from layer " + la.getParent().indexOf(la));
+					}
+				}
+				//Utils.log2("-- completed: restart is " + restart);
+			}
+		}
+	}
+	
+	private final void preloadImagesAhead(final Layer oldLayer, final Layer newLayer, final int nLayers) {
+		imagePreloader.reset(oldLayer, newLayer, nLayers);
 	}
 
 	final public void clearColumnScreenshots() {
@@ -1418,6 +1494,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		dispatcher.quit();
 		canvas.setReceivesInput(false);
 		slt.quit();
+		imagePreloader.interrupt();
 
 		// update the coloring in the ProjectTree and LayerTree
 		if (!project.isBeingDestroyed()) {
@@ -5541,6 +5618,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gd.addCheckbox("Show color cues for areas", layer.getParent().area_color_cues);
 		gd.addCheckbox("Use red/blue for color cues", layer.getParent().use_color_cue_colors);
 		gd.addCheckbox("Prepaint images", layer.getParent().prepaint);
+		gd.addSlider("Preload ahead from sections: ", 0, layer.getParent().size(), layer.getParent().preload_ahead);
 		// --------
 		gd.showDialog();
 		if (gd.wasCanceled()) return;
@@ -5576,6 +5654,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		layer.getParent().area_color_cues = gd.getNextBoolean();
 		layer.getParent().use_color_cue_colors = gd.getNextBoolean();
 		layer.getParent().prepaint = gd.getNextBoolean();
+		layer.getParent().preload_ahead = (int) Math.min(gd.getNextNumber(), layer.getParent().size());
 		Display.repaint(layer.getParent());
 	}
 		
