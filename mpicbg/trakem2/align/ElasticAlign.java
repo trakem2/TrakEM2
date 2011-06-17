@@ -46,14 +46,11 @@ import mpicbg.ij.SIFT;
 import mpicbg.ij.blockmatching.BlockMatching;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
-import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AbstractModel;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.ErrorStatistic;
 import mpicbg.models.HomographyModel2D;
-import mpicbg.models.InverseCoordinateTransform;
 import mpicbg.models.InvertibleCoordinateTransform;
-import mpicbg.models.InvertibleCoordinateTransformList;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -63,6 +60,7 @@ import mpicbg.models.Spring;
 import mpicbg.models.SpringMesh;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
+import mpicbg.models.Transforms;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
@@ -116,6 +114,8 @@ public class ElasticAlign
 				else
 					return false;
 			}
+			
+			public boolean clearCache = false;
 		}
 		
 		final public ParamPointMatch ppm = new ParamPointMatch();
@@ -128,24 +128,24 @@ public class ElasticAlign
 		/**
 		 * Inlier/candidates ratio
 		 */
-		public float minInlierRatio = 0.1f;
+		public float minInlierRatio = 0.0f;
 		
 		/**
 		 * Minimal absolute number of inliers
 		 */
-		public int minNumInliers = 7;
+		public int minNumInliers = 12;
 		
 		/**
 		 * Transformation models for choice
 		 */
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine", "Perspective" };
-		public int modelIndex = 1;
+		public int modelIndex = 3;
 		
 		/**
 		 * Ignore identity transform up to a given tolerance
 		 */
-		public boolean rejectIdentity = false;
-		public float identityTolerance = 0.5f;
+		public boolean rejectIdentity = true;
+		public float identityTolerance = 5.0f;
 		
 		/**
 		 * Maximal number of consecutive sections to be tested for an alignment model
@@ -199,6 +199,9 @@ public class ElasticAlign
 			gd.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
 			gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
 			
+			gd.addMessage( "Caching:" );
+			gd.addCheckbox( "clear_cache", ppm.clearCache );
+			
 			gd.showDialog();
 			
 			if ( gd.wasCanceled() )
@@ -216,6 +219,8 @@ public class ElasticAlign
 			identityTolerance = ( float )gd.getNextNumber();
 			maxNumNeighbors = ( int )gd.getNextNumber();
 			maxNumFailures = ( int )gd.getNextNumber();
+			
+			ppm.clearCache = gd.getNextBoolean();
 			
 			
 			/* Block Matching */
@@ -272,16 +277,6 @@ public class ElasticAlign
 			
 			return true;
 		}
-		
-		/* TODO make an equals method for pointmatching relevant parameters */
-		public boolean equalSiftPointMatchParams( final Param param )
-		{
-			return ppm.sift.equals( param.ppm.sift )
-			    && maxEpsilon == param.maxEpsilon
-			    && minInlierRatio == param.minInlierRatio
-			    && minNumInliers == param.minNumInliers
-			    && modelIndex == param.modelIndex;
-		}
 	}
 	
 	final static Param p = new Param();
@@ -310,6 +305,85 @@ public class ElasticAlign
 		}
 		return patches;
 	}
+	
+	
+	/**
+	 * Extract SIFT features and save them into the project folder.
+	 * 
+	 * @param layerSet the layerSet that contains all layers
+	 * @param layerRange the list of layers to be aligned
+	 * @param box a rectangular region of interest that will be used for alignment
+	 * @param scale scale factor <= 1.0
+	 * @param filter a name based filter for Patches (can be null)
+	 * @param p SIFT extraction parameters
+	 * @throws Exception
+	 */
+	final static protected void extractAndSaveLayerFeatures(
+			final LayerSet layerSet,
+			final List< Layer > layerRange,
+			final Rectangle box,
+			final float scale,
+			final Filter< Patch > filter,
+			final FloatArray2DSIFT.Param siftParam,
+			final boolean clearCache ) throws Exception
+	{
+		final ExecutorService exec = Executors.newFixedThreadPool( p.maxNumThreads );
+		
+		/* extract features for all slices and store them to disk */
+		final AtomicInteger counter = new AtomicInteger( 0 );
+		final ArrayList< Future< ArrayList< Feature > > > siftTasks = new ArrayList< Future< ArrayList< Feature > > >();
+		
+		for ( int i = 0; i < layerRange.size(); ++i )
+		{
+			final int layerIndex = i;
+			final Rectangle finalBox = box;
+			siftTasks.add(
+					exec.submit( new Callable< ArrayList< Feature > >()
+					{
+						public ArrayList< Feature > call()
+						{
+							final Layer layer = layerRange.get( layerIndex );
+							
+							final String layerName = layerName( layer );
+							
+							IJ.showProgress( counter.getAndIncrement(), layerRange.size() - 1 );
+							
+							final List< Patch > patches = filterPatches( layer, filter );
+							
+							ArrayList< Feature > fs = null;
+							if ( !clearCache )
+								fs = mpicbg.trakem2.align.Util.deserializeFeatures( layerSet.getProject(), siftParam, "layer", layer.getId() );
+							
+							if ( null == fs )
+							{
+								
+								final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
+								final SIFT ijSIFT = new SIFT( sift );
+								fs = new ArrayList< Feature >();
+								final ImageProcessor ip = layer.getProject().getLoader().getFlatImage( layer, finalBox, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
+								ijSIFT.extractFeatures( ip, fs );
+								Utils.log( fs.size() + " features extracted for " + layerName );
+								
+								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layerSet.getProject(), p.ppm.sift, "layer", layer.getId(), fs ) )
+									Utils.log( "FAILED to store serialized features for " + layerName );
+							}
+							else
+								Utils.log( fs.size() + " features loaded for " + layerName );
+							
+							return fs;
+						}
+					} ) );
+		}
+		
+		/* join */
+		for ( Future< ArrayList< Feature > > fu : siftTasks )
+			fu.get();
+		
+		siftTasks.clear();
+		exec.shutdown();
+	}
+	
+	
 
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
@@ -376,8 +450,9 @@ public class ElasticAlign
 		}
 
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.ppm.sift.maxOctaveSize / ( float )box.width, ( float )p.ppm.sift.maxOctaveSize / ( float )box.height ) );
-		p.maxEpsilon *= scale;
-		p.identityTolerance *= scale;
+		
+		/* extract and save features, overwrite cached files if requested */
+		extractAndSaveLayerFeatures( layerSet, layerRange, box, scale, filter, p.ppm.sift, p.ppm.clearCache );
 		
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
@@ -405,65 +480,12 @@ public class ElasticAlign
 			}
 		}
 		
-		final ExecutorService exec = Executors.newFixedThreadPool( p.maxNumThreads );
-		
-		/* extract features for all slices and store them to disk */
-		final AtomicInteger counter = new AtomicInteger( 0 );
-		final ArrayList< Future< ArrayList< Feature > > > siftTasks = new ArrayList< Future< ArrayList< Feature > > >();
-		
-		for ( int i = 0; i < layerRange.size(); ++i )
-		{
-			final int layerIndex = i;
-			final Rectangle finalBox = box;
-			siftTasks.add(
-					exec.submit( new Callable< ArrayList< Feature > >()
-					{
-						public ArrayList< Feature > call()
-						{
-							final Layer layer = layerRange.get( layerIndex );
-							
-							final String layerName = layerName( layer );
-							
-							IJ.showProgress( counter.getAndIncrement(), layerRange.size() - 1 );
-							
-							final List< Patch > patches = filterPatches( layer, filter );
-							
-							ArrayList< Feature > fs = mpicbg.trakem2.align.Util.deserializeFeatures( layerSet.getProject(), p.ppm.sift, "layer", layer.getId() );
-							if ( null == fs )
-							{
-								
-								final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.ppm.sift );
-								final SIFT ijSIFT = new SIFT( sift );
-								fs = new ArrayList< Feature >();
-								final ImageProcessor ip = layer.getProject().getLoader().getFlatImage( layer, finalBox, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
-								ijSIFT.extractFeatures( ip, fs );
-								Utils.log( fs.size() + " features extracted for " + layerName );
-								
-								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layerSet.getProject(), p.ppm.sift, "layer", layer.getId(), fs ) )
-									Utils.log( "FAILED to store serialized features for " + layerName );
-							}
-							else
-								Utils.log( fs.size() + " features loaded for " + layerName );
-							
-							return fs;
-						}
-					} ) );
-		}
-		
-		/* join */
-		for ( Future< ArrayList< Feature > > fu : siftTasks )
-			fu.get();
-		
-		siftTasks.clear();
-		exec.shutdown();
-		
-		
 		/* collect all pairs of slices for which a model could be found */
 		final ArrayList< Triple< Integer, Integer, AbstractModel< ? > > > pairs = new ArrayList< Triple< Integer, Integer, AbstractModel< ? > > >();
 		
-		counter.set( 0 );
-		
 		int numFailures = 0;
+		
+		final float pointMatchScale = p.layerScale / scale;
 		
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
@@ -500,8 +522,10 @@ J:			for ( int j = i + 1; j < range; )
 							
 							Utils.log( "matching " + layerNameB + " -> " + layerNameA + "..." );
 							
-							ArrayList< PointMatch > candidates = mpicbg.trakem2.align.Util.deserializePointMatches(
-									layerSet.getProject(), p.ppm, "layer", layerB.getId(), layerA.getId() );
+							ArrayList< PointMatch > candidates = null;
+							if ( !p.ppm.clearCache )
+								candidates = mpicbg.trakem2.align.Util.deserializePointMatches(
+										layerSet.getProject(), p.ppm, "layer", layerB.getId(), layerA.getId() );
 							
 							if ( null == candidates )
 							{
@@ -521,14 +545,14 @@ J:			for ( int j = i + 1; j < range; )
 									final float[] l2 = p2.getL();
 									final float[] w2 = p2.getW();
 									
-									l1[ 0 ] *= p.layerScale;
-									l1[ 1 ] *= p.layerScale;
-									w1[ 0 ] *= p.layerScale;
-									w1[ 1 ] *= p.layerScale;
-									l2[ 0 ] *= p.layerScale;
-									l2[ 1 ] *= p.layerScale;
-									w2[ 0 ] *= p.layerScale;
-									w2[ 1 ] *= p.layerScale;
+									l1[ 0 ] *= pointMatchScale;
+									l1[ 1 ] *= pointMatchScale;
+									w1[ 0 ] *= pointMatchScale;
+									w1[ 1 ] *= pointMatchScale;
+									l2[ 0 ] *= pointMatchScale;
+									l2[ 1 ] *= pointMatchScale;
+									w2[ 0 ] *= pointMatchScale;
+									w2[ 1 ] *= pointMatchScale;
 									
 								}
 								
@@ -562,22 +586,40 @@ J:			for ( int j = i + 1; j < range; )
 							final ArrayList< PointMatch > inliers = new ArrayList< PointMatch >();
 							
 							boolean modelFound;
+							boolean again = false;
 							try
 							{
-								modelFound = model.filterRansac(
-										candidates,
-										inliers,
-										1000,
-										p.maxEpsilon * p.layerScale,
-										p.minInlierRatio,
-										p.minNumInliers );
+								do
+								{
+									again = false;
+									modelFound = model.filterRansac(
+												candidates,
+												inliers,
+												1000,
+												p.maxEpsilon * p.layerScale,
+												p.minInlierRatio,
+												p.minNumInliers,
+												3 );
+									if ( modelFound && p.rejectIdentity )
+									{
+										final ArrayList< Point > points = new ArrayList< Point >();
+										PointMatch.sourcePoints( inliers, points );
+										if ( Transforms.isIdentity( model, points, p.identityTolerance *  p.layerScale ) )
+										{
+											IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+											candidates.removeAll( inliers );
+											inliers.clear();
+											again = true;
+										}
+									}
+								}
+								while ( again );
 							}
-							catch ( Exception e )
+							catch ( NotEnoughDataPointsException e )
 							{
 								modelFound = false;
-								System.err.println( e.getMessage() );
 							}
-		
+							
 							if ( modelFound )
 							{
 								Utils.log( layerNameB + " -> " + layerNameA + ": " + inliers.size() + " corresponding features with an average displacement of " + ( PointMatch.meanDistance( inliers ) / p.layerScale ) + "px identified." );
