@@ -4742,12 +4742,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				return;
 			}
 			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
-			// find any locked patches
+			
+			// find any locked or selected patches
 			final ArrayList<Patch> fixed = new ArrayList<Patch>();
 			for (final Patch p : patches) {
-				if (p.isLocked2()) fixed.add(p);
+				if (p.isLocked2() || selection.contains(p)) fixed.add(p);
 			}
-			if (fixed.isEmpty()) fixed.add(patches.get(0));
+			
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, fixed);
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().enlargeToFit(patches);
