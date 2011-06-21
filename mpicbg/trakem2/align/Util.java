@@ -30,6 +30,7 @@ import java.awt.geom.AffineTransform;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.concurrent.Future;
 
 import mpicbg.imagefeatures.Feature;
 import mpicbg.models.PointMatch;
@@ -264,7 +265,7 @@ public class Util
 	}
 	
 	
-	final static public void applyLayerTransformToPatch( final Patch patch, CoordinateTransform ct ) throws Exception
+	final static public Future< Boolean > applyLayerTransformToPatch( final Patch patch, CoordinateTransform ct ) throws Exception
 	{
 		final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
 		final AffineTransform pat = new AffineTransform();
@@ -280,5 +281,6 @@ public class Util
 		ctl.add( toWorld.createInverse() );
 		
 		patch.appendCoordinateTransform( ctl );
+		return patch.updateMipMaps();
 	}
 }

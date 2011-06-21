@@ -37,6 +37,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -69,61 +70,21 @@ import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  * @version 0.1a
  */
-public class ElasticAlign
+public class ElasticLayerAlignment extends AbstractElasticAlignment
 {
-	
-	final static private class Triple< A, B, C >
-	{
-		final public A a;
-		final public B b;
-		final public C c;
-		
-		Triple( final A a, final B b, final C c )
-		{
-			this.a = a;
-			this.b = b;
-			this.c = c;
-		}
-	}
-	
-	final static private class Param implements Serializable
+	final static protected class Param implements Serializable
 	{
 		private static final long serialVersionUID = 3816564377727147658L;
 
-		final static private class ParamPointMatch implements Serializable
-		{
-			private static final long serialVersionUID = 2605327789375628874L;
-			
-			final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
-			
-			/**
-			 * Closest/next closest neighbor distance ratio
-			 */
-			public float rod = 0.92f;
-			
-			@Override
-			public boolean equals( Object o )
-			{
-				if ( getClass().isInstance( o ) )
-				{
-					final ParamPointMatch oppm = ( ParamPointMatch )o;
-					return 
-						oppm.sift.equals( sift ) &
-						oppm.rod == rod;
-				}
-				else
-					return false;
-			}
-			
-			public boolean clearCache = false;
-		}
-		
 		final public ParamPointMatch ppm = new ParamPointMatch();
+		{
+			ppm.sift.fdSize = 8;
+		}
 		
 		/**
 		 * Maximal accepted alignment error in px
 		 */
-		public float maxEpsilon = 25.0f;
+		public float maxEpsilon = 200.0f;
 		
 		/**
 		 * Inlier/candidates ratio
@@ -280,8 +241,9 @@ public class ElasticAlign
 	}
 	
 	final static Param p = new Param();
+
 	
-	final static protected String layerName( final Layer layer )
+	final static private String layerName( final Layer layer )
 	{
 		return new StringBuffer( "layer z=" )
 			.append( String.format( "%.3f", layer.getZ() ) )
@@ -291,21 +253,6 @@ public class ElasticAlign
 			.toString();
 		
 	}
-	
-	final static List< Patch > filterPatches( final Layer layer, final Filter< Patch > filter )
-	{
-		final List< Patch > patches = layer.getAll( Patch.class );
-		if ( filter != null )
-		{
-			for ( final Iterator< Patch > it = patches.iterator(); it.hasNext(); )
-			{
-				if ( !filter.accept( it.next() ) )
-					it.remove();
-			}
-		}
-		return patches;
-	}
-	
 	
 	/**
 	 * Extract SIFT features and save them into the project folder.
@@ -325,7 +272,7 @@ public class ElasticAlign
 			final float scale,
 			final Filter< Patch > filter,
 			final FloatArray2DSIFT.Param siftParam,
-			final boolean clearCache ) throws Exception
+			final boolean clearCache ) throws ExecutionException, InterruptedException
 	{
 		final ExecutorService exec = Executors.newFixedThreadPool( p.maxNumThreads );
 		
@@ -376,8 +323,25 @@ public class ElasticAlign
 		}
 		
 		/* join */
-		for ( Future< ArrayList< Feature > > fu : siftTasks )
-			fu.get();
+		try
+		{
+			for ( Future< ArrayList< Feature > > fu : siftTasks )
+				fu.get();
+		}
+		catch ( InterruptedException e )
+		{
+			Utils.log( "Feature extraction interrupted." );
+			siftTasks.clear();
+			exec.shutdown();
+			throw e;
+		}
+		catch ( ExecutionException e )
+		{
+			Utils.log( "Execution exception during feature extraction." );
+			siftTasks.clear();
+			exec.shutdown();
+			throw e;
+		}
 		
 		siftTasks.clear();
 		exec.shutdown();
@@ -452,7 +416,14 @@ public class ElasticAlign
 		final float scale = Math.min(  1.0f, Math.min( ( float )p.ppm.sift.maxOctaveSize / ( float )box.width, ( float )p.ppm.sift.maxOctaveSize / ( float )box.height ) );
 		
 		/* extract and save features, overwrite cached files if requested */
-		extractAndSaveLayerFeatures( layerSet, layerRange, box, scale, filter, p.ppm.sift, p.ppm.clearCache );
+		try
+		{
+			extractAndSaveLayerFeatures( layerSet, layerRange, box, scale, filter, p.ppm.sift, p.ppm.clearCache );
+		}
+		catch ( Exception e )
+		{
+			return;
+		}
 		
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
@@ -637,8 +608,24 @@ J:			for ( int j = i + 1; j < range; )
 					thread.start();
 				}
 				
-				for ( final Thread thread : threads )
-					thread.join();
+				try
+				{
+					for ( final Thread thread : threads )
+						thread.join();
+				}
+				catch ( InterruptedException e )
+				{
+					Utils.log( "Establishing feature correspondences interrupted." );
+					for ( final Thread thread : threads )
+						thread.interrupt();
+					try
+					{
+						for ( final Thread thread : threads )
+							thread.join();
+					}
+					catch ( InterruptedException f ) {}
+					return;
+				}
 				
 				threads.clear();
 				
@@ -731,25 +718,40 @@ J:			for ( int j = i + 1; j < range; )
 			mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
 			mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
 			
-			BlockMatching.matchByMaximalPMCC(
-					ip1,
-					ip2,
-					ip1Mask,
-					ip2Mask,
-					1.0f,
-					( ( InvertibleCoordinateTransform )pair.c ).createInverse(),
-					blockRadius,
-					blockRadius,
-					searchRadius,
-					searchRadius,
-					p.minR,
-					p.rodR,
-					p.maxCurvatureR,
-					v1,
-					pm12,
-					new ErrorStatistic( 1 ) );
+			try
+			{
+				BlockMatching.matchByMaximalPMCC(
+						ip1,
+						ip2,
+						ip1Mask,
+						ip2Mask,
+						1.0f,
+						( ( InvertibleCoordinateTransform )pair.c ).createInverse(),
+						blockRadius,
+						blockRadius,
+						searchRadius,
+						searchRadius,
+						p.minR,
+						p.rodR,
+						p.maxCurvatureR,
+						v1,
+						pm12,
+						new ErrorStatistic( 1 ) );
+			}
+			catch ( InterruptedException e )
+			{
+				Utils.log( "Block matching interrupted." );
+				IJ.showProgress( 1.0 );
+				return;
+			}
+			if ( Thread.interrupted() )
+			{
+				Utils.log( "Block matching interrupted." );
+				IJ.showProgress( 1.0 );
+				return;
+			}
 
-			IJ.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+			Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
 
 			/* <visualisation> */
 			//			final List< Point > s1 = new ArrayList< Point >();
@@ -761,23 +763,38 @@ J:			for ( int j = i + 1; j < range; )
 			//			imp1.updateAndDraw();
 			/* </visualisation> */
 
-			BlockMatching.matchByMaximalPMCC(
-					ip2,
-					ip1,
-					ip2Mask,
-					ip1Mask,
-					1.0f,
-					pair.c,
-					blockRadius,
-					blockRadius,
-					searchRadius,
-					searchRadius,
-					p.minR,
-					p.rodR,
-					p.maxCurvatureR,
-					v2,
-					pm21,
-					new ErrorStatistic( 1 ) );
+			try
+			{
+				BlockMatching.matchByMaximalPMCC(
+						ip2,
+						ip1,
+						ip2Mask,
+						ip1Mask,
+						1.0f,
+						pair.c,
+						blockRadius,
+						blockRadius,
+						searchRadius,
+						searchRadius,
+						p.minR,
+						p.rodR,
+						p.maxCurvatureR,
+						v2,
+						pm21,
+						new ErrorStatistic( 1 ) );
+			}
+			catch ( InterruptedException e )
+			{
+				Utils.log( "Block matching interrupted." );
+				IJ.showProgress( 1.0 );
+				return;
+			}
+			if ( Thread.interrupted() )
+			{
+				Utils.log( "Block matching interrupted." );
+				IJ.showProgress( 1.0 );
+				return;
+			}
 
 			IJ.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
 					
@@ -856,7 +873,12 @@ J:			for ( int j = i + 1; j < range; )
 			IJ.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
 			
 		}
-		catch ( NotEnoughDataPointsException e ) { e.printStackTrace(); }
+		catch ( NotEnoughDataPointsException e )
+		{
+			Utils.log( "There were not enough data points to get the spring mesh optimizing." );
+			e.printStackTrace();
+			return;
+		}
 		
 		/* translate relative to bounding box */
 		for ( final SpringMesh mesh : meshes )

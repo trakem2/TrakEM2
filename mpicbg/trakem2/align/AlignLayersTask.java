@@ -181,7 +181,7 @@ final public class AlignLayersTask
 		};
 
 		if ( mode == ELASTIC )
-			new ElasticAlign().exec( l.getParent(), first, last, propagateTransform, fov, filter );
+			new ElasticLayerAlignment().exec( l.getParent(), first, last, propagateTransform, fov, filter );
 		else
 		{
 			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
