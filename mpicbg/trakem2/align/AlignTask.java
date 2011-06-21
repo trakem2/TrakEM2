@@ -164,7 +164,8 @@ final public class AlignTask
 		}
 
 		//final Align.ParamOptimize p = Align.paramOptimize;
-		final GenericDialog gd = new GenericDialog( "Align Tiles" );
+		
+		final GenericDialog gd = new GenericDialog( "Montage" );
 		Align.paramOptimize.addFields( gd );
 		
 		gd.addMessage( "Miscellaneous:" );
