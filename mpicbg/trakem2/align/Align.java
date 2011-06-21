@@ -900,6 +900,7 @@ public class Align
 			extractFeaturesThreads.add( thread );
 			thread.start();
 		}
+		
 		try
 		{
 			for ( final ExtractFeaturesThread thread : extractFeaturesThreads )
@@ -907,7 +908,17 @@ public class Align
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.log( "Feature extraction failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			Utils.log( "Feature extraction interrupted." );
+			for ( final Thread thread : extractFeaturesThreads )
+				thread.interrupt();
+			try
+			{
+				for ( final Thread thread : extractFeaturesThreads )
+					thread.join();
+			}
+			catch ( InterruptedException f ) {}
+			Thread.currentThread().interrupt();
+			IJ.showProgress( 1.0 );
 			return;
 		}
 		
@@ -926,8 +937,17 @@ public class Align
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.log( "Establishing feature correspondences failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
-			return;
+			Utils.log( "Establishing feature correspondences interrupted." );
+			for ( final Thread thread : matchFeaturesAndFindModelThreads )
+				thread.interrupt();
+			try
+			{
+				for ( final Thread thread : matchFeaturesAndFindModelThreads )
+					thread.join();
+			}
+			catch ( InterruptedException f ) {}
+			Thread.currentThread().interrupt();
+			IJ.showProgress( 1.0 );
 		}
 	}
 	
