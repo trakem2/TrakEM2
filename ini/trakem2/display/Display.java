@@ -3653,12 +3653,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	private class StartTransformMenuListener implements ActionListener {
 		public void actionPerformed(ActionEvent ae) {
-			if (null == active) return;
 			String command = ae.getActionCommand();
 			if (command.equals("Transform (affine)")) {
+				if (null == active) return;
 				getLayerSet().addTransformStepWithData(selection.getAffected());
 				setMode(new AffineTransformMode(Display.this));
 			} else if (command.equals("Transform (non-linear)")) {
+				if (null == active) return;
 				getLayerSet().addTransformStepWithData(selection.getAffected());
 				List<Displayable> col = selection.getSelected(Patch.class);
 				for (final Displayable d : col) {
@@ -3669,6 +3670,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 				setMode(new NonLinearTransformMode(Display.this, col));
 			} else if (command.equals("Remove coordinate transforms (selected images)")) {
+				if (null == active) return;
 				final List<Displayable> col = selection.getSelected(Patch.class);
 				if (col.isEmpty()) return;
 				removeCoordinateTransforms( (List<Patch>) (List) col);
@@ -3685,6 +3687,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 				removeCoordinateTransforms( (List<Patch>) (List) patches);
 			} else if (command.equals("Remove rotation, scaling and shear (selected images)")) {
+				if (null == active) return;
 				final List<Displayable> col = selection.getSelected(Patch.class);
 				if (col.isEmpty()) return;
 				removeScalingRotationShear( (List<Patch>) (List) col);
