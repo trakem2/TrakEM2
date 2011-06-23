@@ -34,6 +34,7 @@ import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -486,40 +487,16 @@ public class Align
 						return;
 					}
 		
-					boolean modelFound;
-					boolean again = false;
-					try
-					{
-						do
-						{
-							again = false;
-							modelFound = model.filterRansac(
-									candidates,
-									inliers,
-									1000,
-									p.maxEpsilon,
-									p.minInlierRatio,
-									p.minNumInliers,
-									3 );
-							if ( modelFound && p.rejectIdentity )
-							{
-								final ArrayList< Point > points = new ArrayList< Point >();
-								PointMatch.sourcePoints( inliers, points );
-								if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
-								{
-									IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
-									candidates.removeAll( inliers );
-									inliers.clear();
-									again = true;
-								}
-							}
-						}
-						while ( again );
-					}
-					catch ( NotEnoughDataPointsException e )
-					{
-						modelFound = false;
-					}
+					boolean modelFound = findModel(
+							model,
+							candidates,
+							inliers,
+							p.maxEpsilon,
+							p.minInlierRatio,
+							p.minNumInliers,
+							p.rejectIdentity,
+							p.identityTolerance );
+					
 					if ( modelFound )
 						IJ.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					else
@@ -550,6 +527,56 @@ public class Align
 			}
 		}
 	}
+	
+	
+	final static public boolean findModel(
+			final Model< ? > model,
+			final List< PointMatch > candidates,
+			final Collection< PointMatch > inliers,
+			final float maxEpsilon,
+			final float minInlierRatio,
+			final int minNumInliers,
+			final boolean rejectIdentity,
+			final float identityTolerance )
+	{
+		boolean modelFound;
+		boolean again = false;
+		try
+		{
+			do
+			{
+				again = false;
+				modelFound = model.filterRansac(
+							candidates,
+							inliers,
+							1000,
+							maxEpsilon,
+							minInlierRatio,
+							minNumInliers,
+							3 );
+				if ( modelFound && rejectIdentity )
+				{
+					final ArrayList< Point > points = new ArrayList< Point >();
+					PointMatch.sourcePoints( inliers, points );
+					if ( Transforms.isIdentity( model, points, identityTolerance ) )
+					{
+						Utils.log( "Identity transform for " + inliers.size() + " matches rejected." );
+						candidates.removeAll( inliers );
+						inliers.clear();
+						again = true;
+					}
+				}
+			}
+			while ( again );
+		}
+		catch ( NotEnoughDataPointsException e )
+		{
+			modelFound = false;
+		}
+		
+		return modelFound;
+	}
+	
 	
 	final static protected boolean serializeFeatures( final Param p, AbstractAffineTile2D< ? > t, final Collection< Feature > f )
 	{
@@ -731,40 +758,16 @@ public class Align
 				return null;
 			}
 	
-			boolean modelFound;
-			boolean again = false;
-			try
-			{
-				do
-				{
-					again = false;
-					modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							p.maxEpsilon,
-							p.minInlierRatio,
-							p.minNumInliers,
-							3 );
-					if ( modelFound && p.rejectIdentity )
-					{
-						final ArrayList< Point > points = new ArrayList< Point >();
-						PointMatch.sourcePoints( inliers, points );
-						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
-						{
-							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
-							candidates.removeAll( inliers );
-							inliers.clear();
-							again = true;
-						}
-					}
-				}
-				while ( again );
-			}
-			catch ( NotEnoughDataPointsException e )
-			{
-				modelFound = false;
-			}
+			boolean modelFound = findModel(
+					model,
+					candidates,
+					inliers,
+					p.maxEpsilon,
+					p.minInlierRatio,
+					p.minNumInliers,
+					p.rejectIdentity,
+					p.identityTolerance );
+			
 			if ( modelFound )
 				IJ.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			else
