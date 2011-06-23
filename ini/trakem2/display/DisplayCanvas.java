@@ -2082,6 +2082,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case KeyEvent.VK_F:
 				if (0 == (ke.getModifiers() ^ KeyEvent.SHIFT_MASK)) {
+					// toggle visibility of tags
+					display.getLayerSet().paint_tags = !display.getLayerSet().paint_tags;
+					Display.repaint();
+					ke.consume();
+				} else if (0 == (ke.getModifiers() ^ KeyEvent.ALT_MASK)) {
 					// toggle visibility of edge arrows
 					display.getLayerSet().paint_arrows = !display.getLayerSet().paint_arrows;
 					Display.repaint();

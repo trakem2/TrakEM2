@@ -171,9 +171,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	@Override
 	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
-		paint(g, srcRect, magnification, active, channels, active_layer, layers, layer_set.paint_arrows);
+		paint(g, srcRect, magnification, active, channels, active_layer, layers, layer_set.paint_arrows, layer_set.paint_tags);
 	}
-	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers, final boolean with_arrows) {
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers, final boolean with_arrows, final boolean with_tags) {
 		if (null == root) {
 			setupForDisplay();
 			if (null == root) return;
@@ -234,7 +234,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final ArrayList<Runnable> tags_tasks = new ArrayList<Runnable>();
 
 				for (final Node<T> nd : nodes) {
-					final Runnable task = nd.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, layer_set.paint_edge_confidence_boxes, true, above, below);
+					final Runnable task = nd.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, with_tags, layer_set.paint_edge_confidence_boxes, true, above, below);
 					if (null != task) tags_tasks.add(task);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();
@@ -1981,7 +1981,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows
-				paint(g, srcRect, mag, false, 0xffffffff, layer, layers, false);
+				paint(g, srcRect, mag, false, 0xffffffff, layer, layers, false, false);
 				return;
 			case 1:
 				paintAsBox(g);
