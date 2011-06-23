@@ -311,7 +311,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 								ijSIFT.extractFeatures( ip, fs );
 								Utils.log( fs.size() + " features extracted for " + layerName );
 								
-								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layerSet.getProject(), p.ppm.sift, "layer", layer.getId(), fs ) )
+								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layerSet.getProject(), siftParam, "layer", layer.getId(), fs ) )
 									Utils.log( "FAILED to store serialized features for " + layerName );
 							}
 							else
