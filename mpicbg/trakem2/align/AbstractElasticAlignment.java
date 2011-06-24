@@ -59,6 +59,17 @@ public abstract class AbstractElasticAlignment
 		public boolean clearCache = false;
 	}
 	
+	final static protected class Pair< A, B >
+	{
+		final public A a;
+		final public B b;
+		
+		Pair( final A a, final B b )
+		{
+			this.a = a;
+			this.b = b;
+		}
+	}
 	
 	final static protected class Triple< A, B, C >
 	{
