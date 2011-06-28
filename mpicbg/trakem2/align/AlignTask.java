@@ -66,6 +66,12 @@ import java.util.concurrent.Future;
  */
 final public class AlignTask
 {
+	static protected int LINEAR = 0, ELASTIC = 1;
+	static protected int mode = LINEAR;
+	final static String[] modeStrings = new String[]{
+		"least squares (linear feature correspondences)",
+		"elastic (non-linear block correspondences)" };
+	
 	static protected boolean tilesAreInPlace = false;
 	static protected boolean largestGraphOnly = false;
 	static protected boolean hideDisconnectedTiles = false;
@@ -95,7 +101,7 @@ final public class AlignTask
 	}
 
 
-	final static public void alignSelection( final Selection selection )
+	final static public void alignSelection( final Selection selection ) throws Exception
 	{
 		List< Patch > patches = new ArrayList< Patch >();
 		for ( Displayable d : selection.getSelected() )
@@ -146,7 +152,7 @@ final public class AlignTask
 	 * @param patches: the list of Patch instances to align, all belonging to the same Layer.
 	 * @param fixed: the list of Patch instances to keep locked in place, if any.
 	 */
-	final static public void alignPatches( final List< Patch > patches , final List< Patch > fixedPatches )
+	final static public void alignPatches( final List< Patch > patches , final List< Patch > fixedPatches ) throws Exception
 	{
 		if ( patches.size() < 2 )
 		{
@@ -165,27 +171,40 @@ final public class AlignTask
 
 		//final Align.ParamOptimize p = Align.paramOptimize;
 		
-		final GenericDialog gd = new GenericDialog( "Montage" );
-		Align.paramOptimize.addFields( gd );
+		final GenericDialog gdMode = new GenericDialog( "Montage mode" );
+		gdMode.addChoice( "mode :", modeStrings, modeStrings[ LINEAR ] );
+		gdMode.showDialog();
+		if ( gdMode.wasCanceled() )
+			return;
 		
-		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
-		gd.addCheckbox( "consider largest graph only", largestGraphOnly );
-		gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
-		gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+		mode = gdMode.getNextChoiceIndex();
 		
-		gd.showDialog();
-		if ( gd.wasCanceled() ) return;
-		
-		Align.paramOptimize.readFields( gd );
-		tilesAreInPlace = gd.getNextBoolean();
-		largestGraphOnly = gd.getNextBoolean();
-		hideDisconnectedTiles = gd.getNextBoolean();
-		deleteDisconnectedTiles = gd.getNextBoolean();
-		
-		final Align.ParamOptimize p = Align.paramOptimize.clone();
-
-		alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+		if ( mode == ELASTIC )
+			new ElasticMontage().exec( patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+		else
+		{
+			final GenericDialog gd = new GenericDialog( "Montage" );
+			
+			Align.paramOptimize.addFields( gd );
+			
+			gd.addMessage( "Miscellaneous:" );
+			gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+			gd.addCheckbox( "consider largest graph only", largestGraphOnly );
+			gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+			gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+			
+			gd.showDialog();
+			if ( gd.wasCanceled() ) return;
+			
+			Align.paramOptimize.readFields( gd );
+			tilesAreInPlace = gd.getNextBoolean();
+			largestGraphOnly = gd.getNextBoolean();
+			hideDisconnectedTiles = gd.getNextBoolean();
+			deleteDisconnectedTiles = gd.getNextBoolean();
+			
+			final Align.ParamOptimize p = Align.paramOptimize.clone();
+			alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+		}
 	}
 
 	/** Montage each layer independently, with SIFT.
