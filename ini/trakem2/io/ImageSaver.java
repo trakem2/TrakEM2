@@ -454,8 +454,13 @@ public class ImageSaver {
 					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
 					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 					iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
-					writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
-					writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					ImageOutputStream ios = ImageIO.createImageOutputStream(new File(path));
+					try {
+						writer.setOutput(ios);
+						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					} finally {
+						ios.close();
+					}
 					return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
 				}
 
@@ -631,8 +636,13 @@ public class ImageSaver {
 					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all PNG specs in it
 					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 					iwp.setCompressionQuality(0); // <---------------------------------------------------------- THIS IS ALL I WANTED
-					writer.setOutput(ImageIO.createImageOutputStream(new File(path))); // the stream
-					writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					ImageOutputStream ios = ImageIO.createImageOutputStream(new File(path));
+					try {
+						writer.setOutput(ios); // the stream
+						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+					} finally {
+						ios.close();
+					}
 					return true;
 				}
 				*/
