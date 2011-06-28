@@ -1146,7 +1146,7 @@ public final class Patch extends Displayable implements ImageData {
 		return new PatchImage( target.ip, ( ByteProcessor )target.mask, target.outside, box, true );
 	}
 
-	public final class PatchImage {
+	static final public class PatchImage {
 		/** The image, coordinate-transformed if null != ct. */
 		final public ImageProcessor target;
 		/** The alpha mask, coordinate-transformed if null != ct. */
@@ -1164,6 +1164,23 @@ public final class Patch extends Displayable implements ImageData {
 			this.outside = outside;
 			this.box = box;
 			this.coordinate_transformed = coordinate_transformed;
+		}
+		
+		/**
+		 * <p>Get the mask.  This is either:</p>
+		 * <ul>
+		 * <li>null for a non-transformed patch without a mask,</li>
+		 * <li>the mask of a non-transformed patch,</li>
+		 * <li>the transformed mask of a transformed patch (including outside
+		 * mask),</li>
+		 * <li>or the outside mask of a transformed patch without a mask,</li>
+		 * </ul>
+		 * 
+		 * @return
+		 */
+		final public ByteProcessor getMask()
+		{
+			return mask == null ? outside == null ? null : outside : mask;
 		}
 	}
 
