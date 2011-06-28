@@ -118,7 +118,7 @@ public final class Display3D {
 		return new Hashtable<LayerSet,Display3D>(ht_layer_sets);
 	}
 
-	/** Table of ProjectThing keys versus meshes, the latter represented by List of triangles in the form of thre econsecutive Point3f in the List.*/
+	/** Table of ProjectThing keys versus names of Content objects in the universe. */
 	private Map<ProjectThing,String> ht_pt_meshes = Collections.synchronizedMap(new HashMap<ProjectThing,String>());
 
 	private Image3DUniverse universe;
@@ -526,13 +526,17 @@ public final class Display3D {
 				Utils.log("Could not get a proper 3D display for node " + displ);
 				return null; // java3D not installed most likely
 			}
+			
 			boolean already;
 			synchronized (d3d.ht_pt_meshes) {
 				already = d3d.ht_pt_meshes.containsKey(child);
 			}
 			if (already) {
-				Utils.log2("Already here: " + child);
-				continue; // already here
+				if (child.getObject() instanceof ZDisplayable) {
+					Utils.log("Updating 3D view of " + child.getObject());
+				} else {
+					Utils.log("Updating 3D view of " + child);
+				}
 			}
 
 			list.add(d3d.executors.submit(new Callable<Content>() {

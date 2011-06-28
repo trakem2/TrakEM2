@@ -138,6 +138,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	protected boolean area_color_cues = true;
 	protected boolean use_color_cue_colors = true;
 	protected boolean paint_arrows = true;
+	protected boolean paint_tags = true;
 	protected boolean paint_edge_confidence_boxes = true;
 	protected int n_layers_color_cue = 0; // -1 means all
 	protected boolean prepaint = true;
@@ -210,6 +211,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			use_color_cue_colors = !Boolean.valueOf(data.trim().toLowerCase());
 		}
 		if (null != (data = ht_attributes.get("paint_arrows"))) paint_arrows = Boolean.valueOf(data.trim().toLowerCase());
+		if (null != (data = ht_attributes.get("paint_tags"))) paint_tags = Boolean.valueOf(data.trim().toLowerCase());
 		if (null != (data = ht_attributes.get("paint_edge_confidence_boxes"))) paint_edge_confidence_boxes = Boolean.valueOf(data.trim().toLowerCase());
 		if (null != (data = ht_attributes.get("prepaint"))) prepaint = Boolean.valueOf(data.trim().toLowerCase());
 		if (null != (data = ht_attributes.get("preload_ahead"))) preload_ahead = Integer.parseInt(data);
@@ -1164,6 +1166,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		       .append(in).append("avoid_color_cue_colors=\"").append(!use_color_cue_colors).append("\"\n")
 		       .append(in).append("n_layers_color_cue=\"").append(n_layers_color_cue).append("\"\n")
 		       .append(in).append("paint_arrows=\"").append(paint_arrows).append("\"\n")
+		       .append(in).append("paint_tags=\"").append(paint_tags).append("\"\n")
 		       .append(in).append("paint_edge_confidence_boxes=\"").append(paint_edge_confidence_boxes).append("\"\n")
 		       .append(in).append("prepaint=\"").append(prepaint).append("\"\n")
 		       .append(in).append("preload_ahead=\"").append(preload_ahead).append("\"\n")
@@ -1255,6 +1258,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 				 .append(indent).append(TAG_ATTR1).append(type).append(" avoid_color_cue_colors").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" n_layers_color_cue").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_arrows").append(TAG_ATTR2)
+				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_tags").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" paint_edge_confidence_boxes").append(TAG_ATTR2)
 				 .append(indent).append(TAG_ATTR1).append(type).append(" preload_ahead").append(TAG_ATTR2)
 			;

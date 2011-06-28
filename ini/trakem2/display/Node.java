@@ -183,8 +183,8 @@ public abstract class Node<T> implements Taggable {
 			final boolean active, final Rectangle srcRect,
 			final double magnification, final Collection<Node<T>> to_paint,
 			final Tree<T> tree, final AffineTransform to_screen,
-			final boolean with_arrows, final boolean with_confidence_boxes,
-			final boolean with_data,
+			final boolean with_arrows, final boolean with_tags,
+			final boolean with_confidence_boxes, final boolean with_data,
 			Color above, Color below) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
 		
@@ -237,7 +237,7 @@ public abstract class Node<T> implements Taggable {
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
 
 		final Runnable tagsTask;
-		if (with_arrows && null != tags) {
+		if (with_tags && null != tags) {
 			tagsTask = new Runnable() {
 				public void run() {
 					paintTags(g, x, y, local_edge_color);
