@@ -778,6 +778,48 @@ public class Align
 		}
 		return pointMatches;
 	}
+	
+	
+	/**
+	 * Align a set of {@link AbstractAffineTile2D tiles} using
+	 * the following procedure:
+	 * 
+	 * <ol>
+	 * <li>Extract {@link Feature SIFT-features} from all
+	 * {@link AbstractAffineTile2D tiles}.</li>
+	 * <li>Establish {@link PointMatch point-correspondences} from
+	 * consistent sets of {@link Feature feature} matches among tile pairs,
+	 * optionally inspect only those that are already overlapping.</li>
+	 * <li>Globally align the tile configuration.</li>
+	 * </ol>
+	 * 
+	 * Both
+	 * {@link SIFT#extractFeatures(ij.process.ImageProcessor, Collection) feature extraction}
+	 * and {@link FeatureTransform#matchFeatures(Collection, Collection, List, float) matching}
+	 * are executed in multiple {@link Thread Threads}, with the number of
+	 * {@link Thread Threads} being a parameter of the method.
+	 * 
+	 * @param p
+	 * @param tiles
+	 * @param fixedTiles
+	 * @param tilesAreInPlace
+	 * @param numThreads
+	 */
+	final static public void alignTiles(
+			final ParamOptimize p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? > > fixedTiles,
+			final boolean tilesAreInPlace,
+			final int numThreads )
+	{
+		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
+		if ( tilesAreInPlace )
+			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+		else
+			AbstractAffineTile2D.pairTiles( tiles, tilePairs );
+		connectTilePairs( p, tiles, tilePairs, numThreads );
+		optimizeTileConfiguration( p, tiles, fixedTiles );
+	}
 
 		
 	/**
@@ -809,11 +851,10 @@ public class Align
 			final List< AbstractAffineTile2D< ? > > fixedTiles,
 			final int numThreads )
 	{
-		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D<?>[] >();
-		AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
-		connectTilePairs( p, tiles, tilePairs, numThreads );
-		optimizeTileConfiguration( p, tiles, fixedTiles );
+		alignTiles( p, tiles, fixedTiles, true, numThreads );
 	}
+	
+	
 	
 	/**
 	 * Align a set of {@link AbstractAffineTile2D tiles} that are

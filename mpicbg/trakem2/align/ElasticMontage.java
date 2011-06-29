@@ -18,7 +18,6 @@ package mpicbg.trakem2.align;
 
 
 import ij.IJ;
-import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
@@ -75,7 +74,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		 * 
 		 */
 		private static final long serialVersionUID = 685811752558724564L;
-		final public ParamOptimize po = new ParamOptimize();
+		public ParamOptimize po = new ParamOptimize();
 		{
 			po.maxEpsilon = 25.0f;
 			po.minInlierRatio = 0.0f;
@@ -85,6 +84,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 			po.rejectIdentity = true;
 			po.identityTolerance = 5.0f;
 		}
+		
+		public boolean tilesAreInPlace = true;
 		
 		/**
 		 * Block matching
@@ -116,9 +117,17 @@ public class ElasticMontage extends AbstractElasticAlignment
 		
 		public boolean setup()
 		{
-			if ( !po.setup( "Elastic montage: SIFT based pre-montage" ) )
+			final GenericDialog gdSIFT = new GenericDialog( "Elastic montage: SIFT based pre-montage" );
+			po.addFields( gdSIFT );
+			gdSIFT.addMessage( "Miscellaneous:" );
+			gdSIFT.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+			gdSIFT.showDialog();
+			if ( gdSIFT.wasCanceled() )
 				return false;
-				
+			
+			po.readFields( gdSIFT );
+			tilesAreInPlace = gdSIFT.getNextBoolean();
+			
 			/* Block Matching */
 			final GenericDialog gdBlockMatching = new GenericDialog( "Elastic montage: Block Matching and Spring Meshes" );
 			gdBlockMatching.addMessage( "Block Matching:" );
@@ -154,9 +163,40 @@ public class ElasticMontage extends AbstractElasticAlignment
 			
 			return true;
 		}
+		
+		@Override
+		public Param clone()
+		{
+			final Param p = new Param();
+			p.po = po.clone();
+			p.tilesAreInPlace = tilesAreInPlace;
+			
+			p.bmScale = bmScale;
+			p.bmMinR = bmMinR;
+			p.bmMaxCurvatureR = bmMaxCurvatureR;
+			p.bmRodR = bmRodR;
+			
+			p.springLengthSpringMesh = springLengthSpringMesh;
+			p.stiffnessSpringMesh = stiffnessSpringMesh;
+			p.dampSpringMesh = dampSpringMesh;
+			p.maxStretchSpringMesh = maxStretchSpringMesh;
+			p.maxIterationsSpringMesh = maxIterationsSpringMesh;
+			p.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
+			
+			p.visualize = visualize;
+			
+			p.maxNumThreads = maxNumThreads;
+			
+			return p;
+		}
 	}
 	
 	final static Param p = new Param();
+	
+	final static public Param setup()
+	{
+		return p.setup() ? p.clone() : null;
+	}
 
 	
 	final static private String patchName( final Patch patch )
@@ -246,14 +286,10 @@ public class ElasticMontage extends AbstractElasticAlignment
 		return fp;
 	}
 	
-
+	
 	final public void exec(
 			final List< Patch > patches,
-			final List< Patch > fixedPatches,
-			final boolean tilesAreInPlace,
-			final boolean largestGraphOnly,
-			final boolean hideDisconnectedTiles,
-			final boolean deleteDisconnectedTiles ) throws Exception
+			final List< Patch > fixedPatches ) throws Exception
 	{
 		/* make sure that passed patches are ok */
 		if ( patches.size() < 2 )
@@ -279,13 +315,24 @@ public class ElasticMontage extends AbstractElasticAlignment
 			}
 		}
 		
-		if ( !p.setup() ) return;
-		
+		final Param p = setup();
+		if ( p == null )
+			return;
+		else
+			exec( p, patches, fixedPatches );
+	}
+	
+
+	final public void exec(
+			final Param p,
+			final List< Patch > patches,
+			final List< Patch > fixedPatches ) throws Exception
+	{	
 		/* create tiles and models for all patches */
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( p.po, patches, fixedPatches, tiles, fixedTiles );
-		Align.alignTiles( p.po, tiles, fixedTiles, p.maxNumThreads );
+		Align.alignTiles( p.po, tiles, fixedTiles, p.tilesAreInPlace, p.maxNumThreads );
 		
 		/* Apply the estimated affine transform to patches */
 		for ( final AbstractAffineTile2D< ? > t : tiles )

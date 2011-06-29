@@ -180,7 +180,7 @@ final public class AlignTask
 		mode = gdMode.getNextChoiceIndex();
 		
 		if ( mode == ELASTIC )
-			new ElasticMontage().exec( patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+			new ElasticMontage().exec( patches, fixedPatches );
 		else
 		{
 			final GenericDialog gd = new GenericDialog( "Montage" );
@@ -213,28 +213,51 @@ final public class AlignTask
 	final static public Bureaucrat montageLayersTask(final List<Layer> layers) {
 		if (null == layers || layers.isEmpty()) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers", true) {
-			public void exec() {
-				//final Align.ParamOptimize p = Align.paramOptimize;
-				final GenericDialog gd = new GenericDialog( "Montage Layers" );
-				Align.paramOptimize.addFields( gd );
+			public void exec()
+			{
+				final GenericDialog gdMode = new GenericDialog( "Montage mode" );
+				gdMode.addChoice( "mode :", modeStrings, modeStrings[ LINEAR ] );
+				gdMode.showDialog();
+				if ( gdMode.wasCanceled() )
+					return;
 				
-				gd.addMessage( "Miscellaneous:" );
-				gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
-				gd.addCheckbox( "consider largest graph only", largestGraphOnly );
-				gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
-				gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+				mode = gdMode.getNextChoiceIndex();
 				
-				gd.showDialog();
-				if ( gd.wasCanceled() ) return;
-				
-				Align.paramOptimize.readFields( gd );
-				tilesAreInPlace = gd.getNextBoolean();
-				largestGraphOnly = gd.getNextBoolean();
-				hideDisconnectedTiles = gd.getNextBoolean();
-				deleteDisconnectedTiles = gd.getNextBoolean();
-				
-				final Align.ParamOptimize p = Align.paramOptimize.clone();
-				montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+				if ( mode == ELASTIC )
+				{
+					final ElasticMontage.Param p = ElasticMontage.setup();
+					if ( p == null )
+						return;
+					else
+					{
+						try { montageLayers( p, layers ); }
+						catch ( Exception e ) { e.printStackTrace(); Utils.log( "Exception during montaging layers.  Operation failed." ); }
+					}
+				}
+				else
+				{
+					//final Align.ParamOptimize p = Align.paramOptimize;
+					final GenericDialog gd = new GenericDialog( "Montage Layers" );
+					Align.paramOptimize.addFields( gd );
+					
+					gd.addMessage( "Miscellaneous:" );
+					gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+					gd.addCheckbox( "consider largest graph only", largestGraphOnly );
+					gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+					gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+					
+					gd.showDialog();
+					if ( gd.wasCanceled() ) return;
+					
+					Align.paramOptimize.readFields( gd );
+					tilesAreInPlace = gd.getNextBoolean();
+					largestGraphOnly = gd.getNextBoolean();
+					hideDisconnectedTiles = gd.getNextBoolean();
+					deleteDisconnectedTiles = gd.getNextBoolean();
+					
+					final Align.ParamOptimize p = Align.paramOptimize.clone();
+					montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+				}
 			}
 		}, layers.get(0).getProject());
 	}
@@ -262,6 +285,36 @@ final public class AlignTask
 			i++;
 			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 			Display.repaint(layer);
+		}
+	}
+	
+	
+	final static public void montageLayers(
+			final ElasticMontage.Param p,
+			final List< Layer > layers ) throws Exception
+	{
+		int i = 0;
+		for ( final Layer layer : layers )
+		{
+			if ( Thread.currentThread().isInterrupted() ) return;
+			Collection< Displayable > patches = layer.getDisplayables( Patch.class, true );
+			if ( patches.isEmpty() ) continue;
+			final ArrayList< Patch > patchesList = new ArrayList< Patch >();
+			for ( final Displayable d : patches )
+				if ( Patch.class.isInstance( d ) )
+					patchesList.add( ( Patch )d );
+			for (final Displayable patch : patches) {
+				if ( patch.isLinked() && !patch.isOnlyLinkedTo( Patch.class ) )
+				{
+					Utils.log( "Cannot montage layer " + layer + "\nReason: at least one Patch is linked to non-image data: " + patch );
+					continue;
+				}
+			}
+			Utils.log("====\nMontaging layer " + layer);
+			Utils.showProgress(((double)i)/layers.size());
+			i++;
+			new ElasticMontage().exec( p, patchesList, new ArrayList< Patch >() );
+			Display.repaint( layer );
 		}
 	}
 
