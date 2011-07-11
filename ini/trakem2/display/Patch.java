@@ -41,7 +41,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.persistence.FilePathRepair;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.FSLoader;
 
