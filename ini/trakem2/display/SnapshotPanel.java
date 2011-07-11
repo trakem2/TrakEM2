@@ -127,6 +127,7 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 				d.paintAsBox(g2);
 			}
 			synchronized (this) {
+				if (null != SnapshotPanel.this.img) SnapshotPanel.this.img.flush();
 				SnapshotPanel.this.img = img;
 			}
 			repaint();
