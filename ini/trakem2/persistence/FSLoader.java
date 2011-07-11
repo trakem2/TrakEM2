@@ -2609,6 +2609,8 @@ public final class FSLoader extends Loader {
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
 
 		if (!isMipMapsRegenerationEnabled()) {
+			// If not enabled, the cache must be flushed
+			flushMipMaps(patch.getId());
 			return new DONE();
 		}
 
