@@ -453,6 +453,10 @@ public class Cache {
 		final ImagePlus imp = p.imp;
 		//
 		final ImagePlusUsers u = imps.get(p);
+		if (null == u) {
+			// TODO why isn't p a key of the imps map?
+			return null;
+		}
 		u.removeUser(p.id);
 		if (u.users.isEmpty()) {
 			addBytes(p.replace(null));
