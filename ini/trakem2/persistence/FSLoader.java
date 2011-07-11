@@ -335,22 +335,38 @@ public final class FSLoader extends Loader {
 	static public final Project getOpenProject(final String project_file_path) {
 		return getOpenProject(project_file_path, null);
 	}
-
-	static private void startStaticServices() {
+	
+	static public final int nStaticServiceThreads() {
 		int np = Runtime.getRuntime().availableProcessors();
 		// 1 core = 1 thread
 		// 2 cores = 2 threads
 		// 3+ cores = cores-1 threads
 		if (np > 2) np -= 1;
-		if (null == regenerator || regenerator.isShutdown()) {
-			regenerator = Utils.newFixedThreadPool(np, "regenerator");
+		return np;
+	}
+
+	/** Restart the ExecutorService for mipmaps with {@param n_threads}. */
+	static public final void restartMipMapThreads(final int n_threads) {
+		if (null != regenerator && !regenerator.isShutdown()) {
+			regenerator.shutdown();
 		}
-		if (null == remover || remover.isShutdown()) {
-			remover = Utils.newFixedThreadPool(2, "mipmap remover");
+		regenerator = Utils.newFixedThreadPool(Math.max(1, n_threads), "regenerator");
+		Utils.logAll("Restarted mipmap Executor Service for all projects with " + n_threads + " threads.");
+	}
+
+	static private void startStaticServices() {
+		// Up to nStaticServiceThreads for regenerator and repainter
+		if (null == regenerator || regenerator.isShutdown()) {
+			regenerator = Utils.newFixedThreadPool(nStaticServiceThreads, "regenerator");
 		}
 		if (null == repainter || repainter.isShutdown()) {
-			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
+			repainter = Utils.newFixedThreadPool(nStaticServiceThreads, "repainter"); // for SnapshotPanel
 		}
+		// Maximum 2 threads for removing files
+		if (null == remover || remover.isShutdown()) {
+			remover = Utils.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors()), "mipmap remover");
+		}
+		// Just one thread for autosaver
 		if (null == autosaver || autosaver.isShutdown()) autosaver = Executors.newScheduledThreadPool(1);
 	}
 
@@ -2553,6 +2569,7 @@ public final class FSLoader extends Loader {
 	static private ExecutorService regenerator = null;
 	static private ExecutorService remover = null;
 	static public ExecutorService repainter = null;
+	static private int nStaticServiceThreads = nStaticServiceThreads();
 	static public ScheduledExecutorService autosaver = null;
 
 	static private final class DONE implements Future<Boolean>
