@@ -1313,9 +1313,9 @@ public final class FSLoader extends Loader {
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.
-		Object ob = ht_attributes.remove("storage_folder");
+		String ob = ht_attributes.remove("storage_folder");
 		if (null != ob) {
-			String sf = ((String)ob).replace('\\', '/');
+			String sf = ob.replace('\\', '/');
 			if (isRelativePath(sf)) {
 				sf = getParentFolder() + sf;
 			}
@@ -1354,7 +1354,7 @@ public final class FSLoader extends Loader {
 		//
 		ob = ht_attributes.remove("mipmaps_folder");
 		if (null != ob) {
-			String mf = ((String)ob).replace('\\', '/');
+			String mf = ob.replace('\\', '/');
 			if (isRelativePath(mf)) {
 				mf = getParentFolder() + mf;
 			}
@@ -1374,9 +1374,14 @@ public final class FSLoader extends Loader {
 		if (null != ob) {
 			this.mipmaps_regen = Boolean.parseBoolean(ob);
 		}
+		ob = ht_attributes.remove("n_mipmap_threads");
+		if (null != ob) {
+			int n_threads = Math.max(1, Integer.parseInt(ob));
+			FSLoader.restartMipMapThreads(n_threads);
+		}
 
 		// parse the unuid before attempting to create any folders
-		this.unuid = (String) ht_attributes.remove("unuid");
+		this.unuid = ht_attributes.remove("unuid");
 
 		// Attempt to get an existing UNUId folder, for .xml files that share the same mipmaps folder
 		if (ControlWindow.isGUIEnabled() && null == this.unuid) {
