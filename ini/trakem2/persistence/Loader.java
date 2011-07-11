@@ -3973,12 +3973,19 @@ while (it.hasNext()) {
 
 	// used to prevent generating them when, for example, importing a montage
 	public void setMipMapsRegeneration(boolean b) {
+		Project.findProject(this).setProperty("mipmaps_regen", Boolean.toString(b));
 		mipmaps_regen = b;
 	}
 
 	/** Whether mipmaps should be generated. This depends on both the internal flag
 	 * (whether the user wants to use mipmaps) and on whether there is a writable mipmaps folder available. */
 	public boolean isMipMapsRegenerationEnabled() { return mipmaps_regen && usesMipMapsFolder(); }
+
+	/** Returns the value of mipmaps_regen; to query whether this loader is using mipmaps
+	 * or not, call instead {@link Loader#isMipMapsRegenerationEnabled()}. */
+	public boolean getMipMapsRegenerationEnabled() {
+		return mipmaps_regen;
+	}
 
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {}

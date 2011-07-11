@@ -1354,6 +1354,10 @@ public final class FSLoader extends Loader {
 				}
 			}
 		}
+		ob = ht_attributes.remove("mipmaps_regen");
+		if (null != ob) {
+			this.mipmaps_regen = Boolean.parseBoolean(ob);
+		}
 
 		// parse the unuid before attempting to create any folders
 		this.unuid = (String) ht_attributes.remove("unuid");
