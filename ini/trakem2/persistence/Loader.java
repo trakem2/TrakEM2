@@ -4196,6 +4196,7 @@ while (it.hasNext()) {
 						if (d.getClass() != Patch.class) continue;
 						Patch p = (Patch)d;
 						p.setMinAndMax(min, max);
+						// Will also flush the cache for Patch p:
 						fus.add(regenerateMipMaps(p));
 					}
 					Utils.wait(fus);
