@@ -4899,7 +4899,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree<?>)) return;
 			final List<Tree<?>> tlines = (List<Tree<?>>) selection.get(active.getClass());
 			if (((Tree)active).canJoin(tlines)) {
-				if (!Utils.check("Join these " + tlines.size() + " trees into the tree " + active + " ?")) return;
+				int nNodes_active = ((Tree)active).getRoot().getSubtreeNodes().size();
+				String warning = "";
+				for (final Tree<?> t : tlines) {
+					if (active == t) continue;
+					if (null == t.getRoot()) {
+						Utils.log("Removed empty tree #" + t.getId() + " from those to join.");
+						tlines.remove(t);
+						continue;
+					}
+					if (t.getRoot().getSubtreeNodes().size() > nNodes_active) {
+						warning = "\nWARNING joining into a tree that is not the largest!";
+						break;
+					}
+				}
+				if (!Utils.check("Join these " + tlines.size() + " trees into the tree " + active + " ?" + warning)) return;
 				// Record current state
 				Set<DoStep> dataedits = new HashSet<DoStep>(tlines.size());
 				for (final Tree<?> tl : tlines) {
