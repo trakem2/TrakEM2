@@ -949,6 +949,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			target_project.getTemplateTree().rebuild(); // could have changed
 			target_project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
 
+			// Open up the path to the landing parent node
+			final TreePath tp = new TreePath(DNDTree.findNode(landing_parent, target_project.getProjectTree()).getPath());
+			Utils.invokeLater(new Runnable() { public void run() {
+				target_project.getProjectTree().scrollPathToVisible(tp);
+				target_project.getProjectTree().setSelectionPath(tp);
+			}});
+			
+
 			// Now that all have been copied, transform if so asked for:
 
 			if (transfer_mode.equals(trmode[1])) {
