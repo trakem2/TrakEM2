@@ -830,6 +830,19 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		if (landing_pt.isEmpty()) {
 			landing = new String[]{"-- NONE --"};
 		} else for (ProjectThing t : landing_pt) landing[next++] = t.toString();
+		
+		// Suggest the first potential landing node that has the same title
+		String parentTitle = pt.getParent().toString();
+		int k = 0;
+		boolean matched = false;
+		for (final String candidate : landing) {
+			if (candidate.equals(parentTitle)) {
+				matched = true;
+				break;
+			}
+			k += 1;
+		}
+		if (!matched) k = 0;
 
 		// Ask:
 		GenericDialog gd = new GenericDialog("Send to sibling project");
@@ -839,7 +852,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		String[] ptitles = new String[psother.size()];
 		for (int i=0; i<ptitles.length; i++) ptitles[i] = psother.get(i).toString();
 		gd.addChoice("Target project:", ptitles, ptitles[0]);
-		gd.addChoice("Landing node:", landing, landing[0]);
+		gd.addChoice("Landing node:", landing, landing[k]);
 		final Vector<Choice> vc = (Vector<Choice>) gd.getChoices();
 		final Choice choice_project = vc.get(vc.size()-2);
 		final Choice choice_landing = vc.get(vc.size()-1);
