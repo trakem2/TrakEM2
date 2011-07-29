@@ -61,6 +61,7 @@ import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Rectangle;
@@ -742,6 +743,7 @@ public class Project extends DBObject {
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
+		Search.removeTabs(this);
 		synchronized (ptcache) { ptcache.clear(); }
 		return true;
 	}
