@@ -32,6 +32,7 @@ import ini.trakem2.display.Connector;
 import ini.trakem2.display.Coordinate;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
+import ini.trakem2.display.Display3D;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Dissector;
 import ini.trakem2.display.Layer;
@@ -47,8 +48,10 @@ import ini.trakem2.display.Treeline;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.tree.ProjectThing;
 
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -98,9 +101,9 @@ public class Search {
 	private JComboBox pulldown = null;
 	private KeyListener kl = null;
 	private JComboBox projects = null;
-	private Map<Project, List<Component>> tabMap = Collections
-			.synchronizedMap(new HashMap<Project, List<Component>>());
-
+	private Map<Project, List<JPanel>> tabMap = Collections
+			.synchronizedMap(new HashMap<Project, List<JPanel>>());
+	
 	static private Search instance = null;
 
 	private Class<?>[] types = null;
@@ -509,16 +512,16 @@ public class Search {
 				c.fill = GridBagConstraints.BOTH;
 				c.weighty = 1;
 				JScrollPane jsp = makeTable(new DisplayableTableModel(v_obs,
-						v_txt, v_co));
+						v_txt, v_co), project);
 				gb.setConstraints(jsp, c);
 				result.add(jsp);
 				search_tabs.addTab(typed_pattern, result);
 				search_tabs.setSelectedComponent(result);
 
 				synchronized (tabMap) {
-					List<Component> cs = tabMap.get(project);
+					List<JPanel> cs = tabMap.get(project);
 					if (null == cs) {
-						cs = new ArrayList<Component>();
+						cs = new ArrayList<JPanel>();
 						tabMap.put(project, cs);
 					}
 					cs.add(result);
@@ -554,8 +557,16 @@ public class Search {
 				/ 2, la, d);
 	}
 
-	private JScrollPane makeTable(TableModel model) {
-		JTable table = new JTable(model);
+	private class Results extends JTable {
+		private final Project project;
+		private Results(TableModel model, Project project) {
+			super(model);
+			this.project = project;
+		}
+	}
+	
+	private JScrollPane makeTable(TableModel model, Project project) {
+		JTable table = new Results(model, project);
 		// java 1.6.0 only!! //table.setAutoCreateRowSorter(true);
 		table.addMouseListener(new DisplayableListListener());
 		table.addKeyListener(kl);
@@ -585,12 +596,13 @@ public class Search {
 	/** Listen to double clicks in the table rows. */
 	private class DisplayableListListener extends MouseAdapter {
 		public void mousePressed(MouseEvent me) {
-			final JTable table = (JTable) me.getSource();
+			final Results table = (Results) me.getSource();
 			final int row = table.rowAtPoint(me.getPoint());
 			final DBObject ob = ((DisplayableTableModel) table.getModel())
 					.getDBObjectAt(row);
 			final Coordinate<?> co = ((DisplayableTableModel) table.getModel())
 					.getCoordinateAt(row);
+			
 			if (2 == me.getClickCount()) {
 				if (null != co) {
 					Display.centerAt(co);
@@ -610,6 +622,8 @@ public class Search {
 				JPopupMenu popup = new JPopupMenu();
 				final String show2D = "Show";
 				final String select = "Select in display";
+				final String show3D = "Show in 3D";
+				final String openNodeTable = "Show tabular view";
 				ActionListener listener = new ActionListener() {
 					public void actionPerformed(ActionEvent ae) {
 						final String command = ae.getActionCommand();
@@ -688,6 +702,17 @@ public class Search {
 									display.getSelection().selectAll(ds);
 								}
 							}
+						} else if (command.equals(show3D)) {
+							if (ob instanceof Displayable) {
+								ProjectThing pt = ob.getProject().findProjectThing(ob);
+								if (null != pt) {
+									Display3D.show(pt);
+								}
+							}
+						} else if (command.equals(openNodeTable)) {
+							if (ob instanceof Tree<?>) {
+								((Tree<?>)ob).createMultiTableView();
+							}
 						}
 					}
 				};
@@ -697,6 +722,15 @@ public class Search {
 				item = new JMenuItem(select);
 				popup.add(item);
 				item.addActionListener(listener);
+				popup.addSeparator();
+				item = new JMenuItem(show3D);
+				popup.add(item);
+				item.addActionListener(listener);
+				if (ob instanceof Tree<?>) {
+					item = new JMenuItem(openNodeTable);
+					item.addActionListener(listener);
+					popup.add(item);
+				}
 				popup.show(table, me.getX(), me.getY());
 			}
 		}
@@ -740,10 +774,10 @@ public class Search {
 		if (null == search)
 			return;
 		synchronized (search.tabMap) {
-			List<Component> cs = search.tabMap.get(p);
+			List<JPanel> cs = search.tabMap.get(p);
 			if (null == cs)
 				return;
-			for (final Component c : cs) {
+			for (final JPanel c : cs) {
 				Utils.invokeLater(new Runnable() {
 					public void run() {
 						search.search_tabs.remove(c);
@@ -766,7 +800,7 @@ public class Search {
 		final int selected = instance.search_tabs.getSelectedIndex();
 		for (int t = 0; t < n_tabs; t++) {
 			java.awt.Component c = instance.search_tabs.getComponentAt(t);
-			JTable table = (JTable) ((JScrollPane) c).getViewport()
+			Results table = (Results) ((JScrollPane) c).getViewport()
 					.getComponent(0);
 			DisplayableTableModel data = (DisplayableTableModel) table
 					.getModel();
@@ -777,7 +811,7 @@ public class Search {
 				// need to think about it TODO // if (0 == data.getRowCount())
 				// continue;
 				instance.search_tabs.insertTab(name, null,
-						instance.makeTable(data), "", t);
+						instance.makeTable(data, table.project), "", t);
 				if (t == selected)
 					repaint = true;
 				try {
