@@ -327,7 +327,10 @@ public class ElasticMontage extends AbstractElasticAlignment
 			final Param p,
 			final List< Patch > patches,
 			final List< Patch > fixedPatches ) throws Exception
-	{	
+	{
+		/* free memory */
+		patches.get( 0 ).getProject().getLoader().releaseAll();
+		
 		/* create tiles and models for all patches */
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
