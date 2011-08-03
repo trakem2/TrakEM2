@@ -303,6 +303,8 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 							
 							if ( null == fs )
 							{
+								/* free memory */
+								layer.getProject().getLoader().releaseAll();
 								
 								final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
 								final SIFT ijSIFT = new SIFT( sift );
@@ -673,6 +675,9 @@ J:			for ( int j = i + 1; j < range; )
 		
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
 		{
+			/* free memory */
+			layerSet.getProject().getLoader().releaseAll();
+			
 			final SpringMesh m1 = meshes.get( pair.a );
 			final SpringMesh m2 = meshes.get( pair.b );
 
