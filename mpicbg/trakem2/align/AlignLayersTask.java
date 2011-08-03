@@ -52,6 +52,7 @@ import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -327,6 +328,25 @@ final public class AlignLayersTask
 				default:
 					return;
 				}
+				
+				final AbstractAffineModel2D< ? > desiredModel;
+				switch ( p.desiredModelIndex )
+				{
+				case 0:
+					desiredModel = new TranslationModel2D();
+					break;
+				case 1:
+					desiredModel = new RigidModel2D();
+					break;
+				case 2:
+					desiredModel = new SimilarityModel2D();
+					break;
+				case 3:
+					desiredModel = new AffineModel2D();
+					break;
+				default:
+					return;
+				}
 	
 						
 				
@@ -359,8 +379,15 @@ final public class AlignLayersTask
 						}
 					}
 					while ( again );
+					
+					if ( modelFound )
+						desiredModel.fit( inliers );
 				}
 				catch ( NotEnoughDataPointsException e )
+				{
+					modelFound = false;
+				}
+				catch ( IllDefinedDataPointsException e )
 				{
 					modelFound = false;
 				}
@@ -373,7 +400,7 @@ final public class AlignLayersTask
 					final AffineTransform b = new AffineTransform();
 					b.translate( box1.x, box1.y );
 					b.scale( 1.0f / scale, 1.0f / scale );
-					b.concatenate( model.createAffine() );
+					b.concatenate( desiredModel.createAffine() );
 					b.scale( scale, scale );
 					b.translate( -box2.x, -box2.y);
 					
