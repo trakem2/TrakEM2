@@ -2461,6 +2461,10 @@ while (it.hasNext()) {
 				ImageStack stack = null;
 				for (int i=0; i<layer.length; i++) {
 					if (Thread.currentThread().isInterrupted()) return;
+					
+					/* free memory */
+					releaseAll();
+					
 					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
