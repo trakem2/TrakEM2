@@ -901,6 +901,10 @@ J:			for ( int j = i + 1; j < range; )
 			}
 		}
 		
+		/* free memory */
+		layerSet.getProject().getLoader().releaseAll();
+		
+		/* transfer layer transform into patch transforms and append to patches */ 
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
 			final Layer layer = layerRange.get( i );
@@ -911,10 +915,13 @@ J:			for ( int j = i + 1; j < range; )
 			mlt.setMatches( meshes.get( i ).getVA().keySet() );
 			
 			for ( final Patch patch : filterPatches( layer, filter ) )
-			{
 				mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patch, mlt );
-			}
 		}
+		
+		/* update patch mipmaps */
+		for ( final Layer layer : layerRange )
+			for ( final Patch patch : filterPatches( layer, filter ) )
+				patch.updateMipMaps();
 		
 		Utils.log( "Done." );
 	}

@@ -265,7 +265,7 @@ public class Util
 	}
 	
 	
-	final static public Future< Boolean > applyLayerTransformToPatch( final Patch patch, CoordinateTransform ct ) throws Exception
+	final static public void applyLayerTransformToPatch( final Patch patch, CoordinateTransform ct ) throws Exception
 	{
 		final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
 		final AffineTransform pat = new AffineTransform();
@@ -281,6 +281,5 @@ public class Util
 		ctl.add( toWorld.createInverse() );
 		
 		patch.appendCoordinateTransform( ctl );
-		return patch.updateMipMaps();
 	}
 }
