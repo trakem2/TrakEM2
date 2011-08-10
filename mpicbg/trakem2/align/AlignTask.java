@@ -34,6 +34,7 @@ import mpicbg.models.Transforms;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 import mpicbg.models.NoninvertibleModelException;
@@ -1346,7 +1347,7 @@ final public class AlignTask
 							final mpicbg.trakem2.transform.AffineModel2D toWorld = new mpicbg.trakem2.transform.AffineModel2D();
 							toWorld.set( pat );
 							
-							final MovingLeastSquaresTransform mlst = Align.createMLST( matches, 1.0f );
+							final MovingLeastSquaresTransform2 mlst = Align.createMLST( matches, 1.0f );
 							
 							final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 							ctl.add( toWorld );

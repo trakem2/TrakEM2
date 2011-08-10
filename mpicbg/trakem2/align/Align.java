@@ -42,6 +42,7 @@ import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.models.Transforms;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
@@ -1260,9 +1261,9 @@ public class Align
 	 * @return
 	 * @throws Exception
 	 */
-	final static public MovingLeastSquaresTransform createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
+	final static public MovingLeastSquaresTransform2 createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
 	{
-		final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+		final MovingLeastSquaresTransform2 mlst = new MovingLeastSquaresTransform2();
 		mlst.setAlpha( 1.0f );
 		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 		switch ( matches.size() )
