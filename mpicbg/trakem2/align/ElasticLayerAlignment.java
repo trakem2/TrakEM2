@@ -65,6 +65,7 @@ import mpicbg.models.Transforms;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 
 /**
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
@@ -74,7 +75,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{
-		private static final long serialVersionUID = 3816564377727147658L;
+		private static final long serialVersionUID = 875358335352119865L;
 
 		final public ParamPointMatch ppm = new ParamPointMatch();
 		{
@@ -909,7 +910,7 @@ J:			for ( int j = i + 1; j < range; )
 		{
 			final Layer layer = layerRange.get( i );
 			
-			final MovingLeastSquaresTransform mlt = new MovingLeastSquaresTransform();
+			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
 			mlt.setModel( AffineModel2D.class );
 			mlt.setAlpha( 2.0f );
 			mlt.setMatches( meshes.get( i ).getVA().keySet() );
