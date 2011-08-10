@@ -60,6 +60,7 @@ import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.align.Align.ParamOptimize;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.util.Util;
 
 /**
@@ -592,7 +593,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 				l[ 1 ] += box.y;
 			}
 			
-			final MovingLeastSquaresTransform mlt = new MovingLeastSquaresTransform();
+			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
 			mlt.setModel( AffineModel2D.class );
 			mlt.setAlpha( 2.0f );
 			mlt.setMatches( matches );
