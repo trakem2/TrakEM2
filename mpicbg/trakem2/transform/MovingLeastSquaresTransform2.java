@@ -16,14 +16,8 @@
  */
 package mpicbg.trakem2.transform;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.AffineModel3D;
-import mpicbg.models.Point;
-import mpicbg.models.PointMatch;
 import mpicbg.models.RigidModel2D;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
@@ -31,22 +25,22 @@ import mpicbg.models.TranslationModel2D;
 /**
  * 
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- * @version 0.2b
  */
-public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquaresTransform implements CoordinateTransform
+public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquaresTransform2 implements CoordinateTransform
 {
+	@Override
 	final public void init( final String data ) throws NumberFormatException
 	{
-		matches.clear();
-		
 		final String[] fields = data.split( "\\s+" );
 		if ( fields.length > 3 )
 		{
-			final int d = Integer.parseInt( fields[ 1 ] );
+			final int n = Integer.parseInt( fields[ 1 ] );
 			
-			if ( ( fields.length - 3 ) % ( 2 * d + 1 ) == 0 )
+			if ( ( fields.length - 3 ) % ( 2 * n + 1 ) == 0 )
 			{
-				if ( d == 2 )
+				final int l = ( fields.length - 3 ) / ( 2 * n + 1 );
+				
+				if ( n == 2 )
 				{
 					if ( fields[ 0 ].equals( "translation" ) ) model = new TranslationModel2D();
 					else if ( fields[ 0 ].equals( "rigid" ) ) model = new RigidModel2D();
@@ -54,7 +48,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 					else if ( fields[ 0 ].equals( "affine" ) ) model = new AffineModel2D();
 					else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 				}
-				else if ( d == 3 )
+				else if ( n == 3 )
 				{
 					if ( fields[ 0 ].equals( "affine" ) ) model = new AffineModel3D();
 					else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
@@ -63,18 +57,19 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 				
 				alpha = Float.parseFloat( fields[ 2 ] );
 				
-				int i = 2;
+				p = new float[ n ][ l ];
+				q = new float[ n ][ l ];
+				w = new float[ l ];
+				
+				int i = 2, j = 0;
 				while ( i < fields.length - 1 )
 				{
-					final float[] p1 = new float[ d ];
-					for ( int k = 0; k < d; ++k )
-							p1[ k ] = Float.parseFloat( fields[ ++i ] );
-					final float[] p2 = new float[ d ];
-					for ( int k = 0; k < d; ++k )
-							p2[ k ] = Float.parseFloat( fields[ ++i ] );
-					final float weight = Float.parseFloat( fields[ ++i ] );
-					final PointMatch m = new PointMatch( new Point( p1 ), new Point( p2 ), weight );
-					matches.add( m );
+					for ( int d = 0; d < n; ++d )
+						p[ d ][ j ] = Float.parseFloat( fields[ ++i ] );
+					for ( int d = 0; d < n; ++d )
+						q[ d ][ j ] = Float.parseFloat( fields[ ++i ] );
+					w[ j ] = Float.parseFloat( fields[ ++i ] );
+					++j;
 				}
 			}
 			else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
@@ -83,6 +78,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 
 	}
 
+	@Override
 	public String toDataString()
 	{
 		final StringBuilder data = new StringBuilder();
@@ -90,53 +86,36 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		return data.toString();
 	}
 
-	static private final Comparator< PointMatch > SORTER = new Comparator< PointMatch >() {
-		@Override
-		public final int compare(final PointMatch o1, final PointMatch o2) {
-			final float[] p1 = o1.getP1().getW();
-			final float[] p2 = o1.getP2().getW();
-			final float dx = p1[0] - p2[0];
-			if ( dx < 0) return -1;
-			if ( 0 == dx)
-			{
-				final float dy = p1[1] - p1[1];
-				if ( dy < 0 ) return -1;
-				if ( 0 == dy ) return 0;
-				return 1;
-			}
-			return 1;
-		}
-	};
-	
 	private final void toDataString( final StringBuilder data )
 	{
-		if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
-		else if ( TranslationModel2D.class.isInstance( model ) ) data.append("translation 2");
-		else if ( RigidModel2D.class.isInstance( model ) ) data.append("rigid 2");
-		else if ( SimilarityModel2D.class.isInstance( model ) ) data.append("similarity 2");
-		else if ( AffineModel3D.class.isInstance( model ) ) data.append("affine 3");
-		else data.append("unknown");
-		
+		if ( AffineModel2D.class.isInstance( model ) )
+			data.append( "affine 2" );
+		else if ( TranslationModel2D.class.isInstance( model ) )
+			data.append( "translation 2" );
+		else if ( RigidModel2D.class.isInstance( model ) )
+			data.append( "rigid 2" );
+		else if ( SimilarityModel2D.class.isInstance( model ) )
+			data.append( "similarity 2" );
+		else if ( AffineModel3D.class.isInstance( model ) )
+			data.append( "affine 3" );
+		else
+			data.append( "unknown" );
+
 		data.append(' ').append(alpha);
 
-		// Sort matches, so that they are always written the same way
-		// Will help lots git and .zip to reduce XML file size
-
-		final ArrayList< PointMatch > pms = new ArrayList< PointMatch >( matches );
-		Collections.sort( pms, SORTER );
-
-		for ( PointMatch m : pms )
+		final int n = p.length;
+		final int l = p[ 0 ].length;
+		for ( int i = 0; i < l; ++i )
 		{
-			final float[] p1 = m.getP1().getL();
-			final float[] p2 = m.getP2().getW();
-			for ( int k = 0; k < p1.length; ++k )
-				data.append(' ').append(p1[ k ]);
-			for ( int k = 0; k < p2.length; ++k )
-				data.append(' ').append(p2[ k ]);
-			data.append(' ').append(m.getWeight());
+			for ( int d = 0; d < n; ++d )
+				data.append(' ').append( p[ d ][ i ] );
+			for ( int d = 0; d < n; ++d )
+				data.append(' ').append( q[ d ][ i ] );
+			data.append(' ').append( w[ i ] );
 		}
 	}
 
+	@Override
 	final public String toXML( final String indent )
 	{
 		final StringBuilder xml = new StringBuilder( 128 );
@@ -152,9 +131,9 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 	/**
 	 * TODO Make this more efficient
 	 */
-	final public MovingLeastSquaresTransform copy()
+	final public MovingLeastSquaresTransform2 copy()
 	{
-		final MovingLeastSquaresTransform t = new MovingLeastSquaresTransform();
+		final MovingLeastSquaresTransform2 t = new MovingLeastSquaresTransform2();
 		t.init( toDataString() );
 		return t;
 	}
