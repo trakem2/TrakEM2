@@ -57,6 +57,8 @@ public abstract class AbstractElasticAlignment
 		}
 		
 		public boolean clearCache = false;
+		
+		public int maxNumThreadsSift = Runtime.getRuntime().availableProcessors();
 	}
 	
 	final static protected class Pair< A, B >

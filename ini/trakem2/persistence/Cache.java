@@ -2,6 +2,7 @@ package ini.trakem2.persistence;
 
 import ij.ImagePlus;
 import ij.io.FileInfo;
+import ini.trakem2.display.MipMapImage;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Image;
@@ -276,25 +277,27 @@ public class Cache {
 		return m;
 	}
 
-	public final Image getClosestAbove(final long id, final int level) {
+	public final MipMapImage getClosestAbove(final long id, final int level) {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return null;
 		for (int i=Math.min(level, p.images.length-1); i>-1; i--) {
 			if (null == p.images[i]) continue;
 			update(p);
-			return p.images[i];
+			final double scale = Math.pow( 2.0, i );
+			return new MipMapImage( p.images[ i ], scale, scale );
 		}
 		return null;
 	}
 
 	// Below or equal
-	public final Image getClosestBelow(final long id, final int level) {
+	public final MipMapImage getClosestBelow(final long id, final int level) {
 		final Pyramid p = pyramids.get(id);
 		if (null == p) return null;
 		for (int i=level; i<p.images.length; i++) {
 			if (null == p.images[i]) continue;
 			update(p);
-			return p.images[i];
+			final double scale = Math.pow( 2.0, i );
+			return new MipMapImage( p.images[ i ], scale, scale );
 		}
 		return null;
 	}

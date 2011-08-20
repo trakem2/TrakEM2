@@ -474,7 +474,7 @@ public final class Patch extends Displayable implements ImageData {
 		paint(g, fetchImage(magnification, channels, false));
 	}
 
-	private final Image fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
+	private final MipMapImage fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
 		checkChannels(channels, magnification);
 
 		// Consider all possible scaling components: m00, m01
@@ -488,27 +488,47 @@ public final class Patch extends Displayable implements ImageData {
 			  project.getLoader().fetchDataImage(this, sc)
 			: project.getLoader().fetchImage(this, sc);
 	}
-
-	private void paint(final Graphics2D g, final Image image) {
-
-		AffineTransform atp = this.at;
-
-		// fix dimensions: may be smaller or bigger mipmap than the image itself
+	
+	private void paint( final Graphics2D g, final Image image )
+	{
+		/*
+		 * infer scale: this scales the numbers of pixels according to patch
+		 * size which might not be the exact scale the image was sampled at
+		 */ 
 		final int iw = image.getWidth(null);
 		final int ih = image.getHeight(null);
-		if (iw != this.width || ih != this.height) {
-			atp = (AffineTransform)atp.clone();
-			atp.scale(this.width / iw, this.height / ih);
-		}
+		paint( g, new MipMapImage( image, this.width / iw, this.height / ih ) );
+	}
+
+	private void paint(final Graphics2D g, final MipMapImage mipMap ) {
+
+		AffineTransform atp = new AffineTransform();
+		
+		/*
+		 * Compensate for AWT considering coordinates at pixel corners
+		 * and TrakEM2 and mpicbg considering them at pixel centers.
+		 */
+		atp.translate( 0.5, 0.5 );
+		
+		atp.concatenate( this.at );
+		
+		atp.scale( mipMap.scaleX, mipMap.scaleY );
+		
+		/*
+		 * Compensate MipMap pixel access for AWT considering coordinates at
+		 * pixel corners and TrakEM2 and mpicbg considering them at pixel
+		 * centers.
+		 */
+		atp.translate( -0.5, -0.5 );
 
 		final Composite original_composite = g.getComposite();
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( image, atp, null );
+			g.drawImage( mipMap.image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( image, atp, null);
+			g.drawImage( mipMap.image, atp, null );
 		}
 		g.setComposite( original_composite );
 	}
@@ -517,8 +537,16 @@ public final class Patch extends Displayable implements ImageData {
 	@Override
 	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> _ignored) {
 
-		AffineTransform atp = this.at;
-
+		AffineTransform atp = new AffineTransform();
+		
+		/*
+		 * Compensate for AWT considering coordinates at pixel corners
+		 * and TrakEM2 and mpicbg considering them at pixel centers.
+		 */
+		atp.translate( 0.5, 0.5 );
+		
+		atp.concatenate( this.at );
+		
 		checkChannels(channels, magnification);
 
 		// Consider all possible scaling components: m00, m01
@@ -529,44 +557,40 @@ public final class Patch extends Displayable implements ImageData {
 								       Math.abs(at.getShearY()))));
 		if (sc < 0) sc = magnification;
 
-		Image image = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
-		if (null == image) {
-			image = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
-			if (null == image) {
+		MipMapImage mipMap = project.getLoader().getCachedClosestAboveImage(this, sc); // above or equal
+		if (null == mipMap) {
+			mipMap = project.getLoader().getCachedClosestBelowImage(this, sc); // below, not equal
+			if (null == mipMap) {
 				// fetch the smallest image possible
 				//image = project.getLoader().fetchAWTImage(this, Loader.getHighestMipMapLevel(this));
 				// fetch an image 1/4 of the necessary size
-				image = project.getLoader().fetchImage(this, sc/4);
+				mipMap = project.getLoader().fetchImage(this, sc/4);
 			}
 			// painting a smaller image, will need to repaint with the proper one
-			if (!Loader.isSignalImage(image)) {
+			if (!Loader.isSignalImage( mipMap.image ) ) {
 				// use the lower resolution image, but ask to repaint it on load
 				Loader.preload(this, sc, true);
 			}
 		}
 
-		if (null == image) {
-			Utils.log2("Patch.paint: null image, returning");
-			return; // TEMPORARY from lazy repaints after closing a Project
-		}
-
-		// fix dimensions: may be smaller or bigger mipmap than the image itself
-		final int iw = image.getWidth(null);
-		final int ih = image.getHeight(null);
-		if (iw != this.width || ih != this.height) {
-			atp = (AffineTransform)atp.clone();
-			atp.scale(this.width / iw, this.height / ih);
-		}
-
+		atp.scale( mipMap.scaleX, mipMap.scaleY );
+		
+		/*
+		 * Compensate MipMap pixel access for AWT considering coordinates at
+		 * pixel corners and TrakEM2 and mpicbg considering them at pixel
+		 * centers.
+		 */
+		atp.translate( -0.5, -0.5 );
+		
 		final Composite original_composite = g.getComposite();
 
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( image, atp, null );
+			g.drawImage( mipMap.image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( image, atp, null);
+			g.drawImage( mipMap.image, atp, null);
 		}
 		g.setComposite( original_composite );
 	}
@@ -906,15 +930,14 @@ public final class Patch extends Displayable implements ImageData {
 	/** Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method. */
 	public int[] getPixel(final int x, final int y, final double mag) {
 		if (project.getLoader().isUnloadable(this)) return new int[4];
-		final Image img = project.getLoader().fetchImage(this, mag);
-		if (Loader.isSignalImage(img)) return new int[4];
-		final int w = img.getWidth(null);
-		final double scale = w / width;
+		final MipMapImage mipMap = project.getLoader().fetchImage(this, mag);
+		if (Loader.isSignalImage(mipMap.image)) return new int[4];
+		final int w = mipMap.image.getWidth(null);
 		final Point2D.Double pd = inverseTransformPoint(x, y);
-		final int x2 = (int)(pd.x * scale);
-		final int y2 = (int)(pd.y * scale);
+		final int x2 = (int)(pd.x / mipMap.scaleX);
+		final int y2 = (int)(pd.y / mipMap.scaleY);
 		final int[] pvalue = new int[4];
-		final PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
+		final PixelGrabber pg = new PixelGrabber( mipMap.image, x2, y2, 1, 1, pvalue, 0, w);
 		try {
 			pg.grabPixels();
 		} catch (InterruptedException ie) {
@@ -1346,15 +1369,14 @@ public final class Patch extends Displayable implements ImageData {
 		if (!hasAlphaChannel()) return super.contains(x_p, y_p);
 		// else, get pixel from image
 		if (project.getLoader().isUnloadable(this)) return super.contains(x_p, y_p);
-		final Image img = project.getLoader().fetchImage(this, 0.12499); // TODO ideally, would ask for image within 256x256 dimensions, but that would need knowing the screen image dimensions beforehand, or computing it from the CoordinateTransform, which may be very costly.
-		if (Loader.isSignalImage(img)) return super.contains(x_p, y_p);
-		final int w = img.getWidth(null);
-		final double scale = w / width;
+		final MipMapImage mipMap = project.getLoader().fetchImage(this, 0.12499); // TODO ideally, would ask for image within 256x256 dimensions, but that would need knowing the screen image dimensions beforehand, or computing it from the CoordinateTransform, which may be very costly.
+		if (Loader.isSignalImage(mipMap.image)) return super.contains(x_p, y_p);
+		final int w = mipMap.image.getWidth(null);
 		final Point2D.Double pd = inverseTransformPoint(x_p, y_p);
-		final int x2 = (int)(pd.x * scale);
-		final int y2 = (int)(pd.y * scale);
+		final int x2 = (int)(pd.x / mipMap.scaleX);
+		final int y2 = (int)(pd.y / mipMap.scaleY);
 		final int[] pvalue = new int[1];
-		final PixelGrabber pg = new PixelGrabber(img, x2, y2, 1, 1, pvalue, 0, w);
+		final PixelGrabber pg = new PixelGrabber(mipMap.image, x2, y2, 1, 1, pvalue, 0, w);
 		try {
 			pg.grabPixels();
 		} catch (InterruptedException ie) {

@@ -37,6 +37,7 @@ import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
 import ij.gui.YesNoCancelDialog;
@@ -2484,15 +2485,17 @@ public final class FSLoader extends Loader {
 	 *  and returns it as an awt.Image, or null if not found.
 	 *  Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing.
 	 *  Does NOT release memory, avoiding locking on the db_lock. */
-	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
+	protected MipMapImage fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
 	/** Does the actual fetching of the file. Returns null if the file does not exist.
 	 *  Does NOT pre-release memory from the cache;
 	 *  call releaseToFit to do that. */
-	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
+	public final MipMapImage fetchMipMap(final Patch patch, int level, final long n_bytes) {
 		final int max_level = getHighestMipMapLevel(patch);
+		if ( level > max_level ) level = max_level;
+		final double scale = Math.pow( 2.0, level );
 
 		final String filename = getInternalFileName(patch);
 		if (null == filename) {
@@ -2501,31 +2504,32 @@ public final class FSLoader extends Loader {
 		}
 
 		// New style:
-		final String path = new StringBuilder(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
+		final String path = new StringBuilder(dir_mipmaps).append(  level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
 		//releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 		// TODO the x8 is overly exaggerated
 		
-		if (patch.hasAlphaChannel()) {
-			return mmio.openWithAlpha(path); // ImageSaver.openJpegAlpha(path);
+		if ( patch.hasAlphaChannel() ) {
+			final Image img = mmio.openWithAlpha( path ); // ImageSaver.openJpegAlpha(path);
+			return img == null ? null : new MipMapImage( img, scale, scale );
 		} else {
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:
 				case ImagePlus.GRAY32:
-					return mmio.openGrey(path); // ImageSaver.openGreyJpeg(path);
+					final Image img = mmio.openGrey( path ); // ImageSaver.openGreyJpeg(path);
+					return img == null ? null : new MipMapImage( img, scale, scale );
 				default:
 					// For color images: (considers URL as well)
 					IJ.redirectErrorMessages();
-					final ImagePlus imp = openImagePlus(path);
-					if (null == imp) return null;
-					return patch.createImage(imp); // considers c_alphas
+					final ImagePlus imp = openImagePlus( path );
+					return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
 			}
 		}
 	}
 
 	/** Will NOT free memory. */
-	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
+	private final MipMapImage fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
 			return null;
@@ -2534,8 +2538,8 @@ public final class FSLoader extends Loader {
 			try {
 				// TODO should wait if the file is currently being generated
 
-				final Image img = fetchMipMap(patch, level, n_bytes);
-				if (null != img) return img;
+				final MipMapImage mipMap = fetchMipMap(patch, level, n_bytes);
+				if (null != mipMap) return mipMap;
 
 				// if we got so far ... try to regenerate the mipmaps
 				if (!mipmaps_regen) {
@@ -2554,8 +2558,8 @@ public final class FSLoader extends Loader {
 				double scale = 1 / Math.pow(2, level);
 				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsRegenerationEnabled()) {
 					// regenerate in a separate thread
-					regenerateMipMaps(patch);
-					return REGENERATING;
+					regenerateMipMaps( patch );
+					return new MipMapImage( REGENERATING, patch.getWidth() / REGENERATING.getWidth(), patch.getHeight() / REGENERATING.getHeight() );
 				}
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("fetchMipMapAWT: recovering from OutOfMemoryError");
@@ -2849,20 +2853,21 @@ public final class FSLoader extends Loader {
 	 *  If no image can be loaded, returns Loader.NOT_FOUND.
 	 *  If the Patch is undergoing mipmap regeneration, it waits until done.
 	 */
-	public Image fetchDataImage(Patch p, double mag) {
+	@Override
+	public MipMapImage fetchDataImage( final Patch p, final double mag) {
 		Future<Boolean> fu = null;
-		Image img = null;
+		MipMapImage mipMap = null;
 		synchronized (gm_lock) {
 			fu = regenerating_mipmaps.get(p);
 		}
 		if (null == fu) {
 			// Patch is currently not under regeneration
-			img = fetchImage(p, mag);
+			mipMap = fetchImage( p, mag );
 			// If the patch mipmaps didn't exist,
 			// the call to fetchImage will trigger mipmap regeneration
 			// and img will be now Loader.REGENERATING
-			if (Loader.REGENERATING != img) {
-				return img;
+			if (Loader.REGENERATING != mipMap.image ) {
+				return mipMap;
 			} else {
 				synchronized (gm_lock) {
 					fu = regenerating_mipmaps.get(p);
@@ -2873,7 +2878,7 @@ public final class FSLoader extends Loader {
 			try {
 				if ( ! fu.get()) {
 					Utils.log("Loader.fetchDataImage: could not regenerate mipmaps and get an image for patch " + p);
-					return Loader.NOT_FOUND;
+					return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 				}
 				// Now the image should be good:
 				return fetchImage(p, mag);
@@ -2883,8 +2888,8 @@ public final class FSLoader extends Loader {
 		}
 
 		// else:
-		Utils.log("Loader.fetchDataImage: could not get a data image for patch " + p);
-		return Loader.NOT_FOUND;
+		Utils.log( "Loader.fetchDataImage: could not get a data image for patch " + p );
+		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 	}
 
 	
