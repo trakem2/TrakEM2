@@ -2546,7 +2546,7 @@ while (it.hasNext()) {
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
 	 * @param al_displ The Displayable objects to paint. If null, all those matching Class clazz are included.
 	 *
-	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
+	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0 (if no mipmaps, 2xscale if mipmaps), and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background) {
@@ -2570,21 +2570,6 @@ while (it.hasNext()) {
 	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 
 		try {
-			// if quality is specified, then a larger image is generated:
-			//   - full size if no mipmaps
-			//   - double the size if mipmaps is enabled
-			double scaleP = scale;
-			if (quality) {
-				if (isMipMapsRegenerationEnabled()) {
-					// just double the size
-					scaleP = scale + scale;
-					if (scaleP > 1.0) scaleP = 1.0;
-				} else {
-					// full
-					scaleP = 1.0;
-				}
-			}
-
 			// dimensions
 			int w = 0;
 			int h = 0;
@@ -2598,9 +2583,56 @@ while (it.hasNext()) {
 				srcRect = new Rectangle(0, 0, w, h);
 			}
 			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
+			
+			/*
+			 * output size including excess space for not entirely covered
+			 * pixels
+			 */
+			final int ww = ( int )Math.ceil( w * scale );
+			final int hh = ( int )Math.ceil( h * scale );
+			
+			/* The size of the buffered image to be generated */
+			final int biw, bih;
+			
+			final double scaleP, scalePX, scalePY;
+			
+			// if quality is specified, then a larger image is generated:
+			//   - full size if no mipmaps (That might easily be too large---not?!)
+			//   - double the size (max 1.0 ) if mipmaps are enabled
+			//
+			// In case that a full size image is generated, independent scale
+			// factors must be applied to x and y to compensate for rounding errors
+			// on scaling down to output resolution.
+			if ( quality )
+			{
+				scaleP = isMipMapsRegenerationEnabled() && scale < 0.5 ? scale + scale : 1.0;
+			
+				if ( scaleP == 1.0 )
+				{
+					biw = ( int )Math.ceil( ww / scale );
+					bih = ( int )Math.ceil( hh / scale );
+					
+					/* compensate for excess space due to ceiling */
+					scalePX = ( double )biw / ( double )ww * scale;
+					scalePY = ( double )bih / ( double )hh * scale;
+				}
+				else
+				{
+					biw = ww * 2;
+					bih = hh * 2;
+					scalePX = scalePY = scaleP;
+				}
+			}
+			else
+			{
+				scaleP = scalePX = scalePY = scale;
+				biw = ww;
+				bih = hh;
+			}
+
 			// estimate image size
-			final long n_bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
+			final long n_bytes = (long)( ( biw * bih * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
+			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil( biw ) + "," + (int)Math.ceil( bih ) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with area averaging)" : ""));
 
 			releaseToFit(n_bytes);
 
@@ -2609,10 +2641,10 @@ while (it.hasNext()) {
 			BufferedImage bi = null;
 			switch (type) {
 				case ImagePlus.GRAY8:
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, GRAY_LUT);
+					bi = new BufferedImage(biw, bih, BufferedImage.TYPE_BYTE_INDEXED, GRAY_LUT);
 					break;
 				case ImagePlus.COLOR_RGB:
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
+					bi = new BufferedImage(biw, bih, BufferedImage.TYPE_INT_ARGB);
 					break;
 				default:
 					Utils.log2("Left bi,icm as null");
@@ -2623,7 +2655,8 @@ while (it.hasNext()) {
 			g2d.setColor(background);
 			g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
 
-			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC); // TODO Stephan, test if that introduces offset vs nearest neighbor
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -2656,7 +2689,7 @@ while (it.hasNext()) {
 			// prepare the canvas for the srcRect and magnification
 			final AffineTransform at_original = g2d.getTransform();
 			final AffineTransform atc = new AffineTransform();
-			atc.scale(scaleP, scaleP);
+			atc.scale( scalePX, scalePY );
 			atc.translate(-srcRect.x, -srcRect.y);
 			at_original.preConcatenate(atc);
 			g2d.setTransform(at_original);
@@ -2706,25 +2739,25 @@ while (it.hasNext()) {
 					// need to scale back down
 					Image scaled = null;
 					if (!isMipMapsRegenerationEnabled() || scale >= 0.499) { // there are no proper mipmaps above 50%, so there's need for SCALE_AREA_AVERAGING.
-						scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
+						scaled = bi.getScaledInstance( ww, hh, Image.SCALE_AREA_AVERAGING); // very slow, but best by far
 						if (ImagePlus.GRAY8 == type) {
 							// getScaledInstance generates RGB images for some reason.
-							BufferedImage bi8 = new BufferedImage((int)(w * scale), (int)(h * scale), BufferedImage.TYPE_BYTE_GRAY);
-							bi8.createGraphics().drawImage(scaled, 0, 0, null);
+							BufferedImage bi8 = new BufferedImage( ww, hh, BufferedImage.TYPE_BYTE_GRAY );
+							bi8.createGraphics().drawImage( scaled, 0, 0, null );
 							scaled.flush();
 							scaled = bi8;
 						}
 					} else {
 						// faster, but requires gaussian blurred images (such as the mipmaps)
 						if (bi.getType() == BufferedImage.TYPE_BYTE_INDEXED) {
-							scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType(), GRAY_LUT);
+							scaled = new BufferedImage( ww, hh, bi.getType(), GRAY_LUT );
 						} else {
-							scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType());
+							scaled = new BufferedImage( ww, hh, bi.getType() );
 						}
 						Graphics2D gs = (Graphics2D)scaled.getGraphics();
 						//gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 						gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-						gs.drawImage(bi, 0, 0, (int)(w * scale), (int)(h * scale), null);
+						gs.drawImage( bi, 0, 0, ww, hh, null );
 					}
 					bi.flush();
 					return scaled;
