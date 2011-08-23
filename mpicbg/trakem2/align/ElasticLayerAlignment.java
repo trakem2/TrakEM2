@@ -944,18 +944,61 @@ J:				for ( int j = i + 1; j < range; )
 		/* free memory */
 		layerSet.getProject().getLoader().releaseAll();
 		
-		/* transfer layer transform into patch transforms and append to patches */ 
-		for ( int i = 0; i < layerRange.size(); ++i )
+		/* transfer layer transform into patch transforms and append to patches */
+		for ( int l = 0; l < layerRange.size(); ++l )
 		{
-			final Layer layer = layerRange.get( i );
+			IJ.showStatus( "Applying transformation to patches ..." );
+			IJ.showProgress( 0, layerRange.size() );
+			
+			final Layer layer = layerRange.get( l );
 			
 			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
 			mlt.setModel( AffineModel2D.class );
 			mlt.setAlpha( 2.0f );
-			mlt.setMatches( meshes.get( i ).getVA().keySet() );
+			mlt.setMatches( meshes.get( l ).getVA().keySet() );
 			
-			for ( final Patch patch : filterPatches( layer, filter ) )
-				mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patch, mlt );
+			/*
+			 * Setting a transformation to a patch can take some time because
+			 * the new bounding box needs to be estimated which requires the
+			 * TransformMesh to be generated and all vertices iterated.
+			 * 
+			 * Therefore multithreading.
+			 */
+			final List< Patch > patches = filterPatches( layer, filter );
+			
+			final ArrayList< Thread > applyThreads = new ArrayList< Thread >( p.maxNumThreads );
+			final AtomicInteger ai = new AtomicInteger( 0 );
+			for ( int t = 0; t < p.maxNumThreads; ++t )
+			{
+				final Thread thread = new Thread(
+						new Runnable()
+						{
+							final public void run()
+							{
+								try
+								{
+									for ( int i = ai.getAndIncrement(); i < patches.size() && !Thread.interrupted(); i = ai.getAndIncrement() )
+										mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patches.get( i ), mlt );
+								}
+								catch ( Exception e )
+								{
+									e.printStackTrace();
+								}
+							}
+						} );
+				applyThreads.add( thread );
+				thread.start();
+			}
+			
+			for ( final Thread thread : applyThreads )
+				thread.join();
+					
+			if ( Thread.interrupted() )
+			{
+				IJ.log( "Interrupted during applying transformations to patches.  No all patches have been updated.  Re-generate mipmaps manually." );
+			}
+			
+			IJ.showProgress( l + 1, layerRange.size() );
 		}
 		
 		/* update patch mipmaps */
