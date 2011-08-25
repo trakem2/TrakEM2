@@ -18,6 +18,8 @@ package mpicbg.trakem2.transform;
 
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.AffineModel3D;
+import mpicbg.models.IllDefinedDataPointsException;
+import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.RigidModel2D;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
@@ -136,5 +138,41 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		final MovingLeastSquaresTransform2 t = new MovingLeastSquaresTransform2();
 		t.init( toDataString() );
 		return t;
+	}
+
+	/**
+	 * Multi-threading safe version of the original applyInPlace method.
+	 */
+	@Override
+	public void applyInPlace( final float[] location )
+	{
+		final float[] ww = new float[ w.length ];
+		for ( int i = 0; i < w.length; ++i )
+		{
+			float s = 0;
+			for ( int d = 0; d < location.length; ++d )
+			{
+				final float dx = p[ d ][ i ] - location[ d ];
+				s += dx * dx;
+			}
+			if ( s <= 0 )
+			{
+				for ( int d = 0; d < location.length; ++d )
+					location[ d ] = q[ d ][ i ];
+				return;
+			}
+			ww[ i ] = w[ i ] * ( float )weigh( s );
+		}
+		
+		try
+		{
+			synchronized ( model )
+			{
+				model.fit( p, q, ww );
+				model.applyInPlace( location );
+			}
+		}
+		catch ( IllDefinedDataPointsException e ){}
+		catch ( NotEnoughDataPointsException e ){}
 	}
 }

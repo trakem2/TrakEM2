@@ -17,11 +17,14 @@
 package mpicbg.trakem2.transform;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.AffineModel3D;
+import mpicbg.models.IllDefinedDataPointsException;
+import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.RigidModel2D;
@@ -157,5 +160,43 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		final MovingLeastSquaresTransform t = new MovingLeastSquaresTransform();
 		t.init( toDataString() );
 		return t;
+	}
+	
+	@Override
+	final public void applyInPlace( final float[] location )
+	{
+		final Collection< PointMatch > weightedMatches = new ArrayList< PointMatch >();
+		for ( final PointMatch m : matches )
+		{
+			final float[] l = m.getP1().getL();
+
+			float s = 0;
+			for ( int i = 0; i < location.length; ++i )
+			{
+				final float dx = l[ i ] - location[ i ];
+				s += dx * dx;
+			}
+			if ( s <= 0 )
+			{
+				final float[] w = m.getP2().getW();
+				for ( int i = 0; i < location.length; ++i )
+					location[ i ] = w[ i ];
+				return;
+			}
+			final float weight = m.getWeight() * ( float )weigh( s );
+			final PointMatch mw = new PointMatch( m.getP1(), m.getP2(), weight );
+			weightedMatches.add( mw );
+		}
+		
+		try 
+		{
+			synchronized ( model )
+			{
+				model.fit( weightedMatches );
+				model.applyInPlace( location );
+			}
+		}
+		catch ( IllDefinedDataPointsException e ){}
+		catch ( NotEnoughDataPointsException e ){}
 	}
 }
