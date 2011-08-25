@@ -978,7 +978,7 @@ J:				for ( int j = i + 1; j < range; )
 								try
 								{
 									for ( int i = ai.getAndIncrement(); i < patches.size() && !Thread.interrupted(); i = ai.getAndIncrement() )
-										mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patches.get( i ), mlt );
+										mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patches.get( i ), mlt.copy() );
 								}
 								catch ( Exception e )
 								{
