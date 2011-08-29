@@ -468,7 +468,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 			FloatProcessor fpMask1 = mask1 == null ? null : scaleByte( mask1 );
 			
 			FloatProcessor fp2 = ( FloatProcessor )pi2.target.convertToFloat();
-			ByteProcessor mask2 = pi1.getMask();
+			ByteProcessor mask2 = pi2.getMask();
 			FloatProcessor fpMask2 = mask2 == null ? null : scaleByte( mask2 );
 						
 			BlockMatching.matchByMaximalPMCC(
