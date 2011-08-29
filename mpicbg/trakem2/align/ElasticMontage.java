@@ -59,7 +59,6 @@ import mpicbg.models.SpringMesh;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.align.Align.ParamOptimize;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.util.Util;
 
@@ -71,10 +70,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{	
-		/**
-		 * 
-		 */
-		private static final long serialVersionUID = 685811752558724564L;
+		private static final long serialVersionUID = 3372580361087344269L;
+
 		public ParamOptimize po = new ParamOptimize();
 		{
 			po.maxEpsilon = 25.0f;
@@ -86,6 +83,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 			po.identityTolerance = 5.0f;
 		}
 		
+		public boolean isAligned = false;
+		
 		public boolean tilesAreInPlace = true;
 		
 		/**
@@ -95,6 +94,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		public float bmMinR = 0.8f;
 		public float bmMaxCurvatureR = 3f;
 		public float bmRodR = 0.8f;
+		public int searchRadius = 25;
 		
 		/**
 		 * Spring mesh
@@ -109,7 +109,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		/**
 		 * Visualize spring mesh optimization
 		 */
-		public boolean visualize = false;
+		public boolean visualize = true;
 		
 		/**
 		 * Change this in case you want to limit the number of parallel threads to a specific number.
@@ -118,22 +118,12 @@ public class ElasticMontage extends AbstractElasticAlignment
 		
 		public boolean setup()
 		{
-			final GenericDialog gdSIFT = new GenericDialog( "Elastic montage: SIFT based pre-montage" );
-			po.addFields( gdSIFT );
-			gdSIFT.addMessage( "Miscellaneous:" );
-			gdSIFT.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
-			gdSIFT.showDialog();
-			if ( gdSIFT.wasCanceled() )
-				return false;
-			
-			po.readFields( gdSIFT );
-			tilesAreInPlace = gdSIFT.getNextBoolean();
-			
 			/* Block Matching */
 			final GenericDialog gdBlockMatching = new GenericDialog( "Elastic montage: Block Matching and Spring Meshes" );
 			gdBlockMatching.addMessage( "Block Matching:" );
 			
 			gdBlockMatching.addNumericField( "patch_scale :", bmScale, 2 );
+			gdBlockMatching.addNumericField( "search_radius :", searchRadius, 0 );
 			gdBlockMatching.addNumericField( "minimal_PMCC_r :", bmMinR, 2 );
 			gdBlockMatching.addNumericField( "maximal_curvature_ratio :", bmMaxCurvatureR, 2 );
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", bmRodR, 2 );
@@ -146,12 +136,16 @@ public class ElasticMontage extends AbstractElasticAlignment
 			gdBlockMatching.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
 			gdBlockMatching.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
 			
+			gdBlockMatching.addMessage( "Montage :" );
+			gdBlockMatching.addCheckbox( "tiles_are_pre-montaged", isAligned );
+			
 			gdBlockMatching.showDialog();
 			
 			if ( gdBlockMatching.wasCanceled() )
 				return false;
 			
 			bmScale = ( float )gdBlockMatching.getNextNumber();
+			searchRadius = ( int )gdBlockMatching.getNextNumber();
 			bmMinR = ( float )gdBlockMatching.getNextNumber();
 			bmMaxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			bmRodR = ( float )gdBlockMatching.getNextNumber();
@@ -162,33 +156,53 @@ public class ElasticMontage extends AbstractElasticAlignment
 			maxIterationsSpringMesh = ( int )gdBlockMatching.getNextNumber();
 			maxPlateauwidthSpringMesh = ( int )gdBlockMatching.getNextNumber();
 			
+			isAligned = gdBlockMatching.getNextBoolean();
+			
+			
+			
+			if ( !isAligned )
+			{
+				final GenericDialog gdSIFT = new GenericDialog( "Elastic montage: SIFT based pre-montage" );
+				po.addFields( gdSIFT );
+				gdSIFT.addMessage( "Miscellaneous:" );
+				gdSIFT.addCheckbox( "tiles_are_roughly_in_place", tilesAreInPlace );
+				gdSIFT.showDialog();
+				if ( gdSIFT.wasCanceled() )
+					return false;
+				
+				po.readFields( gdSIFT );
+				tilesAreInPlace = gdSIFT.getNextBoolean();
+			}
+			
 			return true;
 		}
 		
 		@Override
 		public Param clone()
 		{
-			final Param p = new Param();
-			p.po = po.clone();
-			p.tilesAreInPlace = tilesAreInPlace;
+			final Param clone = new Param();
+			clone.po = po.clone();
+			clone.tilesAreInPlace = tilesAreInPlace;
 			
-			p.bmScale = bmScale;
-			p.bmMinR = bmMinR;
-			p.bmMaxCurvatureR = bmMaxCurvatureR;
-			p.bmRodR = bmRodR;
+			clone.isAligned = isAligned;
 			
-			p.springLengthSpringMesh = springLengthSpringMesh;
-			p.stiffnessSpringMesh = stiffnessSpringMesh;
-			p.dampSpringMesh = dampSpringMesh;
-			p.maxStretchSpringMesh = maxStretchSpringMesh;
-			p.maxIterationsSpringMesh = maxIterationsSpringMesh;
-			p.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
+			clone.bmScale = bmScale;
+			clone.bmMinR = bmMinR;
+			clone.bmMaxCurvatureR = bmMaxCurvatureR;
+			clone.bmRodR = bmRodR;
 			
-			p.visualize = visualize;
+			clone.springLengthSpringMesh = springLengthSpringMesh;
+			clone.stiffnessSpringMesh = stiffnessSpringMesh;
+			clone.dampSpringMesh = dampSpringMesh;
+			clone.maxStretchSpringMesh = maxStretchSpringMesh;
+			clone.maxIterationsSpringMesh = maxIterationsSpringMesh;
+			clone.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
 			
-			p.maxNumThreads = maxNumThreads;
+			clone.visualize = visualize;
 			
-			return p;
+			clone.maxNumThreads = maxNumThreads;
+			
+			return clone;
 		}
 	}
 	
@@ -316,16 +330,16 @@ public class ElasticMontage extends AbstractElasticAlignment
 			}
 		}
 		
-		final Param p = setup();
-		if ( p == null )
+		final Param param = setup();
+		if ( param == null )
 			return;
 		else
-			exec( p, patches, fixedPatches );
+			exec( param, patches, fixedPatches );
 	}
 	
 
 	final public void exec(
-			final Param p,
+			final Param param,
 			final List< Patch > patches,
 			final List< Patch > fixedPatches ) throws Exception
 	{
@@ -335,14 +349,18 @@ public class ElasticMontage extends AbstractElasticAlignment
 		/* create tiles and models for all patches */
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
-		Align.tilesFromPatches( p.po, patches, fixedPatches, tiles, fixedTiles );
-		Align.alignTiles( p.po, tiles, fixedTiles, p.tilesAreInPlace, p.maxNumThreads );
+		Align.tilesFromPatches( param.po, patches, fixedPatches, tiles, fixedTiles );
 		
-		/* Apply the estimated affine transform to patches */
-		for ( final AbstractAffineTile2D< ? > t : tiles )
-			t.getPatch().setAffineTransform( t.createAffine() );
-		
-		Display.update();
+		if ( !param.isAligned )
+		{
+			Align.alignTiles( param.po, tiles, fixedTiles, param.tilesAreInPlace, param.maxNumThreads );
+			
+			/* Apply the estimated affine transform to patches */
+			for ( final AbstractAffineTile2D< ? > t : tiles )
+				t.getPatch().setAffineTransform( t.createAffine() );
+			
+			Display.update();
+		}
 		
 		/* generate tile pairs for all by now overlapping tiles */
 		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D<?>[] >();
@@ -371,7 +389,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		for ( final AbstractAffineTile2D< ? >[] pair : tilePairs )
 		{
 			final AbstractAffineModel2D< ? > m;
-			switch ( p.po.desiredModelIndex )
+			switch ( param.po.desiredModelIndex )
 			{
 			case 0:
 				final TranslationModel2D t = ( TranslationModel2D )( Object )pair[ 1 ].getModel().createInverse();
@@ -403,17 +421,17 @@ public class ElasticMontage extends AbstractElasticAlignment
 		/* Elastic alignment */
 		
 		/* Initialization */
-		final float springTriangleHeightTwice = 2 * ( float )Math.sqrt( 0.75f * p.springLengthSpringMesh * p.springLengthSpringMesh );
+		final float springTriangleHeightTwice = 2 * ( float )Math.sqrt( 0.75f * param.springLengthSpringMesh * param.springLengthSpringMesh );
 		
 		final ArrayList< SpringMesh > meshes = new ArrayList< SpringMesh >( tiles.size() );
 		final HashMap< AbstractAffineTile2D< ? >, SpringMesh > tileMeshMap = new HashMap< AbstractAffineTile2D< ? >, SpringMesh >();
 		for ( final AbstractAffineTile2D< ? > tile : tiles )
 		{
 			final double w = tile.getWidth();
-			final double h = tile.getWidth();
-			final int numX = Math.max( 2, ( int )Math.ceil( w / p.springLengthSpringMesh ) + 1 );
+			final double h = tile.getHeight();
+			final int numX = Math.max( 2, ( int )Math.ceil( w / param.springLengthSpringMesh ) + 1 );
 			final int numY = Math.max( 2, ( int )Math.ceil( h / springTriangleHeightTwice ) + 1 );
-			final float wMesh = ( numX - 1 ) * p.springLengthSpringMesh;
+			final float wMesh = ( numX - 1 ) * param.springLengthSpringMesh;
 			final float hMesh = ( numY - 1 ) * springTriangleHeightTwice;
 			
 			final SpringMesh mesh = new SpringMesh(
@@ -421,17 +439,17 @@ public class ElasticMontage extends AbstractElasticAlignment
 							numY,
 							wMesh,
 							hMesh,
-							p.stiffnessSpringMesh,
-							p.maxStretchSpringMesh * p.bmScale,
-							p.dampSpringMesh );
+							param.stiffnessSpringMesh,
+							param.maxStretchSpringMesh * param.bmScale,
+							param.dampSpringMesh );
 			meshes.add( mesh );
 			tileMeshMap.put( tile, mesh );
 		}
 		
-		final int blockRadius = Math.max( 32, Util.roundPos( p.springLengthSpringMesh / 2 ) );
+		final int blockRadius = Math.max( 32, Util.roundPos( param.springLengthSpringMesh / 2 ) );
 		
 		/** TODO set this something more than the largest error by the approximate model */
-		final int searchRadius = ( int )Math.round( p.po.maxEpsilon );
+		final int searchRadius = p.searchRadius;
 		
 		for ( final Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform > pair : pairs )
 		{
@@ -476,15 +494,15 @@ public class ElasticMontage extends AbstractElasticAlignment
 					fp2,
 					fpMask1,
 					fpMask2,
-					p.bmScale,
+					param.bmScale,
 					pair.c,
 					blockRadius,
 					blockRadius,
 					searchRadius,
 					searchRadius,
-					p.bmMinR,
-					p.bmRodR,
-					p.bmMaxCurvatureR,
+					param.bmMinR,
+					param.bmRodR,
+					param.bmMaxCurvatureR,
 					v1,
 					pm12,
 					new ErrorStatistic( 1 ) );
@@ -506,15 +524,15 @@ public class ElasticMontage extends AbstractElasticAlignment
 					fp1,
 					fpMask2,
 					fpMask1,
-					p.bmScale,
+					param.bmScale,
 					pair.c.createInverse(),
 					blockRadius,
 					blockRadius,
 					searchRadius,
 					searchRadius,
-					p.bmMinR,
-					p.bmRodR,
-					p.bmMaxCurvatureR,
+					param.bmMinR,
+					param.bmRodR,
+					param.bmMaxCurvatureR,
 					v2,
 					pm21,
 					new ErrorStatistic( 1 ) );
@@ -560,10 +578,10 @@ public class ElasticMontage extends AbstractElasticAlignment
 			
 			SpringMesh.optimizeMeshes(
 					meshes,
-					p.po.maxEpsilon,
-					p.maxIterationsSpringMesh,
-					p.maxPlateauwidthSpringMesh,
-					p.visualize );
+					param.po.maxEpsilon,
+					param.maxIterationsSpringMesh,
+					param.maxPlateauwidthSpringMesh,
+					param.visualize );
 
 			IJ.log( "Done optimizing spring meshes. Took " + ( System.currentTimeMillis() - t0 ) + " ms" );
 			
