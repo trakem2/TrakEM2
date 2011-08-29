@@ -70,7 +70,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{	
-		private static final long serialVersionUID = 3372580361087344269L;
+		private static final long serialVersionUID = 7858278233459845626L;
 
 		public ParamOptimize po = new ParamOptimize();
 		{
