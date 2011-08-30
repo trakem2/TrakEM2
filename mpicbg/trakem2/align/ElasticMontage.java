@@ -109,7 +109,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		/**
 		 * Visualize spring mesh optimization
 		 */
-		public boolean visualize = true;
+		public boolean visualize = false;
 		
 		/**
 		 * Change this in case you want to limit the number of parallel threads to a specific number.
