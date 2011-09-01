@@ -35,8 +35,8 @@ final public class Downsampler
 		final int ha = a.getHeight();
 		final int wa2 = wa + wa;
 		
-		final int wb = ( wa - 1 ) / 2;
-		final int hb = ( ha - 1 ) / 2;
+		final int wb = wa / 2;
+		final int hb = ha / 2;
 		final int nb = hb * wb;
 		
 		final ByteProcessor b = new ByteProcessor( wb, hb );
@@ -68,8 +68,8 @@ final public class Downsampler
 		final int ha = a.getHeight();
 		final int wa2 = wa + wa;
 		
-		final int wb = ( wa - 1 ) / 2;
-		final int hb = ( ha - 1 ) / 2;
+		final int wb = wa / 2;
+		final int hb = ha / 2;
 		final int nb = hb * wb;
 		
 		final ShortProcessor b = new ShortProcessor( wb, hb );
@@ -101,8 +101,8 @@ final public class Downsampler
 		final int ha = a.getHeight();
 		final int wa2 = wa + wa;
 		
-		final int wb = ( wa - 1 ) / 2;
-		final int hb = ( ha - 1 ) / 2;
+		final int wb = wa / 2;
+		final int hb = ha / 2;
 		final int nb = hb * wb;
 		
 		final FloatProcessor b = new FloatProcessor( wb, hb );
@@ -134,8 +134,8 @@ final public class Downsampler
 		final int ha = a.getHeight();
 		final int wa2 = wa + wa;
 		
-		final int wb = ( wa - 1 ) / 2;
-		final int hb = ( ha - 1 ) / 2;
+		final int wb = wa / 2;
+		final int hb = ha / 2;
 		final int nb = hb * wb;
 		
 		final ColorProcessor b = new ColorProcessor( wb, hb );
