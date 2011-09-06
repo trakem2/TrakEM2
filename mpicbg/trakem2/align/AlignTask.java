@@ -34,6 +34,7 @@ import mpicbg.models.Transforms;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 import mpicbg.models.NoninvertibleModelException;
@@ -50,6 +51,7 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.VectorData;
 import ini.trakem2.display.VectorDataTransform;
+import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
@@ -65,12 +67,28 @@ import java.util.concurrent.Future;
  *
  */
 final public class AlignTask
-{
+{	
 	static protected boolean tilesAreInPlace = false;
 	static protected boolean largestGraphOnly = false;
 	static protected boolean hideDisconnectedTiles = false;
 	static protected boolean deleteDisconnectedTiles = false;
 	static protected boolean deform = false;
+
+	static public final int LINEAR_PHASE_CORRELATION = 0,
+							LINEAR_SIFT_CORRESPONDENCES = 1,
+							ELASTIC_BLOCK_CORRESPONDENCES = 2;
+	/**
+	 * The mode used for alignment, which defaults to LINEAR_SIFT_CORRESPONDENCES
+	 * but can take the values ELASTIC_BLOCK_CORRESPONDENCES and LINEAR_PHASE_CORRELATION.
+	 */
+	static protected int mode = LINEAR_SIFT_CORRESPONDENCES;
+	
+	final static private String[] modeStrings = new String[]{
+		"phase-correlation",
+		"least squares (linear feature correspondences)",
+		"elastic (non-linear block correspondences)" };
+
+
 	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
@@ -78,7 +96,10 @@ final public class AlignTask
 			public void run() {
 				startedWorking();
 				try {
-					alignSelection( selection );
+					int mode = chooseAlignmentMode();
+					if (-1 == mode)
+						return;
+					alignSelection( selection, mode );
 					Display.repaint(selection.getLayer());
 				} catch (Throwable e) {
 					IJError.print(e);
@@ -95,7 +116,7 @@ final public class AlignTask
 	}
 
 
-	final static public void alignSelection( final Selection selection )
+	final static public void alignSelection( final Selection selection, final int mode ) throws Exception
 	{
 		List< Patch > patches = new ArrayList< Patch >();
 		for ( Displayable d : selection.getSelected() )
@@ -113,7 +134,7 @@ final public class AlignTask
 			if ( patch.isLocked() )
 				fixedPatches.add( patch );
 
-		alignPatches( patches, fixedPatches );
+		alignPatches( patches, fixedPatches, mode );
 	}
 
 	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final List< Patch > fixedPatches )
@@ -127,7 +148,10 @@ final public class AlignTask
 			public void run() {
 				startedWorking();
 				try {
-					alignPatches( patches, fixedPatches );
+					int mode = chooseAlignmentMode();
+					if (-1 == mode)
+						return;
+					alignPatches( patches, fixedPatches, mode );
 					Display.repaint();
 				} catch (Throwable e) {
 					IJError.print(e);
@@ -141,12 +165,32 @@ final public class AlignTask
 		};
 		return Bureaucrat.createAndStart( worker, patches.get(0).getProject() );
 	}
+	
+	/** @return the chosen mode, or -1 when canceled. */
+	final static private int chooseAlignmentMode()
+	{
+		final GenericDialog gdMode = new GenericDialog( "Montage mode" );
+		gdMode.addChoice( "mode :", modeStrings, modeStrings[ mode ] );
+		gdMode.showDialog();
+		if ( gdMode.wasCanceled() )
+			return -1;
+
+		int m = gdMode.getNextChoiceIndex();
+		// Set the static for future use
+		mode = m;
+		return m;
+	}
 
 	/**
 	 * @param patches: the list of Patch instances to align, all belonging to the same Layer.
-	 * @param fixed: the list of Patch instances to keep locked in place, if any.
+	 * @param fixedPatches: the list of Patch instances to keep locked in place, if any.
+	 * @param mode: {@link AlignTask#LINEAR_SIFT_CORRESPONDENCES}, {@link AlignTask#LINEAR_PHASE_CORRELATION} or {@link AlignTask#ELASTIC_BLOCK_CORRESPONDENCES}.
 	 */
-	final static public void alignPatches( final List< Patch > patches , final List< Patch > fixedPatches )
+	final static public void alignPatches(
+			final List< Patch > patches,
+			final List< Patch > fixedPatches,
+			final int mode
+		) throws Exception
 	{
 		if ( patches.size() < 2 )
 		{
@@ -164,57 +208,93 @@ final public class AlignTask
 		}
 
 		//final Align.ParamOptimize p = Align.paramOptimize;
-		final GenericDialog gd = new GenericDialog( "Align Tiles" );
-		Align.paramOptimize.addFields( gd );
 		
-		gd.addMessage( "Miscellaneous:" );
-		gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
-		gd.addCheckbox( "consider largest graph only", largestGraphOnly );
-		gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
-		gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
-		
-		gd.showDialog();
-		if ( gd.wasCanceled() ) return;
-		
-		Align.paramOptimize.readFields( gd );
-		tilesAreInPlace = gd.getNextBoolean();
-		largestGraphOnly = gd.getNextBoolean();
-		hideDisconnectedTiles = gd.getNextBoolean();
-		deleteDisconnectedTiles = gd.getNextBoolean();
-		
-		final Align.ParamOptimize p = Align.paramOptimize.clone();
-
-		alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+		if ( ELASTIC_BLOCK_CORRESPONDENCES == mode )
+			new ElasticMontage().exec( patches, fixedPatches );
+		else if (LINEAR_PHASE_CORRELATION == mode) {
+			// Montage all given patches, fixedPatches is ignored!
+			if (!fixedPatches.isEmpty()) Utils.log("Ignoring " + fixedPatches.size() + " fixed patches.");
+			StitchingTEM.montageWithPhaseCorrelation(patches);
+		}
+		else if (LINEAR_SIFT_CORRESPONDENCES == mode)
+		{
+			final GenericDialog gd = new GenericDialog( "Montage" );
+			
+			Align.paramOptimize.addFields( gd );
+			
+			gd.addMessage( "Miscellaneous:" );
+			gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+			gd.addCheckbox( "consider largest graph only", largestGraphOnly );
+			gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+			gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+			
+			gd.showDialog();
+			if ( gd.wasCanceled() ) return;
+			
+			Align.paramOptimize.readFields( gd );
+			tilesAreInPlace = gd.getNextBoolean();
+			largestGraphOnly = gd.getNextBoolean();
+			hideDisconnectedTiles = gd.getNextBoolean();
+			deleteDisconnectedTiles = gd.getNextBoolean();
+			
+			final Align.ParamOptimize p = Align.paramOptimize.clone();
+			alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+		}
+		else
+			Utils.log( "Don't know how to align with mode " + mode );
 	}
 
-	/** Montage each layer independently, with SIFT.
+	/** Montage each layer independently.
 	 *  Does NOT register layers to each other.
 	 *  Considers visible Patches only. */
 	final static public Bureaucrat montageLayersTask(final List<Layer> layers) {
 		if (null == layers || layers.isEmpty()) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers", true) {
-			public void exec() {
-				//final Align.ParamOptimize p = Align.paramOptimize;
-				final GenericDialog gd = new GenericDialog( "Montage Layers" );
-				Align.paramOptimize.addFields( gd );
+			public void exec()
+			{
+				int mode = chooseAlignmentMode();
 				
-				gd.addMessage( "Miscellaneous:" );
-				gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
-				gd.addCheckbox( "consider largest graph only", largestGraphOnly );
-				gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
-				gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
-				
-				gd.showDialog();
-				if ( gd.wasCanceled() ) return;
-				
-				Align.paramOptimize.readFields( gd );
-				tilesAreInPlace = gd.getNextBoolean();
-				largestGraphOnly = gd.getNextBoolean();
-				hideDisconnectedTiles = gd.getNextBoolean();
-				deleteDisconnectedTiles = gd.getNextBoolean();
-				
-				final Align.ParamOptimize p = Align.paramOptimize.clone();
-				montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+				if ( ELASTIC_BLOCK_CORRESPONDENCES == mode )
+				{
+					final ElasticMontage.Param p = ElasticMontage.setup();
+					if ( p == null )
+						return;
+					else
+					{
+						try { montageLayers( p, layers ); }
+						catch ( Exception e ) { e.printStackTrace(); Utils.log( "Exception during montaging layers.  Operation failed." ); }
+					}
+				}
+				else if (LINEAR_PHASE_CORRELATION == mode)
+				{
+					StitchingTEM.montageWithPhaseCorrelation(layers, this);
+				}
+				else if (LINEAR_SIFT_CORRESPONDENCES == mode)
+				{	
+					//final Align.ParamOptimize p = Align.paramOptimize;
+					final GenericDialog gd = new GenericDialog( "Montage Layers" );
+					Align.paramOptimize.addFields( gd );
+					
+					gd.addMessage( "Miscellaneous:" );
+					gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+					gd.addCheckbox( "consider largest graph only", largestGraphOnly );
+					gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
+					gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
+					
+					gd.showDialog();
+					if ( gd.wasCanceled() ) return;
+					
+					Align.paramOptimize.readFields( gd );
+					tilesAreInPlace = gd.getNextBoolean();
+					largestGraphOnly = gd.getNextBoolean();
+					hideDisconnectedTiles = gd.getNextBoolean();
+					deleteDisconnectedTiles = gd.getNextBoolean();
+					
+					final Align.ParamOptimize p = Align.paramOptimize.clone();
+					montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+				}
+				else
+					Utils.log( "Don't know how to align with mode " + mode );
 			}
 		}, layers.get(0).getProject());
 	}
@@ -242,6 +322,36 @@ final public class AlignTask
 			i++;
 			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 			Display.repaint(layer);
+		}
+	}
+	
+	
+	final static public void montageLayers(
+			final ElasticMontage.Param p,
+			final List< Layer > layers ) throws Exception
+	{
+		int i = 0;
+		for ( final Layer layer : layers )
+		{
+			if ( Thread.currentThread().isInterrupted() ) return;
+			Collection< Displayable > patches = layer.getDisplayables( Patch.class, true );
+			if ( patches.isEmpty() ) continue;
+			final ArrayList< Patch > patchesList = new ArrayList< Patch >();
+			for ( final Displayable d : patches )
+				if ( Patch.class.isInstance( d ) )
+					patchesList.add( ( Patch )d );
+			for (final Displayable patch : patches) {
+				if ( patch.isLinked() && !patch.isOnlyLinkedTo( Patch.class ) )
+				{
+					Utils.log( "Cannot montage layer " + layer + "\nReason: at least one Patch is linked to non-image data: " + patch );
+					continue;
+				}
+			}
+			Utils.log("====\nMontaging layer " + layer);
+			Utils.showProgress(((double)i)/layers.size());
+			i++;
+			new ElasticMontage().exec( p, patchesList, new ArrayList< Patch >() );
+			Display.repaint( layer );
 		}
 	}
 
@@ -1273,7 +1383,7 @@ final public class AlignTask
 							final mpicbg.trakem2.transform.AffineModel2D toWorld = new mpicbg.trakem2.transform.AffineModel2D();
 							toWorld.set( pat );
 							
-							final MovingLeastSquaresTransform mlst = Align.createMLST( matches, 1.0f );
+							final MovingLeastSquaresTransform2 mlst = Align.createMLST( matches, 1.0f );
 							
 							final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 							ctl.add( toWorld );

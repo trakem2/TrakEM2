@@ -55,6 +55,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.DisplayablePanel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Polyline;
 import ini.trakem2.display.Region;
@@ -841,7 +842,7 @@ abstract public class Loader {
 		}
 	}
 
-	public Image getCached(final long id, final int level) {
+	public MipMapImage getCached(final long id, final int level) {
 		synchronized (db_lock) {
 			try {
 				return mawts.getClosestAbove(id, level);
@@ -853,7 +854,7 @@ abstract public class Loader {
 	}
 
 	/** Above or equal in size. */
-	public Image getCachedClosestAboveImage(final Patch p, final double mag) {
+	public MipMapImage getCachedClosestAboveImage(final Patch p, final double mag) {
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			try {
@@ -866,7 +867,7 @@ abstract public class Loader {
 	}
 
 	/** Below, not equal. */
-	public Image getCachedClosestBelowImage(final Patch p, final double mag) {
+	public MipMapImage getCachedClosestBelowImage(final Patch p, final double mag) {
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		synchronized (db_lock) {
 			try {
@@ -902,19 +903,21 @@ abstract public class Loader {
 	}
 
 	/** Calls fetchImage(p, mag) unless overriden. */
-	public Image fetchDataImage(Patch p, double mag) {
-		return fetchImage(p, mag);
+	public MipMapImage fetchDataImage( final Patch p, final double mag )
+	{
+		return fetchImage( p, mag );
 	}
 
-	public Image fetchImage(Patch p) {
-		return fetchImage(p, 1.0);
+	public MipMapImage fetchImage( final Patch p )
+	{
+		return fetchImage( p, 1.0 );
 	}
 
 	/** Fetch a suitable awt.Image for the given magnification.
 	 * If the mag is bigger than 1.0, it will return as if was 1.0.
 	 * Will return Loader.NOT_FOUND if, err, not found (probably an Exception will print along).
 	 */
-	public Image fetchImage(final Patch p, double mag) {
+	public MipMapImage fetchImage( final Patch p, double mag ) {
 			
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
 		final int level = Loader.getMipMapLevel(mag, maxDim(p));
@@ -922,7 +925,7 @@ abstract public class Loader {
 		return fetchAWTImage(p, level > max_level ? max_level : level, max_level);
 	}
 
-	final public Image fetchAWTImage(final Patch p, final int level, final int max_level) {
+	final public MipMapImage fetchAWTImage(final Patch p, final int level, final int max_level) {
 		// Below, the complexity of the synchronized blocks is to provide sufficient granularity. Keep in mind that only one thread at at a time can access a synchronized block for the same object (in this case, the db_lock), and thus calling lock() and unlock() is not enough. One needs to break the statement in as many synch blocks as possible for maximizing the number of threads concurrently accessing different parts of this function.
 
 		// find an equal or larger existing pyramid awt
@@ -932,14 +935,15 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				if (null == mawts) {
-					return NOT_FOUND; // when lazy repainting after closing a project, the awts is null
+					return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() ); // when lazy repainting after closing a project, the awts is null
 				}
 				if (level >= 0 && isMipMapsRegenerationEnabled()) {
 					// 1 - check if the exact level is cached
-					final Image mawt = mawts.get(id, level);
+					final Image mawt = mawts.get( id, level );
 					if (null != mawt) {
 						//Utils.log2("returning cached exact mawt for level " + level);
-						return mawt;
+						final double scale = Math.pow( 2.0, level );
+						return new MipMapImage( mawt, scale, scale );
 					}
 					plock = getOrMakeImageLoadingLock(p.getId(), level);
 				}
@@ -948,72 +952,68 @@ abstract public class Loader {
 			}
 		}
 
-		Image mawt = null;
+		MipMapImage mipMap = null;
 
 		// 2 - check if the exact file is present for the desired level
 		if (level >= 0 && isMipMapsRegenerationEnabled()) {
 			synchronized (plock) {
+				final Image mawt;
 				synchronized (db_lock) {
-					mawt = mawts.get(id, level);
+					mawt = mawts.get( id, level );
 				}
 				if (null != mawt) {
-					return mawt; // was loaded by a different thread
+					final double scale = Math.pow( 2.0, level );
+					return new MipMapImage( mawt, scale, scale ); // was loaded by a different thread
 				}
 			}
 			
-			final long n_bytes = estimateImageFileSize(p, level);
+			final long n_bytes = estimateImageFileSize( p, level );
 			
 			// going to load:
-			releaseToFit(n_bytes * 8);
+			releaseToFit( n_bytes * 8 );
 
 			synchronized (plock) {
 				try {
-					mawt = fetchMipMapAWT(p, level, n_bytes);
+					mipMap = fetchMipMapAWT( p, level, n_bytes );
 				} catch (Throwable t) {
 					IJError.print(t);
-					mawt = null;
+					mipMap = null;
 				}
 
 				synchronized (db_lock) {
 					try {
-						if (null != mawt) {
+						if ( null != mipMap ) {
 							//Utils.log2("returning exact mawt from file for level " + level);
-							if (REGENERATING != mawt) {
-								mawts.put(id, mawt, level);
+							if ( REGENERATING != mipMap.image ) {
+								mawts.put( id, mipMap.image, level );
 								Display.repaintSnapshot(p);
 							}
-							return mawt;
+							return mipMap;
 						}
 				
 						// Check if an appropriate level is cached
-						mawt = mawts.getClosestAbove(id, level);
+						mipMap = mawts.getClosestAbove(id, level);
 						
-						if (null == mawt) {
+						if ( mipMap == null ) {
 							// 3 - else, load closest level to it but still giving a larger image
 							final int lev = getClosestMipMapLevel(p, level, max_level); // finds the file for the returned level, otherwise returns zero
 							//Utils.log2("closest mipmap level is " + lev);
 							if (lev > -1) {
 								boolean newly_cached = false;
-								if (null == mawt) {
-									// reload existing scaled file
-									mawt = fetchMipMapAWT(p, lev, n_bytes); // overestimating n_bytes
-									if (null != mawt) {
-										mawts.put(id, mawt, lev);
-										newly_cached = true; // means: cached was false, now it is
-									}
-									// else if null, the file did not exist or could not be regenerated or regeneration is off
-								}
-								//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
-								if (null != mawt) {
-									if (newly_cached) Display.repaintSnapshot(p);
+								mipMap = fetchMipMapAWT( p, lev, n_bytes ); // overestimating n_bytes
+								if ( null != mipMap ) {
+									mawts.put( id, mipMap.image, lev );
+									newly_cached = true; // means: cached was false, now it is
+									//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
+									Display.repaintSnapshot( p );
 									//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
-									return mawt;
+									return mipMap;
 								}
 							} else if (ERROR_PATH_NOT_FOUND == lev) {
-								mawt = NOT_FOUND;
+								mipMap = new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 							}
 						} else {
-							return mawt;
+							return mipMap;
 						}
 					} catch (Throwable t) {
 						handleCacheError(t);
@@ -1030,10 +1030,10 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				// 4 - check if any suitable level is cached (whithout mipmaps, it may be the large image)
-				mawt = mawts.getClosestAbove(id, level);
-				if (null != mawt) {
+				mipMap = mawts.getClosestAbove(id, level);
+				if (null != mipMap) {
 					//Utils.log2("returning from getClosest with level " + level);
-					return mawt;
+					return mipMap;
 				}
 			} catch (Exception e) {
 				IJError.print(e);
@@ -1042,27 +1042,29 @@ abstract public class Loader {
 
 		// 5 - else, fetch the (perhaps) transformed ImageProcessor and make an image from it of the proper size and quality
 
-		if (hs_unloadable.contains(p)) return NOT_FOUND;
+		if (hs_unloadable.contains(p)) return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 
 		synchronized (db_lock) {
 			try {
 				plock = getOrMakeImageLoadingLock(p.getId(), level);
 			} catch (Exception e) {
 				if (null != plock) removeImageLoadingLock(plock); // TODO there may be a flaw in the image loading locks: when removing it, if it had been acquired by another thread, then a third thread will create it new. The image loading locks should count the number of threads that have them, and remove themselves when zero.
-				return NOT_FOUND;
+				return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 			}
 		}
 
 		synchronized (plock) {
 			// Check if a previous call made it while waiting:
-			mawt = mawts.getClosestAbove(id, level);
-			if (null != mawt) {
+			mipMap = mawts.getClosestAbove(id, level);
+			if (null != mipMap) {
 				synchronized (db_lock) {
 					removeImageLoadingLock(plock);
 				}
-				return mawt;
+				return mipMap;
 			}
 		}
+		
+		Image mawt = null;
 
 		try {
 			// Else, create the mawt:
@@ -1095,10 +1097,10 @@ abstract public class Loader {
 		synchronized (db_lock) {
 			try {
 				if (null != mawt) {
-					mawts.put(id, mawt, level);
+					mawts.put(id, mawt, 0);
 					Display.repaintSnapshot(p);
 					//Utils.log2("Created mawt from scratch.");
-					return mawt;
+					return new MipMapImage( mawt, 1.0, 1.0 );
 				}
 			} catch (Throwable t) {
 				handleCacheError(t);
@@ -1107,7 +1109,7 @@ abstract public class Loader {
 			}
 		}
 
-		return NOT_FOUND;
+		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 	}
 
 	/** Returns null.*/
@@ -2461,6 +2463,10 @@ while (it.hasNext()) {
 				ImageStack stack = null;
 				for (int i=0; i<layer.length; i++) {
 					if (Thread.currentThread().isInterrupted()) return;
+					
+					/* free memory */
+					releaseAll();
+					
 					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
@@ -2540,7 +2546,7 @@ while (it.hasNext()) {
 	/** Returns a screenshot of the given layer for the given magnification and srcRect. Returns null if the was not enough memory to create it.
 	 * @param al_displ The Displayable objects to paint. If null, all those matching Class clazz are included.
 	 *
-	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0, and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
+	 * If the 'quality' flag is given, then the flat image is created at a scale of 1.0 (if no mipmaps, 2xscale if mipmaps), and later scaled down using the Image.getScaledInstance method with the SCALE_AREA_AVERAGING flag.
 	 *
 	 */
 	public ImagePlus getFlatImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background) {
@@ -2564,21 +2570,6 @@ while (it.hasNext()) {
 	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 
 		try {
-			// if quality is specified, then a larger image is generated:
-			//   - full size if no mipmaps
-			//   - double the size if mipmaps is enabled
-			double scaleP = scale;
-			if (quality) {
-				if (isMipMapsRegenerationEnabled()) {
-					// just double the size
-					scaleP = scale + scale;
-					if (scaleP > 1.0) scaleP = 1.0;
-				} else {
-					// full
-					scaleP = 1.0;
-				}
-			}
-
 			// dimensions
 			int w = 0;
 			int h = 0;
@@ -2592,9 +2583,56 @@ while (it.hasNext()) {
 				srcRect = new Rectangle(0, 0, w, h);
 			}
 			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
+			
+			/*
+			 * output size including excess space for not entirely covered
+			 * pixels
+			 */
+			final int ww = ( int )Math.ceil( w * scale );
+			final int hh = ( int )Math.ceil( h * scale );
+			
+			/* The size of the buffered image to be generated */
+			final int biw, bih;
+			
+			final double scaleP, scalePX, scalePY;
+			
+			// if quality is specified, then a larger image is generated:
+			//   - full size if no mipmaps (That might easily be too large---not?!)
+			//   - double the size (max 1.0 ) if mipmaps are enabled
+			//
+			// In case that a full size image is generated, independent scale
+			// factors must be applied to x and y to compensate for rounding errors
+			// on scaling down to output resolution.
+			if ( quality )
+			{
+				scaleP = isMipMapsRegenerationEnabled() && scale < 0.5 ? scale + scale : 1.0;
+			
+				if ( scaleP == 1.0 )
+				{
+					biw = ( int )Math.ceil( ww / scale );
+					bih = ( int )Math.ceil( hh / scale );
+					
+					/* compensate for excess space due to ceiling */
+					scalePX = ( double )biw / ( double )ww * scale;
+					scalePY = ( double )bih / ( double )hh * scale;
+				}
+				else
+				{
+					biw = ww * 2;
+					bih = hh * 2;
+					scalePX = scalePY = scaleP;
+				}
+			}
+			else
+			{
+				scaleP = scalePX = scalePY = scale;
+				biw = ww;
+				bih = hh;
+			}
+
 			// estimate image size
-			final long n_bytes = (long)((w * h * scaleP * scaleP * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil(w * scaleP) + "," + (int)Math.ceil(h * scaleP) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with proper area averaging)" : ""));
+			final long n_bytes = (long)( ( biw * bih * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
+			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil( biw ) + "," + (int)Math.ceil( bih ) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with area averaging)" : ""));
 
 			releaseToFit(n_bytes);
 
@@ -2603,10 +2641,10 @@ while (it.hasNext()) {
 			BufferedImage bi = null;
 			switch (type) {
 				case ImagePlus.GRAY8:
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_BYTE_INDEXED, GRAY_LUT);
+					bi = new BufferedImage(biw, bih, BufferedImage.TYPE_BYTE_INDEXED, GRAY_LUT);
 					break;
 				case ImagePlus.COLOR_RGB:
-					bi = new BufferedImage((int)Math.ceil(w * scaleP), (int)Math.ceil(h * scaleP), BufferedImage.TYPE_INT_ARGB);
+					bi = new BufferedImage(biw, bih, BufferedImage.TYPE_INT_ARGB);
 					break;
 				default:
 					Utils.log2("Left bi,icm as null");
@@ -2617,7 +2655,8 @@ while (it.hasNext()) {
 			g2d.setColor(background);
 			g2d.fillRect(0, 0, bi.getWidth(), bi.getHeight());
 
-			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+			g2d.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+			g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC); // TODO Stephan, test if that introduces offset vs nearest neighbor
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
@@ -2650,7 +2689,7 @@ while (it.hasNext()) {
 			// prepare the canvas for the srcRect and magnification
 			final AffineTransform at_original = g2d.getTransform();
 			final AffineTransform atc = new AffineTransform();
-			atc.scale(scaleP, scaleP);
+			atc.scale( scalePX, scalePY );
 			atc.translate(-srcRect.x, -srcRect.y);
 			at_original.preConcatenate(atc);
 			g2d.setTransform(at_original);
@@ -2700,25 +2739,25 @@ while (it.hasNext()) {
 					// need to scale back down
 					Image scaled = null;
 					if (!isMipMapsRegenerationEnabled() || scale >= 0.499) { // there are no proper mipmaps above 50%, so there's need for SCALE_AREA_AVERAGING.
-						scaled = bi.getScaledInstance((int)(w * scale), (int)(h * scale), Image.SCALE_AREA_AVERAGING); // very slow, but best by far
+						scaled = bi.getScaledInstance( ww, hh, Image.SCALE_AREA_AVERAGING); // very slow, but best by far
 						if (ImagePlus.GRAY8 == type) {
 							// getScaledInstance generates RGB images for some reason.
-							BufferedImage bi8 = new BufferedImage((int)(w * scale), (int)(h * scale), BufferedImage.TYPE_BYTE_GRAY);
-							bi8.createGraphics().drawImage(scaled, 0, 0, null);
+							BufferedImage bi8 = new BufferedImage( ww, hh, BufferedImage.TYPE_BYTE_GRAY );
+							bi8.createGraphics().drawImage( scaled, 0, 0, null );
 							scaled.flush();
 							scaled = bi8;
 						}
 					} else {
 						// faster, but requires gaussian blurred images (such as the mipmaps)
 						if (bi.getType() == BufferedImage.TYPE_BYTE_INDEXED) {
-							scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType(), GRAY_LUT);
+							scaled = new BufferedImage( ww, hh, bi.getType(), GRAY_LUT );
 						} else {
-							scaled = new BufferedImage((int)(w * scale), (int)(h * scale), bi.getType());
+							scaled = new BufferedImage( ww, hh, bi.getType() );
 						}
 						Graphics2D gs = (Graphics2D)scaled.getGraphics();
 						//gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
 						gs.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-						gs.drawImage(bi, 0, 0, (int)(w * scale), (int)(h * scale), null);
+						gs.drawImage( bi, 0, 0, ww, hh, null );
 					}
 					bi.flush();
 					return scaled;
@@ -3973,12 +4012,19 @@ while (it.hasNext()) {
 
 	// used to prevent generating them when, for example, importing a montage
 	public void setMipMapsRegeneration(boolean b) {
+		Project.findProject(this).setProperty("mipmaps_regen", Boolean.toString(b));
 		mipmaps_regen = b;
 	}
 
 	/** Whether mipmaps should be generated. This depends on both the internal flag
 	 * (whether the user wants to use mipmaps) and on whether there is a writable mipmaps folder available. */
 	public boolean isMipMapsRegenerationEnabled() { return mipmaps_regen && usesMipMapsFolder(); }
+
+	/** Returns the value of mipmaps_regen; to query whether this loader is using mipmaps
+	 * or not, call instead {@link Loader#isMipMapsRegenerationEnabled()}. */
+	public boolean getMipMapsRegenerationEnabled() {
+		return mipmaps_regen;
+	}
 
 	/** Does nothing unless overriden. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {}
@@ -4007,7 +4053,7 @@ while (it.hasNext()) {
 	public int getClosestMipMapLevel(final Patch patch, int level, int max_level) {return 0;}
 
 	/** Does nothing and returns null unless overriden. */
-	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) { return null; }
+	protected MipMapImage fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) { return null; }
 
 	/** Does nothing and returns false unless overriden. */
 	public boolean checkMipMapFileExists(Patch p, double magnification) { return false; }
@@ -4189,6 +4235,7 @@ while (it.hasNext()) {
 						if (d.getClass() != Patch.class) continue;
 						Patch p = (Patch)d;
 						p.setMinAndMax(min, max);
+						// Will also flush the cache for Patch p:
 						fus.add(regenerateMipMaps(p));
 					}
 					Utils.wait(fus);
@@ -4291,7 +4338,7 @@ while (it.hasNext()) {
 	/** Will preload in the background as many as possible of the given images for the given magnification, if and only if (1) there is more than one CPU core available [and only the extra ones will be used], and (2) there is more than 1 image to preload. */
 
 	static private ExecutorService preloader = null;
-	static private Collection<FutureTask<Image>> preloads = new Vector<FutureTask<Image>>();
+	static private Collection< FutureTask< MipMapImage > > preloads = new Vector< FutureTask< MipMapImage > >();
 
 	static private int num_preloader_threads = Math.min(4, Runtime.getRuntime().availableProcessors() -1);
 	
@@ -4328,7 +4375,7 @@ while (it.hasNext()) {
 		if (null == preloader) setupPreloader(null);
 		else return;
 		synchronized (preloads) {
-			for (final FutureTask<Image> fu : preloads) fu.cancel(false);
+			for (final FutureTask< MipMapImage > fu : preloads) fu.cancel(false);
 		}
 		preloads.clear();
 		try {
@@ -4339,29 +4386,29 @@ while (it.hasNext()) {
 	}
 	/** Returns null when on low memory condition. */
 	@SuppressWarnings("unchecked")
-	static public final FutureTask<Image> preload(final Patch p, final double mag, final boolean repaint) {
+	static public final FutureTask<MipMapImage> preload(final Patch p, final double mag, final boolean repaint) {
 		if (low_memory_conditions || num_preloader_threads < 1) return null;
-		final FutureTask<Image>[] fu = (FutureTask<Image>[]) new FutureTask[1];
-		fu[0] = new FutureTask<Image>(new Callable<Image>() {
-			public Image call() {
+		final FutureTask< MipMapImage >[] fu = ( FutureTask< MipMapImage >[] ) new FutureTask[1];
+		fu[0] = new FutureTask< MipMapImage >( new Callable< MipMapImage >() {
+			public MipMapImage call() {
 				//Utils.log2("preloading " + mag + " :: " + repaint + " :: " + p);
 				try {
 					if (p.getProject().getLoader().hs_unloadable.contains(p)) return null;
 					if (repaint) {
 						if (Display.willPaint(p)) {
-							final Image awt = p.getProject().getLoader().fetchImage(p, mag);
+							final MipMapImage mipMap = p.getProject().getLoader().fetchImage(p, mag);
 							// WARNING:
 							// 1. In low memory conditions, where the awt is immediately thrown out of the cache,
 							// this may result in an infinite loop.
 							// 2. When regenerating, if the awt is not yet done and thus not cached,
 							// it will also result in an infinite loop.
 							// To prevent it:
-							if (null != awt) {
-								if (!Loader.isSignalImage(awt) && p.getProject().getLoader().isCached(p, mag)) {
+							if (null != mipMap) {
+								if (!Loader.isSignalImage( mipMap.image ) && p.getProject().getLoader().isCached( p, mag ) ) {
 									Display.repaint(p.getLayer(), p, p.getBoundingBox(null), 1, true, false); // not the navigator
 								}
 							}
-							return awt;
+							return mipMap;
 						}
 					} else {
 						// just load it into the cache if possible

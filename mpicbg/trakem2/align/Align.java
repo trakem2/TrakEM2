@@ -34,13 +34,14 @@ import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.models.Transforms;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
 
@@ -486,40 +487,16 @@ public class Align
 						return;
 					}
 		
-					boolean modelFound;
-					boolean again = false;
-					try
-					{
-						do
-						{
-							again = false;
-							modelFound = model.filterRansac(
-									candidates,
-									inliers,
-									1000,
-									p.maxEpsilon,
-									p.minInlierRatio,
-									p.minNumInliers,
-									3 );
-							if ( modelFound && p.rejectIdentity )
-							{
-								final ArrayList< Point > points = new ArrayList< Point >();
-								PointMatch.sourcePoints( inliers, points );
-								if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
-								{
-									IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
-									candidates.removeAll( inliers );
-									inliers.clear();
-									again = true;
-								}
-							}
-						}
-						while ( again );
-					}
-					catch ( NotEnoughDataPointsException e )
-					{
-						modelFound = false;
-					}
+					boolean modelFound = findModel(
+							model,
+							candidates,
+							inliers,
+							p.maxEpsilon,
+							p.minInlierRatio,
+							p.minNumInliers,
+							p.rejectIdentity,
+							p.identityTolerance );
+					
 					if ( modelFound )
 						IJ.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					else
@@ -550,6 +527,56 @@ public class Align
 			}
 		}
 	}
+	
+	
+	final static public boolean findModel(
+			final Model< ? > model,
+			final List< PointMatch > candidates,
+			final Collection< PointMatch > inliers,
+			final float maxEpsilon,
+			final float minInlierRatio,
+			final int minNumInliers,
+			final boolean rejectIdentity,
+			final float identityTolerance )
+	{
+		boolean modelFound;
+		boolean again = false;
+		try
+		{
+			do
+			{
+				again = false;
+				modelFound = model.filterRansac(
+							candidates,
+							inliers,
+							1000,
+							maxEpsilon,
+							minInlierRatio,
+							minNumInliers,
+							3 );
+				if ( modelFound && rejectIdentity )
+				{
+					final ArrayList< Point > points = new ArrayList< Point >();
+					PointMatch.sourcePoints( inliers, points );
+					if ( Transforms.isIdentity( model, points, identityTolerance ) )
+					{
+						Utils.log( "Identity transform for " + inliers.size() + " matches rejected." );
+						candidates.removeAll( inliers );
+						inliers.clear();
+						again = true;
+					}
+				}
+			}
+			while ( again );
+		}
+		catch ( NotEnoughDataPointsException e )
+		{
+			modelFound = false;
+		}
+		
+		return modelFound;
+	}
+	
 	
 	final static protected boolean serializeFeatures( final Param p, AbstractAffineTile2D< ? > t, final Collection< Feature > f )
 	{
@@ -731,40 +758,16 @@ public class Align
 				return null;
 			}
 	
-			boolean modelFound;
-			boolean again = false;
-			try
-			{
-				do
-				{
-					again = false;
-					modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							p.maxEpsilon,
-							p.minInlierRatio,
-							p.minNumInliers,
-							3 );
-					if ( modelFound && p.rejectIdentity )
-					{
-						final ArrayList< Point > points = new ArrayList< Point >();
-						PointMatch.sourcePoints( inliers, points );
-						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
-						{
-							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
-							candidates.removeAll( inliers );
-							inliers.clear();
-							again = true;
-						}
-					}
-				}
-				while ( again );
-			}
-			catch ( NotEnoughDataPointsException e )
-			{
-				modelFound = false;
-			}
+			boolean modelFound = findModel(
+					model,
+					candidates,
+					inliers,
+					p.maxEpsilon,
+					p.minInlierRatio,
+					p.minNumInliers,
+					p.rejectIdentity,
+					p.identityTolerance );
+			
 			if ( modelFound )
 				IJ.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			else
@@ -774,6 +777,48 @@ public class Align
 				IJ.log( "Saving point matches failed for tile \"" + t1.getPatch() + "\" and tile \"" + t2.getPatch() + "\"" );
 		}
 		return pointMatches;
+	}
+	
+	
+	/**
+	 * Align a set of {@link AbstractAffineTile2D tiles} using
+	 * the following procedure:
+	 * 
+	 * <ol>
+	 * <li>Extract {@link Feature SIFT-features} from all
+	 * {@link AbstractAffineTile2D tiles}.</li>
+	 * <li>Establish {@link PointMatch point-correspondences} from
+	 * consistent sets of {@link Feature feature} matches among tile pairs,
+	 * optionally inspect only those that are already overlapping.</li>
+	 * <li>Globally align the tile configuration.</li>
+	 * </ol>
+	 * 
+	 * Both
+	 * {@link SIFT#extractFeatures(ij.process.ImageProcessor, Collection) feature extraction}
+	 * and {@link FeatureTransform#matchFeatures(Collection, Collection, List, float) matching}
+	 * are executed in multiple {@link Thread Threads}, with the number of
+	 * {@link Thread Threads} being a parameter of the method.
+	 * 
+	 * @param p
+	 * @param tiles
+	 * @param fixedTiles
+	 * @param tilesAreInPlace
+	 * @param numThreads
+	 */
+	final static public void alignTiles(
+			final ParamOptimize p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? > > fixedTiles,
+			final boolean tilesAreInPlace,
+			final int numThreads )
+	{
+		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
+		if ( tilesAreInPlace )
+			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+		else
+			AbstractAffineTile2D.pairTiles( tiles, tilePairs );
+		connectTilePairs( p, tiles, tilePairs, numThreads );
+		optimizeTileConfiguration( p, tiles, fixedTiles );
 	}
 
 		
@@ -806,11 +851,10 @@ public class Align
 			final List< AbstractAffineTile2D< ? > > fixedTiles,
 			final int numThreads )
 	{
-		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D<?>[] >();
-		AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
-		connectTilePairs( p, tiles, tilePairs, numThreads );
-		optimizeTileConfiguration( p, tiles, fixedTiles );
+		alignTiles( p, tiles, fixedTiles, true, numThreads );
 	}
+	
+	
 	
 	/**
 	 * Align a set of {@link AbstractAffineTile2D tiles} that are
@@ -900,6 +944,7 @@ public class Align
 			extractFeaturesThreads.add( thread );
 			thread.start();
 		}
+		
 		try
 		{
 			for ( final ExtractFeaturesThread thread : extractFeaturesThreads )
@@ -907,7 +952,17 @@ public class Align
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.log( "Feature extraction failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			Utils.log( "Feature extraction interrupted." );
+			for ( final Thread thread : extractFeaturesThreads )
+				thread.interrupt();
+			try
+			{
+				for ( final Thread thread : extractFeaturesThreads )
+					thread.join();
+			}
+			catch ( InterruptedException f ) {}
+			Thread.currentThread().interrupt();
+			IJ.showProgress( 1.0 );
 			return;
 		}
 		
@@ -926,8 +981,17 @@ public class Align
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.log( "Establishing feature correspondences failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
-			return;
+			Utils.log( "Establishing feature correspondences interrupted." );
+			for ( final Thread thread : matchFeaturesAndFindModelThreads )
+				thread.interrupt();
+			try
+			{
+				for ( final Thread thread : matchFeaturesAndFindModelThreads )
+					thread.join();
+			}
+			catch ( InterruptedException f ) {}
+			Thread.currentThread().interrupt();
+			IJ.showProgress( 1.0 );
 		}
 	}
 	
@@ -1196,9 +1260,9 @@ public class Align
 	 * @return
 	 * @throws Exception
 	 */
-	final static public MovingLeastSquaresTransform createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
+	final static public MovingLeastSquaresTransform2 createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
 	{
-		final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+		final MovingLeastSquaresTransform2 mlst = new MovingLeastSquaresTransform2();
 		mlst.setAlpha( 1.0f );
 		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 		switch ( matches.size() )

@@ -527,9 +527,11 @@ public class ControlWindow {
 	static public void endWaitingCursor() { setCursor(Cursor.getDefaultCursor()); }
 
 	static private void setCursor(final Cursor c) {
-		if (null != IJ.getInstance()) IJ.getInstance().setCursor(c);
-		ini.trakem2.display.Display.setCursorToAll(c);
-		if (null != frame && frame.isVisible()) frame.setCursor(c); // the ControlWindow frame
+		Utils.invokeLater(new Runnable() { public void run() {
+			if (null != IJ.getInstance()) IJ.getInstance().setCursor(c);
+			ini.trakem2.display.Display.setCursorToAll(c);
+			if (null != frame && frame.isVisible()) frame.setCursor(c); // the ControlWindow frame
+		}});
 	}
 
 	/** Returns -1 if not found. */

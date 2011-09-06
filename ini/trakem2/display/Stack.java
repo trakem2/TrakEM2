@@ -280,7 +280,7 @@ public class Stack extends ZDisplayable implements ImageData
 	/** Slow paint: will wait until the image is generated and cached, then paint it. */
 	@Override
 	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
-		Image image = null;
+		MipMapImage mipMap = null;
 		Future< Image > fu = null;
 		final SliceViewKey sliceViewKey = new SliceViewKey( magnification, active_layer.getZ() );
 		synchronized ( cachedImages )
@@ -296,9 +296,9 @@ public class Stack extends ZDisplayable implements ImageData
 			{
 				/* fetch the image from cache---still, it may be that it is not there... */
 				imageId = imageIdL;
-				image = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
+				mipMap = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
 			}
-			if ( image == null )
+			if ( mipMap == null )
 			{
 				/* image has to be generated */
 				fu = fetchFutureImage( imageId, magnification, active_layer, false ); // do not trigger repaint event
@@ -306,9 +306,10 @@ public class Stack extends ZDisplayable implements ImageData
 		}
 
 		// Paint outside the synchronization block:
-		if (null != image) {
-			paint(g, image);
+		if (null != mipMap) {
+			paint(g, mipMap.image);
 		} else if (null != fu) {
+			final Image image;
 			try {
 				image = fu.get();
 			} catch (Throwable ie) {
@@ -457,7 +458,7 @@ public class Stack extends ZDisplayable implements ImageData
 		//Utils.log2("Patch " + id + " painted image " + image);
 		
 		final double currentZ = active_layer.getZ();
-		Image image = null;
+		MipMapImage mipMap = null;
 		synchronized ( cachedImages )
 		{
 			final SliceViewKey sliceViewKey = new SliceViewKey( magnification, currentZ );
@@ -472,9 +473,9 @@ public class Stack extends ZDisplayable implements ImageData
 			{
 				/* fetch the image from cache---still, it may be that it is not there... */
 				imageId = imageIdL;
-				image = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
+				mipMap = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
 			}
-			if ( image == null )
+			if ( mipMap == null )
 			{
 				/* image has to be generated */
 				fetchFutureImage( imageId, magnification, active_layer, true );
@@ -482,8 +483,8 @@ public class Stack extends ZDisplayable implements ImageData
 			}
 		}
 
-		if ( image != null) {
-			paint( g, image );
+		if ( mipMap != null) {
+			paint( g, mipMap.image );
 		}
 	}
 

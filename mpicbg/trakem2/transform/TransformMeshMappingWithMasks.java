@@ -22,6 +22,7 @@ import java.util.Set;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.PointMatch;
 import mpicbg.models.TransformMesh;
+import mpicbg.util.Util;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 
@@ -75,15 +76,17 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final ImageProcessor target,
 			final ByteProcessor targetOutside )
 	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
 		
-		final int minX = Math.max( 0, ( int )min[ 0 ] );
-		final int minY = Math.max( 0, ( int )min[ 1 ] );
-		final int maxX = Math.min( target.getWidth() - 1, ( int )max[ 0 ] );
-		final int maxY = Math.min( target.getHeight() - 1, ( int )max[ 1 ] );
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 		
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
@@ -126,15 +129,17 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final ImageProcessor target,
 			final ByteProcessor targetOutside )
 	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
 		
-		final int minX = Math.max( 0, ( int )min[ 0 ] );
-		final int minY = Math.max( 0, ( int )min[ 1 ] );
-		final int maxX = Math.min( target.getWidth() - 1, ( int )max[ 0 ] );
-		final int maxY = Math.min( target.getHeight() - 1, ( int )max[ 1 ] );
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 		
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
@@ -180,15 +185,17 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final ImageProcessor targetMask,
 			final ByteProcessor targetOutside )
 	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
 		
-		final int minX = Math.max( 0, ( int )min[ 0 ] );
-		final int minY = Math.max( 0, ( int )min[ 1 ] );
-		final int maxX = Math.min( target.getWidth() - 1, ( int )max[ 0 ] );
-		final int maxY = Math.min( target.getHeight() - 1, ( int )max[ 1 ] );
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 		
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
@@ -234,15 +241,17 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final ImageProcessor targetMask,
 			final ByteProcessor targetOutside )
 	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
 		
-		final int minX = Math.max( 0, ( int )min[ 0 ] );
-		final int minY = Math.max( 0, ( int )min[ 1 ] );
-		final int maxX = Math.min( target.getWidth() - 1, ( int )max[ 0 ] );
-		final int maxY = Math.min( target.getHeight() - 1, ( int )max[ 1 ] );
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 		
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];

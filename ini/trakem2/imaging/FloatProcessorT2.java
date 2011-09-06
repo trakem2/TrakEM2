@@ -50,6 +50,38 @@ public class FloatProcessorT2 extends FloatProcessor {
 		// set min,max again, since super.getPixels removes them
 		setMinMax(min, max);
 	}
+	
+	/**
+	 * Resizes this {@link FloatProcessorT2} instance by a factor of two by
+	 * picking simply all pixels at even coordinates.  The primary use for this
+	 * method is downsampling after the image was smoothed with a respective
+	 * Gaussian (e.g. &sigma;=sqrt(0.75) to go from 0.5 to 0.5).
+	 */
+	public final void halfSizeInPlace() {
+		double min = getMin();
+		double max = getMax();
+		
+		final int width2 = width + width;
+		final int wb = ( width + 1 ) / 2;
+		final int hb = ( height + 1 ) / 2;
+		final int nb = hb * wb;
+		
+		final float[] aPixels = ( float[] )getPixels();
+		final float[] bPixels = new float[ nb ];
+		
+		for ( int ya = 0, yb = 0; yb < nb; ya += width2, yb += wb )
+		{
+			for ( int xa = 0, xb = 0; xb < wb; xa += 2, ++xb )
+			{
+				bPixels[ yb + xb ] = aPixels[ ya + xa ];
+			}
+		}
+		
+		setPixels( wb, hb, bPixels );
+		
+		// set min,max again, since super.getPixels removes them
+		setMinMax(min, max);
+	}
 
 	public FloatProcessorT2(final int width, final int height, final float[] pixels, final ColorModel cm) {
 		super(width, height, null, cm);

@@ -300,7 +300,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public Image getImage() {
-		return patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]);
+		return patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]).image;
 		// TODO: is this safe? Can be flushed!
 	}
 
@@ -463,7 +463,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public LookUpTable createLut() {
-		Image awt = patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]);
+		Image awt = patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]).image;
 		return new LookUpTable(awt);
 	}
 

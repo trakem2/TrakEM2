@@ -32,6 +32,7 @@ import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
@@ -339,7 +340,7 @@ public class NonLinearTransformMode extends GroupingMode {
 		/*
 		 * TODO replace this with the desired parameters of the transformation
 		 */
-		final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+		final MovingLeastSquaresTransform2 mlst = new MovingLeastSquaresTransform2();
 		mlst.setAlpha( 1.0f );
 		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 		switch (points.size()) {

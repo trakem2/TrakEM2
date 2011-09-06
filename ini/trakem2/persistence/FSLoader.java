@@ -27,6 +27,7 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.VirtualStack; // only after 1.38q
 import ij.io.*;
+import ij.plugin.filter.GaussianBlur;
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 import ij.process.FloatProcessor;
@@ -37,6 +38,7 @@ import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
 import ij.gui.YesNoCancelDialog;
@@ -103,6 +105,9 @@ import java.util.zip.ZipOutputStream;
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
 public final class FSLoader extends Loader {
 
+	/* sigma of the Gaussian kernel sto be used for downsampling by a factor of 2 */
+	final private static double SIGMA_2 = Math.sqrt( 0.75 );
+	
 	/** Largest id seen so far. */
 	private long max_id = -1;
 	private final Map<Long,String> ht_paths = Collections.synchronizedMap(new HashMap<Long,String>());
@@ -335,22 +340,38 @@ public final class FSLoader extends Loader {
 	static public final Project getOpenProject(final String project_file_path) {
 		return getOpenProject(project_file_path, null);
 	}
-
-	static private void startStaticServices() {
+	
+	static public final int nStaticServiceThreads() {
 		int np = Runtime.getRuntime().availableProcessors();
 		// 1 core = 1 thread
 		// 2 cores = 2 threads
 		// 3+ cores = cores-1 threads
 		if (np > 2) np -= 1;
-		if (null == regenerator || regenerator.isShutdown()) {
-			regenerator = Utils.newFixedThreadPool(np, "regenerator");
+		return np;
+	}
+
+	/** Restart the ExecutorService for mipmaps with {@param n_threads}. */
+	static public final void restartMipMapThreads(final int n_threads) {
+		if (null != regenerator && !regenerator.isShutdown()) {
+			regenerator.shutdown();
 		}
-		if (null == remover || remover.isShutdown()) {
-			remover = Utils.newFixedThreadPool(2, "mipmap remover");
+		regenerator = Utils.newFixedThreadPool(Math.max(1, n_threads), "regenerator");
+		Utils.logAll("Restarted mipmap Executor Service for all projects with " + n_threads + " threads.");
+	}
+
+	static private void startStaticServices() {
+		// Up to nStaticServiceThreads for regenerator and repainter
+		if (null == regenerator || regenerator.isShutdown()) {
+			regenerator = Utils.newFixedThreadPool(nStaticServiceThreads, "regenerator");
 		}
 		if (null == repainter || repainter.isShutdown()) {
-			repainter = Utils.newFixedThreadPool(np, "repainter"); // for SnapshotPanel
+			repainter = Utils.newFixedThreadPool(nStaticServiceThreads, "repainter"); // for SnapshotPanel
 		}
+		// Maximum 2 threads for removing files
+		if (null == remover || remover.isShutdown()) {
+			remover = Utils.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors()), "mipmap remover");
+		}
+		// Just one thread for autosaver
 		if (null == autosaver || autosaver.isShutdown()) autosaver = Executors.newScheduledThreadPool(1);
 	}
 
@@ -1297,9 +1318,9 @@ public final class FSLoader extends Loader {
 		// Adding some logic to support old projects which lack a storage folder and a mipmaps folder
 		// and also to prevent errors such as those created when manualy tinkering with the XML file
 		// or renaming directories, etc.
-		Object ob = ht_attributes.remove("storage_folder");
+		String ob = ht_attributes.remove("storage_folder");
 		if (null != ob) {
-			String sf = ((String)ob).replace('\\', '/');
+			String sf = ob.replace('\\', '/');
 			if (isRelativePath(sf)) {
 				sf = getParentFolder() + sf;
 			}
@@ -1338,7 +1359,7 @@ public final class FSLoader extends Loader {
 		//
 		ob = ht_attributes.remove("mipmaps_folder");
 		if (null != ob) {
-			String mf = ((String)ob).replace('\\', '/');
+			String mf = ob.replace('\\', '/');
 			if (isRelativePath(mf)) {
 				mf = getParentFolder() + mf;
 			}
@@ -1354,9 +1375,18 @@ public final class FSLoader extends Loader {
 				}
 			}
 		}
+		ob = ht_attributes.remove("mipmaps_regen");
+		if (null != ob) {
+			this.mipmaps_regen = Boolean.parseBoolean(ob);
+		}
+		ob = ht_attributes.remove("n_mipmap_threads");
+		if (null != ob) {
+			int n_threads = Math.max(1, Integer.parseInt(ob));
+			FSLoader.restartMipMapThreads(n_threads);
+		}
 
 		// parse the unuid before attempting to create any folders
-		this.unuid = (String) ht_attributes.remove("unuid");
+		this.unuid = ht_attributes.remove("unuid");
 
 		// Attempt to get an existing UNUId folder, for .xml files that share the same mipmaps folder
 		if (ControlWindow.isGUIEnabled() && null == this.unuid) {
@@ -1584,11 +1614,26 @@ public final class FSLoader extends Loader {
 				return RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
 		}
 	}
-
+	
+	
+	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
+	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source)
+	{
+		new GaussianBlur().blurFloat( source, SIGMA_2, SIGMA_2, 0.01 );
+		source.halfSizeInPlace();
+		
+		return (byte[])source.convertToByte(false).getPixels(); // no scaling
+	}
+	
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
 	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
-		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), 0.75f).data);
+		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), ( float )SIGMA_2).data);
+		
+		
+		//TODO Here, the actual scale information is lost.  Do not use for mipmap generation.
 		source.resizeInPlace(target_width, target_height);
+
+		
 		return (byte[])source.convertToByte(false).getPixels(); // no scaling
 	}
 	
@@ -1778,11 +1823,6 @@ public final class FSLoader extends Loader {
 					outside = null;
 				}
 				
-				// sw,sh are the dimensions of the image to blur
-				//  w,h are the dimensions to scale the blurred image to
-				int sw = w,
-				    sh = h;
-
 				final String target_dir0 = getLevelDir(dir_mipmaps, 0);
 				// No alpha channel:
 				//  - use gaussian resizing
@@ -1794,29 +1834,25 @@ public final class FSLoader extends Loader {
 				// TODO Add alpha information into the int[] pixel array or make the image visible some other way
 				if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
 						   : mmio.saveWithAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
-					Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
+					Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
 					cannot_regenerate.add(patch);
 				} else {
 					do {
 						if (Thread.currentThread().isInterrupted()) return false;
 						// 1 - Prepare values for the next scaled image
-						sw = w;
-						sh = h;
-						w /= 2;
-						h /= 2;
 						k++;
 						// 2 - Check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
 						// 3 - Blur the previous image to 0.75 sigma, and scale it
-						final byte[] r = gaussianBlurResizeInHalf(red, sw, sh, w, h);   // will resize 'red' FloatProcessor in place.
-						final byte[] g = gaussianBlurResizeInHalf(green, sw, sh, w, h); // idem
-						final byte[] b = gaussianBlurResizeInHalf(blue, sw, sh, w, h);  // idem
-						final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha, sw, sh, w, h); // idem
+						final byte[] r = gaussianBlurResizeInHalf(red);   // will resize 'red' FloatProcessor in place.
+						final byte[] g = gaussianBlurResizeInHalf(green); // idem
+						final byte[] b = gaussianBlurResizeInHalf(blue);  // idem
+						final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha); // idem
 						if ( null != outside ) {
 							final byte[] o;
 							if (alpha != outside)
-								o = gaussianBlurResizeInHalf(outside, sw, sh, w, h); // idem
+								o = gaussianBlurResizeInHalf(outside); // idem
 							else
 								o = a;
 							// Remove all not completely inside pixels from the alphamask
@@ -1825,6 +1861,9 @@ public final class FSLoader extends Loader {
 								if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
 							}
 						}
+						
+						w = red.getWidth();
+						h = red.getHeight();
 
 						// 4 - Compose ColorProcessor
 						final int[] pix = new int[w * h];
@@ -1835,7 +1874,7 @@ public final class FSLoader extends Loader {
 							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 							// 5 - Save as jpeg
 							if (!mmio.save(cp2, target_dir + filename, 0.85f, false)) {
-								Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
@@ -1846,7 +1885,7 @@ public final class FSLoader extends Loader {
 							}
 							final BufferedImage bi_save = createARGBImage(w, h, pix);
 							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
-								Utils.log("Failed to save jpeg for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								bi_save.flush();
 								break;
@@ -1875,10 +1914,7 @@ public final class FSLoader extends Loader {
 					}
 					//fp.debugMinMax(patch.toString());
 
-					int sw=w, sh=h;
-
-					FloatProcessorT2 alpha,
-						         outside;
+					FloatProcessorT2 alpha, outside;
 					if (null != alpha_mask) {
 						alpha = new FloatProcessorT2(alpha_mask);
 					} else {
@@ -1899,31 +1935,24 @@ public final class FSLoader extends Loader {
 //Utils.logAll("### k=" + k + " alpha.length=" + (null != alpha ? ((float[])alpha.getPixels()).length : 0) + " image.length=" + ((float[])fp.getPixels()).length);
 
 						if (Thread.currentThread().isInterrupted()) return false;
-
-						// 0 - blur the previous image to 0.75 sigma
+						
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
-							fp.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])fp.getPixels(), sw, sh), 0.75f).data);
+							gaussianBlurResizeInHalf( fp );
 							if (null != alpha) {
-								alpha.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])alpha.getPixels(), sw, sh), 0.75f).data);
+								gaussianBlurResizeInHalf( alpha );
 								if (alpha != outside && outside != null) {
-									outside.setPixels(sw, sh, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])outside.getPixels(), sw, sh), 0.75f).data);
+									gaussianBlurResizeInHalf( outside );
 								}
 							}
 						}
+						
+						w = fp.getWidth();
+						h = fp.getHeight();
+						
 						// 1 - check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
-						// 2 - generate scaled image
-						if (0 != k) {
-							fp.resizeInPlace(w, h); // min and max stay the same
-							if (null != alpha) {
-								alpha.resizeInPlace(w, h);
-								if (alpha != outside && null != outside) {
-									outside.resizeInPlace(w, h);
-								}
-							}
-						}
-
+						
 						if (null != alpha) {
 							// 3 - save as jpeg with alpha
 							// Remove all not completely inside pixels from the alpha mask
@@ -1931,7 +1960,7 @@ public final class FSLoader extends Loader {
 
 							final BufferedImage bi_save = createARGBImage(w, h, null == outside ? fp.getARGBPixels((float[])alpha.getPixels()) : fp.getARGBPixels((float[])alpha.getPixels(), (float[])outside.getPixels()));
 							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
-								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								bi_save.flush();
 								break;
@@ -1944,21 +1973,20 @@ public final class FSLoader extends Loader {
 							if (null != cm) ip2.setColorModel(cm); // the LUT
 
 							if (!mmio.save(ip2, target_dir + filename, 0.85f, as_grey)) {
-								Utils.log("Failed to save jpeg for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
 						}
 
 						// 4 - prepare values for the next scaled image
-						sw = w;
-						sh = h;
-						w /= 2;
-						h /= 2;
 						k++;
-					} while (w >= 32 && h >= 32); // not smaller than 32x32
+					} while (fp.getWidth() >= 32 && fp.getHeight() >= 32); // not smaller than 32x32
 
 				} else {
+					
+					// TODO this mode renders pixels at locations different rom the above GAUSSIAN, fix handling of this situation during rendering
+					
 					//final StopWatch timer = new StopWatch();
 
 					// use java hardware-accelerated resizing
@@ -1994,7 +2022,7 @@ public final class FSLoader extends Loader {
 						if ( ( (null != balpha || null != boutside) &&
 						      !mmio.saveWithAlpha(bi, target_dir + filename, 0.85f))
 						   || ( null == balpha && null == boutside && !mmio.save(bi, target_dir + filename, 0.85f, as_grey))) {
-							Utils.log("Failed to save jpeg for hardware-accelerated, GRAY8, 'alpha = " + balpha + "', level = " + k  + " for  patch " + patch);
+							Utils.log("Failed to save mipmap for hardware-accelerated, GRAY8, 'alpha = " + balpha + "', level = " + k  + " for  patch " + patch);
 							cannot_regenerate.add(patch);
 							break;
 						}
@@ -2459,15 +2487,17 @@ public final class FSLoader extends Loader {
 	 *  and returns it as an awt.Image, or null if not found.
 	 *  Will also regenerate the mipmaps, i.e. recreate the pre-scaled jpeg images if they are missing.
 	 *  Does NOT release memory, avoiding locking on the db_lock. */
-	protected Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
+	protected MipMapImage fetchMipMapAWT(final Patch patch, final int level, final long n_bytes) {
 		return fetchMipMapAWT(patch, level, n_bytes, 0);
 	}
 
 	/** Does the actual fetching of the file. Returns null if the file does not exist.
 	 *  Does NOT pre-release memory from the cache;
 	 *  call releaseToFit to do that. */
-	public final Image fetchMipMap(final Patch patch, final int level, final long n_bytes) {
+	public final MipMapImage fetchMipMap(final Patch patch, int level, final long n_bytes) {
 		final int max_level = getHighestMipMapLevel(patch);
+		if ( level > max_level ) level = max_level;
+		final double scale = Math.pow( 2.0, level );
 
 		final String filename = getInternalFileName(patch);
 		if (null == filename) {
@@ -2476,31 +2506,32 @@ public final class FSLoader extends Loader {
 		}
 
 		// New style:
-		final String path = new StringBuilder(dir_mipmaps).append(  level > max_level ? max_level : level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
+		final String path = new StringBuilder(dir_mipmaps).append(  level ).append('/').append(createIdPath(Long.toString(patch.getId()), filename, mExt)).toString();
 
 		//releaseToFit(n_bytes * 8); // eight times, for the jpeg decoder alloc/dealloc at least 2 copies, and with alpha even one more
 		// TODO the x8 is overly exaggerated
 		
-		if (patch.hasAlphaChannel()) {
-			return mmio.openWithAlpha(path); // ImageSaver.openJpegAlpha(path);
+		if ( patch.hasAlphaChannel() ) {
+			final Image img = mmio.openWithAlpha( path ); // ImageSaver.openJpegAlpha(path);
+			return img == null ? null : new MipMapImage( img, scale, scale );
 		} else {
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:
 				case ImagePlus.GRAY32:
-					return mmio.openGrey(path); // ImageSaver.openGreyJpeg(path);
+					final Image img = mmio.openGrey( path ); // ImageSaver.openGreyJpeg(path);
+					return img == null ? null : new MipMapImage( img, scale, scale );
 				default:
 					// For color images: (considers URL as well)
 					IJ.redirectErrorMessages();
-					final ImagePlus imp = openImagePlus(path);
-					if (null == imp) return null;
-					return patch.createImage(imp); // considers c_alphas
+					final ImagePlus imp = openImagePlus( path );
+					return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
 			}
 		}
 	}
 
 	/** Will NOT free memory. */
-	private final Image fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
+	private final MipMapImage fetchMipMapAWT(final Patch patch, final int level, final long n_bytes, final int retries) {
 		if (null == dir_mipmaps) {
 			Utils.log2("null dir_mipmaps");
 			return null;
@@ -2509,8 +2540,8 @@ public final class FSLoader extends Loader {
 			try {
 				// TODO should wait if the file is currently being generated
 
-				final Image img = fetchMipMap(patch, level, n_bytes);
-				if (null != img) return img;
+				final MipMapImage mipMap = fetchMipMap(patch, level, n_bytes);
+				if (null != mipMap) return mipMap;
 
 				// if we got so far ... try to regenerate the mipmaps
 				if (!mipmaps_regen) {
@@ -2529,8 +2560,8 @@ public final class FSLoader extends Loader {
 				double scale = 1 / Math.pow(2, level);
 				if (level >= 0 && patch.getWidth() * scale >= 32 && patch.getHeight() * scale >= 32 && isMipMapsRegenerationEnabled()) {
 					// regenerate in a separate thread
-					regenerateMipMaps(patch);
-					return REGENERATING;
+					regenerateMipMaps( patch );
+					return new MipMapImage( REGENERATING, patch.getWidth() / REGENERATING.getWidth(), patch.getHeight() / REGENERATING.getHeight() );
 				}
 			} catch (OutOfMemoryError oome) {
 				Utils.log2("fetchMipMapAWT: recovering from OutOfMemoryError");
@@ -2549,6 +2580,7 @@ public final class FSLoader extends Loader {
 	static private ExecutorService regenerator = null;
 	static private ExecutorService remover = null;
 	static public ExecutorService repainter = null;
+	static private int nStaticServiceThreads = nStaticServiceThreads();
 	static public ScheduledExecutorService autosaver = null;
 
 	static private final class DONE implements Future<Boolean>
@@ -2583,6 +2615,8 @@ public final class FSLoader extends Loader {
 	public final Future<Boolean> regenerateMipMaps(final Patch patch) {
 
 		if (!isMipMapsRegenerationEnabled()) {
+			// If not enabled, the cache must be flushed
+			flushMipMaps(patch.getId());
 			return new DONE();
 		}
 
@@ -2821,20 +2855,21 @@ public final class FSLoader extends Loader {
 	 *  If no image can be loaded, returns Loader.NOT_FOUND.
 	 *  If the Patch is undergoing mipmap regeneration, it waits until done.
 	 */
-	public Image fetchDataImage(Patch p, double mag) {
+	@Override
+	public MipMapImage fetchDataImage( final Patch p, final double mag) {
 		Future<Boolean> fu = null;
-		Image img = null;
+		MipMapImage mipMap = null;
 		synchronized (gm_lock) {
 			fu = regenerating_mipmaps.get(p);
 		}
 		if (null == fu) {
 			// Patch is currently not under regeneration
-			img = fetchImage(p, mag);
+			mipMap = fetchImage( p, mag );
 			// If the patch mipmaps didn't exist,
 			// the call to fetchImage will trigger mipmap regeneration
 			// and img will be now Loader.REGENERATING
-			if (Loader.REGENERATING != img) {
-				return img;
+			if (Loader.REGENERATING != mipMap.image ) {
+				return mipMap;
 			} else {
 				synchronized (gm_lock) {
 					fu = regenerating_mipmaps.get(p);
@@ -2845,7 +2880,7 @@ public final class FSLoader extends Loader {
 			try {
 				if ( ! fu.get()) {
 					Utils.log("Loader.fetchDataImage: could not regenerate mipmaps and get an image for patch " + p);
-					return Loader.NOT_FOUND;
+					return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 				}
 				// Now the image should be good:
 				return fetchImage(p, mag);
@@ -2855,8 +2890,8 @@ public final class FSLoader extends Loader {
 		}
 
 		// else:
-		Utils.log("Loader.fetchDataImage: could not get a data image for patch " + p);
-		return Loader.NOT_FOUND;
+		Utils.log( "Loader.fetchDataImage: could not get a data image for patch " + p );
+		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 	}
 
 	

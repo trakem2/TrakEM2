@@ -241,8 +241,8 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 							if (0 == snapshots_mode) {
 								// paint fully
 								final Patch p = (Patch)d;
-								final Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
-								if (null != img) {
+								final MipMapImage mipMap = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
+								if (null != mipMap) {
 									if (d.isVisible()) d.paint(g, srcRect, scale, false, p.getChannelAlphas(), layer, layers);
 									hs_painted.add(d);
 								} else  {
