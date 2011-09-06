@@ -4748,9 +4748,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			
 			if (patches.size() == fixed.size()) {
-				Utils.showMessage("Can't do", "No montage possible: all images are selected,\nand hence all are considered locked.\nSelect only one image to be used as reference, or none.")
+				Utils.showMessage("Can't do", "No montage possible: all images are selected,\nand hence all are considered locked.\nSelect only one image to be used as reference, or none.");
 				return;
 			}
+			
+			Utils.log("Using " + fixed.size() + " image" + (fixed.size() > 1 ? "s" : "") + " as reference.");
 			
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, fixed);
 			burro.addPostTask(new Runnable() { public void run() {
@@ -6028,12 +6030,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void setCursorToAll(final Cursor c) {
 		for (final Display d : al_displays) {
-			d.frame.setCursor(c);
+			if (null != d.frame) d.frame.setCursor(c);
 		}
-	}
-
-	protected void setCursor(Cursor c) {
-		frame.setCursor(c);
 	}
 
 	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */
