@@ -4734,9 +4734,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}});
 		} else if (command.equals("Montage all images in this layer")) {
 			final Layer la = layer;
-			final List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class));
+			final List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class, true));
 			if (patches.size() < 2) {
-				Utils.showMessage("Montage needs 2 or more images selected");
+				Utils.showMessage("Montage needs 2 or more visible images");
 				return;
 			}
 			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
@@ -4745,6 +4745,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final ArrayList<Patch> fixed = new ArrayList<Patch>();
 			for (final Patch p : patches) {
 				if (p.isLocked2() || selection.contains(p)) fixed.add(p);
+			}
+			
+			if (patches.size() == fixed.size()) {
+				Utils.showMessage("Can't do", "No montage possible: all images are selected,\nand hence all are considered locked.\nSelect only one image to be used as reference, or none.")
+				return;
 			}
 			
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, fixed);
