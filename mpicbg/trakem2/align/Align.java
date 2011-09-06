@@ -41,7 +41,6 @@ import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.models.Transforms;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
