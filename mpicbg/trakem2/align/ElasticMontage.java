@@ -158,6 +158,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 			
 			isAligned = gdBlockMatching.getNextBoolean();
 			
+			if ( isAligned )
+				po.desiredModelIndex = 3;
 			
 			
 			if ( !isAligned )
