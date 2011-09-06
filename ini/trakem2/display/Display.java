@@ -54,7 +54,6 @@ import ini.trakem2.utils.M;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.tree.*;
-import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.io.NeuroML;
 
 import javax.swing.*;
@@ -2959,19 +2958,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (selection.isEmpty() || ! (getActive().getClass() == Patch.class && ((Patch)getActive()).isStack())) item.setEnabled(false);
 		item = new JMenuItem("Align layers"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
-		item = new JMenuItem("Align layers with manual landmarks"); item.addActionListener(this); align_menu.add(item);
+		item = new JMenuItem("Align layers manually with landmarks"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Align multi-layer mosaic"); item.addActionListener(this); align_menu.add(item);
 		if (1 == layer.getParent().size()) item.setEnabled(false);
 		item = new JMenuItem("Montage all images in this layer"); item.addActionListener(this); align_menu.add(item);
 		if (layer.getDisplayables(Patch.class).size() < 2) item.setEnabled(false);
-		item = new JMenuItem("Montage selected images (SIFT)"); item.addActionListener(this); align_menu.add(item);
+		item = new JMenuItem("Montage selected images"); item.addActionListener(this); align_menu.add(item);
 		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
-		item = new JMenuItem("Montage selected images (phase correlation)"); item.addActionListener(this); align_menu.add(item);
-		if (selection.getSelected(Patch.class).size() < 2) item.setEnabled(false);
-		item = new JMenuItem("Montage multiple layers (phase correlation)"); item.addActionListener(this); align_menu.add(item);
-		popup.add(align_menu);
-		item = new JMenuItem("Montage multiple layers (SIFT)"); item.addActionListener(this); align_menu.add(item);
+		item = new JMenuItem("Montage multiple layers"); item.addActionListener(this); align_menu.add(item);
 		popup.add(align_menu);
 
 		JMenuItem st = new JMenu("Transform");
@@ -4711,7 +4706,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					Utils.log("Align stack slices: selected image is not part of a stack.");
 				}
 			}
-		} else if (command.equals("Align layers with manual landmarks")) {
+		} else if (command.equals("Align layers manually with landmarks")) {
 			setMode(new ManualAlignMode(Display.this));
 		} else if (command.equals("Align layers")) {
 			Roi roi = canvas.getFakeImagePlus().getRoi();
@@ -4757,26 +4752,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				getLayerSet().enlargeToFit(patches);
 				la.getParent().addTransformStepWithData(col);
 			}});
-		} else if (command.equals("Montage selected images (SIFT)")) {
-			montage(0);
-		} else if (command.equals("Montage selected images (phase correlation)")) {
-			montage(1);
-		} else if (command.equals("Montage multiple layers (phase correlation)")) {
-			final GenericDialog gd = new GenericDialog("Choose range");
-			Utils.addLayerRangeChoices(Display.this.layer, gd);
-			gd.showDialog();
-			if (gd.wasCanceled()) return;
-			final List<Layer> layers = getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex());
-			final Collection<Displayable> col = getLayerSet().addTransformStepWithDataForAll(layers);
-			Bureaucrat burro = StitchingTEM.montageWithPhaseCorrelation(layers);
+		} else if (command.equals("Montage selected images")) {
+			final Layer la = layer;
+			if (selection.getSelected(Patch.class).size() < 2) {
+				Utils.showMessage("Montage needs 2 or more images selected");
+				return;
+			}
+			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
+			Bureaucrat burro = AlignTask.alignSelectionTask(selection);
 			if (null == burro) return;
 			burro.addPostTask(new Runnable() { public void run() {
-				Collection<Displayable> ds = new ArrayList<Displayable>();
-				for (Layer la : layers) ds.addAll(la.getDisplayables(Patch.class));
-				getLayerSet().enlargeToFit(ds);
-				getLayerSet().addTransformStepWithData(col);
+				la.getParent().enlargeToFit(selection.getAffected());
+				la.getParent().addTransformStepWithData(col);
 			}});
-		} else if (command.equals("Montage multiple layers (SIFT)")) {
+		} else if (command.equals("Montage multiple layers")) {
 			final GenericDialog gd = new GenericDialog("Choose range");
 			Utils.addLayerRangeChoices(Display.this.layer, gd);
 			gd.showDialog();
@@ -6725,32 +6714,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			stacks.add(ps.getPatch(0));
 		}
 		return new ArrayList<Patch>(stacks);
-	}
-
-	private void montage(int type) {
-		final Layer la = layer;
-		if (selection.getSelected(Patch.class).size() < 2) {
-			Utils.showMessage("Montage needs 2 or more images selected");
-			return;
-		}
-		final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
-		Bureaucrat burro;
-		switch (type) {
-			case 0:
-				burro = AlignTask.alignSelectionTask(selection);
-				break;
-			case 1:
-				burro = StitchingTEM.montageWithPhaseCorrelation(selection.get(Patch.class));
-				break;
-			default:
-				Utils.log("Unknown montage type " + type);
-				return;
-		}
-		if (null == burro) return;
-		burro.addPostTask(new Runnable() { public void run() {
-			la.getParent().enlargeToFit(selection.getAffected());
-			la.getParent().addTransformStepWithData(col);
-		}});
 	}
 
 	static public Bureaucrat removeAlphaMasks(final Collection<Patch> patches) {
