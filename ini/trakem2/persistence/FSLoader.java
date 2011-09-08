@@ -362,7 +362,7 @@ public final class FSLoader extends Loader {
 	static private void startStaticServices() {
 		// Up to nStaticServiceThreads for regenerator and repainter
 		if (null == regenerator || regenerator.isShutdown()) {
-			regenerator = Utils.newFixedThreadPool(nStaticServiceThreads, "regenerator");
+			regenerator = Utils.newFixedThreadPool(1, "regenerator");
 		}
 		if (null == repainter || repainter.isShutdown()) {
 			repainter = Utils.newFixedThreadPool(nStaticServiceThreads, "repainter"); // for SnapshotPanel
