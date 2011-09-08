@@ -4752,7 +4752,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				return;
 			}
 			
-			Utils.log("Using " + fixed.size() + " image" + (fixed.size() > 1 ? "s" : "") + " as reference.");
+			Utils.log("Using " + fixed.size() + " image" + (fixed.size() == 1 ? "" : "s") + " as reference.");
 			
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, fixed);
 			burro.addPostTask(new Runnable() { public void run() {
