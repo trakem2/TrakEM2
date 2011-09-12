@@ -1275,8 +1275,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			Utils.log("No marked node in to-be parent Tree " + this);
 			return false;
 		}
+		if (null == this.root) {
+			Utils.log("The root of this tree is null!");
+			return false;
+		}
 		for (final Tree<T> tl : ts) {
 			if (this == tl) continue;
+			if (null == tl.root) {
+				Utils.log("Can't join: tree #" + tl.id + " does not have any nodes!");
+				return false;
+			}
 			if (getClass() != tl.getClass()) {
 				Utils.log("For joining, all trees must be of the same kind!");
 				return false;

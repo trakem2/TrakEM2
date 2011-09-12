@@ -61,6 +61,7 @@ import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Rectangle;
@@ -742,6 +743,7 @@ public class Project extends DBObject {
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
+		Search.removeTabs(this);
 		synchronized (ptcache) { ptcache.clear(); }
 		return true;
 	}
@@ -1443,7 +1445,7 @@ public class Project extends DBObject {
 		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0, 6, "layers");
 		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
-		int n_mipmap_threads = getProperty("n_mipmap_threads", Runtime.getRuntime().availableProcessors());
+		int n_mipmap_threads = getProperty("n_mipmap_threads", 1);
 		gd.addSlider("Number of threads for mipmaps", 1, n_mipmap_threads, n_mipmap_threads);
 		//
 		gd.showDialog();

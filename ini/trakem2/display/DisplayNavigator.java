@@ -93,7 +93,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			this.layer = display.getLayer();
 		}
 
-		scale = Math.min(SIDE / display.getLayer().getLayerWidth(), SIDE / display.getLayer().getLayerHeight());
 		RT.paint(null, redraw_displayables);
 	}
 
@@ -190,6 +189,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			}
 
 			final BufferedImage target = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+			scale = Math.min(SIDE / layer.getLayerWidth(), SIDE / layer.getLayerHeight());
 
 			try {
 				final Graphics2D g = target.createGraphics();

@@ -4734,9 +4734,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}});
 		} else if (command.equals("Montage all images in this layer")) {
 			final Layer la = layer;
-			final List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class));
+			final List<Patch> patches = new ArrayList<Patch>( (List<Patch>) (List) la.getDisplayables(Patch.class, true));
 			if (patches.size() < 2) {
-				Utils.showMessage("Montage needs 2 or more images selected");
+				Utils.showMessage("Montage needs 2 or more visible images");
 				return;
 			}
 			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
@@ -4746,6 +4746,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			for (final Patch p : patches) {
 				if (p.isLocked2() || selection.contains(p)) fixed.add(p);
 			}
+			
+			if (patches.size() == fixed.size()) {
+				Utils.showMessage("Can't do", "No montage possible: all images are selected,\nand hence all are considered locked.\nSelect only one image to be used as reference, or none.");
+				return;
+			}
+			
+			Utils.log("Using " + fixed.size() + " image" + (fixed.size() == 1 ? "" : "s") + " as reference.");
 			
 			Bureaucrat burro = AlignTask.alignPatchesTask(patches, fixed);
 			burro.addPostTask(new Runnable() { public void run() {
@@ -4889,7 +4896,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (!(active instanceof Tree<?>)) return;
 			final List<Tree<?>> tlines = (List<Tree<?>>) selection.get(active.getClass());
 			if (((Tree)active).canJoin(tlines)) {
-				if (!Utils.check("Join these " + tlines.size() + " trees into the tree " + active + " ?")) return;
+				int nNodes_active = ((Tree)active).getRoot().getSubtreeNodes().size();
+				String warning = "";
+				for (final Tree<?> t : tlines) {
+					if (active == t) continue;
+					if (null == t.getRoot()) {
+						Utils.log("Removed empty tree #" + t.getId() + " from those to join.");
+						tlines.remove(t);
+						continue;
+					}
+					if (t.getRoot().getSubtreeNodes().size() > nNodes_active) {
+						warning = "\nWARNING joining into a tree that is not the largest!";
+						break;
+					}
+				}
+				if (!Utils.check("Join these " + tlines.size() + " trees into the tree " + active + " ?" + warning)) return;
 				// Record current state
 				Set<DoStep> dataedits = new HashSet<DoStep>(tlines.size());
 				for (final Tree<?> tl : tlines) {
@@ -6009,12 +6030,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 	static public void setCursorToAll(final Cursor c) {
 		for (final Display d : al_displays) {
-			d.frame.setCursor(c);
+			if (null != d.frame) d.frame.setCursor(c);
 		}
-	}
-
-	protected void setCursor(Cursor c) {
-		frame.setCursor(c);
 	}
 
 	/** Used by the Displayable to update the visibility and locking state checkboxes in other Displays. */

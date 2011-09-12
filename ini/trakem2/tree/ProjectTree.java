@@ -830,6 +830,19 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		if (landing_pt.isEmpty()) {
 			landing = new String[]{"-- NONE --"};
 		} else for (ProjectThing t : landing_pt) landing[next++] = t.toString();
+		
+		// Suggest the first potential landing node that has the same title
+		String parentTitle = pt.getParent().toString();
+		int k = 0;
+		boolean matched = false;
+		for (final String candidate : landing) {
+			if (candidate.equals(parentTitle)) {
+				matched = true;
+				break;
+			}
+			k += 1;
+		}
+		if (!matched) k = 0;
 
 		// Ask:
 		GenericDialog gd = new GenericDialog("Send to sibling project");
@@ -839,7 +852,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		String[] ptitles = new String[psother.size()];
 		for (int i=0; i<ptitles.length; i++) ptitles[i] = psother.get(i).toString();
 		gd.addChoice("Target project:", ptitles, ptitles[0]);
-		gd.addChoice("Landing node:", landing, landing[0]);
+		gd.addChoice("Landing node:", landing, landing[k]);
 		final Vector<Choice> vc = (Vector<Choice>) gd.getChoices();
 		final Choice choice_project = vc.get(vc.size()-2);
 		final Choice choice_landing = vc.get(vc.size()-1);
@@ -935,6 +948,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 			target_project.getTemplateTree().rebuild(); // could have changed
 			target_project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
+
+			// Open up the path to the landing parent node
+			final TreePath tp = new TreePath(DNDTree.findNode(landing_parent, target_project.getProjectTree()).getPath());
+			Utils.invokeLater(new Runnable() { public void run() {
+				target_project.getProjectTree().scrollPathToVisible(tp);
+				target_project.getProjectTree().setSelectionPath(tp);
+			}});
+			
 
 			// Now that all have been copied, transform if so asked for:
 
