@@ -51,6 +51,7 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.display.Selection;
 import ini.trakem2.display.VectorData;
 import ini.trakem2.display.VectorDataTransform;
+import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
@@ -66,18 +67,28 @@ import java.util.concurrent.Future;
  *
  */
 final public class AlignTask
-{
-	static protected int LINEAR = 0, ELASTIC = 1;
-	static protected int mode = LINEAR;
-	final static String[] modeStrings = new String[]{
-		"least squares (linear feature correspondences)",
-		"elastic (non-linear block correspondences)" };
-	
+{	
 	static protected boolean tilesAreInPlace = false;
 	static protected boolean largestGraphOnly = false;
 	static protected boolean hideDisconnectedTiles = false;
 	static protected boolean deleteDisconnectedTiles = false;
 	static protected boolean deform = false;
+
+	static public final int LINEAR_PHASE_CORRELATION = 0,
+							LINEAR_SIFT_CORRESPONDENCES = 1,
+							ELASTIC_BLOCK_CORRESPONDENCES = 2;
+	/**
+	 * The mode used for alignment, which defaults to LINEAR_SIFT_CORRESPONDENCES
+	 * but can take the values ELASTIC_BLOCK_CORRESPONDENCES and LINEAR_PHASE_CORRELATION.
+	 */
+	static protected int mode = LINEAR_SIFT_CORRESPONDENCES;
+	
+	final static private String[] modeStrings = new String[]{
+		"phase-correlation",
+		"least squares (linear feature correspondences)",
+		"elastic (non-linear block correspondences)" };
+
+
 	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
@@ -85,7 +96,10 @@ final public class AlignTask
 			public void run() {
 				startedWorking();
 				try {
-					alignSelection( selection );
+					int mode = chooseAlignmentMode();
+					if (-1 == mode)
+						return;
+					alignSelection( selection, mode );
 					Display.repaint(selection.getLayer());
 				} catch (Throwable e) {
 					IJError.print(e);
@@ -102,7 +116,7 @@ final public class AlignTask
 	}
 
 
-	final static public void alignSelection( final Selection selection ) throws Exception
+	final static public void alignSelection( final Selection selection, final int mode ) throws Exception
 	{
 		List< Patch > patches = new ArrayList< Patch >();
 		for ( Displayable d : selection.getSelected() )
@@ -120,7 +134,7 @@ final public class AlignTask
 			if ( patch.isLocked() )
 				fixedPatches.add( patch );
 
-		alignPatches( patches, fixedPatches );
+		alignPatches( patches, fixedPatches, mode );
 	}
 
 	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final List< Patch > fixedPatches )
@@ -134,7 +148,10 @@ final public class AlignTask
 			public void run() {
 				startedWorking();
 				try {
-					alignPatches( patches, fixedPatches );
+					int mode = chooseAlignmentMode();
+					if (-1 == mode)
+						return;
+					alignPatches( patches, fixedPatches, mode );
 					Display.repaint();
 				} catch (Throwable e) {
 					IJError.print(e);
@@ -148,12 +165,32 @@ final public class AlignTask
 		};
 		return Bureaucrat.createAndStart( worker, patches.get(0).getProject() );
 	}
+	
+	/** @return the chosen mode, or -1 when canceled. */
+	final static private int chooseAlignmentMode()
+	{
+		final GenericDialog gdMode = new GenericDialog( "Montage mode" );
+		gdMode.addChoice( "mode :", modeStrings, modeStrings[ mode ] );
+		gdMode.showDialog();
+		if ( gdMode.wasCanceled() )
+			return -1;
+
+		int m = gdMode.getNextChoiceIndex();
+		// Set the static for future use
+		mode = m;
+		return m;
+	}
 
 	/**
 	 * @param patches: the list of Patch instances to align, all belonging to the same Layer.
-	 * @param fixed: the list of Patch instances to keep locked in place, if any.
+	 * @param fixedPatches: the list of Patch instances to keep locked in place, if any.
+	 * @param mode: {@link AlignTask#LINEAR_SIFT_CORRESPONDENCES}, {@link AlignTask#LINEAR_PHASE_CORRELATION} or {@link AlignTask#ELASTIC_BLOCK_CORRESPONDENCES}.
 	 */
-	final static public void alignPatches( final List< Patch > patches , final List< Patch > fixedPatches ) throws Exception
+	final static public void alignPatches(
+			final List< Patch > patches,
+			final List< Patch > fixedPatches,
+			final int mode
+		) throws Exception
 	{
 		if ( patches.size() < 2 )
 		{
@@ -172,17 +209,14 @@ final public class AlignTask
 
 		//final Align.ParamOptimize p = Align.paramOptimize;
 		
-		final GenericDialog gdMode = new GenericDialog( "Montage mode" );
-		gdMode.addChoice( "mode :", modeStrings, modeStrings[ LINEAR ] );
-		gdMode.showDialog();
-		if ( gdMode.wasCanceled() )
-			return;
-		
-		mode = gdMode.getNextChoiceIndex();
-		
-		if ( mode == ELASTIC )
+		if ( ELASTIC_BLOCK_CORRESPONDENCES == mode )
 			new ElasticMontage().exec( patches, fixedPatches );
-		else
+		else if (LINEAR_PHASE_CORRELATION == mode) {
+			// Montage all given patches, fixedPatches is ignored!
+			if (!fixedPatches.isEmpty()) Utils.log("Ignoring " + fixedPatches.size() + " fixed patches.");
+			StitchingTEM.montageWithPhaseCorrelation(patches);
+		}
+		else if (LINEAR_SIFT_CORRESPONDENCES == mode)
 		{
 			final GenericDialog gd = new GenericDialog( "Montage" );
 			
@@ -206,9 +240,11 @@ final public class AlignTask
 			final Align.ParamOptimize p = Align.paramOptimize.clone();
 			alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 		}
+		else
+			Utils.log( "Don't know how to align with mode " + mode );
 	}
 
-	/** Montage each layer independently, with SIFT.
+	/** Montage each layer independently.
 	 *  Does NOT register layers to each other.
 	 *  Considers visible Patches only. */
 	final static public Bureaucrat montageLayersTask(final List<Layer> layers) {
@@ -216,15 +252,9 @@ final public class AlignTask
 		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers", true) {
 			public void exec()
 			{
-				final GenericDialog gdMode = new GenericDialog( "Montage mode" );
-				gdMode.addChoice( "mode :", modeStrings, modeStrings[ LINEAR ] );
-				gdMode.showDialog();
-				if ( gdMode.wasCanceled() )
-					return;
+				int mode = chooseAlignmentMode();
 				
-				mode = gdMode.getNextChoiceIndex();
-				
-				if ( mode == ELASTIC )
+				if ( ELASTIC_BLOCK_CORRESPONDENCES == mode )
 				{
 					final ElasticMontage.Param p = ElasticMontage.setup();
 					if ( p == null )
@@ -235,8 +265,12 @@ final public class AlignTask
 						catch ( Exception e ) { e.printStackTrace(); Utils.log( "Exception during montaging layers.  Operation failed." ); }
 					}
 				}
-				else
+				else if (LINEAR_PHASE_CORRELATION == mode)
 				{
+					StitchingTEM.montageWithPhaseCorrelation(layers, this);
+				}
+				else if (LINEAR_SIFT_CORRESPONDENCES == mode)
+				{	
 					//final Align.ParamOptimize p = Align.paramOptimize;
 					final GenericDialog gd = new GenericDialog( "Montage Layers" );
 					Align.paramOptimize.addFields( gd );
@@ -259,6 +293,8 @@ final public class AlignTask
 					final Align.ParamOptimize p = Align.paramOptimize.clone();
 					montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 				}
+				else
+					Utils.log( "Don't know how to align with mode " + mode );
 			}
 		}, layers.get(0).getProject());
 	}
