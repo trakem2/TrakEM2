@@ -102,11 +102,15 @@ public class Align
 			sift.fdSize = 8;
 		}
 		
+		public void addSIFTFields( final GenericDialog gd )
+		{
+			SIFT.addFields( gd, sift );			
+			gd.addNumericField( "closest/next_closest_ratio :", rod, 2 );
+		}
+		
 		public void addFields( final GenericDialog gd )
 		{
-			SIFT.addFields( gd, sift );
-			
-			gd.addNumericField( "closest/next_closest_ratio :", rod, 2 );
+			addSIFTFields( gd );
 			
 			gd.addMessage( "Geometric Consensus Filter:" );
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
