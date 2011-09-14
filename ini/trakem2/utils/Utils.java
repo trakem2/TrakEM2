@@ -1487,6 +1487,7 @@ public class Utils implements ij.plugin.PlugIn {
 				fu.get(); // wait until done
 			} catch (Exception e) {
 				IJError.print(e);
+				if (Thread.currentThread().isInterrupted()) return;
 			}
 		}
 	}
