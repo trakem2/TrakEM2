@@ -24,7 +24,6 @@ package ini.trakem2.persistence;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Search;
 
 import java.util.Set;
 
