@@ -100,7 +100,7 @@ public final class Blending {
 			final HashMap<Patch,TransformMesh> meshes = new HashMap<Patch,TransformMesh>();
 			for (final Patch p : patches) {
 				meshes.put(p, null == p.getCoordinateTransform() ? null
-						: new TransformMesh(p.getCoordinateTransform(), 32, p.getOWidth(), p.getOHeight()));
+						: new TransformMesh(p.getCoordinateTransform(), p.getMeshResolution(), p.getOWidth(), p.getOHeight()));
 			}
 
 			exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());

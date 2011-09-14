@@ -104,6 +104,35 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
 	private CoordinateTransform ct = null;
+	
+	protected int meshResolution = 32;
+	public int getMeshResolution(){ return meshResolution; }
+	
+	/**
+	 * Change the resolution of meshes used to render patches transformed by a
+	 * {@link CoordinateTransform}.  The method has to update bounding box
+	 * offsets introduced by the {@link CoordinateTransform} because the
+	 * bounding box has been calculated using the mesh.
+	 * 
+	 * @param meshResolution
+	 */
+	public void setMeshResolution( final int meshResolution )
+	{
+		if ( ct == null )
+			this.meshResolution = meshResolution;
+		else
+		{
+			Rectangle box = this.getCoordinateTransformBoundingBox();
+			this.at.translate( -box.x, -box.y );
+			this.meshResolution = meshResolution;
+			box = this.getCoordinateTransformBoundingBox();
+			this.at.translate( box.x, box.y );
+			width = box.width;
+			height = box.height;
+			updateInDatabase("transform+dimensions"); // the AffineTransform
+			updateBucket();
+		}
+	}
 
 	/** Create a new Patch and register the associated {@param filepath}
 	 * with the project's loader.
@@ -181,7 +210,8 @@ public final class Patch extends Displayable implements ImageData {
 			project.getLoader().setPreprocessorScriptPathSilently(this, data);
 		}
 		if (null != (data = ht_attributes.get("original_path"))) this.original_path = data;
-
+		if (null != (data = ht_attributes.get("mres"))) this.meshResolution = Integer.parseInt(data);
+		
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
 			try {
@@ -785,6 +815,8 @@ public final class Patch extends Displayable implements ImageData {
 		String pps = getPreprocessorScriptPath();
 		if (null != pps) sb_body.append(in).append("pps=\"").append(project.getLoader().makeRelativePath(pps)).append("\"\n");
 
+		sb_body.append(in).append("mres=\"").append(meshResolution).append("\"\n");
+		
 		sb_body.append(indent).append(">\n");
 
 		if (null != ct) {
@@ -818,7 +850,12 @@ public final class Patch extends Displayable implements ImageData {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" min").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" max").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
+			 .append(indent).append(TAG_ATTR1).append(type).append(" mres").append(TAG_ATTR2)
 		;
 	}
 
@@ -848,12 +885,14 @@ public final class Patch extends Displayable implements ImageData {
 		final public Rectangle bounds;
 		final public AffineTransform at;
 		final public CoordinateTransform ct;
+		final public int meshResolution;
 		final public int o_width, o_height;
 		final public Area area;
 
 		public TransformProperties(final Patch p) {
 			this.at = new AffineTransform(p.at);
 			this.ct = null == p.ct ? null : p.ct.copy();
+			this.meshResolution = p.getMeshResolution();
 			this.bounds = p.getBoundingBox(null);
 			this.o_width = p.o_width;
 			this.o_height = p.o_height;
@@ -1058,7 +1097,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		if (null != this.ct) {
 			// restore image without the transform
-			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
 			this.at.translate(-box.x, -box.y);
 			updateInDatabase("transform+dimensions");
@@ -1076,7 +1115,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		// Adjust the AffineTransform to correct for bounding box displacement
 
-		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+		final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
 		final Rectangle box = mesh.getBoundingBox();
 		this.at.translate(box.x, box.y);
 		width = box.width;
@@ -1126,7 +1165,7 @@ public final class Patch extends Displayable implements ImageData {
 	public final Rectangle getCoordinateTransformBoundingBox() {
 		if (null==ct)
 			return new Rectangle(0,0,o_width,o_height);
-		final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+		final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
 		return mesh.getBoundingBox();
 	}
 
@@ -1141,7 +1180,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		//Utils.log2("source image dimensions: " + source.getWidth() + ", " + source.getHeight());
 
-		final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+		final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
 		final Rectangle box = mesh.getBoundingBox();
 
 		/* We can calculate the exact size of the image to be rendered, so let's do it */
@@ -1290,7 +1329,7 @@ public final class Patch extends Displayable implements ImageData {
 					}
 					ImageProcessor ip;
 					if (null != list) {
-						TransformMesh mesh = new TransformMesh(list, 32, o_width, o_height);
+						TransformMesh mesh = new TransformMesh(list, meshResolution, o_width, o_height);
 						TransformMeshMapping mapping = new TransformMeshMapping(mesh);
 						ip = mapping.createMappedImageInterpolated(getImageProcessor());
 					} else {
@@ -1456,7 +1495,7 @@ public final class Patch extends Displayable implements ImageData {
 
 			if (null != ct) {
 				// inverse the coordinate transform
-				final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+				final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
 				final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 				rmask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
 			}
@@ -1492,7 +1531,7 @@ public final class Patch extends Displayable implements ImageData {
 			} else {
 				if (null != ct) {
 					// must transform it
-					final TransformMesh mesh = new TransformMesh(ct, 32, o_width, o_height);
+					final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
 					final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 					alpha_mask = mapping.createMappedImage( alpha_mask ); // Without interpolation
 					// Keep in mind the affine of the Patch already contains the translation specified by the mesh bounds.
@@ -1539,7 +1578,7 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != ct) {
 			final CoordinateTransformList<CoordinateTransform> t = new CoordinateTransformList<CoordinateTransform>();
 			t.add(ct);
-			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
 			final AffineTransform aff = new AffineTransform(this.at);
 			// Must correct for the inverse of the mesh translation, because the affine also includes the translation.
@@ -1553,7 +1592,7 @@ public final class Patch extends Displayable implements ImageData {
 			 * WORKS FINE, but for points that fall outside the mesh, they don't get transformed!
 			// Do it like Patch does it to generate the mipmap, with a mesh (and all the imprecisions of a mesh):
 			final CoordinateTransformList t = new CoordinateTransformList();
-			final TransformMesh mesh = new TransformMesh(this.ct, 32, o_width, o_height);
+			final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
 			final AffineTransform aff = new AffineTransform(this.at);
 			t.add(mesh);
 			final AffineModel2D affm = new AffineModel2D();
@@ -1661,7 +1700,7 @@ public final class Patch extends Displayable implements ImageData {
 			// 3. The desired scaling
 			if (null != sc) patch_affine.preConcatenate( sc );
 
-			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, 32, p.getOWidth(), p.getOHeight() );
+			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, p.meshResolution, p.getOWidth(), p.getOHeight() );
 			final mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
 			
 			// 4. Convert the patch to the required type

@@ -698,7 +698,7 @@ final public class AlignTask
 						if (null != props.ct) {
 							// The props.ct is a CoordinateTransform, not necessarily an InvertibleCoordinateTransform
 							// So the mesh is necessary to ensure the invertibility
-							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
+							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, props.meshResolution, props.o_width, props.o_height);
 							/* // Apparently not needed; the inverse affine in step 1 took care of it.
 							 * // (the affine of step 1 includes the mesh translation)
 							Rectangle box = mesh.getBoundingBox();
@@ -713,7 +713,7 @@ final public class AlignTask
 						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
 						if (null != ct) {
 							tlist.add(ct);
-							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, 32, patch.getOWidth(), patch.getOHeight());
+							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, patch.getMeshResolution(), patch.getOWidth(), patch.getOHeight());
 							// correct for mesh bounds -- Necessary because it comes from the other side, and the removal of the translation here is re-added by the affine in step 4!
 							Rectangle box = mesh.getBoundingBox();
 							AffineModel2D aff = new AffineModel2D();
@@ -733,7 +733,7 @@ final public class AlignTask
 						// The old part:
 						final mpicbg.models.InvertibleCoordinateTransformList old = new mpicbg.models.InvertibleCoordinateTransformList();
 						if (null != props.ct) {
-							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, 32, props.o_width, props.o_height);
+							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, props.meshResolution, props.o_width, props.o_height);
 							old.add(mesh);
 						}
 						final mpicbg.models.AffineModel2D old_aff = new mpicbg.models.AffineModel2D();
