@@ -16,15 +16,17 @@
  */
 package mpicbg.trakem2.transform;
 
+import ij.process.ByteProcessor;
+import ij.process.ImageProcessor;
+
 import java.util.ArrayList;
-import java.util.Set;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.PointMatch;
 import mpicbg.models.TransformMesh;
 import mpicbg.util.Util;
-import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
 
 /**
  * Specialized {@link mpicbg.ij.TransformMapping} for Patches, that is, rendering
@@ -62,6 +64,74 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		
 		final public int getWidth(){ return ip.getWidth(); }
 		final public int getHeight(){ return ip.getHeight(); }
+	}
+	
+	final static private class MapTriangleThread extends Thread
+	{
+		final private AtomicInteger i;
+		final private List< AffineModel2D > triangles;
+		final private TransformMesh transform;
+		final ImageProcessorWithMasks source, target;
+		MapTriangleThread(
+				final AtomicInteger i,
+				final List< AffineModel2D > triangles,
+				final TransformMesh transform,
+				final ImageProcessorWithMasks source,
+				final ImageProcessorWithMasks target )
+		{
+			this.i = i;
+			this.triangles = triangles;
+			this.transform = transform;
+			this.source = source;
+			this.target = target;
+		}
+		
+		final public void run()
+		{
+			int k = i.getAndIncrement();
+			while ( !isInterrupted() && k < triangles.size() )
+			{
+				if ( source.mask == null )
+					mapTriangle( transform, triangles.get( k ), source.ip, target.ip, target.outside );
+				else
+					mapTriangle( transform, triangles.get( k ), source.ip, source.mask, target.ip, target.mask, target.outside );
+				k = i.getAndIncrement();
+			}
+		}
+	}
+	
+	final static private class MapTriangleInterpolatedThread extends Thread
+	{
+		final private AtomicInteger i;
+		final private List< AffineModel2D > triangles;
+		final private TransformMesh transform;
+		final ImageProcessorWithMasks source, target;
+		MapTriangleInterpolatedThread(
+				final AtomicInteger i,
+				final List< AffineModel2D > triangles,
+				final TransformMesh transform,
+				final ImageProcessorWithMasks source,
+				final ImageProcessorWithMasks target )
+		{
+			this.i = i;
+			this.triangles = triangles;
+			this.transform = transform;
+			this.source = source;
+			this.target = target;
+		}
+		
+		final public void run()
+		{
+			int k = i.getAndIncrement();
+			while ( !isInterrupted() && k < triangles.size() )
+			{
+				if ( source.mask == null )
+					mapTriangleInterpolated( transform, triangles.get( k ), source.ip, target.ip, target.outside );
+				else
+					mapTriangleInterpolated( transform, triangles.get( k ), source.ip, source.mask, target.ip, target.mask, target.outside );
+				k = i.getAndIncrement();
+			}
+		}
 	}
 	
 	public TransformMeshMappingWithMasks( final T t )
@@ -288,39 +358,77 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		}
 	}
 	
-	final public void map( final ImageProcessorWithMasks source, final ImageProcessorWithMasks target )
+	
+	
+	
+	
+	
+	
+	final public void map(
+			final ImageProcessorWithMasks source,
+			final ImageProcessorWithMasks target,
+			final int numThreads )
 	{
 		target.outside = new ByteProcessor( target.getWidth(), target.getHeight() );
 		
-		if ( source.mask == null )
+		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
+		l.addAll( transform.getAV().keySet() );
+		final AtomicInteger i = new AtomicInteger( 0 );
+		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+		for ( int k = 0; k < numThreads; ++k )
 		{
-			final Set< AffineModel2D > s = transform.getAV().keySet();
-			for ( final AffineModel2D ai : s )
-				mapTriangle( transform, ai, source.ip, target.ip, target.outside );
+			final Thread mtt = new MapTriangleThread( i, l, transform, source, target );
+			threads.add( mtt );
+			mtt.start();
 		}
-		else
+		for ( final Thread mtt : threads )
 		{
-			final Set< AffineModel2D > s = transform.getAV().keySet();
-			for ( final AffineModel2D ai : s )
-				mapTriangle( transform, ai, source.ip, source.mask, target.ip, target.mask, target.outside );
+			try
+			{
+				mtt.join();
+			}
+			catch ( InterruptedException e ) {}
 		}
 	}
 	
-	final public void mapInterpolated( final ImageProcessorWithMasks source, final ImageProcessorWithMasks target )
+	final public void mapInterpolated(
+			final ImageProcessorWithMasks source,
+			final ImageProcessorWithMasks target,
+			final int numThreads )
 	{
 		target.outside = new ByteProcessor( target.getWidth(), target.getHeight() );
 		
-		if ( source.mask == null )
+		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
+		l.addAll( transform.getAV().keySet() );
+		final AtomicInteger i = new AtomicInteger( 0 );
+		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+		for ( int k = 0; k < numThreads; ++k )
 		{
-			final Set< AffineModel2D > s = transform.getAV().keySet();
-			for ( final AffineModel2D ai : s )
-				mapTriangleInterpolated( transform, ai, source.ip, target.ip, target.outside );
+			final Thread mtt = new MapTriangleInterpolatedThread( i, l, transform, source, target );
+			threads.add( mtt );
+			mtt.start();
 		}
-		else
+		for ( final Thread mtt : threads )
 		{
-			final Set< AffineModel2D > s = transform.getAV().keySet();
-			for ( final AffineModel2D ai : s )
-				mapTriangleInterpolated( transform, ai, source.ip, source.mask, target.ip, target.mask, target.outside );
+			try
+			{
+				mtt.join();
+			}
+			catch ( InterruptedException e ) {}
 		}
+	}
+	
+	final public void map(
+			final ImageProcessorWithMasks source,
+			final ImageProcessorWithMasks target )
+	{
+		map( source, target, Runtime.getRuntime().availableProcessors() );
+	}
+	
+	final public void mapInterpolated(
+			final ImageProcessorWithMasks source,
+			final ImageProcessorWithMasks target )
+	{
+		mapInterpolated( source, target, Runtime.getRuntime().availableProcessors() );
 	}
 }
