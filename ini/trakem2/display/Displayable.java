@@ -1100,7 +1100,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	protected GenericDialog makeAdjustPropertiesDialog() {
 		Rectangle box = getBoundingBox(null);
-		GenericDialog gd = new GD("Properties", this);
+		GenericDialog gd = new GD("Properties of #" + id, this);
 		gd.addStringField("title: ", title);
 		gd.addNumericField("x: ", box.x, 2);
 		gd.addNumericField("y: ", box.y, 2);
