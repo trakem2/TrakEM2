@@ -43,6 +43,7 @@ import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.Operation;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
@@ -2986,6 +2987,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Remove coordinate transforms (selected images)"); item.addActionListener(tml); st.add(item);
 		if (null == active) item.setEnabled(false);
 		item = new JMenuItem("Remove coordinate transforms layer-wise"); item.addActionListener(tml); st.add(item);
+		item = new JMenuItem("Adjust mesh resolution (selected images)"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Adjust mesh resolution layer-wise"); item.addActionListener(tml); st.add(item);
 		popup.add(st);
 
 		JMenu link_menu = new JMenu("Link");
@@ -3699,6 +3703,27 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					patches.addAll(layer.getDisplayables(Patch.class));
 				}
 				removeScalingRotationShear( (List<Patch>) (List) patches);
+			} else if (command.equals("Adjust mesh resolution (selected images)")) {
+				if (null == active) return;
+				final List<Patch> col = selection.get(Patch.class);
+				if (col.isEmpty()) return;
+				GenericDialog gd = new GenericDialog("Adjust mesh resolution");
+				gd.addSlider("Mesh resolution:", 2, 512,
+						((Patch)(active.getClass() == Patch.class ? active : col.get(0))).getMeshResolution());
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				setMeshResolution(col, (int)gd.getNextNumber());
+			} else if (command.equals("Adjust mesh resolution layer-wise")) {
+				GenericDialog gd = new GenericDialog("Adjust mesh resolution");
+				Utils.addLayerRangeChoices(Display.this.layer, gd);
+				gd.addSlider("Mesh resolution:", 2, 512, project.getProperty("mesh_resolution", 32));
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				final ArrayList<Patch> patches = new ArrayList<Patch>();
+				for (final Layer layer : getLayerSet().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1)) {
+					patches.addAll(layer.getAll(Patch.class));
+				}
+				setMeshResolution(patches, (int)gd.getNextNumber());
 			}
 		}
 	}
@@ -3718,39 +3743,96 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}}, this.project);
 	}
 
-	public Bureaucrat removeCoordinateTransforms(final List<Patch> patches) {
-		return Bureaucrat.createAndStart(new Worker.Task("Removing coordinate transforms") { public void exec() {
+	/** Meant for tasks that require setting an undo and regenerating mipmaps.
+	 *  The method will NOT run if any Patch is linked.
+	 * 
+	 * @param patches
+	 * @param task
+	 * @param filter
+	 * @param taskTitle
+	 * @return the {@link Bureaucrat} in charge of the task.
+	 */
+	public Bureaucrat applyPatchTask(final List<Patch> patches, final String taskTitle, final Operation<Boolean,Patch> task, final Filter<Patch> filter) {
+		return Bureaucrat.createAndStart(new Worker.Task(taskTitle) { public void exec() {
 			// Check if any are linked: cannot remove, would break image-to-segmentation relationship
 			for (final Patch p : patches) {
 				if (p.isLinked()) {
-					Utils.logAll("Cannot remove coordinate transform: some images are linked to segmentations!");
+					Utils.logAll("Cannot apply task: some images are linked to segmentations!");
 					return;
 				}
 			}
 
-			// Collect Patch instances to modify:
-			final HashSet<Patch> ds = new HashSet<Patch>(patches);
+			final HashSet<Patch> ds = new HashSet<Patch>();
 			for (final Patch p : patches) {
-				if (null != p.getCoordinateTransform()) {
+				if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
+				if (filter.accept(p)) {
 					ds.add(p);
 				}
+			}
+
+			if (ds.isEmpty()) {
+				Utils.log("Nothing to do.");
+				return;
 			}
 
 			// Add undo step:
 			getLayerSet().addDataEditStep(ds);
 
-			// Remove coordinate transforms:
-			final ArrayList<Future> fus = new ArrayList<Future>();
+			// Execute
+			final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 			for (final Patch p : ds) {
-				p.setCoordinateTransform(null);
-				fus.add(p.getProject().getLoader().regenerateMipMaps(p)); // queue
+				if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
+				if (task.apply(p)) {
+					fus.add(p.getProject().getLoader().regenerateMipMaps(p)); // queue
+				}
 			}
-			// wait until all done
-			for (Future fu : fus) try { fu.get(); } catch (Exception e) { IJError.print(e); }
+			Utils.wait(fus);
 
 			// Set current state
 			getLayerSet().addDataEditStep(ds);
 		}}, project);
+	}
+
+	public Bureaucrat removeCoordinateTransforms(final List<Patch> patches) {
+		return applyPatchTask(
+				patches,
+				"Removing coordinate transforms",
+				new Operation<Boolean, Patch>() {
+					@Override
+					public Boolean apply(Patch o) {
+						o.setCoordinateTransform(null);
+						return true;
+					}
+				},
+				new Filter<Patch>() {
+					@Override
+					public boolean accept(Patch t) {
+						return null != t.getCoordinateTransform();
+					}
+				});
+	}
+	
+	public Bureaucrat setMeshResolution(final List<Patch> patches, final int meshResolution) {
+		if (meshResolution < 1) {
+			Utils.log("Cannot apply a mesh resolution smaller than 1!");
+			return null;
+		}
+		return applyPatchTask(
+				patches,
+				"Alter mesh resolution",
+				new Operation<Boolean, Patch>() {
+					@Override
+					public Boolean apply(Patch o) {
+						o.setMeshResolution(meshResolution);
+						return true;
+					}
+				},
+				new Filter<Patch>() {
+					@Override
+					public boolean accept(Patch t) {
+						return t.getMeshResolution() != meshResolution;
+					}
+				});
 	}
 
 	private class MenuScriptListener implements ActionListener {
