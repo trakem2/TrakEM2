@@ -1447,6 +1447,8 @@ public class Project extends DBObject {
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
 		int n_mipmap_threads = getProperty("n_mipmap_threads", 1);
 		gd.addSlider("Number of threads for mipmaps", 1, n_mipmap_threads, n_mipmap_threads);
+		int meshResolution = getProperty("mesh_resolution", 32);
+		gd.addSlider("Default mesh resolution for images", 1, 512, meshResolution);
 		//
 		gd.showDialog();
 		//
@@ -1524,6 +1526,14 @@ public class Project extends DBObject {
 			setProperty("n_mipmap_threads", Integer.toString(n_mipmap_threads2));
 			// WARNING: this does it for a static service, affecting all projects!
 			FSLoader.restartMipMapThreads(n_mipmap_threads2);
+		}
+		int meshResolution2 = (int)gd.getNextNumber();
+		if (meshResolution != meshResolution2) {
+			if (meshResolution2 > 0) {
+				setProperty("mesh_resolution", Integer.toString(meshResolution2));
+			} else {
+				Utils.log("WARNING: ignoring invalid mesh resolution value " + meshResolution2);
+			}
 		}
 	}
 
