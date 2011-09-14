@@ -4722,7 +4722,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			selection.setLocked(false);
 			Utils.revalidateComponent(tabs.getSelectedComponent());
 		} else if (command.equals("Properties...")) {
-			active.adjustProperties();
+			switch(selection.getSelected().size()) {
+			case 0:
+				return;
+			case 1:
+				active.adjustProperties();
+				break;
+			default:
+				adjustGroupProperties(selection.getSelected());
+				break;
+			}
 			updateSelection();
 		} else if (command.equals("Show current 2D position in 3D")) {
 			Point p = canvas.consumeLastPopupPoint();
@@ -5693,6 +5702,47 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
 		}});
+	}
+
+	/** Pops up a dialog to adjust the alpha, visible, color, locked and compositeMode of all Displayables in {@param col}.
+	 * 
+	 * @param col
+	 */
+	public void adjustGroupProperties(final Collection<Displayable> col) {
+		if (col.isEmpty()) return;
+		final Displayable first = col.iterator().next();
+		final GenericDialog gd = new GenericDialog("Properties of selected");
+		gd.addSlider("alpha: ", 0, 100, (int)(first.getAlpha()*100));
+		gd.addCheckbox("visible", first.isVisible());
+		gd.addSlider("Red: ", 0, 255, first.getColor().getRed());
+		gd.addSlider("Green: ", 0, 255, first.getColor().getGreen());
+		gd.addSlider("Blue: ", 0, 255, first.getColor().getBlue());
+		gd.addCheckbox("locked", first.isLocked2());
+		gd.addChoice( "composite mode: ", Displayable.compositeModes, Displayable.compositeModes[ first.getCompositeMode() ] );
+		gd.showDialog();
+		
+		if (gd.wasCanceled()) return;
+		
+		final HashSet<Displayable> hs = new HashSet<Displayable>(col);
+		final String[] fields = new String[]{"alpha", "visible", "color", "locked", "compositeMode"};
+		getLayerSet().addDataEditStep(hs, fields);
+		
+		float alpha = (float)gd.getNextNumber();
+		boolean visible = gd.getNextBoolean();
+		Color color = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
+		boolean locked = gd.getNextBoolean();
+		byte compositeMode = (byte)gd.getNextChoiceIndex();
+		
+		for (final Displayable d : col) {
+			d.setAlpha(alpha);
+			d.setVisible(visible);
+			d.setColor(color);
+			d.setLocked(locked);
+			d.setCompositeMode(compositeMode);
+		}
+
+		// Record the current state
+		getLayerSet().addDataEditStep(hs, fields);
 	}
 
 	public void adjustProperties() {
