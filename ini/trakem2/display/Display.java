@@ -4640,9 +4640,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			selection.setLocked(false);
 			Utils.revalidateComponent(tabs.getSelectedComponent());
 		} else if (command.equals("Properties...")) {
-			adjustPropertiesOf(selection.getSelected());
-			//active.adjustProperties();
-			//updateSelection();
+			active.adjustProperties();
+			updateSelection();
 		} else if (command.equals("Show current 2D position in 3D")) {
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
@@ -5612,31 +5611,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
 		}});
-	}
-
-	public void adjustPropertiesOf(final List<Displayable> selected) {
-		if (1 == selected.size()) {
-			selected.get(0).adjustProperties();
-			updateSelection();
-		} else if (selected.size() > 1) {
-			GenericDialog gd = new GenericDialog("Adjust properties of selected");
-			gd.addSlider("alpha: ", 0, 100, (int)(active.getAlpha() * 100));
-			gd.addCheckbox("visible", active.isVisible());
-			gd.addSlider("Red: ", 0, 255, active.getColor().getRed());
-			gd.addSlider("Green: ", 0, 255, active.getColor().getGreen());
-			gd.addSlider("Blue: ", 0, 255, active.getColor().getBlue());
-			gd.addCheckbox("locked", active.isLocked2());
-			boolean patches = false;
-			for (final Displayable d : selected) {
-				if (Patch.class == d.getClass()) {
-					patches = true;
-					gd.addMessage("For images only:");
-					int meshResolution = ((Patch)(active.getClass() == Patch.class ? active : d)).getMeshResolution();
-					gd.addSlider("Mesh resolution: ", 1, 512, meshResolution);
-					break;
-				}
-			}
-		}
 	}
 
 	public void adjustProperties() {
