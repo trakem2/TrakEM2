@@ -105,7 +105,7 @@ public final class Patch extends Displayable implements ImageData {
 	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
 	private CoordinateTransform ct = null;
 	
-	protected int meshResolution = 32;
+	protected int meshResolution = project.getProperty("mesh_resolution", 32);
 	public int getMeshResolution(){ return meshResolution; }
 	
 	/**
