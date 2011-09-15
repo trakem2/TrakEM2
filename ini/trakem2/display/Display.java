@@ -3821,7 +3821,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					@Override
 					public Boolean apply(Patch o) {
 						o.setMeshResolution(meshResolution);
-						return true;
+						// Return false to avoid regenerating mipmaps when there isn't a CoordinateTransform
+						return null != o.getCoordinateTransform();
 					}
 				},
 				new Filter<Patch>() {
