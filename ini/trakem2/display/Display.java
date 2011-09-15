@@ -3754,16 +3754,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	 */
 	public Bureaucrat applyPatchTask(final List<Patch> patches, final String taskTitle, final Operation<Boolean,Patch> task, final Filter<Patch> filter) {
 		return Bureaucrat.createAndStart(new Worker.Task(taskTitle) { public void exec() {
-			// Check if any are linked: cannot remove, would break image-to-segmentation relationship
+			final HashSet<Patch> ds = new HashSet<Patch>();
 			for (final Patch p : patches) {
+				// Check if any are linked: cannot remove, would break image-to-segmentation relationship
 				if (p.isLinked()) {
 					Utils.logAll("Cannot apply task: some images are linked to segmentations!");
 					return;
 				}
-			}
-
-			final HashSet<Patch> ds = new HashSet<Patch>();
-			for (final Patch p : patches) {
 				if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
 				if (filter.accept(p)) {
 					ds.add(p);
