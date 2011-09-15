@@ -52,8 +52,7 @@ public class NonLinearTransformMode extends GroupingMode {
 			ctl.add( toWorld.createInverse() );
 			
 			final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
-			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping;
-			mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
+			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
 			
 			final HashMap<Paintable, GroupingMode.ScreenPatchRange<?>> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
 			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
