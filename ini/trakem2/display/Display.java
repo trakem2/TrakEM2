@@ -84,9 +84,12 @@ import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
 
 import lenscorrection.DistortionCorrectionTask;
+import lenscorrection.NonLinearTransform;
 import mpicbg.ij.clahe.Flat;
 import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.AffineModel3D;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.CoordinateTransformList;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
@@ -2990,6 +2993,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Adjust mesh resolution (selected images)"); item.addActionListener(tml); st.add(item);
 		if (null == active) item.setEnabled(false);
 		item = new JMenuItem("Adjust mesh resolution layer-wise"); item.addActionListener(tml); st.add(item);
+		item = new JMenuItem("Set coordinate transform of selected image to other selected images"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Set coordinate transform of selected image layer-wise"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
 		popup.add(st);
 
 		JMenu link_menu = new JMenu("Link");
@@ -3724,7 +3731,65 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					patches.addAll(layer.getAll(Patch.class));
 				}
 				setMeshResolution(patches, (int)gd.getNextNumber());
+			} else if (command.startsWith("Set coordinate transform of selected image")) { // )) {
+				if (null == active || !(active instanceof Patch)) return;
+				CoordinateTransform ct = ((Patch)active).getCoordinateTransform();
+				if (null == ct) {
+					Utils.showMessage("The selected image does not have a coordinate transform!");
+					return;
+				}
+				final List<Patch> patches;
+				final GenericDialog gd = new GenericDialog("Set coordinate transform");
+				gd.addCheckbox("Append to existing coordinate transform", false);
+				gd.addCheckbox("Only the lens deformation transform", false);
+				if (command.endsWith("to other selected images")) {
+					patches = selection.get(Patch.class);
+					patches.remove((Patch)active);
+					if (patches.isEmpty()) {
+						Utils.showMessage("Select more than one image!");
+						return;
+					}
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					
+				} else if (command.endsWith("layer-wise")) {
+					Utils.addLayerRangeChoices(Display.this.layer, gd);
+					gd.addCheckbox("Append to existing coordinate transform", false);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					patches = new ArrayList<Patch>();
+					for (final Layer layer : getLayerSet().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1)) {
+						patches.addAll(layer.getAll(Patch.class));
+					}
+				} else {
+					return;
+				}
+				boolean append = gd.getNextBoolean();
+				boolean only_lens_model = gd.getNextBoolean();
+				
+				if (only_lens_model) {
+					ct = findFirstLensDeformationModel(ct);
+					if (null == ct) {
+						Utils.showMessage("Could not find a lens deformation model!");
+						return;
+					}
+				}
+				
+				setCoordinateTransform(patches, ct, append);
 			}
+		}
+		private NonLinearTransform findFirstLensDeformationModel(CoordinateTransform ct) {
+			if (ct instanceof NonLinearTransform) return (NonLinearTransform) ct;
+			if (ct instanceof CoordinateTransformList) {
+				ArrayList<CoordinateTransform> l = new ArrayList<CoordinateTransform>();
+				((CoordinateTransformList<CoordinateTransform>)ct).getList(l);
+				for (CoordinateTransform c : l) {
+					NonLinearTransform nlt = findFirstLensDeformationModel(c);
+					if (null != nlt) return nlt;
+				}
+			}
+			// Not found
+			return null;
 		}
 	}
 
@@ -3805,6 +3870,29 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					@Override
 					public boolean accept(Patch t) {
 						return null != t.getCoordinateTransform();
+					}
+				});
+	}
+	
+	public Bureaucrat setCoordinateTransform(final List<Patch> patches, final CoordinateTransform ct, final boolean append) {
+		return applyPatchTask(
+				patches,
+				"Set coordinate transform",
+				new Operation<Boolean, Patch>() {
+					@Override
+					public Boolean apply(Patch o) {
+						if (append) {
+							o.appendCoordinateTransform(ct);
+						} else {
+							o.setCoordinateTransform(ct);
+						}
+						return true;
+					}
+				},
+				new Filter<Patch>() {
+					@Override
+					public boolean accept(Patch t) {
+						return true;
 					}
 				});
 	}
