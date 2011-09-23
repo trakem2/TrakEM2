@@ -64,7 +64,7 @@ import javax.vecmath.Vector3d;
 
 import tracing.Path;
 import tracing.SearchProgressCallback;
-import tracing.SearchThread;
+import tracing.SearchInterface;
 import tracing.TracerThread;
 
 
@@ -674,15 +674,15 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 								       null,
 								       null != tr.hessian);
 				tr.tracer.addProgressListener(new SearchProgressCallback() {
-					public void pointsInSearch(SearchThread source, int inOpen, int inClosed) {
+					public void pointsInSearch(SearchInterface source, int inOpen, int inClosed) {
 						worker[1].setTaskName("Tracing path: open=" + inOpen + " closed=" + inClosed);
 					}
-					public void finished(SearchThread source, boolean success) {
+					public void finished(SearchInterface source, boolean success) {
 						if (!success) {
 							Utils.logAll("Could NOT trace a path");
 						}
 					}
-					public void threadStatus(SearchThread source, int currentStatus) {
+					public void threadStatus(SearchInterface source, int currentStatus) {
 						// This method gets called every reportEveryMilliseconds
 						if (worker[1].hasQuitted()) {
 							source.requestStop();
