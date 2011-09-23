@@ -3754,7 +3754,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					
 				} else if (command.endsWith("layer-wise")) {
 					Utils.addLayerRangeChoices(Display.this.layer, gd);
-					gd.addCheckbox("Append to existing coordinate transform", false);
 					gd.showDialog();
 					if (gd.wasCanceled()) return;
 					patches = new ArrayList<Patch>();
