@@ -3770,7 +3770,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				if (only_lens_model) {
 					ct = findFirstLensDeformationModel(ct);
 					if (null == ct) {
-						Utils.showMessage("Could not find a lens deformation model!");
+						Utils.showMessage("Could not find a lens deformation model\n in image " + active);
 						return;
 					}
 				}
