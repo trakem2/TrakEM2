@@ -94,6 +94,11 @@ import mpicbg.trakem2.transform.CoordinateTransformList;
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
 
+	/** coordinate transform transfer modes */
+	final static public int CT_REPLACE = 0;
+	final static public int CT_APPEND = 1;
+	final static public int CT_PREAPPEND = 2;
+	
 	/** The Layer this Display is showing. */
 	private Layer layer;
 
@@ -3731,7 +3736,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					patches.addAll(layer.getAll(Patch.class));
 				}
 				setMeshResolution(patches, (int)gd.getNextNumber());
-			} else if (command.startsWith("Set coordinate transform of selected image")) { // )) {
+			} else if (command.startsWith("Transfer coordinate transform of selected image")) { // )) {
 				if (null == active || !(active instanceof Patch)) return;
 				CoordinateTransform ct = ((Patch)active).getCoordinateTransform();
 				if (null == ct) {
@@ -3739,9 +3744,12 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					return;
 				}
 				final List<Patch> patches;
-				final GenericDialog gd = new GenericDialog("Set coordinate transform");
-				gd.addCheckbox("Append to existing coordinate transform", false);
-				gd.addCheckbox("Only the lens deformation transform", false);
+				final GenericDialog gd = new GenericDialog("Transfer coordinate transform");
+				gd.addChoice(
+						"Existing coordinate transform",
+						new String[]{ "Replace", "Append", "Pre-append" },
+						"Replace" );
+				gd.addCheckbox("Only the lens distortion correction", false);
 				if (command.endsWith("to other selected images")) {
 					patches = selection.get(Patch.class);
 					patches.remove((Patch)active);
@@ -3763,30 +3771,25 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				} else {
 					return;
 				}
-				boolean append = gd.getNextBoolean();
+				int existingCT = gd.getNextChoiceIndex();
 				boolean only_lens_model = gd.getNextBoolean();
 				
 				if (only_lens_model) {
 					ct = findFirstLensDeformationModel(ct);
 					if (null == ct) {
-						Utils.showMessage("Could not find a lens deformation model\n in image " + active);
+						Utils.showMessage("Could not find a lens distortion correction model\n in image " + active);
 						return;
 					}
 				}
 				
-				setCoordinateTransform(patches, ct, append);
+				setCoordinateTransform(patches, ct, existingCT);
 			}
 		}
 		private NonLinearTransform findFirstLensDeformationModel(CoordinateTransform ct) {
+			/* unwind CT lists to get the very first actual CT */
+			while ( CoordinateTransformList.class.isInstance( ct ) )
+				ct = ( ( CoordinateTransformList< CoordinateTransform > )ct ).get( 0 );
 			if (ct instanceof NonLinearTransform) return (NonLinearTransform) ct;
-			if (ct instanceof CoordinateTransformList) {
-				ArrayList<CoordinateTransform> l = new ArrayList<CoordinateTransform>();
-				((CoordinateTransformList<CoordinateTransform>)ct).getList(l);
-				for (CoordinateTransform c : l) {
-					NonLinearTransform nlt = findFirstLensDeformationModel(c);
-					if (null != nlt) return nlt;
-				}
-			}
 			// Not found
 			return null;
 		}
@@ -3873,17 +3876,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				});
 	}
 	
-	public Bureaucrat setCoordinateTransform(final List<Patch> patches, final CoordinateTransform ct, final boolean append) {
+	public Bureaucrat setCoordinateTransform(final List<Patch> patches, final CoordinateTransform ct, final int existingTransform) {
 		return applyPatchTask(
 				patches,
 				"Set coordinate transform",
 				new Operation<Boolean, Patch>() {
 					@Override
 					public Boolean apply(Patch o) {
-						if (append) {
-							o.appendCoordinateTransform(ct);
-						} else {
+						switch ( existingTransform )
+						{
+						case CT_REPLACE:
 							o.setCoordinateTransform(ct);
+							break;
+						case CT_APPEND:
+							o.appendCoordinateTransform(ct);
+							break;
+						case CT_PREAPPEND:
+							o.preAppendCoordinateTransform(ct);
 						}
 						return true;
 					}
@@ -3894,6 +3903,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						return true;
 					}
 				});
+	}
+	
+	
+	/**
+	 * @depracated Use {@link #setCoordinateTransform(List, CoordinateTransform, int)} instead which implements pre-appending as a third mode.
+	 * 
+	 * @param patches
+	 * @param ct
+	 * @param append
+	 * @return
+	 */
+	@Deprecated
+	public Bureaucrat setCoordinateTransform(final List<Patch> patches, final CoordinateTransform ct, final boolean append) {
+		return setCoordinateTransform( patches, ct, append ? CT_APPEND : CT_REPLACE );
 	}
 	
 	public Bureaucrat setMeshResolution(final List<Patch> patches, final int meshResolution) {
