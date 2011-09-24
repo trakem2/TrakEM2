@@ -1131,7 +1131,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * Append a {@link CoordinateTransform} to the current
 	 * {@link CoordinateTransformList}.  If there is no transform yet, it just
 	 * sets it.  If there is only one transform, it replaces it by a list
-	 * containing both.
+	 * containing both, the existing first.
 	 */
 	@SuppressWarnings("unchecked")
 	public final void appendCoordinateTransform(final CoordinateTransform ct) {
@@ -1146,6 +1146,30 @@ public final class Patch extends Displayable implements ImageData {
 				ctl.add(this.ct);
 			}
 			ctl.add(ct);
+			setCoordinateTransform(ctl);
+		}
+	}
+	
+	
+	/**
+	 * Pre-append a {@link CoordinateTransform} to the current
+	 * {@link CoordinateTransformList}.  If there is no transform yet, it just
+	 * sets it.  If there is only one transform, it replaces it by a list
+	 * containing both, the new one first.
+	 */
+	@SuppressWarnings("unchecked")
+	public final void preAppendCoordinateTransform(final CoordinateTransform ct) {
+		if (null == this.ct)
+			setCoordinateTransform(ct);
+		else {
+			final CoordinateTransformList< CoordinateTransform > ctl;
+			if (ct instanceof CoordinateTransformList<?>)
+				ctl = (CoordinateTransformList< CoordinateTransform >)ct.copy();
+			else {
+				ctl = new CoordinateTransformList< CoordinateTransform >();
+				ctl.add(ct);
+			}
+			ctl.add(this.ct);
 			setCoordinateTransform(ctl);
 		}
 	}
