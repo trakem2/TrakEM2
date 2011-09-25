@@ -3736,7 +3736,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					patches.addAll(layer.getAll(Patch.class));
 				}
 				setMeshResolution(patches, (int)gd.getNextNumber());
-			} else if (command.startsWith("Transfer coordinate transform of selected image")) { // )) {
+			} else if (command.startsWith("Set coordinate transform of selected image")) { // )) {
 				if (null == active || !(active instanceof Patch)) return;
 				CoordinateTransform ct = ((Patch)active).getCoordinateTransform();
 				if (null == ct) {
@@ -3744,7 +3744,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					return;
 				}
 				final List<Patch> patches;
-				final GenericDialog gd = new GenericDialog("Transfer coordinate transform");
+				final GenericDialog gd = new GenericDialog("Set coordinate transform");
 				gd.addChoice(
 						"Existing coordinate transform",
 						new String[]{ "Replace", "Append", "Pre-append" },
