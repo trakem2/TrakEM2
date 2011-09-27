@@ -74,7 +74,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{
-		private static final long serialVersionUID = -8176255028368816290L;
+		private static final long serialVersionUID = -5364076774541652033L;
 
 		final public ParamPointMatch ppm = new ParamPointMatch();
 		{
@@ -121,10 +121,15 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		public int maxNumFailures = 3;
 		
 		public float layerScale = 0.1f;
-		public float minR = 0.8f;
-		public float maxCurvatureR = 3f;
-		public float rodR = 0.8f;
+		public float minR = 0.6f;
+		public float maxCurvatureR = 10f;
+		public float rodR = 0.9f;
 		public int searchRadius = 200;
+		
+		public int localModelIndex = 1;
+		public float localRegionSigma = searchRadius;
+		public float maxLocalEpsilon = searchRadius / 2;
+		public float maxLocalTrust = 3;
 		
 		public int modelIndexOptimize = 1;
 		public int maxIterationsOptimize = 1000;
@@ -132,12 +137,12 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		
 		public int resolutionSpringMesh = 16;
 		public float stiffnessSpringMesh = 0.1f;
-		public float dampSpringMesh = 0.6f;
+		public float dampSpringMesh = 0.9f;
 		public float maxStretchSpringMesh = 2000.0f;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
 		
-		public boolean visualize = false;
+		public boolean visualize = true;
 		
 		public int maxNumThreads = Runtime.getRuntime().availableProcessors();
 		
@@ -150,15 +155,22 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			/* TODO suggest isotropic resolution for this parameter */
 			gdBlockMatching.addNumericField( "layer_scale :", layerScale, 2 );
 			gdBlockMatching.addNumericField( "search_radius :", searchRadius, 0 );
+			/* TODO suggest a resolution that matches searchRadius */
+			gdBlockMatching.addNumericField( "resolution :", resolutionSpringMesh, 0 );
+			
+			gdBlockMatching.addMessage( "Correlation Filters:" );
 			gdBlockMatching.addNumericField( "minimal_PMCC_r :", minR, 2 );
 			gdBlockMatching.addNumericField( "maximal_curvature_ratio :", maxCurvatureR, 2 );
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", rodR, 2 );
 			
-			/* TODO suggest a resolution that matches searchRadius */
-			gdBlockMatching.addNumericField( "resolution :", resolutionSpringMesh, 0 );
+			gdBlockMatching.addMessage( "Local Smoothness Filter:" );
+			gdBlockMatching.addChoice( "approximate_local_transformation :", Param.modelStrings, Param.modelStrings[ localModelIndex ] );
+			gdBlockMatching.addNumericField( "local_region_sigma:", localRegionSigma, 2, 6, "px" );
+			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", maxLocalEpsilon, 2, 6, "px" );
+			gdBlockMatching.addNumericField( "maximal_local_displacement (relative):", maxLocalTrust, 2 );
 			
+			gdBlockMatching.addMessage( "Miscellaneous:" );
 			gdBlockMatching.addCheckbox( "layers_are_pre-aligned", isAligned );
-			
 			gdBlockMatching.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
 			
 			gdBlockMatching.showDialog();
@@ -168,10 +180,14 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			
 			layerScale = ( float )gdBlockMatching.getNextNumber();
 			searchRadius = ( int )gdBlockMatching.getNextNumber();
+			resolutionSpringMesh = ( int )gdBlockMatching.getNextNumber();
 			minR = ( float )gdBlockMatching.getNextNumber();
 			maxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			rodR = ( float )gdBlockMatching.getNextNumber();
-			resolutionSpringMesh = ( int )gdBlockMatching.getNextNumber();
+			localModelIndex = gdBlockMatching.getNextChoiceIndex();
+			localRegionSigma = ( float )gdBlockMatching.getNextNumber();
+			maxLocalEpsilon = ( float )gdBlockMatching.getNextNumber();
+			maxLocalTrust = ( float )gdBlockMatching.getNextNumber();
 			isAligned = gdBlockMatching.getNextBoolean();
 			maxNumNeighbors = ( int )gdBlockMatching.getNextNumber();
 			
@@ -710,8 +726,13 @@ J:				for ( int j = i + 1; j < range; )
 		
 		final int blockRadius = Math.max( 32, meshWidth / p.resolutionSpringMesh / 2 );
 		
-		/** TODO set this something more than the largest error by the approximate model */
+		/* scale pixel distances */
 		final int searchRadius = ( int )Math.round( p.layerScale * p.searchRadius );
+		final float localRegionSigma = p.layerScale * p.localRegionSigma;
+		final float maxLocalEpsilon = p.layerScale * p.maxLocalEpsilon;
+		
+		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( p.localModelIndex );
+		
 		
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
 		{
@@ -796,7 +817,9 @@ J:				for ( int j = i + 1; j < range; )
 				return;
 			}
 
-			Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+			Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
+			localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+			Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
 
 			/* <visualisation> */
 			//			final List< Point > s1 = new ArrayList< Point >();
@@ -841,7 +864,9 @@ J:				for ( int j = i + 1; j < range; )
 				return;
 			}
 
-			IJ.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
+			Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
+			localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+			Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
 					
 			/* <visualisation> */
 			//			final List< Point > s2 = new ArrayList< Point >();

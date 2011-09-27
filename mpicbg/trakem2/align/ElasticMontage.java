@@ -46,6 +46,7 @@ import mpicbg.ij.blockmatching.BlockMatching;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AbstractModel;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.ErrorStatistic;
 import mpicbg.models.InvertibleCoordinateTransform;
@@ -70,7 +71,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{	
-		private static final long serialVersionUID = 7858278233459845626L;
+		private static final long serialVersionUID = 8833205128964475086L;
 
 		public ParamOptimize po = new ParamOptimize();
 		{
@@ -90,11 +91,16 @@ public class ElasticMontage extends AbstractElasticAlignment
 		/**
 		 * Block matching
 		 */
-		public float bmScale = 0.33f;
-		public float bmMinR = 0.8f;
-		public float bmMaxCurvatureR = 3f;
-		public float bmRodR = 0.8f;
-		public int searchRadius = 25;
+		public float bmScale = 0.5f;
+		public float bmMinR = 0.5f;
+		public float bmMaxCurvatureR = 10f;
+		public float bmRodR = 0.9f;
+		public int bmSearchRadius = 25;
+		
+		public int bmLocalModelIndex = 1;
+		public float bmLocalRegionSigma = bmSearchRadius;
+		public float bmMaxLocalEpsilon = bmSearchRadius / 2;
+		public float bmMaxLocalTrust = 3;
 		
 		/**
 		 * Spring mesh
@@ -123,10 +129,18 @@ public class ElasticMontage extends AbstractElasticAlignment
 			gdBlockMatching.addMessage( "Block Matching:" );
 			
 			gdBlockMatching.addNumericField( "patch_scale :", bmScale, 2 );
-			gdBlockMatching.addNumericField( "search_radius :", searchRadius, 0 );
+			gdBlockMatching.addNumericField( "search_radius :", bmSearchRadius, 0 );
+			
+			gdBlockMatching.addMessage( "Correlation Filters:" );
 			gdBlockMatching.addNumericField( "minimal_PMCC_r :", bmMinR, 2 );
 			gdBlockMatching.addNumericField( "maximal_curvature_ratio :", bmMaxCurvatureR, 2 );
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", bmRodR, 2 );
+			
+			gdBlockMatching.addMessage( "Local Smoothness Filter:" );
+			gdBlockMatching.addChoice( "approximate_local_transformation :", ParamOptimize.modelStrings, ParamOptimize.modelStrings[ bmLocalModelIndex ] );
+			gdBlockMatching.addNumericField( "local_region_sigma:", bmLocalRegionSigma, 2, 6, "px" );
+			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", bmMaxLocalEpsilon, 2, 6, "px" );
+			gdBlockMatching.addNumericField( "maximal_local_displacement (relative):", bmMaxLocalTrust, 2 );
 			
 			/* TODO suggest a resolution that matches maxEpsilon */
 			gdBlockMatching.addMessage( "Spring Mesh:" );
@@ -145,10 +159,14 @@ public class ElasticMontage extends AbstractElasticAlignment
 				return false;
 			
 			bmScale = ( float )gdBlockMatching.getNextNumber();
-			searchRadius = ( int )gdBlockMatching.getNextNumber();
+			bmSearchRadius = ( int )gdBlockMatching.getNextNumber();
 			bmMinR = ( float )gdBlockMatching.getNextNumber();
 			bmMaxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			bmRodR = ( float )gdBlockMatching.getNextNumber();
+			bmLocalModelIndex = gdBlockMatching.getNextChoiceIndex();
+			bmLocalRegionSigma = ( float )gdBlockMatching.getNextNumber();
+			bmMaxLocalEpsilon = ( float )gdBlockMatching.getNextNumber();
+			bmMaxLocalTrust = ( float )gdBlockMatching.getNextNumber();
 			
 			springLengthSpringMesh = ( float )gdBlockMatching.getNextNumber();
 			stiffnessSpringMesh = ( float )gdBlockMatching.getNextNumber();
@@ -451,7 +469,10 @@ public class ElasticMontage extends AbstractElasticAlignment
 		final int blockRadius = Math.max( 32, Util.roundPos( param.springLengthSpringMesh / 2 ) );
 		
 		/** TODO set this something more than the largest error by the approximate model */
-		final int searchRadius = p.searchRadius;
+		final int searchRadius = p.bmSearchRadius;
+		
+		final AbstractModel< ? > localSmoothnessFilterModel = mpicbg.trakem2.align.Util.createModel( p.bmLocalModelIndex );
+	
 		
 		for ( final Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform > pair : pairs )
 		{
@@ -509,7 +530,9 @@ public class ElasticMontage extends AbstractElasticAlignment
 					pm12,
 					new ErrorStatistic( 1 ) );
 
-			IJ.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondences." );
+			Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
+			localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, p.bmLocalRegionSigma, p.bmMaxLocalEpsilon, p.bmMaxLocalTrust );
+			Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': " + pm12.size() + " candidates passed local smoothness filter." );
 
 //			/* <visualisation> */
 //			//			final List< Point > s1 = new ArrayList< Point >();
@@ -539,8 +562,10 @@ public class ElasticMontage extends AbstractElasticAlignment
 					pm21,
 					new ErrorStatistic( 1 ) );
 
-			IJ.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondences." );
-
+			Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
+			localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, p.bmLocalRegionSigma, p.bmMaxLocalEpsilon, p.bmMaxLocalTrust );
+			Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': " + pm21.size() + " candidates passed local smoothness filter." );
+			
 			/* <visualisation> */
 			//			final List< Point > s2 = new ArrayList< Point >();
 			//			PointMatch.sourcePoints( pm21, s2 );
