@@ -33,7 +33,12 @@ import java.util.Collection;
 import java.util.concurrent.Future;
 
 import mpicbg.imagefeatures.Feature;
+import mpicbg.models.AbstractModel;
+import mpicbg.models.HomographyModel2D;
 import mpicbg.models.PointMatch;
+import mpicbg.models.RigidModel2D;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.TranslationModel2D;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -281,5 +286,25 @@ public class Util
 		ctl.add( toWorld.createInverse() );
 		
 		patch.appendCoordinateTransform( ctl );
+	}
+
+	
+	final static public AbstractModel< ? > createModel( final int modelIndex )
+	{
+		switch ( modelIndex )
+		{
+		case 0:
+			return new TranslationModel2D();
+		case 1:
+			return new RigidModel2D();
+		case 2:
+			return new SimilarityModel2D();
+		case 3:
+			return new AffineModel2D();
+		case 4:
+			return new HomographyModel2D();
+		default:
+			return null;
+		}
 	}
 }
