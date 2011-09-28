@@ -142,7 +142,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
 		
-		public boolean visualize = true;
+		public boolean visualize = false;
 		
 		public int maxNumThreads = Runtime.getRuntime().availableProcessors();
 		
