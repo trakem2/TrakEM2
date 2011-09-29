@@ -71,7 +71,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{	
-		private static final long serialVersionUID = 8833205128964475086L;
+		private static final long serialVersionUID = 8373347247149412024L;
 
 		public ParamOptimize po = new ParamOptimize();
 		{
@@ -96,6 +96,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		public float bmMaxCurvatureR = 10f;
 		public float bmRodR = 0.9f;
 		public int bmSearchRadius = 25;
+		public int bmBlockRadius = -1;
 		
 		public int bmLocalModelIndex = 1;
 		public float bmLocalRegionSigma = bmSearchRadius;
@@ -125,11 +126,16 @@ public class ElasticMontage extends AbstractElasticAlignment
 		public boolean setup()
 		{
 			/* Block Matching */
+			if ( bmBlockRadius < 0 )
+			{
+				bmBlockRadius = Util.roundPos( springLengthSpringMesh / 2 );
+			}
 			final GenericDialog gdBlockMatching = new GenericDialog( "Elastic montage: Block Matching and Spring Meshes" );
-			gdBlockMatching.addMessage( "Block Matching:" );
 			
+			gdBlockMatching.addMessage( "Block Matching:" );
 			gdBlockMatching.addNumericField( "patch_scale :", bmScale, 2 );
-			gdBlockMatching.addNumericField( "search_radius :", bmSearchRadius, 0 );
+			gdBlockMatching.addNumericField( "search_radius :", bmSearchRadius, 0, 6, "px" );
+			gdBlockMatching.addNumericField( "block_radius :", bmBlockRadius, 0, 6, "px" );
 			
 			gdBlockMatching.addMessage( "Correlation Filters:" );
 			gdBlockMatching.addNumericField( "minimal_PMCC_r :", bmMinR, 2 );
@@ -160,6 +166,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 			
 			bmScale = ( float )gdBlockMatching.getNextNumber();
 			bmSearchRadius = ( int )gdBlockMatching.getNextNumber();
+			bmBlockRadius = ( int )gdBlockMatching.getNextNumber();
 			bmMinR = ( float )gdBlockMatching.getNextNumber();
 			bmMaxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			bmRodR = ( float )gdBlockMatching.getNextNumber();
@@ -466,12 +473,13 @@ public class ElasticMontage extends AbstractElasticAlignment
 			tileMeshMap.put( tile, mesh );
 		}
 		
-		final int blockRadius = Math.max( 32, Util.roundPos( param.springLengthSpringMesh / 2 ) );
+//		final int blockRadius = Math.max( 32, Util.roundPos( param.springLengthSpringMesh / 2 ) );
+		final int blockRadius = Math.max( Util.roundPos( 16 / param.bmScale ), param.bmBlockRadius );
 		
 		/** TODO set this something more than the largest error by the approximate model */
-		final int searchRadius = p.bmSearchRadius;
+		final int searchRadius = param.bmSearchRadius;
 		
-		final AbstractModel< ? > localSmoothnessFilterModel = mpicbg.trakem2.align.Util.createModel( p.bmLocalModelIndex );
+		final AbstractModel< ? > localSmoothnessFilterModel = mpicbg.trakem2.align.Util.createModel( param.bmLocalModelIndex );
 	
 		
 		for ( final Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform > pair : pairs )
@@ -531,7 +539,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 					new ErrorStatistic( 1 ) );
 
 			Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
-			localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, p.bmLocalRegionSigma, p.bmMaxLocalEpsilon, p.bmMaxLocalTrust );
+			localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
 			Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': " + pm12.size() + " candidates passed local smoothness filter." );
 
 //			/* <visualisation> */
@@ -563,7 +571,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 					new ErrorStatistic( 1 ) );
 
 			Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
-			localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, p.bmLocalRegionSigma, p.bmMaxLocalEpsilon, p.bmMaxLocalTrust );
+			localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
 			Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': " + pm21.size() + " candidates passed local smoothness filter." );
 			
 			/* <visualisation> */

@@ -35,6 +35,8 @@ public abstract class AbstractElasticAlignment
 {
 	final static protected class ParamPointMatch implements Serializable
 	{
+		private static final long serialVersionUID = -2987052198914632175L;
+
 		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
 		
 		/**

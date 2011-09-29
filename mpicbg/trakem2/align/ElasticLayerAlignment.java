@@ -125,6 +125,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		public float maxCurvatureR = 10f;
 		public float rodR = 0.9f;
 		public int searchRadius = 200;
+		public int blockRadius = -1;
 		
 		public int localModelIndex = 1;
 		public float localRegionSigma = searchRadius;
@@ -146,15 +147,20 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		
 		public int maxNumThreads = Runtime.getRuntime().availableProcessors();
 		
-		public boolean setup()
+		public boolean setup( final Rectangle box )
 		{
 			/* Block Matching */
+			if ( blockRadius < 0 )
+			{
+				blockRadius = box.width / resolutionSpringMesh / 2;
+			}
 			final GenericDialog gdBlockMatching = new GenericDialog( "Elastically align layers: Block Matching parameters" );
-			gdBlockMatching.addMessage( "Block Matching:" );
 			
+			gdBlockMatching.addMessage( "Block Matching:" );
 			/* TODO suggest isotropic resolution for this parameter */
 			gdBlockMatching.addNumericField( "layer_scale :", layerScale, 2 );
-			gdBlockMatching.addNumericField( "search_radius :", searchRadius, 0 );
+			gdBlockMatching.addNumericField( "search_radius :", searchRadius, 0, 6, "px" );
+			gdBlockMatching.addNumericField( "block_radius :", blockRadius, 0, 6, "px" );
 			/* TODO suggest a resolution that matches searchRadius */
 			gdBlockMatching.addNumericField( "resolution :", resolutionSpringMesh, 0 );
 			
@@ -180,6 +186,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			
 			layerScale = ( float )gdBlockMatching.getNextNumber();
 			searchRadius = ( int )gdBlockMatching.getNextNumber();
+			blockRadius = ( int )gdBlockMatching.getNextNumber();
 			resolutionSpringMesh = ( int )gdBlockMatching.getNextNumber();
 			minR = ( float )gdBlockMatching.getNextNumber();
 			maxCurvatureR = ( float )gdBlockMatching.getNextNumber();
@@ -406,8 +413,6 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
 	{
-		if ( !p.setup() ) return;
-		
 		final List< Layer > layerRange = layerSet.getLayers( first, last );
 		
 		Utils.log( layerRange.size() + "" );
@@ -438,6 +443,8 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			Utils.log( "Bounding box empty." );
 			return;
 		}
+		
+		if ( !p.setup( box ) ) return;
 		
 		if ( layerRange.size() == 0 )
 		{
@@ -724,7 +731,10 @@ J:				for ( int j = i + 1; j < range; )
 							p.maxStretchSpringMesh * p.layerScale,
 							p.dampSpringMesh ) );
 		
-		final int blockRadius = Math.max( 32, meshWidth / p.resolutionSpringMesh / 2 );
+		//final int blockRadius = Math.max( 32, meshWidth / p.resolutionSpringMesh / 2 );
+		final int blockRadius = Math.max( 16, mpicbg.util.Util.roundPos( p.layerScale * p.blockRadius ) );
+		
+		IJ.log( "effective block radius = " + blockRadius );
 		
 		/* scale pixel distances */
 		final int searchRadius = ( int )Math.round( p.layerScale * p.searchRadius );
