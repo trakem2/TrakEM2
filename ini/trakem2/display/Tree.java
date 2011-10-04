@@ -1989,8 +1989,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Used when reconstructing from XML. */
 	public void setRoot(final Node<T> new_root) {
 		this.root = new_root;
-		if (null == new_root) clearCache();
-		else cacheSubtree(new_root.getSubtreeNodes());
+		synchronized (node_layer_map) {
+			if (null == new_root) clearCache();
+			else cacheSubtree(new_root.getSubtreeNodes());
+		}
 	}
 
 	@Override
