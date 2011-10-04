@@ -139,6 +139,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		this.color = color;
 	}
 
+	/** Get a copy of the {@link Set} of {@link Node} that exist at {@param layer}; the {@link Node} instances are the originals.
+	 * Returns an empty {@link Set} if none found. */
+	public Set<Node<T>> getNodesAt(final Layer layer) {
+		synchronized (node_layer_map) {
+			final Set<Node<T>> s = node_layer_map.get(layer);
+			return null == s ? new HashSet<Node<T>>() : new HashSet<Node<T>>(s);
+		}
+	}
+
 	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer) {
 		return getNodesToPaint(active_layer, active_layer.getParent().getColorCueLayerRange(active_layer));
 	}
@@ -3191,6 +3200,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public Point3f getOriginPoint(final boolean calibrated) {
 		if (null == root) return null;
 		return fix(root.asPoint(), calibrated, new float[2]);
+	}
+	
+	/** Return the {@link Node} as a point in space.
+	 * @param nd The Node to extract coordinates from.
+	 * @param calibrated Whether to calibrate or not the point.
+	 * @return The Point3f representing the node. */
+	public Point3f asPoint(final Node<T> nd, final boolean calibrated) {
+		return fix(nd.asPoint(), calibrated, new float[2]);
 	}
 
 	/** Expects a non-null float[] for reuse, and modifies @param p in place. */
