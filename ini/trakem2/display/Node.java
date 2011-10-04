@@ -47,6 +47,15 @@ public abstract class Node<T> implements Taggable {
 	protected Color color;
 	public Color getColor() { return this.color; }
 	public void setColor(final Color c) { this.color = c; }
+	public void setPosition(final float x, final float y) {
+		this.x = x;
+		this.y = y;
+	}
+	/** Expects two dimensions. */
+	public void setPosition(final float[] p) {
+		this.x = p[0];
+		this.y = p[1];
+	}
 
 	/** The confidence value of the edge towards the parent;
 	 *  in other words, how much this node can be trusted to continue from its parent node.
