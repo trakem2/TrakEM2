@@ -322,7 +322,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return b;
 	}
 
-	protected boolean calculateBoundingBox(final Layer la) {
+	public boolean calculateBoundingBox(final Layer la) {
 		try {
 			if (null == root) {
 				this.at.setToIdentity();
