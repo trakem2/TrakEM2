@@ -734,7 +734,7 @@ J:				for ( int j = i + 1; j < range; )
 		//final int blockRadius = Math.max( 32, meshWidth / p.resolutionSpringMesh / 2 );
 		final int blockRadius = Math.max( 16, mpicbg.util.Util.roundPos( p.layerScale * p.blockRadius ) );
 		
-		IJ.log( "effective block radius = " + blockRadius );
+		Utils.log( "effective block radius = " + blockRadius );
 		
 		/* scale pixel distances */
 		final int searchRadius = ( int )Math.round( p.layerScale * p.searchRadius );
@@ -889,7 +889,7 @@ J:				for ( int j = i + 1; j < range; )
 			/* </visualisation> */
 			
 			final float springConstant  = 1.0f / ( pair.b - pair.a );
-			IJ.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
+			Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
 	
 			for ( final PointMatch pm : pm12 )
 			{
@@ -941,7 +941,7 @@ J:				for ( int j = i + 1; j < range; )
 		try
 		{
 			long t0 = System.currentTimeMillis();
-			IJ.log("Optimizing spring meshes...");
+			Utils.log("Optimizing spring meshes...");
 			
 			SpringMesh.optimizeMeshes(
 					meshes,
@@ -950,7 +950,7 @@ J:				for ( int j = i + 1; j < range; )
 					p.maxPlateauwidthSpringMesh,
 					p.visualize );
 
-			IJ.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
+			Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
 			
 		}
 		catch ( NotEnoughDataPointsException e )
@@ -1030,7 +1030,7 @@ J:				for ( int j = i + 1; j < range; )
 					
 			if ( Thread.interrupted() )
 			{
-				IJ.log( "Interrupted during applying transformations to patches.  No all patches have been updated.  Re-generate mipmaps manually." );
+				Utils.log( "Interrupted during applying transformations to patches.  No all patches have been updated.  Re-generate mipmaps manually." );
 			}
 			
 			IJ.showProgress( l + 1, layerRange.size() );
