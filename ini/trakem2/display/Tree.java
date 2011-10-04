@@ -851,6 +851,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
+	/** Update the internal {@link Node} cache; you want to invoke this operation
+	 * after altering programmatically the {@link Layer} pointers of any of the
+	 * {@link Node} of this {@link Tree}.
+	 */
+	public void updateCache() {
+		synchronized (node_layer_map) {
+			clearCache();
+			if (null == root) return;
+			cacheSubtree(this.root.getSubtreeNodes());
+		}
+	}
+
 	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
 	 *  where a segment is defined as the line between a clicked point and the next. */
 	@Override
