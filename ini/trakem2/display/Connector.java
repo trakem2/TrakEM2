@@ -465,7 +465,9 @@ public class Connector extends Treeline {
 		if (null == root) return true; // it's empty already
 		if (!range.contains(root.la)) {
 			this.root = null;
-			clearCache();
+			synchronized (node_layer_map) {
+				clearCache();
+			}
 			return true;
 		}
 		return super.crop(range);
