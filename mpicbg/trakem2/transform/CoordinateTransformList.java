@@ -30,10 +30,11 @@ public class CoordinateTransformList< E extends CoordinateTransform > extends mp
 	//@Override
 	public String toXML( final String indent )
 	{
-		String s = indent + "<ict_transform_list>";
+		final StringBuilder xml = new StringBuilder( 160000 );
+		xml.append(indent).append("<ict_transform_list>");
 		for ( mpicbg.models.CoordinateTransform t : transforms )
-			s += "\n" + ( ( CoordinateTransform )t ).toXML( indent + "\t" );
-		return s + "\n" + indent + "</ict_transform_list>";
+			xml.append('\n').append( ( ( CoordinateTransform )t ).toXML( indent + "\t" ) );
+		return xml.append('\n').append(indent).append("</ict_transform_list>").toString();
 	}
 	
 	//@Override
