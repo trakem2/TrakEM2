@@ -501,19 +501,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final LinkedList<Node<T>> list = new LinkedList<Node<T>>();
 		list.add(root);
 		final Map<Node<T>,Integer> table = new HashMap<Node<T>,Integer>();
-
+		
+		final StringBuilder indent = new StringBuilder(indent_base);
+		
 		while (!list.isEmpty()) {
 			Node<T> node = list.getLast();
 			if (null == node.children) {
 				// Processing end point
-				dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
+				dataNodeXML(tree, indent, sb, node);
 				list.removeLast();
 				continue;
 			} else {
 				final Integer ii = table.get(node);
 				if (null == ii) {
 					// Never yet processed a child, add first
-					dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
+					dataNodeXML(tree, indent, sb, node);
 					table.put(node, 0);
 					list.add(node.children[0]);
 					continue;
