@@ -524,7 +524,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Are there any more children to process?
 					if (i == node.children.length -1) {
 						// No more children to process
-						closeNodeXML(getIndents(indent_base, list.size()), sb);
+						closeNodeXML(indent, sb);
 						list.removeLast();
 						table.remove(node);
 						continue;
@@ -537,15 +537,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 		}
 	}
-	static private final StringBuilder getIndents(final String base, int more) {
-		final StringBuilder sb = new StringBuilder(base.length() + more);
-		sb.append(base);
-		while (more > 0) {
-			sb.append(' ');
-			more--;
-		}
-		return sb;
-	}
+
 	private final void dataNodeXML(final Tree<T> tree, final StringBuilder indent, final StringBuilder sb, final Node<T> node) {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)
