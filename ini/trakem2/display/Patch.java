@@ -50,6 +50,7 @@ import java.awt.Event;
 import java.awt.Image;
 import java.awt.Color;
 import java.awt.Composite;
+import java.awt.Shape;
 import java.awt.Toolkit;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -496,12 +497,12 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, fetchImage(magnification, channels, true));
+		paint(g, fetchImage(magnification, channels, true), srcRect);
 	}
 
 	@Override
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> _ignored) {
-		paint(g, fetchImage(magnification, channels, false));
+		paint(g, fetchImage(magnification, channels, false), srcRect);
 	}
 
 	private final MipMapImage fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
@@ -519,7 +520,7 @@ public final class Patch extends Displayable implements ImageData {
 			: project.getLoader().fetchImage(this, sc);
 	}
 	
-	private void paint( final Graphics2D g, final Image image )
+	private void paint( final Graphics2D g, final Image image, final Rectangle srcRect )
 	{
 		/*
 		 * infer scale: this scales the numbers of pixels according to patch
@@ -527,10 +528,10 @@ public final class Patch extends Displayable implements ImageData {
 		 */ 
 		final int iw = image.getWidth(null);
 		final int ih = image.getHeight(null);
-		paint( g, new MipMapImage( image, this.width / iw, this.height / ih ) );
+		paint( g, new MipMapImage( image, this.width / iw, this.height / ih ), srcRect );
 	}
 
-	private void paint(final Graphics2D g, final MipMapImage mipMap ) {
+	private void paint(final Graphics2D g, final MipMapImage mipMap, final Rectangle srcRect ) {
 
 		AffineTransform atp = new AffineTransform();
 		
@@ -550,17 +551,60 @@ public final class Patch extends Displayable implements ImageData {
 		 * centers.
 		 */
 		atp.translate( -0.5, -0.5 );
+		
+		Image src = mipMap.image;
+
+
+		
+		// If the image is far too large, make it smaller.
+		final Rectangle bbox = getBoundingBox();
+		
+		Utils.log("srcRect, bbox: " + srcRect + ", " + bbox);
+		
+		if (srcRect.width * 3 < bbox.width || srcRect.height * 3 < bbox.height) {
+			
+			Utils.log("inside");
+			
+			// Crop the relevant part of the image and then paint that at the right place.
+			// This means: bring the field of view into the image space first, make sure it is fully contained in the image, then crop.
+			try {
+				final AffineTransform aff = new AffineTransform();
+				/* World to field of view: */	aff.concatenate(g.getTransform());
+				/* Mipmap image to world:  */ 	aff.concatenate(atp);
+				// Transform the field of view into the mipmap
+				// and then intersect it with the mipmap's dimensions
+				final Rectangle s = aff.createTransformedShape(srcRect)
+				                       .getBounds()
+				                       .intersection(new Rectangle(0, 0,
+				                    		                       mipMap.image.getWidth(null),
+				                    		                       mipMap.image.getHeight(null)));
+				//
+				final BufferedImage sub = new BufferedImage(s.width, s.height, BufferedImage.TYPE_INT_ARGB);
+				sub.createGraphics().drawImage(mipMap.image, new AffineTransform(1, 0, 0, 1, -s.width, -s.height), null);
+				src = sub;
+				//
+				final AffineTransform toSub = new AffineTransform(1, 0, 0, 1, s.width, s.height);
+				atp.preConcatenate(toSub);
+				//
+			} catch (Throwable t) {
+				IJError.print(t);
+				// continue: let it paint normally even if slowly
+			}
+		}
 
 		final Composite original_composite = g.getComposite();
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( mipMap.image, atp, null );
+			g.drawImage( src, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( mipMap.image, atp, null );
+			g.drawImage( src, atp, null );
 		}
 		g.setComposite( original_composite );
+		
+		// Cleanup
+		if (src != mipMap.image) src.flush();
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
