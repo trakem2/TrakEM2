@@ -919,7 +919,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			try{
 				copy = pt.deepClone(target_project, false); // new ids, taken from target_project
 			} catch (Exception ee) {
-				Utils.log("Can't send: " + ee.getMessage());
+				Utils.logAll("Can't send: " + ee.getMessage());
+				IJError.print(ee);
 				return false;
 			}
 			if (null == landing_parent.getChildTemplate(copy.getTemplate().getType())) {
