@@ -73,6 +73,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Ellipse2D;
 import java.awt.image.BufferedImage;
+import java.awt.image.PixelGrabber;
 import java.awt.image.VolatileImage;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1423,12 +1424,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (me.isShiftDown()) {
 				// Print a comma-separated list of objects under the mouse pointer
 				final Layer layer = DisplayCanvas.this.display.getLayer();
-				final int x_p = offScreenX(me.getX()),
-				          y_p = offScreenY(me.getY());
-				final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.getParent().findZDisplayables(layer, x_p, y_p, true));
-				final ArrayList<Displayable> al2 = new ArrayList<Displayable>(layer.find(x_p, y_p, true));
-				Collections.reverse(al2); // text labels first
-				al.addAll(al2);
+				final List<Displayable> al = getDisplayablesUnderMouse(me);
 				if (0 == al.size()) {
 					Utils.showStatus("", false);
 					return;
@@ -1438,10 +1434,81 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);
 				Utils.showStatus(sb.toString(), false);
+			} else {
+				// For very large images, the Patch.getPixel can take even half a minute
+				// to do the pixel grab operation.
+				//DisplayCanvas.super.mouseMoved(me);
+				// Instead, find out over what are we
+				final List<Displayable> under = getDisplayablesUnderMouse(me);
+				final Calibration cal = display.getLayerSet().getCalibration();
+				if (under.isEmpty()) {
+					Utils.showStatus("x=" + (int)(xMouse * cal.pixelWidth) + " " + cal.getUnit()
+													 + ", y=" + (int)(yMouse * cal.pixelHeight) + " " + cal.getUnit());
+					return;
+				}
+				final Displayable top = under.get(0);
+				BufferedImage offs;
+				synchronized (offscreen_lock) {
+					offs = offscreen;
+				}
+				String msg =
+							"x=" + (int)(xMouse * cal.pixelWidth) + " " + cal.getUnit()
+							+ ", y=" + (int)(yMouse * cal.pixelHeight) + " " + cal.getUnit();
+				if (top.getClass() == Patch.class) {
+					if (null == offs) return;
+					final Patch patch = (Patch)top;
+					final int[] p = new int[4];
+					PixelGrabber pg = new PixelGrabber(offs, me.getX(), me.getY(), 1, 1, p, 0, offs.getWidth(null));
+					try {
+						pg.grabPixels();
+					} catch (InterruptedException ie) {
+						IJError.print(ie);
+						return;
+					}
+					patch.approximateTransferPixel(p);
+					msg += ", value=";
+					switch (patch.getType()) {
+						case ImagePlus.GRAY16:
+						case ImagePlus.GRAY8:
+							msg += p[0];
+							break;
+						case ImagePlus.GRAY32:
+							msg += Float.intBitsToFloat(p[0]);
+							break;
+						case ImagePlus.COLOR_RGB:
+						case ImagePlus.COLOR_256:
+							msg += "(" + p[0] + "," + p[1] + "," + p[2] + ")";
+							break;
+					}
+					msg += " [Patch #" + patch.getId() + "]";
+				} else {
+					final Color c = top.getColor();
+					msg += ", value=[" + c.getRed() + "," + c.getGreen() + "," + c.getBlue() + "] [" + Project.getName(top.getClass()) + " #" + top.getId() + "]";
+				}
+				Utils.showStatus(msg);
 			}
 		}
 	}
-	
+
+	/** See {@link DisplayCanvas#getDisplayablesUnderMouse(MouseEvent)}. */
+	public List<Displayable> getDisplayablesUnderMouse() {
+		return getDisplayablesUnderMouse(new MouseEvent(this, -1, 0, 0, xMouse, yMouse, 1, false));
+	}
+
+	/** Return the list of Displayable objects under the mouse,
+	 * sorted by proper stack order. */
+	public List<Displayable> getDisplayablesUnderMouse(MouseEvent me) {
+				final Layer layer = display.getLayer();
+				final int x_p = offScreenX(me.getX()),
+				          y_p = offScreenY(me.getY());
+				final ArrayList<Displayable> al = new ArrayList<Displayable>(layer.getParent().findZDisplayables(layer, x_p, y_p, true));
+				Collections.reverse(al);
+				final ArrayList<Displayable> al2 = new ArrayList<Displayable>(layer.find(x_p, y_p, true));
+				Collections.reverse(al2);
+				al.addAll(al2);
+				return al;
+	}
+
 	public boolean isDragging() {
 		return display.getMode().isDragging();
 	}
@@ -1449,8 +1516,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	public void mouseMoved(final MouseEvent me) {
 		super.flags = me.getModifiers();
 		mouse_moved.dispatch(me);
-		if (!me.isShiftDown())
-			DisplayCanvas.super.mouseMoved(me);
 	}
 
 	/** Zoom in using the current mouse position, or the center if the mouse is out. */
