@@ -26,53 +26,58 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
+import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
-import ij.plugin.filter.ThresholdToSelection;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.persistence.FSLoader;
 
-import java.awt.Dimension;
-import java.awt.Rectangle;
-import java.awt.Event;
-import java.awt.Image;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.Shape;
-import java.awt.Toolkit;
+import java.awt.Dimension;
+import java.awt.Event;
 import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.image.MemoryImageSource;
-import java.awt.image.DirectColorModel;
+import java.awt.Image;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.KeyEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.geom.Point2D;
-import java.awt.Polygon;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
+import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
+import java.awt.image.DirectColorModel;
+import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
-import java.awt.event.KeyEvent;
+import java.awt.image.Raster;
+import java.awt.image.WritableRaster;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Collection;
-import java.io.File;
 import java.util.concurrent.Future;
 
 import mpicbg.imglib.container.shapelist.ShapeList;
@@ -81,8 +86,8 @@ import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
@@ -552,59 +557,8 @@ public final class Patch extends Displayable implements ImageData {
 		 */
 		atp.translate( -0.5, -0.5 );
 		
-		Image src = mipMap.image;
-
-
 		
-		// If the image is far too large, make it smaller.
-		final Rectangle bbox = getBoundingBox();
-		
-		Utils.log("srcRect, bbox: " + srcRect + ", " + bbox);
-		
-		if (srcRect.width * 3 < bbox.width || srcRect.height * 3 < bbox.height) {
-			
-			Utils.log("inside");
-			
-			// Crop the relevant part of the image and then paint that at the right place.
-			// This means: bring the field of view into the image space first, make sure it is fully contained in the image, then crop.
-			try {
-				final AffineTransform aff = new AffineTransform();
-				/* World to field of view: */	aff.concatenate(g.getTransform());
-				/* Mipmap image to world:  */ 	aff.concatenate(atp);
-				// Transform the field of view into the mipmap
-				// and then intersect it with the mipmap's dimensions
-				final Rectangle s = aff.createTransformedShape(srcRect)
-				                       .getBounds()
-				                       .intersection(new Rectangle(0, 0,
-				                    		                       mipMap.image.getWidth(null),
-				                    		                       mipMap.image.getHeight(null)));
-				//
-				final BufferedImage sub = new BufferedImage(s.width, s.height, BufferedImage.TYPE_INT_ARGB);
-				sub.createGraphics().drawImage(mipMap.image, new AffineTransform(1, 0, 0, 1, -s.width, -s.height), null);
-				src = sub;
-				//
-				final AffineTransform toSub = new AffineTransform(1, 0, 0, 1, s.width, s.height);
-				atp.preConcatenate(toSub);
-				//
-			} catch (Throwable t) {
-				IJError.print(t);
-				// continue: let it paint normally even if slowly
-			}
-		}
-
-		final Composite original_composite = g.getComposite();
-		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
-		try {
-			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( src, atp, null );
-		} catch (Throwable t) {
-			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( src, atp, null );
-		}
-		g.setComposite( original_composite );
-		
-		// Cleanup
-		if (src != mipMap.image) src.flush();
+		paintMipMap(g, mipMap, atp, srcRect);
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
@@ -656,6 +610,13 @@ public final class Patch extends Displayable implements ImageData {
 		 */
 		atp.translate( -0.5, -0.5 );
 		
+		paintMipMap(g, mipMap, atp, srcRect);
+	}
+	
+	private final void paintMipMap(final Graphics2D g, final MipMapImage mipMap,
+			final AffineTransform atp, final Rectangle srcRect) {
+		
+		/*
 		final Composite original_composite = g.getComposite();
 
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
@@ -667,6 +628,94 @@ public final class Patch extends Displayable implements ImageData {
 			g.drawImage( mipMap.image, atp, null);
 		}
 		g.setComposite( original_composite );
+		*/
+		
+		
+		Image src = mipMap.image;
+
+
+		
+		// If the image is far too large, make it smaller.
+		
+		Utils.log2(srcRect + ", " + src.getWidth(null) + ", " + src.getHeight(null));
+		
+		if (srcRect.width * 3 < src.getWidth(null) || srcRect.height * 3 < src.getHeight(null)) {
+			
+			try {
+				// Bring the srcRect (which is in world coords) into the mipMap coordinate space:
+				final AffineTransform aff = atp.createInverse();
+				Rectangle s = aff.createTransformedShape(srcRect).getBounds();
+				Utils.log2("s 1: " + s);
+				// Intersect with the mipmaps' bounds:
+				s = s.intersection(new Rectangle(0, 0, src.getWidth(null), src.getHeight(null)));
+				Utils.log2("s 2: " + s);
+				// Check:
+				if (s.width <= 0 || s.height <= 0) {
+					Utils.log("Image not really inside the srcRect: #" + id);
+					return;
+				}
+				
+				/*
+				// May take a long time
+				final BufferedImage sub = new BufferedImage(s.width, s.height, BufferedImage.TYPE_INT_ARGB);
+				sub.createGraphics().drawImage(mipMap.image, new AffineTransform(1, 0, 0, 1, -s.width, -s.height), null);
+				src = sub;
+				*/
+				// Instead, grab the pixels for the appropriate area of the image and create an image with them:
+				final PixelGrabber pg = new PixelGrabber(mipMap.image, s.x, s.y, s.width, s.height, true);
+				pg.grabPixels(0);
+				Object ob = pg.getPixels(); // that is why ImageJ uses an Object for the pixels data field in ImageProcessor
+				DataBuffer db;
+				ColorModel cm;
+				if (null == ob) {
+					Utils.log2("no pixels for #" + id + ", " + s);
+					return;
+				} else if (ob instanceof byte[]) {
+					byte[] pix = (byte[])ob;
+					db = new DataBufferByte(pix, pix.length);
+					cm = FSLoader.GRAY_LUT;
+				} else {
+					int[] pix = (int[])ob;
+					db = new DataBufferInt(pix, pix.length);
+					cm = new DirectColorModel(32, 0xff0000, 0xff00, 0xff, 0xff000000); // r, g, b, alpha
+				}
+				WritableRaster wr = Raster.createWritableRaster(cm.createCompatibleSampleModel(s.width, s.height), db, null);
+				src = new BufferedImage(cm, wr, false, null);
+				//
+				// before:
+				float[] fp = new float[2];
+				atp.transform(fp, 0, fp, 0, 1);
+				Utils.log2("0,0: " + fp[0] + ", " + fp[1]);
+				//
+				final AffineTransform toSub = new AffineTransform(1, 0, 0, 1, s.x, s.y);
+				atp.concatenate(toSub);
+				
+				// after:
+				float[] fp2 = new float[2];
+				atp.transform(fp2, 0, fp2, 0, 1);
+				Utils.log2("0,0: " + fp2[0] + ", " + fp2[1] + ", " + s);
+				
+				return;
+				//
+			} catch (Throwable t) {
+				IJError.print(t);
+				// continue: let it paint normally even if slowly
+			}
+		}
+
+		final Composite original_composite = g.getComposite();
+		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
+		try {
+			g.setComposite( getComposite(getCompositeMode()) );
+			g.drawImage( src, atp, null );
+		} catch (Throwable t) {
+			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
+			g.drawImage( src, atp, null );
+		}
+		g.setComposite( original_composite );
+		
+		// Cleanup
+		if (src != mipMap.image) src.flush();
 	}
 
 	public boolean isDeletable() {
