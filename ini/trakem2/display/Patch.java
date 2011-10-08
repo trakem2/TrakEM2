@@ -632,6 +632,7 @@ public final class Patch extends Displayable implements ImageData {
 		
 		
 		Image src = mipMap.image;
+		AffineTransform affine = atp;
 
 
 		
@@ -688,18 +689,20 @@ public final class Patch extends Displayable implements ImageData {
 				Utils.log2("0,0: " + fp[0] + ", " + fp[1]);
 				//
 				final AffineTransform toSub = new AffineTransform(1, 0, 0, 1, s.x, s.y);
-				atp.concatenate(toSub);
+				affine = new AffineTransform(atp);
+				affine.preConcatenate(toSub);
 				
 				// after:
 				float[] fp2 = new float[2];
 				atp.transform(fp2, 0, fp2, 0, 1);
 				Utils.log2("0,0: " + fp2[0] + ", " + fp2[1] + ", " + s);
-				
-				return;
+
 				//
 			} catch (Throwable t) {
 				IJError.print(t);
 				// continue: let it paint normally even if slowly
+				src = mipMap.image;
+				affine = atp;
 			}
 		}
 
