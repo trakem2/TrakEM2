@@ -616,76 +616,16 @@ public final class Patch extends Displayable implements ImageData {
 	private final void paintMipMap(final Graphics2D g, final MipMapImage mipMap,
 			final AffineTransform atp, final Rectangle srcRect)
 	{	
-		Image src = mipMap.image;
-		AffineTransform affine = atp;
-		
-		// If the image is far too large, make it smaller, or it takes a long time to paint.
-		if (srcRect.width * 3 < src.getWidth(null) || srcRect.height * 3 < src.getHeight(null)) {
-			
-			try {
-				// Bring the srcRect (which is in world coords) into the mipMap coordinate space:
-				final AffineTransform aff = atp.createInverse();
-				Rectangle s = aff.createTransformedShape(srcRect).getBounds();
-				// Intersect with the mipmaps' bounds:
-				s = s.intersection(new Rectangle(0, 0, src.getWidth(null), src.getHeight(null)));
-				// Check:
-				if (s.width <= 0 || s.height <= 0) {
-					Utils.log("Image not really inside the srcRect: #" + id);
-					return;
-				}
-				
-				/*
-				// May take a long time
-				final BufferedImage sub = new BufferedImage(s.width, s.height, BufferedImage.TYPE_INT_ARGB);
-				sub.createGraphics().drawImage(mipMap.image, new AffineTransform(1, 0, 0, 1, -s.width, -s.height), null);
-				src = sub;
-				*/
-				// Instead, grab the pixels for the appropriate area of the image and create an image with them:
-				final PixelGrabber pg = new PixelGrabber(mipMap.image, s.x, s.y, s.width, s.height, true);
-				pg.grabPixels(0);
-				Object ob = pg.getPixels(); // that is why ImageJ uses an Object for the pixels data field in ImageProcessor
-				DataBuffer db;
-				ColorModel cm;
-				if (null == ob) {
-					Utils.log2("no pixels for #" + id + ", " + s);
-					return;
-				} else if (ob instanceof byte[]) {
-					byte[] pix = (byte[])ob;
-					db = new DataBufferByte(pix, pix.length);
-					cm = FSLoader.GRAY_LUT;
-				} else {
-					int[] pix = (int[])ob;
-					db = new DataBufferInt(pix, pix.length);
-					cm = new DirectColorModel(32, 0xff0000, 0xff00, 0xff, 0xff000000); // r, g, b, alpha
-				}
-				WritableRaster wr = Raster.createWritableRaster(cm.createCompatibleSampleModel(s.width, s.height), db, null);
-				src = new BufferedImage(cm, wr, false, null);
-				//
-				final AffineTransform toSub = new AffineTransform(1, 0, 0, 1, s.x, s.y);
-				affine = new AffineTransform(atp);
-				affine.preConcatenate(toSub);
-				//
-			} catch (Throwable t) {
-				IJError.print(t);
-				// continue: let it paint normally even if slowly
-				src = mipMap.image;
-				affine = atp;
-			}
-		}
-
 		final Composite original_composite = g.getComposite();
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( src, affine, null );
+			g.drawImage( mipMap.image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( src, affine, null );
+			g.drawImage( mipMap.image, atp, null );
 		}
 		g.setComposite( original_composite );
-		
-		// Cleanup
-		if (src != mipMap.image) src.flush();
 	}
 
 	public boolean isDeletable() {
