@@ -1045,6 +1045,17 @@ public final class Patch extends Displayable implements ImageData {
 		} catch (InterruptedException ie) {
 			return pvalue;
 		}
+
+		approximateTransferPixel(pvalue);
+
+		return pvalue;
+	}
+
+	/** Transfer an 8-bit or RGB pixel to this image color space, interpolating;
+	 * the pvalue is modified in place.
+	 * For float images (GRAY32), the float value is packed into bits in pvalue[0],
+	 * and can be recovered with Float.intBitsToFloat(pvalue[0]). */
+	protected void approximateTransferPixel(final int[] pvalue) {
 		switch (type) {
 			case ImagePlus.COLOR_256: // mipmaps use RGB images internally, so I can't compute the index in the LUT
 			case ImagePlus.COLOR_RGB:
@@ -1064,12 +1075,10 @@ public final class Patch extends Displayable implements ImageData {
 			case ImagePlus.GRAY32:
 				pvalue[0] = pvalue[0]&0xff;
 				// correct range: from 8-bit of the mipmap to 32 bit
-				// ... and encode, so that it will be decoded with Float.intToFloatBits
+				// ... and encode, so that it will be decoded with Float.intBitsToFloat
 				pvalue[0] = Float.floatToIntBits((float)(min + pvalue[0] * ( (max - min) / 256 )));
 				break;
 		}
-
-		return pvalue;
 	}
 
 	/** If this patch is part of a stack, the file path will contain the slice number attached to it, in the form -----#slice=10 for slice number 10. */
