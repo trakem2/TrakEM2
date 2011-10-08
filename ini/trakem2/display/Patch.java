@@ -614,42 +614,20 @@ public final class Patch extends Displayable implements ImageData {
 	}
 	
 	private final void paintMipMap(final Graphics2D g, final MipMapImage mipMap,
-			final AffineTransform atp, final Rectangle srcRect) {
-		
-		/*
-		final Composite original_composite = g.getComposite();
-
-		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
-		try {
-			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( mipMap.image, atp, null );
-		} catch (Throwable t) {
-			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( mipMap.image, atp, null);
-		}
-		g.setComposite( original_composite );
-		*/
-		
-		
+			final AffineTransform atp, final Rectangle srcRect)
+	{	
 		Image src = mipMap.image;
 		AffineTransform affine = atp;
-
-
 		
-		// If the image is far too large, make it smaller.
-		
-		Utils.log2(srcRect + ", " + src.getWidth(null) + ", " + src.getHeight(null));
-		
+		// If the image is far too large, make it smaller, or it takes a long time to paint.
 		if (srcRect.width * 3 < src.getWidth(null) || srcRect.height * 3 < src.getHeight(null)) {
 			
 			try {
 				// Bring the srcRect (which is in world coords) into the mipMap coordinate space:
 				final AffineTransform aff = atp.createInverse();
 				Rectangle s = aff.createTransformedShape(srcRect).getBounds();
-				Utils.log2("s 1: " + s);
 				// Intersect with the mipmaps' bounds:
 				s = s.intersection(new Rectangle(0, 0, src.getWidth(null), src.getHeight(null)));
-				Utils.log2("s 2: " + s);
 				// Check:
 				if (s.width <= 0 || s.height <= 0) {
 					Utils.log("Image not really inside the srcRect: #" + id);
@@ -683,20 +661,9 @@ public final class Patch extends Displayable implements ImageData {
 				WritableRaster wr = Raster.createWritableRaster(cm.createCompatibleSampleModel(s.width, s.height), db, null);
 				src = new BufferedImage(cm, wr, false, null);
 				//
-				// before:
-				float[] fp = new float[2];
-				atp.transform(fp, 0, fp, 0, 1);
-				Utils.log2("0,0: " + fp[0] + ", " + fp[1]);
-				//
 				final AffineTransform toSub = new AffineTransform(1, 0, 0, 1, s.x, s.y);
 				affine = new AffineTransform(atp);
 				affine.preConcatenate(toSub);
-				
-				// after:
-				float[] fp2 = new float[2];
-				atp.transform(fp2, 0, fp2, 0, 1);
-				Utils.log2("0,0: " + fp2[0] + ", " + fp2[1] + ", " + s);
-
 				//
 			} catch (Throwable t) {
 				IJError.print(t);
@@ -710,10 +677,10 @@ public final class Patch extends Displayable implements ImageData {
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( src, atp, null );
+			g.drawImage( src, affine, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( src, atp, null );
+			g.drawImage( src, affine, null );
 		}
 		g.setComposite( original_composite );
 		
