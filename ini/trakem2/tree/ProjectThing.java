@@ -45,6 +45,7 @@ import java.awt.Event;
 import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Collection;
 import java.util.Arrays;
@@ -115,25 +116,29 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		addToDatabase();
 	}
 
-	/** Check, recursively, that the children of tt2 are also in tt1. */
+	/** Check, recursively, that the children of tt2 are also in tt1.
+	 *  Assumes that tt1.type == tt2.type */
+	@SuppressWarnings("unchecked")
 	private void assertChildren(final TemplateThing tt1, final TemplateThing tt2) throws Exception {
 		// Check that if this type exists in the target project, it can have the same children
-		Collection<TemplateThing> c1 = (Collection<TemplateThing>)tt1.getChildren();
-		HashSet<String> keys1 = new HashSet<String>();
-		if (null != c1) for (final TemplateThing tn : c1) keys1.add(tn.getType());
+		final List<TemplateThing> c1 = null == tt1.getChildren() ? Collections.EMPTY_LIST : new ArrayList<TemplateThing>(tt1.getChildren());
+		final List<TemplateThing> c2 = null == tt2.getChildren() ? Collections.EMPTY_LIST : new ArrayList<TemplateThing>(tt2.getChildren());
+		Collections.sort(c1);
+		Collections.sort(c2);
 
-		Collection<TemplateThing> c2 = (Collection<TemplateThing>)tt2.getChildren();
-		HashSet<String> keys2 = new HashSet<String>();
-		if (null != c2) for (final TemplateThing tn : c2) keys2.add(tn.getType());
-
-		if (keys1.isEmpty() && keys2.isEmpty()) {
+		if (c1.isEmpty() && c2.isEmpty()) {
 			return; // no children to check
-		} else if (!keys1.containsAll(keys2)) {
-			throw new Exception("ERROR: receiving project has an homonimous template without all required children!");
+		} if (c1.size() != c2.size()) {
+			throw new Exception("ERROR: receiving project has a different number of children for type " + tt1.getType() + " / " + tt2.getType());
 		}
 
 		for (final Iterator<TemplateThing> it1 = c1.iterator(), it2 = c2.iterator(); it2.hasNext(); ) {
-			assertChildren(it1.next(), it2.next());
+			final TemplateThing a = it1.next(),
+			                    b = it2.next();
+			if (! a.getType().equals(b.getType())) {
+				throw new Exception("ERROR: type '" + tt1.getType() + "' of receiving project has a child '" + a.getType() + "' that is not present in the cognate type of the sending project.");
+			}
+			assertChildren(a, b);
 		}
 	}
 

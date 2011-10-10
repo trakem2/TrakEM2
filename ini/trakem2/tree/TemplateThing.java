@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 
-public final class TemplateThing extends DBObject implements Thing {
+public final class TemplateThing extends DBObject implements Thing, Comparable<TemplateThing> {
 
 	private String type;
 	private TemplateThing parent = null;
@@ -478,5 +478,11 @@ public final class TemplateThing extends DBObject implements Thing {
 			copy.addChild(child.clone(pr, copy_id));
 		}
 		return copy;
+	}
+
+	/** Compares the String type, for sorting purposes. */
+	@Override
+	public int compareTo(final TemplateThing o) {
+		return this.type.compareTo(o.getType());
 	}
 }

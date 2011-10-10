@@ -26,52 +26,58 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
+import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
-import ij.plugin.filter.ThresholdToSelection;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.persistence.FSLoader;
 
-import java.awt.Dimension;
-import java.awt.Rectangle;
-import java.awt.Event;
-import java.awt.Image;
 import java.awt.Color;
 import java.awt.Composite;
-import java.awt.Toolkit;
+import java.awt.Dimension;
+import java.awt.Event;
 import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.image.MemoryImageSource;
-import java.awt.image.DirectColorModel;
+import java.awt.Image;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.KeyEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.geom.Point2D;
-import java.awt.Polygon;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
+import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
+import java.awt.image.DataBuffer;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
+import java.awt.image.DirectColorModel;
+import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
-import java.awt.event.KeyEvent;
+import java.awt.image.Raster;
+import java.awt.image.WritableRaster;
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.TreeMap;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Collection;
-import java.io.File;
 import java.util.concurrent.Future;
 
 import mpicbg.imglib.container.shapelist.ShapeList;
@@ -80,8 +86,8 @@ import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
@@ -496,12 +502,12 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, fetchImage(magnification, channels, true));
+		paint(g, fetchImage(magnification, channels, true), srcRect);
 	}
 
 	@Override
 	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> _ignored) {
-		paint(g, fetchImage(magnification, channels, false));
+		paint(g, fetchImage(magnification, channels, false), srcRect);
 	}
 
 	private final MipMapImage fetchImage(final double magnification, final int channels, final boolean wait_for_image) {
@@ -519,7 +525,7 @@ public final class Patch extends Displayable implements ImageData {
 			: project.getLoader().fetchImage(this, sc);
 	}
 	
-	private void paint( final Graphics2D g, final Image image )
+	private void paint( final Graphics2D g, final Image image, final Rectangle srcRect )
 	{
 		/*
 		 * infer scale: this scales the numbers of pixels according to patch
@@ -527,10 +533,10 @@ public final class Patch extends Displayable implements ImageData {
 		 */ 
 		final int iw = image.getWidth(null);
 		final int ih = image.getHeight(null);
-		paint( g, new MipMapImage( image, this.width / iw, this.height / ih ) );
+		paint( g, new MipMapImage( image, this.width / iw, this.height / ih ), srcRect );
 	}
 
-	private void paint(final Graphics2D g, final MipMapImage mipMap ) {
+	private void paint(final Graphics2D g, final MipMapImage mipMap, final Rectangle srcRect ) {
 
 		AffineTransform atp = new AffineTransform();
 		
@@ -550,17 +556,9 @@ public final class Patch extends Displayable implements ImageData {
 		 * centers.
 		 */
 		atp.translate( -0.5, -0.5 );
-
-		final Composite original_composite = g.getComposite();
-		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
-		try {
-			g.setComposite( getComposite(getCompositeMode()) );
-			g.drawImage( mipMap.image, atp, null );
-		} catch (Throwable t) {
-			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( mipMap.image, atp, null );
-		}
-		g.setComposite( original_composite );
+		
+		
+		paintMipMap(g, mipMap, atp, srcRect);
 	}
 
 	/** Paint first whatever is available, then request that the proper image be loaded and painted. */
@@ -612,15 +610,20 @@ public final class Patch extends Displayable implements ImageData {
 		 */
 		atp.translate( -0.5, -0.5 );
 		
+		paintMipMap(g, mipMap, atp, srcRect);
+	}
+	
+	private final void paintMipMap(final Graphics2D g, final MipMapImage mipMap,
+			final AffineTransform atp, final Rectangle srcRect)
+	{	
 		final Composite original_composite = g.getComposite();
-
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( mipMap.image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
-			g.drawImage( mipMap.image, atp, null);
+			g.drawImage( mipMap.image, atp, null );
 		}
 		g.setComposite( original_composite );
 	}
@@ -982,6 +985,17 @@ public final class Patch extends Displayable implements ImageData {
 		} catch (InterruptedException ie) {
 			return pvalue;
 		}
+
+		approximateTransferPixel(pvalue);
+
+		return pvalue;
+	}
+
+	/** Transfer an 8-bit or RGB pixel to this image color space, interpolating;
+	 * the pvalue is modified in place.
+	 * For float images (GRAY32), the float value is packed into bits in pvalue[0],
+	 * and can be recovered with Float.intBitsToFloat(pvalue[0]). */
+	protected void approximateTransferPixel(final int[] pvalue) {
 		switch (type) {
 			case ImagePlus.COLOR_256: // mipmaps use RGB images internally, so I can't compute the index in the LUT
 			case ImagePlus.COLOR_RGB:
@@ -1001,12 +1015,10 @@ public final class Patch extends Displayable implements ImageData {
 			case ImagePlus.GRAY32:
 				pvalue[0] = pvalue[0]&0xff;
 				// correct range: from 8-bit of the mipmap to 32 bit
-				// ... and encode, so that it will be decoded with Float.intToFloatBits
+				// ... and encode, so that it will be decoded with Float.intBitsToFloat
 				pvalue[0] = Float.floatToIntBits((float)(min + pvalue[0] * ( (max - min) / 256 )));
 				break;
 		}
-
-		return pvalue;
 	}
 
 	/** If this patch is part of a stack, the file path will contain the slice number attached to it, in the form -----#slice=10 for slice number 10. */

@@ -501,19 +501,21 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final LinkedList<Node<T>> list = new LinkedList<Node<T>>();
 		list.add(root);
 		final Map<Node<T>,Integer> table = new HashMap<Node<T>,Integer>();
-
+		
+		final StringBuilder indent = new StringBuilder(indent_base);
+		
 		while (!list.isEmpty()) {
 			Node<T> node = list.getLast();
 			if (null == node.children) {
 				// Processing end point
-				dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
+				dataNodeXML(tree, indent, sb, node);
 				list.removeLast();
 				continue;
 			} else {
 				final Integer ii = table.get(node);
 				if (null == ii) {
 					// Never yet processed a child, add first
-					dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
+					dataNodeXML(tree, indent, sb, node);
 					table.put(node, 0);
 					list.add(node.children[0]);
 					continue;
@@ -522,7 +524,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Are there any more children to process?
 					if (i == node.children.length -1) {
 						// No more children to process
-						closeNodeXML(getIndents(indent_base, list.size()), sb);
+						closeNodeXML(indent, sb);
 						list.removeLast();
 						table.remove(node);
 						continue;
@@ -535,15 +537,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 		}
 	}
-	static private final StringBuilder getIndents(final String base, int more) {
-		final StringBuilder sb = new StringBuilder(base.length() + more);
-		sb.append(base);
-		while (more > 0) {
-			sb.append(' ');
-			more--;
-		}
-		return sb;
-	}
+
 	private final void dataNodeXML(final Tree<T> tree, final StringBuilder indent, final StringBuilder sb, final Node<T> node) {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)

@@ -50,8 +50,6 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.tree.ProjectThing;
 
-import java.awt.Component;
-import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -793,36 +791,21 @@ public class Search {
 
 	/** Remove from the tables if there. */
 	static public void remove(final Displayable displ) {
-		if (null == displ || null == instance)
-			return;
-		final int n_tabs = instance.search_tabs.getTabCount();
-		boolean repaint = false;
-		final int selected = instance.search_tabs.getSelectedIndex();
-		for (int t = 0; t < n_tabs; t++) {
-			java.awt.Component c = instance.search_tabs.getComponentAt(t);
-			Results table = (Results) ((JScrollPane) c).getViewport()
-					.getComponent(0);
-			DisplayableTableModel data = (DisplayableTableModel) table
-					.getModel();
-			if (data.remove(displ)) {
-				// remake table (can't delete just a row, only columns??)
-				String name = instance.search_tabs.getTitleAt(t);
-				instance.search_tabs.removeTabAt(t);
-				// need to think about it TODO // if (0 == data.getRowCount())
-				// continue;
-				instance.search_tabs.insertTab(name, null,
-						instance.makeTable(data, table.project), "", t);
-				if (t == selected)
-					repaint = true;
-				try {
-					Thread.sleep(100);
-				} catch (Exception e) {
-				} // I love swing
+		final Search se = instance;
+		try {
+			if (null == se || null == displ) return;
+			final List<JPanel> panels = se.tabMap.get(displ.getProject());
+			if (null == panels) return;
+			for (final JPanel p : panels) {
+				Results table = (Results) ((JScrollPane)p.getComponent(2)).getViewport().getComponent(0);
+				DisplayableTableModel data = (DisplayableTableModel) table.getModel();
+				if (data.remove(displ)) {
+					Utils.updateComponent(p); // in the event dispatch thread.
+				}
 			}
-		}
-		if (repaint) {
-			Utils.updateComponent(instance.search_frame);
-			instance.search_tabs.setSelectedIndex(selected);
+		} catch (Exception e) {
+			IJError.print(e);
+			se.destroy();
 		}
 	}
 

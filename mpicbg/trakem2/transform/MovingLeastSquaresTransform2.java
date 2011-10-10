@@ -120,7 +120,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 	@Override
 	final public String toXML( final String indent )
 	{
-		final StringBuilder xml = new StringBuilder( 128 );
+		final StringBuilder xml = new StringBuilder( 80000 );
 		xml.append( indent )
 		   .append( "<ict_transform class=\"" )
 		   .append( this.getClass().getCanonicalName() )
