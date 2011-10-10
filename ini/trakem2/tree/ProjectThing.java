@@ -135,10 +135,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		for (final Iterator<TemplateThing> it1 = c1.iterator(), it2 = c2.iterator(); it2.hasNext(); ) {
 			final TemplateThing a = it1.next(),
 			                    b = it2.next();
-			if (! a.getType().equals(a.getType())) {
-				throw new Exception("ERROR: type '" + tt1.getType() + "' of receiving project has a child '" + b.getType() + "' that is not present in the cognate type of the sending project.");
+			if (! a.getType().equals(b.getType())) {
+				throw new Exception("ERROR: type '" + tt1.getType() + "' of receiving project has a child '" + a.getType() + "' that is not present in the cognate type of the sending project.");
 			}
-			assertChildren(it1.next(), it2.next());
+			assertChildren(a, b);
 		}
 	}
 
