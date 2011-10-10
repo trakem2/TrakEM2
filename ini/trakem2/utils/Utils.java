@@ -111,7 +111,7 @@ import javax.swing.SwingUtilities;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.9b 2011-09-26";
+	static public String version = "0.9c 2011-10-10";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
