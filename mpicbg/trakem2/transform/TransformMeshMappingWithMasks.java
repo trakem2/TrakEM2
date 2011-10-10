@@ -18,6 +18,7 @@ package mpicbg.trakem2.transform;
 
 import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -129,6 +130,40 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					mapTriangleInterpolated( transform, triangles.get( k ), source.ip, target.ip, target.outside );
 				else
 					mapTriangleInterpolated( transform, triangles.get( k ), source.ip, source.mask, target.ip, target.mask, target.outside );
+				k = i.getAndIncrement();
+			}
+		}
+	}
+	
+	final static private class MapShortAlphaTriangleThread extends Thread
+	{
+		final private AtomicInteger i;
+		final private List< AffineModel2D > triangles;
+		final private TransformMesh transform;
+		final ShortProcessor source, target;
+		final ByteProcessor alpha;
+		MapShortAlphaTriangleThread(
+				final AtomicInteger i,
+				final List< AffineModel2D > triangles,
+				final TransformMesh transform,
+				final ShortProcessor source,
+				final ByteProcessor alpha,
+				final ShortProcessor target )
+		{
+			this.i = i;
+			this.triangles = triangles;
+			this.transform = transform;
+			this.source = source;
+			this.alpha = alpha;
+			this.target = target;
+		}
+		
+		final public void run()
+		{
+			int k = i.getAndIncrement();
+			while ( !isInterrupted() && k < triangles.size() )
+			{
+				mapShortAlphaTriangle( transform, triangles.get( k ), source, alpha, target );
 				k = i.getAndIncrement();
 			}
 		}
@@ -359,6 +394,63 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 	}
 	
 	
+	final static protected void mapShortAlphaTriangle(
+			final TransformMesh m,
+			final AffineModel2D ai,
+			final ShortProcessor source,
+			final ByteProcessor alpha,
+			final ShortProcessor target )
+	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
+		final ArrayList< PointMatch > pm = m.getAV().get( ai );
+		final float[] min = new float[ 2 ];
+		final float[] max = new float[ 2 ];
+		calculateBoundingBox( pm, min, max );
+		
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
+		
+		final float[] a = pm.get( 0 ).getP2().getW();
+		final float ax = a[ 0 ];
+		final float ay = a[ 1 ];
+		final float[] b = pm.get( 1 ).getP2().getW();
+		final float bx = b[ 0 ];
+		final float by = b[ 1 ];
+		final float[] c = pm.get( 2 ).getP2().getW();
+		final float cx = c[ 0 ];
+		final float cy = c[ 1 ];
+		final float[] t = new float[ 2 ];
+		for ( int y = minY; y <= maxY; ++y )
+		{
+			for ( int x = minX; x <= maxX; ++x )
+			{
+				if ( isInTriangle( ax, ay, bx, by, cx, cy, x, y ) )
+				{
+					t[ 0 ] = x;
+					t[ 1 ] = y;
+					try
+					{
+						ai.applyInverseInPlace( t );
+					}
+					catch ( Exception e )
+					{
+						//e.printStackTrace( System.err );
+						continue;
+					}
+					final int is = source.getPixelInterpolated( t[ 0 ], t[ 1 ] );
+					final int it = target.get( x, y );
+					final double f = alpha.getPixelInterpolated( t[ 0 ], t[ 1 ] ) / 255.0;
+					final double v = it + f  * ( is - it );
+					target.set( x, y, ( int )Math.max(  0, Math.min( 65535, Math.round( v ) ) ) );
+				}
+			}
+		}
+	}
+	
+	
 	final public void map(
 			final ImageProcessorWithMasks source,
 			final ImageProcessorWithMasks target,
@@ -425,5 +517,60 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final ImageProcessorWithMasks target )
 	{
 		mapInterpolated( source, target, Runtime.getRuntime().availableProcessors() );
+	}
+	
+	
+	/**
+	 * Render source into target using alpha composition.
+	 * Interpolation is specified by the interpolation methods
+	 * set in source and alpha.
+	 * 
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 * @param numThreads
+	 */
+	final public void map(
+			final ShortProcessor source,
+			final ByteProcessor alpha,
+			final ShortProcessor target,
+			final int numThreads )
+	{
+		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
+		l.addAll( transform.getAV().keySet() );
+		final AtomicInteger i = new AtomicInteger( 0 );
+		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+		for ( int k = 0; k < numThreads; ++k )
+		{
+			final Thread mtt = new MapShortAlphaTriangleThread( i, l, transform, source, alpha, target );
+			threads.add( mtt );
+			mtt.start();
+		}
+		for ( final Thread mtt : threads )
+		{
+			try
+			{
+				mtt.join();
+			}
+			catch ( InterruptedException e ) {}
+		}
+	}
+	
+	
+	/**
+	 * Render source into master using alpha composition.
+	 * Interpolation is specified by the interpolation methods
+	 * set in source and alpha.
+	 * 
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 */
+	final public void map(
+			final ShortProcessor source,
+			final ByteProcessor alpha,
+			final ShortProcessor target )
+	{
+		map( source, alpha, target, Runtime.getRuntime().availableProcessors() );
 	}
 }
