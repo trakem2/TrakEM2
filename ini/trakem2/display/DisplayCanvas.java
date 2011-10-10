@@ -1447,22 +1447,25 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					return;
 				}
 				final Displayable top = under.get(0);
-				BufferedImage offs;
-				synchronized (offscreen_lock) {
-					offs = offscreen;
-				}
 				String msg =
 							"x=" + (int)(xMouse * cal.pixelWidth) + " " + cal.getUnit()
 							+ ", y=" + (int)(yMouse * cal.pixelHeight) + " " + cal.getUnit();
 				if (top.getClass() == Patch.class) {
-					if (null == offs) return;
 					final Patch patch = (Patch)top;
 					final int[] p = new int[4];
-					PixelGrabber pg = new PixelGrabber(offs, me.getX(), me.getY(), 1, 1, p, 0, offs.getWidth(null));
+					BufferedImage offsc;
+					synchronized (offscreen_lock) {
+						offsc = offscreen;
+					}
+					if (null == offsc) return;
 					try {
+						PixelGrabber pg = new PixelGrabber(offsc, me.getX(), me.getY(), 1, 1, p, 0, offsc.getWidth(null));
 						pg.grabPixels();
 					} catch (InterruptedException ie) {
 						IJError.print(ie);
+						return;
+					} catch (Throwable t) {
+						// The offscreen might have been flushed. Just ignore; pixel value will be reported next.
 						return;
 					}
 					patch.approximateTransferPixel(p);
