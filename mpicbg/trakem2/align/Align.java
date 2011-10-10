@@ -396,9 +396,9 @@ public class Align
 							features = new ArrayList< Feature >();
 							long s = System.currentTimeMillis();
 							ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
-							IJ.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+							Utils.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
 							if ( !serializeFeatures( p, tile, features ) )
-								IJ.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
+								Utils.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
 							memoryFlushed = false;
 						}
 						catch ( OutOfMemoryError e )
@@ -412,7 +412,7 @@ public class Align
 				}
 				else
 				{
-					IJ.log( features.size() + " features loaded for tile " + i + " \"" + tile.getPatch().getTitle() + "\"." );
+					Utils.log( features.size() + " features loaded for tile " + i + " \"" + tile.getPatch().getTitle() + "\"." );
 				}
 				IJ.showProgress( ap.getAndIncrement(), steps );				
 			}
@@ -502,16 +502,16 @@ public class Align
 							p.identityTolerance );
 					
 					if ( modelFound )
-						IJ.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+						Utils.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					else
-						IJ.log( "No model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+						Utils.log( "No model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					
 					if ( !serializePointMatches( p, tilePair[ 0 ], tilePair[ 1 ], inliers ) )
-						IJ.log( "Saving point matches failed for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\"" );
+						Utils.log( "Saving point matches failed for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\"" );
 					
 				}
 				else
-					IJ.log( "Point matches for tiles \"" + tilePair[ 0 ].getPatch().getTitle() + "\" and \"" + tilePair[ 1 ].getPatch().getTitle() + "\" fetched from disk cache" );
+					Utils.log( "Point matches for tiles \"" + tilePair[ 0 ].getPatch().getTitle() + "\" and \"" + tilePair[ 1 ].getPatch().getTitle() + "\" fetched from disk cache" );
 				
 				if ( inliers != null && inliers.size() > 0 )
 				{
@@ -634,9 +634,9 @@ public class Align
 			features = new ArrayList< Feature >();
 			long s = System.currentTimeMillis();
 			ijSIFT.extractFeatures( t.createMaskedByteImage(), features );
-			IJ.log( features.size() + " features extracted in tile \"" + t.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+			Utils.log( features.size() + " features extracted in tile \"" + t.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
 			if ( !serializeFeatures( p, t, features ) )
-				IJ.log( "Saving features failed for tile: " + t.getPatch() );
+				Utils.log( "Saving features failed for tile: " + t.getPatch() );
 		}
 		return features;
 	}
@@ -773,12 +773,12 @@ public class Align
 					p.identityTolerance );
 			
 			if ( modelFound )
-				IJ.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+				Utils.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			else
-				IJ.log( "No model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+				Utils.log( "No model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			
 			if ( !serializePointMatches( p, t1, t2, pointMatches ) )
-				IJ.log( "Saving point matches failed for tile \"" + t1.getPatch() + "\" and tile \"" + t2.getPatch() + "\"" );
+				Utils.log( "Saving point matches failed for tile \"" + t1.getPatch() + "\" and tile \"" + t2.getPatch() + "\"" );
 		}
 		return pointMatches;
 	}
@@ -1165,7 +1165,7 @@ public class Align
 			ijSIFT.extractFeatures(
 					l.getProject().getLoader().getFlatImage( l, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor(),
 					features2 );
-			IJ.log( features2.size() + " features extracted in layer \"" + l.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
+			Utils.log( features2.size() + " features extracted in layer \"" + l.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
 			
 			if ( features1.size() > 0 )
 			{
@@ -1219,7 +1219,7 @@ public class Align
 							PointMatch.sourcePoints( inliers, points );
 							if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
 							{
-								IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+								Utils.log( "Identity transform for " + inliers.size() + " matches rejected." );
 								candidates.removeAll( inliers );
 								inliers.clear();
 								again = true;
@@ -1235,7 +1235,7 @@ public class Align
 				
 				if ( modelFound )
 				{
-					IJ.log( "Model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					Utils.log( "Model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					final AffineTransform b = new AffineTransform();
 					b.translate( box1.x, box1.y );
 					b.scale( 1.0f / scale, 1.0f / scale );
@@ -1249,7 +1249,7 @@ public class Align
 				}
 				else
 				{
-					IJ.log( "No model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					Utils.log( "No model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					a.setToIdentity();
 				}
 			}
@@ -1388,7 +1388,7 @@ public class Align
 						PointMatch.sourcePoints( inliers, points );
 						if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
 						{
-							IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
+							Utils.log( "Identity transform for " + inliers.size() + " matches rejected." );
 							candidates.removeAll( inliers );
 							inliers.clear();
 							again = true;
@@ -1404,7 +1404,7 @@ public class Align
 			
 			if ( modelFound )
 			{
-				IJ.log( "Model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+				Utils.log( "Model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 				final AffineTransform at = new AffineTransform();
 				at.translate( boxA.x, boxA.y );
 				at.scale( 1.0f / scale, 1.0f / scale );
@@ -1417,7 +1417,7 @@ public class Align
 				Display.repaint( la );
 			}
 			else
-				IJ.log( "No model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+				Utils.log( "No model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 		}
 	}
 }
