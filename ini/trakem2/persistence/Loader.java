@@ -2924,8 +2924,6 @@ while (it.hasNext()) {
 					try {
 						while (n_et >= best[1]) {
 							
-							new ImagePlus("snapshot " + scale_pow, snapshot).show();
-							
 							final int tile_side = 256;
 							final int snapWidth = snapshot.getWidth();
 							final int snapHeight = snapshot.getHeight();
