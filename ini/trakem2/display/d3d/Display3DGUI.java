@@ -4,6 +4,12 @@ import ij3d.Content;
 import ij3d.Image3DUniverse;
 import ij3d.ImageWindow3D;
 import ij3d.UniverseListener;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.persistence.DBObject;
+import ini.trakem2.utils.IntegerField;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
@@ -17,11 +23,12 @@ import java.awt.event.AdjustmentEvent;
 import java.awt.event.AdjustmentListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.awt.event.KeyListener;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Hashtable;
 import java.util.List;
+import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -31,17 +38,16 @@ import javax.media.j3d.View;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
-import javax.swing.JSlider;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.AbstractTableModel;
 import javax.vecmath.Color3f;
-
-import ucar.nc2.dt.fmrc.FmrcDefinition.Grid;
 
 public class Display3DGUI {
 	
@@ -301,50 +307,6 @@ public class Display3DGUI {
 		return p;
 	}
 
-	static public final class IntegerField extends JTextField {
-		private static final long serialVersionUID = 1L;
-		private final int maxDigits;
-		public IntegerField(int initial, int maxDigits) {
-			super();
-			this.maxDigits = maxDigits;
-			String text = Integer.toString(initial);
-			if (text.length() > maxDigits) text = text.substring(0, maxDigits);
-			setText(text);
-		}
-		@Override
-		protected void processKeyEvent(KeyEvent ke) {
-			if (0 != ke.getModifiers()) return;
-			if (ke.getID() != KeyEvent.KEY_PRESSED) return;
-			switch (ke.getKeyCode()) {
-				case KeyEvent.VK_DELETE:
-				case KeyEvent.VK_BACK_SPACE:
-				case KeyEvent.VK_ENTER:
-				case KeyEvent.VK_LEFT:
-				case KeyEvent.VK_RIGHT:
-					super.processKeyEvent(ke);
-					for (KeyListener kl : getKeyListeners()) {
-						kl.keyPressed(ke);
-					}
-					return;
-			}
-			// For keyPressed only:
-			if (Character.isDigit(ke.getKeyChar())) {
-				if (getText().length() < maxDigits) {
-					setText(getText() + ke.getKeyChar());
-					for (KeyListener kl : getKeyListeners()) {
-						kl.keyPressed(ke);
-					}
-				}
-			}
-		}
-		@Override
-		public String getText() {
-			final String text = super.getText();
-			if (0 == text.length()) return "0";
-			return text;
-		}
-	}
-	
 	static private final float[][] colors = new float[][]{
 		new float[]{255, 255, 0},  // yellow
 		new float[]{255, 0, 0},    // red
@@ -472,7 +434,7 @@ public class Display3DGUI {
 		@Override
 		public Object getValueAt(int rowIndex, int columnIndex) {
 			switch (columnIndex) {
-				case 0: return rowIndex;
+				case 0: return rowIndex + 1;
 				case 1: return contents.get(rowIndex).getName();
 			}
 			return null;
@@ -525,6 +487,94 @@ public class Display3DGUI {
 					final int row = ContentTable.this.rowAtPoint(me.getPoint());
 					if (2 == me.getClickCount()) {
 						univ.select(((ContentTableModel)getModel()).contents.get(row));
+					} else if (Utils.isPopupTrigger(me)) {
+						List<Content> data = ((ContentTableModel)getModel()).contents;
+						final ArrayList<Content> cs = new ArrayList<Content>();
+						for (int i : getSelectedRows()) {
+							cs.add(data.get(i));
+						}
+						JPopupMenu jp = new JPopupMenu();
+						JMenuItem item = new JMenuItem("Select in 3D view");
+						jp.add(item);
+						item.addActionListener(new ActionListener() {
+							@Override
+							public void actionPerformed(ActionEvent e) {
+								univ.select(((ContentTableModel)getModel()).contents.get(row));
+							}
+						});
+						item = new JMenuItem("Select in TrakEM2");
+						jp.add(item);
+						item.addActionListener(new ActionListener() {
+							@Override
+							public void actionPerformed(ActionEvent e) {
+								Utils.log("Selecting in TrakEM2:");
+								Hashtable<LayerSet,Display3D> ht = Display3D.getMasterTable();
+								LayerSet ls = null;
+								for (final Map.Entry<LayerSet,Display3D> entry : ht.entrySet()) {
+									if (entry.getValue().getUniverse() == univ) {
+										ls = entry.getKey();
+										break;
+									}
+								}
+								if (null == ls) {
+									Utils.log("Could not find an appropriate TrakEM2 project!");
+									return;
+								}
+								Display front = Display.getFront();
+								if (front.getLayerSet() != ls) {
+									for (Display display : Display.getDisplays()) {
+										if (display.getLayerSet() == ls) {
+											front = display;
+											break;
+										}
+									}
+									if (front.getLayerSet() != ls) {
+										Utils.log("Could not find an open display for the appropriate TrakEM2 project!");
+										return;
+									}
+								}
+								for (Content c : cs) {
+									String name = c.getName();
+									int start = name.lastIndexOf('#');
+									if (-1 == start) {
+										Utils.log("..skipped " + name);
+										continue;
+									}
+									StringBuilder sb = new StringBuilder(10);
+									start += 1;
+									char ch;
+									while (start < name.length() && Character.isDigit(ch = name.charAt(start))) {
+										sb.append(ch);
+										start += 1;
+									}
+									if (sb.length() > 0) {
+										long id = Long.parseLong(sb.toString());
+										DBObject dbo = ls.findById(id);
+										if (null == dbo || !(dbo instanceof Displayable)) {
+											Utils.log("Could not find an object with id #" + id);
+											continue;
+										}
+										front.getSelection().add((Displayable)dbo);
+										Utils.log("Selected: #" + id);
+									} else {
+										Utils.log("..skipped " + name);
+										continue;
+									}
+								}
+							}
+						});
+						item = new JMenuItem("Remove from 3D view");
+						jp.add(item);
+						item.addActionListener(new ActionListener() {
+							@Override
+							public void actionPerformed(ActionEvent e) {
+								for (Content c : cs) {
+									univ.removeContent(c.getName());
+								}
+							}
+						});
+						
+						jp.show(ContentTable.this, me.getX(), me.getY());
 					}
 				}
 			});
@@ -551,7 +601,7 @@ public class Display3DGUI {
 		@Override
 		public void contentSelected(Content c) {
 			int i = ((ContentTableModel)table.getModel()).contents.indexOf(c);
-			table.getSelectionModel().setSelectionInterval(i, i+1);					
+			table.getSelectionModel().setSelectionInterval(i, i);				
 		}
 		
 		@Override
