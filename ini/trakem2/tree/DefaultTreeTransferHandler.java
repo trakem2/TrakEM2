@@ -145,6 +145,11 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			if (null != obp && obp instanceof ProjectThing) {
 				new_parent_thing = (ProjectThing)obp;
 			}
+			
+			if (null == new_parent_thing) {
+				Utils.log("WARNING: null parent element while dragging and dropping.");
+				return false;
+			}
 
 			// Prevent adding more profiles to a profile_list if it contains at least one already
 			if (new_parent_thing.getType().equals("profile_list") && null != new_parent_thing.getChildren() && new_parent_thing.getChildren().size() > 0) {
@@ -279,6 +284,9 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 						if (!old_parent.removeChild(p_dragged_thing)) {
 							return false;
 						}
+					} else {
+						Utils.log("WARNING: the parent of the source node is null when drag and drop!");
+						return false;
 					}
 					if (!new_parent_thing.addChild(p_dragged_thing)) {
 						// on failure, restore
