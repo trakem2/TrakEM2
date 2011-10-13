@@ -18,7 +18,11 @@ import java.awt.event.AdjustmentListener;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -26,15 +30,18 @@ import javax.media.j3d.Canvas3D;
 import javax.media.j3d.View;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
-import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollBar;
+import javax.swing.JScrollPane;
+import javax.swing.JSlider;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.table.AbstractTableModel;
 import javax.vecmath.Color3f;
+
+import ucar.nc2.dt.fmrc.FmrcDefinition.Grid;
 
 public class Display3DGUI {
 	
@@ -82,25 +89,19 @@ public class Display3DGUI {
 		all.add(p1);
 
 		// 2. Panel to delete all whose name matches a regex
-		c.gridy += 1;
+		c.gridy = 1;
+		c.insets = new Insets(10, 0, 0, 0);
 		JPanel p2 = newPanelRemoveContents(this.univ);
 		gb.setConstraints(p2, c);
 		all.add(p2);
 		
 		// 3. Filterable selection list
-		c.gridy += 1;
-		JPanel p3 = newPanelFilterableListing(this.univ);
+		c.gridy = 2;
+		c.weighty = 1;
+		c.fill = GridBagConstraints.BOTH;
+		JPanel p3 = newPanelFilterableTable(this.univ);
 		gb.setConstraints(p3, c);
 		all.add(p3);
-		
-		// 4. Padding panel
-		JPanel empty = new JPanel();
-		empty.setBackground(Color.white);
-		c.gridy += 1;
-		c.fill = GridBagConstraints.BOTH;
-		c.weighty = 1;
-		gb.setConstraints(empty, c);
-		all.add(empty);
 
 		frame.getContentPane().add(all);
 		return frame;
@@ -108,6 +109,29 @@ public class Display3DGUI {
 
 	static private final void addTitledLineBorder(final JPanel p, final String title) {
 		p.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLineBorder(Color.black, 1), title));
+	}
+	
+	static private final class SliderTyperLink extends KeyAdapter {
+		private final Image3DUniverse univ;
+		private final JScrollBar slider;
+		private final JTextField typer;
+		SliderTyperLink(Image3DUniverse univ, JScrollBar slider, JTextField typer) {
+			this.slider = slider;
+			this.typer = typer;
+			this.univ = univ;
+		}
+		@Override
+		public void keyPressed(KeyEvent ke) {
+			String txt = typer.getText();
+			if (txt.length() > 0) {
+				int val = Integer.parseInt(txt);
+				slider.setValue(val);
+				Content content = univ.getSelected();
+				if (null != content) {
+					slider.setValue(val); // will also set the color
+				}
+			}
+		}
 	}
 
 	static private final JPanel newPanelColors(final Image3DUniverse univ) {
@@ -144,20 +168,7 @@ public class Display3DGUI {
 					typer.setText(Integer.toString(e.getValue()));
 				}
 			});
-			typer.addKeyListener(new KeyAdapter() {
-				@Override
-				public void keyPressed(KeyEvent ke) {
-					String txt = typer.getText();
-					if (txt.length() > 0) {
-						int val = Integer.parseInt(txt);
-						slider.setValue(val);
-						Content content = univ.getSelected();
-						if (null != content) {
-							slider.setValue(val); // will also set the color
-						}
-					}
-				}
-			});
+			typer.addKeyListener(new SliderTyperLink(univ, slider, typer));
 			
 			final JLabel l = new JLabel(labels[i]);
 			
@@ -179,7 +190,44 @@ public class Display3DGUI {
 			gb.setConstraints(typer, c);
 			p.add(typer);
 		}
-
+		
+		// Alpha slider
+		c.gridx = 0;
+		c.gridy += 1;
+		JLabel aL = new JLabel("Alpha:");
+		gb.setConstraints(aL, c);
+		p.add(aL);
+		
+		c.gridx = 1;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.weightx = 1;
+		final JScrollBar alphaSlider = new JScrollBar(JScrollBar.HORIZONTAL, 255, 1, 0, 256);
+		gb.setConstraints(alphaSlider, c);
+		p.add(alphaSlider);
+		
+		c.gridx = 2;
+		c.fill = GridBagConstraints.NONE;
+		c.weightx = 0;
+		final JTextField alphaTyper = new IntegerField(255, 3);
+		gb.setConstraints(alphaTyper, c);
+		p.add(alphaTyper);
+		
+		alphaSlider.addAdjustmentListener(new AdjustmentListener() {
+			@Override
+			public void adjustmentValueChanged(AdjustmentEvent e) {
+				Content content = univ.getSelected();
+				if (null == content) {
+					Utils.log("Nothing selected!");
+					return;
+				}
+				float alpha = e.getValue() / 255.0f;
+				content.setTransparency(1 - alpha);
+				alphaTyper.setText(Integer.toString(e.getValue()));
+			}
+		});
+		alphaTyper.addKeyListener(new SliderTyperLink(univ, alphaSlider, alphaTyper));
+		
+		// Button to colorize randomly
 		c.gridx = 0;
 		c.gridy += 1;
 		c.gridwidth = 3;
@@ -385,7 +433,163 @@ public class Display3DGUI {
 		return p;
 	}
 	
-	static private final JPanel newPanelFilterableListing(final Image3DUniverse univ) {
+	static private final class ContentTableModel extends AbstractTableModel
+	{
+		private List<Content> contents;
+		private final Image3DUniverse univ;
+		private final JTextField regexField;
+
+		public ContentTableModel(final Image3DUniverse univ, final JTextField regexField) {
+			this.univ = univ;
+			this.regexField = regexField;
+			this.contents = new ArrayList<Content>(univ.getContents());
+		}
+
+		@Override
+		public int getRowCount() {
+			return contents.size();
+		}
+
+		@Override
+		public int getColumnCount() {
+			return 2;
+		}
+
+		@Override
+		public String getColumnName(int columnIndex) {
+			switch(columnIndex) {
+				case 0: return "nth";
+				case 1: return "Name";
+			}
+			return null;
+		}
+
+		@Override
+		public boolean isCellEditable(int rowIndex, int columnIndex) {
+			return false;
+		}
+
+		@Override
+		public Object getValueAt(int rowIndex, int columnIndex) {
+			switch (columnIndex) {
+				case 0: return rowIndex;
+				case 1: return contents.get(rowIndex).getName();
+			}
+			return null;
+		}
+
+		@Override
+		public void setValueAt(Object aValue, int rowIndex, int columnIndex) {}
+		
+		private void sortByName() {
+			final TreeMap<String, Content> m = new TreeMap<String, Content>();
+			for (final Content c : contents) {
+				m.put(c.getName(), c);
+			}
+			// Swap
+			this.contents = new ArrayList<Content>(m.values());
+			fireTableDataChanged();
+		}
+		
+		private void update() {
+			ArrayList<Content> cs = new ArrayList<Content>();
+			final RegExFilter f = new RegExFilter(regexField.getText());
+			for (Object ob : univ.getContents()) {
+				Content c = (Content)ob;
+				if (f.accept(c.getName())) {
+					cs.add(c);
+				}
+			}
+			this.contents = cs;
+			fireTableDataChanged();
+		}
+	}
+	
+	static private class ContentTable extends JTable {
+		private static final long serialVersionUID = 1L;
+		ContentTable(final Image3DUniverse univ) {
+			super();
+			getTableHeader().addMouseListener(new MouseAdapter() {
+				public void mouseClicked(MouseEvent me) {
+					if (2 != me.getClickCount()) return;
+					int viewColumn = getColumnModel().getColumnIndexAtX(me.getX());
+					int column = convertColumnIndexToModel(viewColumn);
+					if (-1 == column) return;
+					if (1 == column) {
+						((ContentTableModel)getModel()).sortByName();
+					}
+				}
+			});
+			addMouseListener(new MouseAdapter() {
+				public void mousePressed(MouseEvent me) {
+					final int row = ContentTable.this.rowAtPoint(me.getPoint());
+					if (2 == me.getClickCount()) {
+						univ.select(((ContentTableModel)getModel()).contents.get(row));
+					}
+				}
+			});
+		}
+	}
+	
+	static private final class TableUniverseListener implements UniverseListener {
+		private final ContentTable table;
+		TableUniverseListener(final ContentTable table) {
+			this.table = table;
+		}
+		@Override
+		public void universeClosed() {}
+		
+		@Override
+		public void transformationUpdated(View arg0) {}
+		
+		@Override
+		public void transformationStarted(View arg0) {}
+		
+		@Override
+		public void transformationFinished(View arg0) {}
+		
+		@Override
+		public void contentSelected(Content c) {
+			int i = ((ContentTableModel)table.getModel()).contents.indexOf(c);
+			table.getSelectionModel().setSelectionInterval(i, i+1);					
+		}
+		
+		@Override
+		public void contentRemoved(Content arg0) {
+			((ContentTableModel)table.getModel()).update();
+		}
+		
+		@Override
+		public void contentChanged(Content arg0) {
+			((ContentTableModel)table.getModel()).update();
+		}
+		
+		@Override
+		public void contentAdded(Content arg0) {
+			((ContentTableModel)table.getModel()).update();
+		}
+		@Override
+		public void canvasResized() {}
+	}
+	
+	static private final class RegExFilter {
+		final Pattern pattern;
+		RegExFilter(String regex) {
+			if (0 == regex.length()) {
+				this.pattern = null;
+				return;
+			}
+			if (!regex.startsWith("^")) regex = "^.*" + regex;
+			if (!regex.endsWith("$")) regex = regex + ".*$";
+			this.pattern = Pattern.compile(regex);
+		}
+		final boolean accept(final String s) {
+			if (null == pattern) return true;
+			return pattern.matcher(s).matches();
+		}
+	}
+	
+	static private final JPanel newPanelFilterableTable(final Image3DUniverse univ) {
 		JPanel p = new JPanel();
 		p.setBackground(Color.white);
 		GridBagConstraints c = new GridBagConstraints();
@@ -395,10 +599,36 @@ public class Display3DGUI {
 		c.anchor = GridBagConstraints.NORTHWEST;
 		c.fill = GridBagConstraints.HORIZONTAL;
 		
-		JTable table;
-		// TODO columns: index, title, color. Then add ways to sort by name and color,
-		// and also a text field on top to search for a subset of the possible elements.
-		// When an object is selected and present in the list, its row is highlighted.
+		JLabel label = new JLabel("RegEx: ");
+		final JTextField regexField = new JTextField();
+		final ContentTable table = new ContentTable(univ);
+		final ContentTableModel ctm = new ContentTableModel(univ, regexField);
+		table.setModel(ctm);
+		univ.addUniverseListener(new TableUniverseListener(table));
+		
+		regexField.addActionListener(new ActionListener() {
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				ctm.update();
+			}
+		});
+		
+		gb.setConstraints(label, c);
+		p.add(label);
+		
+		c.gridx = 1;
+		c.weightx = 1;
+		gb.setConstraints(regexField, c);
+		p.add(regexField);
+		
+		c.gridx = 0;
+		c.gridy = 1;
+		c.gridwidth = 2;
+		c.weighty = 1;
+		c.fill = GridBagConstraints.BOTH;
+		JScrollPane jsp = new JScrollPane(table);
+		gb.setConstraints(jsp, c);
+		p.add(jsp);		
 		
 		addTitledLineBorder(p, "Contents");
 		return p;
