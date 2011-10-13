@@ -128,7 +128,13 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 
 		try {
 			// Can't drop onto a TemplateTree
+			/*
 			if (target instanceof TemplateTree) {
+			/	return false;
+			}
+			*/
+			// More specifically: can only drop onto the ProjectTree
+			if (!(target instanceof ProjectTree)) {
 				return false;
 			}
 
