@@ -44,7 +44,7 @@ import java.awt.dnd.*;
 * Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
  */
 public abstract class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
- 
+
 	Insets autoscrollInsets = new Insets(20, 20, 20, 20); // insets
 
 	DefaultTreeTransferHandler dtth = null;
@@ -115,10 +115,11 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}       
 
 	protected class NodeRenderer extends DefaultTreeCellRenderer {
+		private static final long serialVersionUID = 1L;
 
 		@Override
-		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
-			final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean isSelected, final boolean isExpanded, final boolean isLeaf, final int row, final boolean hasTheFocus) {
+			final JLabel label = (JLabel) super.getTreeCellRendererComponent(tree, value, isSelected, isExpanded, isLeaf, row, hasTheFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
 			return label;
 		}       
@@ -236,7 +237,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			// find which node contains the thing_ob
 			DefaultMutableTreeNode node = (DefaultMutableTreeNode)tree.getModel().getRoot();
 			if (node.getUserObject().equals(thing_ob)) return node; // the root itself
-			final Enumeration e = node.depthFirstEnumeration();
+			final Enumeration<?> e = node.depthFirstEnumeration();
 			while (e.hasMoreElements()) {
 				node = (DefaultMutableTreeNode)e.nextElement();
 				if (node.getUserObject().equals(thing_ob)) {
@@ -280,8 +281,6 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			public void run() {
 				// deselect whatever is selected
 				tree.setSelectionPath(null);
-				// check first:
-				if (null == ob) return;
 				final DefaultMutableTreeNode node = DNDTree.findNode(ob, tree);
 				if (null != node) {
 					final TreePath path = new TreePath(node.getPath());
@@ -306,7 +305,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 
 	/** Overriding to fix synchronization issues: the path changes while the multithreaded swing attempts to repaint it, so we "invoke later". Hilarious. */
 	public void updateUILater() {
-		SwingUtilities.invokeLater(new Runnable() {
+		Utils.invokeLater(new Runnable() {
 			public void run() {
 				//try { Thread.sleep(200); } catch (InterruptedException ie) {}
 				try {
@@ -335,10 +334,10 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		if (null == node) return;
 		if (0 != node.getChildCount()) node.removeAllChildren();
 		final Thing thing = (Thing)node.getUserObject();
-		final ArrayList al_children = thing.getChildren();
+		final ArrayList<? extends Thing> al_children = thing.getChildren();
 		if (null == al_children) return;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			Thing child = (Thing)it.next();
+		for (Iterator<? extends Thing> it = al_children.iterator(); it.hasNext(); ) {
+			Thing child = it.next();
 			DefaultMutableTreeNode childnode = new DefaultMutableTreeNode(child);
 			node.add(childnode);
 			rebuild(childnode, false);
@@ -362,15 +361,15 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			point = ((JScrollPane)c).getViewport().getViewPosition();
 		}
 		// collect all current nodes
-		HashMap ht = new HashMap();
-		for (Enumeration e = node.children(); e.hasMoreElements(); ) {
+		HashMap<Object,DefaultMutableTreeNode> ht = new HashMap<Object,DefaultMutableTreeNode>();
+		for (Enumeration<?> e = node.children(); e.hasMoreElements(); ) {
 			DefaultMutableTreeNode child_node = (DefaultMutableTreeNode)e.nextElement();
 			ht.put(child_node.getUserObject(), child_node);
 		}
 		// clear node
 		node.removeAllChildren();
 		// re-add nodes in the order present in the contained Thing
-		for (Iterator it = thing.getChildren().iterator(); it.hasNext(); ) {
+		for (Iterator<? extends Thing> it = thing.getChildren().iterator(); it.hasNext(); ) {
 			Object ob_thing = it.next();
 			Object ob = ht.remove(ob_thing);
 			if (null == ob) {
@@ -383,7 +382,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		// consistency check: that all nodes have been re-added
 		if (0 != ht.size()) {
 			Utils.log2("WARNING DNDTree.updateList: did not end up adding this nodes:");
-			for (Iterator it = ht.keySet().iterator(); it.hasNext(); ) {
+			for (Iterator<?> it = ht.keySet().iterator(); it.hasNext(); ) {
 				Utils.log2(it.next().toString());
 			}
 		}
@@ -418,9 +417,10 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
 		try {
-			final Hashtable ht = (Hashtable)f_expandedState.get(this);
+			final Hashtable<Object,Boolean> ht = (Hashtable<Object,Boolean>)f_expandedState.get(this);
 			ht.put(new TreePath(node.getPath()), b); // this queries directly the expandedState transient private Hashtable of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
@@ -428,11 +428,12 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	/** Get the map of Thing vs. expanded state for all nodes that have children. */
+	@SuppressWarnings("unchecked")
 	public HashMap<Thing,Boolean> getExpandedStates() {
 		try {
-			final Hashtable ht = (Hashtable)f_expandedState.get(this);
+			final Hashtable<TreePath,Boolean> ht = (Hashtable<TreePath,Boolean>)f_expandedState.get(this);
 			final HashMap<Thing,Boolean> m = new HashMap<Thing,Boolean>(ht.size());
-			for (final Map.Entry<TreePath,Boolean> e : (Collection<Map.Entry<TreePath,Boolean>>)ht.entrySet()) {
+			for (final Map.Entry<TreePath,Boolean> e : ht.entrySet()) {
 				final Thing t = (Thing)((DefaultMutableTreeNode)e.getKey().getLastPathComponent()).getUserObject();
 				if (t.hasChildren()) m.put(t, e.getValue());
 			}
@@ -450,9 +451,10 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		return isExpanded(node);
 	}
 
+	@SuppressWarnings("unchecked")
 	public boolean isExpanded(final DefaultMutableTreeNode node) {
 		try {
-			final Hashtable ht = (Hashtable)f_expandedState.get(this);
+			final Hashtable<Object,Boolean> ht = (Hashtable<Object,Boolean>)f_expandedState.get(this);
 			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private HashMap of the JTree
 		 } catch (Exception e) {
 			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
@@ -499,7 +501,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	public String getInfo() {
 		DefaultMutableTreeNode node = (DefaultMutableTreeNode)this.getModel().getRoot();
 		int n_basic = 0, n_abstract = 0;
-		for (Enumeration e = node.depthFirstEnumeration(); e.hasMoreElements(); ) {
+		for (Enumeration<?> e = node.depthFirstEnumeration(); e.hasMoreElements(); ) {
 			DefaultMutableTreeNode child = (DefaultMutableTreeNode)e.nextElement();
 			Object ob = child.getUserObject();
 			if (ob instanceof Thing && Project.isBasicType(((Thing)ob).getType())) n_basic++;
@@ -537,7 +539,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 			// see if it exists already as a child of that node
 			boolean exists = false;
 			if (parent.getChildCount() > 0) {
-				final Enumeration e = parent.children();
+				final Enumeration<?> e = parent.children();
 				while (e.hasMoreElements()) {
 					DefaultMutableTreeNode child = (DefaultMutableTreeNode)e.nextElement();
 					if (child.getUserObject().equals(th)) {
@@ -581,7 +583,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		if (null != expanded_state) {
 			expanded_state.put(copy, isExpanded(node)); 
 		}
-		final Enumeration e = node.children();
+		final Enumeration<?> e = node.children();
 		while (e.hasMoreElements()) {
 			DefaultMutableTreeNode child = (DefaultMutableTreeNode) e.nextElement();
 			copy.addChild(duplicate(child, expanded_state));
