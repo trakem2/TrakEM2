@@ -175,7 +175,7 @@ public class ExportUnsignedShortLayer
 	 * @return A lazy sequence of {@link Callable} instances, each holding a {@link Triple} that specifies the ShortProcessor,
 	 * the X and the Y (both in world pixel uncalibrated coordinates).
 	 */
-	final static public Iterator<Callable<Triple<ShortProcessor, Integer, Integer>>> exportTiles( final Layer layer, final int tileWidth, final int tileHeight, final boolean visible_only )
+	final static public Iterable<Callable<Triple<ShortProcessor, Integer, Integer>>> exportTiles( final Layer layer, final int tileWidth, final int tileHeight, final boolean visible_only )
 	{
 		/* calculate intensity transfer */
 		final ArrayList< Displayable > patches = layer.getDisplayables( Patch.class, visible_only );
@@ -205,96 +205,101 @@ public class ExportUnsignedShortLayer
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
 
 
-		return new Iterator<Callable<Triple<ShortProcessor,Integer,Integer>>>()
+		return new Iterable<Callable<Triple<ShortProcessor,Integer,Integer>>>()
 		{
-			// Internal state
-			private int row = 0,
-			            col = 0,
-			            x0 = box.x,
-			            y0 = box.y;
-			private final ArrayList< PatchIntensityRange > ps = new ArrayList< PatchIntensityRange >();
-			
-			{
-				// Constructor body. Prepare to be able to answer "hasNext()"
-				findNext();
-			}
-
-			private final void findNext() {
-				// Iterate until finding a tile that intersects one or more patches
-				ps.clear();
-				while (true)
-				{
-					if (nRows == row) {
-						// End of domain
-						break;
+			@Override
+			public Iterator<Callable<Triple<ShortProcessor,Integer,Integer>>> iterator() {
+				return new Iterator<Callable<Triple<ShortProcessor,Integer,Integer>>>() {
+					// Internal state
+					private int row = 0,
+					            col = 0,
+					            x0 = box.x,
+					            y0 = box.y;
+					private final ArrayList< PatchIntensityRange > ps = new ArrayList< PatchIntensityRange >();
+					
+					{
+						// Constructor body. Prepare to be able to answer "hasNext()"
+						findNext();
 					}
 
-					x0 = box.x + col * tileWidth;
-					y0 = box.y + row * tileHeight;
-					final Rectangle tileBounds = new Rectangle( x0, y0, tileWidth, tileHeight );
-
-					for ( final PatchIntensityRange pir : patchIntensityRanges )
-					{
-						if ( pir.patch.getBoundingBox().intersects( tileBounds ) )
+					private final void findNext() {
+						// Iterate until finding a tile that intersects one or more patches
+						ps.clear();
+						while (true)
 						{
-							ps.add( pir );
+							if (nRows == row) {
+								// End of domain
+								break;
+							}
+
+							x0 = box.x + col * tileWidth;
+							y0 = box.y + row * tileHeight;
+							final Rectangle tileBounds = new Rectangle( x0, y0, tileWidth, tileHeight );
+
+							for ( final PatchIntensityRange pir : patchIntensityRanges )
+							{
+								if ( pir.patch.getBoundingBox().intersects( tileBounds ) )
+								{
+									ps.add( pir );
+								}
+							}
+							
+							// Prepare next iteration
+							col += 1;
+							if (nCols == col) {
+								col = 0;
+								row += 1;
+							}
+			
+							if ( ps.size() > 0 )
+							{
+								// Ready for next iteration
+								break;
+							}
 						}
 					}
-					
-					// Prepare next iteration
-					col += 1;
-					if (nCols == col) {
-						col = 0;
-						row += 1;
-					}
-	
-					if ( ps.size() > 0 )
-					{
-						// Ready for next iteration
-						break;
-					}
-				}
-			}
-
-			@Override
-			public boolean hasNext()
-			{
-				return ps.size() > 0;
-			}
-
-			@Override
-			public Callable<Triple<ShortProcessor, Integer, Integer>> next()
-			{
-				// Capture state locally
-				final ArrayList< PatchIntensityRange > pirs = new ArrayList< PatchIntensityRange >( ps );
-				final int x = x0;
-				final int y = y0;
-				// Advance
-				findNext();
-
-				return new Callable<Triple<ShortProcessor,Integer,Integer>>()
-				{
 
 					@Override
-					public Triple<ShortProcessor, Integer, Integer> call()
-							throws Exception {
-						final ShortProcessor sp = new ShortProcessor( tileWidth, tileHeight );
-						sp.setMinAndMax( minI, maxI );
-						
-						for ( final PatchIntensityRange pir : pirs )
+					public boolean hasNext()
+					{
+						return ps.size() > 0;
+					}
+
+					@Override
+					public Callable<Triple<ShortProcessor, Integer, Integer>> next()
+					{
+						// Capture state locally
+						final ArrayList< PatchIntensityRange > pirs = new ArrayList< PatchIntensityRange >( ps );
+						final int x = x0;
+						final int y = y0;
+						// Advance
+						findNext();
+
+						return new Callable<Triple<ShortProcessor,Integer,Integer>>()
 						{
-							map( new PatchTransform( pir ), x, y, mapIntensities( pir, min, max ), sp );
-						}
-						
-						return new Triple<ShortProcessor, Integer, Integer>( sp, x, y );
+
+							@Override
+							public Triple<ShortProcessor, Integer, Integer> call()
+									throws Exception {
+								final ShortProcessor sp = new ShortProcessor( tileWidth, tileHeight );
+								sp.setMinAndMax( minI, maxI );
+								
+								for ( final PatchIntensityRange pir : pirs )
+								{
+									map( new PatchTransform( pir ), x, y, mapIntensities( pir, min, max ), sp );
+								}
+								
+								return new Triple<ShortProcessor, Integer, Integer>( sp, x, y );
+							}
+						};
+					}
+
+					@Override
+					public void remove()
+					{
+						throw new UnsupportedOperationException();
 					}
 				};
-			}
-
-			@Override
-			public void remove()
-			{
-				throw new UnsupportedOperationException();
 			}
 		};
 	}
