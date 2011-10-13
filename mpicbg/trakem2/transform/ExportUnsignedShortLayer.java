@@ -12,11 +12,14 @@ import ini.trakem2.display.Patch;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.concurrent.Callable;
 
 import mpicbg.models.CoordinateTransform;
 import mpicbg.models.CoordinateTransformList;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.models.TranslationModel2D;
+import mpicbg.trakem2.util.Triple;
 
 public class ExportUnsignedShortLayer
 {
@@ -109,7 +112,7 @@ public class ExportUnsignedShortLayer
 		}
 	}
 	
-	final static public void export( final Layer layer, final int tileWidth, final int tileHeight )
+	final static public void exportTEST( final Layer layer, final int tileWidth, final int tileHeight )
 	{
 		/* calculate intensity transfer */
 		final ArrayList< Displayable > patches = layer.getDisplayables( Patch.class );
@@ -160,5 +163,139 @@ public class ExportUnsignedShortLayer
 				imp.setSlice( stack.getSize() );
 			}
 		}
+	}
+	
+	/** Create constant size tiles that carpet the areas of the {@param layer} where there are images;
+	 * these tiles are returned in a lazy sequence of {@link Callable} objects that create a tripled
+	 * consisting of the {@link ShortProcessor} and the X and Y pixel coordinates of that tile.
+	 * 
+	 * @param layer The layer to export images for
+	 * @param tileWidth The width of the tiles to export
+	 * @param tileHeight
+	 * @return A lazy sequence of {@link Callable} instances, each holding a {@link Triple} that specifies the ShortProcessor,
+	 * the X and the Y (both in world pixel uncalibrated coordinates).
+	 */
+	final static public Iterator<Callable<Triple<ShortProcessor, Integer, Integer>>> exportTiles( final Layer layer, final int tileWidth, final int tileHeight, final boolean visible_only )
+	{
+		/* calculate intensity transfer */
+		final ArrayList< Displayable > patches = layer.getDisplayables( Patch.class, visible_only );
+		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
+		double min_ = Double.MAX_VALUE;
+		double max_ = -Double.MAX_VALUE;
+		for ( final Displayable d : patches )
+		{
+			final Patch patch = ( Patch )d;
+			final PatchIntensityRange pir = new PatchIntensityRange( patch );
+			if ( pir.min < min_ )
+				min_ = pir.min;
+			if ( pir.max > max_ )
+				max_ = pir.max;
+			patchIntensityRanges.add( pir );
+		}
+
+		final double min = min_;
+		final double max = max_;
+
+		/* Create lazy sequence that creates Callable instances. */
+		
+		final Rectangle box = layer.getMinimalBoundingBox( Patch.class, visible_only );
+		final int nCols = ( int )Math.ceil( box.width / (double)tileWidth );
+		final int nRows = ( int )Math.ceil( box.height / (double)tileHeight );
+		final double minI = -min * 65535.0 / ( max - min );
+		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
+
+
+		return new Iterator<Callable<Triple<ShortProcessor,Integer,Integer>>>()
+		{
+			// Internal state
+			private int row = 0,
+			            col = 0,
+			            x0 = box.x,
+			            y0 = box.y;
+			private final ArrayList< PatchIntensityRange > ps = new ArrayList< PatchIntensityRange >();
+			
+			{
+				// Constructor body. Prepare to be able to answer "hasNext()"
+				findNext();
+			}
+
+			private final void findNext() {
+				// Iterate until finding a tile that intersects one or more patches
+				ps.clear();
+				while (true)
+				{
+					if (nRows == row) {
+						// End of domain
+						break;
+					}
+
+					x0 = box.x + col * tileWidth;
+					y0 = box.y + row * tileHeight;
+					final Rectangle tileBounds = new Rectangle( x0, y0, tileWidth, tileHeight );
+
+					for ( final PatchIntensityRange pir : patchIntensityRanges )
+					{
+						if ( pir.patch.getBoundingBox().intersects( tileBounds ) )
+						{
+							ps.add( pir );
+						}
+					}
+					
+					// Prepare next iteration
+					col += 1;
+					if (nCols == col) {
+						col = 0;
+						row += 1;
+					}
+	
+					if ( ps.size() > 0 )
+					{
+						// Ready for next iteration
+						break;
+					}
+				}
+			}
+
+			@Override
+			public boolean hasNext()
+			{
+				return ps.size() > 0;
+			}
+
+			@Override
+			public Callable<Triple<ShortProcessor, Integer, Integer>> next()
+			{
+				// Capture state locally
+				final ArrayList< PatchIntensityRange > pirs = new ArrayList< PatchIntensityRange >( ps );
+				final int x = x0;
+				final int y = y0;
+				// Advance
+				findNext();
+
+				return new Callable<Triple<ShortProcessor,Integer,Integer>>()
+				{
+
+					@Override
+					public Triple<ShortProcessor, Integer, Integer> call()
+							throws Exception {
+						final ShortProcessor sp = new ShortProcessor( tileWidth, tileHeight );
+						sp.setMinAndMax( minI, maxI );
+						
+						for ( final PatchIntensityRange pir : pirs )
+						{
+							map( new PatchTransform( pir ), x, y, mapIntensities( pir, min, max ), sp );
+						}
+						
+						return new Triple<ShortProcessor, Integer, Integer>( sp, x, y );
+					}
+				};
+			}
+
+			@Override
+			public void remove()
+			{
+				throw new UnsupportedOperationException();
+			}
+		};
 	}
 }
