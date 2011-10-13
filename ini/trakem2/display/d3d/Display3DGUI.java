@@ -285,6 +285,13 @@ public class Display3DGUI {
 				for (int i=0; i<3; ++i) {
 					sliders[i].setValueIsAdjusting(false);
 				}
+				
+				// Alpha slider:
+				alphaSlider.setValueIsAdjusting(true);
+				int alpha = (int)((1 - arg0.getTransparency()) * 255);
+				alphaTyper.setText(Integer.toString(alpha));
+				alphaSlider.setValue(alpha);
+				alphaSlider.setValueIsAdjusting(false);
 			}
 
 			@Override
@@ -601,7 +608,7 @@ public class Display3DGUI {
 		@Override
 		public void contentSelected(Content c) {
 			int i = ((ContentTableModel)table.getModel()).contents.indexOf(c);
-			table.getSelectionModel().setSelectionInterval(i, i);				
+			table.getSelectionModel().setSelectionInterval(i, i);
 		}
 		
 		@Override
