@@ -120,7 +120,7 @@ public class ProjectTiler {
 		newProject.getLayerTree().rebuild();
 		
 		// Update the LayerSet
-		newLayerSet.setDimensions(srcProject.getRootLayerSet().getLayerWidth(), srcProject.getRootLayerSet().getLayerHeight());
+		newLayerSet.setDimensions(srcProject.getRootLayerSet().getLayerWidth(), srcProject.getRootLayerSet().getLayerHeight(), LayerSet.NORTHWEST);
 		Display.updateLayerScroller(newLayerSet);
 		Display.update(newLayerSet);
 
