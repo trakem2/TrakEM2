@@ -876,10 +876,28 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			return false;
 		}
 
-		final String transfer_mode = gd.getNextChoice();
+		final int transfer_mode = gd.getNextChoiceIndex();
 		final Project target_project = psother.get(gd.getNextChoiceIndex());
 		final ProjectThing landing_parent = landing_pt.get(gd.getNextChoiceIndex());
 
+		return rawSendToSiblingProject(pt, transfer_mode, target_project, landing_parent);
+	}
+	
+	/** Assumes that both projects have the same TemplateThing structure,
+	 * and assumes that the parent of the ({@param source_pt} and the {@param landing_parent}
+	 * instances are of the same type.
+	 * 
+	 * @param source_pt The {@link ProjectThing} to be cloned.
+	 * @param transfer_mode Either 0 ("As is") or 1 ("Transformed with the images").
+	 * @param target_project The sibling project into which insert a clone of the {@param source_pt}.
+	 * @param landing_parent The ProjectThing in the sibling project that receives the cloned {@param source_pt}.
+	 * 
+	 * */
+	public boolean rawSendToSiblingProject(
+			final ProjectThing source_pt, // the source ProjectThing to copy to the target project
+			final int transfer_mode,
+			final Project target_project,
+			final ProjectThing landing_parent) {
 
 		try {
 			// Check that all the Layers used by the objects to transfer also exist in the target project!
@@ -901,7 +919,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// Further checking needed (there could just simply be more layers in the target than in the source project):
 				// 2 - Expensive way: check the layers in which each Displayable to clone from this project has data.
 				//                    All their layers MUST be in the target project.
-				for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
+				for (final ProjectThing child : source_pt.findChildrenOfTypeR(Displayable.class)) {
 					final Displayable d = (Displayable) child.getObject();
 					if (!tgt_lids.containsAll(d.getLayerIds())) {
 						Utils.log("CANNOT transfer: not all required layers are present in the target project!\n  First object that couldn't be transfered: \n    " + d);
@@ -917,7 +935,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			// Deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
 			ProjectThing copy;
 			try{
-				copy = pt.deepClone(target_project, false); // new ids, taken from target_project
+				copy = source_pt.deepClone(target_project, false); // new ids, taken from target_project
 			} catch (Exception ee) {
 				Utils.logAll("Can't send: " + ee.getMessage());
 				IJError.print(ee);
@@ -930,8 +948,16 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Utils.log("Could NOT transfer the node!");
 				return false;
 			}
+			
+			// Get the list of Profile instances in the source Project, in the same order
+			// that they will be in the target project:
+			final List<Profile> srcProfiles = new ArrayList<Profile>();
+			for (final ProjectThing profile_pt : source_pt.findChildrenOfTypeR(Profile.class)) {
+				srcProfiles.add((Profile)profile_pt.getObject());
+			}
 
 			final List<ProjectThing> copies = copy.findChildrenOfTypeR(Displayable.class);
+			final List<Profile> newProfiles = new ArrayList<Profile>();
 			//Utils.log2("copies size: " + copies.size());
 			final List<Displayable> vdata = new ArrayList<Displayable>();
 			final List<ZDisplayable> zd = new ArrayList<ZDisplayable>();
@@ -942,9 +968,24 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					zd.add((ZDisplayable)d);
 				} else {
 					// profile: always special
-					Utils.log("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
+					newProfiles.add((Profile)d);
 				}
 			}
+
+			// Fix Profile instances: exploit that the order as been conserved when copying.
+			int profileIndex = 0;
+			for (final Profile newProfile : newProfiles) {
+				// Corresponding Profile:
+				final Profile srcProfile = srcProfiles.get(profileIndex++);
+				// Corresponding layer: layers have the same IDs by definition of what a sibling Project is.
+				final Layer newLayer = target_project.getRootLayerSet().getLayer(srcProfile.getLayer().getId());
+				newLayer.add(newProfile);
+				// Corresponding links
+				for (final Displayable srcLinkedProfile : srcProfile.getLinked(Profile.class)) {
+					newProfile.link(newProfiles.get(srcProfiles.indexOf(srcLinkedProfile)));
+				}
+			}
+
 			target_project.getRootLayerSet().addAll(zd); // add them all in one shot
 
 			target_project.getTemplateTree().rebuild(); // could have changed
@@ -960,11 +1001,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 			// Now that all have been copied, transform if so asked for:
 
-			if (transfer_mode.equals(trmode[1])) {
+			if (1 == transfer_mode) {
 				// Collect original vdata
 				if (null == original_vdata) {
 					original_vdata = new ArrayList<Displayable>();
-					for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
+					for (final ProjectThing child : source_pt.findChildrenOfTypeR(Displayable.class)) {
 						final Displayable d = (Displayable) child.getObject();
 						if (d instanceof VectorData) {
 							original_vdata.add(d);
