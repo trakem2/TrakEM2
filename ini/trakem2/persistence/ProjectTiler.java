@@ -83,7 +83,10 @@ public class ProjectTiler {
 		}
 		
 		// Create new Project
-		final Project newProject = Project.newFSProject(null, null, dataDir);
+		final Project newProject = Project.newFSProject("blank", null, dataDir);
+		
+		// Ensure all basic data types are present
+		newProject.getUniqueTypes(); // works by side-effect
 
 		// Remove any existing layers in the new LayerSet
 		final LayerSet newLayerSet = newProject.getRootLayerSet();
