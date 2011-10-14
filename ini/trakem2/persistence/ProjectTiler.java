@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
 
 import mpicbg.trakem2.transform.ExportUnsignedShortLayer;
 import mpicbg.trakem2.transform.ExportedTile;
@@ -45,9 +46,12 @@ public class ProjectTiler {
 	 * 
 	 * @param srcProject The 
 	 * @param targetDirectory The directory in which to create all the necessary data and mipmap folders for the new Project.
-	 * @param tileSide The size of the tiles to create for the data of the new project.
+	 * @param tileWidth The width of the tiles to create for the data of the new project.
+	 * @param tileHeight The height of the tiles.
 	 * @param exportImageType Either {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, otherwise an {@link IllegalArgumentException} is thrown.
+	 * @param onlyVisibleImages Whether to consider visible images only.
 	 * @param nExportThreads Number of layers to export in parallel. Use a small number when original images are huge (such as larger than 4096 x 4096 pixels).
+	 * @param createMipMaps Whether to generate the mipmaps when done or not.
 	 * 
 	 * @throws Exception IllegalArgumentException When {@param exportImageType} is not {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, or when the directory exists and cannot be written to.
 	 */
@@ -220,11 +224,24 @@ public class ProjectTiler {
 		}
 		
 		if (createMipMaps) {
+			final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 			for (final Layer newLayer : newLayers) {
 				for (final Patch p : newLayer.getAll(Patch.class)) {
-					p.updateMipMaps();
+					fus.add(p.updateMipMaps());
+					// Don't build-up too much
+					if (fus.size() > Runtime.getRuntime().availableProcessors() * 2) {
+						for (final Iterator<Future<?>> it = fus.iterator(); it.hasNext(); ) {
+							try {
+								it.next().get();
+							} catch (Exception e) {
+								IJError.print(e);
+							}
+							it.remove();
+						}
+					}
 				}
 			}
+			Utils.wait(fus);
 		}
 		
 		// Save:
