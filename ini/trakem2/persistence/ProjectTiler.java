@@ -5,6 +5,7 @@ import ij.io.FileSaver;
 import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.DLabel;
+import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -99,6 +100,12 @@ public class ProjectTiler {
 			newLayerSet.add(newLayer);
 			newLayers.add(newLayer);
 		}
+		
+		// Update the LayerSet
+		newLayerSet.setDimensions(srcProject.getRootLayerSet().getLayerWidth(), srcProject.getRootLayerSet().getLayerHeight());
+		newProject.getLayerTree().rebuild();
+		Display.updateLayerScroller(newLayerSet);
+		Display.update(newLayerSet);
 
 		// Copy template from the src Project
 		// (It's done after creating layers so the IDs will not collide with those of the Layers)
