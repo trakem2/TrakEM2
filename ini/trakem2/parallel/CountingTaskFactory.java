@@ -14,7 +14,7 @@ public abstract class CountingTaskFactory<I,O> extends TaskFactory<I,O> {
 	public Callable<O> create(final I input) {
 		return new Callable<O>() {
 			public O call() {
-				return process(input, count.incrementAndGet());
+				return process(input, count.getAndIncrement());
 			}
 		};
 	}
