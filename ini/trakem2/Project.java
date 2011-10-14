@@ -480,6 +480,9 @@ public class Project extends DBObject {
 	 * @param storage_folder If null, a dialog asks for it.
 	 */
 	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {
+		return newFSProject(arg, template_root, storage_folder, true);
+	}
+	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder, boolean autocreate_one_layer) {
 		if (Utils.wrongImageJVersion()) return null;
 		FSLoader loader = null;
 		try {
@@ -499,7 +502,7 @@ public class Project extends DBObject {
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 
 			// help the helpless users:
-			if (null != project && ControlWindow.isGUIEnabled()) {
+			if (autocreate_one_layer && null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
 				// add a default layer
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
