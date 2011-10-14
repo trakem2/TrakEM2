@@ -78,6 +78,8 @@ public class ProjectTiler {
 		final File fDataDir = new File(dataDir);
 		if (fDataDir.exists() && (!fDataDir.isDirectory() || !fDataDir.canWrite())) {
 			throw new IllegalArgumentException("Cannot create data directory in the targetDirectory at: " + dataDir);
+		} else {
+			fDataDir.mkdir();
 		}
 		
 		// Create new Project
