@@ -12,10 +12,14 @@ import ini.trakem2.display.Patch;
 import ini.trakem2.parallel.CountingTaskFactory;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -40,7 +44,7 @@ public class ProjectTiler {
 	 * @param targetDirectory The directory in which to create all the necessary data and mipmap folders for the new Project.
 	 * @param tileSide The size of the tiles to create for the data of the new project.
 	 * @param exportImageType Either {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, otherwise an {@link IllegalArgumentException} is thrown.
-	 * @param nThreads Number of layers to export in parallel. Use a small number when original images are huge (such as larger than 4096 x 4096 pixels).
+	 * @param nExportThreads Number of layers to export in parallel. Use a small number when original images are huge (such as larger than 4096 x 4096 pixels).
 	 * 
 	 * @throws Exception IllegalArgumentException When {@param exportImageType} is not {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, or when the directory exists and cannot be written to.
 	 */
@@ -50,7 +54,8 @@ public class ProjectTiler {
 			final int tileSide,
 			final int exportImageType,
 			final boolean onlyVisibleImages,
-			final int nThreads)
+			final int nExportThreads,
+			final boolean createMipMaps)
 		throws Exception {
 		
 		// Validate exportImageType
@@ -82,18 +87,20 @@ public class ProjectTiler {
 			fDataDir.mkdir();
 		}
 		
-		// Create new Project
-		final Project newProject = Project.newFSProject("blank", null, dataDir);
-		
-		// Ensure all basic data types are present
-		newProject.getUniqueTypes(); // works by side-effect
-
-		// Remove any existing layers in the new LayerSet
+		// Create new Project, plain, without any automatic creation of a Layer or a Display
+		final Project newProject = Project.newFSProject("blank", null, dataDir, false);
 		final LayerSet newLayerSet = newProject.getRootLayerSet();
-		if (!newLayerSet.getLayers().isEmpty()) {
-			for (final Layer l : newLayerSet.getLayers()) {
-				newLayerSet.remove(l);
-			}
+		
+		if (!createMipMaps) {
+			Utils.log("MipMaps are DISABLED:\n --> When done, right-click and choose 'Display - Properties...' and enable mipmaps,\n     and then run 'Project - Regenerate all mipmaps'\n");
+			newProject.getLoader().setMipMapsRegeneration(false);
+		}
+		
+		// Copy the Template Tree of types
+		newProject.getUniqueTypes(); // works by side-effect; adds all basic types.
+		newProject.resetRootTemplateThing(srcProject.getRootTemplateThing().clone(newProject, true), null);
+		for (final TemplateThing tt : newProject.getRootTemplateThing().getUniqueTypes(new HashMap<String,TemplateThing>()).values()) {
+			newProject.addUniqueType(tt);
 		}
 
 		// Clone layers with the exact same IDs, so that the two projects are siblings at the layer-level:
@@ -119,6 +126,7 @@ public class ProjectTiler {
 		// Export tiles as new Patch instances, creating new PNG files in disk
 		int i = 0;
 		for (final Layer srcLayer : srcLayers) {
+			Utils.log("Processing layer " + i + "/" + srcLayers.size() + " -- " + new Date());
 			final int layerIndex = i++;
 			// Create subDirectory
 			final String dir = dataDir + "/" + layerIndex + "/";
@@ -142,7 +150,9 @@ public class ProjectTiler {
 									throw new Exception("Could not save tile: " + path);
 								}
 								// Create a Patch
-								return new Patch(newProject, title, t.b, t.c, imp);
+								final Patch patch = new Patch(newProject, title, t.b, t.c, imp);
+								newProject.getLoader().addedPatchFrom(path, patch);
+								return patch;
 							} catch (Exception e) {
 								IJError.print(e);
 								return null;
@@ -150,14 +160,12 @@ public class ProjectTiler {
 						}
 					},
 					patches,
-					Math.max(1, Math.min(nThreads, Runtime.getRuntime().availableProcessors())));
+					Math.max(1, Math.min(nExportThreads, Runtime.getRuntime().availableProcessors())));
 			// Add all Patches to the new Layer
 			for (final Patch p : patches) {
 				newLayer.add(p);
 			}
 		}
-		// Enlarge new LayerSet to fit the images
-		newLayerSet.setMinimumDimensions();
 
 		// Copy all segmentations "As is"
 		final ProjectThing source_pt = srcProject.getRootProjectThing().getChildren().get(0);
