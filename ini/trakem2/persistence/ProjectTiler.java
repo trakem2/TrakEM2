@@ -95,9 +95,8 @@ public class ProjectTiler {
 			Utils.log("MipMaps are DISABLED:\n --> When done, right-click and choose 'Display - Properties...' and enable mipmaps,\n     and then run 'Project - Regenerate all mipmaps'\n");
 			newProject.getLoader().setMipMapsRegeneration(false);
 		}
-		
+
 		// Copy the Template Tree of types
-		newProject.getUniqueTypes(); // works by side-effect; adds all basic types.
 		newProject.resetRootTemplateThing(srcProject.getRootTemplateThing().clone(newProject, true), null);
 		for (final TemplateThing tt : newProject.getRootTemplateThing().getUniqueTypes(new HashMap<String,TemplateThing>()).values()) {
 			newProject.addUniqueType(tt);
