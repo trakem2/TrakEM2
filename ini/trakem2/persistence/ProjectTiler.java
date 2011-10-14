@@ -183,6 +183,9 @@ public class ProjectTiler {
 			}
 		}
 		
+		// Save:
+		newProject.saveAs(targetDir + "exported.xml", false);
+		
 		return newProject;
 	}
 }
