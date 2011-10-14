@@ -297,7 +297,7 @@ public class ProjectTiler {
 						// Advance
 						findNext();
 						//
-						return tileBounds;
+						return r;
 					}
 					@Override
 					public void remove() {
