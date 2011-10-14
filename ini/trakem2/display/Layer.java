@@ -28,7 +28,6 @@ import ij.ImagePlus;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.display.LayerSet.DoMoveZDisplayable;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.utils.IJError;
