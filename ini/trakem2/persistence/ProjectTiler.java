@@ -16,10 +16,13 @@ import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
+import java.awt.Color;
+import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
 
@@ -51,7 +54,8 @@ public class ProjectTiler {
 	static final public Project flatten(
 			final Project srcProject,
 			final String targetDirectory,
-			final int tileSide,
+			final int tileWidth,
+			final int tileHeight,
 			final int exportImageType,
 			final boolean onlyVisibleImages,
 			final int nExportThreads,
@@ -125,6 +129,7 @@ public class ProjectTiler {
 		newProject.resetRootTemplateThing(srcProject.getRootTemplateThing().clone(newProject, false), null);
 
 		// Export tiles as new Patch instances, creating new PNG files in disk
+		final int numThreads = Math.max(1, Math.min(nExportThreads, Runtime.getRuntime().availableProcessors()));
 		int i = 0;
 		for (final Layer srcLayer : srcLayers) {
 			Utils.log("Processing layer " + i + "/" + srcLayers.size() + " -- " + new Date());
@@ -136,33 +141,64 @@ public class ProjectTiler {
 			final Layer newLayer = newLayers.get(layerIndex);
 			// Export layer tiles
 			final ArrayList<Patch> patches = new ArrayList<Patch>();
-			Process.progressive(
-					ExportUnsignedShortLayer.exportTiles(srcLayer, tileSide, tileSide, onlyVisibleImages),
-					new CountingTaskFactory<Callable<ExportedTile>, Patch>() {
-						public Patch process(final Callable<ExportedTile> c, final int index) {
-							try {
-								// Create the tile
-								final ExportedTile t = c.call();
-								// Store the file
-								final String title = layerIndex + "-" + index;
-								final String path = dir + title + ".png";
-								final ImagePlus imp = new ImagePlus(title, t.sp);
-								if (!new FileSaver(imp).saveAsPng(path)) {
-									throw new Exception("Could not save tile: " + path);
+			if (ImagePlus.GRAY16 == exportImageType) {
+				Process.progressive(
+						ExportUnsignedShortLayer.exportTiles(srcLayer, tileWidth, tileHeight, onlyVisibleImages),
+						new CountingTaskFactory<Callable<ExportedTile>, Patch>() {
+							public Patch process(final Callable<ExportedTile> c, final int index) {
+								try {
+									// Create the tile
+									final ExportedTile t = c.call();
+									// Store the file
+									final String title = layerIndex + "-" + index;
+									final String path = dir + title + ".png";
+									final ImagePlus imp = new ImagePlus(title, t.sp);
+									if (!new FileSaver(imp).saveAsPng(path)) {
+										throw new Exception("Could not save tile: " + path);
+									}
+									// Create a Patch
+									final Patch patch = new Patch(newProject, title, t.x, t.y, imp);
+									patch.setLocked(true);
+									patch.setMinAndMax(t.min, t.max);
+									newProject.getLoader().addedPatchFrom(path, patch);
+									return patch;
+								} catch (Exception e) {
+									IJError.print(e);
+									return null;
 								}
-								// Create a Patch
-								final Patch patch = new Patch(newProject, title, t.x, t.y, imp);
-								patch.setMinAndMax(t.min, t.max);
-								newProject.getLoader().addedPatchFrom(path, patch);
-								return patch;
-							} catch (Exception e) {
-								IJError.print(e);
-								return null;
 							}
-						}
-					},
-					patches,
-					Math.max(1, Math.min(nExportThreads, Runtime.getRuntime().availableProcessors())));
+						},
+						patches,
+						numThreads);
+			} else {
+				// COLOR_RGB
+				Process.progressive(
+						tileSequence(srcLayer, tileWidth, tileHeight, onlyVisibleImages),
+						new CountingTaskFactory<Rectangle, Patch>() {
+							@Override
+							public Patch process(final Rectangle bounds, final int index) {
+								try {
+									final ImagePlus imp = srcLayer.getProject().getLoader().getFlatImage(srcLayer, bounds, 1.0, -1, ImagePlus.COLOR_RGB, Patch.class, null, false, Color.black);
+									final String title = layerIndex + "-" + index;
+									imp.setTitle(title);
+									final String path = dir + title + ".png";
+									if (!new FileSaver(imp).saveAsPng(path)) {
+										throw new Exception("Could not save tile: " + path);
+									}
+									// Create a Patch
+									final Patch patch = new Patch(newProject, title, bounds.x, bounds.y, imp);
+									patch.setLocked(true);
+									newProject.getLoader().addedPatchFrom(path, patch);
+									return patch;
+								} catch (Exception e) {
+									IJError.print(e);
+									return null;
+								}
+							}
+						},
+						patches,
+						numThreads);
+			}
 			// Add all Patches to the new Layer
 			for (final Patch p : patches) {
 				newLayer.add(p);
@@ -183,9 +219,92 @@ public class ProjectTiler {
 			}
 		}
 		
+		if (createMipMaps) {
+			for (final Layer newLayer : newLayers) {
+				for (final Patch p : newLayer.getAll(Patch.class)) {
+					p.updateMipMaps();
+				}
+			}
+		}
+		
 		// Save:
 		newProject.saveAs(targetDir + "exported.xml", false);
 		
 		return newProject;
+	}
+	
+	/** Return a lazy sequence of Rectangle instances, each specifying a tile that contains at least
+	 * parts of one Patch. Empty tiles are NOT returned.
+	 * 
+	 * @param srcLayer
+	 * @param tileSide
+	 * @param onlyVisibleImages
+	 * @return
+	 */
+	static public final Iterable<Rectangle> tileSequence(final Layer srcLayer, final int tileWidth, final int tileHeight, final boolean onlyVisibleImages) {
+		return new Iterable<Rectangle>()
+		{
+			@Override
+			public Iterator<Rectangle> iterator()
+			{	
+				return new Iterator<Rectangle>()
+				{
+					final Rectangle box = srcLayer.getMinimalBoundingBox(Patch.class, onlyVisibleImages)
+                                          .intersection(srcLayer.getParent().get2DBounds());
+					final int nRows = (int)Math.ceil(box.width / (double)tileWidth);
+					final int nCols = (int)Math.ceil(box.height / (double)tileHeight);
+					//
+					Rectangle tileBounds = null;
+					int row = 0,
+					    col = 0;
+					{
+						// Constructor. Get ready to answer "hasNext()"
+						findNext();
+					}
+					private void findNext() {
+						tileBounds = null;
+						while (true)
+						{
+							if (nRows == row) {
+								// End of domain
+								tileBounds = null;
+								break;
+							}
+							tileBounds = new Rectangle(box.x + col * tileWidth, box.y + row * tileHeight, tileWidth, tileHeight);
+							final boolean content = srcLayer.find(Patch.class, tileBounds, onlyVisibleImages).size() > 0;
+
+							// Prepare next iteration
+							col += 1;
+							if (nCols == col) {
+								col = 0;
+								row += 1;
+							}
+
+							if (content) {
+								// Ready for next iteration
+								break;
+							}
+						}
+					}
+					@Override
+					public boolean hasNext() {
+						return null != tileBounds;
+					}
+					@Override
+					public Rectangle next() {
+						// Capture state locally
+						final Rectangle r = new Rectangle(tileBounds);
+						// Advance
+						findNext();
+						//
+						return tileBounds;
+					}
+					@Override
+					public void remove() {
+						throw new UnsupportedOperationException();
+					}
+				};
+			}
+		};
 	}
 }
