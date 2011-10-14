@@ -77,18 +77,19 @@ public class ProjectTiler {
 				throw new IllegalArgumentException("Cannot create directory at: " + targetDirectory);
 			}
 		}
+		final String targetDir = Utils.fixDir(targetDirectory);
 		
-		// Create data directory
-		final String dataDir = new StringBuilder(targetDirectory.replace('\\', '/')).append('/').append("data/").toString();
+		// Create "data" directory
+		final String dataDir = new StringBuilder(targetDir).append("data/").toString();
 		final File fDataDir = new File(dataDir);
 		if (fDataDir.exists() && (!fDataDir.isDirectory() || !fDataDir.canWrite())) {
-			throw new IllegalArgumentException("Cannot create data directory in the targetDirectory at: " + dataDir);
+			throw new IllegalArgumentException("Cannot create or write to 'data' directory in the targetDirectory at: " + targetDir);
 		} else {
 			fDataDir.mkdir();
 		}
-		
+
 		// Create new Project, plain, without any automatic creation of a Layer or a Display
-		final Project newProject = Project.newFSProject("blank", null, dataDir, false);
+		final Project newProject = Project.newFSProject("blank", null, targetDir, false);
 		final LayerSet newLayerSet = newProject.getRootLayerSet();
 		
 		if (!createMipMaps) {
