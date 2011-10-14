@@ -213,7 +213,8 @@ public class ExportUnsignedShortLayer
 
 		/* Create lazy sequence that creates Callable instances. */
 		
-		final Rectangle box = layer.getMinimalBoundingBox( Patch.class, visible_only );
+		final Rectangle box = layer.getMinimalBoundingBox( Patch.class, visible_only )
+		                      .intersection( layer.getParent().get2DBounds() );
 		final int nCols = ( int )Math.ceil( box.width / (double)tileWidth );
 		final int nRows = ( int )Math.ceil( box.height / (double)tileHeight );
 		final double minI = -min * 65535.0 / ( max - min );
