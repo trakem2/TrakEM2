@@ -402,6 +402,7 @@ public class DLabel extends Displayable implements VectorData {
 		Displayable.exportDTD("t2_label", sb_header, hs, indent);
 	}
 
+	@Override
 	public void adjustProperties() {
 		final GenericDialog gd = makeAdjustPropertiesDialog();
 
@@ -457,7 +458,8 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** Performs a deep copy of this object, except for the Layer pointer. */
-	public Displayable clone(final Project pr, final boolean copy_id) {
+	@Override
+	public DLabel clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final DLabel copy = new DLabel(pr, nid, title, width, height, type, font.getName(), font.getStyle(), font.getSize(), this.locked, (AffineTransform)this.at.clone());
 		copy.alpha = this.alpha;
