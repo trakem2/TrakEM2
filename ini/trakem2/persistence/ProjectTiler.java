@@ -2,7 +2,6 @@ package ini.trakem2.persistence;
 
 import ij.ImagePlus;
 import ij.io.FileSaver;
-import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
@@ -11,6 +10,7 @@ import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.parallel.CountingTaskFactory;
 import ini.trakem2.parallel.Process;
+import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.TemplateThing;
 import ini.trakem2.utils.IJError;
@@ -25,7 +25,6 @@ import java.util.concurrent.Callable;
 
 import mpicbg.trakem2.transform.ExportUnsignedShortLayer;
 import mpicbg.trakem2.transform.ExportedTile;
-import mpicbg.trakem2.util.Triple;
 
 public class ProjectTiler {
 
@@ -112,6 +111,7 @@ public class ProjectTiler {
 			newLayer.addToDatabase(); // to update the ID generator in FSLoader
 			newLayerSet.add(newLayer);
 			newLayers.add(newLayer);
+			newProject.getRootLayerThing().addChild(new LayerThing(newProject.getTemplateThing("layer"), newProject, newLayer));
 		}
 		
 		// Update the LayerSet
