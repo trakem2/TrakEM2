@@ -296,7 +296,7 @@ public class ExportUnsignedShortLayer
 									map( new PatchTransform( pir ), x, y, mapIntensities( pir, min, max ), sp );
 								}
 								
-								return new ExportedTile( sp, x, y, min, max );
+								return new ExportedTile( sp, x, y, minI, maxI );
 							}
 						};
 					}
