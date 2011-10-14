@@ -111,12 +111,12 @@ public class ProjectTiler {
 			newLayer.addToDatabase(); // to update the ID generator in FSLoader
 			newLayerSet.add(newLayer);
 			newLayers.add(newLayer);
-			newProject.getRootLayerThing().addChild(new LayerThing(newProject.getTemplateThing("layer"), newProject, newLayer));
+			newProject.getRootLayerThing().addChild(new LayerThing(newProject.getRootLayerThing().getChildTemplate("layer"), newProject, newLayer));
 		}
+		newProject.getLayerTree().rebuild();
 		
 		// Update the LayerSet
 		newLayerSet.setDimensions(srcProject.getRootLayerSet().getLayerWidth(), srcProject.getRootLayerSet().getLayerHeight());
-		newProject.getLayerTree().rebuild();
 		Display.updateLayerScroller(newLayerSet);
 		Display.update(newLayerSet);
 
