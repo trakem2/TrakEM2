@@ -138,6 +138,9 @@ public class ExportUnsignedShortLayer
 		ImagePlus imp = null;
 		final double minI = -min * 65535.0 / ( max - min );
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
+		
+		//ij.IJ.log("min, max: " + min + ", " + max + ",    minI, maxI: " + minI + ", " + maxI);
+		
 		final int nc = ( int )Math.ceil( layer.getLayerWidth() / tileWidth );
 		final int nr = ( int )Math.ceil( layer.getLayerHeight() / tileHeight );
 		for ( int r = 0; r < nr; ++r )
@@ -155,14 +158,19 @@ public class ExportUnsignedShortLayer
 						map( new PatchTransform( pir ), x0, y0, mapIntensities( pir, min, max ), sp );
 				}
 				stack.addSlice( r + ", " + c , sp );
-				if ( stack.getSize() == 1 )
+				if ( null == imp && stack.getSize() > 1 )
 				{
 					imp = new ImagePlus( "tiles", stack );
 					imp.show();
 				}
-				imp.updateAndDraw();
-				imp.setSlice( stack.getSize() );
+				if (null != imp) {
+					imp.setSlice( stack.getSize() );
+					imp.updateAndDraw();
+				}
 			}
+		}
+		if (null == imp) {
+			new ImagePlus( "tiles", stack ).show(); // single-slice, non-StackWindow
 		}
 	}
 	
@@ -211,6 +219,7 @@ public class ExportUnsignedShortLayer
 		final double minI = -min * 65535.0 / ( max - min );
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
 
+		//ij.IJ.log("min, max: " + min + ", " + max + ",    minI, maxI: " + minI + ", " + maxI);
 
 		return new Iterable<Callable<ExportedTile>>()
 		{
