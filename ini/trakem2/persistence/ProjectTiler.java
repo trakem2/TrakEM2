@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import mpicbg.trakem2.transform.ExportUnsignedShortLayer;
+import mpicbg.trakem2.transform.ExportedTile;
 import mpicbg.trakem2.util.Triple;
 
 public class ProjectTiler {
@@ -137,20 +138,21 @@ public class ProjectTiler {
 			final ArrayList<Patch> patches = new ArrayList<Patch>();
 			Process.progressive(
 					ExportUnsignedShortLayer.exportTiles(srcLayer, tileSide, tileSide, onlyVisibleImages),
-					new CountingTaskFactory<Callable<Triple<ShortProcessor,Integer,Integer>>, Patch>() {
-						public Patch process(final Callable<Triple<ShortProcessor,Integer,Integer>> c, final int index) {
+					new CountingTaskFactory<Callable<ExportedTile>, Patch>() {
+						public Patch process(final Callable<ExportedTile> c, final int index) {
 							try {
 								// Create the tile
-								final Triple<ShortProcessor,Integer,Integer> t = c.call();
+								final ExportedTile t = c.call();
 								// Store the file
 								final String title = layerIndex + "-" + index;
 								final String path = dir + title + ".png";
-								final ImagePlus imp = new ImagePlus(title, t.a);
+								final ImagePlus imp = new ImagePlus(title, t.sp);
 								if (!new FileSaver(imp).saveAsPng(path)) {
 									throw new Exception("Could not save tile: " + path);
 								}
 								// Create a Patch
-								final Patch patch = new Patch(newProject, title, t.b, t.c, imp);
+								final Patch patch = new Patch(newProject, title, t.x, t.y, imp);
+								patch.setMinAndMax(t.min, t.max);
 								newProject.getLoader().addedPatchFrom(path, patch);
 								return patch;
 							} catch (Exception e) {

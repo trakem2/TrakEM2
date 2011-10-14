@@ -176,7 +176,7 @@ public class ExportUnsignedShortLayer
 	 * @return A lazy sequence of {@link Callable} instances, each holding a {@link Triple} that specifies the ShortProcessor,
 	 * the X and the Y (both in world pixel uncalibrated coordinates).
 	 */
-	final static public Iterable<Callable<Triple<ShortProcessor, Integer, Integer>>> exportTiles( final Layer layer, final int tileWidth, final int tileHeight, final boolean visible_only )
+	final static public Iterable<Callable<ExportedTile>> exportTiles( final Layer layer, final int tileWidth, final int tileHeight, final boolean visible_only )
 	{
 		final ArrayList< Displayable > patches = layer.getDisplayables( Patch.class, visible_only );
 		// If the Layer lacks images, return an empty sequence.
@@ -212,11 +212,11 @@ public class ExportUnsignedShortLayer
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
 
 
-		return new Iterable<Callable<Triple<ShortProcessor,Integer,Integer>>>()
+		return new Iterable<Callable<ExportedTile>>()
 		{
 			@Override
-			public Iterator<Callable<Triple<ShortProcessor,Integer,Integer>>> iterator() {
-				return new Iterator<Callable<Triple<ShortProcessor,Integer,Integer>>>() {
+			public Iterator<Callable<ExportedTile>> iterator() {
+				return new Iterator<Callable<ExportedTile>>() {
 					// Internal state
 					private int row = 0,
 					            col = 0,
@@ -273,7 +273,7 @@ public class ExportUnsignedShortLayer
 					}
 
 					@Override
-					public Callable<Triple<ShortProcessor, Integer, Integer>> next()
+					public Callable<ExportedTile> next()
 					{
 						// Capture state locally
 						final ArrayList< PatchIntensityRange > pirs = new ArrayList< PatchIntensityRange >( ps );
@@ -282,11 +282,11 @@ public class ExportUnsignedShortLayer
 						// Advance
 						findNext();
 
-						return new Callable<Triple<ShortProcessor,Integer,Integer>>()
+						return new Callable<ExportedTile>()
 						{
 
 							@Override
-							public Triple<ShortProcessor, Integer, Integer> call()
+							public ExportedTile call()
 									throws Exception {
 								final ShortProcessor sp = new ShortProcessor( tileWidth, tileHeight );
 								sp.setMinAndMax( minI, maxI );
@@ -296,7 +296,7 @@ public class ExportUnsignedShortLayer
 									map( new PatchTransform( pir ), x, y, mapIntensities( pir, min, max ), sp );
 								}
 								
-								return new Triple<ShortProcessor, Integer, Integer>( sp, x, y );
+								return new ExportedTile( sp, x, y, min, max );
 							}
 						};
 					}
