@@ -12,6 +12,7 @@ import ini.trakem2.display.Patch;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.concurrent.Callable;
 
@@ -177,8 +178,14 @@ public class ExportUnsignedShortLayer
 	 */
 	final static public Iterable<Callable<Triple<ShortProcessor, Integer, Integer>>> exportTiles( final Layer layer, final int tileWidth, final int tileHeight, final boolean visible_only )
 	{
-		/* calculate intensity transfer */
 		final ArrayList< Displayable > patches = layer.getDisplayables( Patch.class, visible_only );
+		// If the Layer lacks images, return an empty sequence.
+		if ( patches.isEmpty() )
+		{
+			return Collections.emptyList();
+		}
+
+		/* calculate intensity transfer */
 		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
 		double min_ = Double.MAX_VALUE;
 		double max_ = -Double.MAX_VALUE;
