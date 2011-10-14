@@ -36,6 +36,7 @@ import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.ProjectTiler;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.analysis.Graph;
 import ini.trakem2.imaging.LayerStack;
@@ -3092,6 +3093,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 		if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
+		item = new JMenuItem("Export project with flattened layers"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
@@ -5702,6 +5704,58 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				}
 			}, project);
+		} else if (command.equals("Export project with flattened layers")) {
+			final GenericDialog gd = new GenericDialog("Export flattened layers");
+			gd.addNumericField("Tile_width", 2048, 0);
+			gd.addNumericField("Tile_height", 2048, 0);
+			String[] types = new String[]{"16-bit", "RGB color"};
+			gd.addChoice("Export_image_type", types, types[0]);
+			gd.addCheckbox("Create mipmaps", false);
+			gd.addNumericField("Number_of_threads_to_use", Runtime.getRuntime().availableProcessors(), 0);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			
+			DirectoryChooser dc = new DirectoryChooser("Choose target folder");
+			final String folder = dc.getDirectory();
+			if (null == folder) return;
+			
+			final int tileWidth = (int)gd.getNextNumber(),
+			          tileHeight = (int)gd.getNextNumber();
+			if (tileWidth < 0 || tileHeight < 0) {
+				Utils.showMessage("Invalid tile sizes: " + tileWidth + ", " + tileHeight);
+				return;
+			}
+			
+			if (tileWidth != tileHeight) {
+				if (!Utils.check("The tile width (" + tileWidth + ") differs from the tile height (" + tileHeight + ").\nContinue anyway?")) {
+					return;
+				}
+			}
+			
+			final int imageType = 0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY16 : ImagePlus.COLOR_RGB;
+			final boolean createMipMaps = gd.getNextBoolean();
+			final int nThreads = (int)gd.getNextNumber();
+			
+			Bureaucrat.createAndStart(new Worker.Task("Export flattened sibling project") {
+				@Override
+				public void exec() {
+					try {
+						ProjectTiler.flatten(
+								project,
+								folder,
+								tileWidth,
+								tileHeight,
+								imageType,
+								true,
+								nThreads,
+								createMipMaps);
+					} catch (Throwable t) {
+						Utils.showMessage("ERROR: " + t);
+						IJError.print(t);
+					}
+				}
+			}, project);
+			
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
 		} else if (command.equals("Regenerate all mipmaps")) {
