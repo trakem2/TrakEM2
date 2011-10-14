@@ -4,11 +4,13 @@ import ij.ImagePlus;
 import ij.io.FileSaver;
 import ij.process.ShortProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.parallel.CountingTaskFactory;
 import ini.trakem2.parallel.Process;
+import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.IJError;
 
 import java.io.File;
@@ -79,20 +81,38 @@ public class ProjectTiler {
 		
 		// Create new Project
 		final Project newProject = Project.newFSProject(null, null, dataDir);
-		// Copy template from the src Project
-		newProject.resetRootTemplateThing(srcProject.getRootTemplateThing().clone(newProject, false), null);
+
+		// Remove any existing layers in the new LayerSet
 		final LayerSet newLayerSet = newProject.getRootLayerSet();
+		if (!newLayerSet.getLayers().isEmpty()) {
+			for (final Layer l : newLayerSet.getLayers()) {
+				newLayerSet.remove(l);
+			}
+		}
+
+		// Clone layers with the exact same IDs, so that the two projects are siblings at the layer-level:
+		final List<Layer> srcLayers = srcProject.getRootLayerSet().getLayers();
+		final List<Layer> newLayers = new ArrayList<Layer>();
+		for (final Layer srcLayer : srcLayers) {
+			final Layer newLayer = new Layer(newProject, srcLayer.getId(), srcLayer.getZ(), srcLayer.getThickness());
+			newLayer.addToDatabase(); // to update the ID generator in FSLoader
+			newLayerSet.add(newLayer);
+			newLayers.add(newLayer);
+		}
+
+		// Copy template from the src Project
+		// (It's done after creating layers so the IDs will not collide with those of the Layers)
+		newProject.resetRootTemplateThing(srcProject.getRootTemplateThing().clone(newProject, false), null);
 
 		// Export tiles as new Patch instances, creating new PNG files in disk
-		final List<Layer> srcLayers = srcProject.getRootLayerSet().getLayers();
 		int i = 0;
 		for (final Layer srcLayer : srcLayers) {
 			final int layerIndex = i++;
 			// Create subDirectory
-			final String dir = dataDir + "/" + i + "/";
+			final String dir = dataDir + "/" + layerIndex + "/";
 			new File(dir).mkdir();
 			// Create a new Layer with the same Z and thickness
-			final Layer newLayer = newLayerSet.getLayer(srcLayer.getZ(), srcLayer.getThickness(), true);
+			final Layer newLayer = newLayers.get(layerIndex);
 			// Export layer tiles
 			final ArrayList<Patch> patches = new ArrayList<Patch>();
 			Process.progressive(
@@ -127,13 +147,20 @@ public class ProjectTiler {
 		// Enlarge new LayerSet to fit the images
 		newLayerSet.setMinimumDimensions();
 
-		// Copy all segmentations "as is"
-		// TODO
-		// TODO warn about Profile not being copied
+		// Copy all segmentations "As is"
+		final ProjectThing source_pt = srcProject.getRootProjectThing().getChildren().get(0);
+		final int transfer_mode = 0; // "As is"
+		final ProjectThing landing_parent = newProject.getRootProjectThing();
+		srcProject.getProjectTree().rawSendToSiblingProject(source_pt, transfer_mode, newProject, landing_parent);
 		
 		// Copy all floating text labels
-		// TODO
+		i = 0;
+		for (final Layer srcLayer : srcLayers) {
+			for (final DLabel srcLabel : srcLayer.getAll(DLabel.class)) {
+				newLayers.get(i++).add(srcLabel.clone(newProject, false));
+			}
+		}
 		
-		return null;
+		return newProject;
 	}
 }
