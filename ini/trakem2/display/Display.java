@@ -5710,7 +5710,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addNumericField("Tile_height", 2048, 0);
 			String[] types = new String[]{"16-bit", "RGB color"};
 			gd.addChoice("Export_image_type", types, types[0]);
-			gd.addCheckbox("Create mipmaps", false);
+			gd.addCheckbox("Create mipmaps", true);
 			gd.addNumericField("Number_of_threads_to_use", Runtime.getRuntime().availableProcessors(), 0);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
