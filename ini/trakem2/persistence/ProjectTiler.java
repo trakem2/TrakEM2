@@ -173,7 +173,6 @@ public class ProjectTiler {
 									// Create a Patch
 									final Patch patch = new Patch(newProject, title, t.x, t.y, imp);
 									patch.setLocked(true);
-									patch.setMinAndMax(t.min, t.max);
 									newProject.getLoader().addedPatchFrom(path, patch);
 									return patch;
 								} catch (Exception e) {
