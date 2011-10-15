@@ -3093,7 +3093,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 		if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
-		item = new JMenuItem("Export project with flattened layers"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Create sibling project with retiled layers"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
@@ -5704,7 +5704,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				}
 			}, project);
-		} else if (command.equals("Export project with flattened layers")) {
+		} else if (command.equals("Create sibling project with retiled layers")) {
 			final GenericDialog gd = new GenericDialog("Export flattened layers");
 			gd.addNumericField("Tile_width", 2048, 0);
 			gd.addNumericField("Tile_height", 2048, 0);
@@ -5740,7 +5740,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				@Override
 				public void exec() {
 					try {
-						ProjectTiler.flatten(
+						ProjectTiler.createRetiledSibling(
 								project,
 								folder,
 								tileWidth,
