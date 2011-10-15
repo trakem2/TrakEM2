@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
@@ -34,28 +35,34 @@ public class ProjectTiler {
 
 	/** Take a {@link Project}, a size for the image tiles, and a target directory,
 	 * and create a new copy of the current project in that folder but with the underlying
-	 * images converted to tiles with a translation-only transform.
-	 * The purpose of this newProject is to represent the given project but with much
-	 * simpler transformations for the images and a defined size for the latter,
-	 * which helps a lot regarding storage space of the XML (and parsing and saving time)
-	 * and performance when browsing layers (keep in mind that, for a 32k x 32k image,
+	 * images converted to tiles with a translation-only transform (saved as zipped TIFFs,
+	 * with extension ".tif.zip").
+	 * The new, returned {@link Project} represents the given project but with much
+	 * simpler transformations (just translation) for the images and a defined size for
+	 * the latter, which helps a lot regarding storage space of the XML (and parsing and
+	 * saving time) and performance when browsing layers (keep in mind that, for a 32k x 32k image,
 	 * at 100% zoom one would have to load a 32k x 32k image and render just a tiny bit
-	 * of it).
+	 * of it). The copied Project preserves the ID of the {@link Layer}s of the original
+	 * {@link Project}, as well as the dimensions; this means the copy is a sibling of
+	 * the original, and it is possible to send segmentations from one to the other "as is"
+	 * (directly, without having to transform along with the images which would not be possible). 
+	 * 
+	 * Image files are stored as 
 	 * 
 	 * The non-image objects of the given project are copied into the new project as well.
 	 * 
-	 * @param srcProject The 
+	 * @param srcProject The project to create a sibling of.
 	 * @param targetDirectory The directory in which to create all the necessary data and mipmap folders for the new Project.
 	 * @param tileWidth The width of the tiles to create for the data of the new project.
 	 * @param tileHeight The height of the tiles.
-	 * @param exportImageType Either {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, otherwise an {@link IllegalArgumentException} is thrown.
+	 * @param exportImageType Any of {@link ImagePlus#GRAY8}, {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, otherwise an {@link IllegalArgumentException} is thrown.
 	 * @param onlyVisibleImages Whether to consider visible images only.
 	 * @param nExportThreads Number of layers to export in parallel. Use a small number when original images are huge (such as larger than 4096 x 4096 pixels).
 	 * @param createMipMaps Whether to generate the mipmaps when done or not.
 	 * 
 	 * @throws Exception IllegalArgumentException When {@param exportImageType} is not {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, or when the directory exists and cannot be written to.
 	 */
-	static final public Project flatten(
+	static final public Project createRetiledSibling(
 			final Project srcProject,
 			final String targetDirectory,
 			final int tileWidth,
@@ -68,11 +75,12 @@ public class ProjectTiler {
 		
 		// Validate exportImageType
 		switch (exportImageType) {
+		case ImagePlus.GRAY8:
 		case ImagePlus.GRAY16:
 		case ImagePlus.COLOR_RGB:
 			break;
 		default:
-			throw new IllegalArgumentException("Can only accept GRAY16 or COLOR_RGB as values for 'exportImageType'!");
+			throw new IllegalArgumentException("Can only accept GRAY8, GRAY16 or COLOR_RGB as values for 'exportImageType'!");
 		}
 
 		// Validate targetDirectory
@@ -103,6 +111,7 @@ public class ProjectTiler {
 		if (!createMipMaps) {
 			Utils.log("MipMaps are DISABLED:\n --> When done, right-click and choose 'Display - Properties...' and enable mipmaps,\n     and then run 'Project - Regenerate all mipmaps'\n");
 			newProject.getLoader().setMipMapsRegeneration(false);
+			Utils.log("mipmaps enabled? " + newProject.getLoader().isMipMapsRegenerationEnabled());
 		}
 
 		// Copy the Template Tree of types
@@ -112,6 +121,7 @@ public class ProjectTiler {
 		}
 
 		// Clone layers with the exact same IDs, so that the two projects are siblings at the layer-level:
+		// (Being siblings allows for treelines, arealists, etc. to be transferred from one to another "as is").
 		final List<Layer> srcLayers = srcProject.getRootLayerSet().getLayers();
 		final List<Layer> newLayers = new ArrayList<Layer>();
 		for (final Layer srcLayer : srcLayers) {
@@ -132,7 +142,7 @@ public class ProjectTiler {
 		// (It's done after creating layers so the IDs will not collide with those of the Layers)
 		newProject.resetRootTemplateThing(srcProject.getRootTemplateThing().clone(newProject, false), null);
 
-		// Export tiles as new Patch instances, creating new PNG files in disk
+		// Export tiles as new Patch instances, creating new image files in disk
 		final int numThreads = Math.max(1, Math.min(nExportThreads, Runtime.getRuntime().availableProcessors()));
 		int i = 0;
 		for (final Layer srcLayer : srcLayers) {
@@ -155,9 +165,9 @@ public class ProjectTiler {
 									final ExportedTile t = c.call();
 									// Store the file
 									final String title = layerIndex + "-" + index;
-									final String path = dir + title + ".png";
+									final String path = dir + title + ".tif.zip";
 									final ImagePlus imp = new ImagePlus(title, t.sp);
-									if (!new FileSaver(imp).saveAsPng(path)) {
+									if (!new FileSaver(imp).saveAsZip(path)) {
 										throw new Exception("Could not save tile: " + path);
 									}
 									// Create a Patch
@@ -175,18 +185,19 @@ public class ProjectTiler {
 						patches,
 						numThreads);
 			} else {
-				// COLOR_RGB
+				// GRAY8 or COLOR_RGB: created from mipmaps
 				Process.progressive(
 						tileSequence(srcLayer, tileWidth, tileHeight, onlyVisibleImages),
 						new CountingTaskFactory<Rectangle, Patch>() {
 							@Override
 							public Patch process(final Rectangle bounds, final int index) {
 								try {
-									final ImagePlus imp = srcLayer.getProject().getLoader().getFlatImage(srcLayer, bounds, 1.0, -1, ImagePlus.COLOR_RGB, Patch.class, null, false, Color.black);
+									// Create the tile
+									final ImagePlus imp = srcLayer.getProject().getLoader().getFlatImage(srcLayer, bounds, 1.0, -1, exportImageType, Patch.class, null, false, Color.black);
 									final String title = layerIndex + "-" + index;
 									imp.setTitle(title);
-									final String path = dir + title + ".png";
-									if (!new FileSaver(imp).saveAsPng(path)) {
+									final String path = dir + title + ".tif.zip";
+									if (!new FileSaver(imp).saveAsZip(path)) {
 										throw new Exception("Could not save tile: " + path);
 									}
 									// Create a Patch
@@ -224,19 +235,19 @@ public class ProjectTiler {
 		}
 		
 		if (createMipMaps) {
-			final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
+			final LinkedList<Future<?>> fus = new LinkedList<Future<?>>();
+			final int batch = Runtime.getRuntime().availableProcessors();
 			for (final Layer newLayer : newLayers) {
 				for (final Patch p : newLayer.getAll(Patch.class)) {
 					fus.add(p.updateMipMaps());
 					// Don't build-up too much
-					if (fus.size() > Runtime.getRuntime().availableProcessors() * 2) {
-						for (final Iterator<Future<?>> it = fus.iterator(); it.hasNext(); ) {
+					if (fus.size() > batch * 3) {
+						while (fus.size() > batch) {
 							try {
-								it.next().get();
+								fus.removeFirst().get();
 							} catch (Exception e) {
 								IJError.print(e);
 							}
-							it.remove();
 						}
 					}
 				}
@@ -254,7 +265,8 @@ public class ProjectTiler {
 	 * parts of one Patch. Empty tiles are NOT returned.
 	 * 
 	 * @param srcLayer
-	 * @param tileSide
+	 * @param tileWidth
+	 * @param tileHeight
 	 * @param onlyVisibleImages
 	 * @return
 	 */
