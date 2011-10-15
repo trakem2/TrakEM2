@@ -107,6 +107,7 @@ public class ProjectTiler {
 		// Create new Project, plain, without any automatic creation of a Layer or a Display
 		final Project newProject = Project.newFSProject("blank", null, targetDir, false);
 		final LayerSet newLayerSet = newProject.getRootLayerSet();
+		newLayerSet.setCalibration(srcProject.getRootLayerSet().getCalibrationCopy());
 		
 		if (!createMipMaps) {
 			Utils.log("MipMaps are DISABLED:\n --> When done, right-click and choose 'Display - Properties...' and enable mipmaps,\n     and then run 'Project - Regenerate all mipmaps'\n");
