@@ -5939,18 +5939,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		layer.getParent().setSnapshotsMode(gd.getNextChoiceIndex());
 		layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
 		//
-		boolean generate_mipmaps = gd.getNextBoolean();
-		if (using_mipmaps && generate_mipmaps) {
-			// nothing changed
-		} else {
-			if (using_mipmaps) { // and !generate_mipmaps
-				lo.setMipMapsRegeneration(false);
-				lo.flushMipMaps(true);
-			} else {
-				// not using mipmaps before, and true == generate_mipmaps
-				lo.setMipMapsRegeneration(true);
-				lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
-			}
+		boolean using_mipmaps2 = gd.getNextBoolean();
+		if (using_mipmaps2 == using_mipmaps) {
+			// Nothing changed
+		} else if (!using_mipmaps2 && using_mipmaps) {
+			// Desactivate mipmaps
+			lo.setMipMapsRegeneration(false);
+			lo.flushMipMaps(true);
+		} else if (using_mipmaps2 && !using_mipmaps) {
+			// Reactivate mipmaps
+			lo.setMipMapsRegeneration(true);
+			lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
 		}
 		//
 		layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
