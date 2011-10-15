@@ -2500,6 +2500,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
 				}
+				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						for (final Patch p : selection.get(Patch.class)) {
+							p.getImagePlus().show();
+						}
+					}
+				}); popup.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.SHIFT_MASK, true));
 				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
 				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
 				item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
