@@ -163,25 +163,6 @@ public class ProjectTiler {
 								try {
 									// Create the tile
 									final ExportedTile t = c.call();
-									// Shift the range: min and max are the same for all tiles in the Layer
-									// (The shifted range enables better compressibility.)
-									final short[] pix = (short[])t.sp.getPixels();
-									// ImageJ expresses [0, 65536] using [0, 32767] and then [-32768, -1]. AKA signed short to express unsigned short.
-									int pixMin = Integer.MAX_VALUE;
-									for (int k=0; k<pix.length; ++k) {
-										final int s = pix[k] & 0xffff; // to [0, 65536]
-										if (0 == s) continue;
-										if (s < pixMin) pixMin = s;
-									}
-									Utils.log("pixMin: " + pixMin);
-									if (0 != pixMin) {
-										for (int k=0; k<pix.length; ++k) {
-											final int s = pix[k] & 0xffff;
-											if (s < pixMin) continue;
-											pix[k] = (short)(s - pixMin);
-										}
-									}
-									t.sp.setMinAndMax(t.min - pixMin, t.max - pixMin);
 									// Store the file
 									final String title = layerIndex + "-" + index;
 									final String path = dir + title + ".tif.zip";
