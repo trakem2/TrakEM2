@@ -146,7 +146,7 @@ public class ProjectTiler {
 		final int numThreads = Math.max(1, Math.min(nExportThreads, Runtime.getRuntime().availableProcessors()));
 		int i = 0;
 		for (final Layer srcLayer : srcLayers) {
-			Utils.log("Processing layer " + i + "/" + srcLayers.size() + " -- " + new Date());
+			Utils.log("Processing layer " + (i + 1) + "/" + srcLayers.size() + " -- " + new Date());
 			final int layerIndex = i++;
 			// Create subDirectory
 			final String dir = dataDir + "/" + layerIndex + "/";
