@@ -284,6 +284,15 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Intended for the user to see. */
 	static public final void log(final String msg) {
 		if (ControlWindow.isGUIEnabled() && null != logger) {
+			logger.log(msg);
+		} else {
+			System.out.println(msg);
+		}
+	}
+	
+	/** Intended for the user to see; time-stamps every logging line. */
+	static public final void logStamped(final String msg) {
+		if (ControlWindow.isGUIEnabled() && null != logger) {
 			logger.log(new Date().toString() + " : " + msg);
 		} else {
 			System.out.println(new Date().toString() + " : " + msg);
