@@ -13,6 +13,7 @@ import ini.trakem2.utils.IntegerField;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -499,8 +500,8 @@ public class Display3DGUI {
 			fireTableDataChanged();
 			// Adjust cell width:
 			TableColumn tc = table.getColumnModel().getColumn(0);
-			JLabel label = (JLabel)table.getDefaultRenderer(getColumnClass(0))
-			                            .getTableCellRendererComponent(table, this.contents.size()-1, false, false, this.contents.size()-1, 0);
+			Component label = table.getDefaultRenderer(getColumnClass(0))
+			                       .getTableCellRendererComponent(table, this.contents.size()-1, false, false, this.contents.size()-1, 0);
 			tc.setMaxWidth(label.getBounds().width + 10); // 10 pixels of padding
 		}
 	}
