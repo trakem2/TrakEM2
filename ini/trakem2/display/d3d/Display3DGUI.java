@@ -26,6 +26,7 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -33,6 +34,7 @@ import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
+import javax.media.j3d.BranchGroup;
 import javax.media.j3d.Canvas3D;
 import javax.media.j3d.View;
 import javax.swing.BorderFactory;
@@ -111,6 +113,24 @@ public class Display3DGUI {
 
 		frame.getContentPane().add(all);
 		return frame;
+	}
+
+	/** The {@link Image3DUniverse#getContents()} returns an unordered list, because the
+	 * list are the values of a {@link Map}; this method circumvents that by getting
+	 * the list from the enumeration of children elements in the scene of the {@param univ},
+	 * which is a {@link BranchGroup}.
+	 * 
+	 * @param univ
+	 * @return
+	 */
+	static private final List<Content> getOrderedContents(final Image3DUniverse univ) {
+		final ArrayList<Content> cs = new ArrayList<Content>();
+		final Enumeration<?> seq = univ.getScene().getAllChildren();
+		while (seq.hasMoreElements()) {
+			Object o = seq.nextElement();
+			if (o instanceof Content) cs.add((Content)o);
+		}
+		return cs;
 	}
 
 	static private final void addTitledLineBorder(final JPanel p, final String title) {
@@ -332,7 +352,7 @@ public class Display3DGUI {
 	};
 	
 	static public final void randomizeColors(final Image3DUniverse univ) {
-		final ArrayList<Content> cs = new ArrayList<Content>(univ.getContents());
+		final ArrayList<Content> cs = new ArrayList<Content>(getOrderedContents(univ));
 		for (int i=0; i<cs.size(); ++i) {
 			if (i < colors.length) {
 				cs.get(i).setColor(new Color3f(colors[i]));
@@ -371,7 +391,7 @@ public class Display3DGUI {
 					JOptionPane.showMessageDialog(univ.getWindow(), "Error parsing the regular expression:\n" + pse.getMessage());
 					return;
 				}
-				for (final Content c : new ArrayList<Content>(univ.getContents())) {
+				for (final Content c : new ArrayList<Content>(getOrderedContents(univ))) {
 					if (pattern.matcher(c.getName()).matches()) {
 						univ.removeContent(c.getName());
 						Utils.log("Removed " + c.getName());
@@ -411,7 +431,7 @@ public class Display3DGUI {
 		public ContentTableModel(final Image3DUniverse univ, final JTextField regexField) {
 			this.univ = univ;
 			this.regexField = regexField;
-			this.contents = new ArrayList<Content>(univ.getContents());
+			this.contents = new ArrayList<Content>(getOrderedContents(univ));
 		}
 
 		@Override
@@ -461,13 +481,18 @@ public class Display3DGUI {
 		}
 		
 		private void update() {
-			ArrayList<Content> cs = new ArrayList<Content>();
-			final RegExFilter f = new RegExFilter(regexField.getText());
-			for (Object ob : univ.getContents()) {
-				Content c = (Content)ob;
-				if (f.accept(c.getName())) {
-					cs.add(c);
+			final ArrayList<Content> cs = new ArrayList<Content>();
+			try {
+				final RegExFilter f = new RegExFilter(regexField.getText());
+				for (Object ob : getOrderedContents(univ)) {
+					Content c = (Content)ob;
+					if (f.accept(c.getName())) {
+						cs.add(c);
+					}
 				}
+			} catch (PatternSyntaxException pse) {
+				JOptionPane.showMessageDialog(univ.getWindow(), "Error parsing the regular expression:\n" + pse.getMessage());
+				cs.addAll(getOrderedContents(univ));
 			}
 			this.contents = cs;
 			fireTableDataChanged();
