@@ -49,6 +49,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.TableColumn;
 import javax.vecmath.Color3f;
 
 public class Display3DGUI {
@@ -480,7 +481,7 @@ public class Display3DGUI {
 			fireTableDataChanged();
 		}
 		
-		private void update() {
+		private void update(final ContentTable table) {
 			final ArrayList<Content> cs = new ArrayList<Content>();
 			try {
 				final RegExFilter f = new RegExFilter(regexField.getText());
@@ -496,6 +497,11 @@ public class Display3DGUI {
 			}
 			this.contents = cs;
 			fireTableDataChanged();
+			// Adjust cell width:
+			TableColumn tc = table.getColumnModel().getColumn(0);
+			JLabel label = (JLabel)table.getDefaultRenderer(getColumnClass(0))
+			                            .getTableCellRendererComponent(table, this.contents.size()-1, false, false, this.contents.size()-1, 0);
+			tc.setMaxWidth(label.getBounds().width + 10); // 10 pixels of padding
 		}
 	}
 	
@@ -643,17 +649,17 @@ public class Display3DGUI {
 		
 		@Override
 		public void contentRemoved(Content arg0) {
-			((ContentTableModel)table.getModel()).update();
+			((ContentTableModel)table.getModel()).update(table);
 		}
 		
 		@Override
 		public void contentChanged(Content arg0) {
-			((ContentTableModel)table.getModel()).update();
+			((ContentTableModel)table.getModel()).update(table);
 		}
 		
 		@Override
 		public void contentAdded(Content arg0) {
-			((ContentTableModel)table.getModel()).update();
+			((ContentTableModel)table.getModel()).update(table);
 		}
 		@Override
 		public void canvasResized() {}
@@ -696,7 +702,7 @@ public class Display3DGUI {
 		regexField.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				ctm.update();
+				ctm.update(table);
 			}
 		});
 		
