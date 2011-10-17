@@ -611,6 +611,11 @@ public class Display3DGUI {
 				}
 			});
 		}
+		@Override
+		public String getToolTipText(final MouseEvent me) {
+			return ((ContentTableModel)getModel()).contents
+				.get(ContentTable.this.rowAtPoint(me.getPoint())).getName();
+		}
 	}
 	
 	static private final class TableUniverseListener implements UniverseListener {
