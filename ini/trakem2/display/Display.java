@@ -6617,7 +6617,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private void setTempCurrentImage() {
-		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow(), true);
+		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow());
 		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 
