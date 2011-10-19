@@ -112,7 +112,7 @@ import javax.swing.SwingUtilities;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.9c 2011-10-10";
+	static public String version = "0.9d 2011-10-15";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -283,6 +283,15 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Intended for the user to see. */
 	static public final void log(final String msg) {
+		if (ControlWindow.isGUIEnabled() && null != logger) {
+			logger.log(msg);
+		} else {
+			System.out.println(msg);
+		}
+	}
+	
+	/** Intended for the user to see; time-stamps every logging line. */
+	static public final void logStamped(final String msg) {
 		if (ControlWindow.isGUIEnabled() && null != logger) {
 			logger.log(new Date().toString() + " : " + msg);
 		} else {

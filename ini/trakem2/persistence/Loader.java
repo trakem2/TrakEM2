@@ -2663,8 +2663,8 @@ while (it.hasNext()) {
 
 			ArrayList<ZDisplayable> al_zdispl = null;
 			if (null == al_displ) {
-				al_displ = layer.getDisplayables(clazz);
-				al_zdispl = layer.getParent().getZDisplayables(clazz);
+				al_displ = new ArrayList<Displayable>(layer.find(clazz, srcRect, true));
+				al_zdispl = new ArrayList<ZDisplayable>((Collection)layer.getParent().findZDisplayables(clazz, layer, srcRect, true));
 			} else {
 				// separate ZDisplayables into their own array
 				al_displ = new ArrayList<Displayable>(al_displ);

@@ -158,7 +158,11 @@ public final class Patch extends Displayable implements ImageData {
 		return p;
 	}
 
-	/** Construct a Patch from an image. */
+	/** Construct a Patch from an image;
+	 * most likely you will need to add the file path to the {@param imp}
+	 * by calling {@link Loader#addedPatchFrom(String, Patch)}, as in this example:
+	 * 
+	 * project.getLoader().addedPatchFrom("/path/to/file.png", thePatch); */
 	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
 		super(project, title, x, y);
 		this.type = imp.getType();

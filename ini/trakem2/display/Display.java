@@ -36,6 +36,7 @@ import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.ProjectTiler;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.analysis.Graph;
 import ini.trakem2.imaging.LayerStack;
@@ -2499,6 +2500,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
 					item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
 				}
+				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						for (final Patch p : selection.get(Patch.class)) {
+							p.getImagePlus().show();
+						}
+					}
+				}); popup.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.SHIFT_MASK, true));
 				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
 				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
 				item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
@@ -3092,6 +3101,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
 		if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
+		item = new JMenuItem("Create sibling project with retiled layers"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
@@ -5702,6 +5712,58 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					}
 				}
 			}, project);
+		} else if (command.equals("Create sibling project with retiled layers")) {
+			final GenericDialog gd = new GenericDialog("Export flattened layers");
+			gd.addNumericField("Tile_width", 2048, 0);
+			gd.addNumericField("Tile_height", 2048, 0);
+			String[] types = new String[]{"16-bit", "RGB color"};
+			gd.addChoice("Export_image_type", types, types[0]);
+			gd.addCheckbox("Create mipmaps", true);
+			gd.addNumericField("Number_of_threads_to_use", Runtime.getRuntime().availableProcessors(), 0);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			
+			DirectoryChooser dc = new DirectoryChooser("Choose target folder");
+			final String folder = dc.getDirectory();
+			if (null == folder) return;
+			
+			final int tileWidth = (int)gd.getNextNumber(),
+			          tileHeight = (int)gd.getNextNumber();
+			if (tileWidth < 0 || tileHeight < 0) {
+				Utils.showMessage("Invalid tile sizes: " + tileWidth + ", " + tileHeight);
+				return;
+			}
+			
+			if (tileWidth != tileHeight) {
+				if (!Utils.check("The tile width (" + tileWidth + ") differs from the tile height (" + tileHeight + ").\nContinue anyway?")) {
+					return;
+				}
+			}
+			
+			final int imageType = 0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY16 : ImagePlus.COLOR_RGB;
+			final boolean createMipMaps = gd.getNextBoolean();
+			final int nThreads = (int)gd.getNextNumber();
+			
+			Bureaucrat.createAndStart(new Worker.Task("Export flattened sibling project") {
+				@Override
+				public void exec() {
+					try {
+						ProjectTiler.createRetiledSibling(
+								project,
+								folder,
+								tileWidth,
+								tileHeight,
+								imageType,
+								true,
+								nThreads,
+								createMipMaps);
+					} catch (Throwable t) {
+						Utils.showMessage("ERROR: " + t);
+						IJError.print(t);
+					}
+				}
+			}, project);
+			
 		} else if (command.equals("Flush image cache")) {
 			Loader.releaseAllCaches();
 		} else if (command.equals("Regenerate all mipmaps")) {
@@ -5885,18 +5947,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		layer.getParent().setSnapshotsMode(gd.getNextChoiceIndex());
 		layer.getParent().setSnapshotsQuality(gd.getNextBoolean());
 		//
-		boolean generate_mipmaps = gd.getNextBoolean();
-		if (using_mipmaps && generate_mipmaps) {
-			// nothing changed
-		} else {
-			if (using_mipmaps) { // and !generate_mipmaps
-				lo.setMipMapsRegeneration(false);
-				lo.flushMipMaps(true);
-			} else {
-				// not using mipmaps before, and true == generate_mipmaps
-				lo.setMipMapsRegeneration(true);
-				lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
-			}
+		boolean using_mipmaps2 = gd.getNextBoolean();
+		if (using_mipmaps2 == using_mipmaps) {
+			// Nothing changed
+		} else if (!using_mipmaps2 && using_mipmaps) {
+			// Desactivate mipmaps
+			lo.setMipMapsRegeneration(false);
+			lo.flushMipMaps(true);
+		} else if (using_mipmaps2 && !using_mipmaps) {
+			// Reactivate mipmaps
+			lo.setMipMapsRegeneration(true);
+			lo.generateMipMaps(layer.getParent().getDisplayables(Patch.class));
 		}
 		//
 		layer.getParent().setPixelsVirtualizationEnabled(gd.getNextBoolean());
@@ -6556,7 +6617,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	}
 
 	private void setTempCurrentImage() {
-		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow(), true);
+		WindowManager.setCurrentWindow(canvas.getFakeImagePlus().getWindow());
 		WindowManager.setTempCurrentImage(canvas.getFakeImagePlus());
 	}
 

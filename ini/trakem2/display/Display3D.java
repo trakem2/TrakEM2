@@ -5,9 +5,10 @@ import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 import ij3d.Content;
 import ij3d.Image3DUniverse;
+import ij3d.ImageWindow3D;
 import ij3d.UniverseListener;
-import ij3d.behaviors.InteractiveBehavior;
-import ij3d.behaviors.Picker;
+import ini.trakem2.display.d3d.ControlClickBehavior;
+import ini.trakem2.display.d3d.Display3DGUI;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.IJError;
@@ -16,7 +17,6 @@ import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Color;
 import java.awt.Cursor;
-import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
@@ -44,7 +44,6 @@ import javax.media.j3d.PolygonAttributes;
 import javax.media.j3d.Transform3D;
 import javax.media.j3d.View;
 import javax.vecmath.Color3f;
-import javax.vecmath.Point3d;
 import javax.vecmath.Point3f;
 
 import customnode.CustomLineMesh;
@@ -56,57 +55,7 @@ import customnode.CustomTriangleMesh;
 /** One Display3D instance for each LayerSet (maximum). */
 public final class Display3D {
 
-	/** A class to provide the behavior on control-clicking on
-	    content in the 3D viewer.  This will attempt to center
-	    the front TrakEM2 Display on the clicked point */
-	protected static class ControlClickBehavior extends InteractiveBehavior {
-
-		protected Image3DUniverse universe;
-		ControlClickBehavior(Image3DUniverse univ) {
-			super(univ);
-			this.universe = univ;
-		}
-
-		public void doProcess(MouseEvent e) {
-			if(!e.isControlDown() ||
-			   e.getID() != MouseEvent.MOUSE_PRESSED) {
-				super.doProcess(e);
-				return;
-			}
-			Picker picker = universe.getPicker();
-			Content content = picker.getPickedContent(e.getX(),e.getY());
-			if(content==null)
-				return;
-			Point3d p = picker.getPickPointGeometry(content,e);
-			if(p==null) {
-				Utils.log("No point was found on content "+content);
-				return;
-			}
-			Display display = Display.getFront();
-			if(display==null) {
-				// If there's no Display, just return...
-				return;
-			}
-			LayerSet ls = display.getLayerSet();
-			if(ls==null) {
-				Utils.log("No LayerSet was found for the Display");
-				return;
-			}
-			Calibration cal = ls.getCalibration();
-			if(cal==null) {
-				Utils.log("No calibration information was found for the LayerSet");
-				return;
-			}
-			double scaledZ = p.z/cal.pixelWidth;
-			Layer l = ls.getNearestLayer(scaledZ);
-			if(l==null) {
-				Utils.log("No layer was found nearest to "+scaledZ);
-				return;
-			}
-			Coordinate<?> coordinate = new Coordinate<Object>(p.x/cal.pixelWidth,p.y/cal.pixelHeight,l,null);
-			display.center(coordinate);
-		}
-	}
+	
 
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable<LayerSet,Display3D> ht_layer_sets = new Hashtable<LayerSet,Display3D>();
@@ -154,7 +103,15 @@ public final class Display3D {
 		this.height = ls.getLayerHeight();
 		this.universe = new Image3DUniverse(512, 512); // size of the initial canvas, not the universe itself
 		this.universe.getViewer().getView().setProjectionPolicy(View.PERSPECTIVE_PROJECTION); // (View.PERSPECTIVE_PROJECTION);
-		this.universe.show();
+		
+		//this.universe.show();
+		
+		Display3DGUI gui = new Display3DGUI(this.universe);
+		ImageWindow3D win = gui.init();
+		this.universe.init(win);
+		win.pack();
+		win.setVisible(true);
+		
 		this.universe.getWindow().addWindowListener(new IW3DListener(this, ls));
 		this.universe.getWindow().setTitle(ls.getProject().toString() + " -- 3D Viewer");
 		// it ignores the listeners:
