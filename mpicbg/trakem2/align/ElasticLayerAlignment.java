@@ -68,13 +68,12 @@ import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 
 /**
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- * @version 0.1a
  */
 public class ElasticLayerAlignment extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{
-		private static final long serialVersionUID = -5364076774541652033L;
+		private static final long serialVersionUID = -1808331849689168473L;
 
 		final public ParamPointMatch ppm = new ParamPointMatch();
 		{
@@ -127,6 +126,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		public int searchRadius = 200;
 		public int blockRadius = -1;
 		
+		public boolean useLocalSmoothnessFilter = true;
 		public int localModelIndex = 1;
 		public float localRegionSigma = searchRadius;
 		public float maxLocalEpsilon = searchRadius / 2;
@@ -170,6 +170,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", rodR, 2 );
 			
 			gdBlockMatching.addMessage( "Local Smoothness Filter:" );
+			gdBlockMatching.addCheckbox( "use_local_smoothness_filter", useLocalSmoothnessFilter );
 			gdBlockMatching.addChoice( "approximate_local_transformation :", Param.modelStrings, Param.modelStrings[ localModelIndex ] );
 			gdBlockMatching.addNumericField( "local_region_sigma:", localRegionSigma, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", maxLocalEpsilon, 2, 6, "px" );
@@ -191,6 +192,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			minR = ( float )gdBlockMatching.getNextNumber();
 			maxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			rodR = ( float )gdBlockMatching.getNextNumber();
+			useLocalSmoothnessFilter = gdBlockMatching.getNextBoolean();
 			localModelIndex = gdBlockMatching.getNextChoiceIndex();
 			localRegionSigma = ( float )gdBlockMatching.getNextNumber();
 			maxLocalEpsilon = ( float )gdBlockMatching.getNextNumber();
@@ -827,9 +829,16 @@ J:				for ( int j = i + 1; j < range; )
 				return;
 			}
 
-			Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
-			localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
-			Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
+			if ( p.useLocalSmoothnessFilter )
+			{
+				Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
+				localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+				Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
+			}
+			else
+			{
+				Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+			}
 
 			/* <visualisation> */
 			//			final List< Point > s1 = new ArrayList< Point >();
@@ -874,10 +883,17 @@ J:				for ( int j = i + 1; j < range; )
 				return;
 			}
 
-			Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
-			localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
-			Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
-					
+			if ( p.useLocalSmoothnessFilter )
+			{
+				Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
+				localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+				Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
+			}
+			else
+			{
+				Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
+			}
+			
 			/* <visualisation> */
 			//			final List< Point > s2 = new ArrayList< Point >();
 			//			PointMatch.sourcePoints( pm21, s2 );
