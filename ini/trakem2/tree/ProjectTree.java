@@ -259,7 +259,9 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			} else if (command.equals("Show tabular view")) {
 				((Tree<?>)obd).createMultiTableView();
 			} else if (command.equals("Show in 3D")) {
-				ini.trakem2.display.Display3D.showAndResetView(thing);
+				Display3D.showAndResetView(thing);
+			} else if (command.equals("Remove from 3D view")) {
+				Display3D.removeFrom3D(thing);
 			} else if (command.equals("Hide")) {
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);

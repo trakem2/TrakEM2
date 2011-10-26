@@ -471,6 +471,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		addPopupItem("Measure", listener, al_items);
 
 		addPopupItem("Show in 3D", listener, al_items).setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_3, 0, true));
+		addPopupItem("Remove from 3D view", listener, al_items);
+
 		//addPopupItem("Export 3D...", listener, al_items);
 
 		if (template.getType().equals("project")) {

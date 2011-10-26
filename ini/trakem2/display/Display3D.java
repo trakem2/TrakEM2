@@ -55,8 +55,6 @@ import customnode.CustomTriangleMesh;
 /** One Display3D instance for each LayerSet (maximum). */
 public final class Display3D {
 
-	
-
 	/** Table of LayerSet and Display3D - since there is a one to one relationship.  */
 	static private Hashtable<LayerSet,Display3D> ht_layer_sets = new Hashtable<LayerSet,Display3D>();
 	/**Control calls to new Display3D. */
@@ -693,7 +691,68 @@ public final class Display3D {
 			}
 		});
 	}
+	
+	static private final String makeProfileListTitle(final ProjectThing pt) {
+		String title;
+		Object ob = pt.getParent().getTitle();
+		if (null == ob || ob.equals(pt.getParent().getType())) title = pt.toString() + " #" + pt.getId(); // Project.getMeaningfulTitle can't handle profile_list properly
+		else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
+		return title;
+	}
 
+	/** Remove all basic type children contained in {@param pt} and its children, recursively.
+	 * 
+	 * @param pt
+	 */
+	static public void removeFrom3D(final ProjectThing pt) {
+		final HashSet<ProjectThing> hs = pt.findBasicTypeChildren();
+		if (null == hs || 0 == hs.size()) {
+			Utils.logAll("Nothing to remove from 3D.");
+			return;
+		}
+		// Ignore Profile instances ("profile_list" takes care of them)
+		for (final ProjectThing child : hs) {
+			if (child.getByType().equals("profile")) continue;
+			// Find the LayerSet
+			LayerSet lset = null;
+			if (child.getType().equals("profile_list")) {
+				if (!child.hasChildren()) continue;
+				for (ProjectThing p : child.getChildren()) {
+					if (null != p.getObject() && p.getObject() instanceof Profile) {
+						lset = ((Displayable)p.getObject()).getLayerSet();
+						break;
+					}
+				}
+				if (null == lset) continue;
+			} else if (child.getType().equals("profile")) {
+				// Taken care of by "profile list"
+				continue;
+			} else {
+				final Displayable d = (Displayable)child.getObject();
+				if (null == d) {
+					Utils.log("Null object for ProjectThing " + child);
+					continue;
+				}
+				lset = d.getLayerSet();
+			}
+			if (null == lset) {
+				Utils.log("No LayerSet found for " + child);
+				continue;
+			}
+			Display3D d3d = getDisplay(lset);
+			if (null == d3d) {
+				Utils.log("No Display 3D found for " + child);
+				continue; // no Display3D window open
+			}
+			String oldTitle = d3d.ht_pt_meshes.remove(child);
+			if (null == oldTitle) {
+				Utils.log("Could not find a title for " + child);
+				continue;
+			}
+			Utils.log("Removed from 3D view: " + oldTitle);
+			d3d.getUniverse().removeContent(oldTitle);
+		}
+	}
 
 
 	/** Returns a function that returns a Content object.
@@ -797,9 +856,7 @@ public final class Display3D {
 			Displayable di = (Displayable)obp;
 			color = di.getColor();
 			alpha = di.getAlpha();
-			Object ob = pt.getParent().getTitle();
-			if (null == ob || ob.equals(pt.getParent().getType())) title = pt.toString() + " #" + pt.getId(); // Project.getMeaningfulTitle can't handle profile_list properly
-			else title = ob.toString() + " /[" + pt.getParent().getType() + "]/[profile_list] #" + pt.getId();
+			title = makeProfileListTitle(pt);
 		} else {
 			title = pt.toString() + " #" + pt.getId();
 			color = null;
