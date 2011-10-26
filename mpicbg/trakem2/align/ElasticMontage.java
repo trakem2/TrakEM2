@@ -71,7 +71,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{	
-		private static final long serialVersionUID = 8373347247149412024L;
+		private static final long serialVersionUID = -9038685991584959571L;
 
 		public ParamOptimize po = new ParamOptimize();
 		{
@@ -98,6 +98,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		public int bmSearchRadius = 25;
 		public int bmBlockRadius = -1;
 		
+		public boolean bmUseLocalSmoothnessFilter = false;
 		public int bmLocalModelIndex = 1;
 		public float bmLocalRegionSigma = bmSearchRadius;
 		public float bmMaxLocalEpsilon = bmSearchRadius / 2;
@@ -143,6 +144,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", bmRodR, 2 );
 			
 			gdBlockMatching.addMessage( "Local Smoothness Filter:" );
+			gdBlockMatching.addCheckbox( "use_local_smoothness_filter", bmUseLocalSmoothnessFilter );
 			gdBlockMatching.addChoice( "approximate_local_transformation :", ParamOptimize.modelStrings, ParamOptimize.modelStrings[ bmLocalModelIndex ] );
 			gdBlockMatching.addNumericField( "local_region_sigma:", bmLocalRegionSigma, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", bmMaxLocalEpsilon, 2, 6, "px" );
@@ -170,6 +172,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 			bmMinR = ( float )gdBlockMatching.getNextNumber();
 			bmMaxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			bmRodR = ( float )gdBlockMatching.getNextNumber();
+			
+			bmUseLocalSmoothnessFilter = gdBlockMatching.getNextBoolean();
 			bmLocalModelIndex = gdBlockMatching.getNextChoiceIndex();
 			bmLocalRegionSigma = ( float )gdBlockMatching.getNextNumber();
 			bmMaxLocalEpsilon = ( float )gdBlockMatching.getNextNumber();
@@ -217,6 +221,12 @@ public class ElasticMontage extends AbstractElasticAlignment
 			clone.bmMinR = bmMinR;
 			clone.bmMaxCurvatureR = bmMaxCurvatureR;
 			clone.bmRodR = bmRodR;
+			
+			clone.bmUseLocalSmoothnessFilter = bmUseLocalSmoothnessFilter;
+			clone.bmLocalModelIndex = bmLocalModelIndex;
+			clone.bmLocalRegionSigma = bmLocalRegionSigma;
+			clone.bmMaxLocalEpsilon = bmMaxLocalEpsilon;
+			clone.bmMaxLocalTrust = bmMaxLocalTrust;
 			
 			clone.springLengthSpringMesh = springLengthSpringMesh;
 			clone.stiffnessSpringMesh = stiffnessSpringMesh;
@@ -538,9 +548,16 @@ public class ElasticMontage extends AbstractElasticAlignment
 					pm12,
 					new ErrorStatistic( 1 ) );
 
-			Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
-			localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
-			Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': " + pm12.size() + " candidates passed local smoothness filter." );
+			if ( param.bmUseLocalSmoothnessFilter )
+			{
+				Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
+				localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
+				Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': " + pm12.size() + " candidates passed local smoothness filter." );
+			}
+			else
+			{
+				Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondences." );
+			}
 
 //			/* <visualisation> */
 //			//			final List< Point > s1 = new ArrayList< Point >();
@@ -570,9 +587,16 @@ public class ElasticMontage extends AbstractElasticAlignment
 					pm21,
 					new ErrorStatistic( 1 ) );
 
-			Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
-			localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
-			Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': " + pm21.size() + " candidates passed local smoothness filter." );
+			if ( param.bmUseLocalSmoothnessFilter )
+			{
+				Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
+				localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
+				Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': " + pm21.size() + " candidates passed local smoothness filter." );
+			}
+			else
+			{
+				Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondences." );
+			}
 			
 			/* <visualisation> */
 			//			final List< Point > s2 = new ArrayList< Point >();
