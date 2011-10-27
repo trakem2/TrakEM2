@@ -29,6 +29,7 @@ import ij.io.DirectoryChooser;
 import ij.io.SaveDialog;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.ControlWindow;
@@ -648,10 +649,18 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null != data) filter_enabled = Boolean.parseBoolean(data);
 		data = ht.get("filter_min_max_enabled");
 		if (null != data) filter_min_max_enabled = Boolean.parseBoolean(data);
-		data = ht.get("filter_min");
-		if (null != data) filter_min = Integer.parseInt(data);
-		data = ht.get("filter_max");
-		if (null != data) filter_max = Integer.parseInt(data);
+        data = ht.get("filter_channels_separately");
+        filter_channels_separately = Boolean.parseBoolean(data);
+        filter_min = getValue("filter_min", ht, 0);
+        filter_max = getValue("filter_max", ht, 255);
+
+        filter_red_min = getValue("filter_red_min", ht, filter_min);
+        filter_green_min = getValue("filter_green_min", ht, filter_min);
+        filter_blue_min = getValue("filter_blue_min", ht, filter_min);
+
+        filter_red_max = getValue("filter_red_max", ht, filter_max);
+        filter_green_max = getValue("filter_green_max", ht, filter_max);
+        filter_blue_max = getValue("filter_blue_max", ht, filter_max);
 		data = ht.get("filter_invert");
 		if (null != data) filter_invert = Boolean.parseBoolean(data);
 		data = ht.get("filter_clahe_enabled");
@@ -6409,8 +6418,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			 .append(indent).append("<!ATTLIST t2_display c_alphas_state NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display filter_enabled NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display filter_min_max_enabled NMTOKEN #REQUIRED>\n")
-			 .append(indent).append("<!ATTLIST t2_display filter_min NMTOKEN #REQUIRED>\n")
-			 .append(indent).append("<!ATTLIST t2_display filter_max NMTOKEN #REQUIRED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_min NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_max NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_channels_separately NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_red_min NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_red_max NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_green_min NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_green_max NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_blue_min NMTOKEN #IMPLIED>\n")
+                .append(indent).append("<!ATTLIST t2_display filter_blue_max NMTOKEN #IMPLIED>\n")
 			 .append(indent).append("<!ATTLIST t2_display filter_invert NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display filter_clahe_enabled NMTOKEN #REQUIRED>\n")
 			 .append(indent).append("<!ATTLIST t2_display filter_clahe_block_size NMTOKEN #REQUIRED>\n")
@@ -6441,8 +6457,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			       .append(in).append("scroll_step=\"").append(d.scroll_step).append("\"\n")
 			       .append(in).append("filter_enabled=\"").append(d.filter_enabled).append("\"\n")
 			       .append(in).append("filter_min_max_enabled=\"").append(d.filter_min_max_enabled).append("\"\n")
-			       .append(in).append("filter_min=\"").append(d.filter_min).append("\"\n")
-			       .append(in).append("filter_max=\"").append(d.filter_max).append("\"\n")
+                    .append(in).append("filter_min=\"").append(d.filter_min).append("\"\n")
+                    .append(in).append("filter_max=\"").append(d.filter_max).append("\"\n")
+                    .append(in).append("filter_channels_separately=\"").append(d.filter_channels_separately).append("\"\n")
+                    .append(in).append("filter_red_min=\"").append(d.filter_red_min).append("\"\n")
+                    .append(in).append("filter_red_max=\"").append(d.filter_red_max).append("\"\n")
+                    .append(in).append("filter_green_min=\"").append(d.filter_green_min).append("\"\n")
+                    .append(in).append("filter_green_max=\"").append(d.filter_green_max).append("\"\n")
+                    .append(in).append("filter_blue_min=\"").append(d.filter_blue_min).append("\"\n")
+                    .append(in).append("filter_blue_max=\"").append(d.filter_blue_max).append("\"\n")
 			       .append(in).append("filter_invert=\"").append(d.filter_invert).append("\"\n")
 			       .append(in).append("filter_clahe_enabled=\"").append(d.filter_clahe_enabled).append("\"\n")
 			       .append(in).append("filter_clahe_block_size=\"").append(d.filter_clahe_block_size).append("\"\n")
@@ -6514,9 +6537,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					filter_clahe_enabled = false,
 					filter_min_max_enabled = false;
 	private int filter_clahe_block_size = 127,
-				filter_clahe_histogram_bins = 256,
-				filter_min = 0,
-				filter_max = 255;
+				filter_clahe_histogram_bins = 256;
+    private int filter_min = 0;
+    private int filter_max = 255;
+
+    private boolean filter_channels_separately = false;
+
+    private int filter_red_min = filter_min;
+    private int filter_green_min = filter_min;
+    private int filter_blue_min = filter_min;
+
+    private int filter_red_max = filter_max;
+    private int filter_green_max = filter_max;
+    private int filter_blue_max = filter_max;
+
 	private float filter_clahe_max_slope = 3;
 
 	public boolean isLiveFilteringEnabled() { return filter_enabled; }
@@ -6530,10 +6564,35 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		};
 		fop.addCheckbox("Live filters enabled", filter_enabled, new OptionPanel.BooleanSetter(this, "filter_enabled", reaction));
 		fop.addMessage("Contrast:");
-		fop.addCheckbox("Min/Max enabled", filter_min_max_enabled, new OptionPanel.BooleanSetter(this, "filter_min_max_enabled", reaction));
-		fop.addNumericField("Min:", filter_min, 0, new OptionPanel.IntSetter(this, "filter_min", reaction, 0, 255));
-		fop.addNumericField("Max:", filter_max, 0, new OptionPanel.IntSetter(this, "filter_max", reaction, 0, 255));
-		fop.addCheckbox("Invert", filter_invert, new OptionPanel.BooleanSetter(this, "filter_invert", reaction));
+        fop.addCheckbox("Invert", filter_invert,
+                        new OptionPanel.BooleanSetter(this, "filter_invert", reaction));
+        fop.addCheckbox("Min/Max enabled", filter_min_max_enabled,
+                        new OptionPanel.BooleanSetter(this, "filter_min_max_enabled", reaction));
+        OptionPanel.VisibilityCheckBox visibilityCheckBox =
+                fop.addVisibilityCheckBox("Separate channels",
+                                          filter_channels_separately,
+                                          new OptionPanel.BooleanSetter(this, "filter_channels_separately", reaction));
+        final List<OptionPanel.SliderPanel> combinedSliders = Arrays.asList(
+                fop.addSliderField("Min:", filter_min, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_min", reaction)),
+                fop.addSliderField("Max:", filter_max, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_max", reaction)));
+        final List<OptionPanel.SliderPanel> separateSliders = Arrays.asList(
+                fop.addSliderField("Red Min:", filter_red_min, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_red_min", reaction)),
+                fop.addSliderField("Red Max:", filter_red_max, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_red_max", reaction)),
+                fop.addSliderField("Green Min:", filter_green_min, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_green_min", reaction)),
+                fop.addSliderField("Green Max:", filter_green_max, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_green_max", reaction)),
+                fop.addSliderField("Blue Min:", filter_blue_min, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_blue_min", reaction)),
+                fop.addSliderField("Blue Max:", filter_blue_max, 0, 255,
+                                   new OptionPanel.SliderSetter(this, "filter_blue_max", reaction)));
+
+        visibilityCheckBox.setVisibilityComponents(separateSliders,
+                                                   combinedSliders);
 		fop.addMessage("CLAHE options:");
 		fop.addCheckbox("CLAHE enabled", filter_clahe_enabled, new OptionPanel.BooleanSetter(this, "filter_clahe_enabled", reaction));
 		fop.addNumericField("block size:", filter_clahe_block_size, 0, new OptionPanel.IntSetter(this, "filter_clahe_block_size", reaction, 1, Integer.MAX_VALUE));
@@ -6558,7 +6617,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		// 0: enabled?
 		if (!filter_enabled) return imp;
 		// 1: min/max?
-		if (filter_min_max_enabled) imp.getProcessor().setMinAndMax(filter_min, filter_max);
+        if (filter_min_max_enabled) {
+            final ImageProcessor ip = imp.getProcessor();
+            if (ip instanceof ColorProcessor) {
+                final ColorProcessor cp = (ColorProcessor) ip;
+                if (filter_channels_separately) {
+                    cp.setMinAndMax(filter_red_min, filter_red_max, 4);
+                    cp.setMinAndMax(filter_green_min, filter_green_max, 2);
+                    cp.setMinAndMax(filter_blue_min, filter_blue_max, 1);
+                } else {
+                    cp.setMinAndMax(filter_min, filter_max);
+                }
+            } else {
+                ip.setMinAndMax(filter_min, filter_max);
+            }
+        }
 		// 2: invert?
 		if (filter_invert) imp.getProcessor().invert();
 		// 3: CLAHE?
@@ -7055,4 +7128,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	public Roi getRoi() {
 		return canvas.getFakeImagePlus().getRoi();
 	}
+
+    private int getValue(String name,
+                         HashMap<String, String> map,
+                         int defaultValue) {
+        int value = defaultValue;
+        String data = map.get(name);
+        if (data != null) {
+            value = Integer.parseInt(data);
+        }
+        return value;
+    }
 }

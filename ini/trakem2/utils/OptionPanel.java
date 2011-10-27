@@ -2,6 +2,7 @@ package ini.trakem2.utils;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.FlowLayout;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
@@ -16,11 +17,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JSlider;
 import javax.swing.JTextField;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 import javax.swing.text.JTextComponent;
 
 public class OptionPanel extends JPanel {
@@ -70,6 +76,24 @@ public class OptionPanel extends JPanel {
 			}
 		}
 	};
+
+    private ChangeListener cl = new ChangeListener() {
+        @Override
+        public void stateChanged(ChangeEvent e) {
+            final Object source = e.getSource();
+            if (source instanceof Component) {
+                final Component component = (Component) source;
+                final Setter s = setters.get(component);
+                if (s != null) {
+                    try {
+                        s.setFrom(component);
+                    } catch (Throwable t) {
+                        Utils.logAll("Invalid value " + s.getValue(component));
+                    }
+                }
+            }
+        }
+    };
 
 	public OptionPanel() {
 		super();
@@ -194,7 +218,72 @@ public class OptionPanel extends JPanel {
 		return choice;
 	}
 
+    /**
+     * Adds a numeric field controlled by a slider to this option panel.
+     *
+     * @param  labelText  the field's name or label.
+     * @param  value      the field's initial value.
+     * @param  setter     sets the field instance value from the slider
+     *                    user interface component's value.
+     *
+     * @return the panel container for all of the slider components created
+     *         for the field.
+     */
+    public SliderPanel addSliderField(String labelText,
+                                      int value,
+                                      int min,
+                                      int max,
+                                      SliderSetter setter) {
+        SliderPanel sliderPanel = new SliderPanel(labelText,
+                                                  value,
+                                                  min,
+                                                  max);
+        JSlider slider = sliderPanel.getSlider();
+        slider.addChangeListener(cl);
+        setters.put(slider, setter);
 
+        c.gridy = rows++;
+        c.gridx = 0;
+        c.anchor = GridBagConstraints.NORTHWEST;
+        c.weightx = 1;
+        c.weighty = 0;
+        c.ipadx = 0;
+        c.gridwidth = 2;
+        c.fill = GridBagConstraints.NONE;
+        bl.setConstraints(sliderPanel, c);
+        add(sliderPanel);
+
+        return sliderPanel;
+    }
+
+    /**
+     * Adds a check box field to this option panel that can control the
+     * visibility of other user interface components
+     * (presumably also in the panel).
+     *
+     * The {@link VisibilityCheckBox#setVisibilityComponents(java.util.List, java.util.List)}
+     * method on the returned component can be used to define the list of
+     * controlled components.
+     *
+     * @param  labelText  the field's name or label.
+     * @param  selected   the field's initial value.
+     * @param  setter     sets the field instance value from the check box
+     *                    user interface component's value.
+     *
+     * @return the check box component created for the field.
+     */
+    public VisibilityCheckBox addVisibilityCheckBox(String labelText,
+                                                    boolean selected,
+                                                    Setter setter) {
+        addLabel(labelText);
+        VisibilityCheckBox checkBox = new VisibilityCheckBox();
+        checkBox.setSelected(selected);
+        checkboxes.add(checkBox);
+        all.add(checkBox);
+        addField(checkBox, setter);
+        checkBox.addActionListener(tl);
+        return checkBox;
+    }
 
 	public List<JTextField> getNumericFields() {
 		return new ArrayList<JTextField>(numeric_fields);
@@ -415,4 +504,125 @@ public class OptionPanel extends JPanel {
 			return ((JComboBox)source).getSelectedItem();
 		}
 	}
+
+    /**
+     * Field setter tied to a JSlider component.
+     */
+    static public class SliderSetter extends Setter {
+        public SliderSetter(Object ob,
+                            String field,
+                            Runnable reaction) {
+            super(ob, field, reaction);
+        }
+        public Object getValue(Component source) {
+            return ((JSlider)source).getValue();
+        }
+    }
+
+    /**
+     * Panel containing labels for the slider name and slider value
+     * plus the slider itself.  The slider value label is kept in-sync
+     * with the slider.
+     *
+     * The panel looks something like this:
+     * <pre>
+     * Name: Value
+     *  |---v-------------|
+     * min               max
+     * </pre>
+     */
+    static public class SliderPanel extends JPanel implements ChangeListener {
+
+        private JLabel sliderValueLabel;
+        private JSlider slider;
+
+        public SliderPanel(String labelText,
+                           int value,
+                           int min,
+                           int max) {
+
+            super();
+            this.setLayout(new BoxLayout(this, BoxLayout.PAGE_AXIS));
+            this.setBorder(BorderFactory.createEmptyBorder(0, 10, 10, 0));
+
+            final JLabel sliderLabel = new JLabel(labelText);
+            this.sliderValueLabel = new JLabel(String.valueOf(value));
+
+            this.slider = new JSlider(JSlider.HORIZONTAL, min, max, value);
+            this.slider.setMajorTickSpacing(max - min);
+            this.slider.setPaintLabels(true);
+            this.slider.addChangeListener(this);
+
+            JPanel labelPanel =
+                    new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+            labelPanel.add(sliderLabel);
+            labelPanel.add(sliderValueLabel);
+            this.add(labelPanel);
+            this.add(this.slider);
+        }
+
+        public JSlider getSlider() {
+            return slider;
+        }
+
+        @Override
+        public void stateChanged(ChangeEvent e) {
+            sliderValueLabel.setText(String.valueOf(slider.getValue()));
+        }
+    }
+
+    /**
+     * A check box that can control the visibility of other user
+     * interface components.
+     */
+    static public class VisibilityCheckBox extends JCheckBox implements ActionListener {
+        private List<? extends Component> visibleWhenOn;
+        private List<? extends Component> visibleWhenOff;
+
+        public VisibilityCheckBox() {
+            super();
+            this.addActionListener(this);
+            this.visibleWhenOn = null;
+            this.visibleWhenOff = null;
+        }
+
+        /**
+         * Sets the list of components controlled by this check box.
+         *
+         * @param  visibleWhenOn    list of components to be made visible
+         *                          when this check box is selected (and
+         *                          hidden when it is NOT selected);
+         *                          can be null or empty.
+         * @param  visibleWhenOff   list of components to be made visible
+         *                          when this check box is NOT selected (and
+         *                          hidden when it is selected);
+         *                          can be null or empty.
+         */
+        public void setVisibilityComponents(List<? extends Component> visibleWhenOn,
+                                            List<? extends Component> visibleWhenOff) {
+            this.visibleWhenOn = visibleWhenOn;
+            this.visibleWhenOff = visibleWhenOff;
+            updateVisibility();
+        }
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            updateVisibility();
+        }
+
+        private void updateVisibility() {
+            final boolean isOn = isSelected();
+            final boolean isOff = ! isOn;
+            if (visibleWhenOn != null) {
+                for (Component c : visibleWhenOn) {
+                    c.setVisible(isOn);
+                }
+            }
+            if (visibleWhenOff != null) {
+                for (Component c : visibleWhenOff) {
+                    c.setVisible(isOff);
+                }
+            }
+        }
+    }
 }
