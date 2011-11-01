@@ -2416,8 +2416,11 @@ while (it.hasNext()) {
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality) {
 		return makeFlatImage(layer, srcRect, scale, c_alphas, type, force_to_file, quality, Color.black);
 	}
-	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality, final Color background) {
+		return makeFlatImage(layer, srcRect, scale, c_alphas, type, force_to_file, "tif", quality, background);
+	}
+	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final String format, final boolean quality, final Color background) {
 		if (null == layer || 0 == layer.length) {
 			Utils.log2("makeFlatImage: null or empty list of layers to process.");
 			return null;
@@ -2489,7 +2492,7 @@ while (it.hasNext()) {
 			} else {
 				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 				if (null != target_dir) {
-					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), ".tif");
+					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), format);
 					imp = null; // to prevent showing it
 				}
 			}
@@ -2517,7 +2520,7 @@ while (it.hasNext()) {
 			k++;
 		}
 		try {
-			new FileSaver(imp).saveAsTiff(file.getAbsolutePath());
+			new Saver(extension).save(imp, file.getAbsolutePath());
 		} catch (OutOfMemoryError oome) {
 			Utils.log2("Not enough memory. Could not save image for " + file_name);
 			IJError.print(oome);
@@ -2784,7 +2787,11 @@ while (it.hasNext()) {
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type) {
 		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, null, true);
 	}
-
+	
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir, final boolean from_original_images) {
+		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256);
+	}
+	
 	/** Generate 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
 	 *
 	 * filename = z + "/" + row + "_" + column + "_" + s + ".jpg";
@@ -2808,7 +2815,8 @@ while (it.hasNext()) {
 	 * @return The watcher thread, for joining purposes, or null if the dialog is canceled or preconditions are not passed.
 	 * @throws IllegalArgumentException if the type is not ImagePlus.GRAY8 or Imageplus.COLOR_RGB.
 	 */
-	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_, final int c_alphas, final int type, String target_dir, final boolean from_original_images) {
+	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_,
+			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide) {
 		if (null == layer || 0 == layer.length) return null;
 		switch (type) {
 		case ImagePlus.GRAY8:
@@ -2833,9 +2841,8 @@ while (it.hasNext()) {
 
 		final String dir = target_dir;
 		final double max_scale = max_scale_;
-		final float jpeg_quality = FileSaver.getJpegQuality() / 100.0f;
-		Utils.log("Using jpeg quality: " + jpeg_quality);
 
+		
 		Worker worker = new Worker("Creating prescaled tiles") {
 			private void cleanUp() {
 				finishedWorking();
@@ -2853,7 +2860,7 @@ while (it.hasNext()) {
 		// start with the highest scale level
 		final int[] best = determineClosestPowerOfTwo(srcRect.width > srcRect.height ? srcRect.width : srcRect.height);
 		final int edge_length = best[0];
-		final int n_edge_tiles = edge_length / 256;
+		final int n_edge_tiles = edge_length / tileSide;
 		Utils.log2("srcRect: " + srcRect);
 		Utils.log2("edge_length, n_edge_tiles, best[1] " + best[0] + ", " + n_edge_tiles + ", " + best[1]);
 
@@ -2897,18 +2904,19 @@ while (it.hasNext()) {
 
 			// 2 - create layer thumbnail, max 192x192
 			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, true);
-			ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
+			saver.save(thumb, tile_dir + "small");
+			//ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
 			flush(thumb);
 			thumb = null;
 
 			// 3 - fill directory with tiles
-			if (edge_length < 256) { // edge_length is the largest length of the 256x256 tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be 256x256 in size)
+			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, jpeg_quality, tile_dir + "0_0_0.jpg");
+				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver);
 			} else {
 				// create piramid of tiles
 				if (from_original_images) {
-					Utils.log("Exporting from web using original images\n  JPEG compression: " + jpeg_quality);
+					Utils.log("Exporting from web using original images");
 					// Create a giant 8-bit image of the whole layer from original images
 					double scale = 1;
 					
@@ -2923,43 +2931,43 @@ while (it.hasNext()) {
 					ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					try {
 						while (n_et >= best[1]) {
-							
-							final int tile_side = 256;
 							final int snapWidth = snapshot.getWidth();
 							final int snapHeight = snapshot.getHeight();
 							final ImageProcessor source = snapshot;
 							for (int row=0; row<n_et; row++) {
 								for (int col=0; col<n_et; col++) {
 									
-									final String path = new StringBuilder(tile_dir).append(row).append('_').append(col).append('_').append(scale_pow).append(".jpg").toString();
-									final int tileXStart = col * tile_side;
-									final int tileYStart = row * tile_side;
+									final String path = new StringBuilder(tile_dir).append(row).append('_').append(col).append('_').append(scale_pow).toString();
+									final int tileXStart = col * tileSide;
+									final int tileYStart = row * tileSide;
 									final int pixelOffset = tileYStart * snapWidth + tileXStart;
 
 									fus.add(exec.submit(new Callable<Boolean>() {
 										public Boolean call() {
 											if (ImagePlus.GRAY8 == type) {
 												final byte[] pixels = (byte[]) source.getPixels();
-												final byte[] p = new byte[tile_side * tile_side];
+												final byte[] p = new byte[tileSide * tileSide];
 												
-												for (int y=0, sourceIndex=pixelOffset; y < tile_side && tileYStart + y < snapHeight; sourceIndex = pixelOffset + y * snapWidth, y++) {
-													final int offsetL = y * tile_side;
-													for (int x=0; x < tile_side && tileXStart + x < snapWidth; sourceIndex++, x++) {
+												for (int y=0, sourceIndex=pixelOffset; y < tileSide && tileYStart + y < snapHeight; sourceIndex = pixelOffset + y * snapWidth, y++) {
+													final int offsetL = y * tileSide;
+													for (int x=0; x < tileSide && tileXStart + x < snapWidth; sourceIndex++, x++) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												return ImageSaver.saveAsGreyJpeg(p, tile_side, tile_side, path, jpeg_quality);
+												return saver.save(new ImagePlus(path, new ByteProcessor(tileSide, tileSide, p, GRAY_LUT)), path);
+												//return ImageSaver.saveAsGreyJpeg(p, tile_side, tile_side, path, jpeg_quality);
 											} else {
 												final int[] pixels = (int[]) source.getPixels();
-												final int[] p = new int[tile_side * tile_side];
+												final int[] p = new int[tileSide * tileSide];
 												
-												for (int y=0, sourceIndex=pixelOffset; y < tile_side && tileYStart + y < snapHeight; sourceIndex = pixelOffset + y * snapWidth, y++) {
-													final int offsetL = y * tile_side;
-													for (int x=0; x < tile_side && tileXStart + x < snapWidth; sourceIndex++, x++) {
+												for (int y=0, sourceIndex=pixelOffset; y < tileSide && tileYStart + y < snapHeight; sourceIndex = pixelOffset + y * snapWidth, y++) {
+													final int offsetL = y * tileSide;
+													for (int x=0; x < tileSide && tileXStart + x < snapWidth; sourceIndex++, x++) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												return ImageSaver.saveAsARGBJpeg(p, tile_side, tile_side, path, jpeg_quality);
+												return saver.save(new ImagePlus(path, new ColorProcessor(tileSide, tileSide, pixels)), path);
+												//return ImageSaver.saveAsARGBJpeg(p, tile_side, tile_side, path, jpeg_quality);
 											}
 										}
 									}));
@@ -3073,7 +3081,7 @@ while (it.hasNext()) {
 								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 								// negative tile sizes will be made into black tiles
 								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-								makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, jpeg_quality, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).append(".jpg").toString()); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
+								makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).toString(), saver); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
 							}
 						}
 						scale_pow++;
@@ -3099,7 +3107,9 @@ while (it.hasNext()) {
 	}
 
 	/** Will overwrite if the file path exists. */
-	private void makeTile(Layer layer, Rectangle srcRect, double mag, int c_alphas, int type, Class<?> clazz, final float jpeg_quality, String file_path) throws Exception {
+	private void makeTile(Layer layer, Rectangle srcRect, double mag,
+			int c_alphas, int type, Class<?> clazz, String file_path,
+			Saver saver) throws Exception {
 		ImagePlus imp = null;
 		if (srcRect.width > 0 && srcRect.height > 0) {
 			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
@@ -3121,7 +3131,8 @@ while (it.hasNext()) {
 		}
 		// debug
 		//Utils.log("would save: " + srcRect + " at " + file_path);
-		ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
+		//ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
+		saver.save(imp, file_path);
 	}
 
 	/** Find the closest, but larger, power of 2 number for the given edge size; the base root may be any of {1,2,3,5}. */

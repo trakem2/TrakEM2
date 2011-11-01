@@ -46,6 +46,7 @@ import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.Operation;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Saver;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.DNDInsertImage;
 import ini.trakem2.utils.Search;
@@ -4785,11 +4786,32 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.addRGBColorSliders(gd, Color.black);
 			gd.addCheckbox("Best quality", false);
 			gd.addMessage("");
-			gd.addCheckbox("Save to file", false);
-			gd.addCheckbox("Save for web", false);
+			final String[] choices = new String[]{"Show", "Save to file", "Save for web (CATMAID)"};
+			gd.addChoice("Export:", choices, choices[0]);
+			final String[] formats = Saver.formats();
+			gd.addChoice("Format:", formats, formats[0]);
+			gd.addNumericField("Tile_side", 256, 0);
+			final Choice cformats = (Choice)gd.getChoices().get(gd.getChoices().size() -1);
+			cformats.setEnabled(false);
+			final Choice cchoices = (Choice)gd.getChoices().get(gd.getChoices().size() -2);
+			final TextField tf = (TextField)gd.getNumericFields().get(gd.getNumericFields().size() -1);
+			tf.setEnabled(false);
+			cchoices.addItemListener(new ItemListener() {
+				@Override
+				public void itemStateChanged(ItemEvent e) {
+					cformats.setEnabled(cchoices.getSelectedIndex() > 0);
+					if (2 == cchoices.getSelectedIndex()) {
+						cformats.select(".jpg");
+						tf.setEnabled(true);
+					} else {
+						tf.setEnabled(false);
+					}
+				}
+			});
 			gd.addCheckbox("Use original images", true);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
+			
 			scale = gd.getNextNumber() / 100;
 			the_type = (0 == gd.getNextChoiceIndex() ? ImagePlus.GRAY8 : ImagePlus.COLOR_RGB);
 			if (Double.isNaN(scale) || scale <= 0.0) {
@@ -4826,12 +4848,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 			final Color background = new Color((int)gd.getNextNumber(), (int)gd.getNextNumber(), (int)gd.getNextNumber());
 			final boolean quality = gd.getNextBoolean();
-			final boolean save_to_file = gd.getNextBoolean();
-			final boolean save_for_web = gd.getNextBoolean();
+			
+			final int choice = gd.getNextChoiceIndex();
+			final boolean save_to_file = 1 == choice;
+			final boolean save_for_web = 2 == choice;
+			final String format = gd.getNextChoice();
+			final Saver saver = new Saver(format);
+			final int tile_side = (int)gd.getNextNumber();
 			final boolean use_original_images = gd.getNextBoolean();
 			// in its own thread
-			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images);
-			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, quality, background);
+			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images, saver, tile_side);
+			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background);
 
 		} else if (command.equals("Lock")) {
 			selection.setLocked(true);
