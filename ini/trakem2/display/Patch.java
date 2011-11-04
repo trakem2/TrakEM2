@@ -60,15 +60,9 @@ import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.DataBuffer;
-import java.awt.image.DataBufferByte;
-import java.awt.image.DataBufferInt;
 import java.awt.image.DirectColorModel;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
-import java.awt.image.Raster;
-import java.awt.image.WritableRaster;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -193,6 +187,23 @@ public final class Patch extends Displayable implements ImageData {
 		this.o_width = o_width;
 		this.o_height = o_height;
 		checkMinMax();
+	}
+
+	/** Create a new Patch defining all necessary parameters; it is the responsibility
+	 * of the caller to ensure that the parameters are in agreement with the image
+	 * contained in the {@param file_path}. */
+	public Patch(Project project, String title,
+		     float width, float height,
+		     int o_width, int o_height,
+		     int type, float alpha,
+		     Color color, boolean locked,
+		     double min, double max,
+		     AffineTransform at,
+		     String file_path) {
+		this(project, project.getLoader().getNextId(), title, width, height, o_width, o_height, type, locked, min, max, at);
+		this.alpha = Math.max(0, Math.min(alpha, 1.0f));
+		this.color = null == color ? Color.yellow : color;
+		project.getLoader().addedPatchFrom(file_path, this);
 	}
 
 	/** Reconstruct from an XML entry. */
