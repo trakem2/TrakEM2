@@ -2663,28 +2663,27 @@ while (it.hasNext()) {
 			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING,  RenderingHints.VALUE_ANTIALIAS_ON); // to smooth edges of the images
 			g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 			g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-
+			
 			ArrayList<ZDisplayable> al_zdispl = null;
 			if (null == al_displ) {
-				al_displ = new ArrayList<Displayable>(layer.find(clazz, srcRect, true));
-				al_zdispl = new ArrayList<ZDisplayable>((Collection)layer.getParent().findZDisplayables(clazz, layer, srcRect, true));
+				al_displ = new ArrayList<Displayable>(layer.find(clazz, srcRect, true, true));
+				al_zdispl = new ArrayList<ZDisplayable>((Collection)layer.getParent().findZDisplayables(clazz, layer, srcRect, true, true));
 			} else {
 				// separate ZDisplayables into their own array
 				al_displ = new ArrayList<Displayable>(al_displ);
-				//Utils.log2("al_displ size: " + al_displ.size());
-				al_zdispl = new ArrayList<ZDisplayable>();
+				final HashSet<ZDisplayable> az = new HashSet<ZDisplayable>();
 				for (Iterator<?> it = al_displ.iterator(); it.hasNext(); ) {
 					Object ob = it.next();
 					if (ob instanceof ZDisplayable) {
 						it.remove();
-						al_zdispl.add((ZDisplayable)ob);
+						az.add((ZDisplayable)ob);
 					}
 				}
-				// order ZDisplayables by their stack order TODO the code below doesn't do that
-				ArrayList<ZDisplayable> al_zdispl2 = layer.getParent().getZDisplayables();
-				for (Iterator<?> it = al_zdispl2.iterator(); it.hasNext(); ) {
-					Object ob = it.next();
-					if (!al_zdispl.contains(ob)) it.remove();
+				
+				// order ZDisplayables by their stack order
+				final ArrayList<ZDisplayable> al_zdispl2 = layer.getParent().getZDisplayables();
+				for (final Iterator<ZDisplayable> it = al_zdispl2.iterator(); it.hasNext(); ) {
+					if (!az.contains(it.next())) it.remove();
 				}
 				al_zdispl = al_zdispl2;
 			}
@@ -2724,6 +2723,9 @@ while (it.hasNext()) {
 				count++;
 				//Utils.log2("Painted " + count + " of " + total);
 			}
+			
+			Utils.log("zd_done: " + zd_done);
+			
 			if (!zd_done) {
 				zd_done = true;
 				for (final ZDisplayable zd : al_zdispl) {
