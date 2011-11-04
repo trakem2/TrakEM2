@@ -128,6 +128,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import loci.formats.ChannelSeparator;
 import loci.formats.FormatException;
+import loci.formats.FormatTools;
 import loci.formats.IFormatReader;
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
@@ -2011,13 +2012,14 @@ while (it.hasNext()) {
 			if (null == file) return null; // user canceled dialog
 			abs_text_file_path_ = file[0] + file[1];
 		}
-		if (null == ref_layer || null == column_separator_ || 0 == column_separator_.length() || Double.isNaN(layer_thickness_) || layer_thickness_ <= 0 || Double.isNaN(calibration_) || calibration_ <= 0) {
+		if (null == column_separator_ || 0 == column_separator_.length() || Double.isNaN(layer_thickness_) || layer_thickness_ <= 0 || Double.isNaN(calibration_) || calibration_ <= 0) {
+			Calibration cal = ref_layer.getParent().getCalibrationCopy();
 			GenericDialog gdd = new GenericDialog("Options");
 			String[] separators = new String[]{"tab", "space", "coma (,)"};
 			gdd.addMessage("Choose a layer to act as the zero for the Z coordinates:");
 			Utils.addLayerChoice("Base layer", ref_layer, gdd);
 			gdd.addChoice("Column separator: ", separators, separators[0]);
-			gdd.addNumericField("Layer thickness: ", 60, 2); // default: 60 nm
+			gdd.addNumericField("Layer thickness: ", cal.pixelDepth, 2); // default: 60 nm
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
 			gdd.addSlider("Scale:", 0, 100, 100);
@@ -2033,6 +2035,7 @@ while (it.hasNext()) {
 				Utils.log("Improper calibration value.");
 				return null;
 			}
+			layer_thickness_ /= cal.pixelWidth; // not pixelDepth!
 			ref_layer = ref_layer.getParent().getLayer(gdd.getNextChoiceIndex());
 			column_separator_ = "\t";
 			switch (gdd.getNextChoiceIndex()) {
@@ -2154,7 +2157,8 @@ while (it.hasNext()) {
 						while (-1 != line.indexOf(sep2)) {
 							line = line.replaceAll(sep2, column_separator);
 						}
-						String[] column = line.split(column_separator);
+						final String[] column = line.split(column_separator);
+						
 						if (column.length < 4) {
 							Utils.log("Less than 4 columns: can't import from line " + i + " : "  + line);
 							continue;
@@ -2203,12 +2207,102 @@ while (it.hasNext()) {
 						final String imagefilepath = path;
 						final double xx = x * scale;
 						final double yy = y * scale;
+						
+						final Callable<Patch> creator;
+						
+						if (column.length >= 9) {
+							creator = new Callable<Patch>() {
+								private final int parseInt(String t) {
+									if (t.equals("-")) return -1;
+									return Integer.parseInt(t);
+								}
+								private final double parseDouble(String t) {
+									if (t.equals("-")) return Double.NaN;
+									return Double.parseDouble(t);
+								}
+								@Override
+								public Patch call() throws Exception {
+									int o_width = parseInt(column[4].trim());
+									int o_height = parseInt(column[5].trim());
+									double min = parseDouble(column[6].trim());
+									double max = parseDouble(column[7].trim());
+									int type = parseInt(column[8].trim());
+									
+									if (-1 == type || -1 == o_width || -1 == o_height) {
+										// Read them from the header
+										IFormatReader fr = null;
+										fr = new ChannelSeparator();
+										fr.setGroupFiles(false);
+										fr.setId(imagefilepath);
+										o_width = fr.getSizeX();
+										o_height = fr.getSizeY();
+										
+										if (fr.isRGB()) {
+											type = ImagePlus.COLOR_RGB;
+										} else {
+											switch (fr.getPixelType()) {
+											case FormatTools.INT8:
+												type = ImagePlus.GRAY8;
+												break;
+											case FormatTools.INT16:
+												type = ImagePlus.GRAY16;
+												break;
+											case FormatTools.FLOAT:
+												type = ImagePlus.GRAY32;
+												break;
+											}
+										}
+										if (-1 == type) {
+											Utils.log("Could not identify image type for " + imagefilepath);
+											return null;
+										}
+									}
+									
+									ImagePlus imp = null;
+									if (Double.isNaN(min) || Double.isNaN(max)) {
+										imp = openImagePlus(imagefilepath);
+										min = imp.getProcessor().getMin();
+										max = imp.getProcessor().getMax();
+									}
+									
+									Patch patch = new Patch(layer.getProject(), new File(imagefilepath).getName(), o_width, o_height, o_width, o_height, type, 1.0f, Color.yellow, false, min, max, new AffineTransform(1, 0, 0, 1, xx, yy), imagefilepath);
+									
+									if (null != script_path && null != imp) {
+										// For use in setting the preprocessor script
+										cacheImagePlus(patch.getId(), imp);
+									}
+									return patch;
+								}
+							};
+						} else {
+							creator = new Callable<Patch>() {
+								@Override
+								public Patch call() throws Exception {
+									IJ.redirectErrorMessages();
+									ImagePlus imp = openImagePlus(imagefilepath);
+									if (null == imp) {
+										Utils.log("Ignoring unopenable image from " + imagefilepath);
+										return null;
+									}
+									// add Patch
+									final Patch patch = new Patch(layer.getProject(), imp.getTitle(), xx, yy, imp);
+									addedPatchFrom(imagefilepath, patch);
+									
+									if (null != script_path) {
+										// cache the image for reuse in setting the script
+										cacheImagePlus(patch.getId(), imp);
+									}
+									
+									return patch;
+								}
+							};
+						}
 
 						// If loaded twice as many, wait for mipmaps to finish
 						// Otherwise, images would end up loaded twice for no reason
 						if (0 == (i % (NP+NP))) {
 							final ArrayList<Future<?>> a = new ArrayList<Future<?>>(NP+NP);
-							synchronized (fus) { // .add is also synchronized, it's a Vector
+							synchronized (fus) { // .add is also synchronized, fus is a Vector
 								int k = 0;
 								while (!fus.isEmpty() && k < NP) {
 									a.add(fus.remove(0));
@@ -2230,18 +2324,18 @@ while (it.hasNext()) {
 								if (wo.hasQuitted()) return;
 								/* */
 								IJ.redirectErrorMessages();
-								ImagePlus imp = openImagePlus(imagefilepath);
-								if (null == imp) {
-									Utils.log("Ignoring unopenable image from " + imagefilepath);
+								
+								Patch patch;
+								try {
+									patch = creator.call();
+								} catch (Exception e) {
+									e.printStackTrace();
+									Utils.log("Could not load patch from " + imagefilepath);
 									return;
 								}
-								// add Patch and generate its mipmaps
-								final Patch patch = new Patch(layer.getProject(), imp.getTitle(), xx, yy, imp);
-								addedPatchFrom(imagefilepath, patch);
-								// After setting the path, set the script if any
+								
+								// Set the script if any
 								if (null != script_path) {
-									// cache the image for reuse
-									cacheImagePlus(patch.getId(), imp);
 									try {
 										patch.setPreprocessorScriptPath(script_path);
 									} catch (Throwable t) {
@@ -2249,6 +2343,7 @@ while (it.hasNext()) {
 										IJError.print(t);
 									}
 								}
+								
 								if (!homogenize_contrast) {
 									fus.add(regenerateMipMaps(patch));
 								}
@@ -2672,7 +2767,7 @@ while (it.hasNext()) {
 				// separate ZDisplayables into their own array
 				al_displ = new ArrayList<Displayable>(al_displ);
 				final HashSet<ZDisplayable> az = new HashSet<ZDisplayable>();
-				for (Iterator<?> it = al_displ.iterator(); it.hasNext(); ) {
+				for (final Iterator<?> it = al_displ.iterator(); it.hasNext(); ) {
 					Object ob = it.next();
 					if (ob instanceof ZDisplayable) {
 						it.remove();
