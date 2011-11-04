@@ -2837,7 +2837,8 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (final ZDisplayable zd : al_zdispl) {
-			if (zd.getClass() != c) continue;
+			if (instance_of && !c.isInstance(zd)) continue;
+			else if (zd.getClass() != c) continue;
 			if (zd.getBounds(null, layer).intersects(r)) al.add(zd);
 		}
 		return al;
