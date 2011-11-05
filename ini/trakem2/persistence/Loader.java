@@ -36,6 +36,7 @@ import ij.gui.Roi;
 import ij.gui.YesNoCancelDialog;
 import ij.io.DirectoryChooser;
 import ij.io.FileInfo;
+import ij.io.FileOpener;
 import ij.io.FileSaver;
 import ij.io.Opener;
 import ij.io.OpenDialog;
@@ -2229,31 +2230,13 @@ while (it.hasNext()) {
 									int type = parseInt(column[8].trim());
 									
 									if (-1 == type || -1 == o_width || -1 == o_height) {
-										// Read them from the header
-										IFormatReader fr = null;
-										fr = new ChannelSeparator();
-										fr.setGroupFiles(false);
-										fr.setId(imagefilepath);
-										o_width = fr.getSizeX();
-										o_height = fr.getSizeY();
-										
-										if (fr.isRGB()) {
-											type = ImagePlus.COLOR_RGB;
-										} else {
-											switch (fr.getPixelType()) {
-											case FormatTools.INT8:
-												type = ImagePlus.GRAY8;
-												break;
-											case FormatTools.INT16:
-												type = ImagePlus.GRAY16;
-												break;
-											case FormatTools.FLOAT:
-												type = ImagePlus.GRAY32;
-												break;
-											}
-										}
-										if (-1 == type) {
-											Utils.log("Could not identify image type for " + imagefilepath);
+										// Read them from the file header
+										ImageFileHeader ifh = new ImageFileHeader(imagefilepath);
+										o_width = ifh.width;
+										o_height = ifh.height;
+										type = ifh.type;
+										if (!ifh.isSupportedType()) {
+											Utils.log("Incompatible image type: " + imagefilepath);
 											return null;
 										}
 									}
@@ -2279,19 +2262,37 @@ while (it.hasNext()) {
 								@Override
 								public Patch call() throws Exception {
 									IJ.redirectErrorMessages();
-									ImagePlus imp = openImagePlus(imagefilepath);
-									if (null == imp) {
-										Utils.log("Ignoring unopenable image from " + imagefilepath);
+									ImageFileHeader ifh = new ImageFileHeader(imagefilepath);
+									int o_width = ifh.width;
+									int o_height = ifh.height;
+									int type = ifh.type;
+									if (!ifh.isSupportedType()) {
+										Utils.log("Incompatible image type: " + imagefilepath);
 										return null;
 									}
-									// add Patch
-									final Patch patch = new Patch(layer.getProject(), imp.getTitle(), xx, yy, imp);
-									addedPatchFrom(imagefilepath, patch);
+									double min = 0;
+									double max = 255;
 									
-									if (null != script_path) {
-										// cache the image for reuse in setting the script
-										cacheImagePlus(patch.getId(), imp);
+									switch (type) {
+										case ImagePlus.GRAY16:
+										case ImagePlus.GRAY32:
+											// Determine suitable min and max
+											// TODO Stream through the image, do not load it!
+											
+											ImagePlus imp = openImagePlus(imagefilepath);
+											if (null == imp) {
+												Utils.log("Ignoring unopenable image from " + imagefilepath);
+												return null;
+											}
+											min = imp.getProcessor().getMin();
+											max = imp.getProcessor().getMax();
+																				
+											break;
 									}
+									
+									// add Patch
+									final Patch patch = new Patch(layer.getProject(), new File(imagefilepath).getName(), o_width, o_height, o_width, o_height, type, 1.0f, Color.yellow, false, min ,max, new AffineTransform(1, 0, 0, 1, xx, yy), imagefilepath);
+									
 									
 									return patch;
 								}
