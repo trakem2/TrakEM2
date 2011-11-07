@@ -1992,17 +1992,27 @@ while (it.hasNext()) {
 		return importImages(ref_layer, null, null, 0, 0, false, 1);
 	}
 
-	/** Import images from the given text file, which is expected to contain 4 columns:<br />
-	 * - column 1: image file path (if base_dir is not null, it will be prepended)<br />
-	 * - column 2: x coord<br />
-	 * - column 3: y coord<br />
-	 * - column 4: z coord (layer_thickness will be multiplied to it if not zero)<br />
+	/** <p>Import images from the given text file, which is expected to contain 4 columns or optionally 9 columns:</p>
+	 * <ul>
+	 * <li>column 1: image file path (if base_dir is not null, it will be prepended)</li>
+	 * <li>column 2: x coord [px]</li>
+	 * <li>column 3: y coord [px]</li>
+	 * <li>column 4: z coord [px] (layer_thickness will be multiplied to it if not zero)</li>
+	 * </ul>
+	 * <p>optional columns, if a property is not known, it can be set to "-" which makes TrakEM2 open the file and find out by itself</p>
+	 * <ul>
+	 * <li>column 5: width [px]</li>
+	 * <li>column 6: height [px]</li>
+	 * <li>column 7: min intensity [double] (for screen display)</li>
+	 * <li>column 8: max intensity [double] (for screen display)</li>
+	 * <li>column 9: type [integer] (pixel types according to ImagepPlus types: 0=8bit int gray, 1=16bit int gray, 2=32bit float gray, 3=8bit indexed color, 4=32-bit RGB color</li>
+	 * </ul>
 	 * 
-	 * This function implements the "Import from text file" command.
+	 * <p>This function implements the "Import from text file" command.</p>
 	 *  
-	 * Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
+	 * <p>Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
 	 * The text file can contain comments that start with the # sign.<br />
-	 * Images will be imported in parallel, using as many cores as your machine has.<br />
+	 * Images will be imported in parallel, using as many cores as your machine has.</p>
 	 * @param calibration_ transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 * @param scale_ Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
@@ -2016,7 +2026,7 @@ while (it.hasNext()) {
 		if (null == column_separator_ || 0 == column_separator_.length() || Double.isNaN(layer_thickness_) || layer_thickness_ <= 0 || Double.isNaN(calibration_) || calibration_ <= 0) {
 			Calibration cal = ref_layer.getParent().getCalibrationCopy();
 			GenericDialog gdd = new GenericDialog("Options");
-			String[] separators = new String[]{"tab", "space", "coma (,)"};
+			String[] separators = new String[]{"tab", "space", "comma (,)"};
 			gdd.addMessage("Choose a layer to act as the zero for the Z coordinates:");
 			Utils.addLayerChoice("Base layer", ref_layer, gdd);
 			gdd.addChoice("Column separator: ", separators, separators[0]);
