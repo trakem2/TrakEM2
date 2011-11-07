@@ -128,10 +128,9 @@ public class Cache {
 			users.add(id);
 		}
 		/** When the number of users is zero, it removes itself from imps. */
-		final void removeUser(final Long id) {
+		final void removeUser(final Long id, final String path) {
 			users.remove(id);
 			if (users.isEmpty()) {
-				final String path = getPath(imp);
 				if (null != path) imps.remove(path); // path is null if the ImagePlus was preprocessed or didn't have an original FileInfo.
 			}
 		}
@@ -413,14 +412,15 @@ public class Cache {
 			if (null == p.imp) count++;
 			else if (imp != p.imp) {
 				// Remove from old
-				final ImagePlusUsers u1 = imps.get(getPath(p.imp));
-				u1.removeUser(id);
+				final String path1 = getPath(p.imp);
+				final ImagePlusUsers u1 = imps.get(path1);
+				u1.removeUser(id, path1);
 				// Add to new, which may have to be created
-				final String path = getPath(imp);
-				final ImagePlusUsers u2 = imps.get(path);
+				final String path2 = getPath(imp);
+				final ImagePlusUsers u2 = imps.get(path2);
 				if (null == u2) {
-					if (null != path) {
-						imps.put(path, new ImagePlusUsers(imp, id));
+					if (null != path2) {
+						imps.put(path2, new ImagePlusUsers(imp, id));
 					}
 				} else {
 					u2.addUser(id);
@@ -458,9 +458,10 @@ public class Cache {
 		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
 		//
-		final ImagePlusUsers u = imps.get(p);
+		final String path = getPath(imp);
+		final ImagePlusUsers u = imps.get(path);
 		if (null != u) {
-			u.removeUser(p.id);
+			u.removeUser(p.id, path);
 		}
 		if (null == u || u.users.isEmpty()) {
 			// Reclaim space only if the ImagePlus is no longer referenced
@@ -650,6 +651,8 @@ public class Cache {
 			ImagePlusUsers u = e.getValue();
 			Utils.log2(u.users.size() + " ImagePlusUsers of " + e.getKey());
 		}
+		Utils.log2("----");
+		Utils.log2("imps: " + imps.size());
 		Utils.log2("----");
 		// Analytics
 		Utils.log2("count is: " + count + ", size is: " + bytes + " / " + max_bytes + ", intervals.size = " + intervals.size() + ", pyr.size = " + pyramids.size());
