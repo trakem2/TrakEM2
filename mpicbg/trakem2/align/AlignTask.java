@@ -331,20 +331,23 @@ final public class AlignTask
 			final List< Layer > layers ) throws Exception
 	{
 		int i = 0;
-		for ( final Layer layer : layers )
+A:		for ( final Layer layer : layers )
 		{
 			if ( Thread.currentThread().isInterrupted() ) return;
 			Collection< Displayable > patches = layer.getDisplayables( Patch.class, true );
 			if ( patches.isEmpty() ) continue;
 			final ArrayList< Patch > patchesList = new ArrayList< Patch >();
 			for ( final Displayable d : patches )
+			{
 				if ( Patch.class.isInstance( d ) )
-					patchesList.add( ( Patch )d );
-			for (final Displayable patch : patches) {
-				if ( patch.isLinked() && !patch.isOnlyLinkedTo( Patch.class ) )
 				{
-					Utils.log( "Cannot montage layer " + layer + "\nReason: at least one Patch is linked to non-image data: " + patch );
-					continue;
+					final Patch patch = ( Patch )d;
+					patchesList.add( patch );
+					if ( patch.isLinked() && !patch.isOnlyLinkedTo( Patch.class ) )
+					{
+						Utils.log( "Cannot montage layer " + layer + "\nReason: at least one Patch is linked to non-image data: " + patch );
+						continue A;
+					}
 				}
 			}
 			Utils.log("====\nMontaging layer " + layer);
