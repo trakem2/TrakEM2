@@ -454,16 +454,13 @@ public class Cache {
 	private final ImagePlus removeImagePlus(final Pyramid p) {
 		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
+		
 		//
 		final ImagePlusUsers u = imps.get(p);
-		if (null == u) {
-			// TODO why isn't p a key of the imps map?
-			return null;
+		if (null != u) {
+			u.removeUser(p.id);
 		}
-		u.removeUser(p.id);
-		if (u.users.isEmpty()) {
-			addBytes(p.replace(null));
-		}
+		addBytes(p.replace(null));
 		//
 		count--;
 		if (0 == p.n_images) {
