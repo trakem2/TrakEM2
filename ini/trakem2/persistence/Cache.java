@@ -130,7 +130,10 @@ public class Cache {
 		/** When the number of users is zero, it removes itself from imps. */
 		final void removeUser(final Long id) {
 			users.remove(id);
-			if (users.isEmpty()) imps.remove(getPath(imp));
+			if (users.isEmpty()) {
+				final String path = getPath(imp);
+				if (null != path) imps.remove(path); // path is null if the ImagePlus was preprocessed or didn't have an original FileInfo.
+			}
 		}
 	}
 	
@@ -454,18 +457,21 @@ public class Cache {
 	private final ImagePlus removeImagePlus(final Pyramid p) {
 		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
-		
 		//
 		final ImagePlusUsers u = imps.get(p);
 		if (null != u) {
 			u.removeUser(p.id);
 		}
-		addBytes(p.replace(null));
-		//
-		count--;
-		if (0 == p.n_images) {
-			p.interval.remove(p.id);
-			pyramids.remove(p.id);
+		if (null == u || u.users.isEmpty()) {
+			// Reclaim space only if the ImagePlus is no longer referenced
+			// (u is null if the ImagePlus was preprocessed)
+			addBytes(p.replace(null));
+			count--;
+			//
+			if (0 == p.n_images) {
+				p.interval.remove(p.id);
+				pyramids.remove(p.id);
+			}
 		}
 		return imp;
 	}
