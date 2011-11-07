@@ -90,28 +90,28 @@ public class Cache {
 		}
 
 		/** Returns the number of bytes used/free (positive/negative). */
-		final long replace(final ImagePlus imp) {
-			if (null == imp) {
+		final long replace(final ImagePlus impNew) {
+			if (null == impNew) {
 				if (null == this.imp) return 0; // A: both null
 				// B: this.imp is not null; some bytes to be free
 				long b = -Cache.size(this.imp);
-				this.imp = imp; // nullifying
+				this.imp = impNew; // nullifying
 				return b;
 			} else {
 				// imp is not null:
 				if (null == this.imp) {
 					// C: this.imp is null; some bytes to be used
-					this.imp = imp;
-					return Cache.size(imp);
+					this.imp = impNew;
+					return Cache.size(impNew);
 				} else {
 					// D: both not null
-					if (this.imp.getType() == imp.getType() && this.imp.getWidth() == imp.getWidth() && this.imp.getHeight() == imp.getHeight()) {
-						this.imp = imp;
+					if (this.imp.getType() == impNew.getType() && this.imp.getWidth() == impNew.getWidth() && this.imp.getHeight() == impNew.getHeight()) {
+						this.imp = impNew;
 						return 0; // ImageProcessor is of identical dimensions
 					}
 					// else:
-					this.imp = imp;
-					return Cache.size(imp) - Cache.size(this.imp); // ImageProcessor may be different
+					this.imp = impNew;
+					return Cache.size(impNew) - Cache.size(this.imp); // ImageProcessor may be different
 				}
 			}
 		}
