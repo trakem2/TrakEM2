@@ -117,7 +117,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		/**
 		 * Visualize spring mesh optimization
 		 */
-		public boolean visualize = false;
+		public boolean visualize = true;
 		
 		/**
 		 * Change this in case you want to limit the number of parallel threads to a specific number.
@@ -384,8 +384,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 		patches.get( 0 ).getProject().getLoader().releaseAll();
 		
 		/* create tiles and models for all patches */
-		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+		final ArrayList< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final ArrayList< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( param.po, patches, fixedPatches, tiles, fixedTiles );
 		
 		if ( !param.isAligned )
@@ -529,34 +529,41 @@ public class ElasticMontage extends AbstractElasticAlignment
 			FloatProcessor fp2 = ( FloatProcessor )pi2.target.convertToFloat();
 			ByteProcessor mask2 = pi2.getMask();
 			FloatProcessor fpMask2 = mask2 == null ? null : scaleByte( mask2 );
-						
-			BlockMatching.matchByMaximalPMCC(
-					fp1,
-					fp2,
-					fpMask1,
-					fpMask2,
-					param.bmScale,
-					pair.c,
-					blockRadius,
-					blockRadius,
-					searchRadius,
-					searchRadius,
-					param.bmMinR,
-					param.bmRodR,
-					param.bmMaxCurvatureR,
-					v1,
-					pm12,
-					new ErrorStatistic( 1 ) );
-
-			if ( param.bmUseLocalSmoothnessFilter )
+			
+			if ( !fixedTiles.contains( t1 ) )
 			{
-				Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
-				localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
-				Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': " + pm12.size() + " candidates passed local smoothness filter." );
+				BlockMatching.matchByMaximalPMCC(
+						fp1,
+						fp2,
+						fpMask1,
+						fpMask2,
+						param.bmScale,
+						pair.c,
+						blockRadius,
+						blockRadius,
+						searchRadius,
+						searchRadius,
+						param.bmMinR,
+						param.bmRodR,
+						param.bmMaxCurvatureR,
+						v1,
+						pm12,
+						new ErrorStatistic( 1 ) );
+	
+				if ( param.bmUseLocalSmoothnessFilter )
+				{
+					Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
+					localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
+					Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': " + pm12.size() + " candidates passed local smoothness filter." );
+				}
+				else
+				{
+					Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondences." );
+				}
 			}
 			else
 			{
-				Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondences." );
+				Utils.log( "Skipping fixed patch `" + patchName1 + "'." );
 			}
 
 //			/* <visualisation> */
@@ -569,33 +576,40 @@ public class ElasticMontage extends AbstractElasticAlignment
 //			//			imp1.updateAndDraw();
 //			/* </visualisation> */
 
-			BlockMatching.matchByMaximalPMCC(
-					fp2,
-					fp1,
-					fpMask2,
-					fpMask1,
-					param.bmScale,
-					pair.c.createInverse(),
-					blockRadius,
-					blockRadius,
-					searchRadius,
-					searchRadius,
-					param.bmMinR,
-					param.bmRodR,
-					param.bmMaxCurvatureR,
-					v2,
-					pm21,
-					new ErrorStatistic( 1 ) );
-
-			if ( param.bmUseLocalSmoothnessFilter )
+			if ( !fixedTiles.contains( t2 ) )
 			{
-				Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
-				localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
-				Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': " + pm21.size() + " candidates passed local smoothness filter." );
+				BlockMatching.matchByMaximalPMCC(
+						fp2,
+						fp1,
+						fpMask2,
+						fpMask1,
+						param.bmScale,
+						pair.c.createInverse(),
+						blockRadius,
+						blockRadius,
+						searchRadius,
+						searchRadius,
+						param.bmMinR,
+						param.bmRodR,
+						param.bmMaxCurvatureR,
+						v2,
+						pm21,
+						new ErrorStatistic( 1 ) );
+	
+				if ( param.bmUseLocalSmoothnessFilter )
+				{
+					Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
+					localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, param.bmLocalRegionSigma, param.bmMaxLocalEpsilon, param.bmMaxLocalTrust );
+					Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': " + pm21.size() + " candidates passed local smoothness filter." );
+				}
+				else
+				{
+					Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondences." );
+				}
 			}
 			else
 			{
-				Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondences." );
+				Utils.log( "Skipping fixed patch `" + patchName2 + "'." );
 			}
 			
 			/* <visualisation> */
@@ -656,33 +670,36 @@ public class ElasticMontage extends AbstractElasticAlignment
 		for ( Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() ) 
 		{
 			final AbstractAffineTile2D< ? > tile = entry.getKey();
-			final Patch patch = tile.getPatch();
-			final SpringMesh mesh = entry.getValue();
-			final Set< PointMatch > matches = mesh.getVA().keySet();
-			Rectangle box = patch.getCoordinateTransformBoundingBox();
-			
-			/* compensate for existing coordinate transform bounding box */
-			for ( final PointMatch pm : matches )
+			if ( !fixedTiles.contains( tile ) )
 			{
-				final Point p1 = pm.getP1();
-				final float[] l = p1.getL();
-				l[ 0 ] += box.x;
-				l[ 1 ] += box.y;
+				final Patch patch = tile.getPatch();
+				final SpringMesh mesh = entry.getValue();
+				final Set< PointMatch > matches = mesh.getVA().keySet();
+				Rectangle box = patch.getCoordinateTransformBoundingBox();
+				
+				/* compensate for existing coordinate transform bounding box */
+				for ( final PointMatch pm : matches )
+				{
+					final Point p1 = pm.getP1();
+					final float[] l = p1.getL();
+					l[ 0 ] += box.x;
+					l[ 1 ] += box.y;
+				}
+				
+				final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
+				mlt.setModel( AffineModel2D.class );
+				mlt.setAlpha( 2.0f );
+				mlt.setMatches( matches );
+				
+				patch.appendCoordinateTransform( mlt );
+				box = patch.getCoordinateTransformBoundingBox();
+				
+				patch.getAffineTransform().setToTranslation( box.x, box.y );
+				patch.updateInDatabase( "transform" );
+				patch.updateBucket();
+				
+				patch.updateMipMaps();
 			}
-			
-			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
-			mlt.setModel( AffineModel2D.class );
-			mlt.setAlpha( 2.0f );
-			mlt.setMatches( matches );
-			
-			patch.appendCoordinateTransform( mlt );
-			box = patch.getCoordinateTransformBoundingBox();
-			
-			patch.getAffineTransform().setToTranslation( box.x, box.y );
-			patch.updateInDatabase( "transform" );
-			patch.updateBucket();
-			
-			patch.updateMipMaps();
 		}
 		
 		Utils.log( "Done." );
