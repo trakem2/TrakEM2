@@ -562,7 +562,6 @@ public final class FSLoader extends Loader {
 				if (null != imp) {
 					mawts.put(p.getId(), imp, (int)Math.max(p.getWidth(), p.getHeight()));
 				}
-				Utils.log2("found cached imp: " + imp + " for path: " + path);
 			}
 			if (null != imp) {
 				// was loaded by a different thread
