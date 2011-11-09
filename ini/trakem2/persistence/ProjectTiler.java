@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
-import mpicbg.trakem2.transform.ExportUnsignedShortLayer;
+import mpicbg.trakem2.transform.ExportUnsignedShort;
 import mpicbg.trakem2.transform.ExportedTile;
 
 public class ProjectTiler {
@@ -158,7 +158,7 @@ public class ProjectTiler {
 			final ArrayList<Patch> patches = new ArrayList<Patch>();
 			if (ImagePlus.GRAY16 == exportImageType) {
 				Process.progressive(
-						ExportUnsignedShortLayer.exportTiles(srcLayer, tileWidth, tileHeight, onlyVisibleImages),
+						ExportUnsignedShort.exportTiles(srcLayer, tileWidth, tileHeight, onlyVisibleImages),
 						new CountingTaskFactory<Callable<ExportedTile>, Patch>() {
 							public Patch process(final Callable<ExportedTile> c, final int index) {
 								try {

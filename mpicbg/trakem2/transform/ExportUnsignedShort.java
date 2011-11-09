@@ -23,7 +23,7 @@ import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.trakem2.util.Triple;
 
-public class ExportUnsignedShortLayer
+public class ExportUnsignedShort
 {
 	static protected class PatchIntensityRange
 	{
@@ -328,7 +328,11 @@ public class ExportUnsignedShortLayer
 	 * @param roi
 	 * @return
 	 */
-	static public ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi) {
+	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi) {
+		return makeFlatImage(patches, roi, 0);
+	}
+	
+	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue) {
 		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
 		double min = Double.MAX_VALUE;
 		double max = -Double.MAX_VALUE;
@@ -348,6 +352,11 @@ public class ExportUnsignedShortLayer
 		
 		final ShortProcessor sp = new ShortProcessor( roi.width, roi.height );
 		sp.setMinAndMax( minI, maxI );
+		if (0 != backgroundValue) {
+			sp.setValue(backgroundValue);
+			sp.setRoi(0, 0, roi.width, roi.height);
+			sp.fill();
+		}
 		
 		for ( final PatchIntensityRange pir : patchIntensityRanges )
 		{
@@ -355,5 +364,13 @@ public class ExportUnsignedShortLayer
 		}
 		
 		return sp;
+	}
+
+	static public final ImageStack makeFlatImageStack(final List<Layer> layers, final Rectangle roi, final double backgroundValue) {
+		final ImageStack stack = new ImageStack(roi.width, roi.height);
+		for (final Layer layer : layers) {
+			stack.addSlice("", makeFlatImage((List<Patch>)(List)layer.getDisplayables(Patch.class, true), roi, backgroundValue));
+		}
+		return stack;
 	}
 }
