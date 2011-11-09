@@ -14,6 +14,7 @@ import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.Callable;
 
 import mpicbg.models.CoordinateTransform;
@@ -319,5 +320,40 @@ public class ExportUnsignedShortLayer
 				};
 			}
 		};
+	}
+
+	/** Create a flat image into which Patch instances are transferred considering their min and max values.
+	 * 
+	 * @param patches
+	 * @param roi
+	 * @return
+	 */
+	static public ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi) {
+		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
+		double min = Double.MAX_VALUE;
+		double max = -Double.MAX_VALUE;
+		for ( final Displayable d : patches )
+		{
+			final Patch patch = ( Patch )d;
+			final PatchIntensityRange pir = new PatchIntensityRange( patch );
+			if ( pir.min < min )
+				min = pir.min;
+			if ( pir.max > max )
+				max = pir.max;
+			patchIntensityRanges.add( pir );
+		}
+		
+		final double minI = -min * 65535.0 / ( max - min );
+		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
+		
+		final ShortProcessor sp = new ShortProcessor( roi.width, roi.height );
+		sp.setMinAndMax( minI, maxI );
+		
+		for ( final PatchIntensityRange pir : patchIntensityRanges )
+		{
+			map( new PatchTransform( pir ), roi.x, roi.y, mapIntensities( pir, min, max ), sp );
+		}
+		
+		return sp;
 	}
 }
