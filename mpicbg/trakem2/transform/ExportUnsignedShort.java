@@ -366,6 +366,13 @@ public class ExportUnsignedShort
 		return sp;
 	}
 
+	/**
+	 *  Returns a stack of ShortProcessor, with dimensions as in the {@param roi}.
+	 * @param layers
+	 * @param roi
+	 * @param backgroundValue
+	 * @return
+	 */
 	static public final ImageStack makeFlatImageStack(final List<Layer> layers, final Rectangle roi, final double backgroundValue) {
 		final ImageStack stack = new ImageStack(roi.width, roi.height);
 		for (final Layer layer : layers) {
