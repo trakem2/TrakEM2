@@ -837,6 +837,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		String parentTitle = pt.getParent().toString();
 		int k = 0;
 		boolean matched = false;
+		// First search for exact match
 		for (final String candidate : landing) {
 			if (candidate.equals(parentTitle)) {
 				matched = true;
@@ -844,7 +845,20 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			}
 			k += 1;
 		}
-		if (!matched) k = 0;
+		// If not matched, find one that contains the string
+		if (!matched) {
+			k = 0;
+			for (final String candidate : landing) {
+				if (-1 != candidate.indexOf(parentTitle)) {
+					matched = true;
+					break;
+				}
+				k += 1;
+			}
+		}
+		if (!matched) {
+			k = 0;
+		}
 
 		// Ask:
 		GenericDialog gd = new GenericDialog("Send to sibling project");
