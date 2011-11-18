@@ -42,23 +42,30 @@ public abstract class AbstractOffscreenThread extends Thread {
 		synchronized (this) {
 			this.rp = rp;
 			this.mustRepaint.set(true);
-			notify();
+			notifyAll();
 		}
 	}
 
 	public void run() {
 		while (!isInterrupted()) {
 			try {
-				synchronized (this) {
-					if (mustRepaint.getAndSet(false)) {
-						paint();
-					} else {
+				if (mustRepaint.getAndSet(false)) {
+					paint();
+				} else {
+					synchronized (this) {
 						try { wait(); } catch (InterruptedException ie) {}
 					}
 				}
 			} catch (Exception e) {
 				IJError.print(e);
 			}
+		}
+	}
+	
+	public void quit() {
+		interrupt();
+		synchronized (this) {
+			notifyAll();
 		}
 	}
 

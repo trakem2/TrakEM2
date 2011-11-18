@@ -1356,12 +1356,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			synchronized (this) {
 				//Utils.log2("in");
 				this.me = me;
-				notify();
+				notifyAll();
 			}
 		}
 		void quit() {
 			interrupt();
-			synchronized (this) { notify(); }
+			synchronized (this) { notifyAll(); }
 		}
 		public void run() {
 			while (!isInterrupted()) {
@@ -1375,6 +1375,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						// Release the pointer
 						me = null;
 						this.me = null;
+						if (isInterrupted()) return;
 						// Wait until there is a new event
 						try { wait(); } catch (Exception e) {}
 					}
@@ -1714,6 +1715,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Release offscreen images and stop threads. */
 	public void flush() {
+		Utils.log2("quit canvas RT");
 		// cleanup update graphics thread if any
 		RT.quit();
 		synchronized (offscreen_lock) {
@@ -1731,6 +1733,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			cancelAnimations();
 		} catch (Exception e) {}
 		animator = null;
+		Utils.log2("flushed canvas!");
 	}
 
 	public void destroy() {

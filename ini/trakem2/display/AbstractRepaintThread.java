@@ -64,7 +64,7 @@ public abstract class AbstractRepaintThread extends Thread {
 		// queue the event and signal a repaint request
 		synchronized (events) {
 			events.add(new PaintEvent(clipRect, update_graphics));
-			events.notify();
+			events.notifyAll();
 		}
 	}
 
@@ -73,8 +73,10 @@ public abstract class AbstractRepaintThread extends Thread {
 		interrupt();
 		// notify and finish
 		synchronized (events) {
-			events.notify();
+			events.notifyAll();
 		}
+		//
+		off.quit();
 	}
 
 	public void run() {
@@ -82,14 +84,14 @@ public abstract class AbstractRepaintThread extends Thread {
 			try {
 				// wait until anyone issues a repaint event
 				synchronized (events) {
-					if (0 == events.size() && !isInterrupted()) {
+					while (0 == events.size()) {
+						if (isInterrupted()) return;
 						try { events.wait(); } catch (InterruptedException ie) {}
 					}
 				}
 
 				if (isInterrupted()) {
-					off.interrupt();
-					return; // finish
+					return;
 				}
 
 				// wait a bit to catch fast subsequent events
@@ -104,7 +106,6 @@ public abstract class AbstractRepaintThread extends Thread {
 					events.clear();
 				}
 				if (0 == pe.length) {
-					Utils.log2("No repaint events (?)");
 					continue;
 				}
 
