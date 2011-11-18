@@ -346,6 +346,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			while (!isInterrupted()) {
 				while (null == this.layer) {
 					synchronized (this) {
+						if (isInterrupted()) return;
 						try { wait(); } catch (InterruptedException ie) {}
 					}
 				}
