@@ -623,113 +623,115 @@ A:		for ( final Layer layer : layers )
 		 final LayerSet target_layerset) 		/* The LayerSet in which the vdata and the transformed images exist. */
 	{
 		final ExecutorService exec = Utils.newFixedThreadPool("AlignTask-transformVectorData");
-		final Collection<Future<?>> fus = new ArrayList<Future<?>>();
+		
+		try {
+			final Collection<Future<?>> fus = new ArrayList<Future<?>>();
 
-		final HashMap<Long,Layer> lidm = new HashMap<Long,Layer>();
-		for (final Long lid : rd.src_layer_lids_used) {
-			Layer la = target_layerset.getLayer(lid.longValue());
-			if (null == la) {
-				Utils.log("ERROR layer with id " + lid + " NOT FOUND in target layerset!");
-				continue;
+			final HashMap<Long,Layer> lidm = new HashMap<Long,Layer>();
+			for (final Long lid : rd.src_layer_lids_used) {
+				Layer la = target_layerset.getLayer(lid.longValue());
+				if (null == la) {
+					Utils.log("ERROR layer with id " + lid + " NOT FOUND in target layerset!");
+					continue;
+				}
+				lidm.put(lid, la);
 			}
-			lidm.put(lid, la);
-		}
 
-		for (final Map.Entry<Displayable,Map<Long,TreeMap<Integer,Long>>> ed : rd.underlying.entrySet()) {
-			final Displayable d = ed.getKey(); // The VectorData instance to transform
-			// Process Displayables concurrently:
-			fus.add(exec.submit(new Runnable() { public void run() {
-				for (final Map.Entry<Long,TreeMap<Integer,Long>> el : ed.getValue().entrySet()) {
-					// The entry has the id of the layer and the stack-index-ordered list of Patch that intersect VectorData d in that Layer
-					final Layer layer = lidm.get(el.getKey());
-					if (null == layer) {
-						Utils.log("ERROR layer with id " + el.getKey() + " NOT FOUND in target layerset!");
-						continue;
-					}
-					//Utils.log("Editing Displayable " + d + " at layer " + layer);
-					final ArrayList<Long> pids = new ArrayList<Long>(el.getValue().values()); // list of Patch ids affecting VectorData/Displayable d
-					Collections.reverse(pids); // so now Patch ids are sorted from top to bottom
-					// The area already processed in the layer
-					final Area used_area = new Area();
-					// The map of areas vs transforms for each area to apply to the VectorData, to its data within the layer only
-					final VectorDataTransform vdt = new VectorDataTransform(layer);
-					// The list of transforms to apply to each VectorData
-					for (final long pid : pids) {
-						// Find the Patch with id 'pid' in Layer 'la' of the target LayerSet:
-						final DBObject ob = layer.findById(pid);
-						if (null == ob || !(ob instanceof Patch)) {
-							Utils.log("ERROR layer with id " + layer.getId() + " DOES NOT CONTAIN a Patch with id " + pid);
+			for (final Map.Entry<Displayable,Map<Long,TreeMap<Integer,Long>>> ed : rd.underlying.entrySet()) {
+				final Displayable d = ed.getKey(); // The VectorData instance to transform
+				// Process Displayables concurrently:
+				fus.add(exec.submit(new Runnable() { public void run() {
+					for (final Map.Entry<Long,TreeMap<Integer,Long>> el : ed.getValue().entrySet()) {
+						// The entry has the id of the layer and the stack-index-ordered list of Patch that intersect VectorData d in that Layer
+						final Layer layer = lidm.get(el.getKey());
+						if (null == layer) {
+							Utils.log("ERROR layer with id " + el.getKey() + " NOT FOUND in target layerset!");
 							continue;
 						}
-						final Patch patch = (Patch)ob;
-						final Patch.TransformProperties props = rd.tp.get(pid); // no need to synch, read only from now on
-						if (null == props) {
-							Utils.log("ERROR: could not find any Patch.TransformProperties for patch " + patch);
-							continue;
-						}
-						final Area a = new Area(props.area);
-						a.subtract(used_area);
-						if (M.isEmpty(a)) {
-							continue; // skipping fully occluded Patch
-						}
-						// Accumulate:
-						used_area.add(props.area);
+						//Utils.log("Editing Displayable " + d + " at layer " + layer);
+						final ArrayList<Long> pids = new ArrayList<Long>(el.getValue().values()); // list of Patch ids affecting VectorData/Displayable d
+						Collections.reverse(pids); // so now Patch ids are sorted from top to bottom
+						// The area already processed in the layer
+						final Area used_area = new Area();
+						// The map of areas vs transforms for each area to apply to the VectorData, to its data within the layer only
+						final VectorDataTransform vdt = new VectorDataTransform(layer);
+						// The list of transforms to apply to each VectorData
+						for (final long pid : pids) {
+							// Find the Patch with id 'pid' in Layer 'la' of the target LayerSet:
+							final DBObject ob = layer.findById(pid);
+							if (null == ob || !(ob instanceof Patch)) {
+								Utils.log("ERROR layer with id " + layer.getId() + " DOES NOT CONTAIN a Patch with id " + pid);
+								continue;
+							}
+							final Patch patch = (Patch)ob;
+							final Patch.TransformProperties props = rd.tp.get(pid); // no need to synch, read only from now on
+							if (null == props) {
+								Utils.log("ERROR: could not find any Patch.TransformProperties for patch " + patch);
+								continue;
+							}
+							final Area a = new Area(props.area);
+							a.subtract(used_area);
+							if (M.isEmpty(a)) {
+								continue; // skipping fully occluded Patch
+							}
+							// Accumulate:
+							used_area.add(props.area);
 
-						// For the remaining area within this Layer, define a transform
-						// Generate a CoordinateTransformList that includes:
-						// 1 - an inverted transform from Patch coords to world coords
-						// 2 - the CoordinateTransform of the Patch, if any
-						// 3 - the AffineTransform of the Patch
-						//
-						// The idea is to first send the data from world to pixel space of the Patch, using the old transfroms,
-						// and then from pixel space of the Patch to world, using the new transforms.
-				
+							// For the remaining area within this Layer, define a transform
+							// Generate a CoordinateTransformList that includes:
+							// 1 - an inverted transform from Patch coords to world coords
+							// 2 - the CoordinateTransform of the Patch, if any
+							// 3 - the AffineTransform of the Patch
+							//
+							// The idea is to first send the data from world to pixel space of the Patch, using the old transfroms,
+							// and then from pixel space of the Patch to world, using the new transforms.
 
-						final CoordinateTransformList tlist = new CoordinateTransformList();
-						// 1. Inverse of the old affine: from world into the old patch mipmap
-						final mpicbg.models.AffineModel2D aff_inv = new mpicbg.models.AffineModel2D();
-						try {
-							aff_inv.set(props.at.createInverse());
-						} catch (NoninvertibleTransformException nite) {
-							Utils.log("ERROR: could not invert the affine transform for Patch " + patch);
-							IJError.print(nite);
-							continue;
-						}
-						tlist.add(aff_inv);
 
-						// 2. Inverse of the old coordinate transform of the Patch: from old mipmap to pixels in original image
-						if (null != props.ct) {
-							// The props.ct is a CoordinateTransform, not necessarily an InvertibleCoordinateTransform
-							// So the mesh is necessary to ensure the invertibility
-							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, props.meshResolution, props.o_width, props.o_height);
-							/* // Apparently not needed; the inverse affine in step 1 took care of it.
-							 * // (the affine of step 1 includes the mesh translation)
+							final CoordinateTransformList tlist = new CoordinateTransformList();
+							// 1. Inverse of the old affine: from world into the old patch mipmap
+							final mpicbg.models.AffineModel2D aff_inv = new mpicbg.models.AffineModel2D();
+							try {
+								aff_inv.set(props.at.createInverse());
+							} catch (NoninvertibleTransformException nite) {
+								Utils.log("ERROR: could not invert the affine transform for Patch " + patch);
+								IJError.print(nite);
+								continue;
+							}
+							tlist.add(aff_inv);
+
+							// 2. Inverse of the old coordinate transform of the Patch: from old mipmap to pixels in original image
+							if (null != props.ct) {
+								// The props.ct is a CoordinateTransform, not necessarily an InvertibleCoordinateTransform
+								// So the mesh is necessary to ensure the invertibility
+								mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, props.meshResolution, props.o_width, props.o_height);
+								/* // Apparently not needed; the inverse affine in step 1 took care of it.
+								 * // (the affine of step 1 includes the mesh translation)
 							Rectangle box = mesh.getBoundingBox();
 							AffineModel2D aff = new AffineModel2D();
 							aff.set(new AffineTransform(1, 0, 0, 1, box.x, box.y));
 							tlist.add(aff);
-							*/
-							tlist.add(new InverseICT(mesh));
-						}
+								 */
+								tlist.add(new InverseICT(mesh));
+							}
 
-						// 3. New coordinate transform of the Patch: from original image to new mipmap
-						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
-						if (null != ct) {
-							tlist.add(ct);
-							mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, patch.getMeshResolution(), patch.getOWidth(), patch.getOHeight());
-							// correct for mesh bounds -- Necessary because it comes from the other side, and the removal of the translation here is re-added by the affine in step 4!
-							Rectangle box = mesh.getBoundingBox();
-							AffineModel2D aff = new AffineModel2D();
-							aff.set(new AffineTransform(1, 0, 0, 1, -box.x, -box.y));
-							tlist.add(aff);
-						}
+							// 3. New coordinate transform of the Patch: from original image to new mipmap
+							final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
+							if (null != ct) {
+								tlist.add(ct);
+								mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, patch.getMeshResolution(), patch.getOWidth(), patch.getOHeight());
+								// correct for mesh bounds -- Necessary because it comes from the other side, and the removal of the translation here is re-added by the affine in step 4!
+								Rectangle box = mesh.getBoundingBox();
+								AffineModel2D aff = new AffineModel2D();
+								aff.set(new AffineTransform(1, 0, 0, 1, -box.x, -box.y));
+								tlist.add(aff);
+							}
 
-						// 4. New affine transform of the Patch: from mipmap to world
-						final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
-						new_aff.set(patch.getAffineTransform());
-						tlist.add(new_aff);
+							// 4. New affine transform of the Patch: from mipmap to world
+							final mpicbg.models.AffineModel2D new_aff = new mpicbg.models.AffineModel2D();
+							new_aff.set(patch.getAffineTransform());
+							tlist.add(new_aff);
 
-						/*
+							/*
 						// TODO Consider caching the tlist for each Patch, or for a few thousand of them maximum.
 						//      But it could blow up memory astronomically.
 
@@ -751,24 +753,28 @@ A:		for ( final Layer layer : layers )
 						tlist.add(new_aff);
 						final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
 						if (null != ct) tlist.add(ct);
-						*/
+							 */
 
-						vdt.add(a, tlist);
-					}
+							vdt.add(a, tlist);
+						}
 
-					// Apply the map of area vs tlist for the data section of d within the layer:
-					try {
-						((VectorData)d).apply(vdt);
-					} catch (Exception t) {
-						Utils.log("ERROR transformation failed for " + d + " at layer " + layer);
-						IJError.print(t);
+						// Apply the map of area vs tlist for the data section of d within the layer:
+						try {
+							((VectorData)d).apply(vdt);
+						} catch (Exception t) {
+							Utils.log("ERROR transformation failed for " + d + " at layer " + layer);
+							IJError.print(t);
+						}
 					}
-				}
-			}}));
+				}}));
+			}
+
+			Utils.wait(fus);
+			Display.repaint();
+		
+		} finally {
+			exec.shutdown();
 		}
-
-		Utils.wait(fus);
-		Display.repaint();
 	}
 
 	final static public void alignPatches(
