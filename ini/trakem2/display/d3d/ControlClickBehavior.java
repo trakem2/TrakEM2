@@ -21,10 +21,12 @@ the front TrakEM2 Display on the clicked point */
 public class ControlClickBehavior extends InteractiveBehavior {
 
 	protected Image3DUniverse universe;
+	protected LayerSet ls;
 
-	public ControlClickBehavior(Image3DUniverse univ) {
+	public ControlClickBehavior(Image3DUniverse univ, LayerSet ls) {
 		super(univ);
 		this.universe = univ;
+		this.ls = ls;
 	}
 
 	public void doProcess(MouseEvent e) {
@@ -42,12 +44,15 @@ public class ControlClickBehavior extends InteractiveBehavior {
 			Utils.log("No point was found on content "+content);
 			return;
 		}
-		Display display = Display.getFront();
+		Display display = Display.getFront(ls.getProject());
 		if(display==null) {
 			// If there's no Display, just return...
 			return;
 		}
-		LayerSet ls = display.getLayerSet();
+		if (display.getLayerSet() != ls) {
+			Utils.log("The LayerSet instances do not match");
+			return;
+		}
 		if(ls==null) {
 			Utils.log("No LayerSet was found for the Display");
 			return;

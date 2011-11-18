@@ -122,7 +122,7 @@ public final class Display3D {
 		// Add a behavior to catch control + mouse-click on
 		// objects in the 3D viewer and centre the front Display
 		// on that point:
-		this.universe.addInteractiveBehavior(new ControlClickBehavior(universe));
+		this.universe.addInteractiveBehavior(new ControlClickBehavior(universe, ls));
 		
 		this.universe.addUniverseListener(new UniverseListener() {
 			@Override
