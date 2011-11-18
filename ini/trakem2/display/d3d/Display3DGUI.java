@@ -483,26 +483,28 @@ public class Display3DGUI {
 		}
 		
 		private void update(final ContentTable table) {
-			final ArrayList<Content> cs = new ArrayList<Content>();
-			try {
-				final RegExFilter f = new RegExFilter(regexField.getText());
-				for (Object ob : getOrderedContents(univ)) {
-					Content c = (Content)ob;
-					if (f.accept(c.getName())) {
-						cs.add(c);
+			Utils.invokeLater(new Runnable() { public void run() {
+				final ArrayList<Content> cs = new ArrayList<Content>();
+				try {
+					final RegExFilter f = new RegExFilter(regexField.getText());
+					for (Object ob : getOrderedContents(univ)) {
+						Content c = (Content)ob;
+						if (f.accept(c.getName())) {
+							cs.add(c);
+						}
 					}
+				} catch (PatternSyntaxException pse) {
+					JOptionPane.showMessageDialog(univ.getWindow(), "Error parsing the regular expression:\n" + pse.getMessage());
+					cs.addAll(getOrderedContents(univ));
 				}
-			} catch (PatternSyntaxException pse) {
-				JOptionPane.showMessageDialog(univ.getWindow(), "Error parsing the regular expression:\n" + pse.getMessage());
-				cs.addAll(getOrderedContents(univ));
-			}
-			this.contents = cs;
-			fireTableDataChanged();
-			// Adjust cell width:
-			TableColumn tc = table.getColumnModel().getColumn(0);
-			Component label = table.getDefaultRenderer(getColumnClass(0))
-			                       .getTableCellRendererComponent(table, this.contents.size()-1, false, false, this.contents.size()-1, 0);
-			tc.setMaxWidth(label.getBounds().width + 10); // 10 pixels of padding
+				ContentTableModel.this.contents = cs;
+				fireTableDataChanged();
+				// Adjust cell width:
+				TableColumn tc = table.getColumnModel().getColumn(0);
+				Component label = table.getDefaultRenderer(getColumnClass(0))
+				.getTableCellRendererComponent(table, cs.size()-1, false, false, cs.size()-1, 0);
+				tc.setMaxWidth(label.getBounds().width + 10); // 10 pixels of padding
+			}});
 		}
 	}
 	
@@ -643,9 +645,11 @@ public class Display3DGUI {
 		public void transformationFinished(View arg0) {}
 		
 		@Override
-		public void contentSelected(Content c) {
-			int i = ((ContentTableModel)table.getModel()).contents.indexOf(c);
-			table.getSelectionModel().setSelectionInterval(i, i);
+		public void contentSelected(final Content c) {
+			Utils.invokeLater(new Runnable() { public void run() {
+				int i = ((ContentTableModel)table.getModel()).contents.indexOf(c);
+				table.getSelectionModel().setSelectionInterval(i, i);
+			}});
 		}
 		
 		@Override
