@@ -36,7 +36,6 @@ import ij.gui.Roi;
 import ij.gui.YesNoCancelDialog;
 import ij.io.DirectoryChooser;
 import ij.io.FileInfo;
-import ij.io.FileOpener;
 import ij.io.FileSaver;
 import ij.io.Opener;
 import ij.io.OpenDialog;
@@ -130,7 +129,6 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import loci.formats.ChannelSeparator;
 import loci.formats.FormatException;
-import loci.formats.FormatTools;
 import loci.formats.IFormatReader;
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */

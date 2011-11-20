@@ -24,7 +24,6 @@ package ini.trakem2.display;
 
 //import java.awt.Canvas;
 import javax.swing.JPanel;
-import java.awt.Image;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
