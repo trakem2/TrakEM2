@@ -96,6 +96,7 @@ import java.io.ObjectOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.util.HashMap;
 import java.util.List;
 import java.util.ArrayList;
@@ -3651,7 +3652,7 @@ while (it.hasNext()) {
 		if (null == project || null == fxml) return null;
 		
 		releaseToFit(estimateXMLFileSize(fxml));
-	
+		
 		try {
 			if (export_images && !(this instanceof FSLoader))  {
 				final YesNoCancelDialog yn = ini.trakem2.ControlWindow.makeYesNoCancelDialog("Export images?", "Export images as well?");
@@ -3659,14 +3660,7 @@ while (it.hasNext()) {
 				if (yn.yesPressed()) export_images = true;
 				else export_images = false; // 'no' option
 			}
-			// 1 - get headers in DTD format
-			StringBuilder sb_header = new StringBuilder(30000).append("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 
-			project.exportDTD(sb_header, new HashSet<String>(), "\t");
-
-			sb_header.append("] >\n\n");
-
-			//  2 - fill in the data
 			String patches_dir = null;
 			if (export_images) {
 				patches_dir = makePatchesDir(fxml);
@@ -3678,17 +3672,16 @@ while (it.hasNext()) {
 
 			final File ftmp = IJ.isWindows() ? fxml : new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
 			final FileOutputStream fos = new FileOutputStream(ftmp);
+			
 			java.io.Writer writer;
 			if (fxml.getName().endsWith(".xml.gz")) {
 				writer = new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(fos)), "8859_1");
 			} else {
 				writer = new OutputStreamWriter(new BufferedOutputStream(fos), "8859_1");
 			}
+
 			try {
-				writer.write(sb_header.toString());
-				sb_header = null;
-				project.exportXML(writer, "", patches_dir);
-				writer.flush(); // make sure all buffered chars are written
+				writeXMLTo(project, writer, patches_dir);
 				fos.getFD().sync(); // ensure the file is synch'ed with the file system, given that we are going to rename it after closing it.
 			} catch (Exception e) {
 				Utils.log("FAILED to write to the file at " + fxml);
@@ -3754,6 +3747,22 @@ while (it.hasNext()) {
 		}
 		ControlWindow.updateTitle(project);
 		return path;
+	}
+
+	/** Write the project as XML.
+	 * 
+	 * @param project
+	 * @param writer
+	 * @param patches_dir Null if images are not being exported.
+	 * */
+	public void writeXMLTo(final Project project, final Writer writer, final String patches_dir) throws Exception {
+			StringBuilder sb_header = new StringBuilder(30000).append("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
+			project.exportDTD(sb_header, new HashSet<String>(), "\t");
+			sb_header.append("] >\n\n");
+			writer.write(sb_header.toString());
+			sb_header = null;
+			project.exportXML(writer, "", patches_dir);
+			writer.flush(); // make sure all buffered chars are written
 	}
 
 	static protected long countObjects(final LayerSet ls) {
