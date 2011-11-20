@@ -33,6 +33,7 @@ import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.RedPhone;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.StdOutWindow;
@@ -66,6 +67,8 @@ public class ControlWindow {
 	static private ControlWindow instance = null;
 	/** Control changes to the instance. */
 	static private final Object LOCK = new Object();
+	
+	private final RedPhone red_phone = new RedPhone();
 
 	static private boolean gui_enabled = true;
 
@@ -82,6 +85,7 @@ public class ControlWindow {
 		Display3D.init();
 		setLookAndFeel();
 		this.command_listener = new ImageJCommandListener();
+		this.red_phone.start();
 	}
 	
 	// private to the package
@@ -184,6 +188,7 @@ public class ControlWindow {
 			Loader.destroyPreloader(instance);
 			instance.command_listener.destroy();
 			instance.command_listener = null;
+			if (null != instance.red_phone) instance.red_phone.quit();
 			instance = null;
 		}
 	}
