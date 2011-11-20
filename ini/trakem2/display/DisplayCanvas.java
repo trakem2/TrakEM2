@@ -1715,7 +1715,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Release offscreen images and stop threads. */
 	public void flush() {
-		Utils.log2("quit canvas RT");
 		// cleanup update graphics thread if any
 		RT.quit();
 		synchronized (offscreen_lock) {
@@ -1733,7 +1732,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			cancelAnimations();
 		} catch (Exception e) {}
 		animator = null;
-		Utils.log2("flushed canvas!");
 	}
 
 	public void destroy() {
