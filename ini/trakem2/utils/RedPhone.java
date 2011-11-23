@@ -24,7 +24,7 @@ import java.util.Set;
  * try to save all {@link FSLoader} projects to XML files.
  * 
  * For example:
- *  $ telnet 29391
+ *  $ telnet localhost 29391
  *  > save
  *  Saving...
  *  Saved project[1] to: /path/to/file.xml
