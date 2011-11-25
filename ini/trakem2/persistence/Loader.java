@@ -3899,15 +3899,7 @@ while (it.hasNext()) {
 
 	/** Run save or saveAs in a Bureaucract that blocks user input to the project being saved. */
 	public Bureaucrat saveTask(final Project project, final String command) {
-		return Bureaucrat.createAndStart(new Worker.Task("Saving") {
-			public void exec() {
-				if (command.equals("Save")) {
-					save(project);
-				} else if (command.equals("Save as...")) {
-					saveAs(project);
-				}
-			}
-		}, project);		
+		return project.saveTask(command);
 	}
 	
 	/** Test whether this Loader needs recurrent calls to a "save" of some sort, such as for the FSLoader. */

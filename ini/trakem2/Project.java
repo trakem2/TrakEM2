@@ -63,6 +63,7 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
 import java.awt.Rectangle;
 import java.io.BufferedReader;
@@ -87,7 +88,6 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 import javax.swing.JTree;
-import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
@@ -292,9 +292,14 @@ public class Project extends DBObject {
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
 				try {
-					SwingUtilities.invokeAndWait(new Runnable() { public void run() {
-						if (loader.hasChanges()) save();
-					}});
+					if (loader.hasChanges()) {
+						Bureaucrat.createAndStart(new Worker.Task("auto-saving") {
+							@Override
+							public void exec() {
+								loader.save(Project.this);
+							}
+						}, Project.this).join();
+					}
 				} catch (Throwable e) {
 					Utils.log("*** Autosaver failed:");
 					IJError.print(e);
@@ -720,12 +725,15 @@ public class Project extends DBObject {
 	public String save() {
 		Thread.yield(); // let it repaint the log window
 		String path = loader.save(this);
+		if (null != path) restartAutosaving();
 		return path;
 	}
 
 	/** This is not the saveAs used from the menus; this one is meant for programmatic access. */
 	public String saveAs(String xml_path, boolean overwrite) {
-		return loader.saveAs(xml_path, overwrite);
+		String path = loader.saveAs(xml_path, overwrite);
+		if (null != path) restartAutosaving();
+		return path;
 	}
 
 	public boolean destroy() {
@@ -1661,5 +1669,19 @@ public class Project extends DBObject {
 	
 	public LayerThing getRootLayerThing() {
 		return root_lt;
+	}
+
+	public Bureaucrat saveTask(final String command) {
+		return Bureaucrat.createAndStart(new Worker.Task("Saving") {
+			public void exec() {
+				if (command.equals("Save")) {
+					loader.save(project);
+					restartAutosaving();
+				} else if (command.equals("Save as...")) {
+					loader.saveAs(project);
+					restartAutosaving();
+				}
+			}
+		}, project);	
 	}
 }
