@@ -138,7 +138,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		
 		public int resolutionSpringMesh = 16;
 		public float stiffnessSpringMesh = 0.1f;
-		public float dampSpringMesh = 0.6f;
+		public float dampSpringMesh = 0.9f;
 		public float maxStretchSpringMesh = 2000.0f;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
