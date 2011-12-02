@@ -1720,10 +1720,6 @@ public final class FSLoader extends Loader {
 		if (null != srmode) resizing_mode = Loader.getMode(srmode);
 
 		try {
-			// Now:
-			// 1 - Ask the Patch to apply a coordinate transform, or rather, create a function that gets the coordinate transform from the Patch and applies it to the 'ip'.
-			// 2 - Then (1) should return both the transformed image and the alpha mask
-
 			ImageProcessor ip;
 			ByteProcessor alpha_mask = null;
 			ByteProcessor outside_mask = null;
