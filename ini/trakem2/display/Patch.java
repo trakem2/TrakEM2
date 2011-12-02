@@ -1247,6 +1247,9 @@ public final class Patch extends Displayable implements ImageData {
 		
 		final ImageProcessorWithMasks target = mapping.createMappedMaskedImageInterpolated( source, project.getLoader().fetchImageMask(this) );
 		
+		// Set the LUT
+		target.ip.setColorModel(source.getColorModel());
+		
 //		// Set all non-white pixels to zero
 //		final byte[] pix = (byte[])target.outside.getPixels();
 //		for (int i=0; i<pix.length; i++)
