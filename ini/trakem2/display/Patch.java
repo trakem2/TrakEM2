@@ -1304,7 +1304,9 @@ public final class Patch extends Displayable implements ImageData {
 		final ImageProcessor ip = getImageProcessor();
 		if (null == ip) return null;
 		project.getLoader().releaseToFit(o_width, o_height, type, 3);
-		return new PatchImage(ip.duplicate(), project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
+		final ImageProcessor copy = ip.duplicate();
+		copy.setColorModel(ip.getColorModel()); // one would expect "duplicate" to do this but it doesn't!
+		return new PatchImage(copy, project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
 	private boolean has_alpha = false;
