@@ -128,6 +128,9 @@ public class Centrality {
 
 		final HashSet<Vertex<T>> processed = new HashSet<Vertex<T>>();
 
+		// TODO the node centrality needs to be computed only once!
+		// TODO the centrality value is thrown out!
+		
 		while (vs.size() > 0) {
 			// Reset all internal vars related to computing centrality
 			for (final Vertex<T> v : vs) {
