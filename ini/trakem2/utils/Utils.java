@@ -33,6 +33,7 @@ import ij.gui.YesNoCancelDialog;
 import ij.io.OpenDialog;
 import ij.io.SaveDialog;
 import ij.measure.ResultsTable;
+import ij.plugin.LutLoader;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
@@ -71,6 +72,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.IndexColorModel;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.File;
@@ -80,6 +82,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -1750,5 +1753,12 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 			entry.getValue().show(title + " results");
 		}
+	}
+	
+	/** Returns a byte[3][256] containing the colors of the fire LUT. */
+	public static final IndexColorModel fireLUT() {
+		ImagePlus imp = new ImagePlus("fire", new ByteProcessor(1, 1));
+		IJ.run(imp, "Fire", "");
+		return (IndexColorModel) imp.getProcessor().getColorModel();
 	}
 }
