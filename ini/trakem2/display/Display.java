@@ -38,6 +38,7 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.ProjectTiler;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.analysis.Centrality;
 import ini.trakem2.analysis.Graph;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
@@ -2559,6 +2560,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 				final JMenuItem removeAllTags = new JMenuItem("Drop all tags (selected trees)"); nodeMenu.add(removeAllTags);
 				final JMenuItem removeTag = new JMenuItem("Drop all occurrences of tag..."); nodeMenu.add(removeTag);
+				final JMenuItem colorizeByNodeCentrality = new JMenuItem("Colorize by node betweenness centrality"); nodeMenu.add(colorizeByNodeCentrality);
+				final JMenuItem colorizeByBranchCentrality = new JMenuItem("Colorize by branch betweenness centrality"); nodeMenu.add(colorizeByBranchCentrality);
 				
 				popup.add(nodeMenu);
 				final ActionListener ln = new ActionListener() {
@@ -2666,10 +2669,39 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 								IJError.print(e);
 							}
 							Display.repaint();
+						} else if (src == colorizeByNodeCentrality) {
+							List<Tree> ts = selection.get(Tree.class);
+							HashSet<Tree> ds = new HashSet<Tree>(ts);
+							getLayerSet().addDataEditStep(ds);
+							try {
+								for (Tree t : ts) {
+									t.colorizeByNodeBetweennessCentrality();
+								}
+								getLayerSet().addDataEditStep(ds);
+								Display.repaint();
+							} catch (Exception e) {
+								getLayerSet().undoOneStep();
+								IJError.print(e);
+							}
+						} else if (src == colorizeByBranchCentrality) {
+							List<Tree> ts = selection.get(Tree.class);
+							HashSet<Tree> ds = new HashSet<Tree>(ts);
+							getLayerSet().addDataEditStep(ds);
+							try {
+								for (Tree t : ts) {
+									t.colorizeByBranchBetweennessCentrality(2);
+								}
+								getLayerSet().addDataEditStep(ds);
+								Display.repaint();
+							} catch (Exception e) {
+								getLayerSet().undoOneStep();
+								IJError.print(e);
+							}
 						}
 					}
 				};
-				for (JMenuItem a : new JMenuItem[]{nodeColor, nodePairColor, nodeRadius, removeAllTags, removeTag}) {
+				for (JMenuItem a : new JMenuItem[]{nodeColor, nodePairColor, nodeRadius,
+						removeAllTags, removeTag, colorizeByNodeCentrality, colorizeByBranchCentrality}) {
 					if (null == a) continue;
 					a.addActionListener(ln);
 				}
