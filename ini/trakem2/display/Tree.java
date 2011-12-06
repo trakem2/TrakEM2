@@ -62,6 +62,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.image.IndexColorModel;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
@@ -3597,6 +3598,49 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			cs.put(e.getKey(), e.getValue().centrality);
 		}
 		return cs;
+	}
+	
+	public void colorizeByNodeBetweennessCentrality() {
+		if (null == root) return;
+		final HashMap<Node<T>,Vertex<Node<T>>> m = asVertices();
+		Centrality.compute(m.values());
+		final IndexColorModel cm = Utils.fireLUT();
+		final Map<Integer,Color> colors = new HashMap<Integer,Color>();
+		double max = 0;
+		for (final Vertex<?> v : m.values()) max = Math.max(max, v.centrality);
+		for (final Map.Entry<Node<T>, Vertex<Node<T>>> e : m.entrySet()) {
+			int i = (int)(255 * (e.getValue().centrality / max) + 0.5f);
+			Color c = colors.get(i);
+			if (null == c) {
+				c = new Color(cm.getRed(i), cm.getGreen(i), cm.getBlue(i));
+				colors.put(i, c);
+			}
+			e.getKey().setColor(c);
+		}
+	}
+	
+	public void colorizeByBranchBetweennessCentrality(final int etching_multiplier) {
+		if (null == root) return;
+		final Collection<Vertex<Node<T>>> vs = asVertices().values();
+		Centrality.branchWise(vs, etching_multiplier);
+		final IndexColorModel cm = Utils.fireLUT();
+		final Map<Integer,Color> colors = new HashMap<Integer,Color>();
+		double max = 0;
+		for (final Vertex<?> v : vs) max = Math.max(max, v.centrality);
+		if (0 == max) {
+			Utils.logAll("Branch centrality: all have zero!");
+			return;
+		}
+		for (final Vertex<Node<T>> v : vs) {
+			int i = (int)(255 * (v.centrality / max) + 0.5f);
+			Utils.log("branch centrality: " + v.centrality + " , i: " + i);
+			Color c = colors.get(i);
+			if (null == c) {
+				c = new Color(cm.getRed(i), cm.getGreen(i), cm.getBlue(i));
+				colors.put(i, c);
+			}
+			v.data.setColor(c);
+		}
 	}
 	
 	public class Pair {
