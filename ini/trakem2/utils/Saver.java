@@ -85,4 +85,8 @@ public class Saver
 		}
 		return this.saver.save(imp, path);
 	}
+	
+	public String getExtension() {
+		return this.extension;
+	}
 }
