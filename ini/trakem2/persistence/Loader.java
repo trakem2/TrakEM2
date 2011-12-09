@@ -106,6 +106,7 @@ import java.util.Set;
 import java.util.Collections;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.TreeMap;
 import java.util.Vector;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipEntry;
@@ -2829,8 +2830,6 @@ while (it.hasNext()) {
 				//Utils.log2("Painted " + count + " of " + total);
 			}
 			
-			Utils.log("zd_done: " + zd_done);
-			
 			if (!zd_done) {
 				zd_done = true;
 				for (final ZDisplayable zd : al_zdispl) {
@@ -2922,9 +2921,9 @@ while (it.hasNext()) {
 	 * @return The watcher thread, for joining purposes, or null if the dialog is canceled or preconditions are not passed.
 	 * @throws IllegalArgumentException if the type is not ImagePlus.GRAY8 or Imageplus.COLOR_RGB.
 	 */
-	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, double max_scale_,
+	public Bureaucrat makePrescaledTiles(final Layer[] layers, final Class<?> clazz, final Rectangle srcRect, double max_scale_,
 			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide) {
-		if (null == layer || 0 == layer.length) return null;
+		if (null == layers || 0 == layers.length) return null;
 		switch (type) {
 		case ImagePlus.GRAY8:
 		case ImagePlus.COLOR_RGB:
@@ -2982,15 +2981,101 @@ while (it.hasNext()) {
 		} else {
 			thumb_scale = 192.0 / srcRect.height;
 		}
+		
 
-		for (int iz=0; iz<layer.length; iz++) {
+		// Figure out layer indices, given that layers are not necessarily evenly spaced
+		final TreeMap<Integer,Layer> indices = new TreeMap<Integer,Layer>();
+		final ArrayList<Integer> missingIndices = new ArrayList<Integer>();
+		final double resolution_z_px;
+		final int smallestIndex, largestIndex;
+		{
+			// Ensure layers are sorted by Z index and are unique pointers and unique in Z coordinate:
+			final TreeMap<Double,Layer> t = new TreeMap<Double,Layer>();
+			for (final Layer l1 : new HashSet<Layer>(Arrays.asList(layers))) {
+				Layer l2 = t.get(l1.getZ());
+				if (null == l2) {
+					t.put(l1.getZ(), l1);
+				} else {
+					// Ignore the layer with less objects
+					if (l1.getDisplayables().size() > l2.getDisplayables().size()) {
+						t.put(l1.getZ(), l1);
+						Utils.log("Ignoring duplicate layer: " + l2);
+					}
+				}
+			}
+			
+			// What is the mode thickness, measured by Z(i-1) - Z(i)?
+			// (Distance between the Z of two consecutive layers)
+			final HashMap<Double,Integer> counts = new HashMap<Double,Integer>();
+			Layer prev = t.get(t.firstKey());
+			double modeThickness = 0;
+			int modeThicknessCount = 0;
+			for (final Layer la : t.tailMap(prev.getZ(), false).values()) {
+				// Thickness with 3-decimal precision only
+				final double d = ((int)((la.getZ() - prev.getZ()) * 1000 + 0.5)) / 1000.0 ;
+				Integer c = counts.get(d);
+				//
+				if (null == c) c = 0;
+				++c;
+				counts.put(d, c);
+				//
+				if (c > modeThicknessCount) {
+					modeThicknessCount = c;
+					modeThickness = d;
+				}
+			}
+			resolution_z_px = modeThickness * prev.getParent().getCalibration().pixelWidth; // Not pixelDepth
+			// Assign an index to each layer, approximating each layer at modeThickness intervals
+			for (final Layer la : t.values()) {
+				indices.put((int)(la.getZ() / modeThickness + 0.5), la);
+			}
+			// First and last
+			smallestIndex = indices.firstKey();
+			largestIndex = indices.lastKey();
+			// Which indices are missing?
+			for (int i=smallestIndex+1; i<largestIndex; ++i) {
+				if (! indices.containsKey(i)) {
+					missingIndices.add(i);
+				}
+			}
+		}
+		
+		// JSON metadata for CATMAID
+		{
+			StringBuilder sb = new StringBuilder("{");
+			LayerSet ls = layers[0].getParent();
+			Calibration cal = ls.getCalibration();
+			sb.append("\"volume_width_px\": ").append(srcRect.width).append(',').append('\n')
+			.append("\"volume_height_px\": ").append(srcRect.height).append(',').append('\n')
+			.append("\"volume_sections\": ").append(largestIndex - smallestIndex + 1).append(',').append('\n')
+			.append("\"extension\": \"").append(saver.getExtension()).append('\"').append(',').append('\n')
+			.append("\"resolution_x\": ").append(cal.pixelWidth).append(',').append('\n')
+			.append("\"resolution_y\": ").append(cal.pixelHeight).append(',').append('\n')
+			.append("\"resolution_z\": ").append(resolution_z_px).append(',').append('\n')
+			.append("\"units\": \"").append(cal.getUnit()).append('"').append(',').append('\n')
+			.append("\"offset_x_px\": 0,\n")
+			.append("\"offset_y_px\": 0,\n")
+			.append("\"offset_z_px\": ").append(indices.get(indices.firstKey()).getZ() * cal.pixelWidth / cal.pixelDepth).append(',').append('\n')
+			.append("\"missing_layers\": [");
+			for (final Integer i : missingIndices) sb.append(i - smallestIndex).append(',');
+			sb.setLength(sb.length()-1); // remove last comma
+			sb.append("]}");
+			if (!Utils.saveToFile(new File(dir + "metadata.json"), sb.toString())) {
+				Utils.logAll("WARNING: could not save " + dir + "metadata.json\nThe contents was:\n" + sb.toString());
+			}
+		}
+		
+		
+		for (final Map.Entry<Integer,Layer> entry : indices.entrySet()) {
 			if (this.quit) {
 				cleanUp();
 				return;
 			}
+			final int index = entry.getKey() - smallestIndex;
+			final Layer layer = entry.getValue();
 
-			// 1 - create a directory 'z' named as the layer's Z coordinate
-			String tile_dir = dir + layer[iz].getParent().indexOf(layer[iz]);
+			// 1 - create a directory 'z' named as the layer's index
+			String tile_dir = dir + index;
 			File fdir = new File(tile_dir);
 			int tag = 1;
 			// Ensure there is a usable directory:
@@ -3010,7 +3095,7 @@ while (it.hasNext()) {
 			if (!tile_dir.endsWith("/")) tile_dir += "/";
 
 			// 2 - create layer thumbnail, max 192x192
-			ImagePlus thumb = getFlatImage(layer[iz], srcRect, thumb_scale, c_alphas, type, clazz, true);
+			ImagePlus thumb = getFlatImage(layer, srcRect, thumb_scale, c_alphas, type, clazz, true);
 			saver.save(thumb, tile_dir + "small");
 			//ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
 			flush(thumb);
@@ -3019,7 +3104,7 @@ while (it.hasNext()) {
 			// 3 - fill directory with tiles
 			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTile(layer[iz], srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver);
+				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver);
 			} else {
 				// create piramid of tiles
 				if (from_original_images) {
@@ -3030,11 +3115,11 @@ while (it.hasNext()) {
 					Utils.log("Export srcRect: " + srcRect);
 					
 					// WARNING: the snapshot will most likely be smaller than the virtual square image being chopped into tiles
-					ImageProcessor snapshot = makeFlatImage(type, layer[iz], srcRect, scale, (ArrayList<Patch>)(List)layer[iz].getDisplayables(Patch.class, true), Color.black);
+					ImageProcessor snapshot = makeFlatImage(type, layer, srcRect, scale, (ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), Color.black);
 					
 					int scale_pow = 0;
 					int n_et = n_edge_tiles;
-					ExecutorService exec = Utils.newFixedThreadPool("export-for-web");
+					ExecutorService exe = Utils.newFixedThreadPool("export-for-web");
 					ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 					try {
 						while (n_et >= best[1]) {
@@ -3049,7 +3134,7 @@ while (it.hasNext()) {
 									final int tileYStart = row * tileSide;
 									final int pixelOffset = tileYStart * snapWidth + tileXStart;
 
-									fus.add(exec.submit(new Callable<Boolean>() {
+									fus.add(exe.submit(new Callable<Boolean>() {
 										public Boolean call() {
 											if (ImagePlus.GRAY8 == type) {
 												final byte[] pixels = (byte[]) source.getPixels();
@@ -3158,7 +3243,7 @@ while (it.hasNext()) {
 					} catch (Throwable t) {
 						IJError.print(t);
 					} finally {
-						exec.shutdown();
+						exe.shutdown();
 					}
 				} else {
 					double scale = 1; //max_scale; // WARNING if scale is different than 1, it will FAIL to set the next scale properly.
@@ -3188,7 +3273,7 @@ while (it.hasNext()) {
 								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 								// negative tile sizes will be made into black tiles
 								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-								makeTile(layer[iz], tile_src, scale, c_alphas, type, clazz, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).toString(), saver); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
+								makeTile(layer, tile_src, scale, c_alphas, type, clazz, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).toString(), saver); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
 							}
 						}
 						scale_pow++;
@@ -3210,7 +3295,7 @@ while (it.hasNext()) {
 		};
 
 		// watcher thread
-		return Bureaucrat.createAndStart(worker, layer[0].getProject());
+		return Bureaucrat.createAndStart(worker, layers[0].getProject());
 	}
 
 	/** Will overwrite if the file path exists. */
