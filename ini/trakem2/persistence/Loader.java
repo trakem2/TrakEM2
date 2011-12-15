@@ -4034,9 +4034,6 @@ while (it.hasNext()) {
 				ini.trakem2.scripting.PatchScript.run(p, imp, path);
 				// Update Patch image properties:
 				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
-					// Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
-					imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;
-					//
 					cache(p, imp);
 					update = true;
 				} else {
@@ -4056,7 +4053,10 @@ while (it.hasNext()) {
 				}
 				update = true;
 			}
-			if (update && null != imp) {
+			if (update) {
+				// Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
+				imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;
+				//
 				p.updatePixelProperties(imp);
 			}
 		} catch (Exception e) {
