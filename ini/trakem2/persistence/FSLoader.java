@@ -1726,7 +1726,7 @@ public final class FSLoader extends Loader {
 			final boolean coordinate_transformed;
 			int type = patch.getType();
 
-			// Agressive cache freeing
+			// Aggressive cache freeing
 			releaseToFit(patch.getOWidth() * patch.getOHeight() * 4 + MIN_FREE_BYTES);
 
 			// Obtain an image which may be coordinate-transformed, and an alpha mask.
@@ -1783,7 +1783,7 @@ public final class FSLoader extends Loader {
 				max = patch.getMax();
 			}
 
-			// Set for the level 0 image, which is a duplicate of the one on the cache in any case
+			// Set for the level 0 image, which is a duplicate of the one in the cache in any case
 			ip.setMinAndMax(min, max);
 
 
@@ -2509,6 +2509,11 @@ public final class FSLoader extends Loader {
 		if ( patch.hasAlphaChannel() ) {
 			final Image img = mmio.openWithAlpha( path ); // ImageSaver.openJpegAlpha(path);
 			return img == null ? null : new MipMapImage( img, scale, scale );
+		} else if ( patch.paintsWithFalseColor() ) {
+			// AKA Patch has a LUT
+			IJ.redirectErrorMessages();
+			final ImagePlus imp = openImagePlus( path );
+			return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
 		} else {
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:

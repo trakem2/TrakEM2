@@ -90,6 +90,7 @@ import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWith
 public final class Patch extends Displayable implements ImageData {
 
 	private int type = -1; // unknown
+	private boolean false_color = false; // such as ImageProcessor.isColorLut
 	/** The channels that the currently existing awt image has ready for painting. */
 	private int channels = 0xffffffff;
 
@@ -175,6 +176,7 @@ public final class Patch extends Displayable implements ImageData {
 		this.width = (int)o_width;
 		this.height = (int)o_height;
 		project.getLoader().cache(this, imp);
+		this.false_color = imp.getProcessor().isColorLut();
 		addToDatabase();
 	}
 
@@ -221,6 +223,7 @@ public final class Patch extends Displayable implements ImageData {
 		// parse specific fields
 		String data;
 		if (null != (data = ht_attributes.get("type"))) this.type = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("false_color"))) this.false_color = Boolean.parseBoolean(data);
 		if (null != (data = ht_attributes.get("min"))) {
 			this.min = Double.parseDouble(data);
 			hasmin = true;
@@ -314,6 +317,7 @@ public final class Patch extends Displayable implements ImageData {
 	/** Update type, original dimensions and min,max from the given ImagePlus. */
 	private void readProps(final ImagePlus imp) {
 		this.type = imp.getType();
+		this.false_color = imp.getProcessor().isColorLut();
 		if (imp.getWidth() != (int)this.o_width || imp.getHeight() != this.o_height) {
 			this.o_width = imp.getWidth();
 			this.o_height = imp.getHeight();
@@ -875,6 +879,7 @@ public final class Patch extends Displayable implements ImageData {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" type").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" false_color").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" ct").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_width").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
@@ -891,6 +896,7 @@ public final class Patch extends Displayable implements ImageData {
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, o_width, o_height, type, false, min, max, (AffineTransform)at.clone());
+		copy.false_color = this.false_color;
 		copy.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		copy.alpha = this.alpha;
 		copy.visible = true;
@@ -1364,6 +1370,10 @@ public final class Patch extends Displayable implements ImageData {
 		project.getLoader().storeAlphaMask(this, bp);
 		alpha_path_checked = false;
 	}
+	
+	public boolean paintsWithFalseColor() {
+		return false_color;
+	}
 
 	public void keyPressed(KeyEvent ke) {
 		Object source = ke.getSource();
@@ -1438,8 +1448,10 @@ public final class Patch extends Displayable implements ImageData {
 
 	static private final class DPPatch extends Displayable.DataPackage {
 		final double min, max;
-		CoordinateTransform ct = null;
-		IFilter[] filters;
+		final CoordinateTransform ct;
+		final IFilter[] filters;
+		final boolean false_color;
+		
 		
 		DPPatch(final Patch patch) {
 			super(patch);
@@ -1447,6 +1459,7 @@ public final class Patch extends Displayable implements ImageData {
 			this.max = patch.max;
 			this.ct = null == patch.ct ? null : patch.ct.copy();
 			this.filters = null == patch.filters ? null : FilterEditor.duplicate(patch.filters);
+			this.false_color = patch.false_color;
 			// channels is visualization
 			// path is absolute
 			// type is dependent on path, so absolute
@@ -1464,6 +1477,7 @@ public final class Patch extends Displayable implements ImageData {
 			p.max = max;
 			p.ct = null == ct ? null : (CoordinateTransform) ct.copy();
 			p.filters = null == filters ? null : FilterEditor.duplicate(filters);
+			p.false_color = false_color;
 
 			if (mipmaps) {
 				p.project.getLoader().regenerateMipMaps(p);
