@@ -1880,6 +1880,7 @@ public final class Patch extends Displayable implements ImageData {
 		IFilter[] c = new IFilter[filters.length + fs.length];
 		for (int i=0; i<filters.length; ++i) c[i] = filters[i];
 		for (int i=filters.length; i<c.length; ++i) c[i] = fs[i-filters.length];
+		this.filters = c;
 	}
 
 	/**

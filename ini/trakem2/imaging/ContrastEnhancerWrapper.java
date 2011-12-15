@@ -11,6 +11,8 @@ import ij.process.StackStatistics;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
+import ini.trakem2.imaging.filters.EqualizeHistogram;
+import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
@@ -164,6 +166,8 @@ public class ContrastEnhancerWrapper {
 			if (equalize) {
 				for (final Patch p : patches) {
 					if (Thread.currentThread().isInterrupted()) return false;
+					p.appendFilters(new IFilter[]{new EqualizeHistogram()});
+					/*
 					p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 3);
 					ImageProcessor ip = p.getImageProcessor().duplicate(); // a throw-away copy
 					if (this.from_existing_min_and_max) {
@@ -171,6 +175,7 @@ public class ContrastEnhancerWrapper {
 					}
 					ce.equalize(ip);
 					p.setMinAndMax(ip.getMin(), ip.getMax());
+					*/
 
 					// submit for regeneration
 					regenerateMipMaps(p);
@@ -231,6 +236,7 @@ public class ContrastEnhancerWrapper {
 					st = ImageStatistics.getStatistics(ip, Measurements.MIN_MAX, cal);
 				}
 				ce.stretchHistogram(ip, saturated, st);
+				// This is all we care about from stretching the histogram:
 				p.setMinAndMax(ip.getMin(), ip.getMax());
 
 				regenerateMipMaps(p);

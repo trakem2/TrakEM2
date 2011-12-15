@@ -193,6 +193,7 @@ public class FilterEditor {
 					if (me.getClickCount() == 2) {
 						filters.remove(getSelectedRow());
 						((AbstractTableModel)getModel()).fireTableStructureChanged();
+						getColumnModel().getColumn(0).setMaxWidth(10);
 					}
 				}
 			});
@@ -238,6 +239,7 @@ public class FilterEditor {
 						break;
 					}
 					((AbstractTableModel)getModel()).fireTableStructureChanged();
+					getColumnModel().getColumn(0).setMaxWidth(10);
 					if (-1 != selRow) {
 						getSelectionModel().setSelectionInterval(selRow, selRow);
 					}
