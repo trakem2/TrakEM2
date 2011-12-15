@@ -9,7 +9,6 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
@@ -46,13 +45,15 @@ import javax.swing.table.AbstractTableModel;
 
 public class FilterEditor {
 
-	// They are all IFilter
+	// They are all IFilter, and all have protected fields.
 	@SuppressWarnings("rawtypes")
 	static public final Class[] available =
 		new Class[]{CLAHE.class, EqualizeHistogram.class, GaussianBlur.class,
 		            Invert.class, Normalize.class, RankFilter.class,
-		            SubtractBackground.class};
-	
+		            SubtractBackground.class,
+		            LUTRed.class, LUTGreen.class, LUTBlue.class,
+		            LUTMagenta.class, LUTCyan.class, LUTYellow.class};
+
 	static private class TableAvailableFilters extends JTable {
 		public TableAvailableFilters(final TableChosenFilters tcf) {
 			setModel(new AbstractTableModel() {
