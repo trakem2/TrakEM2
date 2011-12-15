@@ -44,6 +44,7 @@ import ini.trakem2.display.Taggable;
 import ini.trakem2.display.Tree;
 import ini.trakem2.display.Treeline;
 import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.tree.DTDParser;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.ProjectThing;
@@ -55,6 +56,7 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -111,6 +113,7 @@ public class TMLHandler extends DefaultHandler {
 	private Dissector last_dissector = null;
 	private Stack last_stack = null;
 	private Patch last_patch = null;
+	private final ArrayList<IFilter> last_patch_filters = new ArrayList<IFilter>(); 
 	private Treeline last_treeline = null;
 	private AreaTree last_areatree = null;
 	private Connector last_connector = null;
@@ -538,7 +541,11 @@ public class TMLHandler extends DefaultHandler {
 		} else if (orig_qualified_name.equals("ict_transform_list")) {
 			ct_list_stack.remove( ct_list_stack.size() - 1 );
 		} else if (orig_qualified_name.equals("t2_patch")) {
+			if (last_patch_filters.size() > 0) {
+				last_patch.setFilters(last_patch_filters.toArray(new IFilter[last_patch_filters.size()]));
+			}
 			last_patch = null;
+			last_patch_filters.clear();
 			last_displayable = null;
 		} else if (orig_qualified_name.equals("t2_ball")) {
 			last_ball = null;
@@ -895,6 +902,8 @@ public class TMLHandler extends DefaultHandler {
 				last_patch = patch;
 				last_displayable = patch;
 				return null;
+			} else if (type.equals("filter")) {
+				last_patch_filters.add(newFilter(ht_attributes));
 			} else if (type.equals("dissector")) {
 				Dissector dissector = new Dissector(this.project, oid, ht_attributes, ht_links);
 				dissector.addToDatabase();
@@ -948,6 +957,15 @@ public class TMLHandler extends DefaultHandler {
 		}
 		// default:
 		return null;
+	}
+
+	final private IFilter newFilter(final HashMap<String, String> ht_attributes) {
+		try {
+			Utils.log2(Utils.toString(ht_attributes));
+			return (IFilter) Class.forName(ht_attributes.remove("class")).getConstructor(Map.class).newInstance(ht_attributes);
+		} catch (Exception e) {
+			throw new RuntimeException("Could not create filter for Patch #" + last_patch.getId(), e);
+		}
 	}
 
 	final private void makeCoordinateTransform( String type, final HashMap<String,String> ht_attributes )

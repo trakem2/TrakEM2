@@ -67,6 +67,7 @@ import ini.trakem2.tree.*;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
 import ini.trakem2.imaging.*;
+import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.ControlWindow;
 
 import javax.swing.JPopupMenu;
@@ -4044,6 +4045,15 @@ while (it.hasNext()) {
 						+ "\n  width: " + imp.getWidth()
 						+ "\n  height: " + imp.getHeight());
 			}
+			// Now apply the Patch filters, if any
+			IFilter[] fs = p.getFilters();
+			if (null != fs) {
+				ImageProcessor ip = imp.getProcessor();
+				for (IFilter filter : fs) {
+					ip = filter.process(ip);
+				}
+			}
+			
 		} catch (Exception e) {
 			IJError.print(e);
 		}

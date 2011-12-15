@@ -34,6 +34,8 @@ import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.imaging.filters.FilterEditor;
+import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
@@ -101,6 +103,9 @@ public final class Patch extends Displayable implements ImageData {
 	private String current_path = null;
 	/** To be read from XML, or set when the file ImagePlus has been updated and the current_path points to something else. */
 	private String original_path = null;
+	
+	/** A set of filters to apply to the ImageProcessor after it is loaded. */
+	private IFilter[] filters;
 
 	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
 	private CoordinateTransform ct = null;
@@ -840,6 +845,9 @@ public final class Patch extends Displayable implements ImageData {
 		if (null != ct) {
 			sb_body.append(ct.toXML(in)).append('\n');
 		}
+		if (null != filters && filters.length > 0) {
+			for (IFilter f : filters) sb_body.append(f.toXML(in)); // specify their own line termination
+		}
 
 		super.restXML(sb_body, in, any);
 
@@ -859,8 +867,10 @@ public final class Patch extends Displayable implements ImageData {
 	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_patch";
 		if (hs.contains(type)) return;
+		// TrakEM2's XML is validated in a non-conventional way, so no need to specify the arguments for each filter
+		sb_header.append(indent).append("<!ELEMENT t2_filter EMPTY>\n");
 		// The Patch itself:
-		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list)>\n");
+		sb_header.append(indent).append("<!ELEMENT t2_patch (").append(Displayable.commonDTDChildren()).append(",ict_transform,ict_transform_list,t2_filter)>\n");
 		Displayable.exportDTD(type, sb_header, hs, indent);
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" file_path").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" original_path").append(TAG_ATTR2)
@@ -1429,12 +1439,14 @@ public final class Patch extends Displayable implements ImageData {
 	static private final class DPPatch extends Displayable.DataPackage {
 		final double min, max;
 		CoordinateTransform ct = null;
+		IFilter[] filters;
 		
 		DPPatch(final Patch patch) {
 			super(patch);
 			this.min = patch.min;
 			this.max = patch.max;
-			this.ct = null == ct ? null : patch.ct.copy();
+			this.ct = null == patch.ct ? null : patch.ct.copy();
+			this.filters = null == patch.filters ? null : FilterEditor.duplicate(patch.filters);
 			// channels is visualization
 			// path is absolute
 			// type is dependent on path, so absolute
@@ -1451,6 +1463,7 @@ public final class Patch extends Displayable implements ImageData {
 			p.min = min;
 			p.max = max;
 			p.ct = null == ct ? null : (CoordinateTransform) ct.copy();
+			p.filters = null == filters ? null : FilterEditor.duplicate(filters);
 
 			if (mipmaps) {
 				p.project.getLoader().regenerateMipMaps(p);
@@ -1830,12 +1843,47 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Use this instead of getAreaAt which calls getArea which is ... dog slow for something like buckets. */
 	@Override
-	protected Area getAreaForBucket(final Layer layer) {
+	protected Area getAreaForBucket(final Layer l) {
 		return new Area(getPerimeter());
 	}
 
 	@Override
-	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
-		return layer == this.layer && r.intersects(getBoundingBox());
+	protected boolean isRoughlyInside(final Layer l, final Rectangle r) {
+		return l == this.layer && r.intersects(getBoundingBox());
+	}
+	
+	/**
+	 * Append an array of {@link IFilter} to the array of existing {@link IFilter}. 
+	 * @param fs The array of {@link IFilter} to use for this Patch.
+	 * @see #setFilters(Filter[]), {@link #getFilters()}
+	 */
+	public void appendFilters(IFilter[] fs) {
+		if (null == filters || 0 == filters.length) {
+			filters = fs;
+			return;
+		}
+		if (null == fs) return;
+		IFilter[] c = new IFilter[filters.length + fs.length];
+		for (int i=0; i<filters.length; ++i) c[i] = filters[i];
+		for (int i=filters.length; i<c.length; ++i) c[i] = fs[i-filters.length];
+	}
+
+	/**
+	 * Set an array of @{link {@link IFilter}, which are applied in order to the {@link ImageProcessor}
+	 * after the preprocessor script is applied but before the rest of TrakEM2 sees the image.
+	 * @param fs The array of {@link IFilter} to use for this Patch. Can be null.
+	 * @see #appendFilters(Filter[]), {@link #getFilters()}
+	 */
+	public void setFilters(IFilter[] fs) {
+		this.filters = fs;
+	}
+	
+	/**
+	 * 
+	 * @return The array of {@link IFilter} of this {@link Patch}.
+	 * @see #appendFilters(Filter[]), {@link #setFilters(IFilter[])}
+	 */
+	public IFilter[] getFilters() {
+		return filters;
 	}
 }

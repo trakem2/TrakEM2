@@ -44,6 +44,7 @@ import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
 import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.imaging.filters.FilterEditor;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.Operation;
 import ini.trakem2.utils.ProjectToolbar;
@@ -3058,6 +3059,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Enhance contrast layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Enhance contrast (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
+		item = new JMenuItem("Adjust image filters (selected images)"); item.addActionListener(this); adjust_menu.add(item);
+		if (selection.isEmpty()) item.setEnabled(false);
 		item = new JMenuItem("Set Min and Max layer-wise..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
@@ -5401,6 +5404,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			burro.addPostTask(new Runnable() { public void run() {
 				getLayerSet().addDataEditStep(ds);
 			}});
+		} else if (command.equals("Adjust image filters (selected images)")) {
+			if (selection.isEmpty() || !(active instanceof Patch)) return;
+			FilterEditor.GUI(selection.get(Patch.class), (Patch)active);
 		} else if (command.equals("Set Min and Max layer-wise...")) {
 			Displayable active = getActive();
 			double min = 0;

@@ -1918,7 +1918,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	/** A new undo step for the "data" field of all Displayable in the set. */
-	boolean addDataEditStep(final Set<? extends Displayable> ds) {
+	public boolean addDataEditStep(final Set<? extends Displayable> ds) {
 		return addDataEditStep(ds, new String[]{"data"});
 	}
 
