@@ -4012,48 +4012,53 @@ while (it.hasNext()) {
 		if (null == p) return;
 		try {
 			String path = preprocessors.get(p);
-			if (null == path) return;
-			final File f = new File(path);
-			if (!f.exists()) {
-				Utils.log("ERROR: preprocessor script file does NOT exist: " + path);
-				return;
-			} else if (!f.canRead()) {
-				Utils.log("ERROR: can NOT read preprocessor script file at: " + path);
-				return;
-			}
-			if (null == imp) {
-				imp = new ImagePlus(); // uninitialized: the script may generate its data
-			} else {
-				// Prepare image for pre-processing
-				imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
-			}
-			// Free 10 times the memory taken by the image, as a gross estimate of memory consumption by the script
-			releaseToFit(Math.min(10 * image_n_bytes, MAX_MEMORY / 4));
-			// Run the script
-			ini.trakem2.scripting.PatchScript.run(p, imp, path);
-			// Update Patch image properties:
-			if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
-				// Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
-				imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;
-				//
-				cache(p, imp);
-				p.updatePixelProperties(imp);
-			} else {
-				Utils.log("ERROR: preprocessor script failed to create a valid image:"
-						+ "\n  ImageProcessor: " + imp.getProcessor()
-						+ "\n  pixel array: " + (null == imp.getProcessor() ? null : imp.getProcessor().getPixels())
-						+ "\n  width: " + imp.getWidth()
-						+ "\n  height: " + imp.getHeight());
+			boolean update = false;
+			if (null != path) {
+				final File f = new File(path);
+				if (!f.exists()) {
+					Utils.log("ERROR: preprocessor script file does NOT exist: " + path);
+					return;
+				} else if (!f.canRead()) {
+					Utils.log("ERROR: can NOT read preprocessor script file at: " + path);
+					return;
+				}
+				if (null == imp) {
+					imp = new ImagePlus(); // uninitialized: the script may generate its data
+				} else {
+					// Prepare image for pre-processing
+					imp.getProcessor().setMinAndMax(p.getMin(), p.getMax()); // for 8-bit and RGB images, your problem: setting min and max will expand the range.
+				}
+				// Free 10 times the memory taken by the image, as a gross estimate of memory consumption by the script
+				releaseToFit(Math.min(10 * image_n_bytes, MAX_MEMORY / 4));
+				// Run the script
+				ini.trakem2.scripting.PatchScript.run(p, imp, path);
+				// Update Patch image properties:
+				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
+					// Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
+					imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;
+					//
+					cache(p, imp);
+					update = true;
+				} else {
+					Utils.log("ERROR: preprocessor script failed to create a valid image:"
+							+ "\n  ImageProcessor: " + imp.getProcessor()
+							+ "\n  pixel array: " + (null == imp.getProcessor() ? null : imp.getProcessor().getPixels())
+							+ "\n  width: " + imp.getWidth()
+							+ "\n  height: " + imp.getHeight());
+				}
 			}
 			// Now apply the Patch filters, if any
 			IFilter[] fs = p.getFilters();
-			if (null != fs) {
+			if (null != fs && fs.length > 0) {
 				ImageProcessor ip = imp.getProcessor();
 				for (IFilter filter : fs) {
 					ip = filter.process(ip);
 				}
+				update = true;
 			}
-			
+			if (update && null != imp) {
+				p.updatePixelProperties(imp);
+			}
 		} catch (Exception e) {
 			IJError.print(e);
 		}
