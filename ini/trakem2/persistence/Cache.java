@@ -457,6 +457,7 @@ public class Cache {
 	private final ImagePlus removeImagePlus(final Pyramid p) {
 		if (null == p || null == p.imp) return null;
 		final ImagePlus imp = p.imp;
+		p.imp = null;
 		//
 		final String path = getPath(imp);
 		final ImagePlusUsers u = imps.getValue(path);
