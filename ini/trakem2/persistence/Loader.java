@@ -4051,6 +4051,7 @@ while (it.hasNext()) {
 				for (IFilter filter : fs) {
 					ip = filter.process(ip);
 				}
+				if (ip != imp.getProcessor()) imp.setProcessor(ip);
 				update = true;
 			}
 			if (update) {
