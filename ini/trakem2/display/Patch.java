@@ -1602,6 +1602,10 @@ public final class Patch extends Displayable implements ImageData {
 	public String getPreprocessorScriptPath() {
 		return project.getLoader().getPreprocessorScriptPath(this);
 	}
+	
+	public boolean isPreprocessed() {
+		return null != getPreprocessorScriptPath() || null != filters;
+	}
 
 	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
 	@Override

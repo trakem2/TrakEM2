@@ -555,7 +555,7 @@ public final class FSLoader extends Loader {
 
 		synchronized (plock) {
 			imp = mawts.get(p.getId());
-			if (null == imp) {
+			if (null == imp && !p.isPreprocessed()) {
 				// Try shared ImagePlus cache
 				imp = mawts.get(path); // could have been loaded by a different Patch that uses the same path,
 				// such as other slices of a stack or duplicated images.
