@@ -210,6 +210,7 @@ public class Selection {
 	}
 
 	public void selectAll(Collection<? extends Displayable> al) {
+		if (al.isEmpty()) return;
 		Displayable the_active = null;
 		try {
 			synchronized (queue_lock) {
