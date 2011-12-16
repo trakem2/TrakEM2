@@ -178,6 +178,7 @@ public class ContrastEnhancerWrapper {
 					*/
 
 					// submit for regeneration
+					p.getProject().getLoader().decacheImagePlus(p.getId());
 					regenerateMipMaps(p);
 				}
 				return true;
