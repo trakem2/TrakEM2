@@ -38,7 +38,6 @@ import ini.trakem2.persistence.DBObject;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.ProjectTiler;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.analysis.Centrality;
 import ini.trakem2.analysis.Graph;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
@@ -86,6 +85,7 @@ import java.io.Writer;
 import java.io.File;
 import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
 
 import lenscorrection.DistortionCorrectionTask;
 import lenscorrection.NonLinearTransform;
@@ -3150,6 +3150,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Select all visible"); item.addActionListener(this); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_A, Utils.getControlModifier(), true));
 		if (0 == layer.getDisplayableList().size() && 0 == layer.getParent().getDisplayableList().size()) item.setEnabled(false);
+		item = new JMenuItem("Select all that match..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Select none"); item.addActionListener(this); menu.add(item);
 		if (0 == selection.getNSelected()) item.setEnabled(false);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
@@ -5074,6 +5075,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Select all visible")) {
 			selection.selectAllVisible();
 			repaint(Display.this.layer, selection.getBox(), 0);
+		} else if (command.equals("Select all that match...")) {
+			List<Displayable> ds = find();
+			selection.selectAll(ds);
+			Utils.showStatus("Added " + ds.size() + " to selection.");
 		} else if (command.equals("Select none")) {
 			Rectangle box = selection.getBox();
 			selection.clear();
@@ -7117,8 +7122,98 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}}, patches.iterator().next().getProject());
 	}
 
-	/** Get the current ROI, if any. */
+	/** Get the current {@link Roi}, if any. */
 	public Roi getRoi() {
 		return canvas.getFakeImagePlus().getRoi();
+	}
+	
+	/** Open a {@link GenericDialog} to ask for parameters to find all {@link Displayable} that abide to them.
+	 * 
+	 * @return The list of {@link Displayable} instances found.
+	 * @see Display#find(String, boolean, Class, List)
+	 */
+	public <T extends Displayable> List<T> find() {
+		GenericDialog gd = new GenericDialog("Select matching");
+		Utils.addLayerRangeChoices(layer, gd);
+		gd.addStringField("Regular expression:", "");
+		TreeMap<String,Class<?>> types = new TreeMap<String,Class<?>>();
+		types.put("01 - All", Displayable.class);
+		types.put("02 - Image (Patch, Stack)", ImageData.class);
+		types.put("03 - Non-image (VectorData subtypes)", VectorData.class);
+		types.put("04 - Tree (Treeline, AreaTree, Connector)", Tree.class);
+		types.put("05 - Area container (AreaTree, AreaList)", AreaContainer.class);
+		types.put("06 - Text labels", DLabel.class);
+		types.put("07 - Patch (image)", Patch.class);
+		types.put("08 - Stack (image)", Stack.class);
+		types.put("09 - AreaList", AreaList.class);
+		types.put("10 - AreaTree", AreaTree.class);
+		types.put("11 - Treeline", Treeline.class);
+		types.put("12 - Connector", Connector.class);
+		types.put("13 - Ball", Ball.class);
+		types.put("14 - Pipe", Pipe.class);
+		types.put("15 - Polyline", Polyline.class);
+		types.put("16 - Profile", Profile.class);
+		types.put("17 - Dissector", Dissector.class);
+		//
+		gd.addChoice("Type:", types.keySet().toArray(new String[types.size()]), types.firstKey());
+		gd.addCheckbox("Visible only", true);
+		gd.showDialog();
+		if (gd.wasCanceled()) return Collections.EMPTY_LIST;
+		int first = gd.getNextChoiceIndex();
+		int last = gd.getNextChoiceIndex();
+		return find(gd.getNextString(), gd.getNextBoolean(), (Class<T>)types.get(gd.getNextChoice()), first, last);
+	}
+
+	/** @see Display#find(String, boolean, Class, List) */
+	public <T extends Displayable> List<T> find(final String regex, final boolean visible_only, final Class<T> c, final int firstLayerIndex, final int lastLayerIndex) {
+		return find(regex, visible_only, c, layer.getParent().getLayers(firstLayerIndex, lastLayerIndex));
+	}
+
+	static private final String fixRegex(String regex) {
+		if (regex.charAt(0) != '^') {
+			if (regex.startsWith(".*")) regex = "^" + regex;
+			else regex = "^.*" + regex;
+		}
+		if (regex.charAt(regex.length()-1) != '$') {
+			if (regex.endsWith(".*")) regex += "$";
+			else regex += ".*$";
+		}
+		return regex;
+	}
+	
+	/**
+	 * 
+	 * @param regex The regular expression to match against the title of a {@link Displayable}.
+	 * @param visible_only Whether to gather only {@link Displayable} instances that are visible.
+	 * @param c The specific class of {@link Displayable}; can be an interface like {@link VectorData}, {@link ImageData} or {@link AreaContainer}. Use {@Displayable} to mean any. 
+	 * @param layers The range of {@link Layer} to search in.
+	 * @return
+	 */
+	static public <T extends Displayable> List<T> find(final String regex, final boolean visible_only, final Class<T> c, final List<Layer> layers) {
+		Utils.log2(regex, visible_only, c, layers);
+		final List<T> ds = new ArrayList<T>();
+		final Pattern pattern = (null == regex || 0 == regex.length()) ? null : Pattern.compile(fixRegex(regex));
+		for (final Layer l : layers) {
+			for (final Displayable d : l.getDisplayables()) {
+				if (visible_only && !d.isVisible()) continue;
+				if (c.isInstance(d)) {
+					if (null == pattern) ds.add((T)d);
+					else if (pattern.matcher(d.getTitle()).matches()) ds.add((T)d);
+				}
+			}
+		}
+		for (final ZDisplayable d : layers.get(0).getParent().getZDisplayables()) {
+			if (visible_only && !d.isVisible()) continue;
+			if (c.isInstance(d)
+			 && (null == pattern || pattern.matcher(d.getTitle()).matches())) {
+				for (final Layer l : layers) {
+					if (d.paintsAt(l)) {
+						ds.add((T)d);
+						break;
+					}
+				}
+			}
+		}
+		return ds;
 	}
 }
