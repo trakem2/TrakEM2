@@ -13,6 +13,10 @@ public class RankFilter implements IFilter {
 	
 	public RankFilter() {}
 
+	/**
+	 * @param radius The radius around every pixel to get values from for the specific algorithm {@param type}.
+	 * @param type Any of the types in {@link RankFilters} such as {@link RankFilters#MEDIAN, RankFilters#DESPECKLE}, etc.
+	 */
 	public RankFilter(double radius, int type) {
 		this.radius = radius;
 	}

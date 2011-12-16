@@ -52,7 +52,8 @@ public class FilterEditor {
 		            Invert.class, Normalize.class, RankFilter.class,
 		            SubtractBackground.class,
 		            LUTRed.class, LUTGreen.class, LUTBlue.class,
-		            LUTMagenta.class, LUTCyan.class, LUTYellow.class};
+		            LUTMagenta.class, LUTCyan.class, LUTYellow.class,
+		            LUTOrange.class, LUTCustom.class};
 
 	static private class TableAvailableFilters extends JTable {
 		public TableAvailableFilters(final TableChosenFilters tcf) {
