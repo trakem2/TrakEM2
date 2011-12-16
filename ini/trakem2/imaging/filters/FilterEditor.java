@@ -191,8 +191,13 @@ public class FilterEditor {
 				@Override
 				public void mousePressed(MouseEvent me) {
 					if (me.getClickCount() == 2) {
-						filters.remove(getSelectedRow());
+						int row = getSelectedRow();
+						filters.remove(row);
 						((AbstractTableModel)getModel()).fireTableStructureChanged();
+						if (filters.size() > 0) {
+							if (row > 0) --row;
+							getSelectionModel().setSelectionInterval(row, row);
+						}
 						getColumnModel().getColumn(0).setMaxWidth(10);
 					}
 				}
@@ -375,7 +380,7 @@ public class FilterEditor {
 		final JComboBox pulldown = new JComboBox(new String[]{"Selected images (" + patches.size() + ")", "All images in layer " + ref.getLayer().getParent().indexOf(ref.getLayer()), "All images in layer range..."});
 
 		final Component[] cs = new Component[]{set, pulldown, tcf, tp, taf};
-		
+	
 		set.addActionListener(new ActionListener() {
 			@Override
 			public void actionPerformed(ActionEvent e) {
@@ -417,7 +422,7 @@ public class FilterEditor {
 			}
 		});
 		JPanel buttons = new JPanel();
-		JLabel label = new JLabel("Listing filters of " + patches.size() + " image" + (patches.size() > 1 ? "s":""));
+		JLabel label = new JLabel("Push F1 for help");
 		GridBagConstraints c2 = new GridBagConstraints();
 		GridBagLayout gb2 = new GridBagLayout();
 		buttons.setLayout(gb2);
@@ -497,6 +502,40 @@ public class FilterEditor {
 		c.weighty = 0;
 		gb.setConstraints(buttons, c);
 		all.add(buttons);
+		
+		KeyAdapter help = new KeyAdapter() {
+			@Override
+			public void keyPressed(KeyEvent ke) {
+				if (ke.getKeyCode() == KeyEvent.VK_F1) {
+					GenericDialog gd = new GenericDialog("Help :: image filters");
+					gd.addMessage(
+						  "In the table 'Available Filters':\n"
+						+ " - double-click a filter to add it to the table of 'Chosen Filters'\n \n"
+						+ "In the table 'Chosen Filters':\n"
+						+ " - double-click a filter to remove it.\n"
+						+ " - PAGE UP/DOWN keys move the filter up/down in the list.\n"
+						+ " - 'Delete' key removes the selected filter.\n \n"
+						+ "In the table of parameter names and values:\n"
+						+ " - double-click a value to edit it. Then push enter to set the new value.\n \n"
+						+ "What you need to know:\n"
+						+ " - filters are set and applied in order, so order matters.\n"
+						+ " - filters with parameters for which you entered a value of zero\nwill result in a warning message.\n"
+						+ " - when applying the filters, if you choose 'Selected images', these are the images\nthat were selected when the filter editor was opened.\n"
+						+ " - when applying the filters, if you want to filter for a regular expression pattern\nin the image name, use the 'All images in layer range...' option,\nwhere a range of one single layer is also possible."	
+					);
+					gd.hideCancelButton();
+					gd.setModal(false);
+					gd.showDialog();
+				}
+			}
+		};
+		taf.addKeyListener(help);
+		tcf.addKeyListener(help);
+		tp.addKeyListener(help);
+		all.addKeyListener(help);
+		buttons.addKeyListener(help);
+		empty.addKeyListener(help);
+		a.addKeyListener(help);
 
 		frame.getContentPane().add(all);
 		frame.pack();
