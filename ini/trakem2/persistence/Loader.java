@@ -4034,7 +4034,6 @@ while (it.hasNext()) {
 				ini.trakem2.scripting.PatchScript.run(p, imp, path);
 				// Update Patch image properties:
 				if (null != imp.getProcessor() && null != imp.getProcessor().getPixels() && imp.getWidth() > 0 && imp.getHeight() > 0) {
-					cache(p, imp);
 					update = true;
 				} else {
 					Utils.log("ERROR: preprocessor script failed to create a valid image:"
@@ -4051,13 +4050,17 @@ while (it.hasNext()) {
 				for (IFilter filter : fs) {
 					ip = filter.process(ip);
 				}
-				if (ip != imp.getProcessor()) imp.setProcessor(ip);
+				if (ip != imp.getProcessor()) {
+					imp.setProcessor(ip);
+				}
 				update = true;
 			}
 			if (update) {
-				// Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
+				// 1: Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
 				imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;
-				//
+				// 2: cache
+				cache(p, imp);
+				// 3: update properties of the Patch
 				p.updatePixelProperties(imp);
 			}
 		} catch (Exception e) {
