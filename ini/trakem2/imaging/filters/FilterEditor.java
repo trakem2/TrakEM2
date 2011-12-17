@@ -603,9 +603,7 @@ public class FilterEditor {
 						IFilter[] fs = asFilters(wrappers); // each Patch gets a copy
 						if (append) p.appendFilters(fs);
 						else p.setFilters(fs);
-						Utils.log("calling decache");
 						p.getProject().getLoader().decacheImagePlus(p.getId());
-						Utils.log(" after: " + p.getProject().getLoader().isImagePlusCached(p));
 						fus.add(p.updateMipMaps());
 					}
 					Utils.wait(fus);
