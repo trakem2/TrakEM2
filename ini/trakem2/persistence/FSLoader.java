@@ -1378,7 +1378,7 @@ public final class FSLoader extends Loader {
 		if (null != ob) {
 			this.mipmaps_regen = Boolean.parseBoolean(ob);
 		}
-		ob = ht_attributes.remove("n_mipmap_threads");
+		ob = ht_attributes.get("n_mipmap_threads");
 		if (null != ob) {
 			int n_threads = Math.max(1, Integer.parseInt(ob));
 			FSLoader.restartMipMapThreads(n_threads);
