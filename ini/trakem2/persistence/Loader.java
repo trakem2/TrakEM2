@@ -3116,7 +3116,7 @@ while (it.hasNext()) {
 					Utils.log("Export srcRect: " + srcRect);
 					
 					// WARNING: the snapshot will most likely be smaller than the virtual square image being chopped into tiles
-					ImageProcessor snapshot = makeFlatImage(type, layer, srcRect, scale, (ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), Color.black);
+					ImageProcessor snapshot = Patch.makeFlatImage(type, layer, srcRect, scale, (ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), Color.black, true, true)[0];
 					
 					int scale_pow = 0;
 					int n_et = n_edge_tiles;
