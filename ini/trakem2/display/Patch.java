@@ -1736,7 +1736,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * @param background
 	 * @param setMinAndMax
 	 * @param with_masks
-	 * @return An array of ImageProcessor where [0] is the image and [1] the mask.
+	 * @return An array of ImageProcessor where [0] is the image and [1] the mask. When {@param with_masks) is false, the second element is null.
 	 * 
 	 * For exporting while blending the display ranges (min,max) {@see ExportUnsignedShort}.
 	 */
@@ -1865,7 +1865,8 @@ public final class Patch extends Displayable implements ImageData {
 			}
 		}
 
-		return new ImageProcessor[]{ipwm.ip, ipwm.outside};
+		return new ImageProcessor[]{null == ipwm ? ip   : ipwm.ip,
+		                            null == ipwm ? null : ipwm.outside};
 	}
 
 	/** Make the border have an alpha of zero. */
