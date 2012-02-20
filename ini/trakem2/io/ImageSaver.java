@@ -40,6 +40,7 @@ import java.awt.image.WritableRaster;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,7 +48,11 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.net.URL;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 import java.util.HashMap;
@@ -194,14 +199,13 @@ public class ImageSaver {
 		if (quality < 0f) quality = 0f;
 		if (quality > 1f) quality = 1f;
 		synchronized (getPathLock(path)) {
-			FileOutputStream f = null;
 			ImageOutputStream ios = null;
 			ImageWriter writer = null;
 			BufferedImage grey = bi;
 			try {
-				f = new FileOutputStream(path);
 				writer = ImageIO.getImageWritersByFormatName("jpeg").next();
-				ios = ImageIO.createImageOutputStream(f);
+				final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(bi.getWidth(), bi.getHeight()) );
+				ios = ImageIO.createImageOutputStream(baos);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
 				param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
@@ -217,13 +221,28 @@ public class ImageSaver {
 				}
 				IIOImage iioImage = new IIOImage(grey, null, null);
 				writer.write(null, iioImage, param);
+				// Now write to disk
+				FileChannel ch = null;
+				try {
+					// Now write to disk in the fastest way possible
+					final RandomAccessFile ra = new RandomAccessFile(new File(path), "rw");
+					final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+					ch = ra.getChannel();
+					while (bb.hasRemaining()) {
+						ch.write(bb);
+					}
+				} finally {
+					if (null != ch) ch.close();
+					ios.close();
+				}
+				
+				
 			} catch (Exception e) {
 				IJError.print(e);
 				return false;
 			} finally {
-				if (null != f) try { f.close(); } catch (Exception ee) {}
 				if (null != writer) try { writer.dispose(); } catch (Exception ee) {}
-				if (null != ios) try { ios.close(); } catch (Exception ee) {}
+				//if (null != ios) try { ios.close(); } catch (Exception ee) {} // NOT NEEDED, it's a ByteArrayOutputStream
 				if (bi != grey) try { grey.flush(); /*release native resources*/ } catch (Exception ee) {}
 				removePathLock(path);
 			}
@@ -430,6 +449,24 @@ public class ImageSaver {
 		return new String(sb);
 	}
 
+	static private final Field Bbuf;
+	static {
+		Field b = null;
+		try {
+			b = ByteArrayOutputStream.class.getDeclaredField("buf");
+			b.setAccessible(true);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		Bbuf = b;
+	}
+	
+	/** Based on EM images of neuropils with outside alpha masks. */
+	static public final int estimateJPEGFileSize(final int w, final int h) {
+		final long area = w * h;
+		return (int)((0.0000000108018 * area * area + 0.315521 * area + 8283.24) * 1.2); // 20% padding
+	}
+
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final BufferedImage awt, final String path, final float quality) {
 		if (!checkPath(path)) return false;
@@ -441,11 +478,23 @@ public class ImageSaver {
 					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
 					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 					iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
-					ImageOutputStream ios = ImageIO.createImageOutputStream(new File(path));
+					//
+					final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
+					ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
+					RandomAccessFile ra = null;
+					FileChannel ch = null;
 					try {
 						writer.setOutput(ios);
 						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+						// Now write to disk in the fastest way possible
+						ra = new RandomAccessFile(new File(path), "rw");
+						final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+						ch = ra.getChannel();
+						while (bb.hasRemaining()) {
+							ch.write(bb);
+						}
 					} finally {
+						if (null != ch) ch.close();
 						ios.close();
 					}
 					return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
