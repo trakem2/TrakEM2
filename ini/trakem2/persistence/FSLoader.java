@@ -1756,7 +1756,6 @@ public final class FSLoader extends Loader {
 			// prepare a 0.75 sigma image from the original
 			ColorModel cm = ip.getColorModel();
 			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
-				   //   but since we scale 50% relative the previous, it's always 0.75
 
 			double min = patch.getMin(),
 			       max = patch.getMax();
@@ -1798,18 +1797,18 @@ public final class FSLoader extends Loader {
 				long t0 = System.currentTimeMillis();
 				final BufferedImage[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
 				long t1 = System.currentTimeMillis();
-				System.out.println("\nMipMaps with integral images: creation took " + (t1 - t0));
 				if (null != alpha_mask || null != outside_mask) {
 					for (int i=0; i<b.length; ++i) {
-						mmio.saveWithAlpha(b[i], getLevelDir(dir_mipmaps, k) + filename, 0.85f);
+						mmio.saveWithAlpha(b[i], getLevelDir(dir_mipmaps, i) + filename, 0.85f);
 					}
 				} else {
 					for (int i=0; i<b.length; ++i) {
-						mmio.save(b[i], getLevelDir(dir_mipmaps, k) + filename, 0.85f, ImagePlus.COLOR_RGB != type);
+						mmio.save(b[i], getLevelDir(dir_mipmaps, i) + filename, 0.85f, ImagePlus.COLOR_RGB != type);
 					}
 				}
+				for (int i=0; i<b.length; ++i) b[i].flush();
 				long t2 = System.currentTimeMillis();
-				System.out.println("MipMaps with integral images: saving took " + (t2 - t1) + ", total: " + (t2 - t0) + "\n");
+				System.out.println("MipMaps with integral images: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
 			} else if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 10);
