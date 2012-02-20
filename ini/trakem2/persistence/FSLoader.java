@@ -1793,8 +1793,24 @@ public final class FSLoader extends Loader {
 				cm = null;
 				type = ImagePlus.COLOR_RGB;
 			}
-
-			if (ImagePlus.COLOR_RGB == type) {
+			
+			if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
+				long t0 = System.currentTimeMillis();
+				final BufferedImage[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
+				long t1 = System.currentTimeMillis();
+				System.out.println("\nMipMaps with integral images: creation took " + (t1 - t0));
+				if (null != alpha_mask || null != outside_mask) {
+					for (int i=0; i<b.length; ++i) {
+						mmio.saveWithAlpha(b[i], getLevelDir(dir_mipmaps, k) + filename, 0.85f);
+					}
+				} else {
+					for (int i=0; i<b.length; ++i) {
+						mmio.save(b[i], getLevelDir(dir_mipmaps, k) + filename, 0.85f, ImagePlus.COLOR_RGB != type);
+					}
+				}
+				long t2 = System.currentTimeMillis();
+				System.out.println("MipMaps with integral images: saving took " + (t2 - t1) + ", total: " + (t2 - t0) + "\n");
+			} else if (ImagePlus.COLOR_RGB == type) {
 				// TODO releaseToFit proper
 				releaseToFit(w * h * 4 * 10);
 				final ColorProcessor cp = (ColorProcessor)ip;
@@ -1890,6 +1906,7 @@ public final class FSLoader extends Loader {
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 				}
 			} else {
+				long t0 = System.currentTimeMillis();
 				// Greyscale:
 				releaseToFit(w * h * 4 * 10);
 				final boolean as_grey = !ip.isColorLut();
@@ -1978,6 +1995,9 @@ public final class FSLoader extends Loader {
 						k++;
 					} while (fp.getWidth() >= 32 && fp.getHeight() >= 32); // not smaller than 32x32
 
+					long t1 = System.currentTimeMillis();
+					System.out.println("MipMaps with gaussian: took " + (t1 - t0));
+					
 				} else {
 					
 					// TODO this mode renders pixels at locations different rom the above GAUSSIAN, fix handling of this situation during rendering
