@@ -33,7 +33,7 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
-import java.awt.image.IndexColorModel;
+import java.awt.image.DirectColorModel;
 import java.awt.image.Raster;
 import java.awt.image.SampleModel;
 import java.awt.image.WritableRaster;
@@ -173,20 +173,7 @@ public class ImageSaver {
 		return saveAsJpeg(createGrayImage(pixels, width, height), path, quality, true);
 	}
 
-	static public final IndexColorModel RGBA_COLOR_MODEL;
-	static {
-		byte[] r = new byte[256];
-		byte[] g = new byte[256];
-		byte[] b = new byte[256];
-		byte[] a = new byte[256];
-		for(int i=0; i<256; i++) {
-			r[i]=(byte)i;
-			g[i]=(byte)i;
-			b[i]=(byte)i;
-			a[i]=(byte)i;
-		}
-		RGBA_COLOR_MODEL = new IndexColorModel(8, 256, r, g, b, a);
-	}
+	static public final DirectColorModel RGBA_COLOR_MODEL = new DirectColorModel(32, 0xff0000, 0xff00, 0xff, 0xff000000);
 
 	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
 		WritableRaster wr = RGBA_COLOR_MODEL.createCompatibleWritableRaster(1, 1);
