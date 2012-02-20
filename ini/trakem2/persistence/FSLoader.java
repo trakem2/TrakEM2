@@ -2235,9 +2235,11 @@ public final class FSLoader extends Loader {
 		}, ((Displayable)patches.iterator().next()).getProject());
 	}
 
+	static private final Object FSLOCK = new Object();
+
 	private final String getLevelDir(final String dir_mipmaps, final int level) {
 		// synch, so that multithreaded generateMipMaps won't collide trying to create dirs
-		synchronized (db_lock) {
+		synchronized (FSLOCK) {
 			final String path = new StringBuilder(dir_mipmaps).append(level).append('/').toString();
 			if (isURL(dir_mipmaps)) {
 				return path;
