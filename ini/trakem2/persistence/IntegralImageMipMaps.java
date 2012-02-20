@@ -21,7 +21,7 @@ import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 
 public class IntegralImageMipMaps
 {
-	/** WARNING modifies the {@param alpha} array when {@param outside} is not null.
+	/** WARNING modifies the {@param outside} array when both {@param alpha} and {@param outside} are not null.
 	 * 
 	 * @param patch
 	 * @param ip
@@ -42,17 +42,16 @@ public class IntegralImageMipMaps
 		if (null == alpha) {
 			mask = null == outside ? null : outside;
 		} else if (null == outside) {
-			mask = null;
+			mask = alpha;
 		} else {
 			final byte[] b1 = (byte[])alpha.getPixels(),
 			             b2 = (byte[])outside.getPixels();
 			for (int i=0; i<b1.length; ++i) {
-				// which version is faster?
-				//b1[i] = (byte)((b1[i]&0xff) * (b2[i]&0xff) / 255);
-				b1[i] = (byte)((b2[i]&0xff) != 255 ? 0 : (b1[i]&0xff));
+				b2[i] = (byte)((b2[i]&0xff) != 255 ? 0 : (b1[i]&0xff)); // 'outside' is a binary mask, qualitative
 			}
-			mask = alpha;
+			mask = outside;
 		}
+		
 		// Set min and max
 		/** // No NEED, taken care of by the FSLoader callee function
 		switch (type) {
@@ -87,11 +86,11 @@ public class IntegralImageMipMaps
 	}
 
 	private static final Image<UnsignedByteType> wrap(final byte[] p, final int[] dims) {
-		final UnsignedByteType t = new UnsignedByteType();
 		final Array<UnsignedByteType,ByteArray> c = new Array<UnsignedByteType,ByteArray>(
 			new ArrayContainerFactory(),
 			new ByteArray(p),
 			dims, 1);
+		final UnsignedByteType t = new UnsignedByteType(c);
 		c.setLinkedType(t);
 		return new Image<UnsignedByteType>(c, t);
 	}
@@ -160,12 +159,12 @@ public class IntegralImageMipMaps
 		}
 		
 		// Generate images
-		final BufferedImage[] bis = new BufferedImage[Loader.getHighestMipMapLevel(patch)];
+		final BufferedImage[] bis = new BufferedImage[Loader.getHighestMipMapLevel(patch) + 1];
 		//
 		if (null == saam) { // mask is null
 			// Save images as grayscale
 			bis[0] = ImageSaver.createGrayImage((byte[])ip.getPixels(), w, h); // sharing the byte[]
-			for (int i=1; i<=bis.length; i++) {
+			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
 			          hk = h / K;
@@ -177,7 +176,7 @@ public class IntegralImageMipMaps
 		} else {
 			// Save images as RGBA, where all 3 color channels are the same
 			bis[0] = ImageSaver.createARGBImage(blend((byte[])ip.getPixels(), (byte[])mask.getPixels()), w, h);
-			for (int i=1; i<=bis.length; i++) {
+			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
 			          hk = h / K;
@@ -237,11 +236,11 @@ public class IntegralImageMipMaps
 		}
 		
 		// Generate images
-		final BufferedImage[] bis = new BufferedImage[Loader.getHighestMipMapLevel(patch)];
+		final BufferedImage[] bis = new BufferedImage[Loader.getHighestMipMapLevel(patch) + 1];
 		//
 		if (null == saam) { // mask is null
 			bis[0] = ImageSaver.createARGBImage((int[])ip.getPixels(), w, h); // sharing the int[] pixels
-			for (int i=1; i<=bis.length; i++) {
+			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
 			          hk = h / K;
@@ -261,7 +260,7 @@ public class IntegralImageMipMaps
 		} else {
 			// With alpha channel
 			bis[0] = ImageSaver.createARGBImage(blend((int[])ip.getPixels(), (byte[])mask.getPixels()), w, h); // sharing the int[] pixels
-			for (int i=1; i<=bis.length; i++) {
+			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
 			          hk = h / K;
