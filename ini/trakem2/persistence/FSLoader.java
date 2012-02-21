@@ -1994,9 +1994,6 @@ public final class FSLoader extends Loader {
 						k++;
 					} while (fp.getWidth() >= 32 && fp.getHeight() >= 32); // not smaller than 32x32
 
-					long t1 = System.currentTimeMillis();
-					System.out.println("MipMaps with gaussian: took " + (t1 - t0));
-					
 				} else {
 					
 					// TODO this mode renders pixels at locations different rom the above GAUSSIAN, fix handling of this situation during rendering
@@ -2045,6 +2042,9 @@ public final class FSLoader extends Loader {
 
 					//timer.cumulative();
 				}
+				
+				long t1 = System.currentTimeMillis();
+				System.out.println("MipMaps took " + (t1 - t0));
 			}
 
 			return true;
