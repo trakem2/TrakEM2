@@ -3097,7 +3097,7 @@ public final class FSLoader extends Loader {
 			return ImageSaver.openImage(path, true);
 		}
 		final BufferedImage openGrey(final String path) {
-			return ImageSaver.openJpeg(path, true);
+			return ImageSaver.open(path, true);
 		}
 	}
 	private final class RWImagePNG extends RWImage {
