@@ -20,11 +20,7 @@ public final class FastIntegralImage
 		final int h2 = h+1;
 		final float[] f = new float[w2 * h2];
 		// Sum rows
-		int offset1 = 0;
-		int offset2 = w2 + 1;
-		for (int y=0; y<h; ++y) {
-			//final int offset1 = y * w;
-			//final int offset2 = (y+1) * w2;
+		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
 			float s = b[offset1] & 0xff;
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
@@ -37,8 +33,7 @@ public final class FastIntegralImage
 		// Sum columns over the summed rows
 		for (int x=1; x<w2; ++x) {
 			 float s = 0;
-			 int i = w2 + x;
-			 for (int y=1; y<h2; ++y) {
+			 for (int y=1, i=w2+x; y<h2; ++y) {
 				 s += f[i];
 				 f[i] = s;
 				 i += w2;
@@ -61,11 +56,7 @@ public final class FastIntegralImage
 		final int h2 = h+1;
 		final long[] f = new long[w2 * h2];
 		// Sum rows
-		int offset1 = 0;
-		int offset2 = w2 + 1;
-		for (int y=0; y<h; ++y) {
-			//final int offset1 = y * w;
-			//final int offset2 = (y+1) * w2;
+		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
 			long s = b[offset1] & 0xff;
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
@@ -78,8 +69,7 @@ public final class FastIntegralImage
 		// Sum columns over the summed rows
 		for (int x=1; x<w2; ++x) {
 			 long s = 0;
-			 int i = w2 + x;
-			 for (int y=1; y<h2; ++y) {
+			 for (int y=1, i=w2+x; y<h2; ++y) {
 				 s += f[i];
 				 f[i] = s;
 				 i += w2;
