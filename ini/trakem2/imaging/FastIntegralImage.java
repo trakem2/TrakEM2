@@ -21,12 +21,12 @@ public final class FastIntegralImage
 		final float[] f = new float[w2 * h2];
 		// Sum rows
 		int offset1 = 0;
-		int offset2 = w2;
+		int offset2 = w2 + 1;
 		for (int y=0; y<h; ++y) {
 			//final int offset1 = y * w;
 			//final int offset2 = (y+1) * w2;
 			float s = b[offset1] & 0xff;
-			f[offset2 + 1] = s;
+			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
 				s += b[offset1 + x] & 0xff;
 				f[offset2 + x + 1] = s;
@@ -62,12 +62,12 @@ public final class FastIntegralImage
 		final long[] f = new long[w2 * h2];
 		// Sum rows
 		int offset1 = 0;
-		int offset2 = w2;
+		int offset2 = w2 + 1;
 		for (int y=0; y<h; ++y) {
 			//final int offset1 = y * w;
 			//final int offset2 = (y+1) * w2;
 			long s = b[offset1] & 0xff;
-			f[offset2 + 1] = s;
+			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
 				s += b[offset1 + x] & 0xff;
 				f[offset2 + x + 1] = s;
