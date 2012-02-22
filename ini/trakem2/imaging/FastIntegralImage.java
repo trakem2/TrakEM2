@@ -15,7 +15,7 @@ public final class FastIntegralImage
 	 * @param h
 	 * @return a double[] representing the integral image, with the first row and the first column with zeros.
 	 */
-	static public final double[] floatIntegralImage(final byte[] b, final int w, final int h) {
+	static public final double[] doubleIntegralImage(final byte[] b, final int w, final int h) {
 		final int w2 = w+1;
 		final int h2 = h+1;
 		final double[] f = new double[w2 * h2];
@@ -79,24 +79,25 @@ public final class FastIntegralImage
 		return f;
 	}
 
-
-	/*
+	/** For testing. */
 	static public final void main(String[] args) {
 		{
 			// Test float[] integral image:
 			byte[] b = new byte[3 * 3];
 			for (int i=0; i<b.length; ++i) b[i] = 1;
-			float[] f = floatIntegralImage(b, 3, 3);
+			double[] f = doubleIntegralImage(b, 3, 3);
 			System.out.println("IntegralImage is correct: " + (9 == f[f.length-1]));
 			System.out.println(ini.trakem2.utils.Utils.toString(f));
 
 			// Test scaleAreaAverage with integer division
 			ij.process.ByteProcessor bp = (ij.process.ByteProcessor) ij.IJ.openImage("/home/albert/Desktop/t2/test-mipmaps/src.tif").getProcessor();
 			byte[] pix = (byte[]) bp.getPixels();
-			float[] fii = floatIntegralImage(pix, bp.getWidth(), bp.getHeight());
+			double[] fii = doubleIntegralImage(pix, bp.getWidth(), bp.getHeight());
 			byte[] scaled = scaleAreaAverage(fii, bp.getWidth()+1, bp.getHeight()+1, bp.getWidth()/4, bp.getHeight()/4);
 			new ij.ImageJ();
-			new ij.ImagePlus("integral", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fii, null)).show();
+			final float[] fpix = new float[fii.length];
+			for (int i=0; i<fpix.length; ++i) fpix[i] = (float)fii[i];
+			new ij.ImagePlus("integral", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fpix, null)).show();
 			new ij.ImagePlus("scaled", new ij.process.ByteProcessor(bp.getWidth()/4, bp.getHeight()/4, scaled, null)).show();
 		}
 		{
@@ -121,7 +122,7 @@ public final class FastIntegralImage
 		
 		// Non-integer version tested by commenting out the integer version.
 	}
-	*/
+	
 	
 	/**
 	 * 
