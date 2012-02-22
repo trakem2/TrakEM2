@@ -5,6 +5,7 @@ import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.Patch;
+import ini.trakem2.imaging.FastIntegralImage;
 import ini.trakem2.io.ImageSaver;
 
 import java.awt.image.BufferedImage;
@@ -21,7 +22,9 @@ import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 
 public class IntegralImageMipMaps
 {
-	/** WARNING modifies the {@param outside} array when both {@param alpha} and {@param outside} are not null.
+	/** WARNING modifies the {@param outside} array when both {@param alpha} and {@param outside} are not null,
+	 * and when {@param ip} is a {@link ColorProcessor}, will also modify ints int[] pixels
+	 * if {@param alpha} or {@param outside} are not null (the alpha channel is or'ed in).
 	 * 
 	 * @param patch
 	 * @param ip
@@ -77,10 +80,10 @@ public class IntegralImageMipMaps
 				ip = ip.convertToByte(true);
 				//$FALL-THROUGH$
 			case ImagePlus.GRAY8:
-				return createGRAY8(patch, (ByteProcessor)ip, mask);
+				return fastCreateGRAY8(patch, (ByteProcessor)ip, mask);
 			case ImagePlus.COLOR_256: // Already converted to RGB above
 			case ImagePlus.COLOR_RGB:
-				return createRGB(patch, (ColorProcessor)ip, mask);
+				return fastCreateRGB(patch, (ColorProcessor)ip, mask);
 		}
 		return null;
 	}
@@ -103,13 +106,13 @@ public class IntegralImageMipMaps
 		}
 		return p;
 	}
-	
+
+	/** WARNING will reuse the int[] and return it. */
 	private static final int[] blend(final int[] pi, final byte[] pm) {
-		final int[] p = new int[pi.length];
-		for (int i=0; i<p.length; ++i) {
-			p[i] = ((pm[i]&0xff) << 24) | pi[i];
+		for (int i=0; i<pi.length; ++i) {
+			pi[i] = ((pm[i]&0xff) << 24) | pi[i];
 		}
-		return p;
+		return pi;
 	}
 	
 	private static final int[] blend(final byte[] r, final byte[] g, final byte[] b, final byte[] a) {
@@ -128,6 +131,7 @@ public class IntegralImageMipMaps
 		return p;
 	}
 
+	@SuppressWarnings({ "unused", "unchecked", "null" })
 	private static final BufferedImage[] createGRAY8(
 			final Patch patch,
 			final ByteProcessor ip,
@@ -198,6 +202,51 @@ public class IntegralImageMipMaps
 		return bis;
 	}
 	
+	private static final BufferedImage[] fastCreateGRAY8(
+			final Patch patch,
+			final ByteProcessor ip,
+			final ByteProcessor mask) {
+		final int w = ip.getWidth();
+		final int h = ip.getHeight();
+		
+		// Integrals
+		final long[] ii = FastIntegralImage.longIntegralImage((byte[])ip.getPixels(), w, h);
+		final long[] mi = null == mask ? null : FastIntegralImage.longIntegralImage((byte[])mask.getPixels(), w, h);
+		
+		// Generate images
+		final BufferedImage[] bis = new BufferedImage[Loader.getHighestMipMapLevel(patch) + 1];
+		//
+		if (null == mask) { // mask is null
+			// Save images as grayscale
+			bis[0] = ImageSaver.createGrayImage((byte[])ip.getPixels(), w, h); // sharing the byte[]
+			for (int i=1; i<bis.length; i++) {
+				final int K = (int) Math.pow(2, i),
+			              wk = w / K,
+			              hk = h / K;
+				// An image of the scaled size
+				bis[i] = ImageSaver.createGrayImage(FastIntegralImage.scaleAreaAverage(ii, w+1, h+1, wk, hk), wk, hk);
+			}
+		} else {
+			// Save images as RGBA, where all 3 color channels are the same
+			bis[0] = ImageSaver.createARGBImage(blend((byte[])ip.getPixels(), (byte[])mask.getPixels()), w, h);
+			for (int i=1; i<bis.length; i++) {
+				final int K = (int) Math.pow(2, i),
+			              wk = w / K,
+			              hk = h / K;
+				//
+				bis[i] = ImageSaver.createARGBImage(
+					blend(
+						FastIntegralImage.scaleAreaAverage(ii, w+1, h+1, wk, hk),
+						FastIntegralImage.scaleAreaAverage(mi, w+1, h+1, wk, hk)),
+					wk, hk);
+			}
+		}
+		
+		return bis;
+	}
+	
+	
+	
 	static private final ScaleAreaAveraging2d<LongType, UnsignedByteType> saa(final byte[] b, final int[] dims) {
 		final IntegralImage2<UnsignedByteType, LongType> ii =
 			new IntegralImage2<UnsignedByteType, LongType>(
@@ -208,6 +257,7 @@ public class IntegralImageMipMaps
 			ii.getResult(), new UnsignedByteType(), dims);
 	}
 	
+	@SuppressWarnings({ "unused", "unchecked", "null" })
 	private static final BufferedImage[] createRGB(
 			final Patch patch,
 			final ColorProcessor ip,
@@ -282,6 +332,69 @@ public class IntegralImageMipMaps
 			}
 		}
 		
+		return bis;
+	}
+	
+	private static final BufferedImage[] fastCreateRGB(
+			final Patch patch,
+			final ColorProcessor ip,
+			final ByteProcessor mask) {
+		final int w = ip.getWidth();
+		final int h = ip.getHeight();
+		
+		final long[] ir, ig, ib, im;
+		{
+			// Split color channels
+			final int[] p = (int[]) ip.getPixels();
+			final byte[] r = new byte[p.length],
+			             g = new byte[p.length],
+			             b = new byte[p.length];
+			for (int i=0; i<p.length; ++i) {
+				final int a = p[i];
+				r[i] = (byte)((a >> 16)&0xff);
+				g[i] = (byte)((a >> 8)&0xff);
+				b[i] = (byte)(a&0xff);
+			}
+			//
+			ir = FastIntegralImage.longIntegralImage(r, w, h);
+			ig = FastIntegralImage.longIntegralImage(g, w, h);
+			ib = FastIntegralImage.longIntegralImage(b, w, h);
+			im = null == mask ? null : FastIntegralImage.longIntegralImage((byte[])mask.getPixels(), w, h);
+		}
+		
+		// Generate images
+		final BufferedImage[] bis = new BufferedImage[Loader.getHighestMipMapLevel(patch) + 1];
+		//
+		if (null == mask) {
+			bis[0] = ImageSaver.createARGBImage((int[])ip.getPixels(), w, h); // sharing the int[] pixels
+			for (int i=1; i<bis.length; i++) {
+				final int K = (int) Math.pow(2, i),
+			          wk = w / K,
+			          hk = h / K;
+				// An image of the scaled size
+				bis[i] = ImageSaver.createARGBImage(
+					blend(FastIntegralImage.scaleAreaAverage(ir, w+1, h+1, wk, hk),
+						  FastIntegralImage.scaleAreaAverage(ig, w+1, h+1, wk, hk),
+						  FastIntegralImage.scaleAreaAverage(ib, w+1, h+1, wk, hk)),
+					wk, hk);
+			}
+		} else {
+			// With alpha channel
+			bis[0] = ImageSaver.createARGBImage(blend((int[])ip.getPixels(), (byte[])mask.getPixels()), w, h); // sharing the int[] pixels
+			for (int i=1; i<bis.length; i++) {
+				final int K = (int) Math.pow(2, i),
+			          wk = w / K,
+			          hk = h / K;
+				// An image of the scaled size
+				bis[i] = ImageSaver.createARGBImage(
+					blend(FastIntegralImage.scaleAreaAverage(ir, w+1, h+1, wk, hk),
+						  FastIntegralImage.scaleAreaAverage(ig, w+1, h+1, wk, hk),
+						  FastIntegralImage.scaleAreaAverage(ib, w+1, h+1, wk, hk),
+						  FastIntegralImage.scaleAreaAverage(im, w+1, h+1, wk, hk)),
+					wk, hk);
+			}
+		}
+
 		return bis;
 	}
 }
