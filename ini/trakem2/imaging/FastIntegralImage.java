@@ -1,5 +1,10 @@
 package ini.trakem2.imaging;
 
+/** Written following the code in ImgLib1's IntegralImage2 and ScaleAreaAveraging2d,
+ * authored by Stephan Preibisch and Albert Cardona. 
+ * 
+ * @author Albert Cardona
+ */
 public final class FastIntegralImage
 {
 	/** Returns an image of @{param w}+1, @{param y}+1, where the first row and the first column are zeros,
