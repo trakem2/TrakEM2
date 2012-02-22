@@ -580,8 +580,11 @@ public final class Patch extends Displayable implements ImageData {
 		 * pixel corners and TrakEM2 and mpicbg considering them at pixel
 		 * centers.
 		 */
-		atp.translate( -0.5, -0.5 );
-		
+		if (Loader.GAUSSIAN == project.getMipMapsMode()) {
+			atp.translate( -0.5, -0.5 );
+		}
+		// For all other modes, do not compensate back.
+
 		
 		paintMipMap(g, mipMap, atp, srcRect);
 	}
