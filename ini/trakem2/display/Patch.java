@@ -85,6 +85,7 @@ import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
 public final class Patch extends Displayable implements ImageData {
@@ -1718,8 +1719,11 @@ public final class Patch extends Displayable implements ImageData {
 	 *  @param patches The list of patches to paint. The first gets painted first (at the bottom).
 	 *  @param background The color with which to paint the outsides where no image paints into.
 	 *  @param setMinAndMax defines whether the min and max of each Patch is set before pasting the Patch.
+	 *
+	 * For exporting while blending the display ranges (min,max) and respecting alpha masks, {@see ExportUnsignedShort}.
 	 */
 	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background, final boolean setMinAndMax) {
+		
 		final ImageProcessor ip;
 		final int W, H;
 		if (scale < 1) {
@@ -1752,7 +1756,7 @@ public final class Patch extends Displayable implements ImageData {
 			ip.setColor(background);
 			ip.fill();
 		}
-
+		
 		AffineModel2D sc = null;
 		if ( scale < 1.0 )
 		{
@@ -1788,7 +1792,8 @@ public final class Patch extends Displayable implements ImageData {
 			if (null != sc) patch_affine.preConcatenate( sc );
 
 			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, p.meshResolution, p.getOWidth(), p.getOHeight() );
-			final mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
+			
+			mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
 			
 			// 4. Convert the patch to the required type
 			ImageProcessor pi = p.getImageProcessor();
@@ -1814,6 +1819,7 @@ public final class Patch extends Displayable implements ImageData {
 			
 			/* TODO for taking into account independent min/max setting for each patch,
 			 * we will need a mapping with an `intensity transfer function' to be implemented.
+			 * --> EXISTS already as mpicbg/trakem2/transform/ExportUnsignedShort.java
 			 */
 			mapping.mapInterpolated( pi, ip );
 		}

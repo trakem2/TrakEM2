@@ -564,7 +564,7 @@ public final class FSLoader extends Loader {
 				}
 			}
 			if (null != imp) {
-				// was loaded by a different thread
+				// was loaded by a different thread, or is shareable
 				switch (format) {
 					case Layer.IMAGEPROCESSOR:
 						if (null != slice) {

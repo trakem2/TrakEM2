@@ -121,6 +121,7 @@ import amira.AmiraMeshDecoder;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
+import mpicbg.trakem2.transform.ExportUnsignedShort;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -2989,7 +2990,12 @@ while (it.hasNext()) {
 		final ArrayList<Integer> missingIndices = new ArrayList<Integer>();
 		final double resolution_z_px;
 		final int smallestIndex, largestIndex;
-		{
+		if (1 == layers.length) {
+			indices.put(0, layers[0]);
+			resolution_z_px = layers[0].getZ();
+			smallestIndex = 0;
+			largestIndex = 0;
+		} else {
 			// Ensure layers are sorted by Z index and are unique pointers and unique in Z coordinate:
 			final TreeMap<Double,Layer> t = new TreeMap<Double,Layer>();
 			for (final Layer l1 : new HashSet<Layer>(Arrays.asList(layers))) {
@@ -3033,6 +3039,7 @@ while (it.hasNext()) {
 			// First and last
 			smallestIndex = indices.firstKey();
 			largestIndex = indices.lastKey();
+			Utils.logAll("indices: " + smallestIndex + ", " + largestIndex);
 			// Which indices are missing?
 			for (int i=smallestIndex+1; i<largestIndex; ++i) {
 				if (! indices.containsKey(i)) {
@@ -3116,8 +3123,18 @@ while (it.hasNext()) {
 					Utils.log("Export srcRect: " + srcRect);
 					
 					// WARNING: the snapshot will most likely be smaller than the virtual square image being chopped into tiles
-					ImageProcessor snapshot = makeFlatImage(type, layer, srcRect, scale, (ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), Color.black);
 					
+					ImageProcessor snapshot = null;
+					
+					if (ImagePlus.COLOR_RGB == type) {
+						Utils.log("WARNING: ignoring alpha masks for 'use original images' and 'RGB color' options");
+						snapshot = Patch.makeFlatImage(type, layer, srcRect, scale, (ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), Color.black, true);
+					} else if (ImagePlus.GRAY8 == type) {
+						// Respect alpha masks and display range:
+						Utils.log("WARNING: ignoring scale for 'use original images' and '8-bit' options");
+						snapshot = ExportUnsignedShort.makeFlatImage((ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), srcRect, 0).convertToByte(true);						
+					}
+
 					int scale_pow = 0;
 					int n_et = n_edge_tiles;
 					ExecutorService exe = Utils.newFixedThreadPool("export-for-web");

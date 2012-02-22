@@ -102,7 +102,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 			if ( dx < 0) return -1;
 			if ( 0 == dx)
 			{
-				final float dy = p1[1] - p1[1];
+				final float dy = p1[1] - p2[1];
 				if ( dy < 0 ) return -1;
 				if ( 0 == dy ) return 0;
 				return 1;

@@ -182,10 +182,6 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 
-	static protected final int TRUE = 0,
-							   FALSE = 1,
-							   TEST = 2;
-
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list.
 	 *  Returns a task (or null) to paint the tags. */
 	final Runnable paint(final Graphics2D g, final Layer active_layer,

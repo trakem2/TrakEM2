@@ -130,13 +130,35 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 	}
 	
 	@Override
-	/**
-	 * TODO Make this more efficient
-	 */
 	final public MovingLeastSquaresTransform2 copy()
 	{
+		/*
 		final MovingLeastSquaresTransform2 t = new MovingLeastSquaresTransform2();
 		t.init( toDataString() );
+		return t;
+		*/
+
+		final MovingLeastSquaresTransform2 t = new MovingLeastSquaresTransform2();
+		t.model = this.model.copy();
+		t.alpha = this.alpha;
+		// Copy p, q, w
+		t.p = new float[this.p.length][this.p[0].length];
+		//
+		for (int i=0; i<this.p.length; ++i)
+			for (int k=0; k<this.p[0].length; ++k)
+				t.p[i][k] = this.p[i][k];
+		//
+		t.q = new float[this.q.length][this.q[0].length];
+		//
+		for (int i=0; i<this.q.length; ++i)
+			for (int k=0; k<this.q[0].length; ++k)
+				t.q[i][k] = this.q[i][k];
+		//
+		t.w = new float[this.w.length];
+		//
+		for (int i=0; i<this.w.length; ++i)
+			t.w[i] = this.w[i];
+		
 		return t;
 	}
 
