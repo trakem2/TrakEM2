@@ -260,6 +260,8 @@ public class Project extends DBObject {
 	private String title = "Project";
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
+	
+	private int mipmaps_mode = Loader.GAUSSIAN;
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
@@ -1216,7 +1218,10 @@ public class Project extends DBObject {
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
 		       .append(in).append("\ttitle=\"").append(title).append("\"\n");
 		loader.insertXMLOptions(sb_body, in + "\t");
-		for (final Map.Entry<String, String> e : ht_props.entrySet()) {
+		// Write properties, with the additional property of the image_resizing_mode
+		final HashMap<String,String> props = new HashMap<String, String>(ht_props);
+		props.put("image_resizing_mode", Loader.modes[mipmaps_mode]);
+		for (final Map.Entry<String, String> e : props.entrySet()) {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
 		sb_body.append(in).append(">\n");
@@ -1384,6 +1389,12 @@ public class Project extends DBObject {
 
 	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
+		//
+		String mipmapsMode = ht_attributes.remove("image_resizing_mode");
+		int mode = Loader.GAUSSIAN;
+		if (null != mipmapsMode) mode = Arrays.asList(Loader.modes).indexOf(mipmapsMode);
+		if (-1 != mode) this.mipmaps_mode = mode;
+		//
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
 		for (Map.Entry<String,String> prop : ht_attributes.entrySet()) {
@@ -1462,10 +1473,7 @@ public class Project extends DBObject {
 		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
-		String current_mode = ht_props.get("image_resizing_mode");
-		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
-		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
-		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		gd.addChoice("Image_resizing_mode: ", Loader.modes, Loader.modes[mipmaps_mode]);
 		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
@@ -1501,7 +1509,7 @@ public class Project extends DBObject {
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
-		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+		this.mipmaps_mode = gd.getNextChoiceIndex();
 
 		final int new_mipmap_format = gd.getNextChoiceIndex();
 		final int old_mipmap_format = loader.getMipMapFormat();
@@ -1683,5 +1691,14 @@ public class Project extends DBObject {
 				}
 			}
 		}, project);	
+	}
+	
+	/** The mode used to generate mipmaps, which defaults to {@link Loader#GAUSSIAN}. */
+	public int getMipMapsMode() {
+		return this.mipmaps_mode;
+	}
+	
+	public void setMipMapsMode(int mode) {
+		this.mipmaps_mode = mode;
 	}
 }

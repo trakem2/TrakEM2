@@ -1715,9 +1715,7 @@ public final class FSLoader extends Loader {
 			falphalast = falphazip.lastModified();
 		}
 
-		String srmode = patch.getProject().getProperty("image_resizing_mode");
-		int resizing_mode = GAUSSIAN;
-		if (null != srmode) resizing_mode = Loader.getMode(srmode);
+		final int resizing_mode = patch.getProject().getMipMapsMode();
 
 		try {
 			ImageProcessor ip;
