@@ -25,7 +25,7 @@ public final class FastIntegralImage
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
 				s += b[offset1 + x] & 0xff;
-				f[offset2 + x + 1] = s;
+				f[offset2 + x] = s;
 			}
 			offset1 += w;
 			offset2 += w2;
@@ -61,7 +61,7 @@ public final class FastIntegralImage
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
 				s += b[offset1 + x] & 0xff;
-				f[offset2 + x + 1] = s;
+				f[offset2 + x] = s;
 			}
 			offset1 += w;
 			offset2 += w2;
