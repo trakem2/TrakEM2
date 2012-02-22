@@ -165,9 +165,9 @@ public final class FastIntegralImage
 				          o2 = (startY + stepSizeY) * fw;
 				for (int x=0; x<tw; ++x) {
 					b[o3 + x] = (byte)((  f[o1 + startX]
-							                - f[o1 + startX + stepSizeX]
-							                + f[o2 + startX + stepSizeX]
-							                - f[o2 + startX]) / area + 0.5f);
+							            - f[o1 + startX + stepSizeX]
+							            + f[o2 + startX + stepSizeX]
+							            - f[o2 + startX]) / area + 0.5f);
 					startX += stepSizeX;
 				}
 				startY += stepSizeY;
@@ -207,9 +207,9 @@ public final class FastIntegralImage
 					*/
 					// Same as above, less operations and variables
 					b[o3 + x] = (byte)((  f[o1 + startX]
-							                - f[o1 + startX + vX]
-							                + f[o2 + startX + vX]
-							                - f[o2 + startX]) / (vX * vY) + 0.5);
+							            - f[o1 + startX + vX]
+							            + f[o2 + startX + vX]
+							            - f[o2 + startX]) / (vX * vY) + 0.5);
 					//
 					tmp1 += stepSizeX;
 				}
@@ -263,9 +263,9 @@ public final class FastIntegralImage
 				          o2 = (startY + stepSizeY) * fw;
 				for (int x=0; x<tw; ++x) {
 					b[o3 + x] = (byte)((  f[o1 + startX]
-							                - f[o1 + startX + stepSizeX]
-							                + f[o2 + startX + stepSizeX]
-							                - f[o2 + startX]) / area + 0.5f);
+							            - f[o1 + startX + stepSizeX]
+							            + f[o2 + startX + stepSizeX]
+							            - f[o2 + startX]) / area + 0.5f);
 					startX += stepSizeX;
 				}
 				startY += stepSizeY;
@@ -305,9 +305,9 @@ public final class FastIntegralImage
 					*/
 					// Same as above, less operations and variables
 					b[o3 + x] = (byte)((  f[o1 + startX]
-							                - f[o1 + startX + vX]
-							                + f[o2 + startX + vX]
-							                - f[o2 + startX]) / (vX * vY) + 0.5);
+							            - f[o1 + startX + vX]
+							            + f[o2 + startX + vX]
+							            - f[o2 + startX]) / (vX * vY) + 0.5);
 					//
 					tmp1 += stepSizeX;
 				}
