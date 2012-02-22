@@ -13,15 +13,15 @@ public final class FastIntegralImage
 	 * @param b
 	 * @param w
 	 * @param h
-	 * @return a float[] representing the integral image, with the first row and the first column with zeros.
+	 * @return a double[] representing the integral image, with the first row and the first column with zeros.
 	 */
-	static public final float[] floatIntegralImage(final byte[] b, final int w, final int h) {
+	static public final double[] floatIntegralImage(final byte[] b, final int w, final int h) {
 		final int w2 = w+1;
 		final int h2 = h+1;
-		final float[] f = new float[w2 * h2];
+		final double[] f = new double[w2 * h2];
 		// Sum rows
 		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
-			float s = b[offset1] & 0xff;
+			double s = b[offset1] & 0xff;
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
 				s += b[offset1 + x] & 0xff;
@@ -32,7 +32,7 @@ public final class FastIntegralImage
 		}
 		// Sum columns over the summed rows
 		for (int x=1; x<w2; ++x) {
-			 float s = 0;
+			 double s = 0;
 			 for (int y=1, i=w2+x; y<h2; ++y) {
 				 s += f[i];
 				 f[i] = s;
@@ -133,7 +133,7 @@ public final class FastIntegralImage
 	 * @return The pixels of the scaled image.
 	 */
 	static public final byte[] scaleAreaAverage(
-			final float[] f, final int fw, final int fh,
+			final double[] f, final int fw, final int fh,
 			final int tw, final int th) {
 		final byte[] b = new byte[tw * th];
 		
