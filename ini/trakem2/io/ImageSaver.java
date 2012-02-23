@@ -35,7 +35,9 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Graphics;
 import java.awt.Image;
+import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
 import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
@@ -86,7 +88,7 @@ public class ImageSaver {
 	/** Will create parent directories if they don't exist.<br />
 	 *  Returns false if the path is unusable.
 	 */
-	static private final boolean checkPath(final String path) {
+	static public final boolean checkPath(final String path) {
 		if (null == path) {
 			Utils.log("Null path, can't save.");
 			return false;
@@ -181,13 +183,25 @@ public class ImageSaver {
 	}
 
 	static public final DirectColorModel RGBA_COLOR_MODEL = new DirectColorModel(32, 0xff0000, 0xff00, 0xff, 0xff000000);
-
-	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
-		WritableRaster wr = RGBA_COLOR_MODEL.createCompatibleWritableRaster(1, 1);
+	static public final DirectColorModel RGBA_PRE_COLOR_MODEL = new DirectColorModel(ColorSpace.getInstance(ColorSpace.CS_sRGB), 32, 0xff0000, 0xff00, 0xff, 0xff000000, true, DataBuffer.TYPE_INT);
+	static public final DirectColorModel RGB_COLOR_MODEL = new DirectColorModel(32, 0xff0000, 0xff00, 0xff);
+	
+	static public final BufferedImage createImage(final int[] pixels, final int width, final int height, final DirectColorModel cm) {
+		WritableRaster wr = cm.createCompatibleWritableRaster(1, 1);
 		SampleModel sm = wr.getSampleModel().createCompatibleSampleModel(width, height);
 		DataBuffer dataBuffer = new DataBufferInt(pixels, width*height, 0);
 		WritableRaster rgbRaster = Raster.createWritableRaster(sm, dataBuffer, null);
-		return new BufferedImage(RGBA_COLOR_MODEL, rgbRaster, false, null);
+		return new BufferedImage(cm, rgbRaster, false, null);
+	}
+
+	static public final BufferedImage createRGBImage(final int[] pixels, final int width, final int height) {
+		return createImage(pixels, width, height, RGB_COLOR_MODEL);
+	}
+	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
+		return createImage(pixels, width, height, RGBA_COLOR_MODEL);
+	}
+	static public final BufferedImage createARGBImagePre(final int[] pixels, final int width, final int height) {
+		return createImage(pixels, width, height, RGBA_PRE_COLOR_MODEL);
 	}
 
 	/** Save as ARGB jpeg. */
@@ -478,7 +492,7 @@ public class ImageSaver {
 					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
 					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 					iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
-					((JPEGImageWriteParam)iwp).setProgressiveMode(JPEGImageWriteParam.MODE_DISABLED);
+					//((JPEGImageWriteParam)iwp).setProgressiveMode(JPEGImageWriteParam.MODE_DISABLED);
 					//((JPEGImageWriteParam)iwp).
 					//
 					final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
@@ -588,7 +602,7 @@ public class ImageSaver {
 	}
 
 	/** If the given BufferedImage is of type TYPE_BYTE_GRAY, it will simply return it. If not, it will flush() the given BufferedImage, and return a new grey one. */
-	static private final BufferedImage asGrey(final BufferedImage bi) {
+	static public final BufferedImage asGrey(final BufferedImage bi) {
 		if (null == bi) return null;
 		if (bi.getType() == BufferedImage.TYPE_BYTE_GRAY) {
 			return bi;

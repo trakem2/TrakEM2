@@ -98,7 +98,7 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 				this.inner.removeAll();
 				this.scrollBar.setMaximum(0);
 				this.revalidate();
-				if (clazz == Patch.class) Utils.log2("empty list, removeAll, revalidate");
+				//if (clazz == Patch.class) Utils.log2("empty list, removeAll, revalidate");
 			}
 			return;
 		}
