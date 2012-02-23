@@ -45,6 +45,7 @@ import ij.gui.YesNoCancelDialog;
 import ini.trakem2.utils.*;
 import ini.trakem2.io.*;
 import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.imaging.P;
 
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -1793,18 +1794,11 @@ public final class FSLoader extends Loader {
 			
 			if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
 				long t0 = System.currentTimeMillis();
-				final BufferedImage[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
+				final ImageBytes[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
 				long t1 = System.currentTimeMillis();
-				if (null != alpha_mask || null != outside_mask) {
-					for (int i=0; i<b.length; ++i) {
-						mmio.saveWithAlpha(b[i], getLevelDir(dir_mipmaps, i) + filename, 0.85f);
-					}
-				} else {
-					for (int i=0; i<b.length; ++i) {
-						mmio.save(b[i], getLevelDir(dir_mipmaps, i) + filename, 0.85f, ImagePlus.COLOR_RGB != type);
-					}
+				for (int i=0; i<b.length; ++i) {
+					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
 				}
-				for (int i=0; i<b.length; ++i) b[i].flush();
 				long t2 = System.currentTimeMillis();
 				System.out.println("MipMaps with integral images: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
 			} else if (ImagePlus.COLOR_RGB == type) {
@@ -1841,7 +1835,7 @@ public final class FSLoader extends Loader {
 				// Generate level 0 first:
 				// TODO Add alpha information into the int[] pixel array or make the image visible some other way
 				if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
-						   : mmio.saveWithAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
+						   : mmio.save(target_dir0 + filename, asRGBABytes((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels()), w, h, 0.85f))) {
 					Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
 					cannot_regenerate.add(patch);
 				} else {
@@ -1876,29 +1870,18 @@ public final class FSLoader extends Loader {
 						// 4 - Compose ColorProcessor
 						final int[] pix = new int[w * h];
 						if (null == alpha) {
-							for (int i=0; i<pix.length; i++) {
-								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
-							}
-							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
 							// 5 - Save as jpeg
-							if (!mmio.save(cp2, target_dir + filename, 0.85f, false)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{r, g, b}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
 						} else {
-							// LIKELY no need to set alpha raster later in createARGBImage ... TODO
-							for (int i=0; i<pix.length; i++) {
-								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
-							}
-							final BufferedImage bi_save = createARGBImage(w, h, pix);
-							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{r, g, b, a}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
-								bi_save.flush();
 								break;
 							}
-							bi_save.flush();
 						}
 					} while (w >= 32 && h >= 32); // not smaller than 32x32
 				}
@@ -1967,21 +1950,18 @@ public final class FSLoader extends Loader {
 							// Remove all not completely inside pixels from the alpha mask
 							// If there was no alpha mask, alpha is the outside itself
 
-							final BufferedImage bi_save = createARGBImage(w, h, null == outside ? fp.getARGBPixels((float[])alpha.getPixels()) : fp.getARGBPixels((float[])alpha.getPixels(), (float[])outside.getPixels()));
-							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getBytePixels(), merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
-								bi_save.flush();
 								break;
 							}
-							bi_save.flush();
 						} else {
 							// 3 - save as 8-bit jpeg
 							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
 							if (!coordinate_transformed) ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
 							if (null != cm) ip2.setColorModel(cm); // the LUT
 
-							if (!mmio.save(ip2, target_dir + filename, 0.85f, as_grey)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{(byte[])ip2.getPixels()}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
@@ -1994,7 +1974,8 @@ public final class FSLoader extends Loader {
 
 				} else {
 					
-					// TODO this mode renders pixels at locations different rom the above GAUSSIAN, fix handling of this situation during rendering
+					// TODO this mode renders pixels at locations different from the above GAUSSIAN, fix handling of this situation during rendering
+					// TODO A fix has been placed in Patch.paint but needs testing.
 					
 					//final StopWatch timer = new StopWatch();
 
@@ -2029,7 +2010,7 @@ public final class FSLoader extends Loader {
 						k++;
 						// save this iteration
 						if ( ( (null != balpha || null != boutside) &&
-						      !mmio.saveWithAlpha(bi, target_dir + filename, 0.85f))
+						      !mmio.save(bi, target_dir + filename, 0.85f, false))
 						   || ( null == balpha && null == boutside && !mmio.save(bi, target_dir + filename, 0.85f, as_grey))) {
 							Utils.log("Failed to save mipmap for hardware-accelerated, GRAY8, 'alpha = " + balpha + "', level = " + k  + " for  patch " + patch);
 							cannot_regenerate.add(patch);
@@ -2073,6 +2054,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 	}
+
 
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
@@ -2526,25 +2508,24 @@ public final class FSLoader extends Loader {
 		// TODO the x8 is overly exaggerated
 		
 		if ( patch.hasAlphaChannel() ) {
-			final Image img = mmio.openWithAlpha( path ); // ImageSaver.openJpegAlpha(path);
+			final Image img = mmio.open( path );
 			return img == null ? null : new MipMapImage( img, scale, scale );
 		} else if ( patch.paintsWithFalseColor() ) {
-			// AKA Patch has a LUT
-			IJ.redirectErrorMessages();
-			final ImagePlus imp = openImagePlus( path );
-			return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
+			// AKA Patch has a LUT or is LUT image like a GIF
+			final Image img = mmio.open( path );
+			return img == null ? null : new MipMapImage( img, scale, scale ); // considers c_alphas
 		} else {
+			final Image img;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:
 				case ImagePlus.GRAY32:
-					final Image img = mmio.openGrey( path ); // ImageSaver.openGreyJpeg(path);
+					img = mmio.openGrey( path ); // ImageSaver.openGreyJpeg(path);
 					return img == null ? null : new MipMapImage( img, scale, scale );
 				default:
 					// For color images: (considers URL as well)
-					IJ.redirectErrorMessages();
-					final ImagePlus imp = openImagePlus( path );
-					return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
+					img = mmio.open( path );
+					return img == null ? null : new MipMapImage( img, scale, scale ); // considers c_alphas
 			}
 		}
 	}
@@ -2981,12 +2962,13 @@ public final class FSLoader extends Loader {
 
 
 
-	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif"};
+	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif", ".raw"};
 	static public final int MIPMAP_JPEG = 0;
 	static public final int MIPMAP_PNG = 1;
 	static public final int MIPMAP_TIFF = 2;
+	static public final int MIPMAP_RAW = 3;
 
-	static private final int MIPMAP_HIGHEST = MIPMAP_TIFF; // WARNING: update this value if other formats are added
+	static private final int MIPMAP_HIGHEST = MIPMAP_RAW; // WARNING: update this value if other formats are added
 
 	// Default: JPEG
 	private int mipmaps_format = MIPMAP_JPEG;
@@ -3001,12 +2983,14 @@ public final class FSLoader extends Loader {
 				return new RWImagePNG();
 			case MIPMAP_TIFF:
 				return new RWImageTIFF();
+			case MIPMAP_RAW:
+				return new RWImageRaw();
 			// WARNING add here another one
 		}
 		return null;
 	}
 
-	/** Any of: MIPMAP_JPEG, MIPMAP_PNG */
+	/** Any of: {@link #MIPMAP_JPEG}, {@link #MIPMAP_PNG}, {@link #MIPMAP_TIFF}, {@link #MIPMAP_RAW}. */
 	@Override
 	public final int getMipMapFormat() {
 		return mipmaps_format;
@@ -3018,6 +3002,7 @@ public final class FSLoader extends Loader {
 			case MIPMAP_JPEG:
 			case MIPMAP_PNG:
 			case MIPMAP_TIFF:
+			case MIPMAP_RAW:
 				this.mipmaps_format = format;
 				this.mExt = MIPMAP_FORMATS[mipmaps_format];
 				this.mmio = newMipMapRWImage();
@@ -3066,82 +3051,196 @@ public final class FSLoader extends Loader {
 		}, project);
 	}
 
+	/** Merges into alpha if outside is null, otherwise returns alpha as is. */
+	static private final byte[] merge(final byte[] alpha, byte[] outside) {
+		if (null == outside) return alpha;
+		for (int i=0; i<alpha.length; ++i) {
+			alpha[i] = 255 == outside[i] ? alpha[i] : 0;
+		}
+		return alpha;
+	}
+
+	static public final byte[][] asRGBABytes(final int[] pixels, final byte[] alpha, byte[] outside) {
+		merge(alpha, outside); // into alpha
+		final byte[] r = new byte[pixels.length],
+		             g = new byte[pixels.length],
+		             b = new byte[pixels.length];
+		for (int i=0; i<pixels.length; ++i) {
+			final int x = pixels[i];
+			r[i] = (byte)((x >> 16)&0xff);
+			g[i] = (byte)((x >>  8)&0xff);
+			b[i] = (byte) (x       &0xff);
+		}
+		return new byte[][]{r, g, b, alpha};
+	}
+
+	static public byte[][] asRGBBytes(final int[] pix) {
+		final byte[] r = new byte[pix.length],
+	                 g = new byte[pix.length],
+	                 b = new byte[pix.length];
+		for (int i=0; i<pix.length; ++i) {
+			final int x = pix[i];
+			r[i] = (byte)((x >> 16)&0xff);
+			g[i] = (byte)((x >>  8)&0xff);
+			b[i] = (byte) (x       &0xff);
+		}
+		return new byte[][]{r, g, b};
+	}
+
 	private abstract class RWImage {
-		abstract boolean save(ImageProcessor ip, String path, float quality, boolean as_grey);
-		abstract boolean save(BufferedImage ip, String path, float quality, boolean as_grey);
-		abstract boolean saveWithAlpha(Image awt, String path, float quality);
-		abstract boolean saveWithAlpha(BufferedImage bi, String path, float quality);
-		abstract BufferedImage open(final String path);
-		abstract BufferedImage openWithAlpha(String path);
+		boolean save(ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
+			if (as_grey) ip = ip.convertToByte(false);
+			if (ip instanceof ByteProcessor) {
+				return save(path, new byte[][]{(byte[])ip.getPixels()}, ip.getWidth(), ip.getHeight(), quality);
+			} else if (ip instanceof ColorProcessor) {
+				final int[] p = (int[]) ip.getPixels();
+				final byte[] r = new byte[p.length],
+				             g = new byte[p.length],
+				             b = new byte[p.length],
+				             a = new byte[p.length];
+				for (int i=0; i<p.length; ++i) {
+					final int x = p[i];
+					r[i] = (byte)((x >> 16)&0xff);
+					g[i] = (byte)((x >>  8)&0xff);
+					b[i] = (byte) (x       &0xff);
+					a[i] = (byte)((x >> 24)&0xff);
+				}
+				return save(path, new byte[][]{r, g, b, a}, ip.getWidth(), ip.getHeight(), quality);
+			}
+			return false;
+		}
+		boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
+			switch (bi.getType()) {
+				case BufferedImage.TYPE_BYTE_GRAY:
+					return save(new ByteProcessor(bi), path, quality, false);
+				default:
+					if (as_grey) return save(new ByteProcessor(bi), path, quality, false);
+					return save(new ColorProcessor(bi), path, quality, false);
+			}
+		}
+		abstract boolean save(String path, byte[][] b, int width, int height, float quality);
+		/** Opens grey, RGB and RGBA. */
+		abstract BufferedImage open(String path);
+		/** Opens grey images or, if not grey, converts them to grey. */
 		abstract BufferedImage openGrey(String path);
 	}
 	private final class RWImageJPG extends RWImage {
+		@Override
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsJpeg(ip, path, quality, as_grey);
 		}
+		@Override
 		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsJpeg(bi, path, quality, as_grey);
 		}
-		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
-			return ImageSaver.saveAsJpegAlpha(awt, path, quality);
-		}
-		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
-			return ImageSaver.saveAsJpegAlpha(bi, path, quality);
-		}
-		final BufferedImage open(final String path) {
-			return ImageSaver.openImage(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
+		@Override
+		final BufferedImage open(String path) {
 			return ImageSaver.openImage(path, true);
 		}
+		@Override
 		final BufferedImage openGrey(final String path) {
 			return ImageSaver.open(path, true);
 		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			switch (b.length) {
+				case 1:
+					return ImageSaver.saveAsGreyJpeg(b[0], width, height, path, quality);
+				case 2:
+					return ImageSaver.saveAsJpegAlpha(ImageSaver.createARGBImage(P.blend(b[0], b[1]), width, height), path, quality);
+				case 3:
+					return ImageSaver.saveAsJpeg(ImageSaver.createRGBImage(P.blend(b[0], b[1], b[2]), width, height), path, quality, false);
+				case 4:
+					return ImageSaver.saveAsJpegAlpha(ImageSaver.createARGBImage(P.blend(b[0], b[1], b[2], b[3]), width, height), path, quality);
+			}
+			return false;
+		}
 	}
 	private final class RWImagePNG extends RWImage {
+		@Override
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsPNG(ip, path);
 		}
+		@Override
 		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsPNG(bi, path);
 		}
-		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
-			return ImageSaver.saveAsPNG(awt, path);
-		}
-		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
-			return ImageSaver.saveAsPNG(bi, path);
-		}
-		final BufferedImage open(final String path) {
-			return ImageSaver.openImage(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
+		@Override
+		final BufferedImage open(String path) {
 			return ImageSaver.openImage(path, true);
 		}
+		@Override
 		final BufferedImage openGrey(final String path) {
 			return ImageSaver.openGreyImage(path);
 		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			BufferedImage bi = null;
+			try {
+				switch (b.length) {
+					case 1:
+						bi = ImageSaver.createGrayImage(b[0], width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+					case 2:
+						bi = ImageSaver.createARGBImage(P.blend(b[0], b[1]), width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+					case 3:
+						bi = ImageSaver.createRGBImage(P.blend(b[0], b[1], b[2]), width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+					case 4:
+						bi = ImageSaver.createARGBImage(P.blend(b[0], b[1], b[2], b[3]), width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+				}
+			} finally {
+				if (null != bi) bi.flush();
+			}
+			return false;
+		}
 	}
 	private final class RWImageTIFF extends RWImage {
+		@Override
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsTIFF(ip, path, as_grey);
 		}
+		@Override
 		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsTIFF(bi, path, as_grey);
 		}
-		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
-			return ImageSaver.saveAsTIFF(awt, path, false);
-		}
-		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
-			return ImageSaver.saveAsTIFF(bi, path, false);
-		}
+		@Override
 		final BufferedImage openGrey(final String path) {
 			return ImageSaver.openGreyTIFF(path);
 		}
-		final BufferedImage open(final String path) {
-			return ImageSaver.openTIFF(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
+		@Override
+		final BufferedImage open(String path) {
 			return ImageSaver.openTIFF(path, true);
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			switch (b.length) {
+				case 1:
+					return ImageSaver.saveAsTIFF(ImageSaver.createGrayImage(b[0], width, height), path, false); // already grey
+				case 2:
+					return ImageSaver.saveAsTIFF(ImageSaver.createARGBImage(P.blend(b[0], b[1]), width, height), path, false);
+				case 3:
+					return ImageSaver.saveAsTIFF(ImageSaver.createRGBImage(P.blend(b[0], b[1], b[2]), width, height), path, false);
+				case 4:
+					return ImageSaver.saveAsTIFF(ImageSaver.createARGBImage(P.blend(b[0], b[1], b[2], b[3]), width, height), path, false);
+			}
+			return false;
+		}
+	}
+	private final class RWImageRaw extends RWImage {
+		@Override
+		final BufferedImage open(final String path) {
+			return RawMipMaps.read(path);
+		}
+		@Override
+		final BufferedImage openGrey(final String path) {
+			return ImageSaver.asGrey(RawMipMaps.read(path)); // TODO may not need the asGrey if all is correct
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			return RawMipMaps.save(path, b, width, height);
 		}
 	}
 }
