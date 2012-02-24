@@ -10,7 +10,7 @@ import ini.trakem2.io.ImageSaver;
 
 import java.awt.image.BufferedImage;
 
-import mpicbg.imglib.algorithm.integral.IntegralImage2;
+import mpicbg.imglib.algorithm.integral.IntegralImage;
 import mpicbg.imglib.algorithm.integral.ScaleAreaAveraging2d;
 import mpicbg.imglib.container.array.Array;
 import mpicbg.imglib.container.array.ArrayContainerFactory;
@@ -142,8 +142,8 @@ public class IntegralImageMipMaps
 		final ScaleAreaAveraging2d<LongType, UnsignedByteType> saai, saam;
 		{
 			// Integral of the image
-			final IntegralImage2<UnsignedByteType, LongType> oa =
-					new IntegralImage2<UnsignedByteType, LongType>(
+			final IntegralImage<UnsignedByteType, LongType> oa =
+					new IntegralImage<UnsignedByteType, LongType>(
 							wrap((byte[])ip.getPixels(), dims),
 							new LongType(), new IntegerTypeConverter<UnsignedByteType, LongType>());
 			oa.process();
@@ -152,7 +152,7 @@ public class IntegralImageMipMaps
 
 			// Integral of the mask, if any
 			if (null != mask) {
-				final IntegralImage2<UnsignedByteType, LongType> ma = new IntegralImage2<UnsignedByteType, LongType>(
+				final IntegralImage<UnsignedByteType, LongType> ma = new IntegralImage<UnsignedByteType, LongType>(
 						wrap((byte[])mask.getPixels(), dims),
 						new LongType(), new IntegerTypeConverter<UnsignedByteType, LongType>());
 				ma.process();
@@ -247,8 +247,8 @@ public class IntegralImageMipMaps
 	
 	
 	static private final ScaleAreaAveraging2d<LongType, UnsignedByteType> saa(final byte[] b, final int[] dims) {
-		final IntegralImage2<UnsignedByteType, LongType> ii =
-			new IntegralImage2<UnsignedByteType, LongType>(
+		final IntegralImage<UnsignedByteType, LongType> ii =
+			new IntegralImage<UnsignedByteType, LongType>(
 				wrap(b, dims),
 				new LongType(), new IntegerTypeConverter<UnsignedByteType, LongType>());
 		ii.process();
