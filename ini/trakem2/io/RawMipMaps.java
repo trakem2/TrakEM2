@@ -104,6 +104,10 @@ public final class RawMipMaps {
 	
 	static private final void read(final RandomAccessFile ra, final byte[] b) throws IOException {
 		int s = 0;
-		while (s < b.length) s += ra.read(b, s, b.length - s);
+		while (s < b.length) {
+			int r = ra.read(b, s, b.length - s);
+			if (-1 == r) return;
+			s += r;
+		}
 	}
 }
