@@ -2972,13 +2972,14 @@ public final class FSLoader extends Loader {
 
 
 
-	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif", ".raw"};
+	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif", ".raw", ".rag"};
 	static public final int MIPMAP_JPEG = 0;
 	static public final int MIPMAP_PNG = 1;
 	static public final int MIPMAP_TIFF = 2;
 	static public final int MIPMAP_RAW = 3;
+	static public final int MIPMAP_RAG = 4;
 
-	static private final int MIPMAP_HIGHEST = MIPMAP_RAW; // WARNING: update this value if other formats are added
+	static private final int MIPMAP_HIGHEST = MIPMAP_RAG; // WARNING: update this value if other formats are added
 
 	// Default: JPEG
 	private int mipmaps_format = MIPMAP_JPEG;
@@ -2995,12 +2996,15 @@ public final class FSLoader extends Loader {
 				return new RWImageTIFF();
 			case MIPMAP_RAW:
 				return new RWImageRaw();
+			case MIPMAP_RAG:
+				return new RWImageRag();
 			// WARNING add here another one
 		}
 		return null;
 	}
 
-	/** Any of: {@link #MIPMAP_JPEG}, {@link #MIPMAP_PNG}, {@link #MIPMAP_TIFF}, {@link #MIPMAP_RAW}. */
+	/** Any of: {@link #MIPMAP_JPEG}, {@link #MIPMAP_PNG}, {@link #MIPMAP_TIFF}, {@link #MIPMAP_RAW},
+	 * {@link #MIPMAP_RAG}. */
 	@Override
 	public final int getMipMapFormat() {
 		return mipmaps_format;
@@ -3013,6 +3017,7 @@ public final class FSLoader extends Loader {
 			case MIPMAP_PNG:
 			case MIPMAP_TIFF:
 			case MIPMAP_RAW:
+			case MIPMAP_RAG:
 				this.mipmaps_format = format;
 				this.mExt = MIPMAP_FORMATS[mipmaps_format];
 				this.mmio = newMipMapRWImage();
@@ -3215,6 +3220,20 @@ public final class FSLoader extends Loader {
 		@Override
 		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
 			return RawMipMaps.save(path, b, width, height);
+		}
+	}
+	private final class RWImageRag extends RWImage {
+		@Override
+		final BufferedImage open(final String path) {
+			return RagMipMaps.read(path);
+		}
+		@Override
+		final BufferedImage openGrey(final String path) {
+			return ImageSaver.asGrey(RagMipMaps.read(path)); // TODO may not need the asGrey if all is correct
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			return RagMipMaps.save(path, b, width, height);
 		}
 	}
 }
