@@ -6,6 +6,7 @@ import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.Patch;
 import ini.trakem2.imaging.FastIntegralImage;
+import ini.trakem2.imaging.P;
 import ini.trakem2.io.ImageSaver;
 
 import java.awt.image.BufferedImage;
@@ -365,7 +366,7 @@ public class IntegralImageMipMaps
 		final ImageBytes[] bis = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
 		//
 		if (null == mask) {
-			bis[0] = new ImageBytes(FSLoader.asRGBBytes((int[])ip.getPixels()), ip.getWidth(), ip.getHeight());
+			bis[0] = new ImageBytes(P.asRGBBytes((int[])ip.getPixels()), ip.getWidth(), ip.getHeight());
 			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
@@ -378,7 +379,7 @@ public class IntegralImageMipMaps
 			}
 		} else {
 			// With alpha channel
-			bis[0] = new ImageBytes(FSLoader.asRGBABytes((int[])ip.getPixels(), (byte[])mask.getPixels(), null), ip.getWidth(), ip.getHeight());
+			bis[0] = new ImageBytes(P.asRGBABytes((int[])ip.getPixels(), (byte[])mask.getPixels(), null), ip.getWidth(), ip.getHeight());
 			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
