@@ -109,7 +109,7 @@ public final class DownsamplerMipMaps
 			masks[0] = mask;
 			int i = 1;
 			while (i < p.length) {
-				masks[i] = Downsampler.downsampleByteProcessor(masks[i-1]);
+				masks[i] = Downsampler.downsampleMask(masks[i-1]);
 				++i;
 			}
 			// Image channels
