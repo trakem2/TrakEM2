@@ -87,6 +87,7 @@ import javax.xml.parsers.SAXParser;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
+import mpicbg.trakem2.util.Downsampler;
 
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.ExecutionException;
@@ -1792,7 +1793,16 @@ public final class FSLoader extends Loader {
 				type = ImagePlus.COLOR_RGB;
 			}
 			
-			if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
+			if (Loader.AREA_DOWNSAMPLING == resizing_mode) {
+				long t0 = System.currentTimeMillis();
+				final ImageBytes[] b = DownsamplerMipMaps.create(patch, type, ip, alpha_mask, outside_mask);
+				long t1 = System.currentTimeMillis();
+				for (int i=0; i<b.length; ++i) {
+					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
+				}
+				long t2 = System.currentTimeMillis();
+				System.out.println("MipMaps with area downsampling: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
+			} else if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
 				long t0 = System.currentTimeMillis();
 				final ImageBytes[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
 				long t1 = System.currentTimeMillis();
@@ -1835,7 +1845,7 @@ public final class FSLoader extends Loader {
 				// Generate level 0 first:
 				// TODO Add alpha information into the int[] pixel array or make the image visible some other way
 				if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
-						   : mmio.save(target_dir0 + filename, asRGBABytes((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels()), w, h, 0.85f))) {
+						   : mmio.save(target_dir0 + filename, P.asRGBABytes((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels()), w, h, 0.85f))) {
 					Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
 					cannot_regenerate.add(patch);
 				} else {
@@ -1950,7 +1960,7 @@ public final class FSLoader extends Loader {
 							// Remove all not completely inside pixels from the alpha mask
 							// If there was no alpha mask, alpha is the outside itself
 
-							if (!mmio.save(target_dir + filename, new byte[][]{fp.getBytePixels(), merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getBytePixels(), P.merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
@@ -3049,42 +3059,6 @@ public final class FSLoader extends Loader {
 				}
 			}
 		}, project);
-	}
-
-	/** Merges into alpha if outside is null, otherwise returns alpha as is. */
-	static private final byte[] merge(final byte[] alpha, byte[] outside) {
-		if (null == outside) return alpha;
-		for (int i=0; i<alpha.length; ++i) {
-			alpha[i] = 255 == outside[i] ? alpha[i] : 0;
-		}
-		return alpha;
-	}
-
-	static public final byte[][] asRGBABytes(final int[] pixels, final byte[] alpha, byte[] outside) {
-		merge(alpha, outside); // into alpha
-		final byte[] r = new byte[pixels.length],
-		             g = new byte[pixels.length],
-		             b = new byte[pixels.length];
-		for (int i=0; i<pixels.length; ++i) {
-			final int x = pixels[i];
-			r[i] = (byte)((x >> 16)&0xff);
-			g[i] = (byte)((x >>  8)&0xff);
-			b[i] = (byte) (x       &0xff);
-		}
-		return new byte[][]{r, g, b, alpha};
-	}
-
-	static public byte[][] asRGBBytes(final int[] pix) {
-		final byte[] r = new byte[pix.length],
-	                 g = new byte[pix.length],
-	                 b = new byte[pix.length];
-		for (int i=0; i<pix.length; ++i) {
-			final int x = pix[i];
-			r[i] = (byte)((x >> 16)&0xff);
-			g[i] = (byte)((x >>  8)&0xff);
-			b[i] = (byte) (x       &0xff);
-		}
-		return new byte[][]{r, g, b};
 	}
 
 	private abstract class RWImage {
