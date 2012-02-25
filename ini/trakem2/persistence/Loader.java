@@ -4697,7 +4697,10 @@ while (it.hasNext()) {
 	static public final int GAUSSIAN = 3;
 	static public final int AREA_AVERAGING = 4;
 	static public final int INTEGRAL_AREA_AVERAGING = 5;
-	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian", "Area averaging", "Area averaging with integral images"};
+	static public final int AREA_DOWNSAMPLING = 6;
+	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic",
+		"Gaussian", "Area averaging", "Area averaging with integral images",
+		"Area downsampling"};
 
 	static public final int getMode(final String mode) {
 		for (int i=0; i<modes.length; i++) {

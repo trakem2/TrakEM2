@@ -51,4 +51,41 @@ public final class P {
 		}
 		return p;
 	}
+	
+
+	/** Merges into alpha if outside is null, otherwise returns alpha as is. */
+	static public final byte[] merge(final byte[] alpha, byte[] outside) {
+		if (null == outside) return alpha;
+		for (int i=0; i<alpha.length; ++i) {
+			alpha[i] = 255 == outside[i] ? alpha[i] : 0;
+		}
+		return alpha;
+	}
+
+	static public final byte[][] asRGBABytes(final int[] pixels, final byte[] alpha, byte[] outside) {
+		merge(alpha, outside); // into alpha
+		final byte[] r = new byte[pixels.length],
+		             g = new byte[pixels.length],
+		             b = new byte[pixels.length];
+		for (int i=0; i<pixels.length; ++i) {
+			final int x = pixels[i];
+			r[i] = (byte)((x >> 16)&0xff);
+			g[i] = (byte)((x >>  8)&0xff);
+			b[i] = (byte) (x       &0xff);
+		}
+		return new byte[][]{r, g, b, alpha};
+	}
+
+	static public byte[][] asRGBBytes(final int[] pix) {
+		final byte[] r = new byte[pix.length],
+	                 g = new byte[pix.length],
+	                 b = new byte[pix.length];
+		for (int i=0; i<pix.length; ++i) {
+			final int x = pix[i];
+			r[i] = (byte)((x >> 16)&0xff);
+			g[i] = (byte)((x >>  8)&0xff);
+			b[i] = (byte) (x       &0xff);
+		}
+		return new byte[][]{r, g, b};
+	}
 }

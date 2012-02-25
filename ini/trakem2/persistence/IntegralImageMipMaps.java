@@ -6,11 +6,12 @@ import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.Patch;
 import ini.trakem2.imaging.FastIntegralImage;
+import ini.trakem2.imaging.P;
 import ini.trakem2.io.ImageSaver;
 
 import java.awt.image.BufferedImage;
 
-import mpicbg.imglib.algorithm.integral.IntegralImage2;
+import mpicbg.imglib.algorithm.integral.IntegralImage;
 import mpicbg.imglib.algorithm.integral.ScaleAreaAveraging2d;
 import mpicbg.imglib.container.array.Array;
 import mpicbg.imglib.container.array.ArrayContainerFactory;
@@ -142,8 +143,8 @@ public class IntegralImageMipMaps
 		final ScaleAreaAveraging2d<LongType, UnsignedByteType> saai, saam;
 		{
 			// Integral of the image
-			final IntegralImage2<UnsignedByteType, LongType> oa =
-					new IntegralImage2<UnsignedByteType, LongType>(
+			final IntegralImage<UnsignedByteType, LongType> oa =
+					new IntegralImage<UnsignedByteType, LongType>(
 							wrap((byte[])ip.getPixels(), dims),
 							new LongType(), new IntegerTypeConverter<UnsignedByteType, LongType>());
 			oa.process();
@@ -152,7 +153,7 @@ public class IntegralImageMipMaps
 
 			// Integral of the mask, if any
 			if (null != mask) {
-				final IntegralImage2<UnsignedByteType, LongType> ma = new IntegralImage2<UnsignedByteType, LongType>(
+				final IntegralImage<UnsignedByteType, LongType> ma = new IntegralImage<UnsignedByteType, LongType>(
 						wrap((byte[])mask.getPixels(), dims),
 						new LongType(), new IntegerTypeConverter<UnsignedByteType, LongType>());
 				ma.process();
@@ -247,8 +248,8 @@ public class IntegralImageMipMaps
 	
 	
 	static private final ScaleAreaAveraging2d<LongType, UnsignedByteType> saa(final byte[] b, final int[] dims) {
-		final IntegralImage2<UnsignedByteType, LongType> ii =
-			new IntegralImage2<UnsignedByteType, LongType>(
+		final IntegralImage<UnsignedByteType, LongType> ii =
+			new IntegralImage<UnsignedByteType, LongType>(
 				wrap(b, dims),
 				new LongType(), new IntegerTypeConverter<UnsignedByteType, LongType>());
 		ii.process();
@@ -365,7 +366,7 @@ public class IntegralImageMipMaps
 		final ImageBytes[] bis = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
 		//
 		if (null == mask) {
-			bis[0] = new ImageBytes(FSLoader.asRGBBytes((int[])ip.getPixels()), ip.getWidth(), ip.getHeight());
+			bis[0] = new ImageBytes(P.asRGBBytes((int[])ip.getPixels()), ip.getWidth(), ip.getHeight());
 			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,
@@ -378,7 +379,7 @@ public class IntegralImageMipMaps
 			}
 		} else {
 			// With alpha channel
-			bis[0] = new ImageBytes(FSLoader.asRGBABytes((int[])ip.getPixels(), (byte[])mask.getPixels(), null), ip.getWidth(), ip.getHeight());
+			bis[0] = new ImageBytes(P.asRGBABytes((int[])ip.getPixels(), (byte[])mask.getPixels(), null), ip.getWidth(), ip.getHeight());
 			for (int i=1; i<bis.length; i++) {
 				final int K = (int) Math.pow(2, i),
 			          wk = w / K,

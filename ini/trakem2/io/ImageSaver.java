@@ -462,7 +462,7 @@ public class ImageSaver {
 		return new String(sb);
 	}
 
-	static private final Field Bbuf;
+	static public final Field Bbuf;
 	static {
 		Field b = null;
 		try {
