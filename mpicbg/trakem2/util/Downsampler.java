@@ -127,6 +127,15 @@ final public class Downsampler
 		return ( ( ( ( 0xff000000 | red ) << 8 ) | green ) << 8 ) | blue;
 	}
 	
+	final static private int andByte( final int i1, final int i2, final int i3, final int i4, final byte[] data )
+	{
+		return (
+				data[ i1 ] &
+				data[ i2 ] &
+				data[ i3 ] &
+				data[ i4 ] & 0xff );
+	}
+	
 	final static public ByteProcessor downsampleByteProcessor( final ByteProcessor a )
 	{
 		final int wa = a.getWidth();
@@ -265,7 +274,7 @@ final public class Downsampler
 	 * @param a
 	 * @return
 	 */
-	final static public ImageProcessor downsample( final ImageProcessor a )
+	final static public ImageProcessor downsampleImageProcessor( final ImageProcessor a )
 	{
 		if ( ByteProcessor.class.isInstance( a ) )
 			return downsampleByteProcessor( ( ByteProcessor )a );
@@ -280,68 +289,16 @@ final public class Downsampler
 	}
 	
 	
-	final static public Pair< ByteProcessor, byte[][] > downsampleByteAlpha( final Pair< ByteProcessor, byte[][] > a )
-	{
-		return downsampleByteAlpha( a.a, a.b[ 1 ] );
-	}
-	
-	final static private void byteAlphaLoop(
-			final byte[] aPixels,
-			final byte[] bPixels,
-			final byte[] aAlpha,
-			final byte[] bAlpha,
-			final int nb,
-			final int wa2,
-			final int wb,
-			final int wa )
-	{
-		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
-		{
-			final int ya1 = ya + wa;
-			for ( int xa = 0, xb = 0; xb < wb; xa += 2, ++xb )
-			{
-				final int xa1 = xa + 1;
-				final int yaxa = ya + xa;
-				final int yaxa1 = ya + xa1;
-				final int ya1xa = ya1 + xa;
-				final int ya1xa1 = ya1 + xa1;
-				final int ybxb = yb + xb;
-				
-				bPixels[ ybxb ] = ( byte )averageByte( yaxa, yaxa1, ya1xa, ya1xa1, aPixels );
-				bAlpha[ ybxb ] = ( byte )averageByte( yaxa, yaxa1, ya1xa, ya1xa1, aAlpha );
-			}
-		}
-	}
-	
-	final static public Pair< ByteProcessor, byte[][] > downsampleByteAlpha( final ByteProcessor a, final byte[] aAlpha )
-	{
-		final int wa = a.getWidth();
-		final int ha = a.getHeight();
-		final int wa2 = wa + wa;
-		
-		final int wb = wa / 2;
-		final int hb = ha / 2;
-		final int nb = hb * wb;
-		
-		final ByteProcessor b = new ByteProcessor( wb, hb );
-		
-		final byte[] aPixels = ( byte[] )a.getPixels();
-		final byte[] bPixels = ( byte[] )b.getPixels();
-		final byte[] bAlpha = new byte[ bPixels.length ];
-		
-		byteAlphaLoop( aPixels, bPixels, aAlpha, bAlpha, nb, wa2, wb, wa );
-		
-		return new Pair< ByteProcessor, byte[][] >( b, new byte[][]{ bPixels, bAlpha } );
-	}
-	
-	
-	
-	final static public Pair< ShortProcessor, byte[][] > downsampleShortAlpha( final Pair< ShortProcessor, byte[][] > a )
-	{
-		return downsampleShortAlpha( a.a, a.b[ 1 ] );
-	}
-	
-	final static public Pair< ShortProcessor, byte[][] > downsampleShortAlpha( final ShortProcessor a, byte[] aAlpha )
+	/**
+	 * Create a downsampled version of a {@link ShortProcessor} and the
+	 * mapping of its [min,max] range into an unsigned byte array.
+	 * 
+	 * @param a
+	 * @return
+	 * 	Pair.a downsampled {@link ShortProcessor}
+	 *  Pair.b mapped into unsigned byte
+	 */
+	final static public Pair< ShortProcessor, byte[] > downsampleShort( final ShortProcessor a )
 	{
 		final int wa = a.getWidth();
 		final int ha = a.getHeight();
@@ -362,7 +319,6 @@ final public class Downsampler
 		final short[] aPixels = ( short[] )a.getPixels();
 		final short[] bPixels = ( short[] )b.getPixels();
 		final byte[] bBytes = new byte[ bPixels.length ];
-		final byte[] bAlpha = new byte[ bPixels.length ];
 		
 		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
 		{
@@ -376,31 +332,25 @@ final public class Downsampler
 				final int ya1xa1 = ya1 + xa1;
 				final int ybxb = yb + xb;
 				
-				final int s = (
-						( aPixels[ yaxa ] & 0xffff ) +
-						( aPixels[ yaxa1 ] & 0xffff ) +
-						( aPixels[ ya1xa ] & 0xffff ) +
-						( aPixels[ ya1xa1 ] & 0xffff ) ) / 4;
+				final int s = averageShort( yaxa, yaxa1, ya1xa, ya1xa1, aPixels );
 				bPixels[ ybxb ] = ( short )s;
 				bBytes[ ybxb ] = ( byte )( ( int )( ( s - min ) * scale + 0.5 ) );
-				final int sAlpha = (
-						( aAlpha[ yaxa ] & 0xff ) +
-						( aAlpha[ yaxa1 ] & 0xff ) +
-						( aAlpha[ ya1xa ] & 0xff ) +
-						( aAlpha[ ya1xa1 ] & 0xff ) ) / 4;
-				bAlpha[ ybxb ] = ( byte )sAlpha;
 			}
 		}
-		return new Pair< ShortProcessor, byte[][] >( b, new byte[][]{ bBytes, bAlpha } );
+		return new Pair< ShortProcessor, byte[] >( b, bBytes );
 	}
 	
 	
-	final static public Pair< FloatProcessor, byte[][] > downsampleFloatAlpha( final Pair< FloatProcessor, byte[][] > a )
-	{
-		return downsampleFloatAlpha( a.a, a.b[ 1 ] );
-	}
-	
-	final static public Pair< FloatProcessor, byte[][] > downsampleFloatAlpha( final FloatProcessor a, final byte[] aAlpha )
+	/**
+	 * Create a downsampled version of a {@link FloatProcessor} and the
+	 * mapping of its [min,max] range into an unsigned byte array.
+	 * 
+	 * @param a
+	 * @return
+	 * 	Pair.a downsampled {@link FloatProcessor}
+	 *  Pair.b mapped into unsigned byte
+	 */
+	final static public Pair< FloatProcessor, byte[] > downsampleFloat( final FloatProcessor a )
 	{
 		final int wa = a.getWidth();
 		final int ha = a.getHeight();
@@ -420,7 +370,6 @@ final public class Downsampler
 		final float[] aPixels = ( float[] )a.getPixels();
 		final float[] bPixels = ( float[] )b.getPixels();
 		final byte[] bBytes = new byte[ bPixels.length ];
-		final byte[] bAlpha = new byte[ bPixels.length ];
 		
 		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
 		{
@@ -441,24 +390,23 @@ final public class Downsampler
 						( aPixels[ ya1xa1 ] ) ) / 4;
 				bPixels[ ybxb ] = s;
 				bBytes[ ybxb ] = ( byte )( ( int )( ( s - min ) * scale + 0.5 ) );
-				final int sAlpha = (
-						( aAlpha[ yaxa ] & 0xff ) +
-						( aAlpha[ yaxa1 ] & 0xff ) +
-						( aAlpha[ ya1xa ] & 0xff ) +
-						( aAlpha[ ya1xa1 ] & 0xff ) ) / 4;
-				bAlpha[ ybxb ] = ( byte )sAlpha;
 			}
 		}
-		return new Pair< FloatProcessor, byte[][] >( b, new byte[][]{ bBytes, bAlpha } );
+		return new Pair< FloatProcessor, byte[] >( b, bBytes );
 	}
 	
 	
-	final static public Pair< ColorProcessor, byte[][] > downsampleColorAlpha( final Pair< ColorProcessor, byte[][] > a )
-	{
-		return downsampleColorAlpha( a.a, a.b[ 3 ] );
-	}
-	
-	final static public Pair< ColorProcessor, byte[][] > downsampleColorAlpha( final ColorProcessor a, final byte[] aAlpha )
+	/**
+	 * Create a downsampled version of a {@link ColorProcessor} and the
+	 * mapping of its red, green and blue channels into three unsigned byte
+	 * arrays.
+	 * 
+	 * @param a
+	 * @return
+	 * 	Pair.a downsampled {@link ColorProcessor}
+	 *  Pair.b red, green, blue channels as byte[] each 
+	 */
+	final static public Pair< ColorProcessor, byte[][] > downsampleColor( final ColorProcessor a )
 	{
 		final int wa = a.getWidth();
 		final int ha = a.getHeight();
@@ -475,7 +423,6 @@ final public class Downsampler
 		final byte[] rBytes = new byte[ bPixels.length ];
 		final byte[] gBytes = new byte[ bPixels.length ];
 		final byte[] bBytes = new byte[ bPixels.length ];
-		final byte[] bAlpha = new byte[ bPixels.length ];
 		
 		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
 		{
@@ -494,57 +441,77 @@ final public class Downsampler
 				final int rgb3 = aPixels[ ya1xa ];
 				final int rgb4 = aPixels[ ya1xa1 ];
 				
-				final int red = (
-						( ( rgb1 >> 16 ) & 0xff ) +
-						( ( rgb2 >> 16 ) & 0xff ) +
-						( ( rgb3 >> 16 ) & 0xff ) +
-						( ( rgb4 >> 16 ) & 0xff ) ) / 4;
-				final int green = (
-						( ( rgb1 >> 8 ) & 0xff ) +
-						( ( rgb2 >> 8 ) & 0xff ) +
-						( ( rgb3 >> 8 ) & 0xff ) +
-						( ( rgb4 >> 8 ) & 0xff ) ) / 4;
-				final int blue = (
-						( rgb1 & 0xff ) +
-						( rgb2 & 0xff ) +
-						( rgb3 & 0xff ) +
-						( rgb4 & 0xff ) ) / 4;
+				final int red = averageColorRed( rgb1, rgb2, rgb3, rgb4 );
+				final int green = averageColorGreen( rgb1, rgb2, rgb3, rgb4 );
+				final int blue = averageColorBlue( rgb1, rgb2, rgb3, rgb4 );
 				
 				bPixels[ ybxb ] = ( ( ( ( 0xff000000 | red ) << 8 ) | green ) << 8 ) | blue;
 				
 				rBytes[ ybxb ] = ( byte )red;
 				gBytes[ ybxb ] = ( byte )green;
 				bBytes[ ybxb ] = ( byte )blue;
-				
-				final int sAlpha = (
-						( aAlpha[ yaxa ] & 0xff ) +
-						( aAlpha[ yaxa1 ] & 0xff ) +
-						( aAlpha[ ya1xa ] & 0xff ) +
-						( aAlpha[ ya1xa1 ] & 0xff ) ) / 4;
-				bAlpha[ ybxb ] = ( byte )sAlpha;
 			}
 		}
-		return new Pair< ColorProcessor, byte[][] >( b, new byte[][]{ rBytes, gBytes, bBytes, bAlpha } );
+		return new Pair< ColorProcessor, byte[][] >( b, new byte[][]{ rBytes, gBytes, bBytes } );
 	}
 	
 	
-	
-	final static public Triple< ByteProcessor, byte[][], byte[] > downsampleByteAlphaOutside( final ByteProcessor a, final byte[] aAlpha, final byte[] aOutside )
+	/**
+	 * Called from a single method below but when not separated into its own method,
+	 * inlining does not happen and execution time is doubled.  I beg for introducing
+	 * inline as a keyword to Java.  This magic doesn't make code readable at all.
+	 * 
+	 * @param sOutside
+	 * @param yaxa
+	 * @param yaxa1
+	 * @param ya1xa
+	 * @param ya1xa1
+	 * @param ybxb
+	 * @param aAlphaPixels
+	 * @param bAlphaPixels
+	 * @param bOutsidePixels
+	 */
+	final static private void combineAlphaAndOutside( final int sOutside, final int yaxa, final int yaxa1, final int ya1xa, final int ya1xa1, final int ybxb, final byte[] aAlphaPixels, final byte[] bAlphaPixels, final byte[] bOutsidePixels )
 	{
-		final int wa = a.getWidth();
-		final int ha = a.getHeight();
+		if ( sOutside == 0xff )
+		{
+			final int sAlpha = averageByte( yaxa, yaxa1, ya1xa, ya1xa1, aAlphaPixels );
+			bAlphaPixels[ ybxb ] = ( byte )sAlpha;
+			bOutsidePixels[ ybxb ] = -1;
+		}
+		else
+		{
+			bAlphaPixels[ ybxb ] = 0;
+			bOutsidePixels[ ybxb ] = 0;
+		}
+	}
+	
+	/**
+	 * Combine an alpha and outside mask into a downsampled alpha and outside
+	 * mask.  Those pixels not fully covered in the outside mask are set to 0,
+	 * all others to their interpolated value.
+	 * 
+	 * @param aAlpha
+	 * @param aOutside
+	 * @return
+	 */
+	final static public Pair< ByteProcessor, ByteProcessor > downsampleAlphaAndOutside( final ByteProcessor aAlpha, final ByteProcessor aOutside )
+	{
+		final int wa = aAlpha.getWidth();
+		final int ha = aAlpha.getHeight();
 		final int wa2 = wa + wa;
 		
 		final int wb = wa / 2;
 		final int hb = ha / 2;
 		final int nb = hb * wb;
 		
-		final ByteProcessor b = new ByteProcessor( wb, hb );
+		final ByteProcessor bAlpha = new ByteProcessor( wb, hb );
+		final ByteProcessor bOutside = new ByteProcessor( wb, hb );
 		
-		final byte[] aPixels = ( byte[] )a.getPixels();
-		final byte[] bPixels = ( byte[] )b.getPixels();
-		final byte[] bAlpha = new byte[ bPixels.length ];
-		final byte[] bOutside = new byte[ bPixels.length ];
+		final byte[] aAlphaPixels = ( byte[] )aAlpha.getPixels();
+		final byte[] aOutsidePixels = ( byte[] )aOutside.getPixels();
+		final byte[] bAlphaPixels = ( byte[] )bAlpha.getPixels();
+		final byte[] bOutsidePixels = ( byte[] )bOutside.getPixels();
 		
 		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
 		{
@@ -558,33 +525,50 @@ final public class Downsampler
 				final int ya1xa1 = ya1 + xa1;
 				final int ybxb = yb + xb;
 				
-				final int s = (
-						( aPixels[ yaxa ] & 0xff ) +
-						( aPixels[ yaxa1 ] & 0xff ) +
-						( aPixels[ ya1xa ] & 0xff ) +
-						( aPixels[ ya1xa1 ] & 0xff ) ) / 4;
-				bPixels[ ybxb ] = ( byte )s;
-				final int sOutside = (
-						aOutside[ yaxa ] &
-						aOutside[ yaxa1 ] &
-						aOutside[ ya1xa ] &
-						aOutside[ ya1xa1 ] & 0xff );
-				if ( sOutside == 0xff )
-				{
-					final int sAlpha = (
-							( aAlpha[ yaxa ] & 0xff ) +
-							( aAlpha[ yaxa1 ] & 0xff ) +
-							( aAlpha[ ya1xa ] & 0xff ) +
-							( aAlpha[ ya1xa1 ] & 0xff ) ) / 4;
-					bAlpha[ ybxb ] = ( byte )sAlpha;
-					bOutside[ ybxb ] = -1;
-				}
-				else
-					bAlpha[ ybxb ] = 0;
+				final int sOutside = andByte( yaxa, yaxa1, ya1xa, ya1xa1, aOutsidePixels );
+				combineAlphaAndOutside( sOutside, yaxa, yaxa1, ya1xa, ya1xa1, ybxb, aAlphaPixels, bAlphaPixels, bOutsidePixels );
 			}
 		}
-		return new Triple< ByteProcessor, byte[][], byte[] >( b, new byte[][]{ bPixels, bAlpha }, bOutside );
+		return new Pair< ByteProcessor, ByteProcessor >( bAlpha, bOutside );
 	}
 	
-	
+	/**
+	 * Downsample and outside mask.  Those pixels not fully covered in the
+	 * outside mask are set to 0, all others to 255.
+	 * 
+	 * @param aAlpha
+	 * @param aOutside
+	 * @return
+	 */
+	final static public ByteProcessor downsampleOutside( final ByteProcessor aOutside )
+	{
+		final int wa = aOutside.getWidth();
+		final int ha = aOutside.getHeight();
+		final int wa2 = wa + wa;
+		
+		final int wb = wa / 2;
+		final int hb = ha / 2;
+		final int nb = hb * wb;
+		
+		final ByteProcessor bOutside = new ByteProcessor( wb, hb );
+		
+		final byte[] aOutsidePixels = ( byte[] )aOutside.getPixels();
+		final byte[] bOutsidePixels = ( byte[] )bOutside.getPixels();
+		
+		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
+		{
+			final int ya1 = ya + wa;
+			for ( int xa = 0, xb = 0; xb < wb; xa += 2, ++xb )
+			{
+				final int xa1 = xa + 1;
+				final int sOutside = andByte( ya + xa, ya + xa1, ya1 + xa, ya1 + xa1, aOutsidePixels );
+				
+				if ( sOutside == 0xff )
+					bOutsidePixels[ yb + xb ] = -1;
+				else
+					bOutsidePixels[ yb + xb ] = 0;
+			}
+		}
+		return bOutside;
+	}
 }

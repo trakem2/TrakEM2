@@ -1,5 +1,6 @@
 import ij.ImageJ;
 import ij.ImagePlus;
+import ij.gui.OvalRoi;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
@@ -35,7 +36,7 @@ import mpicbg.util.Timer;
  */
 public class DownsamplerTest
 {
-	final static int n = 10;
+	final static int n = 20;
 
 	final private static void testShort( ShortProcessor ipShort )
 	{
@@ -73,50 +74,81 @@ public class DownsamplerTest
 			ipColor = Downsampler.downsampleColorProcessor( ipColor );
 	}
 	
-	final private static void testByteAlpha( Pair< ByteProcessor, byte[][] > ba )
+	/**
+	 * Test downsampling the pyramid of a short image + byte alpha channel
+	 * including the byte mapping of the short doing the alpha channel in a
+	 * separate loop.
+	 * 
+	 * @param ba
+	 */
+	final private static void testShortAlphaIndependently( Pair< ShortProcessor, byte[] > ba, ByteProcessor alpha )
 	{
-		new ImagePlus( "byte pixels " + ba.a.getWidth(), ba.a ).show();
 		while( ba.a.getWidth() > 32 )
 		{
-			ba = Downsampler.downsampleByteAlpha( ba );
+			ba = Downsampler.downsampleShort( ba.a );
+			alpha = Downsampler.downsampleByteProcessor( alpha );
 //			new ImagePlus( "pixels " + ba.a.getWidth(), ba.a ).show();
 //			new ImagePlus( "pixels to byte " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 0 ], null ) ).show();
 //			new ImagePlus( "alpha " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 1 ], null ) ).show();
 		}
 	}
 	
-	final private static void testShortAlpha( Pair< ShortProcessor, byte[][] > ba )
+	/**
+	 * Test downsampling the pyramid of a short image + byte alpha channel
+	 * including the byte mapping of the short doing the alpha channel in a
+	 * separate loop.
+	 * 
+	 * @param ba
+	 */
+	final private static void testFloatAlphaIndependently( Pair< FloatProcessor, byte[] > ba, ByteProcessor alpha )
 	{
 		while( ba.a.getWidth() > 32 )
 		{
-			ba = Downsampler.downsampleShortAlpha( ba );
+			ba = Downsampler.downsampleFloat( ba.a );
+			alpha = Downsampler.downsampleByteProcessor( alpha );
 //			new ImagePlus( "pixels " + ba.a.getWidth(), ba.a ).show();
 //			new ImagePlus( "pixels to byte " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 0 ], null ) ).show();
 //			new ImagePlus( "alpha " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 1 ], null ) ).show();
 		}
 	}
 	
-	final private static void testFloatAlpha( Pair< FloatProcessor, byte[][] > ba )
+	/**
+	 * Test downsampling the pyramid of a short image + byte alpha channel
+	 * including the byte mapping of the short doing the alpha channel in a
+	 * separate loop.
+	 * 
+	 * @param ba
+	 */
+	final private static void testColorAlphaIndependently( Pair< ColorProcessor, byte[][] > ba, ByteProcessor alpha )
 	{
 		while( ba.a.getWidth() > 32 )
 		{
-			ba = Downsampler.downsampleFloatAlpha( ba );
+			ba = Downsampler.downsampleColor( ba.a );
+			alpha = Downsampler.downsampleByteProcessor( alpha );
 //			new ImagePlus( "pixels " + ba.a.getWidth(), ba.a ).show();
 //			new ImagePlus( "pixels to byte " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 0 ], null ) ).show();
 //			new ImagePlus( "alpha " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 1 ], null ) ).show();
 		}
 	}
 	
-	final private static void testColorAlpha( Pair< ColorProcessor, byte[][] > ba )
+	
+	final private static void testAlphaOutside( Pair< ByteProcessor, ByteProcessor > ba )
 	{
 		while( ba.a.getWidth() > 32 )
 		{
-			ba = Downsampler.downsampleColorAlpha( ba );
-//			new ImagePlus( "pixels " + ba.a.getWidth(), ba.a ).show();
-//			final ColorProcessor cp = new ColorProcessor( ba.a.getWidth(), ba.a.getHeight() );
-//			cp.setRGB( ba.b[ 0 ], ba.b[ 1 ], ba.b[ 2 ] );
-//			new ImagePlus( "pixels to rgb " + ba.a.getWidth(), cp ).show();
-//			new ImagePlus( "alpha " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 3 ], null ) ).show();
+			ba = Downsampler.downsampleAlphaAndOutside( ba.a, ba.b );
+//			new ImagePlus( "alpha " + ba.a.getWidth(), ba.a ).show();
+//			new ImagePlus( "outside " + ba.b.getWidth(), ba.b ).show();
+		}
+	}
+	
+	final private static void testOutside( ByteProcessor a )
+	{
+		while( a.getWidth() > 32 )
+		{
+			a = Downsampler.downsampleOutside( a );
+//			new ImagePlus( "alpha " + ba.a.getWidth(), ba.a ).show();
+//			new ImagePlus( "outside " + ba.b.getWidth(), ba.b ).show();
 		}
 	}
 	
@@ -162,13 +194,14 @@ public class DownsamplerTest
 			System.out.println( i + ": " + t  + "ms" );
 		}
 		
-		System.out.println( "short + alpha" );
+		System.out.println( "independent short with byte mapping + alpha" );
 		
 		for ( int i = 0; i < n; ++i )
 		{
-			final Pair< ShortProcessor, byte[][] > ba = new Pair< ShortProcessor, byte[][] >( ipShort, new byte[][]{ ( byte[] )ipShort.convertToByte( true ).getPixels(), ( byte[] )ipShort.convertToByte( true ).getPixels() } );
+			final Pair< ShortProcessor, byte[] > ba = new Pair< ShortProcessor, byte[] >( ipShort, ( byte[] )ipShort.convertToByte( true ).getPixels() );
+			final ByteProcessor alpha = new ByteProcessor( ipShort.getWidth(), ipShort.getHeight(), ( byte[] )ipShort.convertToByte( true ).getPixels(), null );
 			timer.start();
-			testShortAlpha( ba );
+			testShortAlphaIndependently( ba, alpha );
 			final long t = timer.stop();
 			System.out.println( i + ": " + t  + "ms" );
 		}
@@ -184,13 +217,14 @@ public class DownsamplerTest
 			System.out.println( i + ": " + t  + "ms" );
 		}
 		
-		System.out.println( "float + alpha" );
+		System.out.println( "independent float with byte mapping + alpha" );
 		
 		for ( int i = 0; i < n; ++i )
 		{
-			final Pair< FloatProcessor, byte[][] > ba = new Pair< FloatProcessor, byte[][] >( ipFloat, new byte[][]{ ( byte[] )ipShort.convertToByte( true ).getPixels(), ( byte[] )ipShort.convertToByte( true ).getPixels() } );
+			final Pair< FloatProcessor, byte[] > ba = new Pair< FloatProcessor, byte[] >( ipFloat, ( byte[] )ipShort.convertToByte( true ).getPixels() );
+			final ByteProcessor alpha = new ByteProcessor( ipShort.getWidth(), ipShort.getHeight(), ( byte[] )ipShort.convertToByte( true ).getPixels(), null );
 			timer.start();
-			testFloatAlpha( ba );
+			testFloatAlphaIndependently( ba, alpha );
 			final long t = timer.stop();
 			System.out.println( i + ": " + t  + "ms" );
 		}
@@ -218,16 +252,6 @@ public class DownsamplerTest
 			System.out.println( i + ": " + t  + "ms" );
 		}
 		
-		System.out.println( "byte + alpha" );
-		
-		for ( int i = 0; i < n; ++i )
-		{
-			final Pair< ByteProcessor, byte[][] > ba = new Pair< ByteProcessor, byte[][] >( ipByte, new byte[][]{ ( byte[] )ipByte.getPixels(), ( byte[] )ipByte2.getPixels() } );
-			timer.start();
-			testByteAlpha( ba );
-			final long t = timer.stop();
-			System.out.println( i + ": " + t  + "ms" );
-		}
 		
 		System.out.println( "color" );
 		final ColorProcessor ipColor = ( ColorProcessor )ip.convertToRGB();
@@ -240,19 +264,49 @@ public class DownsamplerTest
 			System.out.println( i + ": " + t  + "ms" );
 		}
 		
-		System.out.println( "color + alpha" );
+		System.out.println( "independent color with byte mapping + alpha" );
 		
 		for ( int i = 0; i < n; ++i )
 		{
 			final byte[][] rgb = new byte[ 4 ][ ipColor.getWidth() * ipColor.getHeight() ];
 			ipColor.getRGB( rgb[ 0 ], rgb[ 1 ], rgb[ 2 ] );
-			rgb[ 3 ] = rgb[ 0 ].clone();
 			final Pair< ColorProcessor, byte[][] > ba = new Pair< ColorProcessor, byte[][] >( ipColor, rgb );
+			final ByteProcessor alpha = new ByteProcessor( ipShort.getWidth(), ipShort.getHeight(), ( byte[] )ipShort.convertToByte( true ).getPixels(), null );
 			timer.start();
-			testColorAlpha( ba );
+			testColorAlphaIndependently( ba, alpha );
 			final long t = timer.stop();
 			System.out.println( i + ": " + t  + "ms" );
 		}
+		
+		System.out.println( "alpha + outside" );
+		
+		for ( int i = 0; i < n; ++i )
+		{
+			ByteProcessor outside = new ByteProcessor( ipByte.getWidth(), ipByte.getHeight() );
+			outside.setRoi( new OvalRoi( 100, 100, ipByte.getWidth() - 200, ipByte.getHeight() - 200 ) );
+			outside.setValue( 255 );
+			outside.fill(outside.getMask());
+			final Pair< ByteProcessor, ByteProcessor > ba = new Pair< ByteProcessor, ByteProcessor >( ipByte, outside );
+			timer.start();
+			testAlphaOutside( ba );
+			final long t = timer.stop();
+			System.out.println( i + ": " + t  + "ms" );
+		}
+		
+		System.out.println( "outside" );
+		
+		for ( int i = 0; i < n; ++i )
+		{
+			ByteProcessor outside = new ByteProcessor( ipByte.getWidth(), ipByte.getHeight() );
+			outside.setRoi( new OvalRoi( 100, 100, ipByte.getWidth() - 200, ipByte.getHeight() - 200 ) );
+			outside.setValue( 255 );
+			outside.fill(outside.getMask());
+			timer.start();
+			testOutside( outside );
+			final long t = timer.stop();
+			System.out.println( i + ": " + t  + "ms" );
+		}
+		
 		
 //		System.out.println( "byte integral" );
 //		final ByteProcessor ipByteI = ( ByteProcessor )ipShort.convertToByte( true );
