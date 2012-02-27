@@ -56,7 +56,6 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
