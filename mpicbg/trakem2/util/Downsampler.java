@@ -170,46 +170,6 @@ final public class Downsampler
 		return b;
 	}
 	
-	/**
-	 * Thresholds output pixels so that 255 remains 255, and all other values become 0.
-	 * @param a
-	 * @return
-	 */
-	final static public ByteProcessor downsampleMask( final ByteProcessor a )
-	{
-		final int wa = a.getWidth();
-		final int ha = a.getHeight();
-		final int wa2 = wa + wa;
-		
-		final int wb = wa / 2;
-		final int hb = ha / 2;
-		final int nb = hb * wb;
-		
-		final ByteProcessor b = new ByteProcessor( wb, hb );
-		
-		final byte[] aPixels = ( byte[] )a.getPixels();
-		final byte[] bPixels = ( byte[] )b.getPixels();
-		
-		final byte IN = (byte)255,
-		           OUT = 0;
-		
-		for ( int ya = 0, yb = 0; yb < nb; ya += wa2, yb += wb )
-		{
-			final int ya1 = ya + wa;
-			for ( int xa = 0, xb = 0; xb < wb; xa += 2, ++xb )
-			{
-				final int xa1 = xa + 1;
-				final int s = (
-						( aPixels[ ya + xa ] & 0xff ) +
-						( aPixels[ ya + xa1 ] & 0xff ) +
-						( aPixels[ ya1 + xa ] & 0xff ) +
-						( aPixels[ ya1 + xa1 ] & 0xff ) ) / 4;
-				bPixels[ yb + xb ] = (255 == s ? IN : OUT);
-			}
-		}
-		
-		return b;
-	}
 	
 	final static public ShortProcessor downsampleShortProcessor( final ShortProcessor a )
 	{
