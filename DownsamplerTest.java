@@ -95,6 +95,26 @@ public class DownsamplerTest
 	
 	/**
 	 * Test downsampling the pyramid of a short image + byte alpha channel
+	 * including the byte mapping of the short all in separate loops.
+	 * 
+	 * @param ba
+	 */
+	final private static void testShortAlphaByteMappingIndependently( ShortProcessor sp, ByteProcessor alpha )
+	{
+		ByteProcessor bp;
+		while( sp.getWidth() > 32 )
+		{
+			sp = Downsampler.downsampleShortProcessor( sp );
+			bp = ( ByteProcessor )sp.convertToByte( true );
+			alpha = Downsampler.downsampleByteProcessor( alpha );
+//			new ImagePlus( "pixels " + ba.a.getWidth(), ba.a ).show();
+//			new ImagePlus( "pixels to byte " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 0 ], null ) ).show();
+//			new ImagePlus( "alpha " + ba.a.getWidth(), new ByteProcessor( ba.a.getWidth(), ba.a.getHeight(), ba.b[ 1 ], null ) ).show();
+		}
+	}
+	
+	/**
+	 * Test downsampling the pyramid of a short image + byte alpha channel
 	 * including the byte mapping of the short doing the alpha channel in a
 	 * separate loop.
 	 * 
@@ -202,6 +222,17 @@ public class DownsamplerTest
 			final ByteProcessor alpha = new ByteProcessor( ipShort.getWidth(), ipShort.getHeight(), ( byte[] )ipShort.convertToByte( true ).getPixels(), null );
 			timer.start();
 			testShortAlphaIndependently( ba, alpha );
+			final long t = timer.stop();
+			System.out.println( i + ": " + t  + "ms" );
+		}
+		
+		System.out.println( "independent short + byte mapping + alpha" );
+		
+		for ( int i = 0; i < n; ++i )
+		{
+			final ByteProcessor alpha = new ByteProcessor( ipShort.getWidth(), ipShort.getHeight(), ( byte[] )ipShort.convertToByte( true ).getPixels(), null );
+			timer.start();
+			testShortAlphaByteMappingIndependently( ipShort, alpha );
 			final long t = timer.stop();
 			System.out.println( i + ": " + t  + "ms" );
 		}
