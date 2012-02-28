@@ -4975,4 +4975,9 @@ while (it.hasNext()) {
 	public String getCoordinateTransformsFolder() {
 		return null;
 	}
+
+	/** Returns 0 unless overriden. */
+	public long getNextBlobId() {
+		return 0;
+	}
 }

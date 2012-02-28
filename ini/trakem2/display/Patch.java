@@ -1160,7 +1160,7 @@ public final class Patch extends Displayable implements ImageData {
 	public void setCoordinateTransformSilently(final CoordinateTransform ct) {
 		try {
 			if (0 == this.ct_id) {
-				// Old XML, lacks a ct_id attribute
+				// Old XML, lacks a ct_id attribute; will get a new ct_id
 				setNewCoordinateTransform(ct);
 			} else {
 				// New XML with ct_id attribute
@@ -2061,7 +2061,7 @@ public final class Patch extends Displayable implements ImageData {
 			return true;
 		}
 		// Obtain a new ID
-		final long ctID = project.getLoader().getNextId();
+		final long ctID = project.getLoader().getNextBlobId();
 		// Write the ct to file, which may throw an exception
 		if (writeNewCoordinateTransform(ct, ctID)) {
 			// Declare the current file, if any, as stale
@@ -2088,9 +2088,9 @@ public final class Patch extends Displayable implements ImageData {
 			pw.flush();
 			// File will become unstale when exporting to XML.
 			//project.getLoader().queueStaleCTFile(ctID, path);
+			return true;
 		} finally {
 			if (null != pw) try { pw.close(); } catch (Exception e) { IJError.print(e); }
 		}
-		return true;
 	}
 }

@@ -113,6 +113,9 @@ public final class FSLoader extends Loader {
 	
 	/** Largest id seen so far. */
 	private long max_id = -1;
+	/** Largest blob ID seen so far. First valid ID will equal 1. */
+	private long max_blob_id = 0;
+
 	private final Map<Long,String> ht_paths = Collections.synchronizedMap(new HashMap<Long,String>());
 	/** For saving and overwriting. */
 	private String project_file_path = null;
@@ -451,10 +454,21 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Get the next unique id, not shared by any other object within the same project. */
+	@Override
 	public long getNextId() {
 		long nid = -1;
 		synchronized (db_lock) {
 			nid = ++max_id;
+		}
+		return nid;
+	}
+
+	/** Get the next unique id to be used for the {@link Patch}'s {@link CoordinateTransform} or alpha mask. */
+	@Override
+	public long getNextBlobId() {
+		long nid = 0;
+		synchronized (db_lock) {
+			nid = ++max_blob_id;
 		}
 		return nid;
 	}
@@ -776,6 +790,12 @@ public final class FSLoader extends Loader {
 			final long id = ob.getId();
 			if (id > max_id) {
 				max_id = id;
+			}
+			if (ob.getClass() == Patch.class) {
+				final Patch p = (Patch)ob;
+				if (p.hasCoordinateTransform()) {
+					max_blob_id = Math.max(p.getCoordinateTransformId(), max_blob_id);
+				}
 			}
 		}
 		return true;
