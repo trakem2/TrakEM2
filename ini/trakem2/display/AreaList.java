@@ -39,6 +39,7 @@ import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.paint.USHORTPaint;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -445,10 +446,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_area_list\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		sb_body.append(in).append("fill_paint=\"").append(fill_paint).append("\"\n");
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"stroke:none;fill-opacity:").append(alpha).append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n");
@@ -460,7 +461,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			exportArea(sb_body, in + "\t", area);
 			sb_body.append(in).append("</t2_area>\n");
 		}
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_area_list>\n");
 	}
 

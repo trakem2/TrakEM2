@@ -1032,10 +1032,10 @@ public final class FSLoader extends Loader {
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	@Override
-	public String save(final Project project) {
+	public String save(final Project project, XMLOptions options) {
 		String result = null;
 		if (null == project_file_path) {
-			String xml_path = super.saveAs(project, null, false);
+			String xml_path = super.saveAs(project, null, options);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
@@ -1044,7 +1044,7 @@ public final class FSLoader extends Loader {
 			}
 		} else {
 			File fxml = new File(project_file_path);
-			result = super.export(project, fxml, false);
+			result = super.export(project, fxml, options);
 		}
 		if (null != result) {
 			Utils.logAll(Utils.now() + " Saved " + project);
@@ -1054,8 +1054,9 @@ public final class FSLoader extends Loader {
 	}
 
 	/** The saveAs called from menus via saveTask. */
-	public String saveAs(Project project) {
-		String path = super.saveAs(project, null, false);
+	@Override
+	public String saveAs(Project project, XMLOptions options) {
+		String path = super.saveAs(project, null, options);
 		if (null != path) {
 			// update the xml path to point to the new one
 			this.project_file_path = path;
@@ -1068,7 +1069,8 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Meant for programmatic access, such as calls to project.saveAs(path, overwrite) which call exactly this method. */
-	public String saveAs(final String path, final boolean overwrite) {
+	@Override
+	public String saveAs(final String path, final XMLOptions options) {
 		if (null == path) {
 			Utils.log("Cannot save on null path.");
 			return null;
@@ -1090,7 +1092,7 @@ public final class FSLoader extends Loader {
 			Utils.logAll("WARNING can't write to " + path3 + "\n  --> will write instead to " + path2);
 			fxml = new File(path2);
 		}
-		if (!overwrite) {
+		if (!options.overwriteXMLFile) {
 			int i = 1;
 			while (fxml.exists()) {
 				String parent = fxml.getParent().replace('\\','/');
@@ -1103,7 +1105,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 		Project project = Project.findProject(this);
-		path2 = super.saveAs(project, path2, false);
+		path2 = super.saveAs(project, path2, options);
 		if (null != path2) {
 			project_file_path = path2;
 			Utils.logAll("After saveAs, new xml path is: " + path2);

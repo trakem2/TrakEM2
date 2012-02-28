@@ -113,7 +113,7 @@ public class ImageJCommandListener implements CommandListener {
 		//
 		// FILE menu
 		if (command.equals("Save")) {
-			project.getLoader().save(project);
+			project.save();
 			return null;
 		}
 

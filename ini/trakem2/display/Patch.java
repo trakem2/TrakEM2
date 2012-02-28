@@ -780,16 +780,14 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) { // TODO the Loader should handle the saving of images, not this class.
 		String in = indent + "\t";
 		String path = null;
 		String path2 = null;
-		//Utils.log2("#########\np id=" + id + "  any is " + any);
-		if (null != any) {
-			path = any + title; // ah yes, automatic toString() .. it's like the ONLY smart logic at the object level built into java.
-			// save image without overwritting, and add proper extension (.zip)
+		if (null != options) {
+			path = options.patches_dir + title;
+			// save image without overwriting, and add proper extension (.zip)
 			path2 = project.getLoader().exportImage(this, path, false);
-			//Utils.log2("p id=" + id + "  path2: " + path2);
 			// path2 will be null if the file exists already
 		}
 		sb_body.append(indent).append("<t2_patch\n");
@@ -823,7 +821,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		//Utils.log("Patch path is: " + rel_path);
 
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		String[] RGB = Utils.getHexRGBColor(color);
 		int type = this.type;
 		if (-1 == this.type) {
@@ -857,7 +855,7 @@ public final class Patch extends Displayable implements ImageData {
 			for (IFilter f : filters) sb_body.append(f.toXML(in)); // specify their own line termination
 		}
 
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 
 		sb_body.append(indent).append("</t2_patch>\n");
 	}

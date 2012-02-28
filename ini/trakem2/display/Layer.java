@@ -29,6 +29,7 @@ import ij.ImagePlus;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
@@ -843,7 +844,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		final String in = indent + "\t";
 		// 1 - open tag
 		sb_body.append(indent).append("<t2_layer oid=\"").append(id).append("\"\n")
@@ -858,7 +859,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		// 2 - export children
 		if (null != al_displayables) {
 			for (final Displayable d : al_displayables) {
-				d.exportXML(sb_body, in, any);
+				d.exportXML(sb_body, in, options);
 			}
 		}
 		// 3 - close tag

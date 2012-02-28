@@ -26,6 +26,7 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
@@ -646,17 +647,17 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_dissector\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		sb_body.append(indent).append(">\n");
 		for (final Item item : al_items) {
 			item.exportXML(sb_body, in);
 		}
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_dissector>\n");
 	}
 
