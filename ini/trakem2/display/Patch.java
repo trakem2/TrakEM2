@@ -2093,4 +2093,13 @@ public final class Patch extends Displayable implements ImageData {
 			if (null != pw) try { pw.close(); } catch (Exception e) { IJError.print(e); }
 		}
 	}
+
+	/**
+	 * 
+	 * @return True if {@link #ct_id} {@code == 0} or if the file is found, or false if not found.
+	 */
+	public boolean checkCoordinateTransformFile() {
+		if (0 == this.ct_id) return true;
+		return new File(createCTFilePath(this.ct_id)).exists();
+	}
 }

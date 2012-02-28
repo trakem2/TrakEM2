@@ -548,6 +548,8 @@ public class TMLHandler extends DefaultHandler {
 			if (null != last_ct) {
 				last_patch.setCoordinateTransformSilently(last_ct);
 				last_ct = null;
+			} else if (!last_patch.checkCoordinateTransformFile()) {
+				Utils.log("ERROR: could not find a file for the coordinate transform #" + last_patch.getCoordinateTransformId() + " of Patch #" + last_patch.getId());
 			}
 			last_patch = null;
 			last_patch_filters.clear();
