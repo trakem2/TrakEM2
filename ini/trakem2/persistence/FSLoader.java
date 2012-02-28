@@ -1256,9 +1256,10 @@ public final class FSLoader extends Loader {
 		item = new JMenuItem("Save"); item.addActionListener(listener); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 		item = new JMenuItem("Save as..."); item.addActionListener(listener); menu.add(item);
-		menu.addSeparator();
-		item = new JMenuItem("Export XML without coordinate transforms..."); item.addActionListener(listener); menu.add(item);
-		item = new JMenuItem("Delete stale files..."); item.addActionListener(listener); menu.add(item);
+		final JMenu adv = new JMenu("Advanced");
+		item = new JMenuItem("Save as... without coordinate transforms"); item.addActionListener(listener); adv.add(item);
+		item = new JMenuItem("Delete stale files..."); item.addActionListener(listener); adv.add(item);
+		menu.add(adv);
 		menu.addSeparator();
 	}
 

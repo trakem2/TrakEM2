@@ -1698,7 +1698,17 @@ public class Project extends DBObject {
 					loader.saveAs(project, options);
 					restartAutosaving();
 					//
-				} else if (command.equals("Export XML without coordinate transforms...")) {
+				} else if (command.equals("Save as... without coordinate transforms")) {
+					YesNoDialog yn = new YesNoDialog("WARNING",
+							"You are about to save an XML file that lacks the information for the coordinate transforms of each image.\n"
+						  + "These transforms are referred to with the attribute 'ct_id' of each 't2_patch' entry in the XML document,\n"
+						  + "and the data for the transform is stored in an individual file under the folder 'trakem2.cts/'.\n"
+						  + " \n"
+						  + "It is advised to keep a complete XML file with all coordinate transforms included along with this new copy.\n"
+						  + "Please check NOW that you have such a complete XML copy.\n"
+						  + " \n"
+						  + "Proceed?");
+					if (!yn.yesPressed()) return;
 					XMLOptions options = new XMLOptions();
 					options.overwriteXMLFile = false;
 					options.export_images = false;
@@ -1709,6 +1719,17 @@ public class Project extends DBObject {
 					//
 				} else if (command.equals("Delete stale files...")) {
 					GenericDialog gd = new GenericDialog("Delete stale files");
+					gd.addMessage(
+							"You are about to remove all files under the folder 'trakem2.cts/' which are not referred to from the\n"
+						  + "currently loaded project. If you have sibling XML files whose 't2_patch' entries (the images) refer,\n"
+						  + "via 'ct_id' attributes, to coordinate transforms in 'trakem2.cts/' that this current XML doesn't,\n"
+						  + "they may be LOST FOREVER. Unless you have a version of the XML file with the coordinate transforms\n"
+						  + "written in it, as can be obtained by using the 'Project - Save' command.\n"
+						  + " \n"
+						  + "Do you have such complete XML file? Check NOW.\n"
+						  + " \n"
+						  + "Proceed with deleting:"
+							);
 					gd.addCheckbox("Delete stale coordinate transform files", true);
 					gd.addCheckbox("Delete stale alpha mask files", true);
 					gd.showDialog();
