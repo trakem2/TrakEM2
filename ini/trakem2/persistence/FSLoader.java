@@ -68,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -713,6 +714,25 @@ public final class FSLoader extends Loader {
 			IJError.print(e);
 		}
 	}
+	
+	private String dir_cts = null;
+	
+	@Override
+	synchronized public final String getCoordinateTransformsFolder() {
+		if (null == dir_cts) createCoordinateTransformsFolder();
+		return dir_cts;
+	}
+
+	synchronized private final void createCoordinateTransformsFolder() {
+		if (null == dir_cts) dir_cts = getUNUIdFolder() + "trakem2.cts/";
+		final File f = new File(dir_cts);
+		if (f.exists() && f.isDirectory()) return;
+		try {
+			f.mkdirs();
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+	}
 
 	/** Remove the file containing the given Patch's alpha mask. */
 	public final boolean removeAlphaMask(final Patch p) {
@@ -1216,6 +1236,10 @@ public final class FSLoader extends Loader {
 		item = new JMenuItem("Save"); item.addActionListener(listener); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 		item = new JMenuItem("Save as..."); item.addActionListener(listener); menu.add(item);
+		menu.addSeparator();
+		item = new JMenuItem("Export XML without coordinate transforms..."); item.addActionListener(listener); menu.add(item);
+		item = new JMenuItem("Delete stale files..."); item.addActionListener(listener); menu.add(item);
+		menu.addSeparator();
 	}
 
 	/** Returns the last Patch. */
@@ -2972,6 +2996,81 @@ public final class FSLoader extends Loader {
 		}
 	}
 
+	/**
+	 * Delete stale files under the {@link FSLoader#unuid} folder.
+	 * These include "*.ct" files that are not references from any {@link Patch}. 
+	 */
+	@Override
+	public boolean deleteStaleFiles(boolean coordinate_transforms, boolean alpha_masks) {
+		boolean b = true;
+		if (coordinate_transforms) b = b && deleteStaleCTFiles();
+		// TODO // if (alpha_masks) b = b && deleteStaleAlphaMaskFiles();
+		return b;
+	}
+	
+	/**
+	 * Delete all files storing a {@link CoordinateTransform} that are now stale.
+	 * Stale files are files that are no longer referenced by the {@link Patch#getCoordinateTransformId()}.
+	 * 
+	 * This method uses the {@link Utils#removeFile(File)}, which limits itself to files
+	 * under the trakem2.* temp data directories for safety. */
+	public boolean deleteStaleCTFiles() {
+		// Collect the set of files to keep
+		final HashSet<String> keepers = new HashSet<String>();
+		final Project project = Project.findProject(this);
+		for (final Layer l : project.getRootLayerSet().getLayers()) {
+			for (final Patch p : l.getAll(Patch.class)) {
+				String path = p.getCoordinateTransformFilePath();
+				if (null != path) keepers.add(path);
+			}
+		}
+		// Iterate all directories, recursively, under "trakem2.cts/"
+		String dir_ct = getCoordinateTransformsFolder();
+		if (null == dir_ct) return true;
+		final LinkedList<File> subdirs = new LinkedList<File>();
+		subdirs.add(new File(dir_ct));
+		final AtomicInteger counter = new AtomicInteger(0);
+		final ExecutorService exec = Utils.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors()), "Stale-file-remover");
+		while (!subdirs.isEmpty()) {
+			final File fdir = subdirs.removeFirst();
+			final String absPath = fdir.getAbsolutePath();
+			for (final String s : fdir.list()) {
+				final String path = absPath + "/" + s;
+				if (s.endsWith(".ct")) {
+					if (keepers.contains(path)) continue;
+					// Else, delete the file, which is by definition stale
+					exec.submit(new Runnable() {
+						public void run() {
+							if (!new File(path).delete()) {
+								Utils.log2("Failed to delete: " + path);
+								counter.incrementAndGet();
+							}
+						}
+					});
+				} else {
+					final File f = new File(path);
+					if (f.isDirectory()) {
+						subdirs.add(f);
+					}
+				}
+			}
+		}
+		// Do not accept more tasks, but execute all submitted tasks
+		exec.shutdown();
+		// Wait maximum for an unreasonable amount of time
+		try {
+			exec.awaitTermination(1, TimeUnit.DAYS);
+		} catch (InterruptedException e) {
+			IJError.print(e);
+		}
+		if (counter.get() > 0) {
+			Utils.log("ERROR: failed to delete " + counter.get() + " files.\n        See the stdout log for details.");
+		}
+		return 0 == counter.get();
+	}
+	
+	
+	
 
 
 	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif", ".raw", ".rag"};
