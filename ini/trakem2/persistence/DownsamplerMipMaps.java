@@ -2,6 +2,7 @@ package ini.trakem2.persistence;
 
 
 import mpicbg.trakem2.util.Downsampler;
+import mpicbg.trakem2.util.Downsampler.Pair;
 import ij.ImagePlus;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
@@ -46,26 +47,12 @@ public final class DownsamplerMipMaps
 			final ImageProcessor ip,
 			final ByteProcessor alpha,
 			final ByteProcessor outside) {
-		// Combine masks
-		final ByteProcessor mask;
-		if (null == alpha) {
-			mask = null == outside ? null : outside;
-		} else if (null == outside) {
-			mask = alpha;
-		} else {
-			final byte[] b1 = (byte[])alpha.getPixels(),
-			             b2 = (byte[])outside.getPixels();
-			for (int i=0; i<b1.length; ++i) {
-				b2[i] = (byte)((b2[i]&0xff) != 255 ? 0 : (b1[i]&0xff)); // 'outside' is a binary mask, qualitative
-			}
-			mask = outside;
-		}
 		// Create pyramid
 		final ImageBytes[] p = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
 		final double min = ip.getMin(),
 		             max = ip.getMax();
 		
-		if (null == mask) {
+		if (null == alpha && null == outside) {
 			int i = 1;
 			switch (type) {
 				case ImagePlus.GRAY8:
@@ -79,41 +66,77 @@ public final class DownsamplerMipMaps
 				case ImagePlus.GRAY16:
 					ShortProcessor sp = (ShortProcessor)ip;
 					p[0] = asBytes(sp);
+					Pair<ShortProcessor, byte[]> rs;
 					while (i < p.length) {
-						sp = Downsampler.downsampleShortProcessor(sp);
-						sp.setMinAndMax(min, max);
-						p[i++] = asBytes(sp);
+						rs = Downsampler.downsampleShort(sp);
+						sp = rs.a;
+						p[i++] = new ImageBytes(new byte[][]{rs.b}, sp.getWidth(), sp.getHeight());
 					}
 					break;
 				case ImagePlus.GRAY32:
 					FloatProcessor fp = (FloatProcessor)ip;
 					p[0] = asBytes(fp);
+					Pair<FloatProcessor, byte[]> rf;
 					while (i < p.length) {
-						fp = Downsampler.downsampleFloatProcessor(fp);
-						fp.setMinAndMax(min, max);
-						p[i++] = asBytes(fp);
+						rf = Downsampler.downsampleFloat(fp);
+						fp = rf.a;
+						p[i++] = new ImageBytes(new byte[][]{rf.b}, fp.getWidth(), fp.getHeight());
 					}
 					break;
 				case ImagePlus.COLOR_RGB:
 					ColorProcessor cp = (ColorProcessor)ip;
 					p[0] = asBytes(cp); // TODO the int[] could be reused
+					Pair<ColorProcessor, byte[][]> rc;
 					while (i < p.length) {
-						cp = Downsampler.downsampleColorProcessor(cp);
-						p[i++] = asBytes(cp);
+						rc = Downsampler.downsampleColor(cp);
+						cp = rc.a;
+						p[i++] = new ImageBytes(rc.b, cp.getWidth(), cp.getHeight());
 					}
 					break;
 			}
 		} else {
 			// Alpha channel
 			final ByteProcessor[] masks = new ByteProcessor[p.length];
-			masks[0] = mask;
-			int i = 1;
-			while (i < p.length) {
-				masks[i] = Downsampler.downsampleMask(masks[i-1]);
-				++i;
+			if (null != alpha && null != outside) {
+				// Use both alpha and outside:
+				final byte[] b1 = (byte[])alpha.getPixels(),
+				             b2 = (byte[])outside.getPixels();
+				for (int i=0; i<b1.length; ++i) {
+					b2[i] = b2[i] != -1 ? 0 : b1[i]; // 'outside' is a binary mask, qualitative. -1 means 255
+				}
+				masks[0] = outside;
+				//
+				int i = 1;
+				Pair<ByteProcessor,ByteProcessor> pair;
+				ByteProcessor a = alpha,
+				              o = outside;
+				while (i < p.length) {
+					pair = Downsampler.downsampleAlphaAndOutside(a, o);
+					a = pair.a;
+					o = pair.b;
+					masks[i] = a; // o is already combined into it
+					++i;
+				}
+			} else {
+				// Only one of the two is not null:
+				if (null == alpha) {
+					masks[0] = outside;
+					int i = 1;
+					while (i < p.length) {
+						masks[i] = Downsampler.downsampleOutside(masks[i-1]);
+						++i;
+					}
+				} else {
+					masks[0] = alpha;
+					int i = 1;
+					while (i < p.length) {
+						masks[i] = Downsampler.downsampleByteProcessor(masks[i-1]);
+						++i;
+					}
+				}
 			}
 			// Image channels
-			i = 1;
+			int i = 1;
 			switch (type) {
 				case ImagePlus.GRAY8:
 					ByteProcessor bp = (ByteProcessor)ip;
