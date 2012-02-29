@@ -1085,10 +1085,11 @@ abstract public class Loader {
 					}
 					pai = null;
 					if (null != alpha_mask) {
-						mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
+						mawt = ImageSaver.createARGBImage(
 								embedAlpha((int[])ip.convertToRGB().getPixels(),
 										(byte[])alpha_mask.getPixels(),
-										null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+										null == outside_mask ? null : (byte[])outside_mask.getPixels()),
+								ip.getWidth(), ip.getHeight());
 					} else {
 						mawt = ip.createImage();
 					}
@@ -4741,13 +4742,6 @@ while (it.hasNext()) {
 	public boolean isUnloadable(final Displayable p) { return hs_unloadable.contains(p); }
 
 	public void removeFromUnloadable(final Displayable p) { hs_unloadable.remove(p); }
-
-	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
-		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		// In one step, set pixels that contain the alpha byte already:
-		bi.setRGB( 0, 0, width, height, pix, 0, width );
-		return bi;
-	}
 
 	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
 	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha){
