@@ -2020,8 +2020,9 @@ public final class Patch extends Displayable implements ImageData {
 	 * @throws {@link Exception} if the file could not be found or parsed or read.
 	 */
 	synchronized public CoordinateTransform fetchCoordinateTransform() throws Exception {
-		if (!hasCoordinateTransform()) return null;
-		return CoordinateTransformXML.parse(createCTFilePath(this.ct_id));
+		return hasCoordinateTransform() ?
+			CoordinateTransformXML.parse(createCTFilePath(this.ct_id))
+			: null;
 	}
 
 	/** Will throw an {@link Exception} if the file can't be read or is not there. */
