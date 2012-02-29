@@ -57,7 +57,7 @@ public final class P {
 	static public final byte[] merge(final byte[] alpha, byte[] outside) {
 		if (null == outside) return alpha;
 		for (int i=0; i<alpha.length; ++i) {
-			alpha[i] = 255 == outside[i] ? alpha[i] : 0;
+			alpha[i] = -1 == outside[i] ? alpha[i] : 0;
 		}
 		return alpha;
 	}
