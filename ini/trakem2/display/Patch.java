@@ -792,7 +792,7 @@ public final class Patch extends Displayable implements ImageData {
 		String in = indent + "\t";
 		String path = null;
 		String path2 = null;
-		if (null != options) {
+		if (options.export_images) {
 			path = options.patches_dir + title;
 			// save image without overwriting, and add proper extension (.zip)
 			path2 = project.getLoader().exportImage(this, path, false);
