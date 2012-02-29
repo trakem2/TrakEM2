@@ -594,7 +594,7 @@ public final class FSLoader extends Loader {
 							imp.setSlice(Integer.parseInt(slice.substring(12)));
 							return imp;
 						} else {
-							return imp.getProcessor();
+							return imp;
 						}
 					default:
 						Utils.log("FSLoader.fetchImage: Unknown format " + format);
