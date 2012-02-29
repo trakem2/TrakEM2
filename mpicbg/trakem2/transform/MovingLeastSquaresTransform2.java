@@ -187,6 +187,30 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 	}
 	
 	/**
+	 * Suprinsingly faster than {@link #parse1(String, int, int, float[], int)} despite the creation of new {@link String}
+	 * via the {@link String#substring(int, int)} method (which doesn't duplicate the internal {@code char[]}).
+	 * 
+	 * @param s The {@link String} with all the data.
+	 * @param cut One less than the lowest index to look into, must correspond to one char before whitespace in {@param s}.
+	 * @param i The index, larger than {@param cut}, where to start back-parsing the number from, and which should NOT be a whitespace.
+	 * @param f The array to set the parsed float at {@param i}.
+	 * @param i The index in {@param f} to set the parsed float at.
+	 * @return The next cut.
+	 */
+	static private final int parse(final String s, final int cut, int i, final float[] f, final int k) {
+		final int last = i + 1;
+		while (i > cut) {
+			if (' ' == s.charAt(i)) {
+				f[k] = Float.parseFloat(s.substring(i+1, last));
+				return i - 1; // skip the whitespace
+			}
+			--i;
+		}
+		// Signal error
+		return Integer.MIN_VALUE;
+	}
+	
+	/**
 	 * Admittedly convoluted and potentially non-compliant way of parsing a float, but works even for {@link Float#MIN_VALUE},
 	 * {@link Float#MIN_VALUE} +1, {@link Float#MAX_VALUE} and {@link Float#MAX_VALUE} -1, and
 	 * is about 4-7 times faster than {@link Float#parseFloat(String)} by, in the first place, not creating
@@ -198,9 +222,9 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 	 * @param s The {@link String} with all the data.
 	 * @param cut One less than the lowest index to look into, must correspond to one char before whitespace in {@param s}.
 	 * @param i The index, larger than {@param cut}, where to start back-parsing the number from, and which should NOT be a whitespace.
-	 * @return The parsed float.
+	 * @return The next cut.
 	 */
-	static private final int parse(final String s, final int cut, int i, final float[] f, final int k) {
+	static private final int parse1(final String s, final int cut, int i, final float[] f, final int k) {
 		int pos = 1;
 		int numI = 0;
 		float numF = 0;
