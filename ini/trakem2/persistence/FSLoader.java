@@ -2006,19 +2006,14 @@ public final class FSLoader extends Loader {
 							// 3 - save as jpeg with alpha
 							// Remove all not completely inside pixels from the alpha mask
 							// If there was no alpha mask, alpha is the outside itself
-
-							if (!mmio.save(target_dir + filename, new byte[][]{fp.getBytePixels(), P.merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getScaledBytePixels(), P.merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
 						} else {
 							// 3 - save as 8-bit jpeg
-							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-							if (!coordinate_transformed) ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
-							if (null != cm) ip2.setColorModel(cm); // the LUT
-
-							if (!mmio.save(target_dir + filename, new byte[][]{(byte[])ip2.getPixels()}, w, h, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getScaledBytePixels()}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
