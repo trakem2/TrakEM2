@@ -46,6 +46,9 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+
+import mpicbg.models.NoninvertibleModelException;
 
 public final class Layer extends DBObject implements Bucketable, Comparable<Layer> {
 
@@ -578,12 +581,12 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return parent.getLayerHeight();
 	}
 
-	public Collection<Displayable> find(final int x, final int y) {
+	public Collection<Displayable> find(final double x, final double y) {
 		return find(x, y, false);
 	}
 
 	/** Find the Displayable objects that contain the point. */
-	synchronized public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final double x, final double y, final boolean visible_only) {
 		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -601,11 +604,11 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Find the Displayable objects of Class c that contain the point, with class equality. */
-	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class<?> c, final double x, final double y, final boolean visible_only) {
 		return find(c, x, y, visible_only, false);
 	}
 	/** Find the Displayable objects of Class c that contain the point, with instanceof if instance_of is true. */
-	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only, final boolean instance_of) {		
+	synchronized public Collection<Displayable> find(final Class<?> c, final double x, final double y, final boolean visible_only, final boolean instance_of) {		
 		if (null != root) return root.find(c, x, y, this, visible_only, instance_of);
 		if (Displayable.class == c) return find(x, y, visible_only); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -1220,5 +1223,19 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (diff < 0) return -1;
 		if (diff > 0) return 1;
 		return 0;
+	}
+
+	/** Transfer the world coordinate specified by {@param world_x},{@param world_y}
+	 * in pixels, to the local coordinate of the {@link Patch} immediately present under it.
+	 * @return null if no {@link Patch} is under the coordinate, else the {@link Coordinate} with the x, y, {@link Layer} and the {@link Patch}.
+	 * @throws NoninvertibleModelException 
+	 * @throws NoninvertibleTransformException 
+	 */
+	public Coordinate<Patch> toPatchCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException, NoninvertibleModelException {
+		Collection<Displayable> ps = find(Patch.class, world_x, world_y, true, false);
+		if (ps.isEmpty()) return null;
+		Patch patch = (Patch) ps.iterator().next();
+		double[] point = patch.toPixelCoordinate(world_x, world_y);
+		return new Coordinate<Patch>(point[0], point[1], patch.getLayer(), patch);
 	}
 }

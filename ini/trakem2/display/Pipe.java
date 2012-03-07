@@ -1149,13 +1149,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Test whether the Pipe contains the given point at the given layer. What it does: generates subpolygons that are present in the given layer, and tests whether the point is contained in any of them. */
-	public boolean contains(final Layer layer, int x, int y) {
+	@Override
+	public boolean contains(final Layer layer, double x, double y) {
 		if (-1 == n_points) setupForDisplay(); // reload points
 		if (0 == n_points) return false;
 		// make x,y local
 		final Point2D.Double po = inverseTransformPoint(x, y);
-		x = (int)po.x;
-		y = (int)po.y;
+		x = po.x;
+		y = po.y;
 		if (1 == n_points) {
 			if (Math.abs(p[0][0] - x) < 3 && Math.abs(p[1][0] - y) < 3) return true; // error in clicked precision of 3 pixels
 			else return false;
