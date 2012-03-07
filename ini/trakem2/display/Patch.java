@@ -80,9 +80,11 @@ import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 import mpicbg.models.CoordinateTransformMesh;
+import mpicbg.models.NoninvertibleModelException;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
@@ -1911,5 +1913,53 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	public IFilter[] getFilters() {
 		return filters;
+	}
+
+	/**
+	 * Transfer a world coordinate (in pixels, uncalibrated) to the coordinate space of the original image.
+	 * The world coordinate is first transferred to this {@link Patch} space by inverting the {@link AffineTransform}
+	 * and then, if there is a {@link CoordinateTransform}, that is inverted as well to reach the coordinate space of the original image.
+	 * 
+	 * @param world_x
+	 * @param world_y
+	 * @return A {@code double[]} array with the x,y values.
+	 * @throws NoninvertibleTransformException
+	 * @throws NoninvertibleModelException
+	 */
+	public double[] toPixelCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException, NoninvertibleModelException {
+		return Patch.toPixelCoordinate(world_x, world_y, this.at, this.ct, this.meshResolution, this.o_width, this.o_height);
+	}
+
+	/**
+	 * @see Patch#toPixelCoordinate(double, double)
+	 * @param world_x The X of the world coordinate (in pixels, uncalibrated)
+	 * @param world_y The Y of the world coordinate (in pixels, uncalibrated)
+	 * @param aff The {@link AffineTransform} of the {@link Patch}.
+	 * @param ct The {@link CoordinateTransform} of the {@link Patch}, if any (can be null).
+	 * @param meshResolution The precision demanded for approximating a transform with a {@link TransformMesh}. 
+	 * @param o_width The width of the image underlying the {@link Patch}.
+	 * @param o_height The height of the image underlying the {@link Patch}.
+	 * @return A {@code double[]} array with the x,y values.
+	 * @throws NoninvertibleTransformException
+	 * @throws NoninvertibleModelException
+	 */
+	static public final double[] toPixelCoordinate(final double world_x, final double world_y,
+			final AffineTransform aff, final CoordinateTransform ct,
+			final int meshResolution, final int o_width, final int o_height) throws NoninvertibleTransformException, NoninvertibleModelException {
+		// Inverse the affine
+		final double[] d = new double[]{world_x, world_y};
+		aff.inverseTransform(d, 0, d, 0, 1);
+		// Inverse the coordinate transform
+		if (null != ct) { // TODO edit in integral branch to hasCoordinateTransform()
+			final float[] f = new float[]{(float)d[0], (float)d[1]};
+			final mpicbg.models.InvertibleCoordinateTransform t =
+				mpicbg.models.InvertibleCoordinateTransform.class.isAssignableFrom(ct.getClass()) ?
+					(mpicbg.models.InvertibleCoordinateTransform) ct
+					: new mpicbg.trakem2.transform.TransformMesh(ct, meshResolution, o_width, o_height);
+				t.applyInverseInPlace(f);
+				d[0] = f[0];
+				d[1] = f[1];
+		}
+		return d;
 	}
 }

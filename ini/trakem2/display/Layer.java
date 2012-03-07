@@ -46,6 +46,9 @@ import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+
+import mpicbg.models.NoninvertibleModelException;
 
 public final class Layer extends DBObject implements Bucketable, Comparable<Layer> {
 
@@ -1222,4 +1225,17 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return 0;
 	}
 
+	/** Transfer the world coordinate specified by {@param world_x},{@param world_y}
+	 * in pixels, to the local coordinate of the {@link Patch} immediately present under it.
+	 * @return null if no {@link Patch} is under the coordinate, else the {@link Coordinate} with the x, y, {@link Layer} and the {@link Patch}.
+	 * @throws NoninvertibleModelException 
+	 * @throws NoninvertibleTransformException 
+	 */
+	public Coordinate<Patch> toPatchCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException, NoninvertibleModelException {
+		Collection<Displayable> ps = find(Patch.class, world_x, world_y, true, false);
+		if (ps.isEmpty()) return null;
+		Patch patch = (Patch) ps.iterator().next();
+		double[] point = patch.toPixelCoordinate(world_x, world_y);
+		return new Coordinate<Patch>(point[0], point[1], patch.getLayer(), patch);
+	}
 }
