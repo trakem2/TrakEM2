@@ -31,6 +31,7 @@ import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import java.util.Iterator;
 import java.util.Set;
 
 import java.awt.Color;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -1232,10 +1234,43 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	 * @throws NoninvertibleTransformException 
 	 */
 	public Coordinate<Patch> toPatchCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException, NoninvertibleModelException {
-		Collection<Displayable> ps = find(Patch.class, world_x, world_y, true, false);
-		if (ps.isEmpty()) return null;
-		Patch patch = (Patch) ps.iterator().next();
-		double[] point = patch.toPixelCoordinate(world_x, world_y);
+		final Collection<Displayable> ps = find(Patch.class, world_x, world_y, true, false);
+		Patch patch = null;
+		if (ps.isEmpty()) {
+			// No Patch under the point. Find the nearest Patch instead
+			final Collection<Patch> patches = getAll(Patch.class);
+			if (patches.isEmpty()) return null;
+			double minSqDist = Double.MAX_VALUE;
+			for (final Patch p : patches) {
+				// Check if any of the 4 corners of the bounding box are beyond minSqDist
+				final Rectangle b = p.getBoundingBox();
+				double d1 = Math.pow(b.x - world_x, 2) + Math.pow(b.y - world_y, 2),
+				       d2 = Math.pow(b.x + b.width - world_x, 2) + Math.pow(b.y - world_y, 2),
+				       d3 = Math.pow(b.x - world_x, 2) + Math.pow(b.y + b.height - world_y, 2),
+				       d4 = Math.pow(b.x + b.width - world_x, 2) + Math.pow(b.y + b.height - world_y, 2),
+				       d = Math.min(d1, Math.min(d2, Math.min(d3, d4)));
+				if (d < minSqDist) {
+					patch = p;
+					minSqDist = d;
+				}
+				// If the Patch has a CoordinateTransform, find the closest perimeter point
+				if (null != p.getCoordinateTransform()) {
+					for (final Polygon pol : M.getPolygons(p.getArea())) { // Area in world coordinates
+						for (int i=0; i<pol.npoints; ++i) {
+							double sqDist = Math.pow(pol.xpoints[0] - world_x, 2) + Math.pow(pol.ypoints[1] - world_y, 2);
+							if (sqDist < minSqDist) {
+								minSqDist = sqDist;
+								patch = p;
+							}
+						}
+					}
+				}
+			}
+		} else {
+			patch = (Patch) ps.iterator().next();
+		}
+
+		final double[] point = patch.toPixelCoordinate(world_x, world_y);
 		return new Coordinate<Patch>(point[0], point[1], patch.getLayer(), patch);
 	}
 }
