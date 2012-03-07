@@ -599,7 +599,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
-	public Collection<Displayable> find(final Class<?> c, final int x, final int y) {
+	public Collection<Displayable> find(final Class<?> c, final double x, final double y) {
 		return find(c, x, y, false, false);
 	}
 
