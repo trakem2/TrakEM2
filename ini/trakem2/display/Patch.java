@@ -1989,4 +1989,23 @@ public final class Patch extends Displayable implements ImageData {
 		}
 		return affine;
 	}
+	
+	public double getLocalScale( final double wx, final double wy )
+	{
+		final AffineTransform affine = getLocalAffine( wx, wy );
+		final double a = affine.getScaleX();
+		final double b = affine.getShearX();
+		final double c = affine.getShearY();
+		final double d = affine.getScaleY();
+		
+		final double l1x = a + b;
+		final double l1y = c + d;
+		final double l2x = a - b;
+		final double l2y = c - d;
+		
+		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y );
+		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y );
+		
+		return ( l1 + l2 ) / 2.0;
+	}
 }
