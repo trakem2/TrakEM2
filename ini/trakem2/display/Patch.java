@@ -84,10 +84,8 @@ import mpicbg.models.NoninvertibleModelException;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
-import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
-import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
 public final class Patch extends Displayable implements ImageData {
@@ -1926,7 +1924,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * @throws NoninvertibleTransformException
 	 * @throws NoninvertibleModelException
 	 */
-	public double[] toPixelCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException, NoninvertibleModelException {
+	public double[] toPixelCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException {
 		return Patch.toPixelCoordinate(world_x, world_y, this.at, this.ct, this.meshResolution, this.o_width, this.o_height);
 	}
 
@@ -1945,7 +1943,7 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	static public final double[] toPixelCoordinate(final double world_x, final double world_y,
 			final AffineTransform aff, final CoordinateTransform ct,
-			final int meshResolution, final int o_width, final int o_height) throws NoninvertibleTransformException, NoninvertibleModelException {
+			final int meshResolution, final int o_width, final int o_height) throws NoninvertibleTransformException {
 		// Inverse the affine
 		final double[] d = new double[]{world_x, world_y};
 		aff.inverseTransform(d, 0, d, 0, 1);
@@ -1956,10 +1954,39 @@ public final class Patch extends Displayable implements ImageData {
 				mpicbg.models.InvertibleCoordinateTransform.class.isAssignableFrom(ct.getClass()) ?
 					(mpicbg.models.InvertibleCoordinateTransform) ct
 					: new mpicbg.trakem2.transform.TransformMesh(ct, meshResolution, o_width, o_height);
-				t.applyInverseInPlace(f);
+				try { t.applyInverseInPlace(f); } catch ( NoninvertibleModelException e ) {}
 				d[0] = f[0];
 				d[1] = f[1];
 		}
 		return d;
+	}
+	
+	
+	/**
+	 * Return the local affine transformation for a passed location in world
+	 * coordinates.   This affine transform is either the global affine
+	 * transform of the patch or the combined affine transform of the local
+	 * affine transform in the transform mesh and its global affine transform.
+	 * 
+	 * @param wx
+	 * @param wy
+	 * @return
+	 */
+	public AffineTransform getLocalAffine( final double wx, final double wy )
+	{
+		final AffineTransform affine = new AffineTransform( at );
+		if ( this.ct != null )
+		{
+			final double[] w = new double[]{ wx, wy };
+			try
+			{
+				at.inverseTransform( w, 0, w, 0, 1 );
+			}
+			catch ( NoninvertibleTransformException e ) {}
+			final TransformMesh mesh = new TransformMesh( ct, meshResolution, o_width, o_height );
+			final mpicbg.models.AffineModel2D triangle = mesh.closestTargetAffine( new float[]{ ( float )w[ 0 ], ( float )w[ 1 ] } );
+			affine.concatenate( triangle.createAffine() );
+		}
+		return affine;
 	}
 }
