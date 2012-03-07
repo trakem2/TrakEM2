@@ -196,6 +196,7 @@ public class ManualAlignMode implements Mode {
 	private Layer current_layer = null;
 	private int index = -1;
 
+	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		current_layer = display.getLayer();
 
@@ -220,6 +221,7 @@ public class ManualAlignMode implements Mode {
 		display.repaintAll3();
 	}
 
+	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		//Utils.log2("index is " + index);
 		if (-1 != index && current_layer == display.getLayer()) {
@@ -232,6 +234,7 @@ public class ManualAlignMode implements Mode {
 		}
 	}
 
+	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		// Do nothing
 	}

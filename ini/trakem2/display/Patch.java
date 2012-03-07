@@ -88,6 +88,7 @@ import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 import mpicbg.models.CoordinateTransformMesh;
+import mpicbg.models.NoninvertibleModelException;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -1542,7 +1543,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Considers the alpha mask. */
-	public boolean contains(final int x_p, final int y_p) {
+	@Override
+	public boolean contains(final double x_p, final double y_p) {
 		if (!hasAlphaChannel()) return super.contains(x_p, y_p);
 		// else, get pixel from image
 		if (project.getLoader().isUnloadable(this)) return super.contains(x_p, y_p);
@@ -2102,5 +2104,102 @@ public final class Patch extends Displayable implements ImageData {
 	public boolean checkCoordinateTransformFile() {
 		if (0 == this.ct_id) return true;
 		return new File(createCTFilePath(this.ct_id)).exists();
+	}
+
+	/**
+	 * Transfer a world coordinate (in pixels, uncalibrated) to the coordinate space of the original image.
+	 * The world coordinate is first transferred to this {@link Patch} space by inverting the {@link AffineTransform}
+	 * and then, if there is a {@link CoordinateTransform}, that is inverted as well to reach the coordinate space of the original image.
+	 * 
+	 * @param world_x
+	 * @param world_y
+	 * @return A {@code double[]} array with the x,y values.
+	 * @throws NoninvertibleTransformException
+	 * @throws NoninvertibleModelException
+	 */
+	public double[] toPixelCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException {
+		return Patch.toPixelCoordinate(world_x, world_y, this.at, hasCoordinateTransform() ? getCoordinateTransform() : null, this.meshResolution, this.o_width, this.o_height);
+	}
+
+	/**
+	 * @see Patch#toPixelCoordinate(double, double)
+	 * @param world_x The X of the world coordinate (in pixels, uncalibrated)
+	 * @param world_y The Y of the world coordinate (in pixels, uncalibrated)
+	 * @param aff The {@link AffineTransform} of the {@link Patch}.
+	 * @param ct The {@link CoordinateTransform} of the {@link Patch}, if any (can be null).
+	 * @param meshResolution The precision demanded for approximating a transform with a {@link TransformMesh}. 
+	 * @param o_width The width of the image underlying the {@link Patch}.
+	 * @param o_height The height of the image underlying the {@link Patch}.
+	 * @return A {@code double[]} array with the x,y values.
+	 * @throws NoninvertibleTransformException
+	 * @throws NoninvertibleModelException
+	 */
+	static public final double[] toPixelCoordinate(final double world_x, final double world_y,
+			final AffineTransform aff, final CoordinateTransform ct,
+			final int meshResolution, final int o_width, final int o_height) throws NoninvertibleTransformException {
+		// Inverse the affine
+		final double[] d = new double[]{world_x, world_y};
+		aff.inverseTransform(d, 0, d, 0, 1);
+		// Inverse the coordinate transform
+		if (null != ct) {
+			final float[] f = new float[]{(float)d[0], (float)d[1]};
+			final mpicbg.models.InvertibleCoordinateTransform t =
+				mpicbg.models.InvertibleCoordinateTransform.class.isAssignableFrom(ct.getClass()) ?
+					(mpicbg.models.InvertibleCoordinateTransform) ct
+					: new mpicbg.trakem2.transform.TransformMesh(ct, meshResolution, o_width, o_height);
+				try { t.applyInverseInPlace(f); } catch ( NoninvertibleModelException e ) {}
+				d[0] = f[0];
+				d[1] = f[1];
+		}
+		return d;
+	}
+	
+	
+	/**
+	 * Return the local affine transformation for a passed location in world
+	 * coordinates.   This affine transform is either the global affine
+	 * transform of the patch or the combined affine transform of the local
+	 * affine transform in the transform mesh and its global affine transform.
+	 * 
+	 * @param wx
+	 * @param wy
+	 * @return
+	 */
+	public AffineTransform getLocalAffine( final double wx, final double wy )
+	{
+		final AffineTransform affine = new AffineTransform( at );
+		if ( hasCoordinateTransform() )
+		{
+			final CoordinateTransform ct = getCoordinateTransform();
+			final double[] w = new double[]{ wx, wy };
+			try
+			{
+				at.inverseTransform( w, 0, w, 0, 1 );
+			}
+			catch ( NoninvertibleTransformException e ) {}
+			final TransformMesh mesh = new TransformMesh( ct, meshResolution, o_width, o_height );
+			final mpicbg.models.AffineModel2D triangle = mesh.closestTargetAffine( new float[]{ ( float )w[ 0 ], ( float )w[ 1 ] } );
+			affine.concatenate( triangle.createAffine() );
+		}
+		return affine;
+	}
+	
+	public double getLocalScale( final double wx, final double wy )
+	{
+		final AffineTransform affine = getLocalAffine( wx, wy );
+		final double a = affine.getScaleX();
+		final double b = affine.getShearX();
+		final double c = affine.getShearY();
+		final double d = affine.getScaleY();
+		
+		final double l1x = a + b;
+		final double l1y = c + d;
+		final double l2x = a - b;
+		final double l2y = c - d;
+		
+		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y );
+		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y );
+		
+		return ( l1 + l2 ) / 2.0;
 	}
 }

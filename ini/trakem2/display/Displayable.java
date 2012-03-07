@@ -670,12 +670,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
-	public boolean contains(final int x_p, final int y_p) {
+	public boolean contains(final double x_p, final double y_p) {
 		return getPerimeter().contains(x_p, y_p);
 	}
 
 	/** Calls contains(x_p, y_p) unless overriden -- in ZDisplayable objects, it tests whether the given point is contained in the part of the ZDisplayable that shows in the given layer. */
-	public boolean contains(final Layer layer, final int x_p, final int y_p) {
+	public boolean contains(final Layer layer, final double x_p, final double y_p) {
 		return contains(x_p, y_p);
 	}
 

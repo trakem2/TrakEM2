@@ -40,6 +40,7 @@ import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.ProjectTiler;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.analysis.Graph;
+import ini.trakem2.display.inspect.InspectPatchTrianglesMode;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.Blending;
@@ -2431,7 +2432,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		JMenuItem item = null;
 		JMenu menu = null;
 
-		if (canvas.isTransforming()) {
+		if (mode instanceof InspectPatchTrianglesMode) {
+			item = new JMenuItem("Exit inspection"); item.addActionListener(this); popup.add(item);
+			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0, true));
+			return popup;
+		} else if (canvas.isTransforming()) {
 			item = new JMenuItem("Apply transform"); item.addActionListener(this); popup.add(item);
 			item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true)); // dummy, for I don't add a MenuKeyListener, but "works" through the normal key listener. It's here to provide a visual cue
 			item = new JMenuItem("Apply transform propagating to last layer"); item.addActionListener(this); popup.add(item);
@@ -3132,6 +3137,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Adjust arealist paint parameters..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show current 2D position in 3D"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Show layers as orthoslices in 3D"); item.addActionListener(this); menu.add(item);
+		item = new JMenuItem("Inspect image mesh triangles"); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Project");
@@ -4608,6 +4614,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Specify transform...")) {
 			if (null == active) return;
 			selection.specify();
+		} else if (command.equals("Exit inspection")) {
+			getMode().cancel();
+			setMode(new DefaultMode(Display.this));
+		} else if (command.equals("Inspect image mesh triangles")) {
+			setMode(new InspectPatchTrianglesMode(Display.this));
 		} else if (command.equals("Hide all but images")) {
 			ArrayList<Class<?>> type = new ArrayList<Class<?>>();
 			type.add(Patch.class);

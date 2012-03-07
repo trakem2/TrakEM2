@@ -862,7 +862,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
 	 *  where a segment is defined as the line between a clicked point and the next. */
 	@Override
-	public boolean contains(final Layer layer, final int x, final int y) {
+	public boolean contains(final Layer layer, final double x, final double y) {
 		if (null == root) return false;
 		final Display front = Display.getFront();
 		synchronized (node_layer_map) {
