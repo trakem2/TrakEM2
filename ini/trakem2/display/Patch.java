@@ -1488,7 +1488,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Considers the alpha mask. */
-	public boolean contains(final int x_p, final int y_p) {
+	@Override
+	public boolean contains(final double x_p, final double y_p) {
 		if (!hasAlphaChannel()) return super.contains(x_p, y_p);
 		// else, get pixel from image
 		if (project.getLoader().isUnloadable(this)) return super.contains(x_p, y_p);

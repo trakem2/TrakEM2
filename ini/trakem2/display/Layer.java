@@ -578,12 +578,12 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return parent.getLayerHeight();
 	}
 
-	public Collection<Displayable> find(final int x, final int y) {
+	public Collection<Displayable> find(final double x, final double y) {
 		return find(x, y, false);
 	}
 
 	/** Find the Displayable objects that contain the point. */
-	synchronized public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final double x, final double y, final boolean visible_only) {
 		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -601,11 +601,11 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Find the Displayable objects of Class c that contain the point, with class equality. */
-	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class<?> c, final double x, final double y, final boolean visible_only) {
 		return find(c, x, y, visible_only, false);
 	}
 	/** Find the Displayable objects of Class c that contain the point, with instanceof if instance_of is true. */
-	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only, final boolean instance_of) {		
+	synchronized public Collection<Displayable> find(final Class<?> c, final double x, final double y, final boolean visible_only, final boolean instance_of) {		
 		if (null != root) return root.find(c, x, y, this, visible_only, instance_of);
 		if (Displayable.class == c) return find(x, y, visible_only); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -1221,4 +1221,5 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (diff > 0) return 1;
 		return 0;
 	}
+
 }

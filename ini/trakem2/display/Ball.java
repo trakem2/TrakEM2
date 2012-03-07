@@ -587,13 +587,14 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	/** Test whether the Ball contains the given point at the given layer. What it does: and tests whether the point is contained in any of the balls present in the given layer. */
-	public boolean contains(Layer layer, int x, int y) {
+	@Override
+	public boolean contains(Layer layer, double x, double y) {
 		if (-1 == n_points) setupForDisplay(); // reload points
 		if (0 == n_points) return false;
 		// make x,y local
 		final Point2D.Double po = inverseTransformPoint(x, y);
-		x = (int)po.x;
-		y = (int)po.y;
+		x = po.x;
+		y = po.y;
 		//
 		final long layer_id = layer.getId();
 		for (int i=0; i<n_points; i++) {

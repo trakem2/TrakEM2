@@ -250,7 +250,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Returns whether the point x,y is contained in this object at the given Layer. */
-	public boolean contains(final Layer layer, final int x, final int y) {
+	@Override
+	public boolean contains(final Layer layer, final double x, final double y) {
 		Object ob = ht_areas.get(new Long(layer.getId()));
 		if (null == ob) return false;
 		if (AreaList.UNLOADED == ob) {

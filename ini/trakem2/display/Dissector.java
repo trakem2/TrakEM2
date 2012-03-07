@@ -306,7 +306,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
 		 *  Returns -1 if not found, or its index if found. */
-		final int find(final long lid, int x, int y, double mag) {
+		final int find(final long lid, double x, double y, double mag) {
 			int radius = (int)(this.radius / mag);
 			for (int i=0; i<n_points; i++) {
 				if (lid == p_layer[i]
@@ -450,11 +450,11 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public boolean contains(Layer layer, int x, int y) {
+	public boolean contains(Layer layer, double x, double y) {
 		final long lid = layer.getId();
 		Point2D.Double po = inverseTransformPoint(x, y);
-		x = (int)po.x;
-		y = (int)po.y;
+		x = po.x;
+		y = po.y;
 		for (Item item : al_items) {
 			if (-1 != item.find(lid, x, y, 1)) return true;
 		}
