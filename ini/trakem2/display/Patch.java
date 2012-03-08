@@ -2003,8 +2003,8 @@ public final class Patch extends Displayable implements ImageData {
 		final double l2x = a - b;
 		final double l2y = c - d;
 		
-		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y );
-		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y );
+		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y ) / Util.SQRT2;
+		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y ) / Util.SQRT2;
 		
 		return ( l1 + l2 ) / 2.0;
 	}
