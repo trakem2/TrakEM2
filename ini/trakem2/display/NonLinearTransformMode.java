@@ -133,6 +133,7 @@ public class NonLinearTransformMode extends GroupingMode {
 	
 	private Point p_clicked = null;
 	
+	@Override
 	public void mousePressed( MouseEvent me, int x_p, int y_p, double magnification )
 	{
 		/* find if clicked on a point */
@@ -201,6 +202,7 @@ public class NonLinearTransformMode extends GroupingMode {
 		}
 	}
 
+	@Override
 	public void mouseDragged( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old )
 	{
 		if ( null != p_clicked )
@@ -211,6 +213,8 @@ public class NonLinearTransformMode extends GroupingMode {
 			painter.update();
 		}
 	}
+	
+	@Override
 	public void mouseReleased( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r )
 	{
 		// bring to screen coordinates
