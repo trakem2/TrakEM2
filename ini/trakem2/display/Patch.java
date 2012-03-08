@@ -90,6 +90,7 @@ import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWith
 
 public final class Patch extends Displayable implements ImageData {
 
+	final static private double SQRT2 = Math.sqrt(2.0);
 	private int type = -1; // unknown
 	private boolean false_color = false; // such as ImageProcessor.isColorLut
 	/** The channels that the currently existing awt image has ready for painting. */
@@ -2003,8 +2004,8 @@ public final class Patch extends Displayable implements ImageData {
 		final double l2x = a - b;
 		final double l2y = c - d;
 		
-		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y ) / Util.SQRT2;
-		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y ) / Util.SQRT2;
+		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y ) / SQRT2;
+		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y ) / SQRT2;
 		
 		return ( l1 + l2 ) / 2.0;
 	}
