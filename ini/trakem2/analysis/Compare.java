@@ -2240,14 +2240,23 @@ public class Compare {
 		}
 		final Map<String,Tuple3d> fide = new HashMap<String,Tuple3d>();
 		for (final ProjectThing child : fiducials) {
-			ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
-			if (null == balls || 0 == balls.size()) {
-				Utils.log2("Ignoring empty fiducial " + child);
-				continue;
+			final Ball ball;
+			final String title;
+			if (child.getType().equals("ball")) {
+				// Method 1: use the ball title as the fiducial type
+				ball = (Ball) child.getObject();
+				title = ball.getTitle();
+			} else {
+				// Method 2: use the ball's parent type as the fiducial type
+				ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
+				if (null == balls || 0 == balls.size()) {
+					Utils.log2("Ignoring empty fiducial " + child);
+					continue;
+				}
+				// pick the first one only
+				ball = (Ball) balls.get(0).getObject();
+				title = child.getType();
 			}
-			// pick the first one only
-			final Ball ball = (Ball) balls.get(0).getObject();
-			final String title = child.getType();
 			final double[][] b = ball.getWorldBalls(); // calibrated
 			if (b.length > 0) {
 				// get the first one only
