@@ -7,6 +7,7 @@
      (javax.swing.table AbstractTableModel DefaultTableCellRenderer)
      (java.awt.event MouseAdapter ActionListener)
      (java.awt Color Dimension Component)
+     (java.util Map)
      (mpicbg.models AffineModel3D)
      (ij.measure Calibration)
      (ini.trakem2.utils Utils)
@@ -93,11 +94,11 @@
 
 (defn- load-SAT-lib
   "Load the named SAT-lib from filepath into *libs* and returns it.
-  Will setup the reference set of fiducial points and the mushroom body lobes from the entry named by reference-brain,
+  Will setup the reference set of fiducial points and the mushroom body lobes from the entry named by reference brain,
   as we as register all SATs to the reference brain."
-  [lib-name filepath reference-brain]
-  (let [SAT-lib (load-SAT-lib-as-vs filepath)
-        target-fids (fids-as-Point3d ((SAT-lib reference-brain) :fiducials))
+  [lib]
+  (let [SAT-lib (load-SAT-lib-as-vs (lib "filepath"))
+        target-fids (fids-as-Point3d ((SAT-lib (lib "reference")) :fiducials))
         SATs (reduce
                (fn [m e]
                  (conj m (register-SATs (key e) (val e) target-fids)))
@@ -105,11 +106,11 @@
                SAT-lib)]
     (dosync
       (commute *libs* (fn [libs]
-                        (assoc libs lib-name {:filepath filepath
-                                              :SATs SATs
-                                              :fids target-fids
-                                              :mb (load-mb SATs reference-brain)})))))
-  (@*libs* lib-name))
+                        (assoc libs (lib "title") {:filepath (lib "filepath")
+                                                   :SATs SATs
+                                                   :fids target-fids
+                                                   :mb (load-mb SATs (lib "reference"))})))))
+  (@*libs* (lib "title")))
 
 
 
@@ -307,26 +308,21 @@
       ;(.pack)
       (.setVisible true))))
 
-
-(def known-libs (ref {"Drosophila-3rd-instar" {:filepath "plugins/SAT-lib-Drosophila-3rd-instar.clj"
-                                               :reference-brain "FRT42 new"}}))
+; TODO remove these known-libs completely
+;(def known-libs (ref {"Drosophila-3rd-instar" {:filepath "plugins/SAT-lib-Drosophila-3rd-instar.clj"
+;                                               :reference-brain "FRT42 new"}}))
 
 (defn fetch-lib
   "Returns the SAT lib for the given name, loading it if not there yet. Nil otherwise."
-  [lib-name]
-  (if-let [cached (@*libs* lib-name)]
+  [lib]
+  (if-let [cached (@*libs* (lib "title"))]
     cached
     (try
-      (if-let [m (@known-libs lib-name)]
-        (load-SAT-lib lib-name
-                      (m :filepath)
-                      (m :reference-brain))
-        (do
-          (report "Unknown lib " lib-name)
-          nil))
+      (println lib)
+      (load-SAT-lib lib)
       (catch Exception e
         (do
-          (report "An error ocurred while loading the SAT library: " e "\nCheck the terminal output.")
+          (report "An error ocurred while loading the SAT library '" (lib "title") ": " e "\nCheck the terminal output.")
           (.printStackTrace e))))))
 
 
@@ -368,11 +364,14 @@
 
 (defn identify
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT."
-  ([p lib-name]
-    (identify p lib-name 1.0 true false))
-  ([p lib-name delta direct substring]
+  ([p
+    ^Map lib]
+    (identify p lib 1.0 true false))
+  ([p
+    ^Map lib
+    delta direct substring]
     (if p
-      (if-let [SAT-lib (fetch-lib lib-name)]
+      (if-let [SAT-lib (fetch-lib (into {} lib))]
         (if-let [fids (extract-fiducial-points (.getProject p))]
           (identify-SAT
             p
@@ -385,18 +384,21 @@
             direct
             substring)
           (report "Cannot find fiducial points for project" (.getProject p)))
-        (report "Cannot find a SAT library for" lib-name))
+        (report "Cannot find a SAT library for " (.get lib "title") " at " (.get lib "filepath")))
       (report "Cannot identify a null pipe or polyline!"))))
 
 
 (defn identify-without-gui
   "Identify a Pipe or Polyline (which implement Line3D) that represent a SAT.
   No GUI is shown. Returns the vector containing the list of matches and the list of names."
-  ([p lib-name]
-    (identify-without-gui p lib-name 1.0 true false))
-  ([p lib-name delta direct substring]
+  ([p
+    ^Map lib]
+    (identify-without-gui p lib 1.0 true false))
+  ([p
+    ^Map lib
+    delta direct substring]
     (if p
-      (if-let [SAT-lib (fetch-lib lib-name)]
+      (if-let [SAT-lib (fetch-lib (into {} lib))]
         (let [SATs (SAT-lib :SATs)
               query-vs (let [vs (.asVectorString3D p)]
                          (.calibrate vs (.. p getLayerSet getCalibrationCopy))
@@ -440,10 +442,10 @@
   - the FNR: false negative rate: false negatives / ( false negatives + true positives )
   - the TPR: true positive rate: 1 - FNR
   - the length of the sequence queried"
-  [project lib-name regex-exclude delta direct substring]
+  [project lib regex-exclude delta direct substring]
   (let [fids (extract-fiducial-points (first (.. project getRootProjectThing (findChildrenOfTypeR "fiducial_points"))))
         tops (int 5)
-        SAT-lib (fetch-lib lib-name)]
+        SAT-lib (fetch-lib lib)]
     (if SAT-lib
       (reduce
         (fn [m chain]
@@ -539,8 +541,8 @@
 (defn summarize-quantify-all
   "Takes the results of quantify-all and returns a map of two maps,
   one with the confusion matrix and one with the distribution of true/false-positive/negative matches."
-  [project lib-name regex-exclude delta direct substring]
-  (let [qa (quantify-all project lib-name regex-exclude delta direct substring)]
+  [project lib regex-exclude delta direct substring]
+  (let [qa (quantify-all project lib regex-exclude delta direct substring)]
     {:confusion-matrix (summarize-as-confusion-matrix qa)
      :distributions (summarize-as-distributions)}))
 
@@ -635,8 +637,8 @@
 (defn print-stats
   "Prints the number of unique SATs and the number of unique lineages in a library of SATs.
   Returns the two sets in a map."
-  [lib-name]
-  (let [lib (fetch-lib lib-name)
+  [lib]
+  (let [lib (fetch-lib lib)
         unique-sats (reduce
                       (fn [unique clone]
                         (if (> (.indexOf clone (int \space)) -1)

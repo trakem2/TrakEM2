@@ -1,16 +1,22 @@
 package lineage;
 
+import ij.Prefs;
 import ij.gui.GenericDialog;
 import ini.trakem2.display.Line3D;
 import ini.trakem2.plugin.TPlugIn;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.FieldMapView;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
+import java.io.File;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class Identify implements TPlugIn {
 
@@ -47,22 +53,76 @@ public class Identify implements TPlugIn {
 		return null;
 	}
 
+	static private class Library extends FieldMapView {
+		@SuppressWarnings("unused")
+		private String title,
+		               filepath,
+		               reference;
+
+		private Library(String title, String filepath, String reference) {
+			this.title = title;
+			this.filepath = filepath;
+			this.reference = reference;
+		}
+	}
+	
 	static private class Params {
 
-		private final String[] libs = {"Drosophila-3rd-instar"};
-
+		private final List<Library> libs; // = {"Drosophila-3rd-instar"};
 		private double delta = 1.0;
 		private int lib_index = 0;
 		private boolean direct = true;
 		private boolean substring = false;
 
+		private Params() {
+			// Read in the file defining the libraries
+			final ArrayList<Library> l = new ArrayList<Library>();
+			final String pluginsDir = Utils.fixDir(Prefs.get("plugins.dir",
+					Utils.fixDir(System.getProperty("user.dir") + "/plugins")));
+			final String[] lines = Utils.openTextFileLines(pluginsDir + "NIT-libraries.txt");
+					
+			//
+			for (int i=0; i<lines.length; ++i) {
+				String line = lines[i].trim();
+				if (0 == line.length()) continue;
+				if (line.startsWith("#")) continue;
+				int comment = line.indexOf('#');
+				if (-1 != comment) line = line.substring(0, comment).trim();
+				if (0 == line.length()) continue;
+				String[] t = line.split("\\t"); // split at tabs
+				if (t.length < 3) {
+					throw new RuntimeException("Errors in Library file: improper entry at line " + (i+1) + ": '" + lines[i] + "'");
+				}
+				// Check that the file path is readable
+				File f = new File(t[1]);
+				if (!f.exists()) {
+					// Try relative
+					f = new File(pluginsDir + t[1]);
+					if (!f.exists()) {
+						Utils.logAll("Could not find file for NIT library: " + t[1]);
+						continue;
+					}
+				}
+				if (!f.canRead()) {
+					Utils.logAll("Incorrect permissions, cannot read file for NIT library at " + t[1]);
+					continue;
+				}
+				l.add(new Library(t[0], f.getAbsolutePath(), t[2]));
+			}
+			this.libs = Collections.unmodifiableList(l);
+		}
+
+		private Params(final Params p) {
+			this.libs = p.libs;
+			this.delta = p.delta;
+			this.lib_index = p.lib_index;
+			this.direct = p.direct;
+			this.substring = p.substring;
+		}
+
+		@Override
 		synchronized public Params clone() {
-			Params p = new Params();
-			p.delta = delta;
-			p.lib_index = lib_index;
-			p.direct = direct;
-			p.substring = substring;
-			return p;
+			return new Params(this);
 		}
 
 		synchronized private boolean setup() {
@@ -70,7 +130,11 @@ public class Identify implements TPlugIn {
 			gd.addNumericField("delta:", delta, 2);
 			gd.addCheckbox("direct", direct);
 			gd.addCheckbox("substring", substring);
-			gd.addChoice("Library: ", libs, libs[0]);
+			String[] libNames = new String[libs.size()];
+			for (int i=0; i<libs.size(); ++i) {
+				libNames[i] = libs.get(i).title;
+			}
+			gd.addChoice("Library: ", libNames, libNames[lib_index]);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			double d = gd.getNextNumber();
@@ -100,8 +164,8 @@ public class Identify implements TPlugIn {
 		return Bureaucrat.createAndStart(new Worker.Task("Identifying " + pipe) {
 			public void exec() {
 				if (null == pipe) return;
-				Params p = params.clone(); 
-				identify(pipe, p.libs[p.lib_index], p.delta, p.direct, p.substring);
+				Params p = params.clone();
+				identify(pipe, p.libs.get(p.lib_index), p.delta, p.direct, p.substring);
 			}
 		}, pipe.getProject());
 	}
@@ -110,7 +174,7 @@ public class Identify implements TPlugIn {
 		if (null == args || args.length < 1 || null == args[0] || !(args[0] instanceof Line3D)) return null;
 		Line3D pipe = (Line3D) args[0];
 		Params p = params.clone();
-		return identify(pipe, p.libs[p.lib_index], p.delta, p.direct, p.substring);
+		return identify(pipe, p.libs.get(p.lib_index), p.delta, p.direct, p.substring);
 	}
 
 	public boolean applies(final Object ob) {
