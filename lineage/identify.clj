@@ -90,7 +90,7 @@
                    (into mb {k v})
                    mb)))))))
 
-(def *libs* (ref {}))
+(def ^:dynamic *libs* (ref {}))
 
 (defn- load-SAT-lib
   "Load the named SAT-lib from filepath into *libs* and returns it.
@@ -98,7 +98,14 @@
   as we as register all SATs to the reference brain."
   [lib]
   (let [SAT-lib (load-SAT-lib-as-vs (lib "filepath"))
-        target-fids (fids-as-Point3d ((SAT-lib (lib "reference")) :fiducials))
+        reference (let [r (SAT-lib (lib "reference"))]
+                    (if r
+                      r
+                      ; Else, use the first brain of the set as reference
+                      (let [rr (first (keys SAT-lib))]
+                        (println "Could not find reference brain '" (lib "reference") "'\n  Instead, using as reference brain: " rr)
+                        (SAT-lib rr))))
+        target-fids (fids-as-Point3d (reference :fiducials))
         SATs (reduce
                (fn [m e]
                  (conj m (register-SATs (key e) (val e) target-fids)))
@@ -113,6 +120,10 @@
   (@*libs* (lib "title")))
 
 
+(defn forget-libs
+  []
+  (dosync
+    (commute *libs* (fn [_] {}))))
 
 (defn- register-vs
   "Register a singe VectorString3D from source-fids to target-fids."
@@ -308,17 +319,12 @@
       ;(.pack)
       (.setVisible true))))
 
-; TODO remove these known-libs completely
-;(def known-libs (ref {"Drosophila-3rd-instar" {:filepath "plugins/SAT-lib-Drosophila-3rd-instar.clj"
-;                                               :reference-brain "FRT42 new"}}))
-
 (defn fetch-lib
   "Returns the SAT lib for the given name, loading it if not there yet. Nil otherwise."
   [lib]
   (if-let [cached (@*libs* (lib "title"))]
     cached
     (try
-      (println lib)
       (load-SAT-lib lib)
       (catch Exception e
         (do
@@ -384,7 +390,7 @@
             direct
             substring)
           (report "Cannot find fiducial points for project" (.getProject p)))
-        (report "Cannot find a SAT library for " (.get lib "title") " at " (.get lib "filepath")))
+        (report "Cannot find or parse SAT library at " (.get lib "title") " at " (.get lib "filepath")))
       (report "Cannot identify a null pipe or polyline!"))))
 
 
@@ -656,3 +662,12 @@
     (println "Unique SATs: " (count unique-sats) \newline "Unique lineages: " (count unique-lineages))
     {:unique-sats unique-sats
      :unique-lineages unique-lineages}))
+
+(defn- test
+  []
+  (identify (first (ini.trakem2.display.Display/getSelected))
+            {"title" "3rd instar"
+             "reference" "FRT42 new"
+             "filepath" "/home/albert/Programming/fiji/plugins/SAT-lib-Drosophila-3rd-instar.clj"}))
+
+(test)

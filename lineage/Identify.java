@@ -39,10 +39,20 @@ public class Identify implements TPlugIn {
 	 * or 5 args: Line3D pipe, String lib-name, double delta, boolean direct and boolean substring
 	 */
 	static public Object identify(Object... args) {
+		return invokeClojureFunction("lineage.identify", "identify", args);
+	}
+	
+	/**
+	 * @param namespace
+	 * @param fnName
+	 * @param args Should not be null. Use an empty array if necessary.
+	 * @return
+	 */
+	static public Object invokeClojureFunction(final String namespace, final String fnName, final Object... args) {
 		try {
 			Class<?> RT = Class.forName("clojure.lang.RT");
 			Method var = RT.getDeclaredMethod("var", new Class[]{String.class, String.class});
-			Object fn = var.invoke(null, new Object[]{"lineage.identify", "identify"});
+			Object fn = var.invoke(null, new Object[]{namespace, fnName});
 			Class<?>[] cc = new Class[args.length];
 			for (int i=0; i<cc.length; i++) cc[i] = Object.class;
 			Method invoke = Class.forName("clojure.lang.Var").getDeclaredMethod("invoke", cc);
@@ -52,6 +62,7 @@ public class Identify implements TPlugIn {
 		}
 		return null;
 	}
+	
 
 	static private class Library extends FieldMapView {
 		@SuppressWarnings("unused")
@@ -69,17 +80,46 @@ public class Identify implements TPlugIn {
 	static private class Params {
 
 		private final List<Library> libs; // = {"Drosophila-3rd-instar"};
+		private final long modificationTime;
 		private double delta = 1.0;
 		private int lib_index = 0;
 		private boolean direct = true;
 		private boolean substring = false;
 
 		private Params() {
-			// Read in the file defining the libraries
-			final ArrayList<Library> l = new ArrayList<Library>();
+			Tuple b = init();
+			this.libs = b.libraries;
+			this.modificationTime = b.lastModified;
+		}
+		
+		private final class Tuple {
+			private final long lastModified;
+			private final List<Library> libraries;
+			Tuple(long modificationTime, List<Library> libs) {
+				this.lastModified = modificationTime;
+				this.libraries = libs;
+			}
+		}
+		
+		private final File fileNITLibraries() {
 			final String pluginsDir = Utils.fixDir(Prefs.get("plugins.dir",
 					Utils.fixDir(System.getProperty("user.dir") + "/plugins")));
-			final String[] lines = Utils.openTextFileLines(pluginsDir + "NIT-libraries.txt");
+			File libsList = new File(pluginsDir + "NIT-libraries.txt");
+			if (!libsList.exists()) {
+				throw new RuntimeException("Could not find file " + libsList.getAbsolutePath());
+			}
+			if (!libsList.canRead()) {
+				throw new RuntimeException("Could not read file " + libsList.getAbsolutePath());
+			}
+			return libsList;
+		}
+		
+		private final Tuple init() {
+			// Read in the file defining the libraries
+			final ArrayList<Library> l = new ArrayList<Library>();
+			final File libsList = fileNITLibraries();
+			final long lastModified = libsList.lastModified();
+			final String[] lines = Utils.openTextFileLines(libsList.getAbsolutePath());
 					
 			//
 			for (int i=0; i<lines.length; ++i) {
@@ -89,15 +129,17 @@ public class Identify implements TPlugIn {
 				int comment = line.indexOf('#');
 				if (-1 != comment) line = line.substring(0, comment).trim();
 				if (0 == line.length()) continue;
-				String[] t = line.split("\\t"); // split at tabs
+				String[] t = line.split("\\t+"); // split at one or more tabs
 				if (t.length < 3) {
 					throw new RuntimeException("Errors in Library file: improper entry at line " + (i+1) + ": '" + lines[i] + "'");
 				}
+				for (int k=0; k<t.length; ++k) t[k] = t[k].trim();
 				// Check that the file path is readable
 				File f = new File(t[1]);
 				if (!f.exists()) {
-					// Try relative
-					f = new File(pluginsDir + t[1]);
+					// Try relative to NIT-libraries.txt
+					f = new File(Utils.fixDir(libsList.getParent()) + t[1]);
+					Utils.logAll("File f is " + f.getAbsolutePath() + " and t[1]: " + t[1]);
 					if (!f.exists()) {
 						Utils.logAll("Could not find file for NIT library: " + t[1]);
 						continue;
@@ -108,16 +150,30 @@ public class Identify implements TPlugIn {
 					continue;
 				}
 				l.add(new Library(t[0], f.getAbsolutePath(), t[2]));
+				Utils.log("Library: " + t[0] + " | " + f.getAbsolutePath() + " | " + t[2]);
 			}
-			this.libs = Collections.unmodifiableList(l);
+			Utils.logAll("T2-NIT: loaded " + l.size() + " librar" + (0 == l.size() ? "y" : "ies"));
+
+			return new Tuple(lastModified, Collections.unmodifiableList(l));
 		}
 
+		/** Will reload the libraries if necessary. */
 		private Params(final Params p) {
-			this.libs = p.libs;
-			this.delta = p.delta;
-			this.lib_index = p.lib_index;
-			this.direct = p.direct;
-			this.substring = p.substring;
+			final File libsList = fileNITLibraries();
+			if (libsList.lastModified() > p.modificationTime) {
+				Utils.logAll("NIT-libraries.txt has been modified: libraries will be reloaded");
+				invokeClojureFunction("lineage.identify", "forget-libs", new Object[]{});
+				Tuple b = init();
+				this.libs = b.libraries;
+				this.modificationTime = b.lastModified;
+			} else {
+				this.libs = p.libs;
+				this.delta = p.delta;
+				this.lib_index = p.lib_index;
+				this.direct = p.direct;
+				this.substring = p.substring;
+				this.modificationTime = p.modificationTime;
+			}
 		}
 
 		@Override
@@ -149,16 +205,17 @@ public class Identify implements TPlugIn {
 			substring = gd.getNextBoolean();
 			return true;
 		}
+		
+		private boolean isOutOfDate() {
+			File f = fileNITLibraries();
+			return f.lastModified() > modificationTime;
+		}
 	}
 
 	/** Store start up values. New instances take the current values. */
 	static private Params PARAMS = new Params();
 
 	private Params params = PARAMS.clone();
-
-	public boolean setup(Object... args) {
-		return params.setup();
-	}
 
 	public Bureaucrat identify(final Line3D pipe) {
 		return Bureaucrat.createAndStart(new Worker.Task("Identifying " + pipe) {
@@ -170,6 +227,13 @@ public class Identify implements TPlugIn {
 		}, pipe.getProject());
 	}
 
+	@Override
+	public boolean setup(Object... args) {
+		if (params.isOutOfDate()) params = new Params(params);
+		return params.setup();
+	}
+
+	@Override
 	public Object invoke(Object... args) {
 		if (null == args || args.length < 1 || null == args[0] || !(args[0] instanceof Line3D)) return null;
 		Line3D pipe = (Line3D) args[0];
@@ -177,6 +241,7 @@ public class Identify implements TPlugIn {
 		return identify(pipe, p.libs.get(p.lib_index), p.delta, p.direct, p.substring);
 	}
 
+	@Override
 	public boolean applies(final Object ob) {
 		return null != ob && ob instanceof Line3D;
 	}
