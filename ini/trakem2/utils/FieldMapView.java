@@ -1,7 +1,5 @@
 package ini.trakem2.utils;
 
-import ij.gui.GenericDialog;
-
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
