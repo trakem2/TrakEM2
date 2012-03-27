@@ -102,9 +102,9 @@ public final class DownsamplerMipMaps
 				final byte[] b1 = (byte[])alpha.getPixels(),
 				             b2 = (byte[])outside.getPixels();
 				for (int i=0; i<b1.length; ++i) {
-					b2[i] = b2[i] != -1 ? 0 : b1[i]; // 'outside' is a binary mask, qualitative. -1 means 255
+					b1[i] = b2[i] != -1 ? 0 : b1[i]; // 'outside' is a binary mask, qualitative. -1 means 255
 				}
-				masks[0] = outside;
+				masks[0] = alpha;
 				//
 				int i = 1;
 				Pair<ByteProcessor,ByteProcessor> pair;
