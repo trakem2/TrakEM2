@@ -428,11 +428,18 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	/** Get the map of Thing vs. expanded state for all nodes that have children. */
-	@SuppressWarnings("unchecked")
 	public HashMap<Thing,Boolean> getExpandedStates() {
+		return getExpandedStates(new HashMap<Thing,Boolean>());
+	}
+
+	/** Get the map of Thing vs. expanded state for all nodes that have children,
+	 * and put the mappins into the {@param m}.
+	 * @return {@param m}
+	 */
+	@SuppressWarnings("unchecked")
+	public HashMap<Thing,Boolean> getExpandedStates(final HashMap<Thing,Boolean> m) {
 		try {
 			final Hashtable<TreePath,Boolean> ht = (Hashtable<TreePath,Boolean>)f_expandedState.get(this);
-			final HashMap<Thing,Boolean> m = new HashMap<Thing,Boolean>(ht.size());
 			for (final Map.Entry<TreePath,Boolean> e : ht.entrySet()) {
 				final Thing t = (Thing)((DefaultMutableTreeNode)e.getKey().getLastPathComponent()).getUserObject();
 				if (t.hasChildren()) m.put(t, e.getValue());

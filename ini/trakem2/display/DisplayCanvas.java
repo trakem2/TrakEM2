@@ -34,6 +34,7 @@ import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.graphics.GraphicsSource;
+import ini.trakem2.display.inspect.InspectPatchTrianglesMode;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
@@ -885,7 +886,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				//beyond_srcRect = true;
 				Utils.log("DisplayCanvas.mouseDragged: preventing drag beyond layer limits.");
 			}
-		} else if (display.getMode() instanceof ManualAlignMode) {
+		} else if (display.getMode() instanceof ManualAlignMode
+			|| display.getMode() instanceof InspectPatchTrianglesMode) {
 			if (display.getLayer().contains(x_d, y_d, 1)) {
 				if (tool >= ProjectToolbar.SELECT) {
 					display.getMode().mouseDragged(me, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
@@ -2232,10 +2234,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	public boolean isInputEnabled() {
 		return !input_disabled;
-	}
-
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
-		sb_body.append("<canvas magnification=\"").append(magnification).append("\" srcrect_x=\"").append(srcRect.x).append("\" srcrect_y=\"").append(srcRect.y).append("\" srcrect_width=\"").append(srcRect.width).append("\" srcrect_height=\"").append(srcRect.height).append("\">\n");
 	}
 
 	/** CAREFUL: the ImageProcessor of the returned ImagePlus is fake, that is, a 4x4 byte array; but the dimensions that it returns are those of the host LayerSet. Used to retrieve ROIs for example.*/

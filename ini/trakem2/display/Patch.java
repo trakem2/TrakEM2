@@ -36,6 +36,8 @@ import ini.trakem2.Project;
 import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.filters.FilterEditor;
 import ini.trakem2.imaging.filters.IFilter;
+import ini.trakem2.io.CoordinateTransformXML;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Bureaucrat;
@@ -65,7 +67,13 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DirectColorModel;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.PrintWriter;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -80,12 +88,12 @@ import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 import mpicbg.models.CoordinateTransformMesh;
+import mpicbg.models.NoninvertibleModelException;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
-import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
 public final class Patch extends Displayable implements ImageData {
@@ -109,8 +117,8 @@ public final class Patch extends Displayable implements ImageData {
 	/** A set of filters to apply to the ImageProcessor after it is loaded. */
 	private IFilter[] filters;
 
-	/** The CoordinateTransform that transfers image data to mipmap image data. The AffineTransform is then applied to the mipmap image data. */
-	private CoordinateTransform ct = null;
+	/** A unique ID for the {@link CoordinateTransform}; 0 means there isn't one. */
+	private long ct_id = 0;
 	
 	protected int meshResolution = project.getProperty("mesh_resolution", 32);
 	public int getMeshResolution(){ return meshResolution; }
@@ -125,7 +133,7 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	public void setMeshResolution( final int meshResolution )
 	{
-		if ( ct == null )
+		if ( !hasCoordinateTransform() )
 			this.meshResolution = meshResolution;
 		else
 		{
@@ -241,6 +249,7 @@ public final class Patch extends Displayable implements ImageData {
 		}
 		if (null != (data = ht_attributes.get("original_path"))) this.original_path = data;
 		if (null != (data = ht_attributes.get("mres"))) this.meshResolution = Integer.parseInt(data);
+		if (null != (data = ht_attributes.get("ct_id"))) this.ct_id = Long.parseLong(data);
 		
 		if (0 == o_width || 0 == o_height) {
 			// The original image width and height are unknown.
@@ -780,16 +789,14 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) { // TODO the Loader should handle the saving of images, not this class.
 		String in = indent + "\t";
 		String path = null;
 		String path2 = null;
-		//Utils.log2("#########\np id=" + id + "  any is " + any);
-		if (null != any) {
-			path = any + title; // ah yes, automatic toString() .. it's like the ONLY smart logic at the object level built into java.
-			// save image without overwritting, and add proper extension (.zip)
+		if (options.export_images) {
+			path = options.patches_dir + title;
+			// save image without overwriting, and add proper extension (.zip)
 			path2 = project.getLoader().exportImage(this, path, false);
-			//Utils.log2("p id=" + id + "  path2: " + path2);
 			// path2 will be null if the file exists already
 		}
 		sb_body.append(indent).append("<t2_patch\n");
@@ -823,7 +830,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		//Utils.log("Patch path is: " + rel_path);
 
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		String[] RGB = Utils.getHexRGBColor(color);
 		int type = this.type;
 		if (-1 == this.type) {
@@ -848,16 +855,34 @@ public final class Patch extends Displayable implements ImageData {
 
 		sb_body.append(in).append("mres=\"").append(meshResolution).append("\"\n");
 		
+		if (hasCoordinateTransform()) {
+			sb_body.append(in).append("ct_id=\"").append(ct_id).append("\"\n");
+		}
+		
 		sb_body.append(indent).append(">\n");
 
-		if (null != ct) {
-			sb_body.append(ct.toXML(in)).append('\n');
+		if (hasCoordinateTransform()) {
+			if (options.include_coordinate_transform) {
+				// Write an XML entry for the CoordinateTransform
+				char[] ct_chars = null;
+				try {
+					ct_chars = readCoordinateTransformFile();
+				} catch (Exception e) {
+					IJError.print(e);
+				}
+				if (null != ct_chars) {
+					sb_body.append(ct_chars).append('\n');
+				} else {
+					Utils.log("ERROR: could not write the CoordinateTransform to the XML file!");
+				}
+			}
 		}
+
 		if (null != filters && filters.length > 0) {
 			for (IFilter f : filters) sb_body.append(f.toXML(in)); // specify their own line termination
 		}
 
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 
 		sb_body.append(indent).append("</t2_patch>\n");
 	}
@@ -893,6 +918,7 @@ public final class Patch extends Displayable implements ImageData {
 			 .append(indent).append(TAG_ATTR1).append(type).append(" o_height").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" pps").append(TAG_ATTR2) // preprocessor script
 			 .append(indent).append(TAG_ATTR1).append(type).append(" mres").append(TAG_ATTR2)
+			 .append(indent).append(TAG_ATTR1).append(type).append(" ct_id").append(TAG_ATTR2)
 		;
 	}
 
@@ -907,7 +933,7 @@ public final class Patch extends Displayable implements ImageData {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		copy.ct = null == ct ? null : this.ct.copy();
+		copy.ct_id = this.ct_id;
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
@@ -929,7 +955,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		public TransformProperties(final Patch p) {
 			this.at = new AffineTransform(p.at);
-			this.ct = null == p.ct ? null : p.ct.copy();
+			this.ct = p.getCoordinateTransform();
 			this.meshResolution = p.getMeshResolution();
 			this.bounds = p.getBoundingBox(null);
 			this.o_width = p.o_width;
@@ -1129,9 +1155,21 @@ public final class Patch extends Displayable implements ImageData {
 		return true;
 	}
 
-	/** For reconstruction purposes, overwrites the present CoordinateTransform, if any, with the given one. */
+	/** For reconstruction purposes, overwrites the present {@link CoordinateTransform}, if any, with the given one.
+	 * This method has been repurposed to write the {@link CoordinateTransform} to disk and set a new {@link #ct_id}
+	 * that points to it. */
 	public void setCoordinateTransformSilently(final CoordinateTransform ct) {
-		this.ct = ct;
+		try {
+			if (0 == this.ct_id) {
+				// Old XML, lacks a ct_id attribute; will get a new ct_id
+				setNewCoordinateTransform(ct);
+			} else {
+				// New XML with ct_id attribute
+				writeNewCoordinateTransform(ct, this.ct_id);
+			}
+		} catch (Exception e) {
+			IJError.print(e);
+		}
 	}
 
 	/** Set a CoordinateTransform to this Patch.
@@ -1141,19 +1179,27 @@ public final class Patch extends Displayable implements ImageData {
 			Utils.log("Cannot set coordinate transform: patch is linked!");
 			return;
 		}
+		
+		CoordinateTransform this_ct = hasCoordinateTransform() ? getCoordinateTransform() : null;
 
-		if (null != this.ct) {
+		if (null != this_ct) {
 			// restore image without the transform
-			final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
+			final TransformMesh mesh = new TransformMesh(this_ct, meshResolution, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
 			this.at.translate(-box.x, -box.y);
 			updateInDatabase("transform+dimensions");
 		}
 
-		this.ct = ct;
+		try {
+			setNewCoordinateTransform(ct);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+		this_ct = ct;
+	
 		updateInDatabase("ict_transform");
 
-		if (null == this.ct) {
+		if (null == this_ct) {
 			width = o_width;
 			height = o_height;
 			updateBucket();
@@ -1162,7 +1208,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		// Adjust the AffineTransform to correct for bounding box displacement
 
-		final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
+		final TransformMesh mesh = new TransformMesh(this_ct, meshResolution, o_width, o_height);
 		final Rectangle box = mesh.getBoundingBox();
 		this.at.translate(box.x, box.y);
 		width = box.width;
@@ -1182,15 +1228,16 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	@SuppressWarnings("unchecked")
 	public final void appendCoordinateTransform(final CoordinateTransform ct) {
-		if (null == this.ct)
+		if (!hasCoordinateTransform())
 			setCoordinateTransform(ct);
 		else {
 			final CoordinateTransformList< CoordinateTransform > ctl;
-			if (this.ct instanceof CoordinateTransformList<?>)
-				ctl = (CoordinateTransformList< CoordinateTransform >)this.ct.copy();
+			final CoordinateTransform this_ct = getCoordinateTransform();
+			if (this_ct instanceof CoordinateTransformList<?>)
+				ctl = (CoordinateTransformList< CoordinateTransform >)this_ct.copy();
 			else {
 				ctl = new CoordinateTransformList< CoordinateTransform >();
-				ctl.add(this.ct);
+				ctl.add(this_ct);
 			}
 			ctl.add(ct);
 			setCoordinateTransform(ctl);
@@ -1206,7 +1253,7 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	@SuppressWarnings("unchecked")
 	public final void preAppendCoordinateTransform(final CoordinateTransform ct) {
-		if (null == this.ct)
+		if (!hasCoordinateTransform())
 			setCoordinateTransform(ct);
 		else {
 			final CoordinateTransformList< CoordinateTransform > ctl;
@@ -1216,7 +1263,7 @@ public final class Patch extends Displayable implements ImageData {
 				ctl = new CoordinateTransformList< CoordinateTransform >();
 				ctl.add(ct);
 			}
-			ctl.add(this.ct);
+			ctl.add(getCoordinateTransform());
 			setCoordinateTransform(ctl);
 		}
 	}
@@ -1234,16 +1281,21 @@ public final class Patch extends Displayable implements ImageData {
 	 * @return
 	 */
 	public final Rectangle getCoordinateTransformBoundingBox() {
-		if (null==ct)
+		if (!hasCoordinateTransform())
 			return new Rectangle(0,0,o_width,o_height);
-		final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
+		final TransformMesh mesh = new TransformMesh(getCoordinateTransform(), meshResolution, o_width, o_height);
 		return mesh.getBoundingBox();
 	}
 
-	public final CoordinateTransform getCoordinateTransform() { return ct; }
+	/** Obtain a copy of the {@link CoordinateTransform} that transfers image data to mipmap image data.
+	 * @return A copy of the {@link CoordinateTransform}, or null if none.
+	 * @see #setCoordinateTransform(CoordinateTransform) */
+	public final CoordinateTransform getCoordinateTransform() { return getCT(); }
 	
 	public final Patch.PatchImage createCoordinateTransformedImage() {
-		if (null == ct) return null;
+		if (!hasCoordinateTransform()) return null;
+		
+		final CoordinateTransform ct = getCoordinateTransform();
 		
 		final ImageProcessor source = getImageProcessor();
 		
@@ -1349,7 +1401,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	public boolean hasAlphaChannel() {
-		return null != ct || hasAlphaMask();
+		return hasCoordinateTransform() || hasAlphaMask();
 	}
 
 	/** Must call updateMipMaps() afterwards. Set it to null to remove it. */
@@ -1397,9 +1449,9 @@ public final class Patch extends Displayable implements ImageData {
 					if (null != imp) imp.copy(false);
 				} else if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
 					CoordinateTransformList<CoordinateTransform> list = null;
-					if (null != ct) {
+					if (hasCoordinateTransform()) {
 						list = new CoordinateTransformList<CoordinateTransform>();
-						list.add(this.ct);
+						list.add(getCoordinateTransform());
 					}
 					if (0 == mod) { //SHIFT is not down
 						AffineModel2D am = new AffineModel2D();
@@ -1452,7 +1504,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	static private final class DPPatch extends Displayable.DataPackage {
 		final double min, max;
-		final CoordinateTransform ct;
+		final long ct_id;
 		final IFilter[] filters;
 		final boolean false_color;
 		
@@ -1461,7 +1513,7 @@ public final class Patch extends Displayable implements ImageData {
 			super(patch);
 			this.min = patch.min;
 			this.max = patch.max;
-			this.ct = null == patch.ct ? null : patch.ct.copy();
+			this.ct_id = patch.ct_id;
 			this.filters = null == patch.filters ? null : FilterEditor.duplicate(patch.filters);
 			this.false_color = patch.false_color;
 			// channels is visualization
@@ -1473,13 +1525,13 @@ public final class Patch extends Displayable implements ImageData {
 			super.to1(d);
 			final Patch p = (Patch) d;
 			boolean mipmaps = false;
-			if (p.min != min || p.max != max || p.ct != ct || (p.ct == ct && ct instanceof CoordinateTransformList<?>)) {
-				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct != ct) + " " + (p.ct == ct && ct instanceof CoordinateTransformList<?>));
+			if (p.min != min || p.max != max || p.ct_id != ct_id) {
+				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct_id != ct_id));
 				mipmaps = true;
 			}
 			p.min = min;
 			p.max = max;
-			p.ct = null == ct ? null : (CoordinateTransform) ct.copy();
+			p.ct_id = ct_id;
 			p.filters = null == filters ? null : FilterEditor.duplicate(filters);
 			p.false_color = false_color;
 
@@ -1491,7 +1543,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Considers the alpha mask. */
-	public boolean contains(final int x_p, final int y_p) {
+	@Override
+	public boolean contains(final double x_p, final double y_p) {
 		if (!hasAlphaChannel()) return super.contains(x_p, y_p);
 		// else, get pixel from image
 		if (project.getLoader().isUnloadable(this)) return super.contains(x_p, y_p);
@@ -1553,6 +1606,12 @@ public final class Patch extends Displayable implements ImageData {
 		if (null == roi || !M.isAreaROI(roi)) return;
 		if (value < 0) value = 0;
 		if (value > 255) value = 255;
+		//
+		CoordinateTransform ct = null;
+		if (hasCoordinateTransform() && null == (ct = getCT())) {
+			return;
+		}
+		//
 		try {
 			// a roi local to the image bounding box
 			//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
@@ -1580,7 +1639,7 @@ public final class Patch extends Displayable implements ImageData {
 
 			ByteProcessor rmask = (ByteProcessor) ImageJFunctions.copyToImagePlus(shapeListImage, ImagePlus.GRAY8).getProcessor();
 
-			if (null != ct) {
+			if (hasCoordinateTransform()) {
 				// inverse the coordinate transform
 				final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
 				final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
@@ -1614,14 +1673,16 @@ public final class Patch extends Displayable implements ImageData {
 	/** Returns an Area in world coords representing the inside of this Patch. The fully alpha pixels are considered outside. */
 	@Override
 	public Area getArea() {
+		CoordinateTransform ct = null;
 		if (hasAlphaMask()) {
 			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:
 			ImageProcessor alpha_mask = project.getLoader().fetchImageMask(this);
 			if (null == alpha_mask) {
 				Utils.log2("Could not retrieve alpha mask for " + this);
 			} else {
-				if (null != ct) {
+				if (hasCoordinateTransform()) {
 					// must transform it
+					ct = getCoordinateTransform();
 					final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
 					final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 					alpha_mask = mapping.createMappedImage( alpha_mask ); // Without interpolation
@@ -1666,10 +1727,11 @@ public final class Patch extends Displayable implements ImageData {
 			y[next] = i;
 		}
 
+		if (hasCoordinateTransform() && null == ct) ct = getCoordinateTransform();
 		if (null != ct) {
 			final CoordinateTransformList<CoordinateTransform> t = new CoordinateTransformList<CoordinateTransform>();
 			t.add(ct);
-			final TransformMesh mesh = new TransformMesh(this.ct, meshResolution, o_width, o_height);
+			final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
 			final Rectangle box = mesh.getBoundingBox();
 			final AffineTransform aff = new AffineTransform(this.at);
 			// Must correct for the inverse of the mesh translation, because the affine also includes the translation.
@@ -1913,5 +1975,231 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	public IFilter[] getFilters() {
 		return filters;
+	}
+	
+	public boolean hasCoordinateTransform() {
+		return 0 != ct_id;
+	}
+	
+	/** A value of 0 indicates that there isn't one. */
+	public long getCoordinateTransformId() {
+		return ct_id;
+	}
+
+	/**
+	 * @return The absolute file path to the file specifying the {@link CoordinateTransform}, or null if none.
+	 */
+	public String getCoordinateTransformFilePath() {
+		return hasCoordinateTransform() ? createCTFilePath(this.ct_id) : null;
+	}
+
+	private final String createCTFilePath(final long ctID) {
+		final FSLoader l = (FSLoader)project.getLoader();
+		return l.getCoordinateTransformsFolder()
+				+ FSLoader.createIdPath(Long.toString(ctID), Long.toString(this.id), ".ct");
+	}
+
+	/** Obtains a {@link CoordinateTransform}.
+	 * This method is meant to be used only when {@link #hasCoordinateTransform()} returns true.
+	 * 
+	 * @return The {@link CoordinateTransform} from file, or null if there isn't one.
+	 * @throws {@link RuntimeException} wrapping the actual error in loading the file.
+	 */
+	private final CoordinateTransform getCT() {
+		try {
+			return fetchCoordinateTransform();
+		} catch (Exception e) {
+			IJError.print(e);
+			throw new RuntimeException(e);
+		}
+	}
+
+	/**
+	 * Read in the {@link CoordinateTransform} from a file whose name is crafted
+	 * from the {@link #ct_id} and this {@link Patch}'s {@link #id}.
+	 * 
+	 * @return A new instance of the {@link CoordinateTransform} of this {@link Patch}, or null if none.
+	 * @throws {@link Exception} if the file could not be found or parsed or read.
+	 */
+	synchronized public CoordinateTransform fetchCoordinateTransform() throws Exception {
+		return hasCoordinateTransform() ?
+			CoordinateTransformXML.parse(createCTFilePath(this.ct_id))
+			: null;
+	}
+
+	/** Will throw an {@link Exception} if the file can't be read or is not there. */
+	synchronized private char[] readCoordinateTransformFile() throws Exception {
+		final File f = new File(createCTFilePath(this.ct_id));
+		final char[] c = new char[(int)f.length()];
+		Reader reader = null;
+		try {
+			reader = new BufferedReader(new FileReader(f), 32768); // TODO make this larger			
+			int s = 0;
+			while (s < c.length) {
+				int r = reader.read(c, s, c.length - s);
+				if (-1 == r) break; // done
+				s += r;
+			}
+			return c;
+		} finally {
+			if (null != reader) reader.close();
+		}
+	}
+
+	/**
+	 * Writes the {@link CoordinateTransform} {@param t} to the trakem2.transforms/ directory, using the unique {@link #ct_id}
+	 * and this {@link Patch}'s {@link #id} to generate a file path for it.
+	 * 
+	 * @return true if it was written successfully.
+	 * @throws {@link Exception} if the new file could not be written.
+	 */
+	synchronized protected boolean setNewCoordinateTransform(final CoordinateTransform ct) throws Exception {
+		// If the new CoordinateTransform is null, set the id to 0
+		if (null == ct) {
+			// Declare the current file, if any, as stale
+			//if (0 != this.ct_id) {
+			//	project.getLoader().queueStaleCTFile(this.ct_id, createCTFilePath(this.ct_id));
+			//}
+			this.ct_id = 0;
+			return true;
+		}
+		// Obtain a new ID
+		final long ctID = project.getLoader().getNextBlobId();
+		// Write the ct to file, which may throw an exception
+		if (writeNewCoordinateTransform(ct, ctID)) {
+			// Declare the current file, if any, as stale
+			//if (0 != this.ct_id) {
+			//	project.getLoader().queueStaleCTFile(this.ct_id, createCTFilePath(this.ct_id));
+			//}
+			// Set the new ID
+			this.ct_id = ctID;
+		}
+		
+		return true;
+	}
+
+	/** @param ct
+	 *  @param ctID The id
+	 *  @see #setNewCoordinateTransform(CoordinateTransform) */
+	synchronized private boolean writeNewCoordinateTransform(final CoordinateTransform ct, final long ctID) throws Exception {
+		PrintWriter pw = null;
+		try {
+			final File f = new File(createCTFilePath(ctID));
+			Utils.ensure(f);
+			pw = new PrintWriter(new BufferedOutputStream(new FileOutputStream(f)));
+			pw.write(ct.toXML("\t\t\t\t")); // so that "Save" will generate a pretty, formatted XML.
+			pw.flush();
+			// File will become unstale when exporting to XML.
+			//project.getLoader().queueStaleCTFile(ctID, path);
+			return true;
+		} finally {
+			if (null != pw) try { pw.close(); } catch (Exception e) { IJError.print(e); }
+		}
+	}
+
+	/**
+	 * 
+	 * @return True if {@link #ct_id} {@code == 0} or if the file is found, or false if not found.
+	 */
+	public boolean checkCoordinateTransformFile() {
+		if (0 == this.ct_id) return true;
+		return new File(createCTFilePath(this.ct_id)).exists();
+	}
+
+	/**
+	 * Transfer a world coordinate (in pixels, uncalibrated) to the coordinate space of the original image.
+	 * The world coordinate is first transferred to this {@link Patch} space by inverting the {@link AffineTransform}
+	 * and then, if there is a {@link CoordinateTransform}, that is inverted as well to reach the coordinate space of the original image.
+	 * 
+	 * @param world_x
+	 * @param world_y
+	 * @return A {@code double[]} array with the x,y values.
+	 * @throws NoninvertibleTransformException
+	 * @throws NoninvertibleModelException
+	 */
+	public double[] toPixelCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException {
+		return Patch.toPixelCoordinate(world_x, world_y, this.at, hasCoordinateTransform() ? getCoordinateTransform() : null, this.meshResolution, this.o_width, this.o_height);
+	}
+
+	/**
+	 * @see Patch#toPixelCoordinate(double, double)
+	 * @param world_x The X of the world coordinate (in pixels, uncalibrated)
+	 * @param world_y The Y of the world coordinate (in pixels, uncalibrated)
+	 * @param aff The {@link AffineTransform} of the {@link Patch}.
+	 * @param ct The {@link CoordinateTransform} of the {@link Patch}, if any (can be null).
+	 * @param meshResolution The precision demanded for approximating a transform with a {@link TransformMesh}. 
+	 * @param o_width The width of the image underlying the {@link Patch}.
+	 * @param o_height The height of the image underlying the {@link Patch}.
+	 * @return A {@code double[]} array with the x,y values.
+	 * @throws NoninvertibleTransformException
+	 * @throws NoninvertibleModelException
+	 */
+	static public final double[] toPixelCoordinate(final double world_x, final double world_y,
+			final AffineTransform aff, final CoordinateTransform ct,
+			final int meshResolution, final int o_width, final int o_height) throws NoninvertibleTransformException {
+		// Inverse the affine
+		final double[] d = new double[]{world_x, world_y};
+		aff.inverseTransform(d, 0, d, 0, 1);
+		// Inverse the coordinate transform
+		if (null != ct) {
+			final float[] f = new float[]{(float)d[0], (float)d[1]};
+			final mpicbg.models.InvertibleCoordinateTransform t =
+				mpicbg.models.InvertibleCoordinateTransform.class.isAssignableFrom(ct.getClass()) ?
+					(mpicbg.models.InvertibleCoordinateTransform) ct
+					: new mpicbg.trakem2.transform.TransformMesh(ct, meshResolution, o_width, o_height);
+				try { t.applyInverseInPlace(f); } catch ( NoninvertibleModelException e ) {}
+				d[0] = f[0];
+				d[1] = f[1];
+		}
+		return d;
+	}
+	
+	
+	/**
+	 * Return the local affine transformation for a passed location in world
+	 * coordinates.   This affine transform is either the global affine
+	 * transform of the patch or the combined affine transform of the local
+	 * affine transform in the transform mesh and its global affine transform.
+	 * 
+	 * @param wx
+	 * @param wy
+	 * @return
+	 */
+	public AffineTransform getLocalAffine( final double wx, final double wy )
+	{
+		final AffineTransform affine = new AffineTransform( at );
+		if ( hasCoordinateTransform() )
+		{
+			final CoordinateTransform ct = getCoordinateTransform();
+			final double[] w = new double[]{ wx, wy };
+			try
+			{
+				at.inverseTransform( w, 0, w, 0, 1 );
+			}
+			catch ( NoninvertibleTransformException e ) {}
+			final TransformMesh mesh = new TransformMesh( ct, meshResolution, o_width, o_height );
+			final mpicbg.models.AffineModel2D triangle = mesh.closestTargetAffine( new float[]{ ( float )w[ 0 ], ( float )w[ 1 ] } );
+			affine.concatenate( triangle.createAffine() );
+		}
+		return affine;
+	}
+	
+	public double getLocalScale( final double wx, final double wy )
+	{
+		final AffineTransform affine = getLocalAffine( wx, wy );
+		final double a = affine.getScaleX();
+		final double b = affine.getShearX();
+		final double c = affine.getShearY();
+		final double d = affine.getScaleY();
+		
+		final double l1x = a + b;
+		final double l1y = c + d;
+		final double l2x = a - b;
+		final double l2y = c - d;
+		
+		final double l1 = Math.sqrt( l1x * l1x + l1y * l1y );
+		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y );
+		
+		return ( l1 + l2 ) / 2.0;
 	}
 }

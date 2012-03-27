@@ -152,12 +152,29 @@ public class FloatProcessorT2 extends FloatProcessor {
 	public final byte[] getBytePixels() {
 		 final float[] f = getFloatPixels();
 		 final byte[] b = new byte[f.length];
-		 float val;
+		 int val;
 		 final int size = width*height;
-		 for (int i=0; i<size; i++) {
-			 val = f[i] + 0.5f;
-			 if (val < 0f) val = 0f;
-			 if (val > 255f) val = 255f;
+		 for (int i=0; i<size; ++i) {
+			 val = (int)(f[i] + 0.5f);
+			 if (val < 0) val = 0;
+			 if (val > 255) val = 255;
+			 b[i] = (byte)val;
+		 }
+		 return b;
+	}
+	
+	public final byte[] getScaledBytePixels() {
+		 final float[] f = getFloatPixels();
+		 final byte[] b = new byte[f.length];
+		 int val;
+		 final int size = width*height;
+		 final double min = getMin();
+		 final double scale = 255 / (getMax() - min + 1);
+		 //
+		 for (int i=0; i<size; ++i) {
+			 val = (int)((f[i] - min) * scale + 0.5);
+			 if (val < 0) val = 0;
+			 if (val > 255) val = 255;
 			 b[i] = (byte)val;
 		 }
 		 return b;
@@ -167,14 +184,13 @@ public class FloatProcessorT2 extends FloatProcessor {
 	public final int[] getRGBPixels() {
 		final float[] f = getFloatPixels();
 		final int[] rgb = new int[f.length];
-		float val;
+		int val;
 		final int size = width*height;
-		for (int i=0; i<size; i++) {
-			val = f[i] + 0.5f;
-			if (val < 0f) val = 0f;
-			if (val > 255f) val = 255f;
-			final byte b = (byte)val;
-			rgb[i] = (b<<16) + (b<<8) + b;
+		for (int i=0; i<size; ++i) {
+			val = (int)(f[i] + 0.5f);
+			if (val < 0) val = 0;
+			if (val > 255) val = 255;
+			rgb[i] = 0xff000000 | (val<<16) | (val<<8) | val;
 		}
 		return rgb;
 	}
@@ -183,14 +199,13 @@ public class FloatProcessorT2 extends FloatProcessor {
 	public final int[] getARGBPixels(final byte[] alpha) {
 		final float[] f = getFloatPixels();
 		final int[] rgb = new int[f.length];
-		float val;
+		int val;
 		final int size = width*height;
-		for (int i=0; i<size; i++) {
-			val = f[i] + 0.5f;
-			if (val < 0f) val = 0f;
-			if (val > 255f) val = 255f;
-			final int b = (int)val;
-			rgb[i] = ((alpha[i]&0xff)<<24) | (b<<16) | (b<<8) | b;
+		for (int i=0; i<size; ++i) {
+			val = (int)(f[i] + 0.5f);
+			if (val < 0) val = 0;
+			if (val > 255) val = 255;
+			rgb[i] = ((alpha[i]&0xff)<<24) | (val<<16) | (val<<8) | val;
 		}
 		return rgb;
 	}
@@ -199,14 +214,13 @@ public class FloatProcessorT2 extends FloatProcessor {
 	public final int[] getARGBPixels(final byte[] alpha, final byte[] outside) {
 		final float[] f = getFloatPixels();
 		final int[] rgb = new int[f.length];
-		float val;
+		int val;
 		final int size = width*height;
-		for (int i=0; i<size; i++) {
-			val = f[i] + 0.5f;
-			if (val < 0f) val = 0f;
-			if (val > 255f) val = 255f;
-			final int b = (int)val;
-			rgb[i] = ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) ) | (b<<16) | (b<<8) | b;
+		for (int i=0; i<size; ++i) {
+			val = (int)(f[i] + 0.5f);
+			if (val < 0) val = 0;
+			if (val > 255) val = 255;
+			rgb[i] = ( (outside[i]&0xff) != 255 ? 0 : ((alpha[i]&0xff)<<24) ) | (val<<16) | (val<<8) | val;
 		}
 		return rgb;
 	}
@@ -229,7 +243,7 @@ public class FloatProcessorT2 extends FloatProcessor {
 		final float min = (float)getMin();
 		final float max = (float)getMax();
 		final float scale = 256.0f/(max-min+1);
-		for (int i=0; i<size; i++) {
+		for (int i=0; i<size; ++i) {
 			val = (int)(f[i] - min);
 			if (val < 0) val = 0;
 			val = (int)(val*scale + 0.5f);
@@ -248,7 +262,7 @@ public class FloatProcessorT2 extends FloatProcessor {
 		final float min = (float)getMin();
 		final float max = (float)getMax();
 		final float scale = 256.0f/(max-min+1);
-		for (int i=0; i<size; i++) {
+		for (int i=0; i<size; ++i) {
 			val = (int)(f[i] - min);
 			if (val < 0) val = 0;
 			val = (int)(val*scale + 0.5f);

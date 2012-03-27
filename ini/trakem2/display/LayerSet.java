@@ -33,6 +33,7 @@ import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.tree.TemplateThing;
@@ -1149,11 +1150,11 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 	}
 
-	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+	public void exportXML(final java.io.Writer writer, final String indent, final XMLOptions options) throws Exception {
 		final StringBuilder sb_body = new StringBuilder(512);
 		sb_body.append(indent).append("<t2_layer_set\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		sb_body.append(in).append("layer_width=\"").append(layer_width).append("\"\n")
 		       .append(in).append("layer_height=\"").append(layer_height).append("\"\n")
 		       .append(in).append("rot_x=\"").append(rot_x).append("\"\n")
@@ -1204,7 +1205,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		if (null != al_zdispl) {
 			for (final ZDisplayable zd : al_zdispl) {
 				sb_body.setLength(0);
-				zd.exportXML(sb_body, in, any);
+				zd.exportXML(sb_body, in, options);
 				if (null == sbvalue) {
 					writer.write(sb_body.toString()); // each separately, for they can be huge
 				} else {
@@ -1219,7 +1220,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			//Utils.log("LayerSet " + id + " is saving " + al_layers.size() + " layers.");
 			for (final Layer la : al_layers) {
 				sb_body.setLength(0);
-				la.exportXML(sb_body, in, any);
+				la.exportXML(sb_body, in, options);
 				if (null == sbvalue) {
 					writer.write(sb_body.toString());
 				} else {
@@ -1231,7 +1232,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		}
 		sb_body.setLength(0);
 		if (sb_body.length() > 0) {
-			super.restXML(sb_body, in, any);
+			super.restXML(sb_body, in, options);
 			if (null == sbvalue) {
 				writer.write(sb_body.toString());
 			} else {

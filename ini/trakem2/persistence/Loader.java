@@ -98,6 +98,7 @@ import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1084,10 +1085,11 @@ abstract public class Loader {
 					}
 					pai = null;
 					if (null != alpha_mask) {
-						mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
+						mawt = ImageSaver.createARGBImage(
 								embedAlpha((int[])ip.convertToRGB().getPixels(),
 										(byte[])alpha_mask.getPixels(),
-										null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+										null == outside_mask ? null : (byte[])outside_mask.getPixels()),
+								ip.getWidth(), ip.getHeight());
 					} else {
 						mawt = ip.createImage();
 					}
@@ -3733,10 +3735,6 @@ while (it.hasNext()) {
 		return importStackAsPatches(project, first_layer, Double.MAX_VALUE, Double.MAX_VALUE, stack, as_copy, filepath);
 	}
 	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus stack, final boolean as_copy, String filepath);
-
-	protected String export(Project project, File fxml) {
-		return export(project, fxml, true);
-	}
 	
 	private final long estimateXMLFileSize(final File fxml) {
 		try {
@@ -3748,23 +3746,22 @@ while (it.hasNext()) {
 	}
 
 	/** Exports the project and its images (optional); if export_images is true, it will be asked for confirmation anyway -beware: for FSLoader, images are not exported since it doesn't own them; only their path.*/
-	protected String export(final Project project, final File fxml, boolean export_images) {
+	protected String export(final Project project, final File fxml, final XMLOptions options) {
 		String path = null;
 		if (null == project || null == fxml) return null;
 		
 		releaseToFit(estimateXMLFileSize(fxml));
 		
 		try {
-			if (export_images && !(this instanceof FSLoader))  {
+			if (options.export_images && !(this instanceof FSLoader))  {
 				final YesNoCancelDialog yn = ini.trakem2.ControlWindow.makeYesNoCancelDialog("Export images?", "Export images as well?");
 				if (yn.cancelPressed()) return null;
-				if (yn.yesPressed()) export_images = true;
-				else export_images = false; // 'no' option
+				if (yn.yesPressed()) options.export_images = true;
+				else options.export_images = false; // 'no' option
 			}
 
-			String patches_dir = null;
-			if (export_images) {
-				patches_dir = makePatchesDir(fxml);
+			if (options.export_images) {
+				options.patches_dir = makePatchesDir(fxml);
 			}
 			// Write first to a tmp file, then remove the existing XML and move the tmp to that name
 			// In this way, if there is an error while writing, the existing XML is not destroyed.
@@ -3774,6 +3771,7 @@ while (it.hasNext()) {
 			final File ftmp = IJ.isWindows() ? fxml : new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
 			final FileOutputStream fos = new FileOutputStream(ftmp);
 			
+			// TODO: test saving times if the BufferedOutputStream is given a much larger buffer size than the default 8192.
 			java.io.Writer writer;
 			if (fxml.getName().endsWith(".xml.gz")) {
 				writer = new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(fos)), "8859_1");
@@ -3782,7 +3780,7 @@ while (it.hasNext()) {
 			}
 
 			try {
-				writeXMLTo(project, writer, patches_dir);
+				writeXMLTo(project, writer, options);
 				fos.getFD().sync(); // ensure the file is synch'ed with the file system, given that we are going to rename it after closing it.
 			} catch (Exception e) {
 				Utils.log("FAILED to write to the file at " + fxml);
@@ -3819,8 +3817,8 @@ while (it.hasNext()) {
 			project.setTitle(fxml.getName());
 
 			// Remove the patches_dir if empty (can happen when doing a "save" on a FSLoader project if no new Patch have been created that have no path.
-			if (export_images) {
-				File fpd = new File(patches_dir);
+			if (options.export_images) {
+				File fpd = new File(options.patches_dir);
 				if (fpd.exists() && fpd.isDirectory()) {
 					// check if it contains any files
 					File[] ff = fpd.listFiles();
@@ -3836,7 +3834,7 @@ while (it.hasNext()) {
 						try {
 							fpd.delete();
 						} catch (Exception e) {
-							Utils.log2("Could not delete empty directory " + patches_dir);
+							Utils.log2("Could not delete empty directory " + options.patches_dir);
 							IJError.print(e);
 						}
 					}
@@ -3856,13 +3854,13 @@ while (it.hasNext()) {
 	 * @param writer
 	 * @param patches_dir Null if images are not being exported.
 	 * */
-	public void writeXMLTo(final Project project, final Writer writer, final String patches_dir) throws Exception {
+	public void writeXMLTo(final Project project, final Writer writer, final XMLOptions options) throws Exception {
 			StringBuilder sb_header = new StringBuilder(30000).append("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 			project.exportDTD(sb_header, new HashSet<String>(), "\t");
 			sb_header.append("] >\n\n");
 			writer.write(sb_header.toString());
 			sb_header = null;
-			project.exportXML(writer, "", patches_dir);
+			project.exportXML(writer, "", options);
 			writer.flush(); // make sure all buffered chars are written
 	}
 
@@ -3878,20 +3876,21 @@ while (it.hasNext()) {
 		return count;
 	}
 
-	/** Calls saveAs() unless overriden. Returns full path to the xml file. */
-	public String save(Project project) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
-		String path = saveAs(project);
+	/** Calls saveAs() unless overriden. Returns full path to the xml file. 
+	 * @param options TODO*/
+	public String save(Project project, XMLOptions options) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
+		String path = saveAs(project, options);
 		if (null != path) setChanged(false);
 		return path;
 	}
 
 	/** Save the project under a different name by choosing from a dialog, and exporting all images (will popup a YesNoCancelDialog to confirm exporting images.) */
-	public String saveAs(Project project) {
-		return saveAs(project, null, true);
+	public String saveAs(Project project, XMLOptions options) {
+		return saveAs(project, null, options);
 	}
 
 	/** Exports to an XML file chosen by the user in a dialog if @param xmlpath is null. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
-	public String saveAs(Project project, String xmlpath, boolean export_images) {
+	public String saveAs(Project project, String xmlpath, XMLOptions options) {
 		String storage_dir = getStorageFolder();
 		String mipmaps_dir = getMipMapsFolder();
 		// Select a file to export to
@@ -3902,7 +3901,7 @@ while (it.hasNext()) {
 			copy = getPathsCopy();
 			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
 		}
-		String path = export(project, fxml, export_images);
+		String path = export(project, fxml, options);
 		if (null != path) setChanged(false);
 		else {
 			// failed, so restore paths
@@ -3916,10 +3915,11 @@ while (it.hasNext()) {
 	protected Map<Long,String> getPathsCopy() { return null; }
 	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 
-	/** Meant to be overriden -- as is, will call saveAs(project, path, export_images = getClass() != FSLoader.class ). */
-	public String saveAs(String path, boolean overwrite) {
+	/** Meant to be overriden -- as is, will set {@param options}.{@link XMLOptions#export_images} to this.getClass() != FSLoader.class. */
+	public String saveAs(String path, XMLOptions options) {
 		if (null == path) return null;
-		return export(Project.findProject(this), new File(path), this.getClass() != FSLoader.class);
+		options.export_images =  this.getClass() != FSLoader.class;
+		return export(Project.findProject(this), new File(path), options);
 	}
 
 	/** Parses the xml_path and returns the folder in the same directory that has the same name plus "_images". Note there isn't an ending backslash. */
@@ -4743,13 +4743,6 @@ while (it.hasNext()) {
 
 	public void removeFromUnloadable(final Displayable p) { hs_unloadable.remove(p); }
 
-	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
-		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		// In one step, set pixels that contain the alpha byte already:
-		bi.setRGB( 0, 0, width, height, pix, 0, width );
-		return bi;
-	}
-
 	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
 	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha){
 		return embedAlpha(pix, alpha, null);
@@ -4969,5 +4962,16 @@ while (it.hasNext()) {
 	/** Does nothing unless overriden. */
 	public Bureaucrat updateMipMapsFormat(int old_format, int new_format) { return null; }
 
+	/** Does nothing unless overriden. */
+	public boolean deleteStaleFiles(boolean coordinate_transforms, boolean alpha_masks) { return false; }
 
+	/** Returns null unless overriden. */
+	public String getCoordinateTransformsFolder() {
+		return null;
+	}
+
+	/** Returns 0 unless overriden. */
+	public long getNextBlobId() {
+		return 0;
+	}
 }

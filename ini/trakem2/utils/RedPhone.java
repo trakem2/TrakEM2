@@ -3,6 +3,7 @@ package ini.trakem2.utils;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.XMLOptions;
 
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -235,7 +236,11 @@ public class RedPhone {
 				throws IOException {
 			io.writeLine("Streaming: " + fl.getProjectXMLPath());
 			try {
-				fl.writeXMLTo(p, io.out, null);
+				XMLOptions options = new XMLOptions();
+				options.export_images = false;
+				options.patches_dir = null;
+				options.include_coordinate_transform = true;
+				fl.writeXMLTo(p, io.out, options);
 			} catch (Exception e) {
 				e.printStackTrace();
 				io.writeLine("Could not stream project " + fl.getProjectXMLPath());

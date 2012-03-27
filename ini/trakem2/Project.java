@@ -47,6 +47,7 @@ import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.plugin.TPlugIn;
@@ -298,7 +299,7 @@ public class Project extends DBObject {
 						Bureaucrat.createAndStart(new Worker.Task("auto-saving") {
 							@Override
 							public void exec() {
-								loader.save(Project.this);
+								Project.this.save();
 							}
 						}, Project.this).join();
 					}
@@ -726,14 +727,25 @@ public class Project extends DBObject {
 	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
-		String path = loader.save(this);
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = true;
+		options.export_images = false;
+		options.patches_dir = null;
+		options.include_coordinate_transform = true;
+		String path = loader.save(this, options);
 		if (null != path) restartAutosaving();
 		return path;
 	}
 
 	/** This is not the saveAs used from the menus; this one is meant for programmatic access. */
-	public String saveAs(String xml_path, boolean overwrite) {
-		String path = loader.saveAs(xml_path, overwrite);
+	public String saveAs(String xml_path, boolean overwrite) throws IllegalArgumentException {
+		if (null == xml_path) throw new IllegalArgumentException("xml_path cannot be null.");
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = overwrite;
+		options.export_images = false;
+		options.patches_dir = null;
+		options.include_coordinate_transform = true;
+		String path = loader.saveAs(xml_path, options);
 		if (null != path) restartAutosaving();
 		return path;
 	}
@@ -746,7 +758,7 @@ public class Project extends DBObject {
 			if (ControlWindow.isGUIEnabled()) {
 				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
 				if (yn.yesPressed()) {
-					loader.save(this);
+					save();
 				}
 			} else {
 				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
@@ -1188,30 +1200,30 @@ public class Project extends DBObject {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb, final String indent, final Object any) {
-		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, Object) !!");
+	public void exportXML(final StringBuilder sb, final String indent, final XMLOptions options) {
+		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, ExportOptions) !!");
 		throw new UnsupportedOperationException("Cannot call Project.exportXML(StringBuilder, String, Object)");
 	}
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
-	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+	public void exportXML(final java.io.Writer writer, final String indent, final XMLOptions options) throws Exception {
 		Utils.showProgress(0);
 		// 1 - opening tag
 		writer.write(indent);
 		writer.write("<trakem2>\n");
 		final String in = indent + "\t";
 		// 2,3 - export the project itself
-		exportXML(writer, in);
+		exportXML2(writer, in, options);
 		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
-		layer_set.exportXML(writer, in, any);
+		layer_set.exportXML(writer, in, options);
 		// 5 - export Display objects
-		Display.exportXML(this, writer, in, any);
+		Display.exportXML(this, writer, in, options);
 		// 6 - closing tag
 		writer.write("</trakem2>\n");
 	}
 
 	// A separate method to ensure that sb_body instance is garbage collected.
-	private final void exportXML(final java.io.Writer writer, final String in) throws Exception {
+	private final void exportXML2(final java.io.Writer writer, final String in, final XMLOptions options) throws Exception {
 		final StringBuilder sb_body = new StringBuilder();
 		// 2 - the project itself
 		sb_body.append(in).append("<project \n")
@@ -1226,19 +1238,11 @@ public class Project extends DBObject {
 		}
 		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierarchy (skip the root since it wraps the project itself)
-		// Create table of expanded states
-		/*
-		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
-		for (final Enumeration e = this.project_tree.getRoot().depthFirstEnumeration(); e.hasMoreElements(); ) {
-			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)e.nextElement();
-			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
-		}
-		*/
-		final HashMap<Thing,Boolean> expanded_states = project_tree.getExpandedStates();
+		project_tree.getExpandedStates(options.expanded_states);
 		if (null != root_pt.getChildren()) {
 			final String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
-				pt.exportXML(sb_body, in2, expanded_states);
+				pt.exportXML(sb_body, in2, options);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
@@ -1683,11 +1687,54 @@ public class Project extends DBObject {
 		return Bureaucrat.createAndStart(new Worker.Task("Saving") {
 			public void exec() {
 				if (command.equals("Save")) {
-					loader.save(project);
-					restartAutosaving();
+					save();
 				} else if (command.equals("Save as...")) {
-					loader.saveAs(project);
+					XMLOptions options = new XMLOptions();
+					options.overwriteXMLFile = false;
+					options.export_images = false;
+					options.include_coordinate_transform = true;
+					options.patches_dir = null;
+					//
+					loader.saveAs(project, options);
 					restartAutosaving();
+					//
+				} else if (command.equals("Save as... without coordinate transforms")) {
+					YesNoDialog yn = new YesNoDialog("WARNING",
+							"You are about to save an XML file that lacks the information for the coordinate transforms of each image.\n"
+						  + "These transforms are referred to with the attribute 'ct_id' of each 't2_patch' entry in the XML document,\n"
+						  + "and the data for the transform is stored in an individual file under the folder 'trakem2.cts/'.\n"
+						  + " \n"
+						  + "It is advised to keep a complete XML file with all coordinate transforms included along with this new copy.\n"
+						  + "Please check NOW that you have such a complete XML copy.\n"
+						  + " \n"
+						  + "Proceed?");
+					if (!yn.yesPressed()) return;
+					XMLOptions options = new XMLOptions();
+					options.overwriteXMLFile = false;
+					options.export_images = false;
+					options.include_coordinate_transform = false;
+					options.patches_dir = null;
+					//
+					loader.saveAs(project, options);
+					//
+				} else if (command.equals("Delete stale files...")) {
+					GenericDialog gd = new GenericDialog("Delete stale files");
+					gd.addMessage(
+							"You are about to remove all files under the folder 'trakem2.cts/' which are not referred to from the\n"
+						  + "currently loaded project. If you have sibling XML files whose 't2_patch' entries (the images) refer,\n"
+						  + "via 'ct_id' attributes, to coordinate transforms in 'trakem2.cts/' that this current XML doesn't,\n"
+						  + "they may be LOST FOREVER. Unless you have a version of the XML file with the coordinate transforms\n"
+						  + "written in it, as can be obtained by using the 'Project - Save' command.\n"
+						  + " \n"
+						  + "Do you have such complete XML file? Check NOW.\n"
+						  + " \n"
+						  + "Proceed with deleting:"
+							);
+					gd.addCheckbox("Delete stale coordinate transform files", true);
+					gd.addCheckbox("Delete stale alpha mask files", true);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					project.getLoader().deleteStaleFiles(gd.getNextBoolean(), gd.getNextBoolean());
 				}
 			}
 		}, project);	

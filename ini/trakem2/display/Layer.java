@@ -29,8 +29,10 @@ import ij.ImagePlus;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
@@ -43,9 +45,13 @@ import java.util.Iterator;
 import java.util.Set;
 
 import java.awt.Color;
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+
+import mpicbg.models.NoninvertibleModelException;
 
 public final class Layer extends DBObject implements Bucketable, Comparable<Layer> {
 
@@ -578,12 +584,12 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return parent.getLayerHeight();
 	}
 
-	public Collection<Displayable> find(final int x, final int y) {
+	public Collection<Displayable> find(final double x, final double y) {
 		return find(x, y, false);
 	}
 
 	/** Find the Displayable objects that contain the point. */
-	synchronized public Collection<Displayable> find(final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final double x, final double y, final boolean visible_only) {
 		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
@@ -596,16 +602,16 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
-	public Collection<Displayable> find(final Class<?> c, final int x, final int y) {
+	public Collection<Displayable> find(final Class<?> c, final double x, final double y) {
 		return find(c, x, y, false, false);
 	}
 
 	/** Find the Displayable objects of Class c that contain the point, with class equality. */
-	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only) {
+	synchronized public Collection<Displayable> find(final Class<?> c, final double x, final double y, final boolean visible_only) {
 		return find(c, x, y, visible_only, false);
 	}
 	/** Find the Displayable objects of Class c that contain the point, with instanceof if instance_of is true. */
-	synchronized public Collection<Displayable> find(final Class<?> c, final int x, final int y, final boolean visible_only, final boolean instance_of) {		
+	synchronized public Collection<Displayable> find(final Class<?> c, final double x, final double y, final boolean visible_only, final boolean instance_of) {		
 		if (null != root) return root.find(c, x, y, this, visible_only, instance_of);
 		if (Displayable.class == c) return find(x, y, visible_only); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
@@ -843,7 +849,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		final String in = indent + "\t";
 		// 1 - open tag
 		sb_body.append(indent).append("<t2_layer oid=\"").append(id).append("\"\n")
@@ -858,7 +864,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		// 2 - export children
 		if (null != al_displayables) {
 			for (final Displayable d : al_displayables) {
-				d.exportXML(sb_body, in, any);
+				d.exportXML(sb_body, in, options);
 			}
 		}
 		// 3 - close tag
@@ -1220,5 +1226,52 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (diff < 0) return -1;
 		if (diff > 0) return 1;
 		return 0;
+	}
+
+	/** Transfer the world coordinate specified by {@param world_x},{@param world_y}
+	 * in pixels, to the local coordinate of the {@link Patch} immediately present under it.
+	 * @return null if no {@link Patch} is under the coordinate, else the {@link Coordinate} with the x, y, {@link Layer} and the {@link Patch}.
+	 * @throws NoninvertibleModelException 
+	 * @throws NoninvertibleTransformException 
+	 */
+	public Coordinate<Patch> toPatchCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException, NoninvertibleModelException {
+		final Collection<Displayable> ps = find(Patch.class, world_x, world_y, true, false);
+		Patch patch = null;
+		if (ps.isEmpty()) {
+			// No Patch under the point. Find the nearest Patch instead
+			final Collection<Patch> patches = getAll(Patch.class);
+			if (patches.isEmpty()) return null;
+			double minSqDist = Double.MAX_VALUE;
+			for (final Patch p : patches) {
+				// Check if any of the 4 corners of the bounding box are beyond minSqDist
+				final Rectangle b = p.getBoundingBox();
+				double d1 = Math.pow(b.x - world_x, 2) + Math.pow(b.y - world_y, 2),
+				       d2 = Math.pow(b.x + b.width - world_x, 2) + Math.pow(b.y - world_y, 2),
+				       d3 = Math.pow(b.x - world_x, 2) + Math.pow(b.y + b.height - world_y, 2),
+				       d4 = Math.pow(b.x + b.width - world_x, 2) + Math.pow(b.y + b.height - world_y, 2),
+				       d = Math.min(d1, Math.min(d2, Math.min(d3, d4)));
+				if (d < minSqDist) {
+					patch = p;
+					minSqDist = d;
+				}
+				// If the Patch has a CoordinateTransform, find the closest perimeter point
+				if (null != p.getCoordinateTransform()) {
+					for (final Polygon pol : M.getPolygons(p.getArea())) { // Area in world coordinates
+						for (int i=0; i<pol.npoints; ++i) {
+							double sqDist = Math.pow(pol.xpoints[0] - world_x, 2) + Math.pow(pol.ypoints[1] - world_y, 2);
+							if (sqDist < minSqDist) {
+								minSqDist = sqDist;
+								patch = p;
+							}
+						}
+					}
+				}
+			}
+		} else {
+			patch = (Patch) ps.iterator().next();
+		}
+
+		final double[] point = patch.toPixelCoordinate(world_x, world_y);
+		return new Coordinate<Patch>(point[0], point[1], patch.getLayer(), patch);
 	}
 }

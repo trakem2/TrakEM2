@@ -129,4 +129,95 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 		
 		throw new NoninvertibleModelException( "Mesh external location ( " + x + ", " + y + " ) transferred to ( " + location[ 0 ] + ", " + location[ 1 ] + " ) by closest affine." );
 	}
+	
+	/**
+	 * Return the {@link AffineModel2D} used by the triangle enclosing or
+	 * closest to the passed target location.
+	 * 
+	 * @param location
+	 * @return
+	 */
+	public AffineModel2D closestSourceAffine( final float[] location )
+	{
+		assert location.length == 2 : "2d transform meshs can be applied to 2d points only.";
+		
+		final Set< AffineModel2D > s = av.keySet();
+		for ( final AffineModel2D ai : s )
+		{
+			final ArrayList< PointMatch > pm = av.get( ai );
+			if ( isInSourcePolygon( pm, location ) )
+				return ai;
+		}
+		
+		/* not in the mesh, find the closest affine */
+		float dMin = Float.MAX_VALUE;
+		AffineModel2D closestAffine = new AffineModel2D();
+		final float x = location[ 0 ];
+		final float y = location[ 1 ];
+		for ( final AffineModel2D ai : s )
+		{
+			final ArrayList< PointMatch > pm = av.get( ai );
+			float d = 0;
+			for ( final PointMatch p : pm )
+			{
+				final float[] l = p.getP1().getL();
+				final float dx = l[ 0 ] - x;
+				final float dy = l[ 1 ] - y;
+				d += Math.sqrt( dx * dx + dy * dy );
+			}
+			if ( d < dMin )
+			{
+				dMin = d;
+				closestAffine = ai;
+			}
+		}
+		
+		return closestAffine;
+	}
+	
+	
+	/**
+	 * Return the {@link AffineModel2D} used by the triangle enclosing or
+	 * closest to the passed target location.
+	 * 
+	 * @param location
+	 * @return
+	 */
+	public AffineModel2D closestTargetAffine( final float[] location )
+	{
+		assert location.length == 2 : "2d transform meshs can be applied to 2d points only.";
+		
+		final Set< AffineModel2D > s = av.keySet();
+		for ( final AffineModel2D ai : s )
+		{
+			final ArrayList< PointMatch > pm = av.get( ai );
+			if ( isInConvexTargetPolygon( pm, location ) )
+				return ai;
+		}
+		
+		/* not in the mesh, find the closest affine */
+		float dMin = Float.MAX_VALUE;
+		AffineModel2D closestAffine = new AffineModel2D();
+		final float x = location[ 0 ];
+		final float y = location[ 1 ];
+		for ( final AffineModel2D ai : s )
+		{
+			final ArrayList< PointMatch > pm = av.get( ai );
+			float d = 0;
+			for ( final PointMatch p : pm )
+			{
+				final float[] w = p.getP2().getW();
+				final float dx = w[ 0 ] - x;
+				final float dy = w[ 1 ] - y;
+				d += Math.sqrt( dx * dx + dy * dy );
+			}
+			if ( d < dMin )
+			{
+				dMin = d;
+				closestAffine = ai;
+			}
+		}
+		
+		return closestAffine;
+	}
 }

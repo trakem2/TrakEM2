@@ -31,6 +31,7 @@ import ini.trakem2.display.graphics.DifferenceARGBComposite;
 import ini.trakem2.display.graphics.MultiplyARGBComposite;
 import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
@@ -669,12 +670,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
-	public boolean contains(final int x_p, final int y_p) {
+	public boolean contains(final double x_p, final double y_p) {
 		return getPerimeter().contains(x_p, y_p);
 	}
 
 	/** Calls contains(x_p, y_p) unless overriden -- in ZDisplayable objects, it tests whether the given point is contained in the part of the ZDisplayable that shows in the given layer. */
-	public boolean contains(final Layer layer, final int x_p, final int y_p) {
+	public boolean contains(final Layer layer, final double x_p, final double y_p) {
 		return contains(x_p, y_p);
 	}
 
@@ -1341,7 +1342,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(final StringBuilder sb_body, final String in, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1381,7 +1382,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(final StringBuilder sb_body, final String in, final Object any) {
+	synchronized protected void restXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		// Properties:
 		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {

@@ -35,6 +35,7 @@ import ini.trakem2.display.Profile;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.display.Tree;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.persistence.*;
@@ -881,13 +882,8 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	/** Expects a HashMap<Thing,Boolean> as @param any. */
-	@SuppressWarnings("unchecked")
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
-		exportXML(sb_body, indent, (HashMap<Thing,Boolean>)any);
-	}
-
-	public void exportXML(final StringBuilder sb_body, final String indent, final HashMap<? extends Thing,Boolean> expanded_states) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.
 		final String in = indent + "\t";
 		// 1 - opening tag with attributes:
@@ -902,16 +898,15 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			sb_body.append(" oid=\"").append(((DBObject)object).getId()).append('"');
 		}
 
-		//boolean expanded = this.project.getProjectTree().isExpanded(this);
 		if (null != al_children) {
-			final Boolean b = expanded_states.get(this);
+			final Boolean b = options.expanded_states.get(this);
 			if (null != b && Boolean.TRUE.equals(b)) sb_body.append(" expanded=\"true\"");
 		}
 		// 2 - list of children:
 		if (null != al_children && 0 != al_children.size()) {
 			sb_body.append(">\n");
 			for (ProjectThing child : al_children) {
-				child.exportXML(sb_body, in, expanded_states);
+				child.exportXML(sb_body, in, options);
 			}
 			sb_body.append(indent).append("</").append(tag).append(">\n");
 		} else {

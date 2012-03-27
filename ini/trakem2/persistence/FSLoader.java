@@ -68,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -112,6 +113,9 @@ public final class FSLoader extends Loader {
 	
 	/** Largest id seen so far. */
 	private long max_id = -1;
+	/** Largest blob ID seen so far. First valid ID will equal 1. */
+	private long max_blob_id = 0;
+
 	private final Map<Long,String> ht_paths = Collections.synchronizedMap(new HashMap<Long,String>());
 	/** For saving and overwriting. */
 	private String project_file_path = null;
@@ -450,10 +454,21 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Get the next unique id, not shared by any other object within the same project. */
+	@Override
 	public long getNextId() {
 		long nid = -1;
 		synchronized (db_lock) {
 			nid = ++max_id;
+		}
+		return nid;
+	}
+
+	/** Get the next unique id to be used for the {@link Patch}'s {@link CoordinateTransform} or alpha mask. */
+	@Override
+	public long getNextBlobId() {
+		long nid = 0;
+		synchronized (db_lock) {
+			nid = ++max_blob_id;
 		}
 		return nid;
 	}
@@ -579,7 +594,7 @@ public final class FSLoader extends Loader {
 							imp.setSlice(Integer.parseInt(slice.substring(12)));
 							return imp;
 						} else {
-							return imp.getProcessor();
+							return imp;
 						}
 					default:
 						Utils.log("FSLoader.fetchImage: Unknown format " + format);
@@ -713,6 +728,25 @@ public final class FSLoader extends Loader {
 			IJError.print(e);
 		}
 	}
+	
+	private String dir_cts = null;
+	
+	@Override
+	synchronized public final String getCoordinateTransformsFolder() {
+		if (null == dir_cts) createCoordinateTransformsFolder();
+		return dir_cts;
+	}
+
+	synchronized private final void createCoordinateTransformsFolder() {
+		if (null == dir_cts) dir_cts = getUNUIdFolder() + "trakem2.cts/";
+		final File f = new File(dir_cts);
+		if (f.exists() && f.isDirectory()) return;
+		try {
+			f.mkdirs();
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+	}
 
 	/** Remove the file containing the given Patch's alpha mask. */
 	public final boolean removeAlphaMask(final Patch p) {
@@ -756,6 +790,12 @@ public final class FSLoader extends Loader {
 			final long id = ob.getId();
 			if (id > max_id) {
 				max_id = id;
+			}
+			if (ob.getClass() == Patch.class) {
+				final Patch p = (Patch)ob;
+				if (p.hasCoordinateTransform()) {
+					max_blob_id = Math.max(p.getCoordinateTransformId(), max_blob_id);
+				}
 			}
 		}
 		return true;
@@ -1032,10 +1072,10 @@ public final class FSLoader extends Loader {
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	@Override
-	public String save(final Project project) {
+	public String save(final Project project, XMLOptions options) {
 		String result = null;
 		if (null == project_file_path) {
-			String xml_path = super.saveAs(project, null, false);
+			String xml_path = super.saveAs(project, null, options);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
@@ -1044,7 +1084,7 @@ public final class FSLoader extends Loader {
 			}
 		} else {
 			File fxml = new File(project_file_path);
-			result = super.export(project, fxml, false);
+			result = super.export(project, fxml, options);
 		}
 		if (null != result) {
 			Utils.logAll(Utils.now() + " Saved " + project);
@@ -1054,8 +1094,9 @@ public final class FSLoader extends Loader {
 	}
 
 	/** The saveAs called from menus via saveTask. */
-	public String saveAs(Project project) {
-		String path = super.saveAs(project, null, false);
+	@Override
+	public String saveAs(Project project, XMLOptions options) {
+		String path = super.saveAs(project, null, options);
 		if (null != path) {
 			// update the xml path to point to the new one
 			this.project_file_path = path;
@@ -1068,7 +1109,8 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Meant for programmatic access, such as calls to project.saveAs(path, overwrite) which call exactly this method. */
-	public String saveAs(final String path, final boolean overwrite) {
+	@Override
+	public String saveAs(final String path, final XMLOptions options) {
 		if (null == path) {
 			Utils.log("Cannot save on null path.");
 			return null;
@@ -1090,7 +1132,7 @@ public final class FSLoader extends Loader {
 			Utils.logAll("WARNING can't write to " + path3 + "\n  --> will write instead to " + path2);
 			fxml = new File(path2);
 		}
-		if (!overwrite) {
+		if (!options.overwriteXMLFile) {
 			int i = 1;
 			while (fxml.exists()) {
 				String parent = fxml.getParent().replace('\\','/');
@@ -1103,7 +1145,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 		Project project = Project.findProject(this);
-		path2 = super.saveAs(project, path2, false);
+		path2 = super.saveAs(project, path2, options);
 		if (null != path2) {
 			project_file_path = path2;
 			Utils.logAll("After saveAs, new xml path is: " + path2);
@@ -1214,6 +1256,11 @@ public final class FSLoader extends Loader {
 		item = new JMenuItem("Save"); item.addActionListener(listener); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 		item = new JMenuItem("Save as..."); item.addActionListener(listener); menu.add(item);
+		final JMenu adv = new JMenu("Advanced");
+		item = new JMenuItem("Save as... without coordinate transforms"); item.addActionListener(listener); adv.add(item);
+		item = new JMenuItem("Delete stale files..."); item.addActionListener(listener); adv.add(item);
+		menu.add(adv);
+		menu.addSeparator();
 	}
 
 	/** Returns the last Patch. */
@@ -1959,19 +2006,14 @@ public final class FSLoader extends Loader {
 							// 3 - save as jpeg with alpha
 							// Remove all not completely inside pixels from the alpha mask
 							// If there was no alpha mask, alpha is the outside itself
-
-							if (!mmio.save(target_dir + filename, new byte[][]{fp.getBytePixels(), P.merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getScaledBytePixels(), P.merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
 							}
 						} else {
 							// 3 - save as 8-bit jpeg
-							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-							if (!coordinate_transformed) ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
-							if (null != cm) ip2.setColorModel(cm); // the LUT
-
-							if (!mmio.save(target_dir + filename, new byte[][]{(byte[])ip2.getPixels()}, w, h, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getScaledBytePixels()}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
@@ -2970,6 +3012,81 @@ public final class FSLoader extends Loader {
 		}
 	}
 
+	/**
+	 * Delete stale files under the {@link FSLoader#unuid} folder.
+	 * These include "*.ct" files that are not references from any {@link Patch}. 
+	 */
+	@Override
+	public boolean deleteStaleFiles(boolean coordinate_transforms, boolean alpha_masks) {
+		boolean b = true;
+		if (coordinate_transforms) b = b && deleteStaleCTFiles();
+		// TODO // if (alpha_masks) b = b && deleteStaleAlphaMaskFiles();
+		return b;
+	}
+	
+	/**
+	 * Delete all files storing a {@link CoordinateTransform} that are now stale.
+	 * Stale files are files that are no longer referenced by the {@link Patch#getCoordinateTransformId()}.
+	 * 
+	 * This method uses the {@link Utils#removeFile(File)}, which limits itself to files
+	 * under the trakem2.* temp data directories for safety. */
+	public boolean deleteStaleCTFiles() {
+		// Collect the set of files to keep
+		final HashSet<String> keepers = new HashSet<String>();
+		final Project project = Project.findProject(this);
+		for (final Layer l : project.getRootLayerSet().getLayers()) {
+			for (final Patch p : l.getAll(Patch.class)) {
+				String path = p.getCoordinateTransformFilePath();
+				if (null != path) keepers.add(path);
+			}
+		}
+		// Iterate all directories, recursively, under "trakem2.cts/"
+		String dir_ct = getCoordinateTransformsFolder();
+		if (null == dir_ct) return true;
+		final LinkedList<File> subdirs = new LinkedList<File>();
+		subdirs.add(new File(dir_ct));
+		final AtomicInteger counter = new AtomicInteger(0);
+		final ExecutorService exec = Utils.newFixedThreadPool(Math.max(2, Runtime.getRuntime().availableProcessors()), "Stale-file-remover");
+		while (!subdirs.isEmpty()) {
+			final File fdir = subdirs.removeFirst();
+			final String absPath = fdir.getAbsolutePath();
+			for (final String s : fdir.list()) {
+				final String path = absPath + "/" + s;
+				if (s.endsWith(".ct")) {
+					if (keepers.contains(path)) continue;
+					// Else, delete the file, which is by definition stale
+					exec.submit(new Runnable() {
+						public void run() {
+							if (!new File(path).delete()) {
+								Utils.log2("Failed to delete: " + path);
+								counter.incrementAndGet();
+							}
+						}
+					});
+				} else {
+					final File f = new File(path);
+					if (f.isDirectory()) {
+						subdirs.add(f);
+					}
+				}
+			}
+		}
+		// Do not accept more tasks, but execute all submitted tasks
+		exec.shutdown();
+		// Wait maximum for an unreasonable amount of time
+		try {
+			exec.awaitTermination(1, TimeUnit.DAYS);
+		} catch (InterruptedException e) {
+			IJError.print(e);
+		}
+		if (counter.get() > 0) {
+			Utils.log("ERROR: failed to delete " + counter.get() + " files.\n        See the stdout log for details.");
+		}
+		return 0 == counter.get();
+	}
+	
+	
+	
 
 
 	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif", ".raw", ".rag"};

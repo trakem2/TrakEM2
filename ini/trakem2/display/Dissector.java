@@ -26,6 +26,7 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
@@ -306,7 +307,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
 		 *  Returns -1 if not found, or its index if found. */
-		final int find(final long lid, int x, int y, double mag) {
+		final int find(final long lid, double x, double y, double mag) {
 			int radius = (int)(this.radius / mag);
 			for (int i=0; i<n_points; i++) {
 				if (lid == p_layer[i]
@@ -450,11 +451,11 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public boolean contains(Layer layer, int x, int y) {
+	public boolean contains(Layer layer, double x, double y) {
 		final long lid = layer.getId();
 		Point2D.Double po = inverseTransformPoint(x, y);
-		x = (int)po.x;
-		y = (int)po.y;
+		x = po.x;
+		y = po.y;
 		for (Item item : al_items) {
 			if (-1 != item.find(lid, x, y, 1)) return true;
 		}
@@ -646,17 +647,17 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_dissector\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
 		sb_body.append(indent).append(">\n");
 		for (final Item item : al_items) {
 			item.exportXML(sb_body, in);
 		}
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_dissector>\n");
 	}
 

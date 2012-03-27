@@ -87,6 +87,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			this.target = target;
 		}
 		
+		@Override
 		final public void run()
 		{
 			int k = i.getAndIncrement();
@@ -121,6 +122,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			this.target = target;
 		}
 		
+		@Override
 		final public void run()
 		{
 			int k = i.getAndIncrement();
@@ -158,6 +160,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			this.target = target;
 		}
 		
+		@Override
 		final public void run()
 		{
 			int k = i.getAndIncrement();
@@ -215,7 +218,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					{
 						ai.applyInverseInPlace( t );
 					}
-					catch ( Exception e )
+					catch ( final Exception e )
 					{
 						//e.printStackTrace( System.err );
 						continue;
@@ -268,7 +271,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					{
 						ai.applyInverseInPlace( t );
 					}
-					catch ( Exception e )
+					catch ( final Exception e )
 					{
 						//e.printStackTrace( System.err );
 						continue;
@@ -324,7 +327,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					{
 						ai.applyInverseInPlace( t );
 					}
-					catch ( Exception e )
+					catch ( final Exception e )
 					{
 						//e.printStackTrace( System.err );
 						continue;
@@ -380,7 +383,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					{
 						ai.applyInverseInPlace( t );
 					}
-					catch ( Exception e )
+					catch ( final Exception e )
 					{
 						//e.printStackTrace( System.err );
 						continue;
@@ -435,7 +438,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					{
 						ai.applyInverseInPlace( t );
 					}
-					catch ( Exception e )
+					catch ( final Exception e )
 					{
 						//e.printStackTrace( System.err );
 						continue;
@@ -474,7 +477,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			{
 				mtt.join();
 			}
-			catch ( InterruptedException e ) {}
+			catch ( final InterruptedException e ) {}
 		}
 	}
 	
@@ -484,6 +487,9 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final int numThreads )
 	{
 		target.outside = new ByteProcessor( target.getWidth(), target.getHeight() );
+		source.ip.setInterpolationMethod( ImageProcessor.BILINEAR );
+		if ( source.mask != null )
+			source.mask.setInterpolationMethod( ImageProcessor.BILINEAR );
 		
 		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
 		l.addAll( transform.getAV().keySet() );
@@ -501,7 +507,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			{
 				mtt.join();
 			}
-			catch ( InterruptedException e ) {}
+			catch ( final InterruptedException e ) {}
 		}
 	}
 	
@@ -552,7 +558,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			{
 				mtt.join();
 			}
-			catch ( InterruptedException e ) {}
+			catch ( final InterruptedException e ) {}
 		}
 	}
 	

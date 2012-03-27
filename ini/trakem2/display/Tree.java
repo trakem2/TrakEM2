@@ -35,6 +35,7 @@ import ini.trakem2.analysis.Centrality;
 import ini.trakem2.analysis.Vertex;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -481,15 +482,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		final String type = "t2_" + getClass().getSimpleName().toLowerCase();
 		sb_body.append(indent).append("<").append(type).append('\n');
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		if (null != root) exportXML(this, in, sb_body, root);
 		sb_body.append(indent).append("</").append(type).append(">\n");
 	}
@@ -861,7 +862,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
 	 *  where a segment is defined as the line between a clicked point and the next. */
 	@Override
-	public boolean contains(final Layer layer, final int x, final int y) {
+	public boolean contains(final Layer layer, final double x, final double y) {
 		if (null == root) return false;
 		final Display front = Display.getFront();
 		synchronized (node_layer_map) {

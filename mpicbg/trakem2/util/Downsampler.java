@@ -170,7 +170,6 @@ final public class Downsampler
 		return b;
 	}
 	
-	
 	final static public ShortProcessor downsampleShortProcessor( final ShortProcessor a )
 	{
 		final int wa = a.getWidth();
@@ -537,7 +536,6 @@ final public class Downsampler
 	 * Downsample and outside mask.  Those pixels not fully covered in the
 	 * outside mask are set to 0, all others to 255.
 	 * 
-	 * @param aAlpha
 	 * @param aOutside
 	 * @return
 	 */
