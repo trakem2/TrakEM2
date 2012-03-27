@@ -214,7 +214,7 @@ public class DownsamplerTest
 			System.out.println( i + ": " + t  + "ms" );
 		}
 		
-		System.out.println( "independent short with byte mapping + alpha" );
+		System.out.println( "downsampleShort() + downsampleByteProcessor() (independent short with byte mapping + alpha)" );
 		
 		for ( int i = 0; i < n; ++i )
 		{
@@ -226,7 +226,7 @@ public class DownsamplerTest
 			System.out.println( i + ": " + t  + "ms" );
 		}
 		
-		System.out.println( "independent short + byte mapping + alpha" );
+		System.out.println( "downsampleShortProcessor() + convertToByte() + downsampleByteProcessor() (independent short + byte mapping + alpha)" );
 		
 		for ( int i = 0; i < n; ++i )
 		{
