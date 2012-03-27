@@ -596,8 +596,6 @@ public final class Patch extends Displayable implements ImageData {
 			atp.translate( -0.5 / mipMap.scaleX, -0.5 / mipMap.scaleY );
 		}
 		
-		System.out.println( "scaleX: " + mipMap.scaleX + "  scaleY: " + mipMap.scaleY );
-
 		paintMipMap(g, mipMap, atp, srcRect);
 	}
 
