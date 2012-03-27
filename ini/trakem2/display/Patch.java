@@ -37,9 +37,9 @@ import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.filters.FilterEditor;
 import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.io.CoordinateTransformXML;
-import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -579,7 +579,7 @@ public final class Patch extends Displayable implements ImageData {
 		 * and TrakEM2 and mpicbg considering them at pixel centers.
 		 */
 		atp.translate( 0.5, 0.5 );
-		
+
 		atp.concatenate( this.at );
 		
 		atp.scale( mipMap.scaleX, mipMap.scaleY );
@@ -592,9 +592,12 @@ public final class Patch extends Displayable implements ImageData {
 		if (Loader.GAUSSIAN == project.getMipMapsMode()) {
 			atp.translate( -0.5, -0.5 );
 		}
-		// For all other modes, do not compensate back.
-
+		else {
+			atp.translate( -0.5 / mipMap.scaleX, -0.5 / mipMap.scaleY );
+		}
 		
+		System.out.println( "scaleX: " + mipMap.scaleX + "  scaleY: " + mipMap.scaleY );
+
 		paintMipMap(g, mipMap, atp, srcRect);
 	}
 
@@ -645,7 +648,12 @@ public final class Patch extends Displayable implements ImageData {
 		 * pixel corners and TrakEM2 and mpicbg considering them at pixel
 		 * centers.
 		 */
-		atp.translate( -0.5, -0.5 );
+		if (Loader.GAUSSIAN == project.getMipMapsMode()) {
+			atp.translate( -0.5, -0.5 );
+		}
+		else {
+			atp.translate( -0.5 / mipMap.scaleX, -0.5 / mipMap.scaleY );
+		}
 		
 		paintMipMap(g, mipMap, atp, srcRect);
 	}
