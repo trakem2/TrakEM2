@@ -1,8 +1,6 @@
 package ini.trakem2.persistence;
 
 
-import mpicbg.trakem2.util.Downsampler;
-import mpicbg.trakem2.util.Downsampler.Pair;
 import ij.ImagePlus;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
@@ -11,6 +9,8 @@ import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import ini.trakem2.display.Patch;
 import ini.trakem2.imaging.P;
+import mpicbg.trakem2.util.Downsampler;
+import mpicbg.trakem2.util.Downsampler.Pair;
 
 public final class DownsamplerMipMaps
 {
@@ -49,8 +49,6 @@ public final class DownsamplerMipMaps
 			final ByteProcessor outside) {
 		// Create pyramid
 		final ImageBytes[] p = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
-		final double min = ip.getMin(),
-		             max = ip.getMax();
 		
 		if (null == alpha && null == outside) {
 			int i = 1;
@@ -151,9 +149,9 @@ public final class DownsamplerMipMaps
 					ShortProcessor sp = (ShortProcessor)ip;
 					p[0] = asBytes(sp, masks[0]);
 					while (i < p.length) {
-						sp = Downsampler.downsampleShortProcessor(sp);
-						sp.setMinAndMax(min, max);
-						p[i] = asBytes(sp, masks[i]);
+						final Pair< ShortProcessor, byte[] > rs = Downsampler.downsampleShort(sp);
+						sp = rs.a;
+						p[i] = new ImageBytes(new byte[][]{rs.b, (byte[])masks[i].getPixels()}, sp.getWidth(), sp.getHeight());
 						++i;
 					}
 					break;
@@ -161,9 +159,9 @@ public final class DownsamplerMipMaps
 					FloatProcessor fp = (FloatProcessor)ip;
 					p[0] = asBytes(fp, masks[0]);
 					while (i < p.length) {
-						fp = Downsampler.downsampleFloatProcessor(fp);
-						fp.setMinAndMax(min, max);
-						p[i] = asBytes(fp, masks[i]);
+						final Pair< FloatProcessor, byte[] > rs = Downsampler.downsampleFloat( fp );
+						fp = rs.a;
+						p[i] = new ImageBytes(new byte[][]{rs.b, (byte[])masks[i].getPixels()}, fp.getWidth(), fp.getHeight());
 						++i;
 					}
 					break;
@@ -171,8 +169,10 @@ public final class DownsamplerMipMaps
 					ColorProcessor cp = (ColorProcessor)ip;
 					p[0] = asBytes(cp, masks[0]); // TODO the int[] could be reused
 					while (i < p.length) {
-						cp = Downsampler.downsampleColorProcessor(cp);
-						p[i] = asBytes(cp, masks[i]);
+						final Pair< ColorProcessor, byte[][] > rs = Downsampler.downsampleColor( cp );
+						cp = rs.a;
+						final byte[][] rgb = rs.b;
+						p[i] = new ImageBytes(new byte[][]{rgb[0], rgb[1], rgb[2], (byte[])masks[i].getPixels()}, cp.getWidth(), cp.getHeight());
 						++i;
 					}
 					break;
