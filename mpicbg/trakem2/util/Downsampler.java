@@ -334,7 +334,8 @@ final public class Downsampler
 				
 				final int s = averageShort( yaxa, yaxa1, ya1xa, ya1xa1, aPixels );
 				bPixels[ ybxb ] = ( short )s;
-				bBytes[ ybxb ] = ( byte )( ( int )( ( s - min ) * scale + 0.5 ) );
+				final int sb = ( int )( ( s - min ) * scale + 0.5 );
+				bBytes[ ybxb ] = ( byte )( sb < 0 ? 0 : sb > 255 ? 255 : sb );
 			}
 		}
 		return new Pair< ShortProcessor, byte[] >( b, bBytes );
@@ -383,13 +384,10 @@ final public class Downsampler
 				final int ya1xa1 = ya1 + xa1;
 				final int ybxb = yb + xb;
 				
-				final float s = (
-						( aPixels[ yaxa ] ) +
-						( aPixels[ yaxa1 ] ) +
-						( aPixels[ ya1xa ] ) +
-						( aPixels[ ya1xa1 ] ) ) / 4;
+				final float s = averageFloat( yaxa, yaxa1, ya1xa, ya1xa1, aPixels );
 				bPixels[ ybxb ] = s;
-				bBytes[ ybxb ] = ( byte )( ( int )( ( s - min ) * scale + 0.5 ) );
+				final int sb = ( int )( ( s - min ) * scale + 0.5 );
+				bBytes[ ybxb ] = ( byte )( sb < 0 ? 0 : sb > 255 ? 255 : sb );
 			}
 		}
 		return new Pair< FloatProcessor, byte[] >( b, bBytes );
