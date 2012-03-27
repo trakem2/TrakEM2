@@ -2074,7 +2074,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			for (final Collection<Node<T>> nodes : node_layer_map.values()) {
 				for (final Node<T> nd : nodes) {
 					if (nd.getChildrenCount() > 1) branch_points++;
+					// Skip the root node
 					if (null == nd.parent) continue;
+					//
 					fps[0] = nd.x;   fps[2] = nd.parent.x;
 					fps[1] = nd.y;   fps[3] = nd.parent.y;
 					this.at.transform(fps, 0, fps, 0, 2);
@@ -2083,7 +2085,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							 + Math.pow( (nd.la.getZ() - nd.parent.la.getZ()) * pixelWidth, 2));
 
 					// Lower bound cable length:
-					if (1 == nd.getChildrenCount()) continue;
+					if (1 == nd.getChildrenCount()) continue; // include only end nodes and branch nodes
 					else {
 						Node<T> prev = nd.findPreviousBranchOrRootPoint();
 						if (null == prev) {

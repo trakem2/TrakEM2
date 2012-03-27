@@ -24,8 +24,12 @@ import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.TransformMesh;
 
 
-/** A view-only mode that shows, using {@link LayerSet#getOverlay()}, the
- * triangle of the transform mesh in the {@link Patch} under the cursor. */
+/**
+ * A view-only mode that shows, using {@link LayerSet#getOverlay()}, the
+ * triangle of the transform mesh in the {@link Patch} under the cursor.
+ * 
+ * @author Stephan Saalfeld and Albert Cardona
+ */
 public class InspectPatchTrianglesMode implements Mode {
 
 	protected final Display display;
