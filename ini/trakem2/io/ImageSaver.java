@@ -37,7 +37,6 @@ import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
 import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
@@ -70,7 +69,6 @@ import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
-import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
 import javax.imageio.stream.ImageOutputStream;
 import javax.media.jai.PlanarImage;
 
@@ -191,7 +189,7 @@ public class ImageSaver {
 		SampleModel sm = wr.getSampleModel().createCompatibleSampleModel(width, height);
 		DataBuffer dataBuffer = new DataBufferInt(pixels, width*height, 0);
 		WritableRaster rgbRaster = Raster.createWritableRaster(sm, dataBuffer, null);
-		return new BufferedImage(cm, rgbRaster, false, null);
+		return new BufferedImage(cm, rgbRaster, cm == RGBA_PRE_COLOR_MODEL, null);
 	}
 
 	static public final BufferedImage createRGBImage(final int[] pixels, final int width, final int height) {
