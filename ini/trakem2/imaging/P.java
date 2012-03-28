@@ -10,13 +10,15 @@ public final class P {
 		return p;
 	}
 	
-	/** Pre-multiplies alpha. */
+	/** Puts the {@param pi} (the greyscale channel) into the R, G and B components of the returned {@code int[]}
+	 * after having multiplied them by the {@param pm} (the alpha channel); the alpha channel gets inserted into
+	 * the int[] as well. */
 	public static final int[] blendPre(final byte[] pi, final byte[] pm) {
 		final int[] p = new int[pi.length];
 		for (int i=0; i<p.length; ++i) {
 			final int a = (pm[i]&0xff);
-			final double K = a / 255.0f;
-			final int c = (int)((pi[i]&0xff) * K + 0.5f);
+			final double K = a / 255.0;
+			final int c = (int)((pi[i]&0xff) * K + 0.5);
 			p[i] = (a << 24) | (c << 16) | (c << 8) | c;
 		}
 		return p;
@@ -35,11 +37,11 @@ public final class P {
 		final int[] p = new int[r.length];
 		for (int i=0; i<p.length; ++i) {
 			final int a = (alpha[i]&0xff);
-			final double K = a / 255.0f;
+			final double K = a / 255.0;
 			p[i] = (a << 24)
-			       | (((int)((r[i]&0xff) * K + 0.5f)) << 16)
-			       | (((int)((g[i]&0xff) * K + 0.5f)) <<  8)
-			       |  ((int)((b[i]&0xff) * K + 0.5f));
+			       | (((int)((r[i]&0xff) * K + 0.5)) << 16)
+			       | (((int)((g[i]&0xff) * K + 0.5)) <<  8)
+			       |  ((int)((b[i]&0xff) * K + 0.5));
 		}
 		return p;
 	}
