@@ -147,14 +147,14 @@ public final class RagMipMaps
 					return ImageSaver.createGrayImage(ch[0], ib.width, ib.height);
 				case GREY_ALPHA:
 					// TODO: price of PRE shold be paid when saving, not when reading
-					//return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1]), ib.width, ib.height);
-					return ImageSaver.createARGBImage(P.blend(ch[0], ch[1]), ib.width, ib.height);
+					return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1]), ib.width, ib.height);
+					//return ImageSaver.createARGBImage(P.blend(ch[0], ch[1]), ib.width, ib.height);
 				case RGB:
 					return ImageSaver.createRGBImage(P.blend(ch[0], ch[1], ch[2]), ib.width, ib.height);
 				case RGBA:
 					// TODO: price of PRE shold be paid when saving, not when reading
-					//return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1], ch[2], ch[3]), ib.width, ib.height);
-					return ImageSaver.createARGBImage(P.blend(ch[0], ch[1], ch[2], ch[3]), ib.width, ib.height);
+					return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1], ch[2], ch[3]), ib.width, ib.height);
+					//return ImageSaver.createARGBImage(P.blend(ch[0], ch[1], ch[2], ch[3]), ib.width, ib.height);
 			}
 		} catch (Exception e) {
 			IJError.print(e);
