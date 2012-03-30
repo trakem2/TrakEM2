@@ -227,6 +227,9 @@ abstract public class Loader {
 	transient protected final Cache mawts = new Cache((long)(MAX_MEMORY * heap_fraction));
 	
 	static transient protected Vector<Loader> v_loaders = new Vector<Loader>(); // Vector: synchronized
+	
+	/** A collection of stale files that will be removed after the XML file is saved successfully. */
+	private final Set<String> stale_files = Collections.synchronizedSet(new HashSet<String>());
 
 	private final void setMaxBytes(final long max_bytes) {
 		synchronized (db_lock) {
@@ -1118,20 +1121,29 @@ abstract public class Loader {
 		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 	}
 
-	/** Returns null.*/
+	/**
+	 * @see Patch#getAlphaMask()
+	 */
+	@Deprecated
 	public ByteProcessor fetchImageMask(final Patch p) {
-		return null;
+		return p.getAlphaMask();
 	}
 
-	public String getAlphaPath(final Patch p) {
-		return null;
+	/**
+	 * @see Patch#setAlphaMask(ByteProcessor)
+	 */
+	@Deprecated
+	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
+		p.setAlphaMask(fp);
 	}
 
-	/** Does nothing unless overriden. */
-	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {}
-
-	/** Does nothing unless overriden. */
-	public boolean removeAlphaMask(final Patch p) { return false; }
+	/**
+	 * @see Patch#setAlphaMask(ByteProcessor) 
+	 */
+	@Deprecated
+	public boolean removeAlphaMask(final Patch p) {
+		return p.setAlphaMask(null);
+	}
 
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
 	public ImagePlus getCachedImagePlus(final long id) {
@@ -3736,6 +3748,18 @@ while (it.hasNext()) {
 	}
 	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus stack, final boolean as_copy, String filepath);
 	
+	
+	/**
+	 * Add a file path for removal when the XML is successfully saved.
+	 * 
+	 * @param path The path to the stale file.
+	 * @return
+	 */
+	public final boolean markStaleFileForDeletionUponSaving(final String path) {
+		return stale_files.add(path);
+	}
+	
+	
 	private final long estimateXMLFileSize(final File fxml) {
 		try {
 			if (fxml.exists()) return Math.min(fxml.length(), Math.max((long)(MAX_MEMORY * 0.6), MIN_FREE_BYTES));
@@ -3840,6 +3864,26 @@ while (it.hasNext()) {
 					}
 				}
 			}
+			
+			// Remove files that are no longer relevant
+			final ArrayList<String> stales;
+			synchronized (stale_files) {
+				stales = new ArrayList<String>(stale_files);
+				stale_files.clear();
+			}
+			for (String stale_path : stales) {
+				File f = new File(stale_path);
+				if (f.exists()) {
+					if (f.delete()) {
+						Utils.logAll("Deleted stale file at " + stale_path);
+					} else {
+						Utils.logAll("FAILED to delete stale file at " + stale_path);
+					}
+				} else {
+					Utils.logAll("Ignoring non-existent stale file " + stale_path);
+				}
+			}
+			
 
 		} catch (Throwable t) {
 			IJError.print(t);

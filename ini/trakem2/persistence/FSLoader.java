@@ -659,58 +659,7 @@ public final class FSLoader extends Loader {
 	/** Returns the alpha mask image from a file, or null if none stored. */
 	@Override
 	public ByteProcessor fetchImageMask(final Patch p) {
-		// Else, see if there is a file for the Patch:
-		final String path = getAlphaPath(p);
-		if (null == path) return null;
-		// Open the mask image, which should be a compressed float tif.
-		final ImagePlus imp = openImagePlus(path);
-		if (null == imp) {
-			//Utils.log2("No mask found or could not open mask image for patch " + p + " from " + path);
-			return null;
-		}
-		final ByteProcessor mask = (ByteProcessor)imp.getProcessor().convertToByte(false);
-		//Utils.log2("Mask dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch " + p);
-		if (mask.getWidth() != p.getOWidth() || mask.getHeight() != p.getOHeight()) {
-			Utils.log2("Mask has improper dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch " + p + " which is of " + p.getOWidth() + " x " + p.getOHeight());
-			return null;
-		}
-		return mask;
-	}
-
-	@Override
-	public String getAlphaPath(final Patch p) {
-		final String filename = getInternalFileName(p);
-		if (null == filename) {
-			Utils.log2("null filepath!");
-			return null;
-		}
-		final String dir = getMasksFolder();
-		return new StringBuilder(dir).append(createIdPath(Long.toString(p.getId()), filename, ".zip")).toString();
-	}
-
-	@Override
-	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
-		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
-		DataOutputStream out = null;
-		try {
-			final String path = getAlphaPath(p);
-			File parent = new File(path).getParentFile();
-			parent.mkdirs();
-			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
-			FileOutputStream fos = new FileOutputStream(path);
-			ZipOutputStream zos = new ZipOutputStream(fos);
-			out = new DataOutputStream(new BufferedOutputStream(zos));
-			ImagePlus imp = new ImagePlus("mask.tif", fp); // ImageJ looks for ".tif" extension in the ZipEntry
-			zos.putNextEntry(new ZipEntry(imp.getTitle()));
-			TiffEncoder te = new TiffEncoder(imp.getFileInfo());
-			te.write(out);
-			out.flush();
-			fos.getFD().sync();
-		} catch (Throwable e) {
-			IJError.print(e);
-		} finally {
-			try { if (null != out) out.close(); } catch (Throwable t) { IJError.print(t); }
-		}
+		return p.getAlphaMask();
 	}
 
 	public final String getMasksFolder() {
@@ -746,20 +695,6 @@ public final class FSLoader extends Loader {
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-	}
-
-	/** Remove the file containing the given Patch's alpha mask. */
-	public final boolean removeAlphaMask(final Patch p) {
-		try {
-			File f = new File(getAlphaPath(p));
-			if (f.exists()) {
-				return f.delete();
-			}
-			return true;
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		return false;
 	}
 
 	/** Loaded in full from XML file */
@@ -1756,13 +1691,7 @@ public final class FSLoader extends Loader {
 		removeSerializedPointMatches(patch);
 
 		/** Alpha mask: setup to check if it was modified while regenerating. */
-		String alphapath = getAlphaPath(patch);
-		File falphazip = null;
-		long falphalast = 0;
-		if (null != alphapath) {
-			falphazip = new File(alphapath);
-			falphalast = falphazip.lastModified();
-		}
+		final long alpha_mask_id = patch.getAlphaMaskId();
 
 		final int resizing_mode = patch.getProject().getMipMapsMode();
 
@@ -2100,7 +2029,7 @@ public final class FSLoader extends Loader {
 			}
 
 			// Has the alpha mask changed?
-			if (null != falphazip && falphazip.lastModified() != falphalast) {
+			if (patch.getAlphaMaskId() != alpha_mask_id) {
 				Utils.log2("Alpha mask changed: resubmitting mipmap regeneration for " + patch);
 				regenerateMipMaps(patch);
 			}

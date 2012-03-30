@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.persistence;
 
+import ij.process.ByteProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.AreaTree;
@@ -56,6 +57,7 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -912,6 +914,7 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayer(patch);
 				last_patch = patch;
 				last_displayable = patch;
+				checkAlphaMasks(patch);
 				return null;
 			} else if (type.equals("filter")) {
 				last_patch_filters.add(newFilter(ht_attributes));
@@ -968,6 +971,30 @@ public class TMLHandler extends DefaultHandler {
 		}
 		// default:
 		return null;
+	}
+
+	/** 
+	 * Backwards compatibility for alpha masks:
+	 * create the file path as it was before, and see if the file exists.
+	 * If it does, set it to the patch as the alpha mask.
+	 */
+	private void checkAlphaMasks(Patch patch) {
+		if (0 == patch.getAlphaMaskId()) {
+			final File f = new File(patch.getImageFilePath());
+			final String path = new StringBuilder(loader.getMasksFolder()).append(FSLoader.createIdPath(Long.toString(patch.getId()), f.getName(), ".zip")).toString();
+			if (new File(path).exists()) {
+				try {
+					Utils.log("Restoring alpha mask for patch #" + patch.getId());
+					if (patch.setAlphaMask((ByteProcessor)loader.openImagePlus(path).getProcessor().convertToByte(false))) {
+						// On success, queue the file for deletion when saving the XML file
+						loader.markStaleFileForDeletionUponSaving(path);
+					}					
+				} catch (Exception e) {
+					Utils.logAll("FAILED to restore alpha mask for patch #" + patch.getId() + ":");
+					IJError.print(e);
+				}
+			}
+		}
 	}
 
 	final private IFilter newFilter(final HashMap<String, String> ht_attributes) {
