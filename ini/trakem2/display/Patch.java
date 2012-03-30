@@ -1417,6 +1417,14 @@ public final class Patch extends Displayable implements ImageData {
 	public long getAlphaMaskId() {
 		return alpha_mask_id;
 	}
+	
+	/**
+	 * @return The absolute file path to the file specifying the image that
+	 * represents the alpha mask, or null if none.
+	 */
+	public String getAlphaMaskFilePath() {
+		return hasAlphaMask() ? createAlphaMaskFilePath(this.alpha_mask_id) : null;
+	}
 
 	/**
 	 * Whether there is an alpha mask or there is an outside mask caused by a {@link CoordinateTransform}.

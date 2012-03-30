@@ -5013,6 +5013,11 @@ while (it.hasNext()) {
 	public String getCoordinateTransformsFolder() {
 		return null;
 	}
+	
+	/** Returns null unless override. */
+	public String getMasksFolder() {
+		return null;
+	}
 
 	/** Returns 0 unless overriden. */
 	public long getNextBlobId() {
