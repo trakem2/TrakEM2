@@ -733,6 +733,9 @@ public final class FSLoader extends Loader {
 				if (p.hasCoordinateTransform()) {
 					max_blob_id = Math.max(p.getCoordinateTransformId(), max_blob_id);
 				}
+				if (p.hasAlphaMask()) {
+					max_blob_id = Math.max(p.getAlphaMaskId(), max_blob_id);
+				}
 			}
 		}
 		return true;
