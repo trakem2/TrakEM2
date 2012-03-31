@@ -984,13 +984,15 @@ public class TMLHandler extends DefaultHandler {
 			final String path = new StringBuilder(loader.getMasksFolder()).append(FSLoader.createIdPath(Long.toString(patch.getId()), f.getName(), ".zip")).toString();
 			if (new File(path).exists()) {
 				try {
-					Utils.log("Restoring alpha mask for patch #" + patch.getId());
 					if (patch.setAlphaMask((ByteProcessor)loader.openImagePlus(path).getProcessor().convertToByte(false))) {
 						// On success, queue the file for deletion when saving the XML file
 						loader.markStaleFileForDeletionUponSaving(path);
-					}					
+						Utils.log("Upgraded alpha mask for patch #" + patch.getId());
+					} else {
+						Utils.log("ERROR: failed to upgrade alpha mask for patch #" + patch.getId());
+					}
 				} catch (Exception e) {
-					Utils.logAll("FAILED to restore alpha mask for patch #" + patch.getId() + ":");
+					Utils.log("FAILED to restore alpha mask for patch #" + patch.getId() + ":");
 					IJError.print(e);
 				}
 			}

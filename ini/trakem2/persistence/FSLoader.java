@@ -88,6 +88,7 @@ import javax.xml.parsers.SAXParser;
 
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
+import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.util.Downsampler;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -2944,7 +2945,8 @@ public final class FSLoader extends Loader {
 
 	/**
 	 * Delete stale files under the {@link FSLoader#unuid} folder.
-	 * These include "*.ct" files that are not references from any {@link Patch}. 
+	 * These include "*.ct" files (for {@link CoordinateTransform})
+	 * and "*.zip" files (for alpha mask images) that are not referenced from any {@link Patch}.
 	 */
 	@Override
 	public boolean deleteStaleFiles(boolean coordinate_transforms, boolean alpha_masks) {

@@ -955,10 +955,10 @@ public final class Patch extends Displayable implements ImageData {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		copy.ct_id = this.ct_id;
+		copy.ct_id = this.ct_id; // files are immutable so they can be shared
+		copy.alpha_mask_id = this.alpha_mask_id; // files are immutable so they can be shared
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
-		copy.setAlphaMask(this.project.getLoader().fetchImageMask(this));
 
 		// Copy preprocessor scripts
 		String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
@@ -1448,9 +1448,11 @@ public final class Patch extends Displayable implements ImageData {
 		}
 
 		final long amID = project.getLoader().getNextBlobId();
-		if (writeAlphaMask(bp)) {
+		if (writeAlphaMask(bp, amID)) {
 			this.alpha_mask_id = amID;
 			return true;
+		} else {
+			Utils.log("Could NOT write the alpha mask file for patch #" + id);
 		}
 		
 		return false;
@@ -1483,10 +1485,10 @@ public final class Patch extends Displayable implements ImageData {
 		return l.getMasksFolder() + FSLoader.createIdPath(Long.toString(amID), Long.toString(this.id), ".zip");
 	}
 
-	private synchronized final boolean writeAlphaMask(final ByteProcessor bp) {
+	private synchronized final boolean writeAlphaMask(final ByteProcessor bp, final long amID) {
 		DataOutputStream out = null;
 		try {
-			final File f = new File(createAlphaMaskFilePath(alpha_mask_id));
+			final File f = new File(createAlphaMaskFilePath(amID));
 			Utils.ensure(f);
 			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
 			FileOutputStream fos = new FileOutputStream(f);
@@ -2159,6 +2161,8 @@ public final class Patch extends Displayable implements ImageData {
 			// Set the new ID
 			this.ct_id = ctID;
 			return true;
+		} else {
+			Utils.log("Could NOT write the CoordinateTransform file for patch #" + id);
 		}
 		
 		return false;
