@@ -43,4 +43,14 @@ public class GaussianBlur implements IFilter
 			.append("\" accuracy=\"").append(accuracy)
 			.append("\" />\n").toString();
 	}
+	
+	@Override
+	public boolean equals(final Object o) {
+		if (null == o) return false;
+		if (o.getClass() == GaussianBlur.class) {
+			final GaussianBlur g = (GaussianBlur)o;
+			return sigmaX == g.sigmaX && sigmaY == g.sigmaY && accuracy == g.accuracy;
+		}
+		return false;
+	}
 }

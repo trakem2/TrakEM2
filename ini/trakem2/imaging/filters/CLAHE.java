@@ -54,4 +54,13 @@ public class CLAHE implements IFilter
 			.append("\" />\n").toString();
 	}
 
+	@Override
+	public boolean equals(final Object o) {
+		if (null == o) return false;
+		if (o.getClass() == CLAHE.class) {
+			final CLAHE c = (CLAHE)o;
+			return bins == c.bins && blockRadius == c.blockRadius && slope == c.slope && fast == c.fast;
+		}
+		return false;
+	}
 }

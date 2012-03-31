@@ -70,5 +70,15 @@ public class LUTCustom implements IFilter
 			.append("<t2_filter class=\"").append(getClass().getName())
 			.append("\" />\n").toString();
 	}
+
+	@Override
+	public boolean equals(final Object o) {
+		if (null == o) return false;
+		if (o instanceof LUTCustom) {
+			final LUTCustom l = (LUTCustom)o;
+			return r == l.r && g == l.g && b == l.b;
+		}
+		return false;
+	}
 }
 

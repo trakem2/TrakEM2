@@ -45,4 +45,13 @@ public class RankFilter implements IFilter {
 			.append("\" type=\"").append(type)
 			.append("\" />\n").toString();
 	}
+	@Override
+	public boolean equals(final Object o) {
+		if (null == o) return false;
+		if (o.getClass() == getClass()) {
+			final RankFilter r = (RankFilter)o;
+			return type == r.type && radius == r.radius;
+		}
+		return false;
+	}
 }

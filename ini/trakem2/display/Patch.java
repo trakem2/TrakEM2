@@ -1514,7 +1514,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * @return True if {@link #alpha_mask_id} {@code == 0} or if the file is found, or false if not found.
 	 */
 	public boolean checkAlphaMaskFile() {
-		if (0 == this.alpha_mask_id) return true; // means there isn't a CoordinateTransform
+		if (0 == this.alpha_mask_id) return true; // means there isn't an alpha mask
 		return new File(createCTFilePath(this.alpha_mask_id)).exists();
 	}
 	
@@ -1570,7 +1570,9 @@ public final class Patch extends Displayable implements ImageData {
 				if (null != roi && M.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker.Task("Filling image mask") {
 						public void exec() {
+							getLayerSet().addDataEditStep(Patch.this);
 							addAlphaMask(roi, ProjectToolbar.getForegroundColorValue());
+							getLayerSet().addDataEditStep(Patch.this);
 							try { updateMipMaps().get(); } catch (Throwable t) { IJError.print(t); } // wait
 							Display.repaint();
 						}
@@ -1619,9 +1621,22 @@ public final class Patch extends Displayable implements ImageData {
 			super.to1(d);
 			final Patch p = (Patch) d;
 			boolean mipmaps = false;
-			if (p.min != min || p.max != max || p.ct_id != ct_id) {
-				Utils.log2("mipmaps is true! " + (p.min != min)  + " " + (p.max != max) + " " + (p.ct_id != ct_id));
+			if (p.min != min || p.max != max || p.ct_id != ct_id || p.alpha_mask_id != alpha_mask_id) {
 				mipmaps = true;
+			}
+			if (!mipmaps) {
+				if (null != filters && null == p.filters) mipmaps = true;
+				else if (null == filters && null != p.filters) mipmaps = true;
+				else if (null != filters && null != p.filters) {
+					if (filters.length != p.filters.length) mipmaps = true;
+					else {
+						for (int i=0; i<filters.length; ++i) {
+							if (filters[i].equals(p.filters[i])) continue;
+							mipmaps = false;
+							break;
+						}
+					}
+				}
 			}
 			p.min = min;
 			p.max = max;
