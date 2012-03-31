@@ -669,5 +669,3 @@
             {"title" "3rd instar"
              "reference" "FRT42 new"
              "filepath" "/home/albert/Programming/fiji/plugins/SAT-lib-Drosophila-3rd-instar.clj"}))
-
-(test)
