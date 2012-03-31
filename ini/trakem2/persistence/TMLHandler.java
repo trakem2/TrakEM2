@@ -553,6 +553,9 @@ public class TMLHandler extends DefaultHandler {
 			} else if (!last_patch.checkCoordinateTransformFile()) {
 				Utils.log("ERROR: could not find a file for the coordinate transform #" + last_patch.getCoordinateTransformId() + " of Patch #" + last_patch.getId());
 			}
+			if (!last_patch.checkAlphaMaskFile()) {
+				Utils.log("ERROR: could not find a file for the alpha mask #" + last_patch.getAlphaMaskId() + " of Patch #" + last_patch.getId());
+			}
 			last_patch = null;
 			last_patch_filters.clear();
 			last_displayable = null;
