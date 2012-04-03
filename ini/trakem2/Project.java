@@ -1232,7 +1232,7 @@ public class Project extends DBObject {
 		loader.insertXMLOptions(sb_body, in + "\t");
 		// Write properties, with the additional property of the image_resizing_mode
 		final HashMap<String,String> props = new HashMap<String, String>(ht_props);
-		props.put("image_resizing_mode", Loader.modes[mipmaps_mode]);
+		props.put("image_resizing_mode", Loader.getMipMapModeName(mipmaps_mode));
 		for (final Map.Entry<String, String> e : props.entrySet()) {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
@@ -1395,9 +1395,7 @@ public class Project extends DBObject {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		//
 		String mipmapsMode = ht_attributes.remove("image_resizing_mode");
-		int mode = Loader.DEFAULT_MIPMAPS_MODE;
-		if (null != mipmapsMode) mode = Arrays.asList(Loader.modes).indexOf(mipmapsMode);
-		if (-1 != mode) this.mipmaps_mode = mode;
+		this.mipmaps_mode = null == mipmapsMode ? Loader.DEFAULT_MIPMAPS_MODE : Loader.getMipMapModeIndex(mipmapsMode);
 		//
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
@@ -1477,7 +1475,7 @@ public class Project extends DBObject {
 		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
-		gd.addChoice("Image_resizing_mode: ", Loader.modes, Loader.modes[mipmaps_mode]);
+		gd.addChoice("Image_resizing_mode: ", Loader.MIPMAP_MODES.values().toArray(new String[Loader.MIPMAP_MODES.size()]), Loader.getMipMapModeName(mipmaps_mode));
 		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
@@ -1737,7 +1735,7 @@ public class Project extends DBObject {
 					project.getLoader().deleteStaleFiles(gd.getNextBoolean(), gd.getNextBoolean());
 				}
 			}
-		}, project);	
+		}, project);
 	}
 	
 	/** The mode used to generate mipmaps, which defaults to {@link Loader#DEFAULT_MIPMAPS_MODE}. */

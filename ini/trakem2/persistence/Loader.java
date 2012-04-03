@@ -4735,26 +4735,40 @@ while (it.hasNext()) {
 		return (int)(0.5 + (Math.log(size) - Math.log(64)) / Math.log(2));
 	}
 
-	static public final int NEAREST_NEIGHBOR = 0;
-	static public final int BILINEAR = 1;
-	static public final int BICUBIC = 2;
+
+	// Modes used for scaling images when creating mipmap pyramids
 	static public final int GAUSSIAN = 3;
-	static public final int AREA_AVERAGING = 4;
 	static public final int INTEGRAL_AREA_AVERAGING = 5;
 	static public final int AREA_DOWNSAMPLING = 6;
 	
+	// Home-made enum. Java enum have too much magic.
+	static public final Map<Integer,String> MIPMAP_MODES;
+	static {
+		final HashMap<Integer,String> modes = new HashMap<Integer, String>();
+		modes.put(GAUSSIAN, "Gaussian");
+		modes.put(INTEGRAL_AREA_AVERAGING, "Integral area averaging");
+		modes.put(AREA_DOWNSAMPLING, "Area downsampling");
+		MIPMAP_MODES = Collections.unmodifiableMap(modes);
+	}
+
 	/** Points to {@link Loader#AREA_DOWNSAMPLING}. */
 	static public final int DEFAULT_MIPMAPS_MODE = AREA_DOWNSAMPLING;
-	
-	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic",
-		"Gaussian", "Area averaging", "Area averaging with integral images",
-		"Area downsampling"};
 
-	static public final int getMode(final String mode) {
-		for (int i=0; i<modes.length; i++) {
-			if (mode.equals(modes[i])) return i;
+	/** Returns the default if {@param mode} is not recognized. */
+	static public final String getMipMapModeName(final int mode) {
+		final String s = MIPMAP_MODES.get(mode);
+		return null == s ? MIPMAP_MODES.get(AREA_DOWNSAMPLING) : s;
+	}
+	
+	/** Returns the default ({@link #DEFAULT_MIPMAPS_MODE}) if the {@param mode} is not recognized. */
+	static public final int getMipMapModeIndex(final String mode) {
+		if (null == mode) return DEFAULT_MIPMAPS_MODE;
+		for (final Map.Entry<Integer, String> e : MIPMAP_MODES.entrySet()) {
+			if (e.getValue().equals(mode)) {
+				return e.getKey();
+			}
 		}
-		return 0;
+		return DEFAULT_MIPMAPS_MODE;
 	}
 
 	/** Does nothing unless overriden. */
