@@ -262,7 +262,7 @@ public class Project extends DBObject {
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 	
-	private int mipmaps_mode = Loader.AREA_DOWNSAMPLING;
+	private int mipmaps_mode = Loader.DEFAULT_MIPMAPS_MODE;
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
@@ -1395,7 +1395,7 @@ public class Project extends DBObject {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
 		//
 		String mipmapsMode = ht_attributes.remove("image_resizing_mode");
-		int mode = Loader.GAUSSIAN;
+		int mode = Loader.DEFAULT_MIPMAPS_MODE;
 		if (null != mipmapsMode) mode = Arrays.asList(Loader.modes).indexOf(mipmapsMode);
 		if (-1 != mode) this.mipmaps_mode = mode;
 		//
@@ -1740,7 +1740,7 @@ public class Project extends DBObject {
 		}, project);	
 	}
 	
-	/** The mode used to generate mipmaps, which defaults to {@link Loader#GAUSSIAN}. */
+	/** The mode used to generate mipmaps, which defaults to {@link Loader#DEFAULT_MIPMAPS_MODE}. */
 	public int getMipMapsMode() {
 		return this.mipmaps_mode;
 	}

@@ -4742,6 +4742,10 @@ while (it.hasNext()) {
 	static public final int AREA_AVERAGING = 4;
 	static public final int INTEGRAL_AREA_AVERAGING = 5;
 	static public final int AREA_DOWNSAMPLING = 6;
+	
+	/** Points to {@link Loader#AREA_DOWNSAMPLING}. */
+	static public final int DEFAULT_MIPMAPS_MODE = AREA_DOWNSAMPLING;
+	
 	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic",
 		"Gaussian", "Area averaging", "Area averaging with integral images",
 		"Area downsampling"};
