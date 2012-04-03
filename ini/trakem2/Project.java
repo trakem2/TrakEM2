@@ -262,7 +262,7 @@ public class Project extends DBObject {
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
 	
-	private int mipmaps_mode = Loader.GAUSSIAN;
+	private int mipmaps_mode = Loader.AREA_DOWNSAMPLING;
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
