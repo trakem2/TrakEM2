@@ -593,10 +593,8 @@ public final class FSLoader extends Loader {
 					case Layer.IMAGEPLUS:
 						if (null != slice) {
 							imp.setSlice(Integer.parseInt(slice.substring(12)));
-							return imp;
-						} else {
-							return imp;
 						}
+						return imp;
 					default:
 						Utils.log("FSLoader.fetchImage: Unknown format " + format);
 						return null;
