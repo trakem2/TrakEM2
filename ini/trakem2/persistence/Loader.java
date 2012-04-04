@@ -1086,8 +1086,8 @@ abstract public class Loader {
 					}
 					pai = null;
 					if (null != alpha_mask) {
-						mawt = ImageSaver.createARGBImage(
-								embedAlpha((int[])ip.convertToRGB().getPixels(),
+						mawt = ImageSaver.createARGBImagePre(
+								embedAlphaPre((int[])ip.convertToRGB().getPixels(),
 										(byte[])alpha_mask.getPixels(),
 										null == outside_mask ? null : (byte[])outside_mask.getPixels()),
 								ip.getWidth(), ip.getHeight());
@@ -4817,6 +4817,28 @@ while (it.hasNext()) {
 		} else {
 			for (int i=0; i<pix.length; ++i) {
 				pix[i] = (pix[i]&0x00ffffff) | ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) );
+			}
+		}
+		return pix;
+	}
+	
+	protected static final int[] embedAlphaPre( final int[] pix, final byte[] alpha, final byte[] outside) {
+		if (null == outside) {
+			if (null == alpha)
+				return pix;
+			for (int i=0; i<pix.length; ++i) {
+				final int a = alpha[i] & 0xff;
+				pix[i] = ((int)(((pix[i]&0x00ffffff) * a) / 255.0 + 0.5)) | (a << 24);
+			}
+		} else {
+			for (int i=0; i<pix.length; ++i) {
+				
+				if ( -1 == outside[i] ) { // aka 255 == (outside[i]&0xff)
+					pix[i] = 0;
+				} else {
+					final int a = alpha[i] & 0xff;
+					pix[i] = ((int)(((pix[i]&0x00ffffff) * a) / 255.0 + 0.5)) | (a << 24);
+				}
 			}
 		}
 		return pix;
