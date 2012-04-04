@@ -25,15 +25,19 @@ package ini.trakem2.persistence;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.VirtualStack; // only after 1.38q
-import ij.io.*;
+import ij.VirtualStack;
+import ij.gui.YesNoCancelDialog;
+import ij.io.DirectoryChooser;
+import ij.io.FileInfo;
+import ij.io.FileSaver;
+import ij.io.OpenDialog;
 import ij.plugin.filter.GaussianBlur;
 import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
-import ini.trakem2.Project;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
@@ -41,26 +45,27 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
-import ij.gui.YesNoCancelDialog;
-import ini.trakem2.utils.*;
-import ini.trakem2.io.*;
 import ini.trakem2.imaging.FloatProcessorT2;
 import ini.trakem2.imaging.P;
+import ini.trakem2.io.ImageSaver;
+import ini.trakem2.io.RagMipMaps;
+import ini.trakem2.io.RawMipMaps;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.PixelGrabber;
-import java.awt.RenderingHints;
-import java.awt.geom.Area;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.image.BufferedImage;
+import java.awt.image.PixelGrabber;
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -68,42 +73,30 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-
-import javax.swing.JMenuItem;
-import javax.swing.JMenu;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import javax.swing.KeyStroke;
-
-import org.xml.sax.InputSource;
-
-import javax.xml.parsers.SAXParserFactory;
-import javax.xml.parsers.SAXParser;
-
-import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.registration.ImageFilter;
-import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.util.Downsampler;
-
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.KeyStroke;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+
+import mpicbg.trakem2.transform.CoordinateTransform;
+
+import org.xml.sax.InputSource;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
