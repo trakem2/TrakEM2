@@ -68,6 +68,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	/** Can be null - a ProjectThing with a null parent is by definition a root Thing. */
 	private ProjectThing parent;
 
+	/** Access to a non-null al_children is synchronized. Works because al_children is never set to null if it is already not null.*/
 	private ArrayList<ProjectThing> al_children = null;
 
 	/** The object held by this ProjectThing. Can be a simple String when it holds no object. The title of a Thing is the title of the object it holds, or the String itself. The title is always accessed with Object.toString(). */
@@ -171,8 +172,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		// Make a deep copy of this
 		ProjectThing copy = new ProjectThing(tt, project, object instanceof Displayable ? ((Displayable)object).clone(project, copy_id) : object);
 		if (null != this.al_children) {
-			for (final ProjectThing child : this.al_children) {
-				copy.addChild(child.deepClone(project, copy_id));
+			synchronized (al_children) {
+				for (final ProjectThing child : this.al_children) {
+					copy.addChild(child.deepClone(project, copy_id));
+				}
 			}
 		}
 		return copy;
@@ -205,9 +208,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	/* Tell the attributes and the children who owns them, and then those of the children, recursively. Used when reconstructing from the database. */
 	public void setup() {
 		if (null != al_children) {
-			for (ProjectThing child : al_children) {
-				child.parent = this;
-				child.setup();
+			synchronized (al_children) {
+				for (ProjectThing child : al_children) {
+					child.parent = this;
+					child.setup();
+				}
 			}
 		}
 	}
@@ -224,24 +229,38 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return (null == object ? template.getType() : object.toString());
 	}
 
-	public boolean addChild(Thing child) {
+	private boolean canAddChild(Thing child) {
 		// check if the child is allowed in this ProjectThing
-		if (!template.canHaveAsChild(child) || (null != al_children && -1 != al_children.indexOf((ProjectThing)child))) { // paranoid avoidance of duplicates
+		if (!template.canHaveAsChild(child)) {
 			Utils.log2("Rejecting child " + child);
 			return false;
 		}
+		if (null != al_children) {
+			synchronized (al_children) {
+				if (-1 != al_children.indexOf((ProjectThing)child)) { // paranoid avoidance of duplicates
+					Utils.log2("Rejecting child " + child);
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+	
+	public boolean addChild(Thing child) {
+		if (!canAddChild(child)) return false;
+
 		// proceed to add the child
 		if (null == al_children) al_children = new ArrayList<ProjectThing>();
-		al_children.add((ProjectThing)child);
+		synchronized (al_children) {
+			al_children.add((ProjectThing)child);
+		}
 		child.setParent(this);
 		return true;
 	}
 	/** In addition, if the child contains an object of class ini.trakem2.display.Profile, reorders all children of the parent Thing by the Z of the layers of the profiles. */
 	public boolean addChild(ProjectThing child, int index) {
-		// check if the child is allowed in this ProjectThing
-		if (!template.canHaveAsChild(child) || (null != al_children && -1 != al_children.indexOf(child))) { // paranoid avoidance of duplicates
-			return false;
-		}
+		if (!canAddChild(child)) return false;
+		
 		// proceed to add the child
 		if (null == al_children) {
 			al_children = new ArrayList<ProjectThing>();
@@ -268,13 +287,16 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 
 	public boolean removeChild(ProjectThing child) {
-		// check that it is contained here
-		if (-1 == al_children.indexOf(child)) {
-			Utils.log("ProjectThing.removeChild: child " + child + " not contained in parent " + this);
-			return false;
+		if (null == al_children) return false;
+		synchronized (al_children) {
+			// check that it is contained here
+			if (-1 == al_children.indexOf(child)) {
+				Utils.log("ProjectThing.removeChild: child " + child + " not contained in parent " + this);
+				return false;
+			}
+			// generates an extra database call for nothing//child.setParent(null);
+			al_children.remove(child);
 		}
-		// generates an extra database call for nothing//child.setParent(null);
-		al_children.remove(child);
 		return true;
 	}
 
@@ -288,8 +310,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		// remove the children, which will propagate to their own objects
 		if (null != al_children) {
-			// can't delete directly from the al_children because the child will call removeChild on its parent
-			final ProjectThing[] children = al_children.toArray(new ProjectThing[al_children.size()]);
+			final ProjectThing[] children;
+			synchronized (al_children) {
+				// can't delete directly from the al_children because the child will call removeChild on its parent
+				children = al_children.toArray(new ProjectThing[al_children.size()]);
+			}
+
 			for (int i=0; i<children.length; i++) {
 				if (!children[i].remove(false)) {
 					Utils.showMessage("Deletion incomplete, check database, for child: " + children[i]);
@@ -355,15 +381,17 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			updateInDatabase("title");
 			// find any children that are using this title in addition to their own for the DisplayablePanel, and update it.
 			if (null != al_children) {
-				for (ProjectThing pt : al_children) {
-					if (pt.object instanceof Displayable) {
-						Displayable d = (Displayable)pt.object;
-						Display.updateTitle(d.getLayer(), d);
-					} else if (pt.getType().equals("profile_list")) {
-						if (null == pt.al_children) continue;
-						for (ProjectThing pd : pt.al_children) {
-							Displayable d = (Displayable)pd.object;
+				synchronized (al_children) {
+					for (ProjectThing pt : al_children) {
+						if (pt.object instanceof Displayable) {
+							Displayable d = (Displayable)pt.object;
 							Display.updateTitle(d.getLayer(), d);
+						} else if (pt.getType().equals("profile_list")) {
+							if (null == pt.al_children) continue;
+							for (ProjectThing pd : pt.al_children) {
+								Displayable d = (Displayable)pd.object;
+								Display.updateTitle(d.getLayer(), d);
+							}
 						}
 					}
 				}
@@ -510,7 +538,9 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			Display.updateCheckboxes(d, DisplayablePanel.VISIBILITY_STATE, b);
 		}
 		if (null != al_children) {
-			for (ProjectThing pt : al_children) pt.setVisible(b);
+			synchronized (al_children) {
+				for (ProjectThing pt : al_children) pt.setVisible(b);
+			}
 		}
 	}
 
@@ -646,8 +676,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			if (shallow) return; // don't look into children
 		}
 		if (null == al_children) return;
-		for (ProjectThing pt : al_children) {
-			pt.findChildren(found, pattern, pattern_exclude, shallow);
+		synchronized (al_children) {
+			for (ProjectThing pt : al_children) {
+				pt.findChildren(found, pattern, pattern_exclude, shallow);
+			}
 		}
 	}
 
@@ -655,9 +687,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public Thing findChild(final Object ob) {
 		if (null != object && object.equals(ob)) return this;
 		if (null == al_children) return null;
-		for (ProjectThing child : al_children) {
-			Thing found = child.findChild(ob);
-			if (null != found) return found;
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				Thing found = child.findChild(ob);
+				if (null != found) return found;
+			}
 		}
 		return null;
 	}
@@ -666,9 +700,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public ProjectThing findChild(final long id) {
 		if (id == this.id) return this;
 		if (null == al_children) return null;
-		for (ProjectThing child : al_children) {
-			ProjectThing found = child.findChild(id);
-			if (null != found) return found;
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				ProjectThing found = child.findChild(id);
+				if (null != found) return found;
+			}
 		}
 		return null;
 	}
@@ -681,9 +717,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			if (dbo.getId() == id) return dbo;
 		}
 		if (null == al_children) return null;
-		for (ProjectThing child : al_children) {
-			DBObject dbo = child.findObject(id);
-			if (null != dbo) return dbo;
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				DBObject dbo = child.findObject(id);
+				if (null != dbo) return dbo;
+			}
 		}
 		return null;
 	}
@@ -712,14 +750,20 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		if (null == al_children) return ht;
 		// profile list: always special ...
-		if (template.getType().equals("profile_list") && null != al_children && al_children.size() > 1) {
-			Profile[] p = new Profile[al_children.size()];
-			for (int i=0; i<al_children.size(); i++) p[i] = (Profile)al_children.get(i).object;
-			ResultsTable rt = Profile.measure(p, ht.get(Profile.class), this.id);
-			if (null != rt) ht.put(Profile_List.class, rt);
-			//return ht; // don't return: do each profile separately as well
+		if (template.getType().equals("profile_list") && null != al_children) {
+			synchronized (al_children) {
+				if (al_children.size() > 1) {
+					Profile[] p = new Profile[al_children.size()];
+					for (int i=0; i<al_children.size(); i++) p[i] = (Profile)al_children.get(i).object;
+					ResultsTable rt = Profile.measure(p, ht.get(Profile.class), this.id);
+					if (null != rt) ht.put(Profile_List.class, rt);
+					//return ht; // don't return: do each profile separately as well
+				}
+			}
 		}
-		for (ProjectThing child : al_children) child.measure(ht);
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) child.measure(ht);
+		}
 		return ht;
 	}
 
@@ -740,8 +784,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			data.append(indent).append("<g type=\"").append(type).append("\" title=\"").append(null != object ? object.toString() : type).append("\"");
 			data.append(" id=\"").append(id).append("\">\n");
 			String in = indent + "\t";
-			for (ProjectThing child : al_children) { 
-				child.exportSVG(data, z_scale, in);
+			if (null != al_children) {
+				synchronized (al_children) {
+					for (ProjectThing child : al_children) { 
+						child.exportSVG(data, z_scale, in);
+					}
+				}
 			}
 			data.append(indent).append("</g>\n");
 		}
@@ -751,9 +799,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public ArrayList<ProjectThing> findChildrenOfType(final String type) {
 		ArrayList<ProjectThing> al = new ArrayList<ProjectThing>();
 		if (null == al_children) return al;
-		for (final ProjectThing pt : al_children) {
-			if (pt.template.getType().equals(type)) {
-				al.add(pt);
+		synchronized (al_children) {
+			for (final ProjectThing pt : al_children) {
+				if (pt.template.getType().equals(type)) {
+					al.add(pt);
+				}
 			}
 		}
 		return al;
@@ -765,9 +815,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	public<T> ArrayList<T> findChildrenOfType(final Class<T> c) {
 		final ArrayList<T> al = new ArrayList<T>();
 		if (null == al_children) return al;
-		for (final ProjectThing pt : al_children) {
-			if (c.isInstance(pt.object)) {
-				al.add((T)pt.object);
+		synchronized (al_children) {
+			for (final ProjectThing pt : al_children) {
+				if (c.isInstance(pt.object)) {
+					al.add((T)pt.object);
+				}
 			}
 		}
 		return al;
@@ -783,8 +835,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		else if (hs.contains(this)) return hs;
 		if (template.getType().equals(type)) hs.add(this);
 		if (null == al_children) return hs;
-		for (ProjectThing child : al_children) {
-			child.findChildrenOfTypeR(hs, type);
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				child.findChildrenOfTypeR(hs, type);
+			}
 		}
 		return hs;
 	}
@@ -798,8 +852,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (null == list) list = new ArrayList<ProjectThing>();
 		if (c.isInstance(object)) list.add(this);
 		if (null == al_children) return list;
-		for (ProjectThing child : al_children) {
-			child.findChildrenOfTypeR(list, c);
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				child.findChildrenOfTypeR(list, c);
+			}
 		}
 		return list;
 	}
@@ -814,7 +870,9 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	private final<T> void findObjects(final Class<T> c, final List<T> col) {
 		if (c.isInstance(this.object)) col.add((T)this.object);
 		if (null == al_children) return;
-		for (final ProjectThing pt : al_children) pt.findObjects(c, col);
+		synchronized (al_children) {
+			for (final ProjectThing pt : al_children) pt.findObjects(c, col);
+		}
 	}
 
 	/** Recursive into children. */
@@ -833,8 +891,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (Project.isBasicType(template.getType())) hs_basic.add(this); // I don't return here because I make no assumptions of Basic types not having children in the future, plus profile_list is basic and has children
 		// search children
 		if (null == al_children) return hs_basic;
-		for (ProjectThing child : al_children) {
-			child.findBasicTypeChildren(hs_basic, hs_visited); // ignoring returned HashSet pointer; the object should never change
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				child.findBasicTypeChildren(hs_basic, hs_visited); // ignoring returned HashSet pointer; the object should never change
+			}
 		}
 		return hs_basic;
 	}
@@ -850,9 +910,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			Displayable d = (Displayable)this.object;
 			Display.updateTitle(d.getLayer(), d);
 		}
-		if (null != al_children && 0 != al_children.size()) {
-			for (ProjectThing child : al_children) {
-				child.updateTitle(old_type);
+		if (null != al_children) {
+			synchronized (al_children) {
+				for (ProjectThing child : al_children) {
+					child.updateTitle(old_type);
+				}
 			}
 		}
 	}
@@ -863,9 +925,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			updateInDatabase("type");
 			updateTitle(old_type);
 		}
-		if (null == al_children || al_children.isEmpty()) return;
-		for (ProjectThing child : al_children) {
-			child.updateType(new_type, old_type);
+		if (null == al_children) return;
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				child.updateType(new_type, old_type);
+			}
 		}
 	}
 
@@ -874,9 +938,11 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (template.getType().equals(tt.getType()) && parent.template.getType().equals(tt.getParent().getType())) {
 			hs.add(this);
 		}
-		if (null == al_children || al_children.isEmpty()) return hs;
-		for (final ProjectThing child : al_children) {
-			hs = child.collectSimilarThings(tt, hs);
+		if (null == al_children) return hs;
+		synchronized (al_children) {
+			for (final ProjectThing child : al_children) {
+				hs = child.collectSimilarThings(tt, hs);
+			}
 		}
 		return hs;
 	}
@@ -903,10 +969,12 @@ public final class ProjectThing extends DBObject implements TitledThing {
 			if (null != b && Boolean.TRUE.equals(b)) sb_body.append(" expanded=\"true\"");
 		}
 		// 2 - list of children:
-		if (null != al_children && 0 != al_children.size()) {
+		if (null != al_children) {
 			sb_body.append(">\n");
-			for (ProjectThing child : al_children) {
-				child.exportXML(sb_body, in, options);
+			synchronized (al_children) {
+				for (ProjectThing child : al_children) {
+					child.exportXML(sb_body, in, options);
+				}
 			}
 			sb_body.append(indent).append("</").append(tag).append(">\n");
 		} else {
@@ -936,25 +1004,27 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		if (null == al_children || al_children.size() < 2) return true; // no need
 		// fix Z ordering in the tree
 		final HashMap<Double,ArrayList<ProjectThing>> ht = new HashMap<Double,ArrayList<ProjectThing>>();
-		for (ProjectThing child : al_children) {
-			Profile p = (Profile)child.object;
-			Layer layer = p.getLayer();
-			Double z = new Double(layer.getZ()); // contortions: there could be more than one profile in the same layer
-			ArrayList<ProjectThing> al = ht.get(z);
-			if (null == al) {
-				al = new ArrayList<ProjectThing>();
-				al.add(child);
-				ht.put(z, al);
-			} else {
-				al.add(child);
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				Profile p = (Profile)child.object;
+				Layer layer = p.getLayer();
+				Double z = new Double(layer.getZ()); // contortions: there could be more than one profile in the same layer
+				ArrayList<ProjectThing> al = ht.get(z);
+				if (null == al) {
+					al = new ArrayList<ProjectThing>();
+					al.add(child);
+					ht.put(z, al);
+				} else {
+					al.add(child);
+				}
 			}
-		}
-		Double[] zs = new Double[ht.size()];
-		ht.keySet().toArray(zs);
-		Arrays.sort(zs);
-		al_children.clear();
-		for (int i=0; i<zs.length; i++) {
-			al_children.addAll(ht.get(zs[i]));
+			Double[] zs = new Double[ht.size()];
+			ht.keySet().toArray(zs);
+			Arrays.sort(zs);
+			al_children.clear();
+			for (int i=0; i<zs.length; i++) {
+				al_children.addAll(ht.get(zs[i]));
+			}
 		}
 		return true;
 	}
@@ -982,8 +1052,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		hs.add(this);
 		info.append('\n').append(getNodeInfo());
 		if (null == al_children) return;
-		for (final ProjectThing child : al_children) {
-			child.getInfo(hs, info);
+		synchronized (al_children) {
+			for (final ProjectThing child : al_children) {
+				child.getInfo(hs, info);
+			}
 		}
 	}
 
@@ -997,12 +1069,14 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		final ProjectThing copy = new ProjectThing(pr.getTemplateThing(this.template.getType()), pr, this.id, ob, new ArrayList<ProjectThing>());
 		if (null != this.al_children) {
 			copy.al_children = new ArrayList<ProjectThing>();
-			for (ProjectThing child : this.al_children) {
-				ProjectThing cc = child.subclone(pr);
-				// check object:
-				if (child.object instanceof DBObject && null == cc.object) continue; // don't add: the object was not cloned and thus not found.
-				cc.setParent(this);
-				copy.al_children.add(cc);
+			synchronized (al_children) {
+				for (ProjectThing child : this.al_children) {
+					ProjectThing cc = child.subclone(pr);
+					// check object:
+					if (child.object instanceof DBObject && null == cc.object) continue; // don't add: the object was not cloned and thus not found.
+					cc.setParent(this);
+					copy.al_children.add(cc);
+				}
 			}
 		}
 		return copy;
@@ -1033,8 +1107,10 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		}
 		ap.add(this);
 		if (null == al_children) return ht;
-		for (ProjectThing child : al_children) {
-			child.getByType(ht);
+		synchronized (al_children) {
+			for (ProjectThing child : al_children) {
+				child.getByType(ht);
+			}
 		}
 		return ht;
 	}
