@@ -1510,13 +1510,17 @@ public final class FSLoader extends Loader {
 		return (byte[])source.convertToByte(false).getPixels(); // no scaling
 	}
 
-	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	/** Queue/unqueue for mipmap removal on shutdown without saving;
+	 * the {@param yes}, when true, makes the {@param p} be queued,
+	 * and when false, be removed from the queue. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {
 		if (yes) touched_mipmaps.add(p);
 		else touched_mipmaps.remove(p);
 	}
 
-	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	/** Queue/unqueue for mipmap removal on shutdown without saving;
+	 * the {@param yes}, when true, makes the {@param p} be queued,
+	 * and when false, be removed from the queue. */
 	public void tagForMipmapRemoval(final Patch p, final boolean yes) {
 		if (yes) mipmaps_to_remove.add(p);
 		else mipmaps_to_remove.remove(p);
