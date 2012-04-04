@@ -2778,10 +2778,10 @@ public final class FSLoader extends Loader {
 
 	static private final int MIPMAP_HIGHEST = MIPMAP_RAG; // WARNING: update this value if other formats are added
 
-	// Default: JPEG
-	private int mipmaps_format = MIPMAP_JPEG;
+	// Default: RAG
+	private int mipmaps_format = MIPMAP_RAG;
 	private String mExt = MIPMAP_FORMATS[mipmaps_format]; // the extension currently in use
-	private RWImage mmio = new RWImageJPG();
+	private RWImage mmio = new RWImageRag();
 
 	private RWImage newMipMapRWImage() {
 		switch (this.mipmaps_format) {
