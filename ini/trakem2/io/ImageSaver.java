@@ -198,6 +198,7 @@ public class ImageSaver {
 	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
 		return createImage(pixels, width, height, RGBA_COLOR_MODEL);
 	}
+	/** Assumes the pixels have been premultiplied. */
 	static public final BufferedImage createARGBImagePre(final int[] pixels, final int width, final int height) {
 		return createImage(pixels, width, height, RGBA_PRE_COLOR_MODEL);
 	}
