@@ -1515,7 +1515,7 @@ public final class Patch extends Displayable implements ImageData {
 	 */
 	public boolean checkAlphaMaskFile() {
 		if (0 == this.alpha_mask_id) return true; // means there isn't an alpha mask
-		return new File(createCTFilePath(this.alpha_mask_id)).exists();
+		return new File(createAlphaMaskFilePath(this.alpha_mask_id)).exists();
 	}
 	
 
