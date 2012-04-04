@@ -383,7 +383,8 @@ public final class FSLoader extends Loader {
 		if (null != autosaver) autosaver.shutdownNow();
 	}
 
-	public void destroy() {
+	@Override
+	public synchronized void destroy() {
 		super.destroy();
 		Utils.showStatus("", false);
 		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
