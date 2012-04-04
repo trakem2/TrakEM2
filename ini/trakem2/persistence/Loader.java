@@ -122,6 +122,7 @@ import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
 import mpicbg.trakem2.transform.ExportUnsignedShort;
+import mpicbg.trakem2.util.Triple;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -129,6 +130,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import loci.formats.ChannelSeparator;
 import loci.formats.FormatException;
@@ -2002,7 +2004,7 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
-		return importImages(ref_layer, null, null, 0, 0, false, 1);
+		return importImages(ref_layer, null, null, 0, 0, false, 1, 0);
 	}
 
 	/** <p>Import images from the given text file, which is expected to contain 4 columns or optionally 9 columns:</p>
@@ -2029,7 +2031,7 @@ while (it.hasNext()) {
 	 * @param calibration_ transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 * @param scale_ Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
-	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_) {
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_, int border_width_) {
 		// check parameters: ask for good ones if necessary
 		if (null == abs_text_file_path_) {
 			String[] file = Utils.selectFile("Select text file");
@@ -2047,6 +2049,7 @@ while (it.hasNext()) {
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
 			gdd.addSlider("Scale:", 0, 100, 100);
+			gdd.addNumericField("Hide border with alpha mask", 12, 0, 6, "pixels");
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
@@ -2076,6 +2079,13 @@ while (it.hasNext()) {
 			double sc = gdd.getNextNumber();
 			if (Double.isNaN(sc)) scale_ = 1.0f;
 			else scale_ = ((float)sc)/100.0f;
+			
+			int border = (int)gdd.getNextNumber();
+			if (border < 0) {
+				Utils.log("Nonsensical border value: " + border);
+				return null;
+			}
+			border_width_ = border;
 		}
 
 		if (Float.isNaN(scale_) || scale_ < 0 || scale_ > 1) {
@@ -2091,7 +2101,7 @@ while (it.hasNext()) {
 		final double calibration = calibration_;
 		final boolean homogenize_contrast = homogenize_contrast_;
 		final float scale = (float)scale_;
-
+		final int border_width = border_width_;
 
 		return Bureaucrat.createAndStart(new Worker.Task("Importing images", true) {
 			public void exec() {
@@ -2166,6 +2176,8 @@ while (it.hasNext()) {
 
 					Utils.log("Scaling script path is " + script_path);
 
+					final AtomicReference<Triple<Integer,Integer,ByteProcessor>> last_mask = new AtomicReference<Triple<Integer,Integer,ByteProcessor>>();
+					
 					// 3 - parse each line
 					for (int i = 0; i < lines.length; i++) {
 						if (Thread.currentThread().isInterrupted() || hasQuitted()) {
@@ -2365,6 +2377,26 @@ while (it.hasNext()) {
 									} catch (Throwable t) {
 										Utils.log("FAILED to set a scaling preprocessor script to patch " + patch);
 										IJError.print(t);
+									}
+								}
+								
+								// Set an alpha mask to crop away the borders
+								if (border_width > 0) {
+									final Triple<Integer,Integer,ByteProcessor> m = last_mask.get();
+									if (null != m && m.a == patch.getOWidth() && m.b == patch.getOHeight()) {
+										// Reuse
+										patch.setAlphaMask(m.c);
+									} else {
+										// Create new mask
+										ByteProcessor mask = new ByteProcessor(patch.getOWidth(), patch.getOHeight());
+										mask.setValue(255);
+										mask.setRoi(new Roi(border_width, border_width,
+												mask.getWidth() - 2 * border_width,
+												mask.getHeight() - 2 * border_width));
+										mask.fill();
+										patch.setAlphaMask(mask);
+										// Store as last
+										last_mask.set(new Triple<Integer,Integer,ByteProcessor>(mask.getWidth(), mask.getHeight(), mask));
 									}
 								}
 								
