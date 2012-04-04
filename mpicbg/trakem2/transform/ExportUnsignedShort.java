@@ -104,7 +104,7 @@ public class ExportUnsignedShort
 		mappedIntensities.setInterpolationMethod( ImageProcessor.BILINEAR );
 		if ( pt.pir.patch.hasAlphaMask() )
 		{
-			final ByteProcessor alpha = pt.pir.patch.getProject().getLoader().fetchImageMask( pt.pir.patch );
+			final ByteProcessor alpha = pt.pir.patch.getAlphaMask();
 			alpha.setInterpolationMethod( ImageProcessor.BILINEAR );
 			mapping.map( mappedIntensities, alpha, target );
 		}

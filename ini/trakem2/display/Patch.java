@@ -1339,7 +1339,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
 		
-		final ImageProcessorWithMasks target = mapping.createMappedMaskedImageInterpolated( source, project.getLoader().fetchImageMask(this) );
+		final ImageProcessorWithMasks target = mapping.createMappedMaskedImageInterpolated( source, getAlphaMask() );
 		
 		// Set the LUT
 		target.ip.setColorModel(source.getColorModel());
@@ -1403,7 +1403,7 @@ public final class Patch extends Displayable implements ImageData {
 		project.getLoader().releaseToFit(o_width, o_height, type, 3);
 		final ImageProcessor copy = ip.duplicate();
 		copy.setColorModel(ip.getColorModel()); // one would expect "duplicate" to do this but it doesn't!
-		return new PatchImage(copy, project.getLoader().fetchImageMask(this), null, new Rectangle(0, 0, o_width, o_height), false);
+		return new PatchImage(copy, getAlphaMask(), null, new Rectangle(0, 0, o_width, o_height), false);
 	}
 
 
@@ -1738,7 +1738,7 @@ public final class Patch extends Displayable implements ImageData {
 				a.intersect(new Area(new Rectangle(-2, -2, (int)width+2, (int)height+2)));
 			}
 
-			ByteProcessor mask = project.getLoader().fetchImageMask(Patch.this);
+			ByteProcessor mask = getAlphaMask();
 
 			// Use imglib to bypass all the problems with ShapeROI
 			// Create a Shape image with background and the Area on it with 'value'
@@ -1786,7 +1786,7 @@ public final class Patch extends Displayable implements ImageData {
 		CoordinateTransform ct = null;
 		if (hasAlphaMask()) {
 			// Read the mask as a ROI for the 0 pixels only and apply the AffineTransform to it:
-			ImageProcessor alpha_mask = project.getLoader().fetchImageMask(this);
+			ImageProcessor alpha_mask = getAlphaMask();
 			if (null == alpha_mask) {
 				Utils.log2("Could not retrieve alpha mask for " + this);
 			} else {
@@ -2015,7 +2015,7 @@ public final class Patch extends Displayable implements ImageData {
 			return false;
 		}
 		try {
-			ByteProcessor bp = project.getLoader().fetchImageMask(this);
+			ByteProcessor bp = getAlphaMask();
 			if (null == bp) {
 				bp = new ByteProcessor(o_width, o_height);
 				bp.setRoi(new Roi(left, top, w, h));
