@@ -1572,7 +1572,6 @@ public final class FSLoader extends Loader {
 			ImageProcessor ip;
 			ByteProcessor alpha_mask = null;
 			ByteProcessor outside_mask = null;
-			final boolean coordinate_transformed;
 			int type = patch.getType();
 
 			// Aggressive cache freeing
@@ -1588,7 +1587,6 @@ public final class FSLoader extends Loader {
 			ip = pai.target;
 			alpha_mask = pai.mask; // can be null
 			outside_mask = pai.outside; // can be null
-			coordinate_transformed = pai.coordinate_transformed;
 			pai = null;
 			
 			// Old style:
