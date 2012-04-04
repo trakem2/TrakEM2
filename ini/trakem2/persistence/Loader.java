@@ -1007,11 +1007,9 @@ abstract public class Loader {
 							final int lev = getClosestMipMapLevel(p, level, max_level); // finds the file for the returned level, otherwise returns zero
 							//Utils.log2("closest mipmap level is " + lev);
 							if (lev > -1) {
-								boolean newly_cached = false;
 								mipMap = fetchMipMapAWT( p, lev, n_bytes ); // overestimating n_bytes
 								if ( null != mipMap ) {
 									mawts.put( id, mipMap.image, lev );
-									newly_cached = true; // means: cached was false, now it is
 									//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
 									Display.repaintSnapshot( p );
 									//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
