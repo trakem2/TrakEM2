@@ -26,6 +26,8 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
+import ij.io.FileOpener;
+import ij.io.TiffDecoder;
 import ij.io.TiffEncoder;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ByteProcessor;
@@ -72,6 +74,7 @@ import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.PrintWriter;
@@ -86,6 +89,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Future;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import mpicbg.imglib.container.shapelist.ShapeList;
@@ -1465,19 +1469,26 @@ public final class Patch extends Displayable implements ImageData {
 		if (0 == alpha_mask_id) return null;
 
 		final String path = createAlphaMaskFilePath(alpha_mask_id);
-		// Open the mask image, which should be a compressed byte tif.
-		final ImagePlus imp = project.getLoader().openImagePlus(path);
-		if (null == imp) {
+		
+		// Expects a zip file containing one single TIFF file entry
+		ZipInputStream zis = null;
+		try {
+			zis = new ZipInputStream(new FileInputStream(path));
+			final ZipEntry ze = zis.getNextEntry(); // prepares the entry for reading
+			// Assume the first entry is the mask
+			final ImageProcessor mask = new FileOpener(new TiffDecoder(zis, ze.getName()).getTiffInfo()[0]).open(false).getProcessor();
+			if (mask.getWidth() != o_width || mask.getHeight() != o_height) {
+				Utils.log2("Mask has improper dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch #" + this.id + " which is of " + o_width + " x " + o_height);
+				return null;
+			}
+			return (ByteProcessor) (mask.getClass() == ByteProcessor.class ? mask : mask.convertToByte(false));
+		} catch (Throwable t) {
 			Utils.log2("Could not load alpha mask for patch #" + this.id + " from file " + path);
+			IJError.print(t);
 			return null;
+		} finally {
+			try { if (null != zis) zis.close(); } catch (Exception e) { IJError.print(e); }
 		}
-		final ByteProcessor mask = (ByteProcessor) (imp.getType() == ImagePlus.GRAY8 ? imp.getProcessor()
-				: imp.getProcessor().convertToByte(false));
-		if (mask.getWidth() != o_width || mask.getHeight() != o_height) {
-			Utils.log2("Mask has improper dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch #" + this.id + " which is of " + o_width + " x " + o_height);
-			return null;
-		}
-		return mask;
 	}
 
 	private final String createAlphaMaskFilePath(final long amID) {
