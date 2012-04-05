@@ -1461,7 +1461,7 @@ public final class Patch extends Displayable implements ImageData {
 	/**
 	 * Return a new {@link ByteProcessor} representing the alpha mask, if any, over the pixel data.
 	 * @return null if there isn't one, or if the mask image could not be loaded.*/
-	public ByteProcessor getAlphaMask() {
+	public synchronized ByteProcessor getAlphaMask() {
 		if (0 == alpha_mask_id) return null;
 
 		final String path = createAlphaMaskFilePath(alpha_mask_id);
