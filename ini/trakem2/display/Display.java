@@ -5217,6 +5217,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Set<DoStep> dataedits2 = new HashSet<DoStep>(1);
 				dataedits2.add(new Displayable.DoEdit(active).init(active, new String[]{"data"}));
 				getLayerSet().addChangeTreesStep(dataedits2);
+			} else {
+				Utils.showMessage("Can't do", "Only one tree is selected.\nSelect more than one tree to perform a join operation!");
 			}
 		} else if (command.equals("Previous branch node or start")) {
 			if (!(active instanceof Tree<?>)) return;

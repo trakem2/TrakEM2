@@ -1285,7 +1285,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		updateView();
 	}
 
-	/** Join all given Trees by using the first one as the receiver, and all the others as the ones to be merged into the receiver.
+	/** Check if it is possible to join all given Trees into this,
+	 * by using the first one as the receiver (which should be this),
+	 * and all the others as the ones to be merged into the receiver.
 	 *  Requires each Tree to have a non-null marked Node; otherwise, returns false. */
 	public boolean canJoin(final List<? extends Tree<T>> ts) {
 		if (null == marked) {
@@ -1294,6 +1296,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		if (null == this.root) {
 			Utils.log("The root of this tree is null!");
+			return false;
+		}
+		if (1 == ts.size()) {
+			Utils.log("No other trees to join!");
 			return false;
 		}
 		for (final Tree<T> tl : ts) {
