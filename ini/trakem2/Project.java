@@ -750,6 +750,19 @@ public class Project extends DBObject {
 		return path;
 	}
 
+	/** Save an XML file that is stripped of coordinate transforms,
+	 * and merely refers to them by the 'ct_id' attribute of each 't2_patch' element;
+	 * this method will NOT overwrite the XML file but save into a new one,
+	 * which is chosen from a file dialog. */
+	public String saveWithoutCoordinateTransforms() {
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = false;
+		options.export_images = false;
+		options.include_coordinate_transform = false;
+		options.patches_dir = null;
+		return loader.saveAs(this, options);
+	}
+
 	public boolean destroy() {
 		if (null == loader) {
 			return true;
@@ -1692,7 +1705,7 @@ public class Project extends DBObject {
 					options.export_images = false;
 					options.include_coordinate_transform = true;
 					options.patches_dir = null;
-					//
+					// Will open a file dialog
 					loader.saveAs(project, options);
 					restartAutosaving();
 					//
@@ -1707,13 +1720,7 @@ public class Project extends DBObject {
 						  + " \n"
 						  + "Proceed?");
 					if (!yn.yesPressed()) return;
-					XMLOptions options = new XMLOptions();
-					options.overwriteXMLFile = false;
-					options.export_images = false;
-					options.include_coordinate_transform = false;
-					options.patches_dir = null;
-					//
-					loader.saveAs(project, options);
+					saveWithoutCoordinateTransforms();
 					//
 				} else if (command.equals("Delete stale files...")) {
 					GenericDialog gd = new GenericDialog("Delete stale files");
