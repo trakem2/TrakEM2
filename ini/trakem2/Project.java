@@ -1738,11 +1738,12 @@ public class Project extends DBObject {
 		}, project);
 	}
 	
-	/** The mode used to generate mipmaps, which defaults to {@link Loader#DEFAULT_MIPMAPS_MODE}. */
+	/** The mode (aka algorithmic approach) used to generate mipmaps, which defaults to {@link Loader#DEFAULT_MIPMAPS_MODE}. */
 	public int getMipMapsMode() {
 		return this.mipmaps_mode;
 	}
 	
+	/** @see #getMipMapsMode() */
 	public void setMipMapsMode(int mode) {
 		this.mipmaps_mode = mode;
 	}
