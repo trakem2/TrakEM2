@@ -1723,6 +1723,7 @@ public class Project extends DBObject {
 					saveWithoutCoordinateTransforms();
 					//
 				} else if (command.equals("Delete stale files...")) {
+					setTaskName("Deleting stale files");
 					GenericDialog gd = new GenericDialog("Delete stale files");
 					gd.addMessage(
 							"You are about to remove all files under the folder 'trakem2.cts/' which are not referred to from the\n"
@@ -1731,7 +1732,10 @@ public class Project extends DBObject {
 						  + "they may be LOST FOREVER. Unless you have a version of the XML file with the coordinate transforms\n"
 						  + "written in it, as can be obtained by using the 'Project - Save' command.\n"
 						  + " \n"
-						  + "Do you have such complete XML file? Check NOW.\n"
+						  + "The same is true for the .zip files that store alpha masks, under folder 'trakem2.masks/'\n"
+						  + "and which are referred to from the 'alpha_mask_id' attribute of 't2_patch' entries.\n"
+						  + " \n"
+						  + "Do you have such complete XML file? Check *NOW*.\n"
 						  + " \n"
 						  + "Proceed with deleting:"
 							);
