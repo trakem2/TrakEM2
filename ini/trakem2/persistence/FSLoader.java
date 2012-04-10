@@ -1630,7 +1630,7 @@ public final class FSLoader extends Loader {
 
 
 			// Proper support for LUT images: treat them as RGB
-			if (ip.isColorLut()) {
+			if (ip.isColorLut() || type == ImagePlus.COLOR_256) {
 				ip = ip.convertToRGB();
 				type = ImagePlus.COLOR_RGB;
 			}
