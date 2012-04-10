@@ -3212,7 +3212,6 @@ while (it.hasNext()) {
 													}
 												}
 												return saver.save(new ImagePlus(path, new ByteProcessor(tileSide, tileSide, p, GRAY_LUT)), path);
-												//return ImageSaver.saveAsGreyJpeg(p, tile_side, tile_side, path, jpeg_quality);
 											} else {
 												final int[] pixels = (int[]) source.getPixels();
 												final int[] p = new int[tileSide * tileSide];
@@ -3223,7 +3222,6 @@ while (it.hasNext()) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												return saver.save(new ImagePlus(path, new ColorProcessor(tileSide, tileSide, pixels)), path);
 												//return ImageSaver.saveAsARGBJpeg(p, tile_side, tile_side, path, jpeg_quality);
 											}
 										}
