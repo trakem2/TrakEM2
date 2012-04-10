@@ -3176,6 +3176,10 @@ while (it.hasNext()) {
 						// Respect alpha masks and display range:
 						Utils.log("WARNING: ignoring scale for 'use original images' and '8-bit' options");
 						snapshot = ExportUnsignedShort.makeFlatImage((ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), srcRect, 0).convertToByte(true);						
+					} else {
+						Utils.log("ERROR: don't know how to generate mipmaps for type '" + type + "'");
+						cleanUp();
+						return;
 					}
 
 					int scale_pow = 0;
