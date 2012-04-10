@@ -3222,7 +3222,7 @@ while (it.hasNext()) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												//return ImageSaver.saveAsARGBJpeg(p, tile_side, tile_side, path, jpeg_quality);
+												return saver.save(new ImagePlus(path, new ColorProcessor(tileSide, tileSide, p)), path);
 											}
 										}
 									}));
