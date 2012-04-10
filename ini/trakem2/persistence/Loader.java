@@ -2049,7 +2049,7 @@ while (it.hasNext()) {
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
 			gdd.addSlider("Scale:", 0, 100, 100);
-			gdd.addNumericField("Hide border with alpha mask", 12, 0, 6, "pixels");
+			gdd.addNumericField("Hide border with alpha mask", 0, 0, 6, "pixels");
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
