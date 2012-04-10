@@ -49,7 +49,7 @@ public final class DownsamplerMipMaps
 			final ByteProcessor outside) {
 		// Create pyramid
 		final ImageBytes[] p = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
-		
+
 		if (null == alpha && null == outside) {
 			int i = 1;
 			switch (type) {
