@@ -2,6 +2,7 @@ package ini.trakem2.io;
 
 import ini.trakem2.imaging.P;
 import ini.trakem2.persistence.ImageBytes;
+import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
@@ -104,7 +105,7 @@ public final class RagMipMaps
 			final int height = ((h[4]&0xff) << 24) | ((h[5]&0xff) << 16) | ((h[6]&0xff) << 8) | (h[7]&0xff);
 			final int nCh = h[8];
 			final int chLength = width * height;
-			final byte[][] ch = new byte[nCh][chLength];
+			final byte[][] ch = CachingThread.getOrCreateByteArray(nCh, chLength); // new byte[nCh][chLength];
 			// Types 2 and 4 have a compressed alpha channel
 			final int end = 0 == nCh % 2 ? nCh -1 : nCh;
 			for (int i=0; i<end; ++i) {
@@ -145,14 +146,21 @@ public final class RagMipMaps
 			switch (ch.length) {
 				case GREY:
 					return ImageSaver.createGrayImage(ch[0], ib.width, ib.height);
-				case GREY_ALPHA:
-					// TODO: price of PRE shold be paid when saving, not when reading
-					return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1]), ib.width, ib.height);
-				case RGB:
-					return ImageSaver.createRGBImage(P.blend(ch[0], ch[1], ch[2]), ib.width, ib.height);
-				case RGBA:
-					// TODO: price of PRE shold be paid when saving, not when reading
-					return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1], ch[2], ch[3]), ib.width, ib.height);
+			}
+			try {
+				// Given that the BufferedImage is created with an int[], store the byte[] arrays for reuse
+				switch (ch.length) {
+					case GREY_ALPHA:
+						// TODO: price of PRE should be paid when saving, not when reading
+						return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1]), ib.width, ib.height);
+					case RGB:
+						return ImageSaver.createRGBImage(P.blend(ch[0], ch[1], ch[2]), ib.width, ib.height);
+					case RGBA:
+						// TODO: price of PRE should be paid when saving, not when reading
+						return ImageSaver.createARGBImagePre(P.blendPre(ch[0], ch[1], ch[2], ch[3]), ib.width, ib.height);
+				}
+			} finally {
+				CachingThread.storeForReuse(ch);
 			}
 		} catch (Exception e) {
 			IJError.print(e);

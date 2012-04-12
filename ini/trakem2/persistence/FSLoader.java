@@ -51,6 +51,7 @@ import ini.trakem2.io.ImageSaver;
 import ini.trakem2.io.RagMipMaps;
 import ini.trakem2.io.RawMipMaps;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
@@ -2968,7 +2969,10 @@ public final class FSLoader extends Loader {
 						return ImageSaver.saveAsPNG(bi, path);
 				}
 			} finally {
-				if (null != bi) bi.flush();
+				if (null != bi) {
+					bi.flush();
+					CachingThread.storeArrayForReuse(bi);
+				}
 			}
 			return false;
 		}
@@ -3016,7 +3020,11 @@ public final class FSLoader extends Loader {
 		}
 		@Override
 		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
-			return RawMipMaps.save(path, b, width, height);
+			try {
+				return RawMipMaps.save(path, b, width, height);
+			} finally {
+				CachingThread.storeForReuse(b);
+			}
 		}
 	}
 	private final class RWImageRag extends RWImage {
@@ -3030,7 +3038,11 @@ public final class FSLoader extends Loader {
 		}
 		@Override
 		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
-			return RagMipMaps.save(path, b, width, height);
+			try {
+				return RagMipMaps.save(path, b, width, height);
+			} finally {
+				CachingThread.storeForReuse(b);
+			}
 		}
 	}
 }

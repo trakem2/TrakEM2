@@ -3,6 +3,7 @@ package ini.trakem2.persistence;
 import ij.ImagePlus;
 import ij.io.FileInfo;
 import ini.trakem2.display.MipMapImage;
+import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.TypedHashMap;
 import ini.trakem2.utils.Utils;
 
@@ -78,13 +79,13 @@ public class Cache {
 					// C: old is not null, and new is null: must return freed bytes
 					n_images--;
 					long b = -Cache.size(images[level]); // some bytes to free
-					images[level].flush();
+					images[level].flush(); CachingThread.storeArrayForReuse(images[level]);
 					images[level] = null;
 					return b;
 				} else if (img != images[level]) {
 					// D: both are not null, and are not the same instance:
 					long b = Cache.size(img) - Cache.size(images[level]); // some bytes to free or to be added
-					images[level].flush();
+					images[level].flush(); CachingThread.storeArrayForReuse(images[level]);
 					images[level] = img;
 					return b;
 				}
@@ -519,7 +520,7 @@ public class Cache {
 			p.replace(null); // the imp may need cleanup
 			for (int i=0; i<p.images.length; i++) {
 				if (null == p.images[i]) continue;
-				p.images[i].flush();
+				p.images[i].flush(); CachingThread.storeArrayForReuse(p.images[i]);
 			}
 		}
 		reset();

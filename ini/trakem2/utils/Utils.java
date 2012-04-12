@@ -1541,7 +1541,7 @@ public class Utils implements ij.plugin.PlugIn {
 		exec.setThreadFactory(new ThreadFactory() {
 			public Thread newThread(final Runnable r) {
 				final ThreadGroup tg = Thread.currentThread().getThreadGroup();
-				final Thread t = new Thread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
+				final Thread t = new CachingThread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
 				t.setDaemon(true);
 				t.setPriority(Thread.NORM_PRIORITY);
 				return t;
