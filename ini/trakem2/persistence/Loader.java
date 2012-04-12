@@ -4775,11 +4775,11 @@ while (it.hasNext()) {
 	// Home-made enum. Java enum have too much magic.
 	static public final Map<Integer,String> MIPMAP_MODES;
 	static {
-		final HashMap<Integer,String> modes = new HashMap<Integer, String>();
+		final TreeMap<Integer,String> modes = new TreeMap<Integer, String>();
 		modes.put(GAUSSIAN, "Gaussian");
 		modes.put(INTEGRAL_AREA_AVERAGING, "Integral area averaging");
 		modes.put(AREA_DOWNSAMPLING, "Area downsampling");
-		MIPMAP_MODES = Collections.unmodifiableMap(modes);
+		MIPMAP_MODES = Collections.unmodifiableSortedMap(modes);
 	}
 
 	/** Points to {@link Loader#AREA_DOWNSAMPLING}. */
@@ -4794,8 +4794,9 @@ while (it.hasNext()) {
 	/** Returns the default ({@link #DEFAULT_MIPMAPS_MODE}) if the {@param mode} is not recognized. */
 	static public final int getMipMapModeIndex(final String mode) {
 		if (null == mode) return DEFAULT_MIPMAPS_MODE;
+		final String lmode = mode.toLowerCase();
 		for (final Map.Entry<Integer, String> e : MIPMAP_MODES.entrySet()) {
-			if (e.getValue().equals(mode)) {
+			if (e.getValue().toLowerCase().equals(lmode)) {
 				return e.getKey();
 			}
 		}
