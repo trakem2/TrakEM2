@@ -4794,8 +4794,9 @@ while (it.hasNext()) {
 	/** Returns the default ({@link #DEFAULT_MIPMAPS_MODE}) if the {@param mode} is not recognized. */
 	static public final int getMipMapModeIndex(final String mode) {
 		if (null == mode) return DEFAULT_MIPMAPS_MODE;
+		final String lmode = mode.toLowerCase();
 		for (final Map.Entry<Integer, String> e : MIPMAP_MODES.entrySet()) {
-			if (e.getValue().equals(mode)) {
+			if (e.getValue().toLowerCase().equals(lmode)) {
 				return e.getKey();
 			}
 		}
