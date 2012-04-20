@@ -1132,7 +1132,7 @@ A:		for ( final Layer layer : layers )
 			/* align all tiles in the layer */
 			
 			final List< Patch > patches = new ArrayList< Patch >();
-			for ( Displayable a : layer.getDisplayables( Patch.class ) )
+			for ( Displayable a : layer.getDisplayables( Patch.class, true ) ) // ignore hidden tiles
 				if ( a instanceof Patch ) patches.add( ( Patch )a );
 			final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 			final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
