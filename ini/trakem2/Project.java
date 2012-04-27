@@ -1524,7 +1524,7 @@ public class Project extends DBObject {
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
-		this.mipmaps_mode = Loader.getMipMapModeIndex(gd.getNextString());
+		this.mipmaps_mode = Loader.getMipMapModeIndex(gd.getNextChoice());
 
 		final int new_mipmap_format = gd.getNextChoiceIndex();
 		final int old_mipmap_format = loader.getMipMapFormat();
