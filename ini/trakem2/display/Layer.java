@@ -507,7 +507,24 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
-	
+
+	synchronized public ArrayList<Displayable> getDisplayables(final Class<?> c, final boolean visible_only, final boolean instance_of) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		if (null == c) return al;
+		if (instance_of) {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				if (c.isAssignableFrom(d.getClass())) al.add(d);
+			}
+		} else {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				if (d.getClass() == c) al.add(d);
+			}
+		}
+		return al;
+	}
+
 
 	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
 	public Collection<Displayable> getDisplayables(final Class<?> c, final Rectangle roi) {
