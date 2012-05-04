@@ -681,6 +681,7 @@ abstract public class Loader {
 
 			// Sanity check:
 			if (0 == mawts.size()) {
+				CachingThread.releaseAll();
 				// Remove any autotraces
 				Polyline.flushTraceCache(Project.findProject(this));
 				// TODO should measure the polyline trace cache and add it to 'released'
@@ -717,6 +718,7 @@ abstract public class Loader {
 		for (final Loader lo : new ArrayList<Loader>(v_loaders)) { // calls v_loaders.toArray, synchronized.
 			lo.releaseAll();
 		}
+		CachingThread.releaseAll();
 	}
 
 	/** Empties the caches. */

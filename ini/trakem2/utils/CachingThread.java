@@ -60,11 +60,16 @@ public class CachingThread extends Thread
 			}
 		}
 	}
-	
-	
+
+
 	private final ArrayCache<byte[]> cacheBytes = new ArrayCache<byte[]>(byte[].class);
 	private final ArrayCache<int[]> cacheInts = new ArrayCache<int[]>(int[].class);	
 
+	public void clear() {
+		cacheBytes.clear();
+		cacheInts.clear();
+	}
+	
 	public CachingThread() { super(); }
 	public CachingThread(final Runnable r) { super(r); }
 	public CachingThread(final String name) { super(name); }
@@ -136,6 +141,26 @@ public class CachingThread extends Thread
 				CachingThread.storeForReuse(((DataBufferInt)db).getData());
 			} else if (db.getClass() == DataBufferByte.class) {
 				CachingThread.storeForReuse(((DataBufferByte)db).getData());
+			}
+		}
+	}
+	
+	/** Tell all instances to clear their caches. */
+	public static final void releaseAll() {
+		ThreadGroup parent = Thread.currentThread().getThreadGroup();
+		while (true) {
+		    ThreadGroup p = parent.getParent();
+		    if (null == p) break;
+		    parent = p;
+		}
+		Thread[] ts = new Thread[parent.activeCount()];
+		while (parent.enumerate(ts, true) == ts.length) {
+		    ts = new Thread[ ts.length * 2 ];
+		}
+		for (Thread t : ts) {
+			if (null == t) continue;
+			if (CachingThread.class.isAssignableFrom(t.getClass())) {
+				((CachingThread)t).clear();
 			}
 		}
 	}
