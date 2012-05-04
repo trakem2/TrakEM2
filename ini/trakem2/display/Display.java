@@ -3071,6 +3071,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Set Min and Max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
 		item = new JMenuItem("Adjust min and max (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
+		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_J, 0));
 		if (selection.isEmpty()) item.setEnabled(false);
 		item = new JMenuItem("Mask image borders (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Mask image borders (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
@@ -5478,21 +5479,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				getLayerSet().addDataEditStep(ds);
 			}});
 		} else if (command.equals("Adjust min and max (selected images)...")) {
-			final List<Displayable> list = selection.getSelected(Patch.class);
-			if (list.isEmpty()) {
-				Utils.log("No images selected!");
-				return;
-			}
-			Bureaucrat.createAndStart(new Worker.Task("Init contrast adjustment") {
-				public void exec() {
-					try {
-						setMode(new ContrastAdjustmentMode(Display.this, list));
-					} catch (Exception e) {
-						e.printStackTrace();
-						Utils.log("All images must be of the same type!");
-					}
-				}
-			}, list.get(0).getProject());
+			adjustMinAndMaxGUI();
 		} else if (command.equals("Mask image borders (layer-wise)...")) {
 			final GenericDialog gd = new GenericDialog("Mask borders");
 			Utils.addLayerRangeChoices(Display.this.layer, gd);
@@ -5957,6 +5944,24 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Utils.log2("Display: don't know what to do with command " + command);
 		}
 		}});
+	}
+
+	public void adjustMinAndMaxGUI() {
+		final List<Displayable> list = selection.getSelected(Patch.class);
+		if (list.isEmpty()) {
+			Utils.log("No images selected!");
+			return;
+		}
+		Bureaucrat.createAndStart(new Worker.Task("Init contrast adjustment") {
+			public void exec() {
+				try {
+					setMode(new ContrastAdjustmentMode(Display.this, list));
+				} catch (Exception e) {
+					e.printStackTrace();
+					Utils.log("All images must be of the same type!");
+				}
+			}
+		}, list.get(0).getProject());
 	}
 
 	/** Pops up a dialog to adjust the alpha, visible, color, locked and compositeMode of all Displayables in {@param col}.

@@ -2023,6 +2023,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				handleHide(ke);
 				ke.consume();
 				break;
+			case KeyEvent.VK_J:
+				if (!display.getSelection().isEmpty()) {
+					display.adjustMinAndMaxGUI();
+					ke.consume();
+				}
+				break;
 			case KeyEvent.VK_F1:
 			case KeyEvent.VK_F2:
 			case KeyEvent.VK_F3:
