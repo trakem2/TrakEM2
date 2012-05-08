@@ -77,6 +77,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.Reader;
 import java.util.ArrayList;
@@ -961,6 +962,26 @@ public final class Patch extends Displayable implements ImageData {
 		copy.max = this.max;
 		copy.ct_id = this.ct_id; // files are immutable so they can be shared
 		copy.alpha_mask_id = this.alpha_mask_id; // files are immutable so they can be shared
+		if (pr != this.project) {
+			// Copy the files over to the other project.
+			try {
+				if (0 != copy.alpha_mask_id
+						&& !Utils.safeCopy(
+								this.createAlphaMaskFilePath(this.alpha_mask_id),
+								copy.createAlphaMaskFilePath(copy.alpha_mask_id))) {
+					Utils.log("ERROR: could not copy alpha mask file for patch #" + this.id);
+				}
+				if (0 != copy.ct_id
+						&& !Utils.safeCopy(
+								this.createCTFilePath(this.ct_id),
+								copy.createCTFilePath(copy.ct_id))) {
+					Utils.log("ERROR: could not copy coordinate transform file for patch #" + this.id);
+				}
+			} catch (IOException ioe) {
+				IJError.print(ioe);
+				Utils.log("ERROR: could not copy alpha mask file or coordinate transform file for patch #" + this.id);
+			}
+		}
 		copy.addToDatabase();
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 
