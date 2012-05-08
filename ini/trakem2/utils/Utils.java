@@ -83,6 +83,7 @@ import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -1772,5 +1773,27 @@ public class Utils implements ij.plugin.PlugIn {
 		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 		bi.createGraphics().drawImage(img, 0, 0, null);
 		return bi;
+	}
+
+	/**
+	 * 
+	 * @param source The file to copy.
+	 * @param target The new file to create.
+	 * @return Whether the file could be copied; also returns false if the target file exists.
+	 * @throws IOException 
+	 */
+	static public final boolean safeCopy(final String source, final String target) throws IOException {
+		if (new File(target).exists()) return false;
+		RandomAccessFile sra = null,
+		                 tra = null;
+		try {
+			sra = new RandomAccessFile(source, "r");
+			tra = new RandomAccessFile(target, "w");
+			sra.getChannel().transferTo(0, sra.length(), tra.getChannel());
+		} finally {
+			if (null != tra) tra.close();
+			if (null != sra) sra.close();
+		}
+		return true;
 	}
 }
