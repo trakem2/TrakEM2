@@ -1788,7 +1788,7 @@ public class Utils implements ij.plugin.PlugIn {
 		                 tra = null;
 		try {
 			sra = new RandomAccessFile(source, "r");
-			tra = new RandomAccessFile(target, "w");
+			tra = new RandomAccessFile(target, "rw");
 			sra.getChannel().transferTo(0, sra.length(), tra.getChannel());
 		} finally {
 			if (null != tra) tra.close();
