@@ -74,12 +74,13 @@ import bunwarpj.trakem2.transform.CubicBSplineTransform;
  */
 final public class AlignLayersTask
 {
-	static protected int LINEAR = 0, BUNWARPJ = 1, ELASTIC = 2;
+	static protected int LINEAR = 0, BUNWARPJ = 1, ELASTIC = 2, REGULARIZED = 3;
 	static protected int mode = LINEAR;
 	final static String[] modeStrings = new String[]{
 		"least squares (linear feature correspondences)",
 		"bUnwarpJ (non-linear cubic B-Splines)",
-		"elastic (non-linear block correspondences)" };
+		"elastic (non-linear block correspondences)",
+		"regularized least squares (linear feature correspondences)" };
 	
 	static protected boolean propagateTransform = false;
 	static protected bunwarpj.Param elasticParam = new bunwarpj.Param();
@@ -183,6 +184,8 @@ final public class AlignLayersTask
 
 		if ( mode == ELASTIC )
 			new ElasticLayerAlignment().exec( l.getParent(), first, last, propagateTransform, fov, filter );
+		else if ( mode == REGULARIZED )
+			new RegularizedAffineLayerAlignment().exec( l.getParent(), first, last, propagateTransform, fov, filter );
 		else
 		{
 			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
