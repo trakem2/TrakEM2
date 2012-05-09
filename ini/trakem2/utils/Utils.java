@@ -1783,12 +1783,14 @@ public class Utils implements ij.plugin.PlugIn {
 	 * @throws IOException 
 	 */
 	static public final boolean safeCopy(final String source, final String target) throws IOException {
-		if (new File(target).exists()) return false;
+		final File f2 = new File(source);
+		if (f2.exists()) return false;
 		RandomAccessFile sra = null,
 		                 tra = null;
 		try {
-			sra = new RandomAccessFile(source, "r");
-			tra = new RandomAccessFile(target, "rw");
+			Utils.ensure(f2);
+			sra = new RandomAccessFile(new File(source), "r");
+			tra = new RandomAccessFile(f2, "rw");
 			sra.getChannel().transferTo(0, sra.length(), tra.getChannel());
 		} finally {
 			if (null != tra) tra.close();
