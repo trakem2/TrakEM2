@@ -52,7 +52,7 @@ import mpicbg.models.HomographyModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
-import mpicbg.models.RegularizedAffineModel2D;
+import mpicbg.models.InterpolatedAffineModel2D;
 import mpicbg.models.RigidModel2D;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
@@ -390,7 +390,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
-			tiles.add( new Tile( new RegularizedAffineModel2D( m.copy(), r.copy(), p.lambda ) ) );
+			tiles.add( new Tile( new InterpolatedAffineModel2D( m.copy(), r.copy(), p.lambda ) ) );
 		}
 		
 		/* collect all pairs of slices for which a model could be found */
@@ -629,7 +629,7 @@ J:			for ( int j = i + 1; j < range; )
 			final AffineTransform b = new AffineTransform();
 			b.translate( box.x, box.y );
 //			b.scale( 1.0f / scale, 1.0f / scale );
-			b.concatenate( ( ( RegularizedAffineModel2D< ?, ? > )tiles.get( i ).getModel() ).createAffineModel2D().createAffine() );
+			b.concatenate( ( ( InterpolatedAffineModel2D< ?, ? > )tiles.get( i ).getModel() ).createAffineModel2D().createAffine() );
 //			b.scale( scale, scale );
 			b.translate( -box.x, -box.y);
 			
