@@ -3,6 +3,19 @@
  */
 package mpicbg.trakem2.align;
 
+import ij.IJ;
+import ij.ImagePlus;
+import ij.gui.GenericDialog;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Selection;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.Filter;
+import ini.trakem2.utils.Utils;
+
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
@@ -14,26 +27,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import ij.IJ;
-import ij.ImagePlus;
-import ij.gui.GenericDialog;
-
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Patch;
-import ini.trakem2.display.Selection;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.utils.Filter;
-import ini.trakem2.utils.Utils;
-
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.InterpolatedAffineModel2D;
 import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
@@ -56,8 +56,6 @@ public class Align
 {
 	static public class Param implements Serializable
 	{	
-		private static final long serialVersionUID = -2247163691721712461L;
-
 		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
 
 		/**
@@ -86,6 +84,17 @@ public class Align
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
 		public int expectedModelIndex = 1;
 		public int desiredModelIndex = 1;
+		public int regularizerModelIndex = 1;
+		
+		/**
+		 * Use a regularized model instead of a pure one.
+		 */
+		public boolean regularize = false;
+		
+		/**
+		 * Regularization weight.
+		 */
+		public double lambda = 0.1;
 		
 		public float correspondenceWeight = 1;
 		
@@ -107,29 +116,54 @@ public class Align
 			gd.addNumericField( "closest/next_closest_ratio :", rod, 2 );
 		}
 		
-		public void addFields( final GenericDialog gd )
+		public void addGeometricConsensusFilterFields( final GenericDialog gd )
 		{
-			addSIFTFields( gd );
-			
-			gd.addMessage( "Geometric Consensus Filter:" );
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
 			gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
 			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
 			gd.addChoice( "expected_transformation :", modelStrings, modelStrings[ expectedModelIndex ] );
 			gd.addCheckbox( "ignore constant background", rejectIdentity );
 			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
-			
-			gd.addMessage( "Alignment:" );
-			gd.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
-			gd.addNumericField( "correspondence weight :", correspondenceWeight, 2 );
 		}
 		
-		public boolean readFields( final GenericDialog gd )
+		public void addAlignmentFields( final GenericDialog gd )
+		{
+			gd.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
+			gd.addNumericField( "correspondence weight :", correspondenceWeight, 2 );
+			gd.addCheckbox( "regularize", regularize );
+		}
+		
+		public void addRegularizationFields( final GenericDialog gd )
+		{
+			gd.addChoice( "regularizer :", modelStrings, modelStrings[ regularizerModelIndex ] );
+			gd.addNumericField( "lambda :", lambda, 2 );
+		}
+		
+		
+		public void addFields( final GenericDialog gd )
+		{
+			addSIFTFields( gd );
+			
+			gd.addMessage( "Geometric Consensus Filter:" );
+			
+			addGeometricConsensusFilterFields( gd );
+			
+			gd.addMessage( "Alignment:" );
+			
+			addAlignmentFields( gd );
+			addRegularizationFields( gd );
+		}
+		
+		public boolean readSIFTFields( final GenericDialog gd )
 		{
 			SIFT.readFields( gd, sift );
-			
 			rod = ( float )gd.getNextNumber();
 			
+			return !gd.invalidNumber();
+		}
+		
+		public boolean readGeometricConsensusFilterFields( final GenericDialog gd )
+		{	
 			maxEpsilon = ( float )gd.getNextNumber();
 			minInlierRatio = ( float )gd.getNextNumber();
 			minNumInliers = ( int )gd.getNextNumber();
@@ -138,25 +172,79 @@ public class Align
 			rejectIdentity = gd.getNextBoolean();
 			identityTolerance = ( float )gd.getNextNumber();
 			
+			return !gd.invalidNumber();
+		}
+		
+		public boolean readAlignmentFields( final GenericDialog gd )
+		{
 			desiredModelIndex = gd.getNextChoiceIndex();
-			
 			correspondenceWeight = ( float )gd.getNextNumber();
+			regularize = gd.getNextBoolean();
 			
 			return !gd.invalidNumber();
 		}
-	
-		public boolean setup( final String title )
+		
+		public boolean readRegularizationFields( final GenericDialog gd )
 		{
-			final GenericDialog gd = new GenericDialog( title );
+			regularizerModelIndex = gd.getNextChoiceIndex();
+			lambda = gd.getNextNumber();
 			
-			addFields( gd );
-			
+			return !gd.invalidNumber();
+		}
+		
+		public boolean readFields( final GenericDialog gd )
+		{
+			boolean b = readSIFTFields( gd );
+			b &= readGeometricConsensusFilterFields( gd );
+			b &= readAlignmentFields( gd );
+			b &= readRegularizationFields( gd );
+			return b;
+		}
+	
+		final public boolean setup( final String title )
+		{
+			/* SIFT */
+			final GenericDialog gdSIFT = new GenericDialog( title + ": SIFT parameters" );
+			addSIFTFields( gdSIFT );
 			do
 			{
-				gd.showDialog();
-				if ( gd.wasCanceled() ) return false;
+				gdSIFT.showDialog();
+				if ( gdSIFT.wasCanceled() ) return false;
 			}			
-			while ( !readFields( gd ) );
+			while ( !readSIFTFields( gdSIFT ) );
+			
+			/* Geometric consensus */
+			final GenericDialog gdGeometricConsensusFilter = new GenericDialog( title + ": Geometric Consensus Filter" );
+			addGeometricConsensusFilterFields( gdGeometricConsensusFilter );
+			do
+			{
+				gdGeometricConsensusFilter.showDialog();
+				if ( gdGeometricConsensusFilter.wasCanceled() ) return false;
+			}			
+			while ( !readGeometricConsensusFilterFields( gdGeometricConsensusFilter ) );
+			
+			/* Alignment */
+			final GenericDialog gdAlignment = new GenericDialog( title + ": Alignment parameters" );
+			addAlignmentFields( gdAlignment );
+			do
+			{
+				gdAlignment.showDialog();
+				if ( gdAlignment.wasCanceled() ) return false;
+			}			
+			while ( !readAlignmentFields( gdAlignment ) );
+			
+			/* Regularization */
+			if ( regularize )
+			{
+				final GenericDialog gdRegularization = new GenericDialog( title + ": Regularization parameters" );
+				addRegularizationFields( gdRegularization );
+				do
+				{
+					gdRegularization.showDialog();
+					if ( gdRegularization.wasCanceled() ) return false;
+				}			
+				while ( !readRegularizationFields( gdRegularization ) );
+			}
 			
 			return true;
 		}
@@ -181,8 +269,10 @@ public class Align
 			p.identityTolerance = identityTolerance;
 			
 			p.desiredModelIndex = desiredModelIndex;
-			
 			p.correspondenceWeight = correspondenceWeight;
+			p.regularize = regularize;
+			p.regularizerModelIndex = regularizerModelIndex;
+			p.lambda = lambda;
 			
 			return p;
 		}
@@ -218,8 +308,6 @@ public class Align
 	
 	static public class ParamOptimize extends Param
 	{
-		private static final long serialVersionUID = 970673723211054580L;
-
 		/**
 		 * Maximal number of iteration allowed for the optimizer.
 		 */
@@ -236,6 +324,32 @@ public class Align
 		 */
 		public boolean filterOutliers = false;
 		public float meanFactor = 3.0f;
+		
+		@Override
+		public void addAlignmentFields( final GenericDialog gd )
+		{
+			super.addAlignmentFields( gd );
+			
+			gd.addMessage( "Optimization:" );
+			
+			gd.addNumericField( "maximal_iterations :", maxIterations, 0 );
+			gd.addNumericField( "maximal_plateauwidth :", maxPlateauwidth, 0 );
+			gd.addCheckbox( "filter outliers", filterOutliers );
+			gd.addNumericField( "mean_factor :", meanFactor, 2 );
+		}
+		
+		@Override
+		public boolean readAlignmentFields( final GenericDialog gd )
+		{
+			super.readAlignmentFields( gd );
+			
+			maxIterations = ( int )gd.getNextNumber();
+			maxPlateauwidth = ( int )gd.getNextNumber();
+			filterOutliers = gd.getNextBoolean();
+			meanFactor = ( float )gd.getNextNumber();
+			
+			return !gd.invalidNumber();
+		}
 		
 		@Override
 		public void addFields( final GenericDialog gd )
@@ -261,22 +375,7 @@ public class Align
 			return !gd.invalidNumber();
 		}
 		
-		@Override
-		final public boolean setup( final String title )
-		{
-			final GenericDialog gd = new GenericDialog( title );
-			
-			addFields( gd );
-			
-			do
-			{
-				gd.showDialog();
-				if ( gd.wasCanceled() ) return false;
-			}			
-			while ( !readFields( gd ) );
-			
-			return true;
-		}
+		
 		
 		@Override
 		final public ParamOptimize clone()
@@ -299,6 +398,9 @@ public class Align
 			p.identityTolerance = identityTolerance;
 			
 			p.desiredModelIndex = desiredModelIndex;
+			p.regularize = regularize;
+			p.regularizerModelIndex = regularizerModelIndex;
+			p.lambda = lambda;
 			p.maxIterations = maxIterations;
 			p.maxPlateauwidth = maxPlateauwidth;
 			p.filterOutliers = filterOutliers;
@@ -1021,22 +1123,39 @@ public class Align
 		for ( final Patch patch : patches )
 		{
 			final AbstractAffineTile2D< ? > t;
-			switch ( p.desiredModelIndex )
+			if ( p.regularize )
 			{
-			case 0:
-				t = new TranslationTile2D( patch );
-				break;
-			case 1:
-				t = new RigidTile2D( patch );
-				break;
-			case 2:
-				t = new SimilarityTile2D( patch );
-				break;
-			case 3:
-				t = new AffineTile2D( patch );
-				break;
-			default:
-				return;
+				/* can only be affine per convention */
+				final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( p.desiredModelIndex );
+				final AbstractAffineModel2D< ? > r = ( AbstractAffineModel2D< ? > )Util.createModel( p.regularizerModelIndex );
+				
+				/* for type safety one would test both models as for the simple
+				 * case below but here I will go for the easy route and let
+				 * Java cast it to what is required and ignore the warning.
+				 */
+				final InterpolatedAffineModel2D< ?, ? > interpolatedModel = new InterpolatedAffineModel2D( m, r, ( float )p.lambda );
+				
+				t = new GenericAffineTile2D< InterpolatedAffineModel2D< ?, ? > >( interpolatedModel, patch );
+			}
+			else
+			{
+				switch ( p.desiredModelIndex )
+				{
+				case 0:
+					t = new TranslationTile2D( patch );
+					break;
+				case 1:
+					t = new RigidTile2D( patch );
+					break;
+				case 2:
+					t = new SimilarityTile2D( patch );
+					break;
+				case 3:
+					t = new AffineTile2D( patch );
+					break;
+				default:
+					return;
+				}
 			}
 			tiles.add( t );
 			if ( ( fixedPatches != null && fixedPatches.contains( patch ) ) || patch.isLocked() )
