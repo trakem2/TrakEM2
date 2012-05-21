@@ -49,10 +49,10 @@ import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AbstractModel;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.HomographyModel2D;
+import mpicbg.models.InterpolatedAffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
-import mpicbg.models.InterpolatedAffineModel2D;
 import mpicbg.models.RigidModel2D;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
@@ -93,14 +93,14 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		 * Transformation models for choice
 		 */
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
-		public int modelIndex = 3;
+		public int expectedModelIndex = 3;
 		
 		/**
-		 * Regularization models for choice
+		 * Regularization
 		 */
+		public boolean regularize = false;
 		public int regularizerIndex = 1;
-		
-		public float lambda = 0.5f;
+		public float lambda = 0.1f;
 		
 		/**
 		 * Ignore identity transform up to a given tolerance
@@ -111,14 +111,14 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		/**
 		 * Maximal number of consecutive sections to be tested for an alignment model
 		 */
-		public int maxNumNeighbors = 10;
+		public int maxNumNeighbors = 1;
 		
 		/**
 		 * Maximal number of consecutive slices for which no model could be found
 		 */
 		public int maxNumFailures = 3;
 		
-		public int modelIndexOptimize = 3;
+		public int desiredModelIndex = 3;
 		public int maxIterationsOptimize = 1000;
 		public int maxPlateauwidthOptimize = 200;
 		
@@ -159,7 +159,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
 			gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
 			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
-			gd.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ modelIndex ] );
+			gd.addChoice( "expected_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
 			gd.addCheckbox( "ignore constant background", rejectIdentity );
 			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 			gd.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
@@ -173,32 +173,46 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 			maxEpsilon = ( float )gd.getNextNumber();
 			minInlierRatio = ( float )gd.getNextNumber();
 			minNumInliers = ( int )gd.getNextNumber();
-			modelIndex = gd.getNextChoiceIndex();
+			expectedModelIndex = gd.getNextChoiceIndex();
 			rejectIdentity = gd.getNextBoolean();
 			identityTolerance = ( float )gd.getNextNumber();
 			maxNumNeighbors = ( int )gd.getNextNumber();
 			maxNumFailures = ( int )gd.getNextNumber();
 			
-			
-			/* Optimization */
 			final GenericDialog gdOptimize = new GenericDialog( "Align layers: Optimization" );
-			
-			gdOptimize.addChoice( "transformation :", Param.modelStrings, Param.modelStrings[ modelIndexOptimize ] );
-			gdOptimize.addChoice( "regularizer :", Param.modelStrings, Param.modelStrings[ regularizerIndex ] );
-			gdOptimize.addNumericField( "lambda :", lambda, 3 );
+			gdOptimize.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
+			gdOptimize.addCheckbox( "regularize model", regularize );
+			gdOptimize.addMessage( "Optimization:" );
 			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
+			//gdOptimize.addCheckbox( "filter outliers", filterOutliers );
+			//gdOptimize.addNumericField( "mean_factor :", meanFactor, 2 );
 			
 			gdOptimize.showDialog();
 			
 			if ( gdOptimize.wasCanceled() )
 				return false;
 			
-			modelIndexOptimize = gdOptimize.getNextChoiceIndex();
-			regularizerIndex = gdOptimize.getNextChoiceIndex();
-			lambda = ( float )gdOptimize.getNextNumber();
+			desiredModelIndex = gdOptimize.getNextChoiceIndex();
+			regularize = gdOptimize.getNextBoolean();
 			maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
 			maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
+			
+			if ( regularize )
+			{
+				final GenericDialog gdRegularize = new GenericDialog( "Align layers: Regularization" );
+				
+				gdRegularize.addChoice( "regularizer :", modelStrings, modelStrings[ regularizerIndex ] );
+				gdRegularize.addNumericField( "lambda :", lambda, 2 );
+				
+				gdRegularize.showDialog();
+				
+				if ( gdRegularize.wasCanceled() )
+					return false;
+				
+				regularizerIndex = gdRegularize.getNextChoiceIndex();
+				lambda = ( float )gdRegularize.getNextNumber();
+			}
 			
 			return true;
 		}
@@ -330,6 +344,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 			final LayerSet layerSet,
 			final int first,
 			final int last,
+			final int ref,
 			final boolean propagateTransform,
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
@@ -385,12 +400,15 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
-		final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( p.modelIndexOptimize );
+		final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( p.desiredModelIndex );
 		final AbstractAffineModel2D< ? > r = ( AbstractAffineModel2D< ? > )Util.createModel( p.regularizerIndex );
 		
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
-			tiles.add( new Tile( new InterpolatedAffineModel2D( m.copy(), r.copy(), p.lambda ) ) );
+			if ( p.regularize )
+				tiles.add( new Tile( m.copy() ) );
+			else
+				tiles.add( new Tile( new InterpolatedAffineModel2D( m.copy(), r.copy(), p.lambda ) ) );
 		}
 		
 		/* collect all pairs of slices for which a model could be found */
@@ -487,7 +505,7 @@ J:			for ( int j = i + 1; j < range; )
 							}
 		
 							AbstractModel< ? > model;
-							switch ( p.modelIndex )
+							switch ( p.expectedModelIndex )
 							{
 							case 0:
 								model = new TranslationModel2D();
@@ -603,23 +621,26 @@ J:			for ( int j = i + 1; j < range; )
 		
 		
 		/* Optimization */
-		final TileConfiguration initMeshes = new TileConfiguration();
+		final TileConfiguration tileConifguration = new TileConfiguration();
 		
 		for ( final Triple< Integer, Integer, Collection< PointMatch > > pair : pairs )
 		{
 			final Tile< ? > t1 = tiles.get( pair.a );
 			final Tile< ? > t2 = tiles.get( pair.b );
 			
-			initMeshes.addTile( t1 );
-			initMeshes.addTile( t2 );
+			tileConifguration.addTile( t1 );
+			tileConifguration.addTile( t2 );
 			t2.connect( t1, pair.c );
 		}
 		
-		final List< Tile< ? >  > nonPreAlignedTiles = initMeshes.preAlign();
+		if ( ref >= first && ref <= last )
+			tileConifguration.fixTile( tiles.get( ref - first ) );
+		
+		final List< Tile< ? >  > nonPreAlignedTiles = tileConifguration.preAlign();
 		
 		IJ.log( "pre-aligned all but " + nonPreAlignedTiles.size() + " tiles" );
 		
-		initMeshes.optimize(
+		tileConifguration.optimize(
 				p.maxEpsilon,
 				p.maxIterationsOptimize,
 				p.maxPlateauwidthOptimize );

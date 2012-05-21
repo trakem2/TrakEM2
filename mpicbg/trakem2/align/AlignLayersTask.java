@@ -117,8 +117,13 @@ final public class AlignLayersTask
 	{
 		final List< Layer > layers = l.getParent().getLayers();
 		final String[] layerTitles = new String[ layers.size() ];
+		final String[] noneAndLayerTitles = new String[ layers.size() + 1 ];
+		noneAndLayerTitles[ 0 ] = "*None*";
 		for ( int i = 0; i < layers.size(); ++i )
+		{
 			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
+			noneAndLayerTitles[ i + 1 ] = layerTitles[ i ];
+		}
 		
 		//Param p = Align.param;
 		//Align.param.sift.maxOctaveSize = 1024;
@@ -130,7 +135,7 @@ final public class AlignLayersTask
 		gd.addMessage( "Layer Range:" );
 		final int sel = l.getParent().indexOf(l);
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
-		gd.addChoice( "reference :", layerTitles, layerTitles[ sel ] );
+		gd.addChoice( "reference :", noneAndLayerTitles, layerTitles[ sel ] );
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		gd.addStringField("Use only images whose title matches:", "", 30);
 		gd.addCheckbox("Use visible images only", true);
@@ -141,22 +146,25 @@ final public class AlignLayersTask
 		cstart.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent ie) {
 				int index = cstart.getSelectedIndex();
-				if (index > cref.getSelectedIndex()) cref.select(index);
+				if (cref.getSelectedIndex() > 0 && index >= cref.getSelectedIndex()) cref.select(index + 1);
 				if (index > cend.getSelectedIndex()) cend.select(index);
 			}
 		});
 		cref.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent ie) {
 				int index = cref.getSelectedIndex();
-				if (index < cstart.getSelectedIndex()) cstart.select(index);
-				if (index > cend.getSelectedIndex()) cend.select(index);
+				if (index > 0)
+				{
+					if (index < cstart.getSelectedIndex() - 1) cstart.select(index - 1);
+					if (index >= cend.getSelectedIndex()) cend.select(index - 1);
+				}
 			}
 		});
 		cend.addItemListener(new ItemListener() {
 			public void itemStateChanged(ItemEvent ie) {
 				int index = cend.getSelectedIndex();
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
-				if (index < cref.getSelectedIndex()) cref.select(index);
+				if (cref.getSelectedIndex() > 0 && index <= cref.getSelectedIndex()) cref.select(index + 1);
 			}
 		});
 		
@@ -166,7 +174,7 @@ final public class AlignLayersTask
 		mode = gd.getNextChoiceIndex();
 		
 		final int first = gd.getNextChoiceIndex();
-		final int ref = gd.getNextChoiceIndex();
+		final int ref = gd.getNextChoiceIndex() - 1;
 		final int last = gd.getNextChoiceIndex();
 		
 		final String toMatch1 = gd.getNextString().trim();
@@ -184,8 +192,8 @@ final public class AlignLayersTask
 
 		if ( mode == ELASTIC )
 			new ElasticLayerAlignment().exec( l.getParent(), first, last, propagateTransform, fov, filter );
-		else if ( mode == REGULARIZED )
-			new RegularizedAffineLayerAlignment().exec( l.getParent(), first, last, propagateTransform, fov, filter );
+		else if ( mode == LINEAR )
+			new RegularizedAffineLayerAlignment().exec( l.getParent(), first, last, ref, propagateTransform, fov, filter );
 		else
 		{
 			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
