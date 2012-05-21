@@ -29,6 +29,7 @@ import ij.ImagePlus;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.tree.LayerThing;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -506,7 +507,24 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
-	
+
+	synchronized public ArrayList<Displayable> getDisplayables(final Class<?> c, final boolean visible_only, final boolean instance_of) {
+		final ArrayList<Displayable> al = new ArrayList<Displayable>();
+		if (null == c) return al;
+		if (instance_of) {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				if (c.isAssignableFrom(d.getClass())) al.add(d);
+			}
+		} else {
+			for (final Displayable d : al_displayables) {
+				if (visible_only && !d.isVisible()) continue;
+				if (d.getClass() == c) al.add(d);
+			}
+		}
+		return al;
+	}
+
 
 	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
 	public Collection<Displayable> getDisplayables(final Class<?> c, final Rectangle roi) {
@@ -848,7 +866,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, String indent, Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		final String in = indent + "\t";
 		// 1 - open tag
 		sb_body.append(indent).append("<t2_layer oid=\"").append(id).append("\"\n")
@@ -863,7 +881,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		// 2 - export children
 		if (null != al_displayables) {
 			for (final Displayable d : al_displayables) {
-				d.exportXML(sb_body, in, any);
+				d.exportXML(sb_body, in, options);
 			}
 		}
 		// 3 - close tag

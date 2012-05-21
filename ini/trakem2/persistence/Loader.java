@@ -122,6 +122,7 @@ import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
 import mpi.fruitfly.general.MultiThreading;
 import mpicbg.trakem2.transform.ExportUnsignedShort;
+import mpicbg.trakem2.util.Triple;
 
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -129,6 +130,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import loci.formats.ChannelSeparator;
 import loci.formats.FormatException;
@@ -226,6 +228,9 @@ abstract public class Loader {
 	transient protected final Cache mawts = new Cache((long)(MAX_MEMORY * heap_fraction));
 	
 	static transient protected Vector<Loader> v_loaders = new Vector<Loader>(); // Vector: synchronized
+	
+	/** A collection of stale files that will be removed after the XML file is saved successfully. */
+	private final Set<String> stale_files = Collections.synchronizedSet(new HashSet<String>());
 
 	private final void setMaxBytes(final long max_bytes) {
 		synchronized (db_lock) {
@@ -1003,11 +1008,9 @@ abstract public class Loader {
 							final int lev = getClosestMipMapLevel(p, level, max_level); // finds the file for the returned level, otherwise returns zero
 							//Utils.log2("closest mipmap level is " + lev);
 							if (lev > -1) {
-								boolean newly_cached = false;
 								mipMap = fetchMipMapAWT( p, lev, n_bytes ); // overestimating n_bytes
 								if ( null != mipMap ) {
 									mawts.put( id, mipMap.image, lev );
-									newly_cached = true; // means: cached was false, now it is
 									//Utils.log2("from getClosestMipMapLevel: mawt is " + mawt);
 									Display.repaintSnapshot( p );
 									//Utils.log2("returning from getClosestMipMapAWT with level " + lev);
@@ -1084,10 +1087,11 @@ abstract public class Loader {
 					}
 					pai = null;
 					if (null != alpha_mask) {
-						mawt = createARGBImage(ip.getWidth(), ip.getHeight(),
-								embedAlpha((int[])ip.convertToRGB().getPixels(),
+						mawt = ImageSaver.createARGBImagePre(
+								embedAlphaPre((int[])ip.convertToRGB().getPixels(),
 										(byte[])alpha_mask.getPixels(),
-										null == outside_mask ? null : (byte[])outside_mask.getPixels()));
+										null == outside_mask ? null : (byte[])outside_mask.getPixels()),
+								ip.getWidth(), ip.getHeight());
 					} else {
 						mawt = ip.createImage();
 					}
@@ -1116,20 +1120,29 @@ abstract public class Loader {
 		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 	}
 
-	/** Returns null.*/
+	/**
+	 * @see Patch#getAlphaMask()
+	 */
+	@Deprecated
 	public ByteProcessor fetchImageMask(final Patch p) {
-		return null;
+		return p.getAlphaMask();
 	}
 
-	public String getAlphaPath(final Patch p) {
-		return null;
+	/**
+	 * @see Patch#setAlphaMask(ByteProcessor)
+	 */
+	@Deprecated
+	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
+		p.setAlphaMask(fp);
 	}
 
-	/** Does nothing unless overriden. */
-	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {}
-
-	/** Does nothing unless overriden. */
-	public boolean removeAlphaMask(final Patch p) { return false; }
+	/**
+	 * @see Patch#setAlphaMask(ByteProcessor) 
+	 */
+	@Deprecated
+	public boolean removeAlphaMask(final Patch p) {
+		return p.setAlphaMask(null);
+	}
 
 	/** Simply reads from the cache, does no reloading at all. If the ImagePlus is not found in the cache, it returns null and the burden is on the calling method to do reconstruct it if necessary. This is intended for the LayerStack. */
 	public ImagePlus getCachedImagePlus(final long id) {
@@ -1991,7 +2004,7 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat importImages(final Layer ref_layer) {
-		return importImages(ref_layer, null, null, 0, 0, false, 1);
+		return importImages(ref_layer, null, null, 0, 0, false, 1, 0);
 	}
 
 	/** <p>Import images from the given text file, which is expected to contain 4 columns or optionally 9 columns:</p>
@@ -2018,7 +2031,7 @@ while (it.hasNext()) {
 	 * @param calibration_ transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 * @param scale_ Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
-	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_) {
+	public Bureaucrat importImages(Layer ref_layer, String abs_text_file_path_, String column_separator_, double layer_thickness_, double calibration_, boolean homogenize_contrast_, float scale_, int border_width_) {
 		// check parameters: ask for good ones if necessary
 		if (null == abs_text_file_path_) {
 			String[] file = Utils.selectFile("Select text file");
@@ -2036,6 +2049,7 @@ while (it.hasNext()) {
 			gdd.addNumericField("Calibration (data to pixels): ", 1, 2);
 			gdd.addCheckbox("Homogenize contrast layer-wise", homogenize_contrast_);
 			gdd.addSlider("Scale:", 0, 100, 100);
+			gdd.addNumericField("Hide border with alpha mask", 0, 0, 6, "pixels");
 			gdd.showDialog();
 			if (gdd.wasCanceled()) return null;
 			layer_thickness_ = gdd.getNextNumber();
@@ -2065,6 +2079,13 @@ while (it.hasNext()) {
 			double sc = gdd.getNextNumber();
 			if (Double.isNaN(sc)) scale_ = 1.0f;
 			else scale_ = ((float)sc)/100.0f;
+			
+			int border = (int)gdd.getNextNumber();
+			if (border < 0) {
+				Utils.log("Nonsensical border value: " + border);
+				return null;
+			}
+			border_width_ = border;
 		}
 
 		if (Float.isNaN(scale_) || scale_ < 0 || scale_ > 1) {
@@ -2080,7 +2101,7 @@ while (it.hasNext()) {
 		final double calibration = calibration_;
 		final boolean homogenize_contrast = homogenize_contrast_;
 		final float scale = (float)scale_;
-
+		final int border_width = border_width_;
 
 		return Bureaucrat.createAndStart(new Worker.Task("Importing images", true) {
 			public void exec() {
@@ -2155,6 +2176,8 @@ while (it.hasNext()) {
 
 					Utils.log("Scaling script path is " + script_path);
 
+					final AtomicReference<Triple<Integer,Integer,ByteProcessor>> last_mask = new AtomicReference<Triple<Integer,Integer,ByteProcessor>>();
+					
 					// 3 - parse each line
 					for (int i = 0; i < lines.length; i++) {
 						if (Thread.currentThread().isInterrupted() || hasQuitted()) {
@@ -2354,6 +2377,26 @@ while (it.hasNext()) {
 									} catch (Throwable t) {
 										Utils.log("FAILED to set a scaling preprocessor script to patch " + patch);
 										IJError.print(t);
+									}
+								}
+								
+								// Set an alpha mask to crop away the borders
+								if (border_width > 0) {
+									final Triple<Integer,Integer,ByteProcessor> m = last_mask.get();
+									if (null != m && m.a == patch.getOWidth() && m.b == patch.getOHeight()) {
+										// Reuse
+										patch.setAlphaMask(m.c);
+									} else {
+										// Create new mask
+										ByteProcessor mask = new ByteProcessor(patch.getOWidth(), patch.getOHeight());
+										mask.setValue(255);
+										mask.setRoi(new Roi(border_width, border_width,
+												mask.getWidth() - 2 * border_width,
+												mask.getHeight() - 2 * border_width));
+										mask.fill();
+										patch.setAlphaMask(mask);
+										// Store as last
+										last_mask.set(new Triple<Integer,Integer,ByteProcessor>(mask.getWidth(), mask.getHeight(), mask));
 									}
 								}
 								
@@ -3133,6 +3176,10 @@ while (it.hasNext()) {
 						// Respect alpha masks and display range:
 						Utils.log("WARNING: ignoring scale for 'use original images' and '8-bit' options");
 						snapshot = ExportUnsignedShort.makeFlatImage((ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), srcRect, 0).convertToByte(true);						
+					} else {
+						Utils.log("ERROR: don't know how to generate mipmaps for type '" + type + "'");
+						cleanUp();
+						return;
 					}
 
 					int scale_pow = 0;
@@ -3165,7 +3212,6 @@ while (it.hasNext()) {
 													}
 												}
 												return saver.save(new ImagePlus(path, new ByteProcessor(tileSide, tileSide, p, GRAY_LUT)), path);
-												//return ImageSaver.saveAsGreyJpeg(p, tile_side, tile_side, path, jpeg_quality);
 											} else {
 												final int[] pixels = (int[]) source.getPixels();
 												final int[] p = new int[tileSide * tileSide];
@@ -3176,8 +3222,7 @@ while (it.hasNext()) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												return saver.save(new ImagePlus(path, new ColorProcessor(tileSide, tileSide, pixels)), path);
-												//return ImageSaver.saveAsARGBJpeg(p, tile_side, tile_side, path, jpeg_quality);
+												return saver.save(new ImagePlus(path, new ColorProcessor(tileSide, tileSide, p)), path);
 											}
 										}
 									}));
@@ -3733,10 +3778,18 @@ while (it.hasNext()) {
 		return importStackAsPatches(project, first_layer, Double.MAX_VALUE, Double.MAX_VALUE, stack, as_copy, filepath);
 	}
 	abstract protected Patch importStackAsPatches(final Project project, final Layer first_layer, final double x, final double y, final ImagePlus stack, final boolean as_copy, String filepath);
-
-	protected String export(Project project, File fxml) {
-		return export(project, fxml, true);
+	
+	
+	/**
+	 * Add a file path for removal when the XML is successfully saved.
+	 * 
+	 * @param path The path to the stale file.
+	 * @return
+	 */
+	public final boolean markStaleFileForDeletionUponSaving(final String path) {
+		return stale_files.add(path);
 	}
+	
 	
 	private final long estimateXMLFileSize(final File fxml) {
 		try {
@@ -3748,23 +3801,22 @@ while (it.hasNext()) {
 	}
 
 	/** Exports the project and its images (optional); if export_images is true, it will be asked for confirmation anyway -beware: for FSLoader, images are not exported since it doesn't own them; only their path.*/
-	protected String export(final Project project, final File fxml, boolean export_images) {
+	protected String export(final Project project, final File fxml, final XMLOptions options) {
 		String path = null;
 		if (null == project || null == fxml) return null;
 		
 		releaseToFit(estimateXMLFileSize(fxml));
 		
 		try {
-			if (export_images && !(this instanceof FSLoader))  {
+			if (options.export_images && !(this instanceof FSLoader))  {
 				final YesNoCancelDialog yn = ini.trakem2.ControlWindow.makeYesNoCancelDialog("Export images?", "Export images as well?");
 				if (yn.cancelPressed()) return null;
-				if (yn.yesPressed()) export_images = true;
-				else export_images = false; // 'no' option
+				if (yn.yesPressed()) options.export_images = true;
+				else options.export_images = false; // 'no' option
 			}
 
-			String patches_dir = null;
-			if (export_images) {
-				patches_dir = makePatchesDir(fxml);
+			if (options.export_images) {
+				options.patches_dir = makePatchesDir(fxml);
 			}
 			// Write first to a tmp file, then remove the existing XML and move the tmp to that name
 			// In this way, if there is an error while writing, the existing XML is not destroyed.
@@ -3774,6 +3826,7 @@ while (it.hasNext()) {
 			final File ftmp = IJ.isWindows() ? fxml : new File(new StringBuilder(fxml.getAbsolutePath()).append(".tmp").toString());
 			final FileOutputStream fos = new FileOutputStream(ftmp);
 			
+			// TODO: test saving times if the BufferedOutputStream is given a much larger buffer size than the default 8192.
 			java.io.Writer writer;
 			if (fxml.getName().endsWith(".xml.gz")) {
 				writer = new OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(fos)), "8859_1");
@@ -3782,7 +3835,7 @@ while (it.hasNext()) {
 			}
 
 			try {
-				writeXMLTo(project, writer, patches_dir);
+				writeXMLTo(project, writer, options);
 				fos.getFD().sync(); // ensure the file is synch'ed with the file system, given that we are going to rename it after closing it.
 			} catch (Exception e) {
 				Utils.log("FAILED to write to the file at " + fxml);
@@ -3819,8 +3872,8 @@ while (it.hasNext()) {
 			project.setTitle(fxml.getName());
 
 			// Remove the patches_dir if empty (can happen when doing a "save" on a FSLoader project if no new Patch have been created that have no path.
-			if (export_images) {
-				File fpd = new File(patches_dir);
+			if (options.export_images) {
+				File fpd = new File(options.patches_dir);
 				if (fpd.exists() && fpd.isDirectory()) {
 					// check if it contains any files
 					File[] ff = fpd.listFiles();
@@ -3836,12 +3889,32 @@ while (it.hasNext()) {
 						try {
 							fpd.delete();
 						} catch (Exception e) {
-							Utils.log2("Could not delete empty directory " + patches_dir);
+							Utils.log2("Could not delete empty directory " + options.patches_dir);
 							IJError.print(e);
 						}
 					}
 				}
 			}
+			
+			// Remove files that are no longer relevant
+			final ArrayList<String> stales;
+			synchronized (stale_files) {
+				stales = new ArrayList<String>(stale_files);
+				stale_files.clear();
+			}
+			for (String stale_path : stales) {
+				File f = new File(stale_path);
+				if (f.exists()) {
+					if (f.delete()) {
+						Utils.logAll("Deleted stale file at " + stale_path);
+					} else {
+						Utils.logAll("FAILED to delete stale file at " + stale_path);
+					}
+				} else {
+					Utils.logAll("Ignoring non-existent stale file " + stale_path);
+				}
+			}
+			
 
 		} catch (Throwable t) {
 			IJError.print(t);
@@ -3856,13 +3929,13 @@ while (it.hasNext()) {
 	 * @param writer
 	 * @param patches_dir Null if images are not being exported.
 	 * */
-	public void writeXMLTo(final Project project, final Writer writer, final String patches_dir) throws Exception {
+	public void writeXMLTo(final Project project, final Writer writer, final XMLOptions options) throws Exception {
 			StringBuilder sb_header = new StringBuilder(30000).append("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
 			project.exportDTD(sb_header, new HashSet<String>(), "\t");
 			sb_header.append("] >\n\n");
 			writer.write(sb_header.toString());
 			sb_header = null;
-			project.exportXML(writer, "", patches_dir);
+			project.exportXML(writer, "", options);
 			writer.flush(); // make sure all buffered chars are written
 	}
 
@@ -3878,20 +3951,21 @@ while (it.hasNext()) {
 		return count;
 	}
 
-	/** Calls saveAs() unless overriden. Returns full path to the xml file. */
-	public String save(Project project) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
-		String path = saveAs(project);
+	/** Calls saveAs() unless overriden. Returns full path to the xml file. 
+	 * @param options TODO*/
+	public String save(Project project, XMLOptions options) { // yes the project is the same project pointer, which for some reason I never committed myself to place it in the Loader class as a field.
+		String path = saveAs(project, options);
 		if (null != path) setChanged(false);
 		return path;
 	}
 
 	/** Save the project under a different name by choosing from a dialog, and exporting all images (will popup a YesNoCancelDialog to confirm exporting images.) */
-	public String saveAs(Project project) {
-		return saveAs(project, null, true);
+	public String saveAs(Project project, XMLOptions options) {
+		return saveAs(project, null, options);
 	}
 
 	/** Exports to an XML file chosen by the user in a dialog if @param xmlpath is null. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
-	public String saveAs(Project project, String xmlpath, boolean export_images) {
+	public String saveAs(Project project, String xmlpath, XMLOptions options) {
 		String storage_dir = getStorageFolder();
 		String mipmaps_dir = getMipMapsFolder();
 		// Select a file to export to
@@ -3902,7 +3976,7 @@ while (it.hasNext()) {
 			copy = getPathsCopy();
 			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
 		}
-		String path = export(project, fxml, export_images);
+		String path = export(project, fxml, options);
 		if (null != path) setChanged(false);
 		else {
 			// failed, so restore paths
@@ -3916,10 +3990,11 @@ while (it.hasNext()) {
 	protected Map<Long,String> getPathsCopy() { return null; }
 	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 
-	/** Meant to be overriden -- as is, will call saveAs(project, path, export_images = getClass() != FSLoader.class ). */
-	public String saveAs(String path, boolean overwrite) {
+	/** Meant to be overriden -- as is, will set {@param options}.{@link XMLOptions#export_images} to this.getClass() != FSLoader.class. */
+	public String saveAs(String path, XMLOptions options) {
 		if (null == path) return null;
-		return export(Project.findProject(this), new File(path), this.getClass() != FSLoader.class);
+		options.export_images =  this.getClass() != FSLoader.class;
+		return export(Project.findProject(this), new File(path), options);
 	}
 
 	/** Parses the xml_path and returns the folder in the same directory that has the same name plus "_images". Note there isn't an ending backslash. */
@@ -4691,18 +4766,41 @@ while (it.hasNext()) {
 		return (int)(0.5 + (Math.log(size) - Math.log(64)) / Math.log(2));
 	}
 
-	static public final int NEAREST_NEIGHBOR = 0;
-	static public final int BILINEAR = 1;
-	static public final int BICUBIC = 2;
-	static public final int GAUSSIAN = 3;
-	static public final int AREA_AVERAGING = 4;
-	static public final String[] modes = new String[]{"Nearest neighbor", "Bilinear", "Bicubic", "Gaussian"}; //, "Area averaging"};
 
-	static public final int getMode(final String mode) {
-		for (int i=0; i<modes.length; i++) {
-			if (mode.equals(modes[i])) return i;
+	// Modes used for scaling images when creating mipmap pyramids
+	static public final int GAUSSIAN = 3;
+	static public final int INTEGRAL_AREA_AVERAGING = 5;
+	static public final int AREA_DOWNSAMPLING = 6;
+	
+	// Home-made enum. Java enum have too much magic.
+	static public final Map<Integer,String> MIPMAP_MODES;
+	static {
+		final TreeMap<Integer,String> modes = new TreeMap<Integer, String>();
+		modes.put(GAUSSIAN, "Gaussian");
+		modes.put(INTEGRAL_AREA_AVERAGING, "Integral area averaging");
+		modes.put(AREA_DOWNSAMPLING, "Area downsampling");
+		MIPMAP_MODES = Collections.unmodifiableSortedMap(modes);
+	}
+
+	/** Points to {@link Loader#AREA_DOWNSAMPLING}. */
+	static public final int DEFAULT_MIPMAPS_MODE = AREA_DOWNSAMPLING;
+
+	/** Returns the default if {@param mode} is not recognized. */
+	static public final String getMipMapModeName(final int mode) {
+		final String s = MIPMAP_MODES.get(mode);
+		return null == s ? MIPMAP_MODES.get(AREA_DOWNSAMPLING) : s;
+	}
+	
+	/** Returns the default ({@link #DEFAULT_MIPMAPS_MODE}) if the {@param mode} is not recognized. */
+	static public final int getMipMapModeIndex(final String mode) {
+		if (null == mode) return DEFAULT_MIPMAPS_MODE;
+		final String lmode = mode.toLowerCase();
+		for (final Map.Entry<Integer, String> e : MIPMAP_MODES.entrySet()) {
+			if (e.getValue().toLowerCase().equals(lmode)) {
+				return e.getKey();
+			}
 		}
-		return 0;
+		return DEFAULT_MIPMAPS_MODE;
 	}
 
 	/** Does nothing unless overriden. */
@@ -4739,13 +4837,6 @@ while (it.hasNext()) {
 
 	public void removeFromUnloadable(final Displayable p) { hs_unloadable.remove(p); }
 
-	protected static final BufferedImage createARGBImage(final int width, final int height, final int[] pix) {
-		final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-		// In one step, set pixels that contain the alpha byte already:
-		bi.setRGB( 0, 0, width, height, pix, 0, width );
-		return bi;
-	}
-
 	/** Embed the alpha-byte into an int[], changes the int[] in place and returns it */
 	protected static final int[] embedAlpha( final int[] pix, final byte[] alpha){
 		return embedAlpha(pix, alpha, null);
@@ -4760,6 +4851,36 @@ while (it.hasNext()) {
 		} else {
 			for (int i=0; i<pix.length; ++i) {
 				pix[i] = (pix[i]&0x00ffffff) | ( (outside[i]&0xff) != 255  ? 0 : ((alpha[i]&0xff)<<24) );
+			}
+		}
+		return pix;
+	}
+
+	/** Assumes alpha is never null, but outside may be null. */
+	protected static final int[] embedAlphaPre(final int[] pix, final byte[] alpha, final byte[] outside) {
+		if (null == outside) {
+			for (int i=0; i<pix.length; ++i) {
+				final int a = alpha[i] & 0xff;
+				final double K = a / 255.0;
+				final int p = pix[i];
+				pix[i] =  ((int)(((p >> 16) & 0xff) * K) << 16)
+						| ((int)(((p >>  8) & 0xff) * K) <<  8)
+						|  (int)(( p        & 0xff) * K)
+						| (a << 24);
+			}
+		} else {
+			for (int i=0; i<pix.length; ++i) {
+				if ( -1 == outside[i] ) { // aka 255 == (outside[i]&0xff)
+					final int a = alpha[i] & 0xff;
+					final double K = a / 255.0;
+					final int p = pix[i];
+					pix[i] =  ((int)(((p >> 16) & 0xff) * K) << 16)
+							| ((int)(((p >>  8) & 0xff) * K) <<  8)
+							|  (int)(( p        & 0xff) * K)
+							| (a << 24);
+				} else {
+					pix[i] = 0;
+				}
 			}
 		}
 		return pix;
@@ -4965,5 +5086,21 @@ while (it.hasNext()) {
 	/** Does nothing unless overriden. */
 	public Bureaucrat updateMipMapsFormat(int old_format, int new_format) { return null; }
 
+	/** Does nothing unless overriden. */
+	public boolean deleteStaleFiles(boolean coordinate_transforms, boolean alpha_masks) { return false; }
 
+	/** Returns null unless overriden. */
+	public String getCoordinateTransformsFolder() {
+		return null;
+	}
+	
+	/** Returns null unless override. */
+	public String getMasksFolder() {
+		return null;
+	}
+
+	/** Returns 0 unless overriden. */
+	public long getNextBlobId() {
+		return 0;
+	}
 }

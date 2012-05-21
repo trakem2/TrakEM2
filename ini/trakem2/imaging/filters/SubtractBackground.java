@@ -46,4 +46,13 @@ public class SubtractBackground implements IFilter
 			.append(getClass().getName())
 			.append("\" radius=\"").append(radius).append("\" />\n").toString();
 	}
+	
+	@Override
+	public boolean equals(final Object o) {
+		if (null == o) return false;
+		if (o.getClass() == getClass()) {
+			return ((SubtractBackground)o).radius == radius;
+		}
+		return false;
+	}
 }

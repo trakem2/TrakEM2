@@ -33,7 +33,6 @@ import ij.gui.YesNoCancelDialog;
 import ij.io.OpenDialog;
 import ij.io.SaveDialog;
 import ij.measure.ResultsTable;
-import ij.plugin.LutLoader;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
@@ -48,6 +47,7 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Pipe;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.persistence.Loader;
 import ini.trakem2.plugin.TPlugIn;
 import ini.trakem2.tree.ProjectThing.Profile_List;
 import ini.trakem2.vector.VectorString3D;
@@ -62,6 +62,7 @@ import java.awt.Event;
 import java.awt.EventQueue;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.Image;
 import java.awt.Menu;
 import java.awt.MenuBar;
 import java.awt.MenuItem;
@@ -72,6 +73,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.ItemListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
@@ -82,7 +84,6 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
@@ -115,7 +116,7 @@ import javax.swing.SwingUtilities;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.9f 2011-12-24";
+	static public String version = "0.9h 2012-04-10";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -1760,5 +1761,16 @@ public class Utils implements ij.plugin.PlugIn {
 		ImagePlus imp = new ImagePlus("fire", new ByteProcessor(1, 1));
 		IJ.run(imp, "Fire", "");
 		return (IndexColorModel) imp.getProcessor().getColorModel();
+	}
+	
+
+	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
+		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
+		final Image img = bp.createImage();
+		if (img instanceof BufferedImage) return (BufferedImage)img;
+		//else:
+		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+		bi.createGraphics().drawImage(img, 0, 0, null);
+		return bi;
 	}
 }

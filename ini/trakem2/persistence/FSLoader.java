@@ -25,15 +25,19 @@ package ini.trakem2.persistence;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
-import ij.VirtualStack; // only after 1.38q
-import ij.io.*;
+import ij.VirtualStack;
+import ij.gui.YesNoCancelDialog;
+import ij.io.DirectoryChooser;
+import ij.io.FileInfo;
+import ij.io.FileSaver;
+import ij.io.OpenDialog;
 import ij.plugin.filter.GaussianBlur;
 import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-import ij.process.FloatProcessor;
 import ij.process.ColorProcessor;
-import ini.trakem2.Project;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
 import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
@@ -41,25 +45,27 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.Stack;
-import ij.gui.YesNoCancelDialog;
-import ini.trakem2.utils.*;
-import ini.trakem2.io.*;
 import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.imaging.P;
+import ini.trakem2.io.ImageSaver;
+import ini.trakem2.io.RagMipMaps;
+import ini.trakem2.io.RawMipMaps;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.image.BufferedImage;
-import java.awt.image.ColorModel;
-import java.awt.image.PixelGrabber;
-import java.awt.RenderingHints;
-import java.awt.geom.Area;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.image.BufferedImage;
+import java.awt.image.PixelGrabber;
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -70,36 +76,27 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-
-import javax.swing.JMenuItem;
-import javax.swing.JMenu;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
-import javax.swing.KeyStroke;
-
-import org.xml.sax.InputSource;
-
-import javax.xml.parsers.SAXParserFactory;
-import javax.xml.parsers.SAXParser;
-
-import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.registration.ImageFilter;
-
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.KeyStroke;
+import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+
+import mpicbg.trakem2.transform.CoordinateTransform;
+
+import org.xml.sax.InputSource;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
@@ -110,6 +107,9 @@ public final class FSLoader extends Loader {
 	
 	/** Largest id seen so far. */
 	private long max_id = -1;
+	/** Largest blob ID seen so far. First valid ID will equal 1. */
+	private long max_blob_id = 0;
+
 	private final Map<Long,String> ht_paths = Collections.synchronizedMap(new HashMap<Long,String>());
 	/** For saving and overwriting. */
 	private String project_file_path = null;
@@ -383,7 +383,8 @@ public final class FSLoader extends Loader {
 		if (null != autosaver) autosaver.shutdownNow();
 	}
 
-	public void destroy() {
+	@Override
+	public synchronized void destroy() {
 		super.destroy();
 		Utils.showStatus("", false);
 		// delete mipmap files that where touched and not cleared as saved (i.e. the project was not saved)
@@ -448,10 +449,21 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Get the next unique id, not shared by any other object within the same project. */
+	@Override
 	public long getNextId() {
 		long nid = -1;
 		synchronized (db_lock) {
 			nid = ++max_id;
+		}
+		return nid;
+	}
+
+	/** Get the next unique id to be used for the {@link Patch}'s {@link CoordinateTransform} or alpha mask. */
+	@Override
+	public long getNextBlobId() {
+		long nid = 0;
+		synchronized (db_lock) {
+			nid = ++max_blob_id;
 		}
 		return nid;
 	}
@@ -575,10 +587,8 @@ public final class FSLoader extends Loader {
 					case Layer.IMAGEPLUS:
 						if (null != slice) {
 							imp.setSlice(Integer.parseInt(slice.substring(12)));
-							return imp;
-						} else {
-							return imp.getProcessor();
 						}
+						return imp;
 					default:
 						Utils.log("FSLoader.fetchImage: Unknown format " + format);
 						return null;
@@ -642,61 +652,11 @@ public final class FSLoader extends Loader {
 	/** Returns the alpha mask image from a file, or null if none stored. */
 	@Override
 	public ByteProcessor fetchImageMask(final Patch p) {
-		// Else, see if there is a file for the Patch:
-		final String path = getAlphaPath(p);
-		if (null == path) return null;
-		// Open the mask image, which should be a compressed float tif.
-		final ImagePlus imp = openImagePlus(path);
-		if (null == imp) {
-			//Utils.log2("No mask found or could not open mask image for patch " + p + " from " + path);
-			return null;
-		}
-		final ByteProcessor mask = (ByteProcessor)imp.getProcessor().convertToByte(false);
-		//Utils.log2("Mask dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch " + p);
-		if (mask.getWidth() != p.getOWidth() || mask.getHeight() != p.getOHeight()) {
-			Utils.log2("Mask has improper dimensions: " + mask.getWidth() + " x " + mask.getHeight() + " for patch " + p + " which is of " + p.getOWidth() + " x " + p.getOHeight());
-			return null;
-		}
-		return mask;
+		return p.getAlphaMask();
 	}
 
 	@Override
-	public String getAlphaPath(final Patch p) {
-		final String filename = getInternalFileName(p);
-		if (null == filename) {
-			Utils.log2("null filepath!");
-			return null;
-		}
-		final String dir = getMasksFolder();
-		return new StringBuilder(dir).append(createIdPath(Long.toString(p.getId()), filename, ".zip")).toString();
-	}
-
-	@Override
-	public void storeAlphaMask(final Patch p, final ByteProcessor fp) {
-		// would fail if user deletes the trakem2.masks/ folder from the storage folder after having set dir_masks. But that is his problem.
-		DataOutputStream out = null;
-		try {
-			final String path = getAlphaPath(p);
-			File parent = new File(path).getParentFile();
-			parent.mkdirs();
-			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
-			FileOutputStream fos = new FileOutputStream(path);
-			ZipOutputStream zos = new ZipOutputStream(fos);
-			out = new DataOutputStream(new BufferedOutputStream(zos));
-			ImagePlus imp = new ImagePlus("mask.tif", fp); // ImageJ looks for ".tif" extension in the ZipEntry
-			zos.putNextEntry(new ZipEntry(imp.getTitle()));
-			TiffEncoder te = new TiffEncoder(imp.getFileInfo());
-			te.write(out);
-			out.flush();
-			fos.getFD().sync();
-		} catch (Throwable e) {
-			IJError.print(e);
-		} finally {
-			try { if (null != out) out.close(); } catch (Throwable t) { IJError.print(t); }
-		}
-	}
-
-	public final String getMasksFolder() {
+	synchronized public final String getMasksFolder() {
 		if (null == dir_masks) createMasksFolder();
 		return dir_masks;
 	}
@@ -711,19 +671,24 @@ public final class FSLoader extends Loader {
 			IJError.print(e);
 		}
 	}
+	
+	private String dir_cts = null;
+	
+	@Override
+	synchronized public final String getCoordinateTransformsFolder() {
+		if (null == dir_cts) createCoordinateTransformsFolder();
+		return dir_cts;
+	}
 
-	/** Remove the file containing the given Patch's alpha mask. */
-	public final boolean removeAlphaMask(final Patch p) {
+	synchronized private final void createCoordinateTransformsFolder() {
+		if (null == dir_cts) dir_cts = getUNUIdFolder() + "trakem2.cts/";
+		final File f = new File(dir_cts);
+		if (f.exists() && f.isDirectory()) return;
 		try {
-			File f = new File(getAlphaPath(p));
-			if (f.exists()) {
-				return f.delete();
-			}
-			return true;
+			f.mkdirs();
 		} catch (Exception e) {
 			IJError.print(e);
 		}
-		return false;
 	}
 
 	/** Loaded in full from XML file */
@@ -754,6 +719,15 @@ public final class FSLoader extends Loader {
 			final long id = ob.getId();
 			if (id > max_id) {
 				max_id = id;
+			}
+			if (ob.getClass() == Patch.class) {
+				final Patch p = (Patch)ob;
+				if (p.hasCoordinateTransform()) {
+					max_blob_id = Math.max(p.getCoordinateTransformId(), max_blob_id);
+				}
+				if (p.hasAlphaMask()) {
+					max_blob_id = Math.max(p.getAlphaMaskId(), max_blob_id);
+				}
 			}
 		}
 		return true;
@@ -1030,10 +1004,10 @@ public final class FSLoader extends Loader {
 
 	/** Overwrites the XML file. If some images do not exist in the file system, a directory with the same name of the XML file plus an "_images" tag appended will be created and images saved there. */
 	@Override
-	public String save(final Project project) {
+	public String save(final Project project, XMLOptions options) {
 		String result = null;
 		if (null == project_file_path) {
-			String xml_path = super.saveAs(project, null, false);
+			String xml_path = super.saveAs(project, null, options);
 			if (null == xml_path) return null;
 			else {
 				this.project_file_path = xml_path;
@@ -1042,7 +1016,7 @@ public final class FSLoader extends Loader {
 			}
 		} else {
 			File fxml = new File(project_file_path);
-			result = super.export(project, fxml, false);
+			result = super.export(project, fxml, options);
 		}
 		if (null != result) {
 			Utils.logAll(Utils.now() + " Saved " + project);
@@ -1052,8 +1026,9 @@ public final class FSLoader extends Loader {
 	}
 
 	/** The saveAs called from menus via saveTask. */
-	public String saveAs(Project project) {
-		String path = super.saveAs(project, null, false);
+	@Override
+	public String saveAs(Project project, XMLOptions options) {
+		String path = super.saveAs(project, null, options);
 		if (null != path) {
 			// update the xml path to point to the new one
 			this.project_file_path = path;
@@ -1066,7 +1041,8 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Meant for programmatic access, such as calls to project.saveAs(path, overwrite) which call exactly this method. */
-	public String saveAs(final String path, final boolean overwrite) {
+	@Override
+	public String saveAs(final String path, final XMLOptions options) {
 		if (null == path) {
 			Utils.log("Cannot save on null path.");
 			return null;
@@ -1088,7 +1064,7 @@ public final class FSLoader extends Loader {
 			Utils.logAll("WARNING can't write to " + path3 + "\n  --> will write instead to " + path2);
 			fxml = new File(path2);
 		}
-		if (!overwrite) {
+		if (!options.overwriteXMLFile) {
 			int i = 1;
 			while (fxml.exists()) {
 				String parent = fxml.getParent().replace('\\','/');
@@ -1101,7 +1077,7 @@ public final class FSLoader extends Loader {
 			}
 		}
 		Project project = Project.findProject(this);
-		path2 = super.saveAs(project, path2, false);
+		path2 = super.saveAs(project, path2, options);
 		if (null != path2) {
 			project_file_path = path2;
 			Utils.logAll("After saveAs, new xml path is: " + path2);
@@ -1212,6 +1188,11 @@ public final class FSLoader extends Loader {
 		item = new JMenuItem("Save"); item.addActionListener(listener); menu.add(item);
 		item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, 0, true));
 		item = new JMenuItem("Save as..."); item.addActionListener(listener); menu.add(item);
+		final JMenu adv = new JMenu("Advanced");
+		item = new JMenuItem("Save as... without coordinate transforms"); item.addActionListener(listener); adv.add(item);
+		item = new JMenuItem("Delete stale files..."); item.addActionListener(listener); adv.add(item);
+		menu.add(adv);
+		menu.addSeparator();
 	}
 
 	/** Returns the last Patch. */
@@ -1415,7 +1396,7 @@ public final class FSLoader extends Loader {
 		final String s_mipmaps_format = (String) ht_attributes.remove("mipmaps_format");
 		if (null != s_mipmaps_format) {
 			final int mipmaps_format = Integer.parseInt(s_mipmaps_format.trim());
-			if (mipmaps_format > 0 && mipmaps_format < MIPMAP_FORMATS.length) {
+			if (mipmaps_format >= 0 && mipmaps_format < MIPMAP_FORMATS.length) {
 				Utils.log2("Set mipmap format to " + mipmaps_format);
 				setMipMapFormat(mipmaps_format);
 			}
@@ -1519,101 +1500,6 @@ public final class FSLoader extends Loader {
 
 		return thresholded;
 	}
-
-	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
-		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
-		final Image img = bp.createImage();
-		if (img instanceof BufferedImage) return (BufferedImage)img;
-		//else:
-		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
-		bi.createGraphics().drawImage(bi, 0, 0, null);
-		return bi;
-	}
-
-	/** Scale a BufferedImage.TYPE_BYTE_INDEXED into another of the same type but dimensions target_width,target_height. */
-	static private final BufferedImage scaleAndFlush(final Image img, final int target_width, final int target_height, final boolean area_averaging, final Object interpolation_hint) {
-		final BufferedImage bi = new BufferedImage(target_width, target_height, BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
-		if (area_averaging) {
-			bi.createGraphics().drawImage(img.getScaledInstance(target_width, target_height, Image.SCALE_AREA_AVERAGING), 0, 0, null);
-		} else {
-			final Graphics2D g = bi.createGraphics();
-			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
-			g.drawImage(img, 0, 0, target_width, target_height, null); // draws it scaled to target area w*h
-		}
-		// Release native resources
-		img.flush();
-
-		return bi;
-	}
-
-	/** Image to BufferedImage. Can be used for hardware-accelerated resizing, since the whole awt is painted to a target w,h area in the returned new BufferedImage. Does not accept LUT images: only ARGB or GRAY. */
-	private final BufferedImage[] IToBI(final Image awt, final int w, final int h, final Object interpolation_hint, final BufferedImage alpha, final BufferedImage outside) {
-		BufferedImage bi;
-		final boolean area_averaging = interpolation_hint.getClass() == Integer.class && Loader.AREA_AVERAGING == ((Integer)interpolation_hint).intValue();
-		final boolean must_scale = (w != awt.getWidth(null) || h != awt.getHeight(null));
-
-		if (null != alpha || null != outside) bi = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-		else bi = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-		final Graphics2D g = bi.createGraphics();
-		if (area_averaging) {
-			final Image img = awt.getScaledInstance(w, h, Image.SCALE_AREA_AVERAGING); // Creates ALWAYS an RGB image, so must repaint back to a single-channel image, avoiding unnecessary blow up of memory.
-			g.drawImage(img, 0, 0, null);
-		} else {
-			g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interpolation_hint);
-			g.drawImage(awt, 0, 0, w, h, null); // draws it scaled
-		}
-		BufferedImage ba = alpha;
-		BufferedImage bo = outside;
-		if (null != alpha && must_scale) {
-			ba = scaleAndFlush(alpha, w, h, area_averaging, interpolation_hint);
-		}
-		if (null != outside && must_scale) {
-			bo = scaleAndFlush(outside, w, h, area_averaging, interpolation_hint);
-		}
-
-		BufferedImage the_alpha = ba;
-		if (null != alpha) {
-			if (null != outside) {
-				the_alpha = createCroppedAlpha(ba, bo);
-			}
-		} else if (null != outside) {
-			the_alpha = createCroppedAlpha(null, bo);
-		}
-		if (null != the_alpha) {
-			bi.getAlphaRaster().setRect(the_alpha.getRaster());
-			//bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])new ImagePlus("", the_alpha).getProcessor().convertToFloat().getPixels());
-			the_alpha.flush();
-		}
-
-		//Utils.log2("bi is: " + bi.getType() + " BufferedImage.TYPE_INT_ARGB=" + BufferedImage.TYPE_INT_ARGB);
-
-		/*
-		FloatProcessor fp_alpha = null;
-		fp_alpha = (FloatProcessor) new ByteProcessor(ba).convertToFloat();
-		// Set all non-white pixels to zero (eliminate shadowy border caused by interpolation)
-		final float[] pix = (float[])fp_alpha.getPixels();
-		for (int i=0; i<pix.length; i++)
-			if (Math.abs(pix[i] - 255) > 0.001f) pix[i] = 0;
-		bi.getAlphaRaster().setPixels(0, 0, w, h, (float[])fp_alpha.getPixels());
-		*/
-
-		return new BufferedImage[]{bi, ba, bo};
-	}
-
-	private final Object getHint(final int mode) {
-		switch (mode) {
-			case Loader.BICUBIC:
-				return RenderingHints.VALUE_INTERPOLATION_BICUBIC;
-			case Loader.BILINEAR:
-				return RenderingHints.VALUE_INTERPOLATION_BILINEAR;
-			case Loader.AREA_AVERAGING:
-				return new Integer(mode);
-			case Loader.NEAREST_NEIGHBOR:
-			default:
-				return RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR;
-		}
-	}
-	
 	
 	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
 	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source)
@@ -1623,49 +1509,18 @@ public final class FSLoader extends Loader {
 		
 		return (byte[])source.convertToByte(false).getPixels(); // no scaling
 	}
-	
-	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
-	static final private byte[] gaussianBlurResizeInHalf(final FloatProcessorT2 source, final int source_width, final int source_height, final int target_width, final int target_height) {
-		source.setPixels(source_width, source_height, ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])source.getPixels(), source_width, source_height), ( float )SIGMA_2).data);
-		
-		
-		//TODO Here, the actual scale information is lost.  Do not use for mipmap generation.
-		source.resizeInPlace(target_width, target_height);
 
-		
-		return (byte[])source.convertToByte(false).getPixels(); // no scaling
-	}
-	
-	/** WARNING will resize the FloatProcessorT2 source in place, unlike ImageJ standard FloatProcessor class. */
-	/*
-	static final private byte[] meanResizeInHalf(final FloatProcessorT2 source, final int sourceWidth, final int sourceHeight, final int targetWidth, final int targetHeight) {
-		final float[] sourceData = source.getFloatPixels();
-		final float[] targetData = new float[targetWidth * targetHeight];
-		int rs = 0;
-		for (int r = 0; r < targetData.length; r += targetWidth) {
-			int xs = -1;
-			for (int x = 0; x < targetWidth; ++x)
-				targetData[r + x] = sourceData[rs + ++xs] + sourceData[rs + ++xs];
-			rs += sourceWidth;
-			xs = -1;
-			for (int x = 0; x < targetWidth; ++x) {
-				targetData[r + x] += sourceData[rs + ++xs] + sourceData[rs + ++xs];
-				targetData[r + x] /= 4;
-			}
-			rs += sourceWidth;
-		}
-		source.setPixels(targetWidth, targetHeight, targetData);
-		return (byte[])source.convertToByte(false).getPixels();
-	}
-	*/
-
-	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	/** Queue/unqueue for mipmap removal on shutdown without saving;
+	 * the {@param yes}, when true, makes the {@param p} be queued,
+	 * and when false, be removed from the queue. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {
 		if (yes) touched_mipmaps.add(p);
 		else touched_mipmaps.remove(p);
 	}
 
-	/** Queue/unqueue for mipmap removal on shutdown without saving. */
+	/** Queue/unqueue for mipmap removal on shutdown without saving;
+	 * the {@param yes}, when true, makes the {@param p} be queued,
+	 * and when false, be removed from the queue. */
 	public void tagForMipmapRemoval(final Patch p, final boolean yes) {
 		if (yes) mipmaps_to_remove.add(p);
 		else mipmaps_to_remove.remove(p);
@@ -1707,23 +1562,14 @@ public final class FSLoader extends Loader {
 		removeSerializedPointMatches(patch);
 
 		/** Alpha mask: setup to check if it was modified while regenerating. */
-		String alphapath = getAlphaPath(patch);
-		File falphazip = null;
-		long falphalast = 0;
-		if (null != alphapath) {
-			falphazip = new File(alphapath);
-			falphalast = falphazip.lastModified();
-		}
+		final long alpha_mask_id = patch.getAlphaMaskId();
 
-		String srmode = patch.getProject().getProperty("image_resizing_mode");
-		int resizing_mode = GAUSSIAN;
-		if (null != srmode) resizing_mode = Loader.getMode(srmode);
+		final int resizing_mode = patch.getProject().getMipMapsMode();
 
 		try {
 			ImageProcessor ip;
 			ByteProcessor alpha_mask = null;
 			ByteProcessor outside_mask = null;
-			final boolean coordinate_transformed;
 			int type = patch.getType();
 
 			// Aggressive cache freeing
@@ -1739,7 +1585,6 @@ public final class FSLoader extends Loader {
 			ip = pai.target;
 			alpha_mask = pai.mask; // can be null
 			outside_mask = pai.outside; // can be null
-			coordinate_transformed = pai.coordinate_transformed;
 			pai = null;
 			
 			// Old style:
@@ -1754,9 +1599,6 @@ public final class FSLoader extends Loader {
 			//    where 0.5 is the estimated sigma for a full-scale image
 			//  which means sigma = 0.75 for the full-scale image (has level 0)
 			// prepare a 0.75 sigma image from the original
-			ColorModel cm = ip.getColorModel();
-			int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
-				   //   but since we scale 50% relative the previous, it's always 0.75
 
 			double min = patch.getMin(),
 			       max = patch.getMax();
@@ -1788,118 +1630,118 @@ public final class FSLoader extends Loader {
 
 
 			// Proper support for LUT images: treat them as RGB
-			if (ip.isColorLut()) {
+			if (ip.isColorLut() || type == ImagePlus.COLOR_256) {
 				ip = ip.convertToRGB();
-				cm = null;
 				type = ImagePlus.COLOR_RGB;
 			}
-
-			if (ImagePlus.COLOR_RGB == type) {
-				// TODO releaseToFit proper
-				releaseToFit(w * h * 4 * 10);
-				final ColorProcessor cp = (ColorProcessor)ip;
-				final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
-				final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
-				final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
-				FloatProcessorT2 alpha;
-				final FloatProcessorT2 outside;
-				if (null != alpha_mask) {
-					alpha = new FloatProcessorT2(alpha_mask);
-				} else {
-					alpha = null;
+			
+			if (Loader.AREA_DOWNSAMPLING == resizing_mode) {
+				long t0 = System.currentTimeMillis();
+				final ImageBytes[] b = DownsamplerMipMaps.create(patch, type, ip, alpha_mask, outside_mask);
+				long t1 = System.currentTimeMillis();
+				for (int i=0; i<b.length; ++i) {
+					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
 				}
-				if (null != outside_mask) {
-					outside = new FloatProcessorT2(outside_mask);
-					if ( null == alpha ) {
-						alpha = outside;
-						alpha_mask = outside_mask;
+				long t2 = System.currentTimeMillis();
+				System.out.println("MipMaps with area downsampling: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
+			} else if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
+				long t0 = System.currentTimeMillis();
+				final ImageBytes[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
+				long t1 = System.currentTimeMillis();
+				for (int i=0; i<b.length; ++i) {
+					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
+				}
+				long t2 = System.currentTimeMillis();
+				System.out.println("MipMaps with integral images: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
+			} else if (Loader.GAUSSIAN == resizing_mode) {
+				if (ImagePlus.COLOR_RGB == type) {
+					// TODO releaseToFit proper
+					releaseToFit(w * h * 4 * 10);
+					final ColorProcessor cp = (ColorProcessor)ip;
+					final FloatProcessorT2 red = new FloatProcessorT2(w, h, 0, 255);   cp.toFloat(0, red);
+					final FloatProcessorT2 green = new FloatProcessorT2(w, h, 0, 255); cp.toFloat(1, green);
+					final FloatProcessorT2 blue = new FloatProcessorT2(w, h, 0, 255);  cp.toFloat(2, blue);
+					FloatProcessorT2 alpha;
+					final FloatProcessorT2 outside;
+					if (null != alpha_mask) {
+						alpha = new FloatProcessorT2(alpha_mask);
+					} else {
+						alpha = null;
+					}
+					if (null != outside_mask) {
+						outside = new FloatProcessorT2(outside_mask);
+						if ( null == alpha ) {
+							alpha = outside;
+							alpha_mask = outside_mask;
+						}
+					} else {
+						outside = null;
+					}
+
+					final String target_dir0 = getLevelDir(dir_mipmaps, 0);
+
+					if (Thread.currentThread().isInterrupted()) return false;
+
+					// Generate level 0 first:
+					// TODO Add alpha information into the int[] pixel array or make the image visible some other way
+					if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
+							: mmio.save(target_dir0 + filename, P.asRGBABytes((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels()), w, h, 0.85f))) {
+						Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
+						cannot_regenerate.add(patch);
+					} else {
+						int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
+						do {
+							if (Thread.currentThread().isInterrupted()) return false;
+							// 1 - Prepare values for the next scaled image
+							k++;
+							// 2 - Check that the target folder for the desired scale exists
+							final String target_dir = getLevelDir(dir_mipmaps, k);
+							if (null == target_dir) continue;
+							// 3 - Blur the previous image to 0.75 sigma, and scale it
+							final byte[] r = gaussianBlurResizeInHalf(red);   // will resize 'red' FloatProcessor in place.
+							final byte[] g = gaussianBlurResizeInHalf(green); // idem
+							final byte[] b = gaussianBlurResizeInHalf(blue);  // idem
+							final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha); // idem
+							if ( null != outside ) {
+								final byte[] o;
+								if (alpha != outside)
+									o = gaussianBlurResizeInHalf(outside); // idem
+								else
+									o = a;
+								// Remove all not completely inside pixels from the alphamask
+								// If there was no alpha mask, alpha is the outside itself
+								for (int i=0; i<o.length; i++) {
+									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
+								}
+							}
+
+							w = red.getWidth();
+							h = red.getHeight();
+
+							// 4 - Compose ColorProcessor
+							if (null == alpha) {
+								// 5 - Save as jpeg
+								if (!mmio.save(target_dir + filename, new byte[][]{r, g, b}, w, h, 0.85f)) {
+									Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+									cannot_regenerate.add(patch);
+									break;
+								}
+							} else {
+								if (!mmio.save(target_dir + filename, new byte[][]{r, g, b, a}, w, h, 0.85f)) {
+									Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+									cannot_regenerate.add(patch);
+									break;
+								}
+							}
+						} while (w >= 32 && h >= 32); // not smaller than 32x32
 					}
 				} else {
-					outside = null;
-				}
-				
-				final String target_dir0 = getLevelDir(dir_mipmaps, 0);
-				// No alpha channel:
-				//  - use gaussian resizing
-				//  - use standard ImageJ java.awt.Image creation
+					long t0 = System.currentTimeMillis();
+					// Greyscale:
+					releaseToFit(w * h * 4 * 10);
 
-				if (Thread.currentThread().isInterrupted()) return false;
+					if (Thread.currentThread().isInterrupted()) return false;
 
-				// Generate level 0 first:
-				// TODO Add alpha information into the int[] pixel array or make the image visible some other way
-				if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
-						   : mmio.saveWithAlpha(createARGBImage(w, h, embedAlpha((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels())), target_dir0 + filename, 0.85f))) {
-					Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
-					cannot_regenerate.add(patch);
-				} else {
-					do {
-						if (Thread.currentThread().isInterrupted()) return false;
-						// 1 - Prepare values for the next scaled image
-						k++;
-						// 2 - Check that the target folder for the desired scale exists
-						final String target_dir = getLevelDir(dir_mipmaps, k);
-						if (null == target_dir) continue;
-						// 3 - Blur the previous image to 0.75 sigma, and scale it
-						final byte[] r = gaussianBlurResizeInHalf(red);   // will resize 'red' FloatProcessor in place.
-						final byte[] g = gaussianBlurResizeInHalf(green); // idem
-						final byte[] b = gaussianBlurResizeInHalf(blue);  // idem
-						final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha); // idem
-						if ( null != outside ) {
-							final byte[] o;
-							if (alpha != outside)
-								o = gaussianBlurResizeInHalf(outside); // idem
-							else
-								o = a;
-							// Remove all not completely inside pixels from the alphamask
-							// If there was no alpha mask, alpha is the outside itself
-							for (int i=0; i<o.length; i++) {
-								if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
-							}
-						}
-						
-						w = red.getWidth();
-						h = red.getHeight();
-
-						// 4 - Compose ColorProcessor
-						final int[] pix = new int[w * h];
-						if (null == alpha) {
-							for (int i=0; i<pix.length; i++) {
-								pix[i] = 0xff000000 | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
-							}
-							final ColorProcessor cp2 = new ColorProcessor(w, h, pix);
-							// 5 - Save as jpeg
-							if (!mmio.save(cp2, target_dir + filename, 0.85f, false)) {
-								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
-								cannot_regenerate.add(patch);
-								break;
-							}
-						} else {
-							// LIKELY no need to set alpha raster later in createARGBImage ... TODO
-							for (int i=0; i<pix.length; i++) {
-								pix[i] = ((a[i]&0xff)<<24) | ((r[i]&0xff)<<16) | ((g[i]&0xff)<<8) | (b[i]&0xff);
-							}
-							final BufferedImage bi_save = createARGBImage(w, h, pix);
-							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
-								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
-								cannot_regenerate.add(patch);
-								bi_save.flush();
-								break;
-							}
-							bi_save.flush();
-						}
-					} while (w >= 32 && h >= 32); // not smaller than 32x32
-				}
-			} else {
-				// Greyscale:
-				releaseToFit(w * h * 4 * 10);
-				final boolean as_grey = !ip.isColorLut();
-				if (as_grey && null == cm) {
-					cm = GRAY_LUT;
-				}
-
-				if (Thread.currentThread().isInterrupted()) return false;
-
-				if (Loader.GAUSSIAN == resizing_mode) {
 					final FloatProcessorT2 fp = new FloatProcessorT2((FloatProcessor) ip.convertToFloat());
 					if (ImagePlus.GRAY8 == type) {
 						// for 8-bit, the min,max has been applied when going to FloatProcessor
@@ -1925,12 +1767,10 @@ public final class FSLoader extends Loader {
 						outside = null;
 					}
 
+					int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
 					do {
-
-//Utils.logAll("### k=" + k + " alpha.length=" + (null != alpha ? ((float[])alpha.getPixels()).length : 0) + " image.length=" + ((float[])fp.getPixels()).length);
-
 						if (Thread.currentThread().isInterrupted()) return false;
-						
+
 						if (0 != k) { // not doing so at the end because it would add one unnecessary blurring
 							gaussianBlurResizeInHalf( fp );
 							if (null != alpha) {
@@ -1940,34 +1780,26 @@ public final class FSLoader extends Loader {
 								}
 							}
 						}
-						
+
 						w = fp.getWidth();
 						h = fp.getHeight();
-						
+
 						// 1 - check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
 						if (null == target_dir) continue;
-						
+
 						if (null != alpha) {
 							// 3 - save as jpeg with alpha
 							// Remove all not completely inside pixels from the alpha mask
 							// If there was no alpha mask, alpha is the outside itself
-
-							final BufferedImage bi_save = createARGBImage(w, h, null == outside ? fp.getARGBPixels((float[])alpha.getPixels()) : fp.getARGBPixels((float[])alpha.getPixels(), (float[])outside.getPixels()));
-							if (!mmio.saveWithAlpha(bi_save, target_dir + filename, 0.85f)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getScaledBytePixels(), P.merge(alpha.getBytePixels(), null == outside ? null : outside.getBytePixels())}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
-								bi_save.flush();
 								break;
 							}
-							bi_save.flush();
 						} else {
 							// 3 - save as 8-bit jpeg
-							final ImageProcessor ip2 = Utils.convertTo(fp, type, false); // no scaling, since the conversion to float above didn't change the range. This is needed because of the min and max
-							if (!coordinate_transformed) ip2.setMinAndMax(patch.getMin(), patch.getMax()); // Must be done, it's a new ImageProcessor
-							if (null != cm) ip2.setColorModel(cm); // the LUT
-
-							if (!mmio.save(ip2, target_dir + filename, 0.85f, as_grey)) {
+							if (!mmio.save(target_dir + filename, new byte[][]{fp.getScaledBytePixels()}, w, h, 0.85f)) {
 								Utils.log("Failed to save mipmap for GRAY8, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
 								cannot_regenerate.add(patch);
 								break;
@@ -1978,54 +1810,11 @@ public final class FSLoader extends Loader {
 						k++;
 					} while (fp.getWidth() >= 32 && fp.getHeight() >= 32); // not smaller than 32x32
 
-				} else {
-					
-					// TODO this mode renders pixels at locations different rom the above GAUSSIAN, fix handling of this situation during rendering
-					
-					//final StopWatch timer = new StopWatch();
-
-					// use java hardware-accelerated resizing
-					Image awt = ip.createImage();
-
-					BufferedImage balpha = null == alpha_mask ? null : convertToBufferedImage(alpha_mask);
-					BufferedImage boutside = null == outside_mask ? null : convertToBufferedImage(outside_mask);
-
-					BufferedImage bi = null;
-					final Object hint = getHint(resizing_mode);
-
-					ip = null;
-
-					do {
-						if (Thread.currentThread().isInterrupted()) return false;
-
-						// check that the target folder for the desired scale exists
-						final String target_dir = getLevelDir(dir_mipmaps, k);
-						if (null == target_dir) continue;
-						// obtain half image
-						//   for level 0 and others, when awt is not a BufferedImage or needs to be reduced in size (to new w,h)
-						final BufferedImage[] res = IToBI(awt, w, h, hint, balpha, boutside);
-						bi = res[0];
-						balpha = res[1];
-						boutside = res[2];
-						// prepare next iteration
-						if (awt != bi) awt.flush();
-						awt = bi;
-						w /= 2;
-						h /= 2;
-						k++;
-						// save this iteration
-						if ( ( (null != balpha || null != boutside) &&
-						      !mmio.saveWithAlpha(bi, target_dir + filename, 0.85f))
-						   || ( null == balpha && null == boutside && !mmio.save(bi, target_dir + filename, 0.85f, as_grey))) {
-							Utils.log("Failed to save mipmap for hardware-accelerated, GRAY8, 'alpha = " + balpha + "', level = " + k  + " for  patch " + patch);
-							cannot_regenerate.add(patch);
-							break;
-						}
-					} while (w >= 32 && h >= 32);
-					bi.flush();
-
-					//timer.cumulative();
+					long t1 = System.currentTimeMillis();
+					System.out.println("MipMaps took " + (t1 - t0));
 				}
+			} else {
+				Utils.log("ERROR: unknown image resizing mode for mipmaps: " + resizing_mode);
 			}
 
 			return true;
@@ -2050,12 +1839,13 @@ public final class FSLoader extends Loader {
 			}
 
 			// Has the alpha mask changed?
-			if (null != falphazip && falphazip.lastModified() != falphalast) {
+			if (patch.getAlphaMaskId() != alpha_mask_id) {
 				Utils.log2("Alpha mask changed: resubmitting mipmap regeneration for " + patch);
 				regenerateMipMaps(patch);
 			}
 		}
 	}
+
 
 	/** Remove the file, if it exists, with serialized features for patch.
 	 * Returns true when no such file or on success; false otherwise. */
@@ -2216,9 +2006,11 @@ public final class FSLoader extends Loader {
 		}, ((Displayable)patches.iterator().next()).getProject());
 	}
 
+	static private final Object FSLOCK = new Object();
+
 	private final String getLevelDir(final String dir_mipmaps, final int level) {
 		// synch, so that multithreaded generateMipMaps won't collide trying to create dirs
-		synchronized (db_lock) {
+		synchronized (FSLOCK) {
 			final String path = new StringBuilder(dir_mipmaps).append(level).append('/').toString();
 			if (isURL(dir_mipmaps)) {
 				return path;
@@ -2507,25 +2299,24 @@ public final class FSLoader extends Loader {
 		// TODO the x8 is overly exaggerated
 		
 		if ( patch.hasAlphaChannel() ) {
-			final Image img = mmio.openWithAlpha( path ); // ImageSaver.openJpegAlpha(path);
+			final Image img = mmio.open( path );
 			return img == null ? null : new MipMapImage( img, scale, scale );
 		} else if ( patch.paintsWithFalseColor() ) {
-			// AKA Patch has a LUT
-			IJ.redirectErrorMessages();
-			final ImagePlus imp = openImagePlus( path );
-			return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
+			// AKA Patch has a LUT or is LUT image like a GIF
+			final Image img = mmio.open( path );
+			return img == null ? null : new MipMapImage( img, scale, scale ); // considers c_alphas
 		} else {
+			final Image img;
 			switch (patch.getType()) {
 				case ImagePlus.GRAY16:
 				case ImagePlus.GRAY8:
 				case ImagePlus.GRAY32:
-					final Image img = mmio.openGrey( path ); // ImageSaver.openGreyJpeg(path);
+					img = mmio.openGrey( path ); // ImageSaver.openGreyJpeg(path);
 					return img == null ? null : new MipMapImage( img, scale, scale );
 				default:
 					// For color images: (considers URL as well)
-					IJ.redirectErrorMessages();
-					final ImagePlus imp = openImagePlus( path );
-					return imp == null ? null : new MipMapImage( patch.createImage( imp ), scale, scale ); // considers c_alphas
+					img = mmio.open( path );
+					return img == null ? null : new MipMapImage( img, scale, scale ); // considers c_alphas
 			}
 		}
 	}
@@ -2960,19 +2751,37 @@ public final class FSLoader extends Loader {
 		}
 	}
 
+	/**
+	 * Delete stale files under the {@link FSLoader#unuid} folder.
+	 * These include "*.ct" files (for {@link CoordinateTransform})
+	 * and "*.zip" files (for alpha mask images) that are not referenced from any {@link Patch}.
+	 */
+	@Override
+	public boolean deleteStaleFiles(boolean coordinate_transforms, boolean alpha_masks) {
+		boolean b = true;
+		final Project project = Project.findProject(this);
+		if (coordinate_transforms) b = b && StaleFiles.deleteCoordinateTransforms(project);
+		if (alpha_masks) b = b && StaleFiles.deleteAlphaMasks(project);
+		return b;
+	}
 
 
-	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif"};
+	////////////////////
+
+
+	static final public String[] MIPMAP_FORMATS = new String[]{".jpg", ".png", ".tif", ".raw", ".rag"};
 	static public final int MIPMAP_JPEG = 0;
 	static public final int MIPMAP_PNG = 1;
 	static public final int MIPMAP_TIFF = 2;
+	static public final int MIPMAP_RAW = 3;
+	static public final int MIPMAP_RAG = 4;
 
-	static private final int MIPMAP_HIGHEST = MIPMAP_TIFF; // WARNING: update this value if other formats are added
+	static private final int MIPMAP_HIGHEST = MIPMAP_RAG; // WARNING: update this value if other formats are added
 
-	// Default: JPEG
-	private int mipmaps_format = MIPMAP_JPEG;
+	// Default: RAG
+	private int mipmaps_format = MIPMAP_RAG;
 	private String mExt = MIPMAP_FORMATS[mipmaps_format]; // the extension currently in use
-	private RWImage mmio = new RWImageJPG();
+	private RWImage mmio = new RWImageRag();
 
 	private RWImage newMipMapRWImage() {
 		switch (this.mipmaps_format) {
@@ -2982,12 +2791,17 @@ public final class FSLoader extends Loader {
 				return new RWImagePNG();
 			case MIPMAP_TIFF:
 				return new RWImageTIFF();
+			case MIPMAP_RAW:
+				return new RWImageRaw();
+			case MIPMAP_RAG:
+				return new RWImageRag();
 			// WARNING add here another one
 		}
 		return null;
 	}
 
-	/** Any of: MIPMAP_JPEG, MIPMAP_PNG */
+	/** Any of: {@link #MIPMAP_JPEG}, {@link #MIPMAP_PNG}, {@link #MIPMAP_TIFF}, {@link #MIPMAP_RAW},
+	 * {@link #MIPMAP_RAG}. */
 	@Override
 	public final int getMipMapFormat() {
 		return mipmaps_format;
@@ -2999,6 +2813,8 @@ public final class FSLoader extends Loader {
 			case MIPMAP_JPEG:
 			case MIPMAP_PNG:
 			case MIPMAP_TIFF:
+			case MIPMAP_RAW:
+			case MIPMAP_RAG:
 				this.mipmaps_format = format;
 				this.mExt = MIPMAP_FORMATS[mipmaps_format];
 				this.mmio = newMipMapRWImage();
@@ -3048,81 +2864,173 @@ public final class FSLoader extends Loader {
 	}
 
 	private abstract class RWImage {
-		abstract boolean save(ImageProcessor ip, String path, float quality, boolean as_grey);
-		abstract boolean save(BufferedImage ip, String path, float quality, boolean as_grey);
-		abstract boolean saveWithAlpha(Image awt, String path, float quality);
-		abstract boolean saveWithAlpha(BufferedImage bi, String path, float quality);
-		abstract BufferedImage open(final String path);
-		abstract BufferedImage openWithAlpha(String path);
+		boolean save(ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
+			if (as_grey) ip = ip.convertToByte(false);
+			if (ip instanceof ByteProcessor) {
+				return save(path, new byte[][]{(byte[])ip.getPixels()}, ip.getWidth(), ip.getHeight(), quality);
+			} else if (ip instanceof ColorProcessor) {
+				final int[] p = (int[]) ip.getPixels();
+				final byte[] r = new byte[p.length],
+				             g = new byte[p.length],
+				             b = new byte[p.length],
+				             a = new byte[p.length];
+				for (int i=0; i<p.length; ++i) {
+					final int x = p[i];
+					r[i] = (byte)((x >> 16)&0xff);
+					g[i] = (byte)((x >>  8)&0xff);
+					b[i] = (byte) (x       &0xff);
+					a[i] = (byte)((x >> 24)&0xff);
+				}
+				return save(path, new byte[][]{r, g, b, a}, ip.getWidth(), ip.getHeight(), quality);
+			}
+			return false;
+		}
+		boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
+			switch (bi.getType()) {
+				case BufferedImage.TYPE_BYTE_GRAY:
+					return save(new ByteProcessor(bi), path, quality, false);
+				default:
+					if (as_grey) return save(new ByteProcessor(bi), path, quality, false);
+					return save(new ColorProcessor(bi), path, quality, false);
+			}
+		}
+		abstract boolean save(String path, byte[][] b, int width, int height, float quality);
+		/** Opens grey, RGB and RGBA. */
+		abstract BufferedImage open(String path);
+		/** Opens grey images or, if not grey, converts them to grey. */
 		abstract BufferedImage openGrey(String path);
 	}
 	private final class RWImageJPG extends RWImage {
+		@Override
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsJpeg(ip, path, quality, as_grey);
 		}
+		@Override
 		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsJpeg(bi, path, quality, as_grey);
 		}
-		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
-			return ImageSaver.saveAsJpegAlpha(awt, path, quality);
-		}
-		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
-			return ImageSaver.saveAsJpegAlpha(bi, path, quality);
-		}
-		final BufferedImage open(final String path) {
-			return ImageSaver.openImage(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
+		@Override
+		final BufferedImage open(String path) {
 			return ImageSaver.openImage(path, true);
 		}
+		@Override
 		final BufferedImage openGrey(final String path) {
-			return ImageSaver.openJpeg(path, true);
+			return ImageSaver.open(path, true);
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			switch (b.length) {
+				case 1:
+					return ImageSaver.saveAsGreyJpeg(b[0], width, height, path, quality);
+				case 2:
+					return ImageSaver.saveAsJpegAlpha(ImageSaver.createARGBImage(P.blend(b[0], b[1]), width, height), path, quality);
+				case 3:
+					return ImageSaver.saveAsJpeg(ImageSaver.createRGBImage(P.blend(b[0], b[1], b[2]), width, height), path, quality, false);
+				case 4:
+					return ImageSaver.saveAsJpegAlpha(ImageSaver.createARGBImage(P.blend(b[0], b[1], b[2], b[3]), width, height), path, quality);
+			}
+			return false;
 		}
 	}
 	private final class RWImagePNG extends RWImage {
+		@Override
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsPNG(ip, path);
 		}
+		@Override
 		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsPNG(bi, path);
 		}
-		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
-			return ImageSaver.saveAsPNG(awt, path);
-		}
-		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
-			return ImageSaver.saveAsPNG(bi, path);
-		}
-		final BufferedImage open(final String path) {
-			return ImageSaver.openImage(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
+		@Override
+		final BufferedImage open(String path) {
 			return ImageSaver.openImage(path, true);
 		}
+		@Override
 		final BufferedImage openGrey(final String path) {
 			return ImageSaver.openGreyImage(path);
 		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			BufferedImage bi = null;
+			try {
+				switch (b.length) {
+					case 1:
+						bi = ImageSaver.createGrayImage(b[0], width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+					case 2:
+						bi = ImageSaver.createARGBImage(P.blend(b[0], b[1]), width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+					case 3:
+						bi = ImageSaver.createRGBImage(P.blend(b[0], b[1], b[2]), width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+					case 4:
+						bi = ImageSaver.createARGBImage(P.blend(b[0], b[1], b[2], b[3]), width, height);
+						return ImageSaver.saveAsPNG(bi, path);
+				}
+			} finally {
+				if (null != bi) bi.flush();
+			}
+			return false;
+		}
 	}
 	private final class RWImageTIFF extends RWImage {
+		@Override
 		final boolean save(final ImageProcessor ip, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsTIFF(ip, path, as_grey);
 		}
+		@Override
 		final boolean save(final BufferedImage bi, final String path, final float quality, final boolean as_grey) {
 			return ImageSaver.saveAsTIFF(bi, path, as_grey);
 		}
-		final boolean saveWithAlpha(final Image awt, final String path, final float quality) {
-			return ImageSaver.saveAsTIFF(awt, path, false);
-		}
-		final boolean saveWithAlpha(final BufferedImage bi, final String path, final float quality) {
-			return ImageSaver.saveAsTIFF(bi, path, false);
-		}
+		@Override
 		final BufferedImage openGrey(final String path) {
 			return ImageSaver.openGreyTIFF(path);
 		}
-		final BufferedImage open(final String path) {
-			return ImageSaver.openTIFF(path, false);
-		}
-		final BufferedImage openWithAlpha(String path) {
+		@Override
+		final BufferedImage open(String path) {
 			return ImageSaver.openTIFF(path, true);
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			switch (b.length) {
+				case 1:
+					return ImageSaver.saveAsTIFF(ImageSaver.createGrayImage(b[0], width, height), path, false); // already grey
+				case 2:
+					return ImageSaver.saveAsTIFF(ImageSaver.createARGBImage(P.blend(b[0], b[1]), width, height), path, false);
+				case 3:
+					return ImageSaver.saveAsTIFF(ImageSaver.createRGBImage(P.blend(b[0], b[1], b[2]), width, height), path, false);
+				case 4:
+					return ImageSaver.saveAsTIFF(ImageSaver.createARGBImage(P.blend(b[0], b[1], b[2], b[3]), width, height), path, false);
+			}
+			return false;
+		}
+	}
+	private final class RWImageRaw extends RWImage {
+		@Override
+		final BufferedImage open(final String path) {
+			return RawMipMaps.read(path);
+		}
+		@Override
+		final BufferedImage openGrey(final String path) {
+			return ImageSaver.asGrey(RawMipMaps.read(path)); // TODO may not need the asGrey if all is correct
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			return RawMipMaps.save(path, b, width, height);
+		}
+	}
+	private final class RWImageRag extends RWImage {
+		@Override
+		final BufferedImage open(final String path) {
+			return RagMipMaps.read(path);
+		}
+		@Override
+		final BufferedImage openGrey(final String path) {
+			return ImageSaver.asGrey(RagMipMaps.read(path)); // TODO may not need the asGrey if all is correct
+		}
+		@Override
+		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
+			return RagMipMaps.save(path, b, width, height);
 		}
 	}
 }

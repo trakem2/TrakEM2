@@ -22,52 +22,59 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.io;
 
-import ij.ImagePlus;
 import ij.ImageJ;
-import ij.process.ImageProcessor;
-import ij.measure.Calibration;
+import ij.ImagePlus;
 import ij.io.FileInfo;
 import ij.io.TiffEncoder;
+import ij.measure.Calibration;
+import ij.process.ImageProcessor;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
-import java.awt.image.IndexColorModel;
+import java.awt.image.DirectColorModel;
 import java.awt.image.Raster;
 import java.awt.image.SampleModel;
 import java.awt.image.WritableRaster;
-import java.awt.Graphics;
-import java.awt.Image;
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.lang.reflect.Field;
 import java.net.URL;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.HashMap;
 import java.util.Map;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriter;
-import javax.imageio.ImageWriteParam;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
+
 import javax.imageio.IIOImage;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
-
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.persistence.Loader;
-
-import com.sun.media.jai.codec.TIFFEncodeParam;
-import com.sun.media.jai.codec.TIFFDecodeParam;
-import com.sun.media.jai.codec.ImageCodec;
 import javax.media.jai.PlanarImage;
-import java.io.OutputStream;
+
+import com.sun.media.jai.codec.ImageCodec;
+import com.sun.media.jai.codec.TIFFDecodeParam;
+import com.sun.media.jai.codec.TIFFEncodeParam;
 
 /** Provides the necessary thread-safe image file saver utilities. */
 public class ImageSaver {
@@ -79,7 +86,7 @@ public class ImageSaver {
 	/** Will create parent directories if they don't exist.<br />
 	 *  Returns false if the path is unusable.
 	 */
-	static private final boolean checkPath(final String path) {
+	static public final boolean checkPath(final String path) {
 		if (null == path) {
 			Utils.log("Null path, can't save.");
 			return false;
@@ -173,27 +180,27 @@ public class ImageSaver {
 		return saveAsJpeg(createGrayImage(pixels, width, height), path, quality, true);
 	}
 
-	static public final IndexColorModel RGBA_COLOR_MODEL;
-	static {
-		byte[] r = new byte[256];
-		byte[] g = new byte[256];
-		byte[] b = new byte[256];
-		byte[] a = new byte[256];
-		for(int i=0; i<256; i++) {
-			r[i]=(byte)i;
-			g[i]=(byte)i;
-			b[i]=(byte)i;
-			a[i]=(byte)i;
-		}
-		RGBA_COLOR_MODEL = new IndexColorModel(8, 256, r, g, b, a);
-	}
-
-	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
-		WritableRaster wr = RGBA_COLOR_MODEL.createCompatibleWritableRaster(1, 1);
+	static public final DirectColorModel RGBA_COLOR_MODEL = new DirectColorModel(32, 0xff0000, 0xff00, 0xff, 0xff000000);
+	static public final DirectColorModel RGBA_PRE_COLOR_MODEL = new DirectColorModel(ColorSpace.getInstance(ColorSpace.CS_sRGB), 32, 0xff0000, 0xff00, 0xff, 0xff000000, true, DataBuffer.TYPE_INT);
+	static public final DirectColorModel RGB_COLOR_MODEL = new DirectColorModel(32, 0xff0000, 0xff00, 0xff);
+	
+	static public final BufferedImage createImage(final int[] pixels, final int width, final int height, final DirectColorModel cm) {
+		WritableRaster wr = cm.createCompatibleWritableRaster(1, 1);
 		SampleModel sm = wr.getSampleModel().createCompatibleSampleModel(width, height);
 		DataBuffer dataBuffer = new DataBufferInt(pixels, width*height, 0);
 		WritableRaster rgbRaster = Raster.createWritableRaster(sm, dataBuffer, null);
-		return new BufferedImage(RGBA_COLOR_MODEL, rgbRaster, false, null);
+		return new BufferedImage(cm, rgbRaster, cm == RGBA_PRE_COLOR_MODEL, null);
+	}
+
+	static public final BufferedImage createRGBImage(final int[] pixels, final int width, final int height) {
+		return createImage(pixels, width, height, RGB_COLOR_MODEL);
+	}
+	static public final BufferedImage createARGBImage(final int[] pixels, final int width, final int height) {
+		return createImage(pixels, width, height, RGBA_COLOR_MODEL);
+	}
+	/** Assumes the pixels have been premultiplied. */
+	static public final BufferedImage createARGBImagePre(final int[] pixels, final int width, final int height) {
+		return createImage(pixels, width, height, RGBA_PRE_COLOR_MODEL);
 	}
 
 	/** Save as ARGB jpeg. */
@@ -207,14 +214,13 @@ public class ImageSaver {
 		if (quality < 0f) quality = 0f;
 		if (quality > 1f) quality = 1f;
 		synchronized (getPathLock(path)) {
-			FileOutputStream f = null;
 			ImageOutputStream ios = null;
 			ImageWriter writer = null;
 			BufferedImage grey = bi;
 			try {
-				f = new FileOutputStream(path);
 				writer = ImageIO.getImageWritersByFormatName("jpeg").next();
-				ios = ImageIO.createImageOutputStream(f);
+				final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(bi.getWidth(), bi.getHeight()) );
+				ios = ImageIO.createImageOutputStream(baos);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
 				param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
@@ -230,13 +236,28 @@ public class ImageSaver {
 				}
 				IIOImage iioImage = new IIOImage(grey, null, null);
 				writer.write(null, iioImage, param);
+				// Now write to disk
+				FileChannel ch = null;
+				try {
+					// Now write to disk in the fastest way possible
+					final RandomAccessFile ra = new RandomAccessFile(new File(path), "rw");
+					final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+					ch = ra.getChannel();
+					while (bb.hasRemaining()) {
+						ch.write(bb);
+					}
+				} finally {
+					if (null != ch) ch.close();
+					ios.close();
+				}
+				
+				
 			} catch (Exception e) {
 				IJError.print(e);
 				return false;
 			} finally {
-				if (null != f) try { f.close(); } catch (Exception ee) {}
 				if (null != writer) try { writer.dispose(); } catch (Exception ee) {}
-				if (null != ios) try { ios.close(); } catch (Exception ee) {}
+				//if (null != ios) try { ios.close(); } catch (Exception ee) {} // NOT NEEDED, it's a ByteArrayOutputStream
 				if (bi != grey) try { grey.flush(); /*release native resources*/ } catch (Exception ee) {}
 				removePathLock(path);
 			}
@@ -244,12 +265,8 @@ public class ImageSaver {
 		return true;
 	}
 
-	static public final BufferedImage openGreyJpeg(final String path) {
-		return openJpeg(path, true);
-	}
-
 	// Convoluted method to make sure all possibilities of opening and closing the stream are considered.
-	static public final BufferedImage openJpeg(final String path, final boolean as_grey) {
+	static public final BufferedImage open(final String path, final boolean as_grey) {
 		InputStream stream = null;
 		BufferedImage bi = null;
 		synchronized (getPathLock(path)) {
@@ -259,18 +276,18 @@ public class ImageSaver {
 				if (null == stream) return null;
 				
 				// 2 - open it as a BufferedImage
-				bi = openJpegFromStream(stream, as_grey);
+				bi = openFromStream(stream, as_grey);
 
 			} catch (Throwable e) {
 				// the file might have been generated while trying to read it. So try once more
 				try {
-					Utils.log2("JPEG Decoder failed for " + path);
+					Utils.log2("Decoder failed for " + path);
 					Thread.sleep(50);
 					// reopen stream
 					if (null != stream) { try { stream.close(); } catch (Exception ee) {} }
 					stream = openStream(path);
 					// decode
-					if (null != stream) bi = openJpegFromStream(stream, as_grey);
+					if (null != stream) bi = openFromStream(stream, as_grey);
 				} catch (Exception e2) {
 					IJError.print(e2, true);
 				}
@@ -292,7 +309,8 @@ public class ImageSaver {
 		}*/
 		// Simple optimization, incurring in horrible practices ... blame me.
 		try {
-			return new FileInputStream(path);
+			final File f = new File(path);
+			return new BufferedInputStream(new FileInputStream(f), (int)Math.min(f.length(), 35000000)); // 35 Mb
 		} catch (FileNotFoundException fnfe) {
 			try {
 				if (FSLoader.isURL(path)) {
@@ -308,7 +326,7 @@ public class ImageSaver {
 	}
 
 	/** The stream IS NOT closed by this method. */
-	static public final BufferedImage openJpegFromStream(final InputStream stream, final boolean as_grey) {
+	static public final BufferedImage openFromStream(final InputStream stream, final boolean as_grey) {
 		try {
 			if (as_grey) {
 				final BufferedImage bi = ImageIO.read(stream);
@@ -443,6 +461,25 @@ public class ImageSaver {
 		return new String(sb);
 	}
 
+	static public final Field Bbuf;
+	static {
+		Field b = null;
+		try {
+			b = ByteArrayOutputStream.class.getDeclaredField("buf");
+			b.setAccessible(true);
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		Bbuf = b;
+	}
+	
+	/** Based on EM images of neuropils with outside alpha masks.
+	 * Fitted a polynomial on the length of file vs area size. */
+	static public final int estimateJPEGFileSize(final int w, final int h) {
+		final long area = w * h;
+		return (int)((0.0000000108018 * area * area + 0.315521 * area + 8283.24) * 1.2); // 20% padding
+	}
+
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final BufferedImage awt, final String path, final float quality) {
 		if (!checkPath(path)) return false;
@@ -454,11 +491,26 @@ public class ImageSaver {
 					ImageWriteParam iwp = writer.getDefaultWriteParam(); // with all jpeg specs in it
 					iwp.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 					iwp.setCompressionQuality(quality); // <---------------------------------------------------------- THIS IS ALL I WANTED
-					ImageOutputStream ios = ImageIO.createImageOutputStream(new File(path));
+					//((JPEGImageWriteParam)iwp).setProgressiveMode(JPEGImageWriteParam.MODE_DISABLED);
+					//((JPEGImageWriteParam)iwp).
+					//
+					final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
+					ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
+					RandomAccessFile ra = null;
+					FileChannel ch = null;
 					try {
 						writer.setOutput(ios);
 						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
+						// Now write to disk in the fastest way possible
+						ra = new RandomAccessFile(new File(path), "rw");
+						final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+						ch = ra.getChannel();
+						while (bb.hasRemaining()) {
+							ch.write(bb);
+						}
+						ch.force(false);
 					} finally {
+						if (null != ch) ch.close();
 						ios.close();
 					}
 					return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
@@ -480,6 +532,13 @@ public class ImageSaver {
 
 	/** Save an RGB jpeg including the alpha channel if it has one; can be read only by ImageSaver.openJpegAlpha method; in other software the alpha channel is confused by some other color channel. */
 	static public final boolean saveAsJpegAlpha(final Image awt, final String path, final float quality) {
+		final BufferedImage bi = asBufferedImage(awt);
+		boolean b = saveAsJpegAlpha(bi, path, quality);
+		if (bi != awt) bi.flush();
+		return b;
+	}
+
+	static public final BufferedImage asBufferedImage(final Image awt) {
 		BufferedImage bi = null;
 		if (awt instanceof BufferedImage) {
 			bi = (BufferedImage)awt;
@@ -487,7 +546,7 @@ public class ImageSaver {
 			bi = new BufferedImage(awt.getWidth(null), awt.getHeight(null), BufferedImage.TYPE_INT_ARGB);
 			bi.createGraphics().drawImage(awt, 0, 0, null);
 		}
-		return saveAsJpegAlpha(bi, path, quality);
+		return bi;
 	}
 
 	/** Open a jpeg file including the alpha channel if it has one. */
@@ -542,7 +601,7 @@ public class ImageSaver {
 	}
 
 	/** If the given BufferedImage is of type TYPE_BYTE_GRAY, it will simply return it. If not, it will flush() the given BufferedImage, and return a new grey one. */
-	static private final BufferedImage asGrey(final BufferedImage bi) {
+	static public final BufferedImage asGrey(final BufferedImage bi) {
 		if (null == bi) return null;
 		if (bi.getType() == BufferedImage.TYPE_BYTE_GRAY) {
 			return bi;

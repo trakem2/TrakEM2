@@ -47,6 +47,7 @@ import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.plugin.TPlugIn;
@@ -260,6 +261,8 @@ public class Project extends DBObject {
 	private String title = "Project";
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
+	
+	private int mipmaps_mode = Loader.DEFAULT_MIPMAPS_MODE;
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
@@ -296,7 +299,7 @@ public class Project extends DBObject {
 						Bureaucrat.createAndStart(new Worker.Task("auto-saving") {
 							@Override
 							public void exec() {
-								loader.save(Project.this);
+								Project.this.save();
 							}
 						}, Project.this).join();
 					}
@@ -724,16 +727,40 @@ public class Project extends DBObject {
 	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
-		String path = loader.save(this);
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = true;
+		options.export_images = false;
+		options.patches_dir = null;
+		options.include_coordinate_transform = true;
+		String path = loader.save(this, options);
 		if (null != path) restartAutosaving();
 		return path;
 	}
 
 	/** This is not the saveAs used from the menus; this one is meant for programmatic access. */
-	public String saveAs(String xml_path, boolean overwrite) {
-		String path = loader.saveAs(xml_path, overwrite);
+	public String saveAs(String xml_path, boolean overwrite) throws IllegalArgumentException {
+		if (null == xml_path) throw new IllegalArgumentException("xml_path cannot be null.");
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = overwrite;
+		options.export_images = false;
+		options.patches_dir = null;
+		options.include_coordinate_transform = true;
+		String path = loader.saveAs(xml_path, options);
 		if (null != path) restartAutosaving();
 		return path;
+	}
+
+	/** Save an XML file that is stripped of coordinate transforms,
+	 * and merely refers to them by the 'ct_id' attribute of each 't2_patch' element;
+	 * this method will NOT overwrite the XML file but save into a new one,
+	 * which is chosen from a file dialog. */
+	public String saveWithoutCoordinateTransforms() {
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = false;
+		options.export_images = false;
+		options.include_coordinate_transform = false;
+		options.patches_dir = null;
+		return loader.saveAs(this, options);
 	}
 
 	public boolean destroy() {
@@ -744,7 +771,7 @@ public class Project extends DBObject {
 			if (ControlWindow.isGUIEnabled()) {
 				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
 				if (yn.yesPressed()) {
-					loader.save(this);
+					save();
 				}
 			} else {
 				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
@@ -1186,54 +1213,49 @@ public class Project extends DBObject {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb, final String indent, final Object any) {
-		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, Object) !!");
+	public void exportXML(final StringBuilder sb, final String indent, final XMLOptions options) {
+		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, ExportOptions) !!");
 		throw new UnsupportedOperationException("Cannot call Project.exportXML(StringBuilder, String, Object)");
 	}
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
-	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+	public void exportXML(final java.io.Writer writer, final String indent, final XMLOptions options) throws Exception {
 		Utils.showProgress(0);
 		// 1 - opening tag
 		writer.write(indent);
 		writer.write("<trakem2>\n");
 		final String in = indent + "\t";
 		// 2,3 - export the project itself
-		exportXML(writer, in);
+		exportXML2(writer, in, options);
 		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
-		layer_set.exportXML(writer, in, any);
+		layer_set.exportXML(writer, in, options);
 		// 5 - export Display objects
-		Display.exportXML(this, writer, in, any);
+		Display.exportXML(this, writer, in, options);
 		// 6 - closing tag
 		writer.write("</trakem2>\n");
 	}
 
 	// A separate method to ensure that sb_body instance is garbage collected.
-	private final void exportXML(final java.io.Writer writer, final String in) throws Exception {
+	private final void exportXML2(final java.io.Writer writer, final String in, final XMLOptions options) throws Exception {
 		final StringBuilder sb_body = new StringBuilder();
 		// 2 - the project itself
 		sb_body.append(in).append("<project \n")
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
 		       .append(in).append("\ttitle=\"").append(title).append("\"\n");
 		loader.insertXMLOptions(sb_body, in + "\t");
-		for (final Map.Entry<String, String> e : ht_props.entrySet()) {
+		// Write properties, with the additional property of the image_resizing_mode
+		final HashMap<String,String> props = new HashMap<String, String>(ht_props);
+		props.put("image_resizing_mode", Loader.getMipMapModeName(mipmaps_mode));
+		for (final Map.Entry<String, String> e : props.entrySet()) {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
 		sb_body.append(in).append(">\n");
 		// 3 - export ProjectTree abstract hierarchy (skip the root since it wraps the project itself)
-		// Create table of expanded states
-		/*
-		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
-		for (final Enumeration e = this.project_tree.getRoot().depthFirstEnumeration(); e.hasMoreElements(); ) {
-			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)e.nextElement();
-			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
-		}
-		*/
-		final HashMap<Thing,Boolean> expanded_states = project_tree.getExpandedStates();
+		project_tree.getExpandedStates(options.expanded_states);
 		if (null != root_pt.getChildren()) {
 			final String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
-				pt.exportXML(sb_body, in2, expanded_states);
+				pt.exportXML(sb_body, in2, options);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
@@ -1384,6 +1406,10 @@ public class Project extends DBObject {
 
 	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
+		//
+		String mipmapsMode = ht_attributes.remove("image_resizing_mode");
+		this.mipmaps_mode = null == mipmapsMode ? Loader.DEFAULT_MIPMAPS_MODE : Loader.getMipMapModeIndex(mipmapsMode);
+		//
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
 		for (Map.Entry<String,String> prop : ht_attributes.entrySet()) {
@@ -1462,10 +1488,7 @@ public class Project extends DBObject {
 		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
-		String current_mode = ht_props.get("image_resizing_mode");
-		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
-		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
-		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		gd.addChoice("Image_resizing_mode: ", Loader.MIPMAP_MODES.values().toArray(new String[Loader.MIPMAP_MODES.size()]), Loader.getMipMapModeName(mipmaps_mode));
 		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
@@ -1501,7 +1524,7 @@ public class Project extends DBObject {
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
-		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+		this.mipmaps_mode = Loader.getMipMapModeIndex(gd.getNextChoice());
 
 		final int new_mipmap_format = gd.getNextChoiceIndex();
 		final int old_mipmap_format = loader.getMipMapFormat();
@@ -1675,13 +1698,64 @@ public class Project extends DBObject {
 		return Bureaucrat.createAndStart(new Worker.Task("Saving") {
 			public void exec() {
 				if (command.equals("Save")) {
-					loader.save(project);
-					restartAutosaving();
+					save();
 				} else if (command.equals("Save as...")) {
-					loader.saveAs(project);
+					XMLOptions options = new XMLOptions();
+					options.overwriteXMLFile = false;
+					options.export_images = false;
+					options.include_coordinate_transform = true;
+					options.patches_dir = null;
+					// Will open a file dialog
+					loader.saveAs(project, options);
 					restartAutosaving();
+					//
+				} else if (command.equals("Save as... without coordinate transforms")) {
+					YesNoDialog yn = new YesNoDialog("WARNING",
+							"You are about to save an XML file that lacks the information for the coordinate transforms of each image.\n"
+						  + "These transforms are referred to with the attribute 'ct_id' of each 't2_patch' entry in the XML document,\n"
+						  + "and the data for the transform is stored in an individual file under the folder 'trakem2.cts/'.\n"
+						  + " \n"
+						  + "It is advised to keep a complete XML file with all coordinate transforms included along with this new copy.\n"
+						  + "Please check NOW that you have such a complete XML copy.\n"
+						  + " \n"
+						  + "Proceed?");
+					if (!yn.yesPressed()) return;
+					saveWithoutCoordinateTransforms();
+					//
+				} else if (command.equals("Delete stale files...")) {
+					setTaskName("Deleting stale files");
+					GenericDialog gd = new GenericDialog("Delete stale files");
+					gd.addMessage(
+							"You are about to remove all files under the folder 'trakem2.cts/' which are not referred to from the\n"
+						  + "currently loaded project. If you have sibling XML files whose 't2_patch' entries (the images) refer,\n"
+						  + "via 'ct_id' attributes, to coordinate transforms in 'trakem2.cts/' that this current XML doesn't,\n"
+						  + "they may be LOST FOREVER. Unless you have a version of the XML file with the coordinate transforms\n"
+						  + "written in it, as can be obtained by using the 'Project - Save' command.\n"
+						  + " \n"
+						  + "The same is true for the .zip files that store alpha masks, under folder 'trakem2.masks/'\n"
+						  + "and which are referred to from the 'alpha_mask_id' attribute of 't2_patch' entries.\n"
+						  + " \n"
+						  + "Do you have such complete XML file? Check *NOW*.\n"
+						  + " \n"
+						  + "Proceed with deleting:"
+							);
+					gd.addCheckbox("Delete stale coordinate transform files", true);
+					gd.addCheckbox("Delete stale alpha mask files", true);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					project.getLoader().deleteStaleFiles(gd.getNextBoolean(), gd.getNextBoolean());
 				}
 			}
-		}, project);	
+		}, project);
+	}
+	
+	/** The mode (aka algorithmic approach) used to generate mipmaps, which defaults to {@link Loader#DEFAULT_MIPMAPS_MODE}. */
+	public int getMipMapsMode() {
+		return this.mipmaps_mode;
+	}
+	
+	/** @see #getMipMapsMode() */
+	public void setMipMapsMode(int mode) {
+		this.mipmaps_mode = mode;
 	}
 }

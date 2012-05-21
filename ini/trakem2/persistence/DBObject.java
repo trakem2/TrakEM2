@@ -96,7 +96,7 @@ public class DBObject {
 	}
 
 	/** Subclasses can override this method to store the instance as XML. */
-	public void exportXML(StringBuilder sb_body, String indent, Object any) {
+	public void exportXML(StringBuilder sb_body, String indent, XMLOptions options) {
 		Utils.log("ERROR: exportXML not implemented for " + getClass().getName());
 	}
 

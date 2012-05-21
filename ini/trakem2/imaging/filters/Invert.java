@@ -22,4 +22,9 @@ public class Invert implements IFilter
 			.append(getClass().getName())
 			.append("\" />").toString();
 	}
+	
+	@Override
+	public boolean equals(final Object o) {
+		return null != o && o.getClass() == Invert.class;
+	}
 }

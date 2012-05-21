@@ -31,6 +31,7 @@ import ini.trakem2.display.graphics.DifferenceARGBComposite;
 import ini.trakem2.display.graphics.MultiplyARGBComposite;
 import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
@@ -1341,7 +1342,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(final StringBuilder sb_body, final String in, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1381,7 +1382,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(final StringBuilder sb_body, final String in, final Object any) {
+	synchronized protected void restXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		// Properties:
 		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {

@@ -21,6 +21,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
@@ -526,11 +527,11 @@ public class Stack extends ZDisplayable implements ImageData
 	
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) { // TODO the Loader should handle the saving of images, not this class.
 		final String in = indent + "\t";
 		sb_body.append(indent).append("<t2_stack\n");
 		
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 
 		sb_body.append(in).append("file_path=\"").append(file_path).append("\"\n")
@@ -546,7 +547,7 @@ public class Stack extends ZDisplayable implements ImageData
 			sb_body.append(ict.toXML(in)).append('\n');
 		}
 
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 
 		sb_body.append(indent).append("</t2_stack>\n");
 	}

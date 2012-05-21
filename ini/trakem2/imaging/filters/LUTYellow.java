@@ -31,5 +31,10 @@ public class LUTYellow implements IFilter
 			.append("<t2_filter class=\"").append(getClass().getName())
 			.append("\" />\n").toString();
 	}
+
+	@Override
+	public boolean equals(final Object o) {
+		return null != o && o.getClass() == getClass();
+	}
 }
 

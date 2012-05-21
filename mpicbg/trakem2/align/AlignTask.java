@@ -599,15 +599,19 @@ A:		for ( final Layer layer : layers )
 			return;
 		}
 		// 1 - Collect all VectorData to transform
+		final ArrayList<Displayable> vdata = new ArrayList<Displayable>();
 		final LayerSet ls = patches.iterator().next().getLayerSet();
-		final List<Displayable> vdata = ls.getDisplayables(); // from all layers
-		vdata.addAll(ls.getZDisplayables()); // no lazy seqs, no filter functions ... ole!
-		for (final Iterator<Displayable> it = vdata.iterator(); it.hasNext(); ) {
-			if (it.next() instanceof VectorData) continue;
-			it.remove();
+		for (final Layer layer : ls.getLayers()) {
+			vdata.addAll(layer.getDisplayables(VectorData.class, false, true));
+		}
+		vdata.addAll(ls.getZDisplayables(VectorData.class, true));
+		// Perhaps none:
+		if (vdata.isEmpty()) {
+			alignment.run();
+			return;
 		}
 		// 2 - Store current transformation of each Patch under any VectorData
-		final Set<Long> lids = new HashSet<Long>();
+		final HashSet<Long> lids = new HashSet<Long>();
 		for (final Patch p : patches) lids.add(p.getLayer().getId());
 		final ReferenceData rd = createTransformPropertiesTable(vdata, null, lids);
 		// 3 - Align:

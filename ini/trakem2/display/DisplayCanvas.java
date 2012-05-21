@@ -2236,10 +2236,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		return !input_disabled;
 	}
 
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
-		sb_body.append("<canvas magnification=\"").append(magnification).append("\" srcrect_x=\"").append(srcRect.x).append("\" srcrect_y=\"").append(srcRect.y).append("\" srcrect_width=\"").append(srcRect.width).append("\" srcrect_height=\"").append(srcRect.height).append("\">\n");
-	}
-
 	/** CAREFUL: the ImageProcessor of the returned ImagePlus is fake, that is, a 4x4 byte array; but the dimensions that it returns are those of the host LayerSet. Used to retrieve ROIs for example.*/
 	public ImagePlus getFakeImagePlus() {
 		return this.imp;

@@ -159,7 +159,7 @@ public final class Blending {
 
 		ByteProcessor mask = null;
 		if (respect_current_mask) {
-			mask = p.getProject().getLoader().fetchImageMask(p);
+			mask = p.getAlphaMask();
 		}
 		if (null == mask) {
 			mask = new ByteProcessor(p.getOWidth(), p.getOHeight());

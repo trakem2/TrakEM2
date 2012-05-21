@@ -81,4 +81,15 @@ public class Normalize implements IFilter
 		.append("\" stddev=\"").append(targetStdDev)
 		.append("\" />\n").toString();
 	}
+	
+	
+	@Override
+	public boolean equals(final Object o) {
+		if (null == o) return false;
+		if (o.getClass() == getClass()) {
+			final Normalize nr = (Normalize)o;
+			return targetMean == nr.targetMean && targetStdDev == nr.targetStdDev;
+		}
+		return false;
+	}
 }

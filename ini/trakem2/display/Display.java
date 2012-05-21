@@ -35,6 +35,7 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.ProjectTiler;
 import ini.trakem2.utils.IJError;
@@ -5216,6 +5217,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Set<DoStep> dataedits2 = new HashSet<DoStep>(1);
 				dataedits2.add(new Displayable.DoEdit(active).init(active, new String[]{"data"}));
 				getLayerSet().addChangeTreesStep(dataedits2);
+			} else {
+				Utils.showMessage("Can't do", "Only one tree is selected.\nSelect more than one tree to perform a join operation!");
 			}
 		} else if (command.equals("Previous branch node or start")) {
 			if (!(active instanceof Tree<?>)) return;
@@ -6501,7 +6504,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		;
 	}
 	/** Export all displays of the given project as XML entries. */
-	static public void exportXML(final Project project, final Writer writer, final String indent, final Object any) throws Exception {
+	static public void exportXML(final Project project, final Writer writer, final String indent, final XMLOptions options) throws Exception {
 		final StringBuilder sb_body = new StringBuilder();
 		final String in = indent + "\t";
 		for (final Display d : al_displays) {

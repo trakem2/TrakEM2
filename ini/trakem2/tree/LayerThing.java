@@ -45,6 +45,7 @@ public final class LayerThing extends DBObject implements TitledThing {
 
 	private Object object; // a Layer or a LayerSet
 
+	/** Access to a non-null al_children is synchronized. Works because al_children is never set to null if it is already not null.*/
 	private ArrayList<LayerThing> al_children = null;
 
 	// TODO : attributes, at all?
@@ -89,9 +90,11 @@ public final class LayerThing extends DBObject implements TitledThing {
 	/** Tell the attributes who owns them, and the children's attributes as well, and set the parent to the children; used to finish up reconstruction from the database. */
 	public void setup() {
 		if (null != al_children) {
-			for (final LayerThing child : al_children) {
-				child.parent = this;
-				child.setup();
+			synchronized (al_children) {
+				for (final LayerThing child : al_children) {
+					child.parent = this;
+					child.setup();
+				}
 			}
 		}
 	}
@@ -138,31 +141,34 @@ public final class LayerThing extends DBObject implements TitledThing {
 			return false;
 		}
 		if (null == al_children) al_children = new ArrayList<LayerThing>();
-		if (null != child.getObject() && child.getObject() instanceof Layer) { // this is a patch, but hey, do you want to redesign the events, which are based on layer titles and toString() contents? TODO ...
-			Layer l = (Layer)child.getObject();
-			int i = l.getParent().indexOf(l);
-			//Utils.log2("al_children.size(): " + al_children.size() + ",  i=" + i);
-			if (i >= al_children.size()) { //TODO happens when importing a stack
-				al_children.add((LayerThing)child);
-			} else {
-				try {
-					al_children.add(i, (LayerThing)child);
-				} catch (Exception e) {
-					Utils.log2("LayerThing.addChild: " + e);
-					al_children.add((LayerThing)child); // at the end
+		synchronized (al_children) {
+			if (null != child.getObject() && child.getObject() instanceof Layer) { // this is a patch, but hey, do you want to redesign the events, which are based on layer titles and toString() contents? TODO ...
+				Layer l = (Layer)child.getObject();
+				int i = l.getParent().indexOf(l);
+				//Utils.log2("al_children.size(): " + al_children.size() + ",  i=" + i);
+				if (i >= al_children.size()) { //TODO happens when importing a stack
+					al_children.add((LayerThing)child);
+				} else {
+					try {
+						al_children.add(i, (LayerThing)child);
+					} catch (Exception e) {
+						Utils.log2("LayerThing.addChild: " + e);
+						al_children.add((LayerThing)child); // at the end
+					}
 				}
+			} else {
+				al_children.add((LayerThing)child);
 			}
-		} else {
-			al_children.add((LayerThing)child);
 		}
 		child.setParent(this);
 		return true;
 	}
 
 	public boolean removeChild(LayerThing child) {
-		if (null == al_children || null == child || -1 == al_children.indexOf(child)) return false;
-		al_children.remove(child);
-		return true;
+		if (null == al_children || null == child) return false;
+		synchronized (al_children) {
+			return al_children.remove(child);
+		}
 	}
 
 	public String getType() {
@@ -294,15 +300,17 @@ public final class LayerThing extends DBObject implements TitledThing {
 		if (check && !Utils.check("Really delete " + this.toString() + (object instanceof Layer && ((Layer)object).getDisplayables().size() > 0 ? " and all its children?" : ""))) return false;
 		// remove the children, which will propagate to their own objects
 		if (null != al_children) {
-			LayerThing[] ob = new LayerThing[al_children.size()];
-			al_children.toArray(ob);
-			for (int i=0; i<ob.length; i++) {
-				if ( ! ob[i].remove(false)) {
-					Utils.log("Could not delete " + ob[i]);
-					return false;
+			synchronized (al_children) {
+				LayerThing[] ob = new LayerThing[al_children.size()];
+				al_children.toArray(ob);
+				for (int i=0; i<ob.length; i++) {
+					if ( ! ob[i].remove(false)) {
+						Utils.log("Could not delete " + ob[i]);
+						return false;
+					}
 				}
+				al_children.clear();
 			}
-			al_children.clear();
 		}
 		// TODO the attributes are being ignored! (not even created either)
 
@@ -328,15 +336,19 @@ public final class LayerThing extends DBObject implements TitledThing {
 	public Thing findChild(Object ob) {
 		if (this.object.equals(ob)) return this;
 		if (null == al_children) return null;
-		for (Iterator<LayerThing> it = al_children.iterator(); it.hasNext(); ) {
-			Thing found = it.next().findChild(ob);
-			if (null != found) return found;
+		synchronized (al_children) {
+			for (Iterator<LayerThing> it = al_children.iterator(); it.hasNext(); ) {
+				Thing found = it.next().findChild(ob);
+				if (null != found) return found;
+			}
 		}
 		return null;
 	}
 
 	public int indexOf(LayerThing child) {
-		return al_children.indexOf(child);
+		synchronized (al_children) {
+			return al_children.indexOf(child);
+		}
 	}
 
 	public void debug(String indent) {

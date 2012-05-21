@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.gui.GenericDialog;
 import ij.gui.TextRoi;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Utils;
 
 import java.awt.AlphaComposite;
@@ -380,10 +381,10 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** */
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_label\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"font-size:").append(font.getSize())
 		       .append(";font-style:").append(font.getStyle())
@@ -392,7 +393,7 @@ public class DLabel extends Displayable implements VectorData {
 		       .append(";fill-opacity:").append(alpha).append(";\"\n")
 		;
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_label>\n");
 	}
 

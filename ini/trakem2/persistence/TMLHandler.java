@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.persistence;
 
+import ij.process.ByteProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.AreaTree;
@@ -56,7 +57,7 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.event.KeyEvent;
-import java.lang.reflect.InvocationTargetException;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -113,6 +114,8 @@ public class TMLHandler extends DefaultHandler {
 	private Dissector last_dissector = null;
 	private Stack last_stack = null;
 	private Patch last_patch = null;
+	private CoordinateTransform last_ct = null;
+	private InvertibleCoordinateTransform last_ict = null;
 	private final ArrayList<IFilter> last_patch_filters = new ArrayList<IFilter>(); 
 	private Treeline last_treeline = null;
 	private AreaTree last_areatree = null;
@@ -544,6 +547,15 @@ public class TMLHandler extends DefaultHandler {
 			if (last_patch_filters.size() > 0) {
 				last_patch.setFilters(last_patch_filters.toArray(new IFilter[last_patch_filters.size()]));
 			}
+			if (null != last_ct) {
+				last_patch.setCoordinateTransformSilently(last_ct);
+				last_ct = null;
+			} else if (!last_patch.checkCoordinateTransformFile()) {
+				Utils.log("ERROR: could not find a file for the coordinate transform #" + last_patch.getCoordinateTransformId() + " of Patch #" + last_patch.getId());
+			}
+			if (!last_patch.checkAlphaMaskFile()) {
+				Utils.log("ERROR: could not find a file for the alpha mask #" + last_patch.getAlphaMaskId() + " of Patch #" + last_patch.getId());
+			}
 			last_patch = null;
 			last_patch_filters.clear();
 			last_displayable = null;
@@ -579,6 +591,10 @@ public class TMLHandler extends DefaultHandler {
 			}
 			last_displayable = null;
 		} else if (orig_qualified_name.equals( "t2_stack" )) {
+			if (null != last_ict) {
+				last_stack.setInvertibleCoordinateTransformSilently(last_ict);
+				last_ict = null;
+			}
 			last_stack = null;
 			last_displayable = null;
 		} else if (in(orig_qualified_name, all_displayables)) {
@@ -901,6 +917,7 @@ public class TMLHandler extends DefaultHandler {
 				addToLastOpenLayer(patch);
 				last_patch = patch;
 				last_displayable = patch;
+				checkAlphaMasks(patch);
 				return null;
 			} else if (type.equals("filter")) {
 				last_patch_filters.add(newFilter(ht_attributes));
@@ -959,6 +976,32 @@ public class TMLHandler extends DefaultHandler {
 		return null;
 	}
 
+	/** 
+	 * Backwards compatibility for alpha masks:
+	 * create the file path as it was before, and see if the file exists.
+	 * If it does, set it to the patch as the alpha mask.
+	 */
+	private void checkAlphaMasks(Patch patch) {
+		if (0 == patch.getAlphaMaskId()) {
+			final File f = new File(patch.getImageFilePath());
+			final String path = new StringBuilder(loader.getMasksFolder()).append(FSLoader.createIdPath(Long.toString(patch.getId()), f.getName(), ".zip")).toString();
+			if (new File(path).exists()) {
+				try {
+					if (patch.setAlphaMask((ByteProcessor)loader.openImagePlus(path).getProcessor().convertToByte(false))) {
+						// On success, queue the file for deletion when saving the XML file
+						loader.markStaleFileForDeletionUponSaving(path);
+						Utils.log("Upgraded alpha mask for patch #" + patch.getId());
+					} else {
+						Utils.log("ERROR: failed to upgrade alpha mask for patch #" + patch.getId());
+					}
+				} catch (Exception e) {
+					Utils.log("FAILED to restore alpha mask for patch #" + patch.getId() + ":");
+					IJError.print(e);
+				}
+			}
+		}
+	}
+
 	final private IFilter newFilter(final HashMap<String, String> ht_attributes) {
 		try {
 			Utils.log2(Utils.toString(ht_attributes));
@@ -981,7 +1024,7 @@ public class TMLHandler extends DefaultHandler {
 				if ( ct_list_stack.isEmpty() )
 				{
 					if ( last_patch != null )
-						last_patch.setCoordinateTransformSilently( ct );
+						last_ct = ct;
 				}
 				else
 				{
@@ -995,9 +1038,9 @@ public class TMLHandler extends DefaultHandler {
 				if ( ct_list_stack.isEmpty() )
 				{
 					if ( last_patch != null )
-						last_patch.setCoordinateTransformSilently( ict );
+						last_ct = ict;
 					else if ( last_stack != null )
-						last_stack.setInvertibleCoordinateTransformSilently( ict );
+						last_ict = ict;
 				}
 				else
 				{
@@ -1010,7 +1053,7 @@ public class TMLHandler extends DefaultHandler {
 				if ( ct_list_stack.isEmpty() )
 				{
 					if ( last_patch != null )
-						last_patch.setCoordinateTransformSilently( ctl );
+						last_ct = ctl;
 				}
 				else
 					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ctl );
@@ -1022,9 +1065,9 @@ public class TMLHandler extends DefaultHandler {
 				if ( ct_list_stack.isEmpty() )
 				{
 					if ( last_patch != null )
-						last_patch.setCoordinateTransformSilently( ictl );
+						last_ct = ictl;
 					else if ( last_stack != null )
-						last_stack.setInvertibleCoordinateTransformSilently( ictl );
+						last_ict = ictl;
 				}
 				else
 					ct_list_stack.get( ct_list_stack.size() - 1 ).add( ictl );

@@ -35,6 +35,7 @@ import ini.trakem2.analysis.Centrality;
 import ini.trakem2.analysis.Vertex;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -481,15 +482,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		final String type = "t2_" + getClass().getSimpleName().toLowerCase();
 		sb_body.append(indent).append("<").append(type).append('\n');
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		if (null != root) exportXML(this, in, sb_body, root);
 		sb_body.append(indent).append("</").append(type).append(">\n");
 	}
@@ -1284,7 +1285,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		updateView();
 	}
 
-	/** Join all given Trees by using the first one as the receiver, and all the others as the ones to be merged into the receiver.
+	/** Check if it is possible to join all given Trees into this,
+	 * by using the first one as the receiver (which should be this),
+	 * and all the others as the ones to be merged into the receiver.
 	 *  Requires each Tree to have a non-null marked Node; otherwise, returns false. */
 	public boolean canJoin(final List<? extends Tree<T>> ts) {
 		if (null == marked) {
@@ -1293,6 +1296,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		if (null == this.root) {
 			Utils.log("The root of this tree is null!");
+			return false;
+		}
+		if (1 == ts.size()) {
+			Utils.log("No other trees to join!");
 			return false;
 		}
 		for (final Tree<T> tl : ts) {

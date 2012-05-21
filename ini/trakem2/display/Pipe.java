@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
@@ -1566,10 +1567,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Exports data, the tag is not opened nor closed. */
-	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_pipe\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
 		final String[] RGB = Utils.getHexRGBColor(color);
@@ -1597,7 +1598,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			sb_body.append("\"\n");
 		}
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_pipe>\n");
 	}
 

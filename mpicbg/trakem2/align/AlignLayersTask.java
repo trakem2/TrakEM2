@@ -433,11 +433,15 @@ final public class AlignLayersTask
 		if ( propagateTransform )
 		{
 			if ( last > first && last < layerSet.size() - 2 )
-				for ( final Layer la : layerSet.getLayers( last + 1, layerSet.size() - 1 ) )
+				for ( final Layer la : layerSet.getLayers( last + 1, layerSet.size() - 1 ) ) {
+					if (Thread.currentThread().isInterrupted()) return;
 					AlignTask.transformPatchesAndVectorData( la, a );
+				}
 			else if ( first > last && last > 0 )
-				for ( final Layer la : layerSet.getLayers( 0, last - 1 ) )
+				for ( final Layer la : layerSet.getLayers( 0, last - 1 ) ) {
+					if (Thread.currentThread().isInterrupted()) return;
 					AlignTask.transformPatchesAndVectorData( la, a );
+				}
 		}
 	}
 	
