@@ -26,7 +26,7 @@ public class SimilarityModel2D extends mpicbg.models.SimilarityModel2D implement
 	}
 	
 	@Override
-	public SimilarityModel2D clone()
+	public SimilarityModel2D copy()
 	{
 		final SimilarityModel2D m = new SimilarityModel2D();
 		m.scos = super.scos;

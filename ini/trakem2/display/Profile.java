@@ -24,41 +24,34 @@ package ini.trakem2.display;
 
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
-
-
 import ini.trakem2.Project;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.display.Display3D;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.tree.Thing;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.vector.SkinMaker;
+import ini.trakem2.vector.VectorString2D;
 
+import java.awt.AlphaComposite;
 import java.awt.Color;
-import java.awt.Rectangle;
+import java.awt.Composite;
+import java.awt.Graphics2D;
 import java.awt.Polygon;
-import java.awt.event.MouseEvent;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Composite;
-import java.awt.AlphaComposite;
+import java.util.Map;
 
 import javax.vecmath.Point3f;
 
@@ -156,7 +149,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Construct a Bezier Profile from the database, but the points will be loaded later, when actually needed, by calling setupForDisplay(). */
-	public Profile(Project project, long id, String title, double width, double height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
+	public Profile(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean closed, boolean locked, AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -166,18 +159,17 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Construct a Bezier Profile from an XML entry. */
-	public Profile(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Profile(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse data
-		for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry entry = (Map.Entry)it.next();
-			String key = (String)entry.getKey();
-			String data = (String)entry.getValue();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
+			final String key = entry.getKey();
+			final String data = entry.getValue();
 			if (key.equals("d")) {
 				// parse the SVG points data
-				ArrayList al_p = new ArrayList();
-				ArrayList al_p_r = new ArrayList();
-				ArrayList al_p_l = new ArrayList();// needs shifting, inserting one point at the beginning if not closed.
+				final ArrayList<String> al_p = new ArrayList<String>(),
+									al_p_r = new ArrayList<String>(),
+									al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
 				// sequence is: M p[0],p[1] C p_r[0],p_r[1] p_l[0],p_l[1] and repeat without the M, and finishes with the last p[0],p[1]. If closed, appended at the end is p_r[0],p_r[1] p_l[0],p_l[1]
 				// first point:
 				int i_start = data.indexOf('M');
@@ -236,13 +228,13 @@ public class Profile extends Displayable implements VectorData {
 				this.p_l = new double[2][n_points];
 				this.p_r = new double[2][n_points];
 				for (int i=0; i<n_points; i++) {
-					String[] sp = ((String)al_p.get(i)).split(",");
+					String[] sp = al_p.get(i).split(",");
 					p[0][i] = Double.parseDouble(sp[0]);
 					p[1][i] = Double.parseDouble(sp[1]);
-					sp = ((String)al_p_l.get(i)).split(",");
+					sp = al_p_l.get(i).split(",");
 					p_l[0][i] = Double.parseDouble(sp[0]);
 					p_l[1][i] = Double.parseDouble(sp[1]);
-					sp = ((String)al_p_r.get(i)).split(",");
+					sp = al_p_r.get(i).split(",");
 					p_r[0][i] = Double.parseDouble(sp[0]);
 					p_r[1][i] = Double.parseDouble(sp[1]);
 				}
@@ -253,7 +245,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** A constructor for cloning purposes. */
-	private Profile(Project project, String title, double x, double y, double width, double height, float alpha, Color color, int n_points, double[][] p, double[][] p_r, double[][] p_l, double[][] p_i, boolean closed) {
+	private Profile(Project project, String title, double x, double y, float width, float height, float alpha, Color color, int n_points, double[][] p, double[][] p_r, double[][] p_l, double[][] p_i, boolean closed) {
 		super(project, title, x, y);
 		this.width = width;
 		this.height = height;
@@ -288,6 +280,11 @@ public class Profile extends Displayable implements VectorData {
 		this.p = p_copy;
 		this.p_l = p_l_copy;
 		this.p_r = p_r_copy;
+	}
+	
+	/** Returns the number of backbone points. */
+	public int getPointCount() {
+		return n_points;
 	}
 
 	public boolean isClosed() {
@@ -530,8 +527,8 @@ public class Profile extends Displayable implements VectorData {
 		}
 	}
 
-
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
+	@Override
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		if (0 == n_points) return;
 		if (-1 == n_points) {
 			// load points from the database
@@ -763,7 +760,7 @@ public class Profile extends Displayable implements VectorData {
 	/**Calculate the bounding box of the curve in the shape of a Rectangle defined by x,y,width,height. If adjust_position is true, then points are made local to the minimal x,y. */
 	protected void calculateBoundingBox(boolean adjust_position) {
 		if (0 == n_points) {
-			this.width = this.height = 0.0D;
+			this.width = this.height = 0;
 			updateBucket();
 			return;
 		}
@@ -789,8 +786,8 @@ public class Profile extends Displayable implements VectorData {
 			if (p_r[1][i] > max_y) max_y = p_r[1][i];
 		}
 
-		this.width = max_x - min_x;
-		this.height = max_y - min_y;
+		this.width = (float)(max_x - min_x);
+		this.height = (float)(max_y - min_y);
 
 		if (adjust_position) {
 			// now readjust points to make min_x,min_y be the x,y
@@ -974,9 +971,8 @@ public class Profile extends Displayable implements VectorData {
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			int ii = 0;
 			int len = hs_linked.size();
-			for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-				Object ob = it.next();
-				data.append(((DBObject)ob).getId());
+			for (final Displayable d : hs_linked) {
+				data.append(d.getId());
 				if (ii != len-1) data.append(',');
 				ii++;
 			}
@@ -986,15 +982,20 @@ public class Profile extends Displayable implements VectorData {
 		;
 	}
 
-	/** Returns a triple array, each containing a [2][n_points] array specifiying the x,y of each left control point, backbone point and right control point respectively.*/
+	/** Returns a triple array, each containing a [2][n_points] array
+	 *  specifiying the x,y of each left control point, backbone point
+	 *  and right control point respectively. All of them are copies. */
 	public double[][][] getBezierArrays() {
 		//assumes the profile is a Bezier curve.
 		//put points and control points into PGpoint objects, as: LPRLPRLPR... (L = left control point, P = backbone point, R = right control point)
 		if (-1 == n_points) setupForDisplay(); // reload
-		final double[][][] b = new double[3][][];
-		b[0] = p_l;
-		b[1] = p;
-		b[2] = p_r;
+		final double[][][] b = new double[3][2][];
+		b[0][0] = Utils.copy(p_l[0], n_points);
+		b[0][1] = Utils.copy(p_l[1], n_points);
+		b[1][0] = Utils.copy(p[0], n_points);
+		b[1][1] = Utils.copy(p[1], n_points);
+		b[2][0] = Utils.copy(p_r[0], n_points);
+		b[2][1] = Utils.copy(p_r[1], n_points);
 		return b;
 	}
 
@@ -1005,8 +1006,7 @@ public class Profile extends Displayable implements VectorData {
 	/** Returns true if it's linked to at least one patch in the same Layer. Otherwise returns false. */
 	public boolean isLinked() {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			if (d instanceof Patch && d.layer.equals(this.layer)) return true;
 		}
 		return false;
@@ -1015,8 +1015,7 @@ public class Profile extends Displayable implements VectorData {
 	/** Returns false if the target_layer contains a profile that is directly linked to this profile. */
 	public boolean canSendTo(Layer target_layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : hs_linked) {
 			if (d instanceof Profile && d.layer.equals(target_layer)) return false;
 		}
 		return true;
@@ -1287,10 +1286,10 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_profile\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		if (-1 == n_points) setupForDisplay(); // reload
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n");
@@ -1313,11 +1312,11 @@ public class Profile extends Displayable implements VectorData {
 			sb_body.append("\"\n");
 		}
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_profile>\n");
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_profile";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -1381,18 +1380,18 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	public void setColor(Color c) {
-		// propagate to al linked profiles within the same profile_list
-		setColor(c, new HashSet());
+		// propagate to all linked profiles within the same profile_list
+		setColor(c, new HashSet<Profile>());
 	}
 
 	/** Exploits the fact that Profile instances among the directly linked as returned by getLinked(Profile.class) will be members of the same profile_list. */
-	private void setColor(Color c, HashSet hs_done) {
+	private void setColor(Color c, HashSet<Profile> hs_done) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		super.setColor(c);
-		HashSet hs = getLinked(Profile.class);
+		HashSet<Displayable> hs = getLinked(Profile.class);
 		if (null != hs) {
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
+			for (Iterator<Displayable> it = hs.iterator(); it.hasNext(); ) {
 				Profile p = (Profile)it.next();
 				p.setColor(c, hs_done);
 			}
@@ -1425,23 +1424,22 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Takes a profile_list, scans for its Profile children, makes sublists of continuous profiles (if they happen to be branched), and then creates triangles for them using weighted vector strings. */
-	static public List generateTriangles(final ProjectThing pt, final double scale) {
+	static public List<Point3f> generateTriangles(final ProjectThing pt, final double scale) {
 		if (!pt.getType().equals("profile_list")) {
 			Utils.log2("Profile: ignoring unhandable ProjectThing type.");
 			return null;
 		}
-		ArrayList al = pt.getChildren(); // should be sorted by Z already
+		ArrayList<ProjectThing> al = pt.getChildren(); // should be sorted by Z already
 		if (al.size() < 2) {
 			Utils.log("profile_list " + pt + " has less than two profiles: can't render in 3D.");
 			return null;
 		}
 		// collect all Profile
-		final HashSet hs = new HashSet();
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Thing child = (Thing)it.next();
+		final HashSet<Profile> hs = new HashSet<Profile>();
+		for (final ProjectThing child : al) {
 			Object ob = child.getObject();
 			if (ob instanceof Profile) {
-				hs.add(ob);
+				hs.add((Profile)ob);
 			} else {
 				Utils.log2("Render: skipping non Profile class child");
 			}
@@ -1463,14 +1461,14 @@ public class Profile extends Displayable implements VectorData {
 		}
 		if (hidden) return null;
 		// collect starts and ends
-		final HashSet hs_bases = new HashSet();
-		final HashSet hs_done = new HashSet();
-		final List triangles = new ArrayList();
+		final HashSet<Profile> hs_bases = new HashSet<Profile>();
+		final HashSet<Profile> hs_done = new HashSet<Profile>();
+		final List<Point3f> triangles = new ArrayList<Point3f>();
 		do {
 			Profile base = null;
 			// choose among existing bases
 			if (hs_bases.size() > 0) {
-				base = (Profile)hs_bases.iterator().next();
+				base = hs_bases.iterator().next();
 			} else {
 				// find a new base, simply by taking the lowest Z or remaining profiles
 				double min_z = Double.MAX_VALUE;
@@ -1490,7 +1488,7 @@ public class Profile extends Displayable implements VectorData {
 				break;
 			}
 			// crawl list to get a sequence of profiles in increasing or decreasing Z order, but not mixed z trends
-			final ArrayList al_profiles = new ArrayList();
+			final ArrayList<Profile> al_profiles = new ArrayList<Profile>();
 			//Utils.log2("Calling accumulate for base " + base);
 			al_profiles.add(base);
 			final Profile last = accumulate(hs_done, al_profiles, base, 0);
@@ -1503,7 +1501,7 @@ public class Profile extends Displayable implements VectorData {
 				// create 3D object from base to base
 				final Profile[] profiles = new Profile[al_profiles.size()];
 				al_profiles.toArray(profiles);
-				List tri = makeTriangles(profiles, scale);
+				List<Point3f> tri = makeTriangles(profiles, scale);
 				if (null != tri) triangles.addAll(tri);
 			} else {
 				// remove base
@@ -1515,8 +1513,8 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Recursive; returns the last added profile. */
-	static private Profile accumulate(final HashSet hs_done, final ArrayList al, final Profile step, int z_trend) {
-		final HashSet hs_linked = step.getLinked(Profile.class);
+	static private Profile accumulate(final HashSet<Profile> hs_done, final ArrayList<Profile> al, final Profile step, int z_trend) {
+		final HashSet<Displayable> hs_linked = step.getLinked(Profile.class);
 		if (al.size() > 1 && hs_linked.size() > 2) {
 			// base found
 			return step;
@@ -1524,7 +1522,7 @@ public class Profile extends Displayable implements VectorData {
 		double step_z = step.getLayer().getZ();
 		Profile next_step = null;
 		boolean started = false;
-		for (Iterator it = hs_linked.iterator(); it.hasNext(); ) {
+		for (Iterator<Displayable> it = hs_linked.iterator(); it.hasNext(); ) {
 			Object ob = it.next();
 			// loop only one cycle, to move only in one direction
 			if (al.contains(ob) || started || hs_done.contains(ob)) continue;
@@ -1583,6 +1581,12 @@ public class Profile extends Displayable implements VectorData {
 		}
 		return null;
 	}
+	
+	/** Does nothing. */
+	@Override
+	public boolean softRemove() {
+		return true;
+	}
 
 	protected boolean remove2(boolean check) {
 		return project.getProjectTree().remove(check, project.findProjectThing(this), null); // will call remove(check) here
@@ -1616,6 +1620,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	/** Measures the calibrated length, the lateral surface as the length times the layer thickness, and the volume (if closed) as the area times the layer thickness. */
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == rt) rt = Utils.createResultsTable("Profile results", new String[]{"id", "length", "side surface: length x thickness", "volume: area x thickness", "name-id"});
 		if (-1 == n_points) setupForDisplay();
@@ -1702,7 +1707,7 @@ public class Profile extends Displayable implements VectorData {
 	}
 
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPProfile.class;
 	}
 
@@ -1786,5 +1791,19 @@ public class Profile extends Displayable implements VectorData {
 		generateInterpolatedPoints(0.05);
 		calculateBoundingBox(true);
 		return true;
+	}
+	
+	@Override
+	synchronized public boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		if (this.layer != layer) return false;
+		try {
+			final Rectangle box = this.at.createInverse().createTransformedShape(r).getBounds();
+			for (int i=0; i<n_points; i++) {
+				if (box.contains(p[0][i], p[1][i])) return true;
+			}
+		} catch (NoninvertibleTransformException e) {
+			IJError.print(e);
+		}
+		return false;
 	}
 }

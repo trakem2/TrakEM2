@@ -24,7 +24,6 @@ package ini.trakem2.utils;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
 import java.util.ArrayList;
 
@@ -87,12 +86,12 @@ public class Bureaucrat extends Thread {
 		worker_thread.start();
 		// Make sure we start AFTER the worker has started.
 		while (!worker.hasStarted()) {
-			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
+			try { Thread.sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
 		start();
 		// Make sure we return AFTER having started.
 		while (!started) {
-			try { Thread.currentThread().sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
+			try { Thread.sleep(50); } catch (InterruptedException ie) { ie.printStackTrace(); }
 		}
 	}
 	private void cleanup() {
@@ -198,14 +197,21 @@ public class Bureaucrat extends Thread {
 			IJError.print(ie);
 		}
 		// wait for all others in a separate thread, then clear progress bar
+		Thread.yield();
 		final ThreadGroup tg = getThreadGroup();
+		if (null == tg) {
+			Utils.log2("All threads related to the task died.");
+			return; // will be null if all threads of the former group have died
+		}
 		new Thread() { public void run() {
 			try {
 				// Reasonable effort to join all threads
 				Thread[] t = new Thread[tg.activeCount() * 2];
 				int len = tg.enumerate(t);
 				for (int i=0; i<len && i<t.length; i++) {
+					Utils.log2("Joining thread: " + t[i]);
 					try { t[i].join(); } catch (InterruptedException ie) {}
+					Utils.log2("... thread died: " + t[i]);
 				}
 			} catch (Exception e) {
 				IJError.print(e);

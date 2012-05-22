@@ -22,7 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.io;
 
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
 import java.io.File;

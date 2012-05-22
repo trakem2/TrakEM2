@@ -21,6 +21,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 
@@ -35,8 +36,8 @@ import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 
@@ -125,7 +126,7 @@ public class Stack extends ZDisplayable implements ImageData
 
 	/** For cloning purposes. */
 	private Stack(Project project, long id, String title,
-		      AffineTransform at, double width, double height,
+		      AffineTransform at, float width, float height,
 		      float alpha, boolean visible, Color color, boolean locked,
 		      double depth, double min, double max,
 		      float[] boundsMin, float[] boundsMax,
@@ -146,18 +147,16 @@ public class Stack extends ZDisplayable implements ImageData
 		this.depth = depth;
 		this.min = min;
 		this.max = max;
-		this.ict = null == ict ? null : this.ict.clone();
+		this.ict = null == ict ? null : this.ict.copy();
 		this.file_path = file_path;
 	}
 
 	/** Construct a Stack from an XML entry. */
-	public Stack(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Stack(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific fields
 		
-		final Iterator it = ht.entrySet().iterator();
-		while (it.hasNext()) {
-			final Map.Entry entry = (Map.Entry)it.next();
+		for (final Map.Entry<String,String> entry : ht.entrySet()) {
 			final String key = (String)entry.getKey();
 			final String data = (String)entry.getValue();
 			if (key.equals("min")) {
@@ -281,8 +280,8 @@ public class Stack extends ZDisplayable implements ImageData
 
 	/** Slow paint: will wait until the image is generated and cached, then paint it. */
 	@Override
-	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		Image image = null;
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
+		MipMapImage mipMap = null;
 		Future< Image > fu = null;
 		final SliceViewKey sliceViewKey = new SliceViewKey( magnification, active_layer.getZ() );
 		synchronized ( cachedImages )
@@ -298,9 +297,9 @@ public class Stack extends ZDisplayable implements ImageData
 			{
 				/* fetch the image from cache---still, it may be that it is not there... */
 				imageId = imageIdL;
-				image = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
+				mipMap = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
 			}
-			if ( image == null )
+			if ( mipMap == null )
 			{
 				/* image has to be generated */
 				fu = fetchFutureImage( imageId, magnification, active_layer, false ); // do not trigger repaint event
@@ -308,9 +307,10 @@ public class Stack extends ZDisplayable implements ImageData
 		}
 
 		// Paint outside the synchronization block:
-		if (null != image) {
-			paint(g, image);
+		if (null != mipMap) {
+			paint(g, mipMap.image);
 		} else if (null != fu) {
+			final Image image;
 			try {
 				image = fu.get();
 			} catch (Throwable ie) {
@@ -451,14 +451,15 @@ public class Stack extends ZDisplayable implements ImageData
 			final double magnification,
 			final boolean active,
 			final int channels,
-			final Layer active_layer )
+			final Layer active_layer,
+			final List<Layer> _ignored)
 	{
 
 		//final Image image = project.getLoader().fetchImage(this,0);
 		//Utils.log2("Patch " + id + " painted image " + image);
 		
 		final double currentZ = active_layer.getZ();
-		Image image = null;
+		MipMapImage mipMap = null;
 		synchronized ( cachedImages )
 		{
 			final SliceViewKey sliceViewKey = new SliceViewKey( magnification, currentZ );
@@ -473,9 +474,9 @@ public class Stack extends ZDisplayable implements ImageData
 			{
 				/* fetch the image from cache---still, it may be that it is not there... */
 				imageId = imageIdL;
-				image = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
+				mipMap = project.getLoader().getCached( cachedImages.get( sliceViewKey ), 0 );
 			}
-			if ( image == null )
+			if ( mipMap == null )
 			{
 				/* image has to be generated */
 				fetchFutureImage( imageId, magnification, active_layer, true );
@@ -483,8 +484,8 @@ public class Stack extends ZDisplayable implements ImageData
 			}
 		}
 
-		if ( image != null) {
-			paint( g, image );
+		if ( mipMap != null) {
+			paint( g, mipMap.image );
 		}
 	}
 
@@ -503,7 +504,7 @@ public class Stack extends ZDisplayable implements ImageData
 		final Composite original_composite = g.getComposite();
 		// Fail gracefully for graphics cards that don't support custom composites, like ATI cards:
 		try {
-			g.setComposite( getComposite() );
+			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( image, atp, null );
 		} catch (Throwable t) {
 			Utils.log(new StringBuilder("Cannot paint Stack with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
@@ -514,7 +515,7 @@ public class Stack extends ZDisplayable implements ImageData
 		g.setComposite( original_composite );
 	}
 
-	static public final void exportDTD( final StringBuilder sb_header, final HashSet hs, final String indent ) {
+	static public final void exportDTD( final StringBuilder sb_header, final HashSet<String> hs, final String indent ) {
 		final String type = "t2_stack";
 		if (hs.contains(type)) return;
 		hs.add( type );
@@ -526,11 +527,11 @@ public class Stack extends ZDisplayable implements ImageData
 	
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) { // TODO the Loader should handle the saving of images, not this class.
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) { // TODO the Loader should handle the saving of images, not this class.
 		final String in = indent + "\t";
 		sb_body.append(indent).append("<t2_stack\n");
 		
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 
 		sb_body.append(in).append("file_path=\"").append(file_path).append("\"\n")
@@ -546,7 +547,7 @@ public class Stack extends ZDisplayable implements ImageData
 			sb_body.append(ict.toXML(in)).append('\n');
 		}
 
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 
 		sb_body.append(indent).append("</t2_stack>\n");
 	}
@@ -677,4 +678,7 @@ public class Stack extends ZDisplayable implements ImageData
 	public boolean remove2(boolean check) {
 		return remove(check);
 	}
+	
+	@Override
+	protected boolean calculateBoundingBox(final Layer la) { return true; }
 }

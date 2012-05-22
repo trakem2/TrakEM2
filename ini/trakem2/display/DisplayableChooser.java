@@ -22,12 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-
-
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.Collection;
 
 /** A class to be used when a click to select Displayable objects on the Display detects that there are more than one under the mouse cursor.
@@ -36,12 +32,12 @@ import java.util.Collection;
  */
 public final class DisplayableChooser implements ActionListener {
 
-	protected Collection al_under;
-	protected boolean waiting = true;
-	protected Displayable chosen = null;
+	private Collection<Displayable> al_under;
+	private boolean waiting = true;
+	private Displayable chosen = null;
 	private Object lock;
 
-	public DisplayableChooser(Collection al_under, Object lock) {
+	public DisplayableChooser(Collection<Displayable> al_under, Object lock) {
 		this.al_under = al_under;
 		this.lock = lock;
 	}
@@ -49,9 +45,7 @@ public final class DisplayableChooser implements ActionListener {
 	public void actionPerformed(final ActionEvent ae) {
 		String command = ae.getActionCommand();
 		//find the object that has the command as title
-		final Iterator it = al_under.iterator();
-		while (it.hasNext()) {
-			final Displayable d = (Displayable)it.next();
+		for (final Displayable d : al_under) {
 			if (d.toString().equals(command)) {
 				chosen = d;
 				break;

@@ -22,6 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 import ij.IJ;
 import ij.gui.*;
+import ini.trakem2.utils.IJError;
+
 import java.awt.*;
 import java.awt.event.*;
 
@@ -30,15 +32,21 @@ import java.awt.event.*;
 	Almost literally copied from ij.gui.YesNoCancelDialog class
 */
 public class YesNoDialog extends Dialog implements ActionListener, KeyListener {
-    private Button yesB, noB;
+	private static final long serialVersionUID = 1L;
+	private Button yesB, noB;
     private boolean yesPressed;
 	private boolean firstPaint = true;
+	private Runnable closing_task = null;
 
 	public YesNoDialog(String title, String msg) {
 		this(IJ.getInstance(), title, msg);
 	}
-
+	
 	public YesNoDialog(Frame parent, String title, String msg) {
+		this(parent, title, msg, true);
+	}
+
+	public YesNoDialog(Frame parent, String title, String msg, boolean show) {
 		super(parent, title, true);
 		setLayout(new BorderLayout());
 		Panel panel = new Panel();
@@ -72,7 +80,11 @@ public class YesNoDialog extends Dialog implements ActionListener, KeyListener {
 		add("South", panel);
 		pack();
 		GUI.center(this);
-		show();
+		if (show) setVisible(true);
+	}
+	
+	public void setClosingTask(final Runnable r) {
+		this.closing_task = r;
 	}
   
 	public void actionPerformed(ActionEvent e) {
@@ -87,6 +99,7 @@ public class YesNoDialog extends Dialog implements ActionListener, KeyListener {
 	}
 	
 	void closeDialog() {
+		if (null != closing_task) try { closing_task.run(); } catch (Throwable t) { IJError.print(t); }
 		setVisible(false);
 		dispose();
 	}

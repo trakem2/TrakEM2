@@ -22,35 +22,39 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.imaging;
 
-import java.awt.Rectangle;
-import java.awt.Image;
-import java.awt.Window;
-import java.awt.Color;
-import java.awt.geom.Point2D;
-import java.awt.geom.AffineTransform;
-import java.awt.image.PixelGrabber;
-import java.awt.image.BufferedImage;
-import java.awt.image.IndexColorModel;
-import java.awt.Graphics2D;
-import java.util.Properties;
-import java.util.HashSet;
-import ij.*;
-import ij.process.*;
-import ij.gui.*;
-import ij.measure.*;
-import ij.io.*;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.LookUpTable;
+import ij.gui.Roi;
+import ij.io.FileInfo;
+import ij.measure.Calibration;
+import ij.process.ColorProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ImageStatistics;
+import ij.process.MedianCut;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+
+import java.awt.Color;
+import java.awt.Image;
+import java.awt.Rectangle;
+import java.awt.Window;
+import java.util.HashSet;
+import java.util.Properties;
 
 
 
-/** Assumed is all Patch instances in the array are of the same size, live in consecutive layers of the same thickness. 
+/** Assumed is all Patch instances in the array are of the same size,
+ * live in consecutive layers of the same thickness. 
  *
- * The superclass ImagePlus uses the 'ip' pointer for a single ImageProcessor whose pixels getr replaced every time a new slice is selected from the stack, when there is a stack. Here the 'ip' pointer is used for the current slice, which is the currently active Patch.
+ * The superclass ImagePlus uses the 'ip' pointer for a single ImageProcessor
+ * whose pixels get replaced every time a new slice is selected from the stack,
+ * when there is a stack. Here the 'ip' pointer is used for the current slice,
+ * which is the currently active Patch.
  * */
 public class PatchStack extends ImagePlus {
 
@@ -67,8 +71,7 @@ public class PatchStack extends ImagePlus {
 		Rectangle b = patch[0].getBoundingBox(null);
 		this.width = b.width;
 		this.height = b.height;
-		if (patch.length > 1) this.stack = new VirtualStack(width, height);
-		else this.stack = null;
+		this.stack = new VirtualStack(width, height);
 		this.ip = null; // will be retrieved on the fly when necessary
 		this.changes = false;
 		called = new boolean[patch.length];
@@ -297,7 +300,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public Image getImage() {
-		return patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]);
+		return patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]).image;
 		// TODO: is this safe? Can be flushed!
 	}
 
@@ -372,6 +375,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	// only need to override one, as the others point to this method
+	@Override
 	public ImageStatistics getStatistics(int nOptions, int nBins, double histMin, double histMax) {
 		ImagePlus imp = patch[currentSlice-1].getProject().getLoader().fetchImagePlus(patch[currentSlice-1]);
 		if (null!=this.roi) imp.setRoi(this.roi); // to be sure!
@@ -394,18 +398,18 @@ public class PatchStack extends ImagePlus {
 		Utils.log("PatchStack: Can't setDimensions.");
 	}
 
-	/** Override to return zero */
+	/** Override to return 1. */
 	public int getNChannels() {
-		return 0;
+		return 1;
 	}
 
 	public int getNSlices() {
 		return patch.length;
 	}
 
-	/** Override to return zero */
+	/** Override to return 1. */
 	public int getNFrames() {
-		return 0;
+		return 1;
 	}
 
 	/** Override to return width, height, 1, patch.length, 1*/
@@ -459,7 +463,7 @@ public class PatchStack extends ImagePlus {
 	}
 
 	public LookUpTable createLut() {
-		Image awt = patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]);
+		Image awt = patch[currentSlice-1].getProject().getLoader().fetchImage(patch[currentSlice-1]).image;
 		return new LookUpTable(awt);
 	}
 
@@ -496,7 +500,7 @@ public class PatchStack extends ImagePlus {
 			//no need//updateAndRepaintWindow();
 			return;
 		}
-		if (index>= 1 && index <= patch.length) {
+		if (index >= 1 && index <= patch.length) {
 			Roi roi = getRoi();
 			if (null != roi) roi.endPaste();
 			currentSlice = index;
@@ -629,7 +633,7 @@ public class PatchStack extends ImagePlus {
 
 	/** Remove all awts and snaps from the loader's cache, and repaint (which will remake as many as needed) */
 	public void decacheAll() {
-		final HashSet hs = new HashSet(); // record already flushed imps, since there can be shared imps among Patch instances (for example in stacks)
+		final HashSet<ImagePlus> hs = new HashSet<ImagePlus>(); // record already flushed imps, since there can be shared imps among Patch instances (for example in stacks)
 		final Loader loader = patch[currentSlice-1].getProject().getLoader();
 		for (int i=0; i<patch.length; i++) {
 			ImagePlus imp = loader.fetchImagePlus(patch[i]);
@@ -641,7 +645,19 @@ public class PatchStack extends ImagePlus {
 		}
 	}
 
-	private class VirtualStack extends ImageStack {
+	@Override
+	public void setPosition(int channel, int slice, int frame) {
+		if (slice >= 1 && slice <= patch.length) {
+			currentSlice = slice;
+		}
+	}
+	
+	@Override
+	public int getStackIndex(int channel, int slice, int frame) {
+		return slice;
+	}
+
+	final class VirtualStack extends ImageStack {
 
 		VirtualStack(int width, int height) {
 			super(width, height);
@@ -747,7 +763,7 @@ public class PatchStack extends ImagePlus {
 
 		/** Override: always false. */
 		public boolean isRGB() {
-			return false;
+			return getType() == COLOR_RGB;
 		}
 
 		/** Override: always false. */

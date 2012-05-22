@@ -58,7 +58,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
-		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
+		if (!source.equals(this) || !project.isInputEnabled()) {
 			return;
 		}
 		// allow right-click only
@@ -89,7 +89,7 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				menu.addSeparator();
 				JMenu other = new JMenu("From project...");
 				menu.add(other);
-				for (Iterator itp = ControlWindow.getProjects().iterator(); itp.hasNext(); ) {
+				for (Iterator<Project> itp = ControlWindow.getProjects().iterator(); itp.hasNext(); ) {
 					final Project pr = (Project) itp.next();
 					if (root.getProject() == pr) continue;
 					item = new JMenuItem(pr.toString());
@@ -167,32 +167,28 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		//Utils.log2("command: " + command);
 		TemplateThing tt = (TemplateThing)selected_node.getUserObject();
 
-		// Determine whether tt is a nested type
-		Thing parent = tt.getParent();
-
 		if (command.equals("Rename...")) {
 			final GenericDialog gd = new GenericDialog("Rename");
-			gd.addStringField("New type name: ", tt.getType());
+			gd.addStringField("New type name: ", tt.getType(), 40);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 			String old_name = tt.getType();
-			String new_name = gd.getNextString().replace(' ', '_');
-			if (null == new_name || 0 == new_name.length()) {
-				Utils.showMessage("Unacceptable new name: '" + new_name + "'");
+			String new_name = gd.getNextString().replace(' ', '_').trim();
+			if (null == new_name || 0 == new_name.length() || isInvalidTypeName(new_name, false)) {
+				Utils.showMessage("Unacceptable new name: '" + new_name + "'");///////////
 				return;
 			}
 			renameType(old_name, new_name);
 		} else if (command.equals("Delete...")) {
 			// find dependent objects, if any, that have the same type of parent chain
-			HashSet hs = tt.getProject().getRootProjectThing().collectSimilarThings(tt, new HashSet());
+			HashSet<ProjectThing> hs = tt.getProject().getRootProjectThing().collectSimilarThings(tt, new HashSet<ProjectThing>());
 			YesNoCancelDialog yn = ControlWindow.makeYesNoCancelDialog("Remove type?", "Really remove type '" + tt.getType() + "'" + ((null != tt.getChildren() && 0 != tt.getChildren().size()) ? " and its children" : "") + (0 == hs.size() ? "" : " from parent " + tt.getParent().getType() + ",\nand its " + hs.size() + " existing instance" + (1 == hs.size() ? "" : "s") + " in the project tree?"));
 			if (!yn.yesPressed()) return;
 			// else, proceed to delete:
 			//Utils.log("Going to delete TemplateThing: " + tt.getType() + "  id: " + tt.getId());
 			// first, remove the project things
 			DNDTree project_tree = tt.getProject().getProjectTree();
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				ProjectThing pt = (ProjectThing)it.next();
+			for (final ProjectThing pt : hs) {
 				Utils.log("\tDeleting ProjectThing: " + pt + " " + pt.getId());
 				if (!pt.remove(false)) {
 					Utils.showMessage("Can't delete ProjectThing " + pt + " " + pt.getId());
@@ -202,11 +198,10 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				else Utils.log("Can't find a node for PT " + pt + " " + pt.getId());
 			}
 			// then, remove the template things that have the same type and parent type as the selected one
-			hs = root.collectSimilarThings(tt, new HashSet());
+			HashSet<TemplateThing> hst = root.collectSimilarThings(tt, new HashSet<TemplateThing>());
 			HashSet hs_same_type = root.collectThingsOfEqualType(tt, new HashSet());
 			Utils.log2("hs_same_type.size() = " + hs_same_type.size());
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				TemplateThing tet = (TemplateThing)it.next();
+			for (final TemplateThing tet : hst) {
 				if (1 != hs_same_type.size() && tet.equals(tet.getProject().getTemplateThing(tet.getType()))) {
 					// don't delete if this is the primary copy, stored in the project unique types (which should be clones, to avoid this problem)
 					Utils.log2("avoiding 1");
@@ -269,20 +264,20 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 				gd.showDialog();
 				if (gd.wasCanceled()) return;
 				String new_type = gd.getNextString().toLowerCase(); // TODO WARNING toLowerCase enforced, need to check the TMLHandler
+
+
+				// replace spaces before testing for non-alphanumeric chars
+				new_type = new_type.replace(' ', '_').trim(); // spaces don't play well in an XML file.
+
+				if (isInvalidTypeName(new_type, true)) {
+					return;
+				}
+
 				if (tt.getProject().typeExists(new_type.toLowerCase())) {
 					Utils.showMessage("Type '" + new_type + "' exists already.\nSelect it from the contextual menu list\nor choose a different name.");
 					return;
-				} else if (tt.getProject().isBasicType(new_type.toLowerCase())) {
+				} else if (Project.isBasicType(new_type.toLowerCase())) {
 					Utils.showMessage("Type '" + new_type + "' is reserved.\nPlease choose a different name.");
-					return;
-				}
-				
-				// replace spaces before testing for non-alphanumeric chars
-				new_type = new_type.replace(' ', '_'); // spaces don't play well in an XML file.
-
-				final Pattern pat = Pattern.compile("^.*[^a-zA-Z0-9_-].*$", Pattern.CASE_INSENSITIVE);
-				if (pat.matcher(new_type).matches()) {
-					Utils.showMessage("Only alphanumeric characters, underscore, hyphen and space are accepted.");
 					return;
 				}
 
@@ -305,6 +300,21 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 
 			// add the new type to the database and to the tree, to all instances that are similar to tt (but not nested)
 			addNewChildType(tt, new_child_type);
+		}
+	}
+	
+	/** Returns true if @param type conforms with ^[a-zA-Z][a-zA-Z0-9_]*$ */
+	public boolean isInvalidTypeName(final String type) {
+		return isInvalidTypeName(type, false);
+	}
+
+	private boolean isInvalidTypeName(final String type, final boolean showmsg) {
+		final Pattern pat = Pattern.compile("^[a-zA-Z][a-zA-Z0-9_]*$", Pattern.CASE_INSENSITIVE);
+		if (pat.matcher(type).matches()) {
+			return false;
+		} else {
+			if (showmsg) Utils.showMessage("Only alphanumeric characters, underscore, hyphen and space are accepted.\nAnd the name must start with a character.");
+			return true;
 		}
 	}
 
@@ -426,10 +436,9 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 			return false;
 		}
 		// process name change in all TemplateThing instances that have it
-		ArrayList al = root.collectAllChildren(new ArrayList());
+		ArrayList<TemplateThing> al = root.collectAllChildren(new ArrayList<TemplateThing>());
 		al.add(root);
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			TemplateThing tet = (TemplateThing)it.next();
+		for (final TemplateThing tet : al) {
 			//Utils.log("\tchecking " + tet.getType() + " " + tet.getId());
 			if (tet.getType().equals(old_name)) tet.rename(new_name);
 		}
@@ -441,5 +450,10 @@ public final class TemplateTree extends DNDTree implements MouseListener, Action
 		updateUILater();
 		project.getProjectTree().updateUILater();
 		return true;
+	}
+
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootTemplateThing();
 	}
 }

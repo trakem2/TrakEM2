@@ -28,34 +28,26 @@ import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
-import ini.trakem2.display.DLabel;
-import ini.trakem2.display.DoStep;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 
 import java.awt.Component;
-import java.awt.Point;
 import java.awt.Color;
-import java.awt.Event;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.util.Hashtable;
 import java.util.List;
-import java.util.Iterator;
-//import java.util.Enumeration;
 import java.util.ArrayList;
 import java.util.HashSet;
 
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
-import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -64,6 +56,8 @@ import javax.swing.JLabel;
 import javax.swing.JTree;
 
 public final class LayerTree extends DNDTree implements MouseListener, ActionListener {
+
+	private static final long serialVersionUID = 1L;
 
 	private DefaultMutableTreeNode selected_node = null;
 
@@ -97,7 +91,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 
 	public void mousePressed(MouseEvent me) {
 		Object source = me.getSource();
-		if (!source.equals(this) || !Project.getInstance(this).isInputEnabled()) {
+		if (!source.equals(this) || !project.isInputEnabled()) {
 			return;
 		}
 
@@ -221,21 +215,18 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 						Utils.showMessage("Invalid number");
 						return;
 					}
-					HashSet hs_parents = new HashSet();
+					HashSet<LayerSet> hs_parents = new HashSet<LayerSet>();
 					for (int i=0; i<paths.length; i++) {
 						Layer layer = (Layer) ((LayerThing)((DefaultMutableTreeNode)paths[i].getLastPathComponent()).getUserObject()).getObject();
 						layer.setZ(layer.getZ() + dz);
 						hs_parents.add(layer.getParent());
 					}
-					for (Iterator it = hs_parents.iterator(); it.hasNext(); ) {
-						updateList((LayerSet)it.next());
+					for (LayerSet ls : hs_parents) {
+						updateList(ls);
 					}
 					// now update all profile's Z ordering in the ProjectTree
-					final Project project = Project.getInstance(this);
 					ProjectThing root_pt = project.getRootProjectThing();
-					ArrayList al_pl = root_pt.findChildrenOfType("profile_list");
-					for (Iterator it = al_pl.iterator(); it.hasNext(); ) {
-						ProjectThing pt = (ProjectThing)it.next();
+					for (final ProjectThing pt : root_pt.findChildrenOfType("profile_list")) {
 						pt.fixZOrdering();
 						project.getProjectTree().updateList(pt);
 					}
@@ -327,7 +318,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				// create a new Display
 				DBObject dbo = (DBObject)thing.getObject();
 				if (thing.getType().equals("layer_set") && null == ((LayerSet)dbo).getParent()) return; // the top level LayerSet
-				new Display(dbo.getProject(), thing.getType().equals("layer") ? (Layer)dbo : ((LayerSet)dbo).getParent());
+				Display.createDisplay(dbo.getProject(), thing.getType().equals("layer") ? (Layer)dbo : ((LayerSet)dbo).getParent());
 				return;
 			} else if (command.equals("Show centered in Display")) {
 				LayerSet ls = (LayerSet)thing.getObject();
@@ -336,9 +327,6 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				remove(true, thing, selected_node);
 				return;
 			} else if (command.equals("Import stack...")) {
-
-				DBObject dbo = (DBObject)thing.getObject();
-
 				if (thing.getObject() instanceof LayerSet) {
 					LayerSet set = (LayerSet)thing.getObject();
 					Layer layer = null;
@@ -348,7 +336,6 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 						tt = thing.getChildTemplate("Layer");
 						ob = layer;
 					} else return; // click on a desired, existing layer.
-					if (null == layer) return;
 					layer.getProject().getLoader().importStack(layer, null, true);
 				} else if (thing.getObject() instanceof Layer) {
 					Layer layer = (Layer)thing.getObject();
@@ -379,8 +366,8 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					gd.addChoice("Anchor: ", LayerSet.ANCHORS, LayerSet.ANCHORS[0]);
 					gd.showDialog();
 					if (gd.wasCanceled()) return;
-					double new_width = gd.getNextNumber();
-					double new_height =gd.getNextNumber();
+					float new_width = (float)gd.getNextNumber(),
+						  new_height = (float)gd.getNextNumber();
 					ls.setDimensions(new_width, new_height, gd.getNextChoiceIndex()); // will complain and prevent cropping existing Displayable objects
 				}
 			} else if (command.equals("Autoresize LayerSet")) {
@@ -454,7 +441,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				/// TODO: this method should use multiple selections directly on the tree
 				if (thing.getObject() instanceof LayerSet) {
 					LayerSet ls = (LayerSet)thing.getObject();
-					ArrayList al_layers = ls.getLayers();
+					ArrayList<Layer> al_layers = ls.getLayers();
 					String[] layer_names = new String[al_layers.size()];
 					for (int i=0; i<layer_names.length; i++) {
 						layer_names[i] = ls.getProject().findLayerThing(al_layers.get(i)).toString();
@@ -485,7 +472,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 				/// TODO: this method should use multiple selections directly on the tree
 				if (thing.getObject() instanceof LayerSet) {
 					LayerSet ls = (LayerSet)thing.getObject();
-					ArrayList al_layers = ls.getLayers();
+					ArrayList<Layer> al_layers = ls.getLayers();
 					String[] layer_names = new String[al_layers.size()];
 					for (int i=0; i<layer_names.length; i++) {
 						layer_names[i] = ls.getProject().findLayerThing(al_layers.get(i)).toString();
@@ -509,7 +496,7 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 					updateList(ls);
 				}
 			} else if (command.equals("Search...")) {
-				new Search();
+				Search.showWindow();
 			} else if (command.equals("Reset layer Z and thickness")) {
 				LayerSet ls = ((LayerSet)thing.getObject());
 				List<Layer> layers = ls.getLayers();
@@ -702,6 +689,8 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 	static private final Color FRONT_LAYER_COLOR = new Color(1.0f, 1.0f, 0.4f, 0.5f);
 
 	protected final class LayerThingNodeRender extends DNDTree.NodeRenderer {
+		private static final long serialVersionUID = 1L;
+
 		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
 
 			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
@@ -733,5 +722,29 @@ public final class LayerTree extends DNDTree implements MouseListener, ActionLis
 			}
 			return label;
 		}
+	}
+	
+	/** Deselects whatever node is selected in the tree, and tries to select the one that contains the given object. */
+	public void selectNode(final Layer layer) {
+		final DefaultMutableTreeNode node = DNDTree.findNode2(layer, this);
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				// deselect whatever is selected
+				setSelectionPath(null);
+				if (null != node) {
+					final TreePath path = new TreePath(node.getPath());
+					try {
+						scrollPathToVisible(path); // involves repaint, so must be set through invokeAndWait. Why it doesn't do so automatically is beyond me.
+						setSelectionPath(path);
+					} catch (Exception e) {
+						IJError.print(e, true);
+					}
+				}
+		}});
+	}
+	
+	@Override
+	protected Thing getRootThing() {
+		return project.getRootLayerThing();
 	}
 }

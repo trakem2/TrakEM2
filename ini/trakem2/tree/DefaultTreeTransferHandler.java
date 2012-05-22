@@ -57,10 +57,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 		if (target instanceof TemplateTree) {
 			return false;
 		}
-		// Can't drag attribute nodes!
-		if (dragged_node.getUserObject() instanceof Attribute) {
-			return false;
-		}
 		// Can't drag a node that contains a Project!
 		if (dragged_node.getUserObject() instanceof ProjectThing && ((ProjectThing)dragged_node.getUserObject()).getObject() instanceof Project) {
 			return false;
@@ -116,14 +112,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 				} else {
 					return true;
 				}
-			} else if (parent_ob instanceof Attribute) {
-				DefaultMutableTreeNode parent_parent = (DefaultMutableTreeNode)parent_node.getParent();
-				if (null == parent_parent) return false; // should not happen
-				// the parent of an Attribute node contains ALWAYS a ProjectThing
-				Thing thing = (Thing)parent_parent.getUserObject();
-				if (thing.canHaveAsAttribute(child_thing.getType() +"_id")) {
-					return true;
-				}
 			}
 		}
 
@@ -140,11 +128,13 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 
 		try {
 			// Can't drop onto a TemplateTree
+			/*
 			if (target instanceof TemplateTree) {
-				return false;
+			/	return false;
 			}
-			// Can't drag attribute nodes!
-			if (dragged_node.getUserObject() instanceof Attribute) {
+			*/
+			// More specifically: can only drop onto the ProjectTree
+			if (!(target instanceof ProjectTree)) {
 				return false;
 			}
 
@@ -160,19 +150,11 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 			Object obp = new_parent_node.getUserObject();
 			if (null != obp && obp instanceof ProjectThing) {
 				new_parent_thing = (ProjectThing)obp;
-			} else if (obp instanceof Attribute) {
-				ProjectThing pt = (ProjectThing)((DefaultMutableTreeNode)new_parent_node.getParent()).getUserObject();
-				if (pt.canHaveAsAttribute(dragged_thing.getType() + "_id")) {
-					project.getRootLayerSet().addChangeTreesStep();
-					pt.setAttribute(dragged_thing.getType() + "_id", dragged_thing);
-					project.getRootLayerSet().addChangeTreesStep();
-				} else {
-					return false;
-				}
-				// repaint the attribute node
-				target.updateUILater();
-				//don't change the nodes of the tree
-				return true;
+			}
+			
+			if (null == new_parent_thing) {
+				Utils.log("WARNING: null parent element while dragging and dropping.");
+				return false;
 			}
 
 			// Prevent adding more profiles to a profile_list if it contains at least one already
@@ -220,7 +202,7 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 					if (!Project.isBasicType(dragged_thing.getType()) && !new_parent_thing.canHaveAsChild(dragged_thing) && new_parent_thing.uniquePathExists(dragged_thing.getType())) {
 						// a unique path exists to one of its children or children of children, etc.
 						// 1 - get the cascade of parent types
-						ArrayList al = new_parent_thing.getTemplatePathTo(dragged_thing.getType());
+						final ArrayList<TemplateThing> al = new_parent_thing.getTemplatePathTo(dragged_thing.getType());
 						// discard first (the self) and last (the child to make)
 						al.remove(0);
 						al.remove(al.size()-1);
@@ -228,10 +210,9 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 						if (0 == al.size()) return false; // some error ocurred ...
 						ProjectThing a_parent = new_parent_thing;
 						DefaultMutableTreeNode a_parent_node = new_parent_node;
-						int i = 0;
-						while (i<al.size()) {
-							String type = ((TemplateThing)al.get(i)).getType();
-							ArrayList al_c = a_parent.findChildrenOfType(type);
+						for (final TemplateThing t : al) {
+							String type = t.getType();
+							final ArrayList<ProjectThing> al_c = a_parent.findChildrenOfType(type);
 							if (0 == al_c.size()) {
 								// create a parent of the given type and assign it to a_parent
 								ProjectThing a_pt = a_parent.createChild(type);
@@ -247,7 +228,6 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 								a_parent = (ProjectThing)al_c.get(0);
 								a_parent_node = DNDTree.findNode(a_parent, target);
 							}
-							i++;
 						}
 						// 3 - add the node, finally:
 						new_parent_node = a_parent_node;
@@ -267,8 +247,8 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 							return false;
 						}
 						// create nodes recursively
-						final ArrayList nc = new_parent_thing.createChildren(tt.getType(), 1, true);
-						target.addLeafs((ArrayList<Thing>)nc, after);
+						final ArrayList<ProjectThing> nc = new_parent_thing.createChildren(tt.getType(), 1, true);
+						target.addLeafs(nc, after);
 						return true;
 					}
 
@@ -310,6 +290,9 @@ public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {
 						if (!old_parent.removeChild(p_dragged_thing)) {
 							return false;
 						}
+					} else {
+						Utils.log("WARNING: the parent of the source node is null when drag and drop!");
+						return false;
 					}
 					if (!new_parent_thing.addChild(p_dragged_thing)) {
 						// on failure, restore

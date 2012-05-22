@@ -22,20 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import java.awt.*;
-import java.awt.event.*;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
 import ij.gui.GenericDialog;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
@@ -45,10 +31,40 @@ import ini.trakem2.display.graphics.DifferenceARGBComposite;
 import ini.trakem2.display.graphics.MultiplyARGBComposite;
 import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
+
+import java.awt.AlphaComposite;
+import java.awt.Color;
+import java.awt.Composite;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Scrollbar;
+import java.awt.TextField;
+import java.awt.event.AdjustmentEvent;
+import java.awt.event.AdjustmentListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.TextEvent;
+import java.awt.event.TextListener;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /** The class that any element to be drawn on a Display must extend. */
 public abstract class Displayable extends DBObject implements Paintable  {
@@ -70,9 +86,21 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	
 	private byte compositeMode = COMPOSITE_NORMAL;
 	public byte getCompositeMode(){ return compositeMode; }
-	public Composite getComposite() { return getComposite( compositeMode ); }
 	protected Composite getComposite( byte mode ) {
 		return Displayable.getComposite(mode, alpha);
+	}
+	/**
+	 * Sets the composite mode, which determines how is this image
+	 * painted to the screen relative to the other images.
+	 * For example, a 16-bit image with a red LUT may be set, with the COMPOSITE_COLOR_YCBCR mode,
+	 * to contribute towards the red channel only of an underlying set of grayscale electron microscopy images.
+	 * 
+	 * @param mode Any of the COMPOSITE_* modes available.
+	 * @throws IllegalArgumentException if the {@param mode} is not valid.
+	 */
+	public void setCompositeMode(final byte mode) {
+		if (mode < 0 || mode > 5) throw new IllegalArgumentException("Invalid composite mode: " + mode);
+		this.compositeMode = mode;
 	}
 	static public Composite getComposite( byte mode, float alpha )
 	{
@@ -103,7 +131,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	final protected AffineTransform at = new AffineTransform();
 
 	/** Width and height of the data, not the bounding box. If the AffineTransform is different than identity, then the bounding box will be different. */
-	protected double width = 0,
+	protected float width = 0,
 		         height = 0;
 
 	protected boolean locked = false;
@@ -316,9 +344,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** Check if this or any of the Displayables in the linked group is locked. */
 	public boolean isLocked() {
 		if (locked) return true;
-		return isLocked(new HashSet());
+		return isLocked(new HashSet<Displayable>());
 	}
-	private boolean isLocked(HashSet hs) {
+	private final boolean isLocked(final HashSet<Displayable> hs) {
 		if (locked) return true;
 		else if (hs.contains(this)) return false;
 		hs.add(this);
@@ -338,7 +366,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Reconstruct a Displayable from the database. */
-	public Displayable(Project project, long id, String title, boolean locked, AffineTransform at, double width, double height) {
+	public Displayable(Project project, long id, String title, boolean locked, AffineTransform at, float width, float height) {
 		super(project, id);
 		this.title = title;
 		this.locked = locked;
@@ -346,30 +374,41 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		this.width = width;
 		this.height = height;
 	}
+	
+	protected final void xmlError(final String tag, final Object default_value) {
+		Displayable.xmlError(this, tag, default_value);
+	}
+	
+	static protected final void xmlError(final DBObject dbo, final String tag, final Object default_value) {
+		Utils.log("WARNING: missing XML attribute '" + tag + "' in " + dbo.getClass().getSimpleName() + " #" + dbo.getId() + "\n  --> using default value:" + default_value);
+	}
 
 	/** Reconstruct a Displayable from an XML entry. Used entries get removed from the HashMap. */
-	public Displayable(Project project, long id, HashMap ht, HashMap ht_links) {
+	public Displayable(final Project project, final long id, final HashMap<String,String> ht, final HashMap<Displayable,String> ht_links) {
 		super(project, id);
-		double x=0, y=0, rot=0; // for backward compatibility
 		this.layer = null; // will be set later
 		// parse data // TODO this is weird, why not just call them, since no default values are set anyway
-		for (final Map.Entry entry : (Collection<Map.Entry>) ht.entrySet()) {
-			final String key = (String)entry.getKey();
-			final String data = (String)entry.getValue();
-			try {
-				if (key.equals("width")) width = Double.parseDouble(data);
-				else if (key.equals("height")) height = Double.parseDouble(data);
-				else if (key.equals("transform")) {
-					final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
-					this.at.setTransform(Double.parseDouble(nums[0]), Double.parseDouble(nums[1]),
-							     Double.parseDouble(nums[2]), Double.parseDouble(nums[3]),
-							     Double.parseDouble(nums[4]), Double.parseDouble(nums[5]));
-					//Utils.log2("at: " + this.at);
-				}
-				else if (key.equals("locked")) locked = data.trim().toLowerCase().equals("true");
-				else if (key.equals("visible")) visible = data.trim().toLowerCase().equals("true");
-				else if (key.equals("style")) {
-					try {
+
+		try {
+			String data;
+			if (null != (data = ht.get("width"))) width = Float.parseFloat(data);
+			else xmlError("width", this.width);
+			if (null != (data = ht.get("height"))) height = Float.parseFloat(data);
+			else xmlError("height", this.height);
+			if (null != (data = ht.get("transform"))) {
+				final String[] nums = data.substring(data.indexOf('(')+1, data.lastIndexOf(')')).split(",");
+				this.at.setTransform(Double.parseDouble(nums[0]), Double.parseDouble(nums[1]),
+						Double.parseDouble(nums[2]), Double.parseDouble(nums[3]),
+						Double.parseDouble(nums[4]), Double.parseDouble(nums[5]));
+			}
+			else xmlError("transform", this.at);
+			if (null != (data = ht.get("title"))) {
+				if (-1 == data.toLowerCase().lastIndexOf("null")) {
+					this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
+				} else this.title = null;
+			} else xmlError("title", this.title);
+			if (null != (data = ht.get("style"))) {
+				try {
 					// 1 - extract alpha
 					int i_start = data.indexOf("stroke-opacity:");
 					if (-1 == i_start) {
@@ -399,64 +438,55 @@ public abstract class Displayable extends DBObject implements Paintable  {
 						Utils.log2("Can't parse color for id=" + id);
 						this.color = Color.yellow;
 					}
-					// avoid recording this key for deletion, for the DLabel to read it
-					continue;
-					} catch (Exception es) {
-						if (null == this.color) this.color = Color.yellow;
-						Utils.log("ERROR at reading style: " + es);
-					}
-				} else if (key.equals("links")) {
-					// This is hard one, must be stored until all objects exist and then processed
-					if (null != data && data.length() > 0) ht_links.put(this, data);
-				} else if (key.equals("title")) {
-					if (null != data && !data.toLowerCase().equals("null")) {
-						this.title = data.replaceAll("^#^", "\""); // fix " and backslash characters
-					} else this.title = null;
-				} else if (key.equals("x")) {
-					x = Double.parseDouble(data); // this could be done with reflection, but not all, hence this dullness
-				} else if (key.equals("y")) {
-					y = Double.parseDouble(data);
-				} else if (key.equals("rot")) {
-					rot = Double.parseDouble(data);
-				} else if (key.equals("composite")) {
-					compositeMode = Byte.parseByte(data);
+				} catch (Exception es) {
+					if (null == this.color) this.color = Color.yellow;
+					Utils.log("ERROR at reading style for #" + this.id + ": " + es);
 				}
-			} catch (Exception ea) {
-				Utils.log(this + " : failed to read data for key '" + key + "':\n" + ea);
 			}
-		}
-
-		// support old versions:
-		if (this.at.isIdentity() && (0 != x || 0 != y || 0 != rot)) {
-			this.at.translate(x, y);
-			if (0 != rot) {
-				AffineTransform at2 = new AffineTransform();
-				at2.rotate(Math.toRadians(rot), x + width/2, y + height/2);
-				this.at.preConcatenate(at2);
+			// else xmlError("style"); -- style is not essential
+			if (null != (data = ht.get("locked"))) locked = data.trim().toLowerCase().equals("true");
+			if (null != (data = ht.get("visible"))) visible = data.trim().toLowerCase().equals("true");
+			if (null != (data = ht.get("links"))) {
+				// This is hard one, must be stored until all objects exist and then processed
+				if (data.length() > 0) ht_links.put(this, data);
 			}
+			if (null != (data = ht.get("composite"))) compositeMode = Byte.parseByte(data);
+
+			// for backward compatibility to VERY old versions
+			if (this.at.isIdentity()) {
+				double x=0, y=0, rot=0;
+				if (null != (data = ht.get("x"))) x = Double.parseDouble(data);
+				if (null != (data = ht.get("y"))) y = Double.parseDouble(data);
+				if (null != (data = ht.get("rot"))) rot = Double.parseDouble(data);
+				if (0 != x || 0 != y || 0 != rot) {
+					this.at.translate(x, y);
+					if (0 != rot) {
+						AffineTransform at2 = new AffineTransform();
+						at2.rotate(Math.toRadians(rot), x + width/2, y + height/2);
+						this.at.preConcatenate(at2);
+					}
+					// scaling in old versions will be lost
+				}
+			}
+		} catch (Exception ea) {
+			Utils.log("ERROR: failed to read XML attributes for #" + this.id + ": " + ea);
 		}
-		// scaling in old versions will be lost
 	}
 
-	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		Utils.log2("paint g, srcRect, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
+	@Override
+	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+		Utils.log2("paint g, srcRect, magnification, active, channels, active_layer, layers: not implemented yet for " + this.getClass());
 	}
 
-	//public void paint(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-	//	Utils.log2("paint g, magnification, active, channels, active_layer: not implemented yet for " + this.getClass());
-	//}
-
-	public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, srcRect, magnification, active, channels, active_layer);
+	@Override
+	public void prePaint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layers);
 	}
 
-	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
-		paint(g, srcRect, magnification, active, channels, active_layer);
-	}
 	/** Paints waiting for data to load, if necessary. */
-	//public void paintOffscreen(Graphics2D g, double magnification, boolean active, int channels, Layer active_layer) {
-	//	paint(g, magnification, active, channels, active_layer);
-	//}
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layers);
+	}
 
 	/** Not accepted if zero or negative. Remakes the snapshot, updates the snapshot panel and the Display. */
 	public void setDimensions(double width, double height) {
@@ -496,6 +526,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (null == title || 0 == title.length()) return;
 		this.title = title;
 		Display.updateTitle(layer, this); // update the DisplayablePanel(s) that show this Patch
+		Search.repaint(this);
 		updateInDatabase("title");
 	}
 
@@ -511,22 +542,22 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Returns the x of the bounding box. */
-	public double getX() {
+	public int getX() {
 		return getBoundingBox(null).x;
 	}
 
 	/** Returns the y of the bounding box. */
-	public double getY() {
+	public int getY() {
 		return getBoundingBox(null).y;
 	}
 
 	/** Returns the width of the data. */
-	public double getWidth() {
+	public float getWidth() {
 		return this.width;
 	}
 
 	/** Returns the height of the data. */
-	public double getHeight() {
+	public float getHeight() {
 		return this.height;
 	}
 
@@ -535,14 +566,17 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return getBoundingBox(null);
 	}
 
-	/** Will fill bounding box values into given rectangle  -- only that part of this object showing in the given layer will be included in the box. */
+	/** Will fill bounding box values into given rectangle  -- only that part of this object showing in the given layer will be included in the box.
+	 *  If @param r is null, returns a new Rectangle; else, sets the bounds into @param r and returns it.
+	 *  If there aren't any bounds for this object at @param layer, returns either @param r with zero width and zero height, or a new Rectangle with zero width and zero height.
+	 *  Never returns null. */
 	public Rectangle getBounds(final Rectangle r, final Layer layer) {
 		return getBoundingBox(r);
 	}
 
 	/** Bounding box of the transformed data. Saves one Rectangle allocation, returns the same Rectangle, modified (or a new one if null). */
 	public Rectangle getBoundingBox(final Rectangle r) {
-		return getBounds(null != r ? r : new Rectangle());
+		return getBounds(null == r ? new Rectangle() : r);
 	}
 
 	/** Bounding box of the transformed data (or 0,0,0,0 when no data).
@@ -589,13 +623,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			d.getBounds(rd);
 			if (null == rect) {
 				// the first one:
-				if (null == r) rect = (Rectangle) rd.clone();
-				else rect.setRect(rd);
+				rect = (Rectangle) rd.clone();
 			} else {
 				rect.add(rd);
 			}
 		}
-		return rect;
+		if (null == r) return rect;
+		r.setRect(rect);
+		return r;
 	}
 
 	/** Subclasses can override this method to provide the exact contour, otherwise it returns the transformed bounding box of the data. */
@@ -635,12 +670,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
-	public boolean contains(final int x_p, final int y_p) {
+	public boolean contains(final double x_p, final double y_p) {
 		return getPerimeter().contains(x_p, y_p);
 	}
 
 	/** Calls contains(x_p, y_p) unless overriden -- in ZDisplayable objects, it tests whether the given point is contained in the part of the ZDisplayable that shows in the given layer. */
-	public boolean contains(final Layer layer, final int x_p, final int y_p) {
+	public boolean contains(final Layer layer, final double x_p, final double y_p) {
 		return contains(x_p, y_p);
 	}
 
@@ -652,7 +687,6 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (alpha != this.alpha && alpha >= 0.0f && alpha <= 1.0f) {
 			this.alpha = alpha;
 			if (update) {
-				Display.repaint(layer, this, 5);
 				updateInDatabase("alpha");
 				Display3D.setTransparency(this, alpha);
 			}
@@ -667,7 +701,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public HashSet<Displayable> getLinked() { return hs_linked; }
 
 	/** Return those of Class c from among the directly linked. */
-	public HashSet<Displayable> getLinked(final Class c) {
+	public HashSet<Displayable> getLinked(final Class<?> c) {
 		if (null == hs_linked) return null;
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
 		for (final Displayable d : hs_linked) {
@@ -844,6 +878,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			removeLinkedPropertiesFromOrigins();
 			Search.remove(this);
 			Display.flush(this);
+			project.decache(this);
 			return true;
 		}
 		Utils.log("Failed to remove " + this.getClass().getName() + " " + this);
@@ -863,7 +898,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// link the other to this
 		this.hs_linked.add(d);
 		// link this to the other
-		if (null == d.hs_linked) d.hs_linked = new HashSet();
+		if (null == d.hs_linked) d.hs_linked = new HashSet<Displayable>();
 		d.hs_linked.add(this);
 		// update the database
 		if (update_database) project.getLoader().addCrossLink(project.getId(), this.id, d.id);
@@ -905,7 +940,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Check if this object is directly linked to a Displayable object of the given Class. */
-	public boolean isLinked(final Class c) {
+	public boolean isLinked(final Class<?> c) {
 		if (null == hs_linked) return false;
 		for (final Displayable d : hs_linked) {
 			if (c.isInstance(d)) return true;
@@ -920,7 +955,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class (returns true) or to none (returns true as well).*/
-	public boolean isOnlyLinkedTo(final Class c) {
+	public boolean isOnlyLinkedTo(final Class<?> c) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (final Displayable d : hs_linked) {
 			if (d.getClass() != c) return false;
@@ -929,7 +964,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Check if this object is directly linked only to Displayable objects of the given class in the same layer (returns true). Returns true as well when not linked to any of the given class.*/
-	public boolean isOnlyLinkedTo(final Class c, final Layer layer) {
+	public boolean isOnlyLinkedTo(final Class<?> c, final Layer layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return true;
 		for (final Displayable d : hs_linked) {
 			// if the class is not the asked one, or the object is not in the same layer, return false!
@@ -948,7 +983,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// scan the Display and link Patch objects that lay under this Profile's bounding box:
 
 		// catch all displayables of the current Layer
-		final ArrayList al = layer.getDisplayables(Patch.class);
+		final ArrayList<Displayable> al = layer.getDisplayables(Patch.class);
 
 		// this bounding box:
 		final Polygon perimeter = getPerimeter(); //displaced by this object's position!
@@ -957,8 +992,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		// for each Patch, check if it underlays this profile's bounding box
 		Rectangle box = new Rectangle();
 		boolean must_lock = false;
-		for (Iterator itd = al.iterator(); itd.hasNext(); ) {
-			final Displayable displ = (Displayable)itd.next();
+		for (final Displayable displ : al) {
 			// stupid java, Polygon cannot test for intersection with another Polygon !! //if (perimeter.intersects(displ.getPerimeter())) // TODO do it yourself: check if a Displayable intersects another Displayable
 			if (perimeter.intersects(displ.getBoundingBox(box))) {
 				// Link the patch
@@ -977,7 +1011,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Unlink all Displayable objects of the given type linked by this. */
-	public void unlinkAll(final Class c) {
+	public void unlinkAll(final Class<?> c) {
 		if (!this.isLinked() || null == hs_linked) {
 			return;
 		}
@@ -1023,12 +1057,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public Rectangle getLinkedBox(final boolean same_layer) {
 		if (null == hs_linked || hs_linked.isEmpty()) return getBoundingBox();
 		final Rectangle box = new Rectangle();
-		accumulateLinkedBox(same_layer, new HashSet(), box);
+		accumulateLinkedBox(same_layer, new HashSet<Displayable>(), box);
 		return box;
 	}
 
 	/** Accumulates in the box. */
-	private void accumulateLinkedBox(final boolean same_layer, final HashSet hs_done, final Rectangle box) {
+	private void accumulateLinkedBox(final boolean same_layer, final HashSet<Displayable> hs_done, final Rectangle box) {
 		if (hs_done.contains(this)) return;
 		hs_done.add(this);
 		box.add(getBoundingBox(null));
@@ -1067,7 +1101,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	protected GenericDialog makeAdjustPropertiesDialog() {
 		Rectangle box = getBoundingBox(null);
-		GenericDialog gd = new GD("Properties", this);
+		GenericDialog gd = new GD("Properties of #" + id, this);
 		gd.addStringField("title: ", title);
 		gd.addNumericField("x: ", box.x, 2);
 		gd.addNumericField("y: ", box.y, 2);
@@ -1112,13 +1146,14 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return gd;
 	}
 
-	private abstract class SliderListener implements AdjustmentListener, TextListener {
+	protected abstract class SliderListener implements AdjustmentListener, TextListener {
 		public void adjustmentValueChanged(AdjustmentEvent ae) { update(); }
 		public void textValueChanged(TextEvent te) { update(); }
 		abstract public void update();
 	}
 
 	private class GD extends GenericDialog {
+		private static final long serialVersionUID = 1L;
 		Displayable displ;
 		Color dcolor;
 		float dalpha;
@@ -1144,8 +1179,6 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		layer.getParent().addTransformStep(hs);
 		// store old box
 		//Rectangle box = getLinkedBox(true);//getBoundingBox();
-
-		final HashSet<String> fields = new HashSet<String>();
 
 		// adjust values:
 		String title1 = gd.getNextString();
@@ -1204,8 +1237,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 				Rectangle b2 = getBoundingBox(null);
 				int dx = b2.x - b.x;
 				int dy = b2.y - b.y;
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : hs) {
 					if (this.equals(d)) continue;
 					d.translate(dx, dy, false);
 				}
@@ -1216,8 +1248,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (1 != sx || 1 != sy) {
 			if (null != hs) {
 				// scale all
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : hs) {
 					d.scale(sx, sy, b.y+b.width/2, b.y+b.height/2, false); // centered on this
 				}
 			} else {
@@ -1229,8 +1260,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			double rads = Math.toRadians(rot1);
 			if (null != hs) {
 				//Utils.log2("delta_angle, rot1, rot: " + delta_angle + "," + rot1 + "," + rot);
-				for (Iterator it = hs.iterator(); it.hasNext(); ) {
-					Displayable d = (Displayable)it.next();
+				for (final Displayable d : hs) {
 					d.rotate(rads, b.x+b.width/2, b.y+b.height/2, false);
 				}
 			} else {
@@ -1268,7 +1298,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	static protected final String TAG_ATTR2 = " NMTOKEN #REQUIRED>\n";
 
 	/** Adds simply DTD !ATTRIBUTE tags. The ProjectThing that encapsulates this object will give the type. */
-	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		sb_header.append(indent).append(TAG_ATTR1).append(type).append(" oid").append(TAG_ATTR2)
 			 .append(indent).append(TAG_ATTR1).append(type).append(" layer_id").append(TAG_ATTR2)
 			 /*
@@ -1287,7 +1317,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		;
 	}
 
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		if (!hs.contains("t2_prop")) {
 			sb_header.append(indent).append("<!ELEMENT t2_prop EMPTY>\n")
 				 .append(indent).append(TAG_ATTR1).append("t2_prop key").append(TAG_ATTR2)
@@ -1312,7 +1342,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(final StringBuilder sb_body, final String in, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1352,7 +1382,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(final StringBuilder sb_body, final String in, final Object any) {
+	synchronized protected void restXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		// Properties:
 		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
@@ -1399,9 +1429,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	// I'm sure it could be made more efficient, but I'm too tired!
 	public boolean hasLinkedGroupWithinLayer(Layer la) {
-		HashSet hs = getLinkedGroup(new HashSet());
-		for (Iterator it = hs.iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
 			if (!d.layer.equals(la)) return false;
 		}
 		return true;
@@ -1691,8 +1719,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	/** Concatenate the given affine to this and all its linked objects. */
 	public void transform(final AffineTransform at) {
-		for (Iterator it = getLinkedGroup(new HashSet()).iterator(); it.hasNext(); ) {
-			Displayable d = (Displayable)it.next();
+		for (final Displayable d : getLinkedGroup(new HashSet<Displayable>())) {
 			d.at.concatenate(at);
 			d.updateInDatabase("transform");
 			d.updateBucket();
@@ -1703,8 +1730,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	/** preConcatenate the given affine transform to this Displayable's affine. */
 	public void preTransform(final AffineTransform affine, final boolean linked) {
 		if (linked) {
-			for (Iterator it = getLinkedGroup(null).iterator(); it.hasNext(); ) {
-				final Displayable d = (Displayable)it.next();
+			for (final Displayable d : getLinkedGroup(null)) {
 				d.at.preConcatenate(affine);
 				d.updateInDatabase("transform");
 				d.updateBucket();
@@ -1727,10 +1753,10 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		g.drawLine((int)c2[6], (int)c2[7], (int)c2[0], (int)c2[1]);
 	}
 
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		switch (layer.getParent().getSnapshotsMode()) {
 			case 0:
-				paint(g, srcRect, mag, false, 0xffffffff, layer);
+				paint(g, srcRect, mag, false, 0xffffffff, layer, layers);
 				return;
 			case 1:
 				paintAsBox(g);
@@ -1769,6 +1795,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	
 	static protected class DoEdits implements DoStep {
 		final HashSet<DoEdit> edits = new HashSet<DoEdit>();
+		HashSet<DoStep> dependents = null;
 		DoEdits(final Set<? extends Displayable> col) {
 			for (final Displayable d : col) {
 				edits.add(new DoEdit(d));
@@ -1784,6 +1811,13 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			// Order matters: (but it shouldn't!) TODO
 			for (; it1.hasNext() && it2.hasNext(); ) {
 				if ( ! it1.next().isIdenticalTo(it2.next())) return false;
+			}
+			if (null != dependents && null != other.dependents) {
+				if (dependents.size() != other.dependents.size()) return false;
+				// Order matters:
+				for (Iterator<DoStep> s1 = dependents.iterator(), s2 = other.dependents.iterator(); s1.hasNext(); ) {
+					if (!s1.next().isIdenticalTo(s2.next())) return false;
+				}
 			}
 			return true;
 		}
@@ -1801,7 +1835,15 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					failed = true;
 				}
 			}
+
+			// Invoke dependents
+			if (null != dependents) for (DoStep step : dependents) failed = !step.apply(action) || failed;
+
 			return !failed;
+		}
+		public void addDependents(final Collection<DoStep> dep) {
+			if (null == this.dependents) this.dependents = new HashSet<DoStep>();
+			this.dependents.addAll(dep);
 		}
 	}
 
@@ -1841,20 +1883,22 @@ public abstract class Displayable extends DBObject implements Paintable  {
 					Utils.log2("WARNING: null val for " + e.getKey());
 					return false;
 				}
-				if (val instanceof HashMap) {
-					if ( ! identical((HashMap)val, (HashMap)e.getValue())) {
+				if (val instanceof HashMap<?,?>) {
+					if ( ! identical((HashMap<?,?>)val, (HashMap<?,?>)e.getValue())) {
 						return false;
 					}
 				} else if ( ! val.equals(e.getValue())) return false;
 			}
 			return true;
 		}
-		private boolean identical(final HashMap m1, final HashMap m2) {
+		private boolean identical(final HashMap<?,?> m1, final HashMap<?,?> m2) {
 			if (m1.size() != m2.size()) return false;
-			for (final Object entry : m1.entrySet()) {
-				final Map.Entry e = (Map.Entry) entry;
+			for (final Map.Entry<?,?> e : m1.entrySet()) {
 				// TODO this could fail if value is null
-				if ( ! e.getValue().equals(m2.get(e.getKey()))) return false;
+				final Object val1 = e.getValue(),
+							 val2 = m2.get(e.getKey());
+				if (null == val1 && null == val2) continue; // both values are null
+				if ( ! val1.equals(val2)) return false;
 			}
 			return true;
 		}
@@ -1877,7 +1921,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			return true;
 		}
 		synchronized DoEdit init(final Displayable d, final String[] fields) {
-			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
+			final Class<?>[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
 			for (int k=0; k<fields.length; k++) {
 				if ("data".equals(fields[k])) {
 					content.put(fields[k], d.getDataPackage());
@@ -1905,6 +1949,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
+		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private final Object duplicate(final Object ob, final String field) {
 			if (ob instanceof Color) {
 				final Color c = (Color)ob;
@@ -1925,7 +1970,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		/** Set the stored data to the stored Displayable. */
 		public boolean apply(int action) {
-			final Class[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
+			final Class<?>[] c = new Class[]{Displayable.class, d.getClass(), ZDisplayable.class};
 			for (final Map.Entry<String,Object> e : content.entrySet()) {
 				String field = e.getKey();
 				if ("data".equals(field)) {
@@ -1964,7 +2009,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 	}
 
-	protected class DoTransforms implements DoStep {
+	static protected class DoTransforms implements DoStep {
 		final private HashMap<Displayable,AffineTransform> ht = new HashMap<Displayable,AffineTransform>();
 		final HashSet<Layer> layers = new HashSet<Layer>();
 
@@ -1991,8 +2036,9 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		}
 		public Displayable getD() { return null; }
 
+		@SuppressWarnings("unchecked")
 		public boolean isIdenticalTo(final Object ob) {
-			if (ob instanceof Collection) {
+			if (ob instanceof Collection<?>) {
 				final Collection<Displayable> col = (Collection<Displayable>) ob;
 				if (ht.size() != col.size()) return false;
 				for (final Displayable d : col) {
@@ -2035,12 +2081,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return null;
 	}
 	// Must be overriden by subclasses
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DataPackage.class;
 	}
 
 	static abstract protected class DataPackage {
-		protected final double width, height;
+		protected final float width, height;
 		protected final AffineTransform at;
 		protected HashMap<Displayable,HashSet<Displayable>> links = null;
 
@@ -2094,7 +2140,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			for (final Displayable d : l.getDisplayables(Patch.class)) {
 				if (d.isLinked()) {
 					for (final Displayable other : d.getLinked()) {
-						final Class c = other.getClass();
+						final Class<?> c = other.getClass();
 						if ( (!ignore_stacks && Patch.class == c && other.layer != d.layer)
 						   || (Profile.class == c && other.getLinked(Profile.class).size() > 0)
 						   || ZDisplayable.class.isAssignableFrom(c)) {
@@ -2134,8 +2180,27 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return getAreaAt(layer);
 	}
 
+	/** If this Displayable intersects with @param r or almost intersects, then returns true.
+	 *  This method is meant to be very fast, and err on the "yes" and never on the "no". */
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle r) {
+		// Unless overriden:
+		final Area a = getAreaForBucket(layer);
+		if (a == null) return false;
+		return a.getBounds().intersects(r);
+	}
+
 	public void setAnnotation(final String annotation) { this.annotation = annotation; }
 
 	/** Returns null if none. */
 	public String getAnnotation() { return this.annotation; }
+	
+	/** Calls remove(false) unless overriden. */
+	public boolean softRemove() {
+		return remove(false);
+	}
+
+	/** Tell this Displayable that is has been deselected from a Display.
+	 *  If multiple displays have the same Displayable in their Selection,
+	 *  this Diplayabale is to act as if it has been deselected from all. */
+	public void deselect() {}
 }

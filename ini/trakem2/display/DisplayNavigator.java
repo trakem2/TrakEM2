@@ -24,7 +24,6 @@ package ini.trakem2.display;
 
 //import java.awt.Canvas;
 import javax.swing.JPanel;
-import java.awt.Image;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -37,18 +36,23 @@ import java.awt.Rectangle;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseEvent;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
 import ini.trakem2.utils.*;
-import java.awt.geom.AffineTransform;
 import java.awt.GraphicsConfiguration;
 
 public final class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 
+	private static final long serialVersionUID = 1L;
+
 	private Display display;
 	private Layer layer;
-	private HashSet hs_painted = new HashSet();
+	private Set<Displayable> hs_painted = Collections.synchronizedSet(new HashSet<Displayable>());
 	static private final int SIDE = 250;
 	private BufferedImage image = null;
 	private boolean redraw_displayables = true;
@@ -57,10 +61,11 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	private int x_p, y_p;
 	private int new_x_old=0, new_y_old=0;
 
-	private final Object updating_ob = new Object();
-	private boolean updating = false;
+	private final Object offscreen_lock = new Object();
+	private final HashSet<BufferedImage> to_flush = new HashSet<BufferedImage>();
 
 	private VolatileImage volatileImage;
+	private final Object volatile_lock = new Object();
 	private boolean invalid_volatile = false;
 
 	DisplayNavigator(Display display, double layer_width, double layer_height) { // contorsions to avoid java bugs ( a.k.a. the 'this' is not functional until the object in question has finished initialization.
@@ -85,16 +90,14 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		//check if layer has changed
 		if (this.layer != display.getLayer()) {
 			this.layer = display.getLayer();
-			this.hs_painted.clear();
 		}
 
-		scale = Math.min(SIDE / display.getLayer().getLayerWidth(), SIDE / display.getLayer().getLayerHeight());
 		RT.paint(null, redraw_displayables);
 	}
 
 	public void repaint(boolean update_graphics) {
 		redraw_displayables = update_graphics;
-		invalid_volatile = true;
+		invalidateVolatile();
 		repaint();
 	}
 
@@ -102,7 +105,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	public void repaint(Displayable d) {
 		if (display.getCanvas().isDragging()) return;
 		redraw_displayables = true;
-		invalid_volatile = true;
+		invalidateVolatile();
 		final Rectangle r = d.getBoundingBox(null);
 		r.x = (int)(r.x * scale);
 		r.y = (int)(r.y * scale);
@@ -142,10 +145,12 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		final Rectangle clipRect;
 		final int snapshots_mode;
 		final Layer layer;
+		final List<Layer> layers;
 
-		RepaintProperties(final Rectangle clipRect, final Layer layer, final int snapshots_mode) {
+		RepaintProperties(final Rectangle clipRect, final Layer layer, final List<Layer> layers, final int snapshots_mode) {
 			this.clipRect = clipRect;
 			this.layer = layer;
+			this.layers = layers;
 			this.snapshots_mode = snapshots_mode;
 		}
 	}
@@ -160,6 +165,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		public void paint() {
 
 			final Layer layer;
+			final List<Layer> layers;
 			final int snapshots_mode;
 			final Rectangle clipRect;
 			final Rectangle srcRect;
@@ -167,6 +173,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			synchronized (this) {
 				DisplayNavigator.RepaintProperties rp = (DisplayNavigator.RepaintProperties) this.rp;
 				layer = rp.layer;
+				layers = rp.layers;
 				snapshots_mode = rp.snapshots_mode;
 				clipRect = rp.clipRect;
 				srcRect = layer.getParent().get2DBounds(); // The whole canvas!
@@ -181,6 +188,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			}
 
 			final BufferedImage target = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+			scale = Math.min(SIDE / layer.getLayerWidth(), SIDE / layer.getLayerHeight());
 
 			try {
 				final Graphics2D g = target.createGraphics();
@@ -198,6 +206,8 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 					g.setColor(Color.black);
 					g.fillRect(0, 0, SIDE, SIDE);
 				}
+				
+				hs_painted.clear();
 
 				// check if disabled
 				if (2 != snapshots_mode) {
@@ -207,32 +217,32 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 					g.scale(scale, scale);
 
-					final ArrayList al = display.getLayer().getDisplayables();
+					final ArrayList<Displayable> al = display.getLayer().getDisplayables();
 					final int size = al.size();
 					boolean zd_done = false;
 					for (int i=0; i<size; i++) {
 						final Displayable d = (Displayable)al.get(i);
 						//if (d.isOutOfRepaintingClip(clip, scale)) continue; // needed at least for the visibility
 						if (!d.isVisible()) continue; // TODO proper clipRect for this navigator image may be necessary (lots of changes needed in the lines above reltive to filling the black background, etc)
-						final Class c = d.getClass();
+						final Class<?> c = d.getClass();
 						if (!zd_done && DLabel.class == c) {
 							zd_done = true;
 							// paint ZDisplayables before the labels (i.e. text labels on top)
-							final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
+							final Iterator<ZDisplayable> itz = display.getLayer().getParent().getZDisplayables().iterator();
 							while (itz.hasNext()) {
 								ZDisplayable zd = (ZDisplayable)itz.next();
 								if (!zd.isVisible()) continue;
-								zd.paintSnapshot(g, layer, srcRect, scale);
+								zd.paintSnapshot(g, layer, layers, srcRect, scale);
 							}
 							// paint the label too!
-							d.paint(g, srcRect, scale, false, 1, DisplayNavigator.this.layer);
+							d.paint(g, srcRect, scale, false, 1, DisplayNavigator.this.layer, layers);
 						} else if (Patch.class == c) {
 							if (0 == snapshots_mode) {
 								// paint fully
 								final Patch p = (Patch)d;
-								final Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
-								if (null != img) {
-									if (d.isVisible()) d.paint(g, srcRect, scale, false, p.getChannelAlphas(), DisplayNavigator.this.layer);
+								final MipMapImage mipMap = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
+								if (null != mipMap) {
+									if (d.isVisible()) d.paint(g, srcRect, scale, false, p.getChannelAlphas(), layer, layers);
 									hs_painted.add(d);
 								} else  {
 									d.paintAsBox(g);
@@ -242,35 +252,28 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 								d.paintAsBox(g);
 							}
 						} else {
-							if (d.isVisible()) d.paint(g, srcRect, scale, false, 1, DisplayNavigator.this.layer);
+							if (d.isVisible()) d.paint(g, srcRect, scale, false, 1, layer, layers);
 						}
 					}
 					if (!zd_done) { // if no labels, ZDisplayables haven't been painted
 						zd_done = true;
 						// paint ZDisplayables before the labels
-						final Iterator itz = display.getLayer().getParent().getZDisplayables().iterator();
-						while (itz.hasNext()) {
-							ZDisplayable zd = (ZDisplayable)itz.next();
+						for (final ZDisplayable zd : display.getLayer().getParent().getZDisplayables()) {
 							if (!zd.isVisible()) continue;
-							zd.paintSnapshot(g, layer, srcRect, scale);
+							zd.paintSnapshot(g, layer, layers, srcRect, scale);
 						}
 					}
 				}
 				// finally, when done, call repaint (like sending an event)
 
 				// block only while modifying the image pointer
-				synchronized (updating_ob) {
-					while (updating) {
-						try { updating_ob.wait(); } catch (InterruptedException ie) {}
-					}
-					updating = true;
-
+				synchronized (offscreen_lock) {
+					if (null != DisplayNavigator.this.image) to_flush.add(DisplayNavigator.this.image);
 					DisplayNavigator.this.image = target;
 					redraw_displayables = false;
-
-					updating = false;
-					updating_ob.notifyAll();
 				}
+				// Outside, otherwise would deadlock
+				invalidateVolatile();
 				RT.paint(clipRect, false);
 			} catch (Exception e) {
 				IJError.print(e);
@@ -278,10 +281,9 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		}
 	}
 
-	private void renderVolatileImage(final BufferedImage bufferedImage) {
+	private void renderVolatileImage(final GraphicsConfiguration gc, final BufferedImage image) {
 		do {
-			final GraphicsConfiguration gc = getGraphicsConfiguration();
-			if (invalid_volatile || volatileImage == null || volatileImage.getWidth() != SIDE
+			if (volatileImage == null || volatileImage.getWidth() != SIDE
 					|| volatileImage.getHeight() != SIDE
 					|| volatileImage.validate(gc) == VolatileImage.IMAGE_INCOMPATIBLE) {
 				if (volatileImage != null) {
@@ -295,7 +297,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			// Now paint the BufferedImage into the accelerated image
 			//
 			final Graphics2D g = volatileImage.createGraphics();
-			g.drawImage(bufferedImage, 0, 0, SIDE, SIDE, null);
+			if (null != image) g.drawImage(image, 0, 0, SIDE, SIDE, null);
 
 			// paint red rectangle indicating srcRect
 			final Rectangle srcRect = display.getCanvas().getSrcRect();
@@ -313,34 +315,49 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 	private void render(final Graphics g) {
 		final Graphics2D g2d = (Graphics2D) g.create();
 		g2d.setRenderingHints(DisplayCanvas.rhints);
+		final GraphicsConfiguration gc = getGraphicsConfiguration(); // outside synch, avoid deadlocks
 		do {
-			if (invalid_volatile || null == volatileImage
-			 || volatileImage.validate(getGraphicsConfiguration()) != VolatileImage.IMAGE_OK)
-			{
-				renderVolatileImage(image);
+			final BufferedImage image;
+			synchronized (offscreen_lock) {
+				image = this.image;
 			}
-			g2d.drawImage(volatileImage, 0, 0, null);
+			// Protect volatileImage while generating it
+			synchronized (volatile_lock) {
+				if (invalid_volatile || null == volatileImage
+				 || volatileImage.validate(gc) != VolatileImage.IMAGE_OK)
+				{
+					renderVolatileImage(gc, image);
+				}
+				g2d.drawImage(volatileImage, 0, 0, null);
+			}
 		} while (volatileImage.contentsLost());
 
 		g2d.dispose();
+
+		// Flush all old offscreen images
+		synchronized (offscreen_lock) {
+			for (final BufferedImage bi : to_flush) {
+				bi.flush();
+			}
+			to_flush.clear();
+		}
+	}
+
+	public void invalidateVolatile() {
+		synchronized (volatile_lock) {
+			invalid_volatile = true;
+		}
 	}
 
 	public void paint(final Graphics g) {
-		final Graphics2D g2d = (Graphics2D)g;
-		synchronized (updating_ob) {
-			while (updating) { try { updating_ob.wait(); } catch (InterruptedException ie) {} }
-			updating = true;
-			render(g);
-
-			updating = false;
-			updating_ob.notifyAll();
-		}
+		if (null == g) return;
+		render(g);
 	}
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Navigator-Repainter", new UpdateGraphicsThread()) {
 		protected void handleUpdateGraphics(Component target, Rectangle clipRect) {
-			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getSnapshotsMode()));
+			this.off.setProperties(new RepaintProperties(clipRect, layer, layer.getParent().getColorCueLayerRange(layer), layer.getParent().getSnapshotsMode()));
 		}
 	};
 
@@ -385,7 +402,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 		DisplayCanvas canvas = display.getCanvas();
 		canvas.setSrcRect(new_x, new_y, this.srcRect.width, this.srcRect.height);
 		canvas.repaint(true);
-		invalid_volatile = true;
+		invalidateVolatile();
 		this.repaint();
 	}
 
@@ -397,23 +414,15 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 
 	/** Release resources. */
 	public void destroy() {
-		synchronized (updating_ob) {
-			while (updating) try { updating_ob.wait(); } catch (InterruptedException ie) {}
-			updating = true;
-			RT.quit();
-			updating = false;
-			updating_ob.notifyAll();
-		}
-		Thread.yield();
-		synchronized (updating_ob) {
-			while (updating) try { updating_ob.wait(); } catch (InterruptedException ie) {}
-			updating = true;
+		RT.quit();
+		synchronized (offscreen_lock) {
 			if (null != image) {
 				image.flush();
 				image = null;
 			}
-			updating = false;
-			updating_ob.notifyAll();
+			redraw_displayables = true;
+			for (final BufferedImage bi : to_flush) bi.flush();
+			to_flush.clear();
 		}
 	}
 

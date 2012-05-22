@@ -2,26 +2,30 @@ package ini.trakem2.utils;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.text.JTextComponent;
 import javax.swing.JTextField;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyAdapter;
-import java.lang.reflect.Field;
+import javax.swing.text.JTextComponent;
 
 public class OptionPanel extends JPanel {
 
+	private static final long serialVersionUID = 1L;
 	private GridBagLayout bl = new GridBagLayout();
 	private GridBagConstraints c = new GridBagConstraints();
 
@@ -43,6 +47,24 @@ public class OptionPanel extends JPanel {
 			try {
 				Setter s = setters.get(source);
 				if (null != s) s.setFrom(source);
+			} catch (Throwable t) {
+				Utils.logAll("Invalid value " + ((JTextField)source).getText());
+			}
+		}
+	};
+	
+	private MouseWheelListener mwl = new MouseWheelListener() {
+		@Override
+		public void mouseWheelMoved(MouseWheelEvent mwe) {
+			Component source = (Component) mwe.getSource();
+			try {
+				Setter s = setters.get(source);
+				if (s instanceof NumericalSetter) {
+					if (null != s) {
+						// Update the value of the field and also of the JTextField
+						((JTextField)source).setText(((NumericalSetter)s).setFrom(source, mwe.getWheelRotation()).toString());
+					}
+				}
 			} catch (Throwable t) {
 				Utils.logAll("Invalid value " + ((JTextField)source).getText());
 			}
@@ -138,6 +160,7 @@ public class OptionPanel extends JPanel {
 		numeric_fields.add(tval);
 		addField(tval, setter);
 		tval.addKeyListener(kl);
+		tval.addMouseWheelListener(mwl);
 		return tval;
 	}
 
@@ -212,16 +235,21 @@ public class OptionPanel extends JPanel {
 	}
 
 
-	private void check(List list, int index) throws Exception {
+	private void check(List<?> list, int index) throws Exception {
 		if (index < 0 || index > list.size() -1) throw new IllegalArgumentException("Index out of bounds: " + index);
 	}
 
 	static abstract public class Setter {
 		protected final Object ob;
 		protected final String field;
+		protected Runnable reaction;
 		public Setter(Object ob, String field) {
 			this.ob = ob;
 			this.field = field;
+		}
+		public Setter(Object ob, String field, Runnable reaction) {
+			this(ob, field);
+			this.reaction = reaction;
 		}
 		/** Will set the field if no exception is thrown when reading it. */
 		public void setFrom(Component source) throws Exception {
@@ -229,32 +257,111 @@ public class OptionPanel extends JPanel {
 			f.setAccessible(true);
 			f.set(ob, getValue(source));
 
-			Utils.log2("set value of " + field + " to " + f.get(ob));
+			//Utils.log2("set value of " + field + " to " + f.get(ob));
+			
+			if (null != reaction) reaction.run();
 		}
 		abstract public Object getValue(Component source);
 	}
+	
+	static abstract public class NumericalSetter extends Setter {
+		protected int min = Integer.MIN_VALUE,
+					  max = Integer.MAX_VALUE;
+		public NumericalSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public NumericalSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
+		public NumericalSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction);
+			this.min = min;
+			this.max = max;
+		}
+		public Object setFrom(Component source, int inc) throws Exception {
+			Field f = ob.getClass().getDeclaredField(field);
+			f.setAccessible(true);
+			Object val = getValue(source, inc);
+			f.set(ob, val);
 
-	static public class IntSetter extends Setter {
+			Utils.log2("set value of " + field + " to " + f.get(ob));
+			
+			if (null != reaction) reaction.run();
+			
+			return val;
+		}
+		abstract protected Object getValue(Component source, int inc);
+	}
+
+	static public class IntSetter extends NumericalSetter {
 		public IntSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public IntSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
+		public IntSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction, min, max);
 		}
 		public Object getValue(Component source) {
 			return (int) Double.parseDouble(((JTextField)source).getText());
 		}
+		protected Object getValue(Component source, int inc) {
+			int val = ((int) Double.parseDouble(((JTextField)source).getText())) + inc;
+			if (val < this.min) return this.min;
+			if (val > this.max) return this.max;
+			return val;
+		}
 	}
 
-	static public class DoubleSetter extends Setter {
+	static public class DoubleSetter extends NumericalSetter {
 		public DoubleSetter(Object ob, String field) {
 			super(ob, field);
 		}
+		public DoubleSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
+		public DoubleSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction, min, max);
+		}
 		public Object getValue(Component source) {
 			return Double.parseDouble(((JTextField)source).getText());
+		}
+		protected Object getValue(Component source, int inc) {
+			double val = Double.parseDouble(((JTextField)source).getText()) + inc;
+			if (val < this.min) return (double)this.min;
+			if (val > this.max) return (double)this.max;
+			return val;
+		}
+	}
+	
+	static public class FloatSetter extends NumericalSetter {
+		public FloatSetter(Object ob, String field) {
+			super(ob, field);
+		}
+		public FloatSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
+		public FloatSetter(Object ob, String field, Runnable reaction, int min, int max) {
+			super(ob, field, reaction, min, max);
+		}
+		public Object getValue(Component source) {
+			return Float.parseFloat(((JTextField)source).getText());
+		}
+		public Object getValue(Component source, int inc) {
+			float val = Float.parseFloat(((JTextField)source).getText()) + inc;
+			if (val < this.min) return (float)this.min;
+			if (val > this.max) return (float)this.max;
+			return val;
 		}
 	}
 
 	static public class BooleanSetter extends Setter {
 		public BooleanSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public BooleanSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return ((JCheckBox)source).isSelected();
@@ -265,6 +372,9 @@ public class OptionPanel extends JPanel {
 		public StringSetter(Object ob, String field) {
 			super(ob, field);
 		}
+		public StringSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
 		public Object getValue(Component source) {
 			return ((JTextComponent)source).getText();
 		}
@@ -273,6 +383,9 @@ public class OptionPanel extends JPanel {
 	static public class ChoiceIntSetter extends Setter {
 		public ChoiceIntSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public ChoiceIntSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return ((JComboBox)source).getSelectedIndex();
@@ -283,6 +396,9 @@ public class OptionPanel extends JPanel {
 		public ChoiceStringSetter(Object ob, String field) {
 			super(ob, field);
 		}
+		public ChoiceStringSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
+		}
 		public Object getValue(Component source) {
 			return ((JComboBox)source).getSelectedItem().toString();
 		}
@@ -291,6 +407,9 @@ public class OptionPanel extends JPanel {
 	static public class ChoiceObjectSetter extends Setter {
 		public ChoiceObjectSetter(Object ob, String field) {
 			super(ob, field);
+		}
+		public ChoiceObjectSetter(Object ob, String field, Runnable reaction) {
+			super(ob, field, reaction);
 		}
 		public Object getValue(Component source) {
 			return ((JComboBox)source).getSelectedItem();

@@ -45,9 +45,9 @@ public final class LayerThing extends DBObject implements TitledThing {
 
 	private Object object; // a Layer or a LayerSet
 
-	private ArrayList al_children = null;
+	/** Access to a non-null al_children is synchronized. Works because al_children is never set to null if it is already not null.*/
+	private ArrayList<LayerThing> al_children = null;
 
-	private HashMap ht_attributes = null;
 	// TODO : attributes, at all?
 	private String title = null;
 
@@ -62,9 +62,6 @@ public final class LayerThing extends DBObject implements TitledThing {
 		this.template = lt.template;
 		this.title = lt.title;
 		this.object = lt.object;
-		if (null != lt.ht_attributes) {
-			this.ht_attributes = (HashMap) lt.ht_attributes.clone();
-		}
 	}
 
 	public LayerThing(TemplateThing template, Project project, Object ob) throws Exception {
@@ -79,7 +76,7 @@ public final class LayerThing extends DBObject implements TitledThing {
 	}
 
 	/** Reconstruct from database, in combination with the setup() method. */
-	public LayerThing(TemplateThing template, Project project, long id, String title, Object ob, ArrayList al_children, HashMap ht_attributes) {
+	public LayerThing(TemplateThing template, Project project, long id, String title, Object ob, ArrayList<LayerThing> al_children) {
 		super(project, id);
 		this.template = template;
 		this.object = ob;
@@ -88,42 +85,16 @@ public final class LayerThing extends DBObject implements TitledThing {
 			this.title = null;
 		}
 		this.al_children = al_children;
-		this.ht_attributes = ht_attributes;
 	}
 
 	/** Tell the attributes who owns them, and the children's attributes as well, and set the parent to the children; used to finish up reconstruction from the database. */
 	public void setup() {
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				ProjectAttribute pa = (ProjectAttribute)it.next(); // ?? A ProjectAttribute? WARNING
-				pa.setup(this);
-			}
-		}
 		if (null != al_children) {
-			Iterator it = al_children.iterator();
-			/* // Taken care of in the Loader
-			Class[] class_types = null;
-			try { 
-				class_types = new Class[]{Class.forName("ini.trakem2.DBObject")};
-			} catch (Exception e) {
-				Utils.log("LayerThing.setup: " + e);
-				return;
-			}
-			Method method = this.object.getClass().getDeclaredMethod("addSilently", class_types);
-			*/
-			while (it.hasNext()) {
-				LayerThing child = (LayerThing)it.next();
-				/* // Taken care of in the Loader
-				try {
-					// add LayerSets to Layers, and viceversa (Patches, profiles, etc. do not belong to Things so they won't be as children of this Thing)
-					method.invoke(this.object, new Object[]{child.getObject()});
-				} catch (Exception e) {
-					Utils.log("LayerThing.setup: " + e);
-					continue;
+			synchronized (al_children) {
+				for (final LayerThing child : al_children) {
+					child.parent = this;
+					child.setup();
 				}
-				*/
-				child.parent = this;
-				child.setup();
 			}
 		}
 	}
@@ -169,48 +140,42 @@ public final class LayerThing extends DBObject implements TitledThing {
 		if (!template.canHaveAsChild(child)) {
 			return false;
 		}
-		if (null == al_children) al_children = new ArrayList();
-		if (null != child.getObject() && child.getObject() instanceof Layer) { // this is a patch, but hey, do you want to redesign the events, which are based on layer titles and toString() contents? TODO ...
-			Layer l = (Layer)child.getObject();
-			int i = l.getParent().indexOf(l);
-			//Utils.log2("al_children.size(): " + al_children.size() + ",  i=" + i);
-			if (i >= al_children.size()) { //TODO happens when importing a stack
-				al_children.add(child);
-			} else {
-				try {
-					al_children.add(i, child);
-				} catch (Exception e) {
-					Utils.log2("LayerThing.addChild: " + e);
-					al_children.add(child); // at the end
+		if (null == al_children) al_children = new ArrayList<LayerThing>();
+		synchronized (al_children) {
+			if (null != child.getObject() && child.getObject() instanceof Layer) { // this is a patch, but hey, do you want to redesign the events, which are based on layer titles and toString() contents? TODO ...
+				Layer l = (Layer)child.getObject();
+				int i = l.getParent().indexOf(l);
+				//Utils.log2("al_children.size(): " + al_children.size() + ",  i=" + i);
+				if (i >= al_children.size()) { //TODO happens when importing a stack
+					al_children.add((LayerThing)child);
+				} else {
+					try {
+						al_children.add(i, (LayerThing)child);
+					} catch (Exception e) {
+						Utils.log2("LayerThing.addChild: " + e);
+						al_children.add((LayerThing)child); // at the end
+					}
 				}
+			} else {
+				al_children.add((LayerThing)child);
 			}
-		} else {
-			al_children.add(child);
 		}
 		child.setParent(this);
 		return true;
 	}
 
 	public boolean removeChild(LayerThing child) {
-		if (null == al_children || null == child || -1 == al_children.indexOf(child)) return false;
-		al_children.remove(child);
-		return true;
+		if (null == al_children || null == child) return false;
+		synchronized (al_children) {
+			return al_children.remove(child);
+		}
 	}
 
 	public String getType() {
 		return template.getType();
 	}
 
-	public HashMap getAttributes() {
-		return ht_attributes; // TODO for now, Layer and LayerSet have no attributes
-	}
-
-	public boolean canHaveAsAttribute(String type) {
-		if (null == type) return false;
-		return template.canHaveAsAttribute(type);
-	}
-
-	public ArrayList getChildren() {
+	public ArrayList<LayerThing> getChildren() {
 		return al_children;
 	}
 
@@ -229,13 +194,13 @@ public final class LayerThing extends DBObject implements TitledThing {
 
 	public JMenuItem[] getPopupItems(ActionListener listener) {
 		JMenuItem item;
-		ArrayList al_items = new ArrayList();
+		ArrayList<JMenuItem> al_items = new ArrayList<JMenuItem>();
 
 		JMenu menu = new JMenu("Add...");
-		ArrayList tc = template.getChildren();
+		ArrayList<TemplateThing> tc = template.getChildren();
 		if (null != tc) {
-			for (Iterator it = tc.iterator(); it.hasNext(); ) {
-				item = new JMenuItem("new " + ((Thing)it.next()).getType().replace('_', ' ')); // changing underscores for spaces, for the 'layer_set' type to read nice
+			for (Iterator<TemplateThing> it = tc.iterator(); it.hasNext(); ) {
+				item = new JMenuItem("new " + it.next().getType().replace('_', ' ')); // changing underscores for spaces, for the 'layer_set' type to read nice
 				item.addActionListener(listener);
 				menu.add(item);
 			}
@@ -335,17 +300,17 @@ public final class LayerThing extends DBObject implements TitledThing {
 		if (check && !Utils.check("Really delete " + this.toString() + (object instanceof Layer && ((Layer)object).getDisplayables().size() > 0 ? " and all its children?" : ""))) return false;
 		// remove the children, which will propagate to their own objects
 		if (null != al_children) {
-			Object[] ob = new Object[al_children.size()];
-			al_children.toArray(ob);
-			for (int i=0; i<ob.length; i++) {
-				if (ob[i] instanceof DBObject) {
-					if (!((DBObject)ob[i]).remove(false)) {
+			synchronized (al_children) {
+				LayerThing[] ob = new LayerThing[al_children.size()];
+				al_children.toArray(ob);
+				for (int i=0; i<ob.length; i++) {
+					if ( ! ob[i].remove(false)) {
 						Utils.log("Could not delete " + ob[i]);
 						return false;
 					}
 				}
+				al_children.clear();
 			}
-			al_children.clear();
 		}
 		// TODO the attributes are being ignored! (not even created either)
 
@@ -355,6 +320,7 @@ public final class LayerThing extends DBObject implements TitledThing {
 				Utils.log("Could not delete " + object);
 				return false;
 			}
+			Display.repaint();
 		}
 
 		// remove the Thing itself
@@ -370,27 +336,23 @@ public final class LayerThing extends DBObject implements TitledThing {
 	public Thing findChild(Object ob) {
 		if (this.object.equals(ob)) return this;
 		if (null == al_children) return null;
-		for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-			Thing found = ((Thing)it.next()).findChild(ob);
-			if (null != found) return found;
+		synchronized (al_children) {
+			for (Iterator<LayerThing> it = al_children.iterator(); it.hasNext(); ) {
+				Thing found = it.next().findChild(ob);
+				if (null != found) return found;
+			}
 		}
 		return null;
 	}
 
 	public int indexOf(LayerThing child) {
-		return al_children.indexOf(child);
+		synchronized (al_children) {
+			return al_children.indexOf(child);
+		}
 	}
 
 	public void debug(String indent) {
-		StringBuffer sb_at = new StringBuffer(" (id,"); // 'id' exists regardless
-		if (null != ht_attributes) {
-			for (Iterator it = ht_attributes.values().iterator(); it.hasNext(); ) {
-				ProjectAttribute ta = (ProjectAttribute)it.next();
-				sb_at.append(ta.getTitle()).append(",");
-			}
-		}
-		sb_at.append(")");
-		// append object
+		StringBuffer sb_at = new StringBuffer(" (id)"); // 'id' exists regardless
 		sb_at.append("  object: ").append(object);
 		System.out.println(indent + template.getType() + sb_at.toString());
 		if (null != al_children) {
@@ -398,8 +360,8 @@ public final class LayerThing extends DBObject implements TitledThing {
 				System.out.println("INDENT OVER 20 !");
 				return;
 			}
-			for (Iterator it = al_children.iterator(); it.hasNext(); ) {
-				((Thing)it.next()).debug(indent + "\t");
+			for (final LayerThing child : al_children) {
+				child.debug(indent + "\t");
 			}
 		}
 	}

@@ -1,54 +1,57 @@
 package ini.trakem2.utils;
 
-import ini.trakem2.display.Display;
+import ij.ImagePlus;
+import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij.plugin.filter.ThresholdToSelection;
+import ij.process.ImageProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
+import ini.trakem2.imaging.BinaryInterpolation2D;
+import ini.trakem2.vector.Editions;
+import ini.trakem2.vector.SkinMaker;
+import ini.trakem2.vector.VectorString2D;
 
-import ij.measure.Calibration;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.process.ImageProcessor;
-import ij.process.ByteProcessor;
-
-import java.awt.image.BufferedImage;
-import java.awt.Graphics2D;
+import java.awt.Polygon;
 import java.awt.Rectangle;
-import java.awt.Color;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-import java.awt.RenderingHints;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.HashSet;
-import java.util.HashMap;
-
-import marchingcubes.MCTriangulator;
-import isosurface.Triangulator;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 
-import mpicbg.imglib.type.numeric.integer.ByteType;
-import mpicbg.imglib.image.Image;
+import marchingcubes.MCTriangulator;
+//import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D; // using ini.trakem2.imaging.BinaryInterpolation2D until imglib's algorithms jar is released
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
-import mpicbg.imglib.container.array.ArrayContainerFactory;
-import mpicbg.imglib.image.ImageFactory;
-import mpicbg.imglib.cursor.*;
-//import mpicbg.imglib.image.display.imagej.ImageJFunctions;
+import mpicbg.imglib.image.Image;
+import mpicbg.imglib.image.display.imagej.ImageJFunctions;
+import mpicbg.imglib.type.logic.BitType;
+import mpicbg.imglib.type.numeric.integer.ByteType;
 
 
 public final class AreaUtils {
 
+	/** Project property key. */
+	static public final String always_interpolate_areas_with_distance_map = "always_interpolate_areas_with_distance_map";
+	
 	private AreaUtils() {}
 
 	/** Expects areas in local coordinates to the Displayable @param d.
 	 *  @param scale The scaling of the entire universe, to limit the overall box
 	 *  @param resample The optimization parameter for marching cubes (i.e. a value of 2 will scale down to half, then apply marching cubes, then scale up by 2 the vertices coordinates).
 	 *  @return The List of triangles involved, specified as three consecutive vertices. A list of Point3f vertices. */
-	static public List generateTriangles(final Displayable d, final double scale, final int resample_, final Map<Layer,Area> areas) {
+	static public List<Point3f> generateTriangles(final Displayable d, final double scale, final int resample_, final Map<Layer,Area> areas) {
 		// in the LayerSet, layers are ordered by Z already.
 		try {
 
@@ -248,7 +251,7 @@ public final class AreaUtils {
 						Utils.log2("verts[" + i + "] = " + p.x + ", " + p.y + ", " + p.z + "  p.z as int: " + ((int)(p.z + 0.05f)));
 					}
 				}
-				return new ArrayList(output.values());
+				return new ArrayList<Point3f>(output.values());
 			} else {
 				return java.util.Arrays.asList(verts);
 			}
@@ -267,12 +270,12 @@ public final class AreaUtils {
 	 * @param la_thickness the thickness of that layer
 	 * @param layer_index The stack slice index corresponding to the Layer @param la.
 	 */
-	static private final void fix3DPoints(final List list, final TreeMap<Integer,Point3f> output, final Point3f[] verts, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz, final int n_slices) {
+	static private final void fix3DPoints(final List<Point3f> list, final TreeMap<Integer,Point3f> output, final Point3f[] verts, final double la_z, final double la_thickness, final int layer_index, final float dx, final float dy, final float rsw, final float rsh, final double sz, final int n_slices) {
 		int fixed = 0;
 		// Find all pixels that belong to the layer, and transform them back:
 		for (int i=0; i<verts.length; i++) {
 			if (null != verts[i]) continue; // already processed! The unprocessed Z is merely coincident with a processed Z.
-			final Point3f p = (Point3f) list.get(i);
+			final Point3f p = list.get(i);
 			final int pz = (int)(p.z + 0.05f);
 			//final int pz = (int)(p.z + (0.5f * Math.signum(p.z)));
 			if ( pz >= layer_index && pz < layer_index + n_slices) {
@@ -365,7 +368,9 @@ public final class AreaUtils {
 	}
 
 	/** Extract the Area of the image for the given pixel value.
-	 *  ThresholdToSelection is way faster than this, just use it. */
+	 *  ThresholdToSelection is way faster than this, just use it.
+	 *  It's BROKEN do not use. */
+	/*
 	static public final Area extractArea(final ImageProcessor ip, final float val) {
 		final int height = ip.getHeight();
 		final int width = ip.getWidth();
@@ -373,7 +378,6 @@ public final class AreaUtils {
 		final Area area = new Area();
 		final ArrayList<Area> segments = new ArrayList<Area>();
 		final Rectangle box = new Rectangle(0, 0, 1, 1);
-		int inc = 50;
 
 		for (int y=0; y<height; y++) {
 			float prev = ip.getPixelValue(0, y);
@@ -381,38 +385,33 @@ public final class AreaUtils {
 			box.y = y;
 			box.width = val == prev ? 1 : 0;
 
-			if (0 == y % 50) Utils.log("Done up to " + y);
-
 			for (int x=1; x<width; x++) {
 
 				float pix = ip.getPixelValue(x, y);
 
-				if (pix == val) {
-					if (prev == val) {
+				if (val == pix) {
+					if (pix == prev) {
 						box.width++;
 						continue;
-					} else {
-						// start box
-						box.x = x;
-						prev = pix;
-						box.width = 1;
-						continue;
 					}
-				} else if (box.width > 0) {
-					// break current box and add it
+					// Else, add previous one
 					segments.add(new Area(box));
-					// Reset
+					// ... and start a new box
 					box.x = x;
-					box.width = 0;
+					box.y = y;
+					box.width = 1;
+					prev = pix;
 				}
 			}
 
 			// At end of line, add the last
-			if (box.width > 0) segments.add(new Area(box));
+			segments.add(new Area(box));
 
+			// Join a few
 			if (segments.size() > 32) {
 				final Area a = new Area(segments.get(0));
-				for (int i=segments.size()-1; i>0; i--) a.add(segments.get(i));
+				final int len = segments.size();
+				for (int i=1; i<len; i++) a.add(segments.get(i));
 				area.add(a);
 				segments.clear();
 			}
@@ -420,12 +419,107 @@ public final class AreaUtils {
 
 		if (segments.size() > 0) {
 			final Area a = new Area(segments.get(0));
-			for (int i=segments.size()-1; i>0; i--) a.add(segments.get(i));
+			final int len = segments.size();
+			for (int i=1; i<len; i++) a.add(segments.get(i));
 			area.add(a);
 		}
 
-		Utils.log2("Done!");
-
 		return area;
+	}
+	*/
+
+	/** Interpolate areas only if they are made of a single shape each.
+	 *  Assumes that areas are in the same coordinate system.
+	 * @throws Exception */
+	static public final Area[] singularInterpolation(final Area a1, final Area a2, final int nInterpolates) throws Exception {
+		if (!a1.isSingular() || !a2.isSingular()) {
+			return null;
+		}
+		VectorString2D vs1 = M.asVectorString2D(M.getPolygons(a1).iterator().next(), 0);
+		VectorString2D vs2 = M.asVectorString2D(M.getPolygons(a2).iterator().next(), 1);
+		
+		Editions ed = new Editions(vs1, vs2, Math.min(vs1.getAverageDelta(), vs2.getAverageDelta()), true);
+		
+		double[][][] d = SkinMaker.getMorphedPerimeters(vs1, vs2, nInterpolates, ed);
+		
+		Area[] a = new Area[d.length];
+		for (int i=0; i<d.length; i++) {
+			double[] x = d[i][0];
+			double[] y = d[i][1];
+			int[] xi = new int[x.length];
+			int[] yi = new int[y.length];
+			for (int k=0; k<x.length; k++) {
+				xi[k] = (int) x[k];
+				yi[k] = (int) y[k];
+			}
+			a[i] = new Area(new Polygon(xi, yi, xi.length));
+		}
+
+		return a;
+	}
+
+	static public final Area[] manyToManyInterpolation(final Area a1, final Area a2, final int nInterpolates) throws InterruptedException, ExecutionException {
+		final Rectangle b = a1.getBounds();
+		b.add(a2.getBounds());
+		final AffineTransform translate = new AffineTransform(1, 0, 0, 1, -b.x, -b.y);
+
+		final ShapeList<BitType> shapeList1 = new ShapeListCached<BitType>(new int[]{b.width, b.height}, new BitType(false), 32);
+		shapeList1.addShape(a1.createTransformedArea(translate), new BitType(true), new int[]{0});
+		final Image<BitType> img1 = new Image<BitType>(shapeList1, shapeList1.getBackground(), "ShapeListContainer");
+
+		final ShapeList<BitType> shapeList2 = new ShapeListCached<BitType>(new int[]{b.width, b.height}, new BitType(false), 32);
+		shapeList2.addShape(a2.createTransformedArea(translate), new BitType(true), new int[]{0});
+		final Image<BitType> img2 = new Image<BitType>(shapeList2, shapeList2.getBackground(), "ShapeListContainer");
+
+		final float inc = 1.0f / (nInterpolates + 1);
+
+		final BinaryInterpolation2D interpol = new BinaryInterpolation2D(img1, img2, inc);
+		if (!interpol.checkInput()) {
+			System.out.println("Error: " + interpol.getErrorMessage());
+			return null;
+		}
+
+		final Area[] as = new Area[nInterpolates];
+		final AffineTransform back = new AffineTransform(1, 0, 0, 1, b.x, b.y);
+
+		// TODO parallelize, which needs the means to call process() in parallel too--currently it cannot,
+		// the result would get overwritten.
+		
+		ExecutorService exec = Executors.newFixedThreadPool(Math.min(nInterpolates, Runtime.getRuntime().availableProcessors()));
+		ArrayList<Future<Area>> fus = new ArrayList<Future<Area>>();
+		
+		try {
+
+			for (int i=1; i<=nInterpolates; i++) {
+				final float weight = 1 - inc * i;
+				fus.add(exec.submit(new Callable<Area>() {
+					@Override
+					public Area call() throws Exception {
+						Image<BitType> imb = interpol.process(weight);
+						ImagePlus imp = ImageJFunctions.copyToImagePlus(imb, ImagePlus.GRAY8);
+						// BitType gets copied to 0 and 255 in 8-bit ByteProcessor
+						ThresholdToSelection ts = new ThresholdToSelection();
+						ts.setup("", imp);
+						ImageProcessor ip = imp.getProcessor();
+						ip.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
+						ts.run(ip);
+						Roi roi = imp.getRoi();
+						return null == roi ? new Area() : M.getArea(roi).createTransformedArea(back);
+					}
+				}));
+			}
+
+			int i = 0;
+			for (Future<Area> fu : fus) {
+				as[i++] = fu.get();
+			}
+
+		} catch (Throwable t) {
+			IJError.print(t);
+		} finally {
+			exec.shutdown();
+		}
+		
+		return as;
 	}
 }

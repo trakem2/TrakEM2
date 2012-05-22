@@ -25,27 +25,32 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
+import ij.gui.GenericDialog;
 import ij.gui.StackWindow;
 import ij.io.FileSaver;
 import ij.io.Opener;
 
-import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.Project;
+import ini.trakem2.analysis.Centrality;
+import ini.trakem2.analysis.Vertex;
 import ini.trakem2.parallel.Process;
 import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
-import ini.trakem2.vector.VectorString3D;
 
 import java.awt.AlphaComposite;
+import java.awt.Component;
+import java.awt.Event;
+import java.awt.Insets;
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Point;
-import java.awt.RenderingHints;
+import java.awt.Scrollbar;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseWheelEvent;
@@ -58,10 +63,10 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Area;
 import java.awt.geom.Point2D;
+import java.awt.image.IndexColorModel;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
-import java.awt.Shape;
 import java.awt.Stroke;
 import java.awt.Dimension;
 import java.util.ArrayList;
@@ -76,14 +81,13 @@ import java.util.List;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Set;
-import java.util.Arrays;
-import java.util.TreeMap;
 import java.util.regex.Pattern;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
@@ -100,104 +104,149 @@ import java.awt.GridBagConstraints;
 import javax.swing.JPanel;
 import javax.swing.JTable;
 import javax.swing.table.AbstractTableModel;
+import javax.swing.table.DefaultTableCellRenderer;
+
 import java.awt.event.KeyAdapter;
 import java.awt.event.MouseAdapter;
 
 import fiji.geom.AreaCalculations;
 import java.io.File;
 
-// Ideally, this class would use a linked list of node points, where each node could have a list of branches, which would be in themselves linked lists of nodes and so on.
-// That would make sense, and would make re-rooting and removing nodes (with their branches) trivial and fast.
-// In practice, I want to reuse Polyline's semiautomatic tracing and thus I am using Polylines for each slab.
+// To remove the warnings, both the Node and the Tree would have to know about the type of Node used.
+// So: a recursive declaration of Node<T, N extends Node<T,N>> is required.
 
 /** A sequence of points ordered in a set of connected branches. */
-public abstract class Tree extends ZDisplayable implements VectorData {
+public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
-	static private final Comparator<Layer> COMP_LAYERS = new Comparator<Layer>() {
-		public final int compare(final Layer l1, final Layer l2) {
-			if (l1 == l2) return 0; // the same layer
-			if (l1.getZ() < l2.getZ()) return -1;
-			return 1; // even if same Z, prefer the second
-		}
-		public final boolean equals(Object ob) { return this == ob; }
-	};
+	protected final Map<Layer,Set<Node<T>>> node_layer_map = new HashMap<Layer,Set<Node<T>>>();
 
-	protected final TreeMap<Layer,Set<Node>> node_layer_map = new TreeMap<Layer,Set<Node>>(COMP_LAYERS);
+	protected final Set<Node<T>> end_nodes = new HashSet<Node<T>>();
 
-	protected final Set<Node> end_nodes = new HashSet<Node>();
-
-	protected Node<?> root = null;
+	protected Node<T> root = null;
 
 	protected Tree(Project project, String title) {
 		super(project, title, 0, 0);
 	}
 
 	/** Reconstruct from XML. */
-	protected Tree(final Project project, final long id, final HashMap ht_attr, final HashMap ht_links) {
+	protected Tree(final Project project, final long id, final HashMap<String,String> ht_attr, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attr, ht_links);
 	}
 
 	/** For cloning purposes, does not call addToDatabase(), neither creates any root node. */
-	protected Tree(final Project project, final long id, final String title, final double width, final double height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
+	protected Tree(final Project project, final long id, final String title, final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.alpha = alpha;
 		this.visible = visible;
 		this.color = color;
 	}
 
-	final protected Collection<Node> getNodesToPaint(final Layer active_layer) {
-		// Determine which layers to paint
-		final Collection<Node> nodes;
-		if (layer_set.color_cues) {
-			nodes = new ArrayList<Node>();
-			if (-1 == layer_set.n_layers_color_cue) {
-				// All layers
-				for (final Set<Node> ns : node_layer_map.values()) nodes.addAll(ns);
-			} else {
-				for (final Layer la : layer_set.getColorCueLayerRange(active_layer)) {
-					Set<Node> ns = node_layer_map.get(la);
-					if (null != ns) nodes.addAll(ns);
-				}
-			}
-		} else {
-			// Just the active layer
-			nodes = node_layer_map.get(active_layer);
+	/** Get a copy of the {@link Set} of {@link Node} that exist at {@param layer}; the {@link Node} instances are the originals.
+	 * Returns an empty {@link Set} if none found. */
+	public Set<Node<T>> getNodesAt(final Layer layer) {
+		synchronized (node_layer_map) {
+			final Set<Node<T>> s = node_layer_map.get(layer);
+			return null == s ? new HashSet<Node<T>>() : new HashSet<Node<T>>(s);
 		}
-		return nodes;
 	}
 
-	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer) {
-		paint(g, srcRect, magnification, active, channels, active_layer, layer_set.paint_arrows);
+	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer) {
+		return getNodesToPaint(active_layer, active_layer.getParent().getColorCueLayerRange(active_layer));
 	}
-	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final boolean with_arrows) {
+	
+	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer, final List<Layer> color_cue_layers) {
+		synchronized (node_layer_map) {
+			// Determine which layers to paint
+			if (layer_set.color_cues) {
+				Set<Node<T>> nodes = null;
+				if (-1 == layer_set.n_layers_color_cue) {
+					// All layers
+					nodes = new HashSet<Node<T>>();
+					for (final Set<Node<T>> ns : node_layer_map.values()) nodes.addAll(ns);
+				} else {
+					for (final Layer la : color_cue_layers) {
+						Set<Node<T>> ns = node_layer_map.get(la);
+						if (null != ns) {
+							if (null == nodes) nodes = new HashSet<Node<T>>();
+							nodes.addAll(ns);
+						}
+					}
+				}
+				return nodes;
+			}
+			// Else, just the active layer, if any
+			final Set<Node<T>> nodeSet = node_layer_map.get(active_layer);
+			return null == nodeSet? null : new HashSet<Node<T>>(nodeSet);
+		}
+	}
+
+	@Override
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
+		paint(g, srcRect, magnification, active, channels, active_layer, layers, layer_set.paint_arrows, layer_set.paint_tags);
+	}
+	final public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers, final boolean with_arrows, final boolean with_tags) {
 		if (null == root) {
 			setupForDisplay();
 			if (null == root) return;
 		}
 
-		//arrange transparency
 		Composite original_composite = null;
-		if (alpha != 1.0f) {
-			original_composite = g.getComposite();
-			g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-		}
-
 		AffineTransform gt = null;
-
 		Stroke stroke = null;
+
+		final Color below, above;
+		if (layer_set.use_color_cue_colors) {
+			below = Color.red;
+			above = Color.blue;
+		} else {
+			below = this.color;
+			above = this.color;
+		}
 
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
-			final Collection<Node> nodes = getNodesToPaint(active_layer);
+			final Set<Node<T>> nodes = getNodesToPaint(active_layer, layers);
 			if (null != nodes) {
+				// Filter nodes outside the srcRect
+				// The DisplayNavigator and the snapshot panels call paint with the full srcRect
+				// so avoid filtering for them:
+				if (srcRect.x > 0 && srcRect.y > 0
+				 && srcRect.width < (int)layer_set.getLayerWidth()
+				 && srcRect.height < (int)layer_set.getLayerHeight()) {
+					try {
+						final Rectangle localRect = this.at.createInverse().createTransformedShape(srcRect).getBounds();
+						for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
+							final Node<T> nd = it.next();
+							if (nd.isRoughlyInside(localRect)) continue;
+							it.remove();
+						}
+					} catch (NoninvertibleTransformException nite) {
+						IJError.print(nite);
+					}
+				}
+				// Arrange transparency
+				if (alpha != 1.0f) {
+					original_composite = g.getComposite();
+					g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
+				}
 				// Clear transform and stroke
 				gt = g.getTransform();
 				g.setTransform(DisplayCanvas.DEFAULT_AFFINE);
 				stroke = g.getStroke();
 				g.setStroke(DisplayCanvas.DEFAULT_STROKE);
-				for (final Node nd : nodes) {
-					nd.paintData(g, active_layer, active, srcRect, magnification, nodes, this);
-					nd.paintSlabs(g, active_layer, active, srcRect, magnification, nodes, this.at, this.color, with_arrows, layer_set.paint_edge_confidence_boxes);
+
+				final AffineTransform to_screen = new AffineTransform();
+				to_screen.scale(magnification, magnification);
+				to_screen.translate(-srcRect.x, -srcRect.y);
+				to_screen.concatenate(this.at);
+
+				final Node<T>[] handles = active ? new Node[nodes.size()] : null;
+				int next = 0;
+				final ArrayList<Runnable> tags_tasks = new ArrayList<Runnable>();
+
+				for (final Node<T> nd : nodes) {
+					final Runnable task = nd.paint(g, active_layer, active, srcRect, magnification, nodes, this, to_screen, with_arrows, with_tags, layer_set.paint_edge_confidence_boxes, true, above, below);
+					if (null != task) tags_tasks.add(task);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();
 						Composite c = g.getComposite();
@@ -209,7 +258,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
 					}
-					if (active && active_layer == nd.la) nd.paintHandle(g, srcRect, magnification, this);
+					if (active && active_layer == nd.la) handles[next++] = nd;
+				}
+				for (final Runnable task : tags_tasks) task.run();
+				if (active) {
+					for (int i=0; i<next; i++) {
+						handles[i].paintHandle(g, srcRect, magnification, this);
+					}
 				}
 			}
 		}
@@ -229,7 +284,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	protected Rectangle getPaintingBounds() {
 		Rectangle box = null;
 		synchronized (node_layer_map) {
-			for (final Collection<Node> nodes : node_layer_map.values()) {
+			for (final Collection<Node<T>> nodes : node_layer_map.values()) {
 				final Rectangle b = getBounds(nodes);
 				if (null == box) box = b;
 				else if (null != b) box.add(b);
@@ -241,46 +296,65 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	@Override
 	public Rectangle getBounds(final Rectangle tmp, final Layer layer) {
 		synchronized (node_layer_map) {
-			final Collection<Node> nodes = node_layer_map.get(layer);
-			if (null == nodes) return null;
-			Rectangle r = getBounds(nodes);
-			if (null == r) return null;
-			if (null != tmp) tmp.setRect(r); // it's expected
-			return r;
+			final Collection<Node<T>> nodes = node_layer_map.get(layer);
+			if (null == nodes) {
+				if (null == tmp) return new Rectangle(); // 0 width and 0 height: no data
+				tmp.setBounds(0, 0, 0, 0);
+				return tmp;
+			}
+			final Rectangle r = getBounds(nodes);
+			if (null == tmp) {
+				if (null == r) return new Rectangle();
+				return r;
+			} else {
+				if (null == r) tmp.setRect(0, 0, 0, 0);
+				else tmp.setRect(r);
+				return tmp;
+			}
 		}
 	}
 
 	// Call always from within a synchronized (node_layer_map) block.
-	protected Rectangle getBounds(final Collection<Node> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<T>> nodes) {
 		Rectangle b = null;
-		for (final Node nd : nodes) {
+		for (final Node<T> nd : nodes) {
 			if (null == b) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 			else b.add((int)nd.x, (int)nd.y);
 		}
 		return b;
 	}
 
-	protected boolean calculateBoundingBox(final Layer la) {
-		if (null == root) {
-			this.at.setToIdentity();
-			this.width = 0;
-			this.height = 0;
+	public boolean calculateBoundingBox(final Layer la) {
+		try {
+			if (null == root) {
+				this.at.setToIdentity();
+				this.width = 0;
+				this.height = 0;
+				return false;
+			}
+
+			final Rectangle box = getPaintingBounds();
+
+			this.width = box.width;
+			this.height = box.height;
+
+			if (0 == box.x && 0 == box.y) {
+				// No need to translate
+				return false;
+			}
+
+			synchronized (node_layer_map) {
+				// now adjust points to make min_x,min_y be the x,y
+				for (final Collection<Node<T>> nodes : node_layer_map.values()) {
+					for (final Node<T> nd : nodes) {
+						nd.translate(-box.x, -box.y); }}
+			}
+			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
+
 			return true;
+		} finally {
+			updateBucket(la);
 		}
-
-		final Rectangle box = getPaintingBounds();
-
-		this.width = box.width;
-		this.height = box.height;
-
-		// now readjust points to make min_x,min_y be the x,y
-		for (final Collection<Node> nodes : node_layer_map.values()) {
-			for (final Node nd : nodes) {
-				nd.translate(-box.x, -box.y); }}
-		this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
-
-		updateBucket(la);
-		return true;
 	}
 
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
@@ -305,10 +379,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			try {
 				final Area a = area.createTransformedArea(this.at.createInverse());
 				// find layers between z_first and z_last
-				for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
+				for (final Map.Entry<Layer,Set<Node<T>>> e : node_layer_map.entrySet()) {
 					final double z = e.getKey().getZ();
 					if (z >= z_first && z <= z_last) {
-						for (final Node nd : e.getValue()) {
+						for (final Node<T> nd : e.getValue()) {
 							if (nd.intersects(a)) return true;
 						}
 					}
@@ -323,18 +397,20 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	public Layer getFirstLayer() {
 		if (null == root) return null;
 		synchronized (node_layer_map) {
-			return node_layer_map.firstKey();
+			ArrayList<Layer> las = new ArrayList<Layer>(node_layer_map.keySet());
+			Collections.sort(las, Layer.COMPARATOR);
+			return las.get(0);
 		}
 	}
 
-	private final List<Node> tolink = new ArrayList<Node>();
+	private final List<Node<T>> tolink = new ArrayList<Node<T>>();
 
-	protected final void addToLinkLater(final Node nd) {
+	protected final void addToLinkLater(final Node<T> nd) {
 		synchronized (tolink) {
 			tolink.add(nd);
 		}
 	}
-	protected final void removeFromLinkLater(final Node nd) {
+	protected final void removeFromLinkLater(final Node<T> nd) {
 		synchronized (tolink) {
 			tolink.remove(nd);
 		}
@@ -343,16 +419,16 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	public boolean linkPatches() {
 		if (null == root) return false;
 		// Obtain local copy and clear 'tolink':
-		final ArrayList<Node> tolink;
+		final ArrayList<Node<T>> tolink;
 		synchronized (this.tolink) {
-			tolink = new ArrayList<Node>(this.tolink);
+			tolink = new ArrayList<Node<T>>(this.tolink);
 			this.tolink.clear();
 		}
 		if (tolink.isEmpty()) return true;
 
 		boolean must_lock = false;
 
-		for (final Node nd : tolink) {
+		for (final Node<T> nd : tolink) {
 			for (final Patch patch : (Collection<Patch>) (Collection) nd.findLinkTargets(this.at)) {
 				link(patch);
 				if (patch.locked) must_lock = true;
@@ -367,19 +443,29 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** Create a new instance, intialized with same ZDisplayable-level parameters (affine, color, title, etc.). */
-	abstract protected Tree newInstance();
+	abstract protected Tree<T> newInstance();
 
-	abstract protected Node newNode(float lx, float ly, Layer layer, Node modelNode);
+	abstract protected Node<T> newNode(float lx, float ly, Layer layer, Node<?> modelNode);
+
+	/** Create a new node, copying some properties from the modelNode such as radius or color.
+	 *  The modelNode should be the node that will become the parent of the new node,
+	 *  but it doesn't have to be. */
+	protected Node<T> createNewNode(float lx, float ly, Layer layer, Node<?> modelNode) {
+		final Node<T> nd = newNode(lx, ly, layer, modelNode);
+		if (null == modelNode) return nd;
+		nd.setColor(modelNode.getColor());
+		return nd;
+	}
 
 	/** To reconstruct from XML. */
-	abstract public Node newNode(HashMap ht_attr);
+	abstract public Node<T> newNode(HashMap<String,String> ht_attr);
 
 	public boolean isDeletable() {
 		return null == root;
 	}
 
 	/** Exports to type t2_treeline. */
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_node";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -396,40 +482,42 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		final String type = "t2_" + getClass().getSimpleName().toLowerCase();
 		sb_body.append(indent).append("<").append(type).append('\n');
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;stroke-opacity:1.0\"\n");
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		if (null != root) exportXML(this, in, sb_body, root);
 		sb_body.append(indent).append("</").append(type).append(">\n");
 	}
 
 	/** One day, java will get tail-call optimization (i.e. no more stack overflow errors) and I will laugh at this function. */
-	static private void exportXML(final Tree tree, final String indent_base, final StringBuilder sb, final Node root) {
+	private final void exportXML(final Tree<T> tree, final String indent_base, final StringBuilder sb, final Node<T> root) {
 		// Simulating recursion
 		//
 		// write depth-first, closing as children get written
-		final LinkedList<Node> list = new LinkedList<Node>();
+		final LinkedList<Node<T>> list = new LinkedList<Node<T>>();
 		list.add(root);
-		final Map<Node,Integer> table = new HashMap<Node,Integer>();
-
+		final Map<Node<T>,Integer> table = new HashMap<Node<T>,Integer>();
+		
+		final StringBuilder indent = new StringBuilder(indent_base);
+		
 		while (!list.isEmpty()) {
-			Node node = list.getLast();
+			Node<T> node = list.getLast();
 			if (null == node.children) {
 				// Processing end point
-				dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
+				dataNodeXML(tree, indent, sb, node);
 				list.removeLast();
 				continue;
 			} else {
 				final Integer ii = table.get(node);
 				if (null == ii) {
 					// Never yet processed a child, add first
-					dataNodeXML(tree, getIndents(indent_base, list.size()), sb, node);
+					dataNodeXML(tree, indent, sb, node);
 					table.put(node, 0);
 					list.add(node.children[0]);
 					continue;
@@ -438,7 +526,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					// Are there any more children to process?
 					if (i == node.children.length -1) {
 						// No more children to process
-						closeNodeXML(getIndents(indent_base, list.size()), sb);
+						closeNodeXML(indent, sb);
 						list.removeLast();
 						table.remove(node);
 						continue;
@@ -451,22 +539,23 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		}
 	}
-	static private final StringBuilder getIndents(final String base, int more) {
-		final StringBuilder sb = new StringBuilder(base.length() + more);
-		sb.append(base);
-		while (more > 0) {
-			sb.append(' ');
-			more--;
-		}
-		return sb;
-	}
-	static private final void dataNodeXML(final Tree tree, final StringBuilder indent, final StringBuilder sb, final Node node) {
+
+	private final void dataNodeXML(final Tree<T> tree, final StringBuilder indent, final StringBuilder sb, final Node<T> node) {
 		sb.append(indent)
 		  .append("<t2_node x=\"").append(node.x)
 		  .append("\" y=\"").append(node.y)
 		  .append("\" lid=\"").append(node.la.getId()).append('\"');
 		;
-		if (null != node.parent) sb.append(" c=\"").append(node.parent.getConfidence(node)).append('\"');
+		if (null != node.parent) {
+			final byte conf = node.getConfidence();
+			if (Node.MAX_EDGE_CONFIDENCE != conf) sb.append(" c=\"").append(conf).append('\"');
+		}
+		if (null != node.color) {
+			sb.append(" color=\"");
+			Utils.asHexRGBColor(sb, node.color);
+			sb.append('\"');
+		}
+
 		tree.exportXMLNodeAttributes(indent, sb, node); // may not add anything
 		sb.append(">\n");
 		// ... so accumulated potentially extra chars are 3: \">\n
@@ -493,10 +582,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		indent.setLength(indent.length() -1);
 	}
-	abstract protected boolean exportXMLNodeAttributes(StringBuilder indent, StringBuilder sb, Node node);
-	abstract protected boolean exportXMLNodeData(StringBuilder indent, StringBuilder sb, Node node);
+	abstract protected boolean exportXMLNodeAttributes(StringBuilder indent, StringBuilder sb, Node<T> node);
+	abstract protected boolean exportXMLNodeData(StringBuilder indent, StringBuilder sb, Node<T> node);
 
-	static private void exportTags(final Node node, final StringBuilder sb, final StringBuilder indent) {
+	private final void exportTags(final Node<T> node, final StringBuilder sb, final StringBuilder indent) {
 		for (final Tag tag : (Collection<Tag>) node.getTags()) {
 			sb.append(indent).append("<t2_tag name=\"").append(Displayable.getXMLSafeValue(tag.toString()))
 					 .append("\" key=\"").append((char)tag.getKeyCode()).append("\" />\n");
@@ -506,14 +595,21 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	static private final void closeNodeXML(final StringBuilder indent, final StringBuilder sb) {
 		sb.append(indent).append("</t2_node>\n");
 	}
+	
+	/** @see generateSkeleton */
+	@Deprecated
+	public List<Point3f> generateTriangles(double scale_, int parallels, int resample) {
+		return generateSkeleton(scale_, parallels, resample).verts;
+	}
 
 	/** @return a CustomLineMesh.PAIRWISE list for a LineMesh. */
-	public List generateTriangles(double scale_, int parallels, int resample) {
+	public MeshData generateSkeleton(double scale_, int parallels, int resample) {
 		if (null == root) return null;
-		final ArrayList list = new ArrayList();
+		final ArrayList<Point3f> list = new ArrayList<Point3f>();
+		final ArrayList<Color3f> colors = new ArrayList<Color3f>();
 
 		// Simulate recursion
-		final LinkedList<Node> todo = new LinkedList<Node>();
+		final LinkedList<Node<T>> todo = new LinkedList<Node<T>>();
 		todo.add(root);
 
 		final float scale = (float)scale_;
@@ -522,7 +618,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		final float pixelHeightScaled = (float) cal.pixelHeight * scale;
 		final int sign = cal.pixelDepth < 0 ? -1 : 1;
 		final float[] fps = new float[2];
-		final Map<Node,Point3f> points = new HashMap<Node,Point3f>();
+		final Map<Node<T>,Point3f> points = new HashMap<Node<T>,Point3f>();
 
 		// A few performance tests are needed:
 		// 1 - if the map caching of points helps or recomputing every time is cheaper than lookup
@@ -530,12 +626,16 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		//
 		// The method, by the way, is very parallelizable: each is independent.
 
+		final HashMap<Color,Color3f> cached_colors = new HashMap<Color, Color3f>();
+		final Color3f cf = new Color3f(this.color);
+		cached_colors.put(this.color, cf);
+
 		boolean go = true;
 		while (go) {
-			final Node node = todo.removeFirst();
+			final Node<T> node = todo.removeFirst();
 			// Add children to todo list if any
 			if (null != node.children) {
-				for (final Node nd : node.children) todo.add(nd);
+				for (final Node<T> nd : node.children) todo.add(nd);
 			}
 			go = !todo.isEmpty();
 			// Get node's 3D coordinate
@@ -553,17 +653,30 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				// Create a line to the parent
 				list.add(points.get(node.parent));
 				list.add(p);
+				if (null == node.color) {
+					colors.add(cf);
+					colors.add(cf); // twice: a line segment
+				} else {
+					Color3f c = cached_colors.get(node.color);
+					if (null == c) {
+						c = new Color3f(node.color);
+						cached_colors.put(node.color, c);
+					}
+					colors.add(c);
+					colors.add(c); // twice: a line segment
+				}
 				if (go && node.parent != todo.getFirst().parent) {
 					// node.parent point no longer needed (last child just processed)
 					points.remove(node.parent);
 				}
 			}
 		}
-		return list;
+		//Utils.log2("Skeleton MeshData lists of same length: " + (list.size() == colors.size()));
+		return new MeshData(list, colors);
 	}
 
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPTree.class;
 	}
 
@@ -572,16 +685,16 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return new DPTree(this);
 	}
 
-	static class DPTree extends Displayable.DataPackage {
-		final Node root;
-		DPTree(final Tree t) {
+	private final class DPTree extends Displayable.DataPackage {
+		final Node<T> root;
+		DPTree(final Tree<T> t) {
 			super(t);
 			this.root = null == t.root ? null : t.root.clone(t.project);
 		}
 		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
-			final Tree t = (Tree)d;
+			final Tree<T> t = (Tree<T>)d;
 			if (null != this.root) {
 				t.root = this.root.clone(t.project);
 				t.clearCache();
@@ -594,7 +707,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	/** Reroots at the point closest to the x,y,layer_id world coordinate.
 	 *  @return true on success. */
-	synchronized public boolean reRoot(float x, float y, Layer layer, double magnification) {
+	public boolean reRoot(float x, float y, Layer layer, double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -602,31 +715,41 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		synchronized (node_layer_map) {
 			// Search within the nodes in layer
-			Set<Node> nodes = node_layer_map.get(layer);
+			Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes || nodes.isEmpty()) {
 				Utils.log("No node at " + x + ", " + y + ", " + layer);
 				return false;
 			}
 			nodes = null;
 			// Find a node near the coordinate
-			Node nd = findNode(x, y, layer, magnification);
+			Node<T> nd = findNode(x, y, layer, magnification);
 			if (null == nd) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer);
 				return false;
 			}
+			
+			return reRoot(nd);
+		}
+	}
 
+	/** @param nd A node of this Tree. */
+	public boolean reRoot(final Node<T> nd) {
+		if (null == nd) return false;
+		synchronized (node_layer_map) {
+			Set<Node<T>> nodes = node_layer_map.get(nd.la);
+			if (null == nodes || !nodes.contains(nd)) return false;
 			end_nodes.add(this.root);
 			end_nodes.remove(nd);
 			nd.setRoot();
 			this.root = nd;
-			updateView();
-			return true;
 		}
+		updateView();
+		return true;
 	}
 
 	/** Split the Tree into new Tree at the point closest to the x,y,layer world coordinate.
 	 *  @return null if no node was found near the x,y,layer point with precision dependent on magnification. */
-	synchronized public List<Tree> splitNear(float x, float y, Layer layer, double magnification) {
+	public List<Tree<T>> splitNear(float x, float y, Layer layer, double magnification) {
 		try {
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x, y);
@@ -635,14 +758,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 			synchronized (node_layer_map) {
 				// Search within the nodes in layer
-				Set<Node> nodes = node_layer_map.get(layer);
+				Set<Node<T>> nodes = node_layer_map.get(layer);
 				if (null == nodes || nodes.isEmpty()) {
 					Utils.log("No nodes at " + x + ", " + y + ", " + layer);
 					return null;
 				}
 				nodes = null;
 				// Find a node near the coordinate
-				Node nd = findNode(x, y, layer, magnification);
+				Node<T> nd = findNode(x, y, layer, magnification);
 				if (null == nd) {
 					Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 					return null;
@@ -651,23 +774,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					Utils.log("Cannot split at a root point!");
 					return null;
 				}
-				// Cache the children of 'nd'
-				Collection<Node> subtree_nodes = nd.getSubtreeNodes();
-				// Remove all children nodes of found node 'nd' from the Tree cache arrays:
-				removeNode(nd, subtree_nodes);
-				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
-				nd.parent = null;
-				// With the found nd, now a root, create a new Tree
-				Tree t = newInstance();
-				t.addToDatabase();
-				t.root = nd;
-				// ... and fill its cache arrays
-				t.cacheSubtree(subtree_nodes); // includes nd itself
-				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
-				this.calculateBoundingBox(null);
-				t.calculateBoundingBox(null);
-				// Done!
-				return Arrays.asList(new Tree[]{this, t});
+				return splitAt(nd);
 			}
 		} catch (Exception e) {
 			IJError.print(e);
@@ -675,7 +782,47 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return null;
 	}
 
-	protected void cacheSubtree(final Collection<Node> nodes) {
+	/** @param nd A node of this Tree. */
+	public List<Tree<T>> splitAt(final Node<T> nd) {
+		if (null == nd) return null;
+		try {
+			ArrayList<Tree<T>> a;
+			synchronized (node_layer_map) {
+				// Sanity check:
+				final Set<Node<T>> nodes = node_layer_map.get(nd.la);
+				if (null == nodes || !nodes.contains(nd)) return null;
+				// Cache the children of 'nd'
+				Collection<Node<T>> subtree_nodes = new ArrayList<Node<T>>(nd.getSubtreeNodes());
+				// Remove any review stacks for the nodes in the subtree
+				for (final Node<T> node : subtree_nodes) {
+					removeReview(node);
+				}
+				// Remove all children nodes of found node 'nd' from the Tree cache arrays:
+				removeNode(nd, subtree_nodes);
+				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
+				nd.parent = null;
+				// With the found nd, now a root, create a new Tree
+				Tree<T> t = newInstance();
+				t.addToDatabase();
+				t.root = nd;
+				// ... and fill its cache arrays
+				t.cacheSubtree(subtree_nodes); // includes nd itself
+				// Recompute bounds -- TODO: must translate the second properly, or apply the transforms and then recalculate bounding boxes and transforms.
+				t.calculateBoundingBox(null);
+				// Done!
+				a = new ArrayList<Tree<T>>();
+				a.add(this);
+				a.add(t);
+			}
+			this.calculateBoundingBox(null); // outside synch
+			return a;
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
+	}
+
+	protected void cacheSubtree(final Iterable<Node<T>> nodes) {
 		cache(nodes, end_nodes, node_layer_map);
 	}
 	protected void clearCache() {
@@ -688,27 +835,39 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** Take @param nodes and add them to @param end_nodes and @param node_layer_map as appropriate. */
-	static private void cache(final Collection<Node> nodes, final Collection<Node> end_nodes, final Map<Layer,Set<Node>> node_layer_map) {
-		for (final Node child : nodes) {
+	private final void cache(final Iterable<Node<T>> nodes, final Collection<Node<T>> end_nodes, final Map<Layer,Set<Node<T>>> node_layer_map) {
+		for (final Node<T> child : nodes) {
 			if (null == child.children) end_nodes.add(child);
-			Set<Node> nds = node_layer_map.get(child.la);
+			Set<Node<T>> nds = node_layer_map.get(child.la);
 			if (null == nds) {
-				nds = new HashSet<Node>();
+				nds = new HashSet<Node<T>>();
 				node_layer_map.put(child.la, nds);
 			}
 			nds.add(child);
 		}
 	}
 
+	/** Update the internal {@link Node} cache; you want to invoke this operation
+	 * after altering programmatically the {@link Layer} pointers of any of the
+	 * {@link Node} of this {@link Tree}.
+	 */
+	public void updateCache() {
+		synchronized (node_layer_map) {
+			clearCache();
+			if (null == root) return;
+			cacheSubtree(this.root.getSubtreeNodes());
+		}
+	}
+
 	/** Returns true if the given point falls within a certain distance of any of the treeline segments,
 	 *  where a segment is defined as the line between a clicked point and the next. */
 	@Override
-	public boolean contains(final Layer layer, final int x, final int y) {
+	public boolean contains(final Layer layer, final double x, final double y) {
 		if (null == root) return false;
+		final Display front = Display.getFront();
 		synchronized (node_layer_map) {
-			final Set<Node> nodes = node_layer_map.get(layer);
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes) return false;
-			Display front = Display.getFront();
 			float radius = 10;
 			if (null != front) {
 				double mag = front.getCanvas().getMagnification();
@@ -716,24 +875,22 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				if (radius < 2) radius = 2;
 			}
 			final Point2D.Double po = inverseTransformPoint(x, y);
-			final float fx = (float)po.x,
-			            fy = (float)po.y;
 			return isAnyNear(nodes, (float)po.x, (float)po.y, radius * radius);
 		}
 	}
 
-	protected boolean isAnyNear(final Collection<Node> nodes, final float lx, final float ly, final float radius) {
-		for (final Node nd : nodes) {
+	protected boolean isAnyNear(final Collection<Node<T>> nodes, final float lx, final float ly, final float radius) {
+		for (final Node<T> nd : nodes) {
 			if (nd.isNear(lx, ly, radius)) return true;
 		}
 		return false;
 	}
 
-	public Node getRoot() {
+	public Node<T> getRoot() {
 		return root;
 	}
 
-	protected Coordinate<Node> createCoordinate(final Node nd) {
+	protected Coordinate<Node<T>> createCoordinate(final Node<T> nd) {
 		if (null == nd) return null;
 		float x = nd.x;
 		float y = nd.y;
@@ -743,24 +900,24 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			x = dps[0];
 			y = dps[1];
 		}
-		return new Coordinate<Node>(x, y, nd.la, nd);
+		return new Coordinate<Node<T>>(x, y, nd.la, nd);
 	}
 
-	public Coordinate<Node> findPreviousBranchOrRootPoint(float x, float y, Layer layer, double magnification) {
-		Node nd = findNodeNear(x, y, layer, magnification);
+	public Coordinate<Node<T>> findPreviousBranchOrRootPoint(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) return null;
 		return createCoordinate(nd.findPreviousBranchOrRootPoint());
 	}
 	/** If the node found near x,y,layer is a branch point, returns it; otherwise the next down
 	 *  the chain; on reaching an end point, returns it. */
-	public Coordinate<Node> findNextBranchOrEndPoint(float x, float y, Layer layer, double magnification) {
-		Node nd = findNodeNear(x, y, layer, magnification);
+	public Coordinate<Node<T>> findNextBranchOrEndPoint(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) return null;
 		return createCoordinate(nd.findNextBranchOrEndPoint());
 	}
 
-	protected Coordinate<Node> findNearAndGetNext(float x, float y, Layer layer, double magnification) {
-		Node nd = findNodeNear(x, y, layer, magnification);
+	protected Coordinate<Node<T>> findNearAndGetNext(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) nd = last_visited;
 		if (null == nd) return null;
 		int n_children = nd.getChildrenCount();
@@ -779,54 +936,51 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		if (null != nd) setLastVisited(nd);
 		return createCoordinate(nd);
 	}
-	protected Coordinate<Node> findNearAndGetPrevious(float x, float y, Layer layer, double magnification) {
-		Node nd = findNodeNear(x, y, layer, magnification);
+	protected Coordinate<Node<T>> findNearAndGetPrevious(float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) nd = last_visited;
 		if (null == nd || null == nd.parent) return null;
 		setLastVisited(nd.parent);
 		return createCoordinate(nd.parent);
 	}
 
-	public Coordinate<Node> getLastEdited() {
+	public Coordinate<Node<T>> getLastEdited() {
 		return createCoordinate(last_edited);
 	}
-	public Coordinate<Node> getLastAdded() {
+	public Coordinate<Node<T>> getLastAdded() {
 		return createCoordinate(last_added);
 	}
 
 	/** Find an edge near the world coords x,y,layer with precision depending upon magnification,
 	 *  and adjust its confidence to @param confidence.
 	 *  @return the node whose parent edge is altered, or null if none found. */
-	protected Node setEdgeConfidence(byte confidence, float x, float y, Layer layer, double magnification) {
+	protected Node<T> setEdgeConfidence(byte confidence) {
 		synchronized (node_layer_map) {
-			Node nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null == nearest) return null;
-
-			if (nearest.parent.setConfidence(nearest, confidence)) return nearest;
-			return null;
+			if (null == last_visited) return null;
+			last_visited.setConfidence(confidence);
+			updateViewData(last_visited);
+			return last_visited;
 		}
 	}
 
-	protected Node adjustEdgeConfidence(int inc, float x, float y, Layer layer, double magnification) {
-		if (!this.at.isIdentity()) {
-			final Point2D.Double po = inverseTransformPoint(x, y);
-			x = (float)po.x;
-			y = (float)po.y;
-		}
+	/** Expects world coordinates. */
+	protected Node<T> adjustEdgeConfidence(int inc, float x, float y, Layer layer, DisplayCanvas dc) {
+		Node<T> nearest;
 		synchronized (node_layer_map) {
-			Node nearest = findNode(x, y, layer, magnification);
-			if (null == nearest) nearest = findNodeConfidenceBox(x, y, layer, magnification);
-			if (null != nearest && null != nearest.parent && nearest.parent.adjustConfidence(nearest, inc)) {
-				updateViewData(nearest);
-				return nearest;
+			nearest = findNodeConfidenceBox(x, y, layer, dc.getMagnification());
+			if (null == nearest) nearest = findNodeNear(x, y, layer, dc, true);
+			if (null == nearest) return null;
+			if (!nearest.adjustConfidence(inc)) {
+				return null;
 			}
-			return null;
 		}
+		if (null != nearest) updateViewData(nearest);
+		return nearest;
 	}
 
 	/** Find the node whose confidence box for the parent edge is closest to x,y,layer, if any.  */
-	private Node findNodeConfidenceBox(float x, float y, Layer layer, double magnification) {
-		final Set<Node> nodes = node_layer_map.get(layer);
+	private Node<T> findNodeConfidenceBox(float x, float y, Layer layer, double magnification) {
+		final Set<Node<T>> nodes = node_layer_map.get(layer);
 		if (null == nodes) return null;
 
 		Point2D.Double po = inverseTransformPoint(x, y);
@@ -838,8 +992,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		radius *= radius; // squared
 
 		float min_sq_dist = Float.MAX_VALUE;
-		Node nearest = null;
-		for (final Node nd : nodes) {
+		Node<T> nearest = null;
+		for (final Node<T> nd : nodes) {
 			if (null == nd.parent) continue;
 			float d = (float)(Math.pow((nd.parent.x + nd.x)/2 - x, 2) + Math.pow((nd.parent.y + nd.y)/2 - y, 2));
 			if (d < min_sq_dist && d < radius) {
@@ -851,14 +1005,24 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** Find a node in @param layer near the local coords lx,ly, with precision depending on magnification.  */
-	public Node findNode(final float lx, final float ly, final Layer layer, final double magnification) {
+	public Node<T> findNode(final float lx, final float ly, final Layer layer, final double magnification) {
 		synchronized (node_layer_map) {
 			return findClosestNode(node_layer_map.get(layer), lx, ly, magnification);
 		}
 	}
 
 	/** Expects world coords; with precision depending on magnification. */
-	public Node findClosestNodeW(final Collection<Node> nodes, final float wx, final float wy, final double magnification) {
+	public Node<T> findClosestNodeW(final float wx, final float wy, final Layer layer, final double magnification) {
+		if (null == root) return null;
+		synchronized (node_layer_map) {
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
+			if (null == nodes) return null;
+			return findClosestNodeW(nodes, wx, wy, magnification);
+		}
+	}
+
+	/** Expects world coords; with precision depending on magnification. */
+	public Node<T> findClosestNodeW(final Collection<Node<T>> nodes, final float wx, final float wy, final double magnification) {
 		float lx = wx,
 		      ly = wy;
 		if (!this.at.isIdentity()) {
@@ -869,14 +1033,24 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return findClosestNode(nodes, lx, ly, magnification);
 	}
 
+	/** Also sets the last visited and the receiver node. This is a GUI method. */
+	protected Layer toClosestPaintedNode(final Layer active_layer, final float wx, final float wy, final double magnification) {
+		final Node<T> nd = findClosestNodeW(getNodesToPaint(active_layer), wx, wy, magnification);
+		if (null != nd) {
+			setLastVisited(nd);
+			return nd.la;
+		}
+		return null;
+	}
+
 	/** Expects local coords; with precision depending on magnification. */
-	public Node findClosestNode(final Collection<Node> nodes, final float lx, final float ly, final double magnification) {
+	public Node<T> findClosestNode(final Collection<Node<T>> nodes, final float lx, final float ly, final double magnification) {
 		if (null == nodes || nodes.isEmpty()) return null;
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		float min_dist = Float.MAX_VALUE;
-		Node nd = null;
-		for (final Node node : nodes) {
+		Node<T> nd = null;
+		for (final Node<T> node : nodes) {
 			float dist = Math.abs(node.x - lx) + Math.abs(node.y - ly);
 			if (dist < min_dist) {
 				min_dist = dist;
@@ -886,23 +1060,23 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return min_dist < d ? nd : null;
 	}
 
-	/** Find the spatially closest node, in calibrated coords. */
-	public Node findNearestNode(final float lx, final float ly, final Layer layer) {
+	/** Find the spatially closest node, in calibrated coords; expects local coords. */
+	public Node<T> findNearestNode(final float lx, final float ly, final Layer layer) {
 		synchronized (node_layer_map) {
-			final Set<Node> nodes = node_layer_map.get(layer);
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes) return null;
 			return findNearestNode(lx, ly, (float)layer.getZ(), layer.getParent().getCalibration(), nodes);
 		}
 	}
 
-	static private Node findNearestNode(float lx, float ly, float lz, final Calibration cal, final Collection<Node> nodes) {
+	private final Node<T> findNearestNode(float lx, float ly, float lz, final Calibration cal, final Collection<Node<T>> nodes) {
 		if (null == nodes) return null;
 		// A distance map would help here
 		final float pixelWidth = (float) cal.pixelWidth;
 		final float pixelHeight = (float) cal.pixelHeight;
-		Node nearest = null;
+		Node<T> nearest = null;
 		float sqdist = Float.MAX_VALUE;
-		for (final Node nd : nodes) {
+		for (final Node<T> nd : nodes) {
 			final float d = (float) (Math.pow(pixelWidth * (nd.x - lx), 2) + Math.pow(pixelHeight * (nd.y -ly), 2) + Math.pow(pixelWidth * (nd.la.getZ() - lz), 2));
 			if (d < sqdist) {
 				sqdist = d;
@@ -913,52 +1087,50 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** Find the spatially closest node, in calibrated coords. */
-	public Node findNearestEndNode(final float lx, final float ly, final Layer layer) {
+	public Node<T> findNearestEndNode(final float lx, final float ly, final Layer layer) {
 		synchronized (node_layer_map) {
 			return findNearestNode(lx, ly, (float)layer.getZ(), layer.getParent().getCalibration(), end_nodes);
 		}
 	}
 
-	public boolean insertNode(final Node parent, final Node child, final Node in_between, final byte confidence) {
+	public boolean insertNode(final Node<T> parent, final Node<T> child, final Node<T> in_between, final byte confidence) {
 		synchronized (node_layer_map) {
 			byte b = parent.getConfidence(child);
 			parent.remove(child);
 			parent.add(in_between, b);
 			in_between.add(child, confidence);
 			// cache
-			Collection<Node> subtree = in_between.getSubtreeNodes();
+			Collection<Node<T>> subtree = in_between.getSubtreeNodes();
 			cacheSubtree(subtree);
 			// If child was in end_nodes, remains there
 
 			setLastAdded(in_between);
-			updateView();
-
-			addToLinkLater(in_between);
-
-			return true;
 		}
+		updateView();
+		addToLinkLater(in_between);
+		return true;
 	}
 
 	/** Considering only the set of consecutive layers currently painted, find a point near an edge
-	 *  with accurancy depending upon magnification.
+	 *  with accuracy depending upon magnification.
 	 *  @return null if none of the edges is close enough, or an array of parent and child describing the edge. */
-	public Node[] findNearestEdge(float x_pl, float y_pl, Layer layer, double magnification) {
+	public Node<T>[] findNearestEdge(float x_pl, float y_pl, Layer layer, double magnification) {
 		if (null == root) return null;
 		// Don't traverse all, just look into nodes currently being painted according to layer_set.n_layers_color_cue
-		final Collection<Node> nodes = getNodesToPaint(layer);
+		final Collection<Node<T>> nodes = getNodesToPaint(layer);
 		if (null == nodes) return null;
 		//
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
-		Node[] ns = new Node[2]; // parent and child
+		Node<T>[] ns = new Node[2]; // parent and child
 		//
-		for (final Node node : nodes) {
+		for (final Node<T> node : nodes) {
 			if (null == node.children) continue;
 			// Examine if the point is closer to the 2D-projected edge than any other so far:
 			// TODO it's missing edges with parents beyond the set of painted layers,
 			//      and it's doing edges to children beyond the set of painted layers.
-			for (final Node child : node.children) {
+			for (final Node<T> child : node.children) {
 				double dist = M.distancePointToSegment(x_pl, y_pl,
 								       node.x, node.y,
 								       child.x, child.y);
@@ -974,13 +1146,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** In projected 2D only, since that's the perspective of the user. */
-	private Node findNearestChildEdge(final Node parent, final float lx, final float ly) {
+	private Node<T> findNearestChildEdge(final Node<T> parent, final float lx, final float ly) {
 		if (null == parent || null == parent.children) return null;
 		
-		Node nd = null;
+		Node<T> nd = null;
 		double min_dist = Double.MAX_VALUE;
 
-		for (final Node child : parent.children) {
+		for (final Node<T> child : parent.children) {
 			double dist = M.distancePointToSegment(lx, ly,
 							       parent.x, parent.y,
 							       child.x, child.y);
@@ -992,13 +1164,15 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return nd;
 	}
 
-	public boolean addNode(final Node parent, final Node child, final byte confidence) {
-		//try {
+	/** Will call calculateBoundingBox and repaint. */
+	public boolean addNode(final Node<T> parent, final Node<T> child, final byte confidence) {
 
+		boolean added = false;
+		Collection<Node<T>> subtree = null;
 		synchronized (node_layer_map) {
-			Set<Node> nodes = node_layer_map.get(child.la);
+			Set<Node<T>> nodes = node_layer_map.get(child.la);
 			if (null == nodes) {
-				nodes = new HashSet<Node>();
+				nodes = new HashSet<Node<T>>();
 				node_layer_map.put(child.la, nodes);
 			}
 			if (nodes.add(child)) {
@@ -1011,39 +1185,35 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				if (null == child.children && !end_nodes.add(child)) {
 					Utils.log("WARNING: child was already in end_nodes list!");
 				}
-				Collection<Node> subtree = child.getSubtreeNodes();
+				subtree = child.getSubtreeNodes();
 				cacheSubtree(subtree);
 
-				repaint(true, child.la);
 				setLastAdded(child);
-				updateView();
 
-				synchronized (tolink) {
-					tolink.addAll(subtree);
-				}
+				added = true;
 
-				return true;
 			} else if (0 == nodes.size()) {
 				node_layer_map.remove(child.la);
 			}
-			return false;
 		}
+		if (added) {
+			repaint(true, child.la);
+			updateView();
 
-		/*} finally {
-			//Utils.log2("new node: " + child + " with parent: " + parent);
-			//Utils.log2("layers with nodes: " + node_layer_map.size() + ", child.la = " + child.la + ", nodes:" + node_layer_map.get(child.la).size());
-			if (null == parent) {
-				Utils.log2("just added parent: ");
-				Utils.log2(" nodes to paint: " + Utils.toString(getNodesToPaint(Display.getFrontLayer())));
-				Utils.log2(" nodes in node_layer_map: " + Utils.toString(node_layer_map));
+			if (null != subtree) {
+				synchronized (tolink) {
+					tolink.addAll(subtree);
+				}
 			}
-		}*/
+			return true;
+		}
+		return false;
 	}
 
 	/** Remove a node only (not its subtree).
 	 *  @return true on success. Will return false when the node has 2 or more children.
 	 *  The new edge confidence is that of the parent to the @param node. */
-	public boolean popNode(final Node node) {
+	public boolean popNode(final Node<T> node) {
 		switch (node.getChildrenCount()) {
 			case 0:
 				// End node:
@@ -1054,9 +1224,12 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					// Make its child the new root
 					root = node.children[0];
 					root.parent = null;
+					root.confidence = Node.MAX_EDGE_CONFIDENCE; // with its now non-existent parent
+					if (node == last_visited) setLastVisited(root);
 				} else {
 					node.parent.children[node.parent.indexOf(node)] = node.children[0];
 					node.children[0].parent = node.parent;
+					if (node == last_visited) setLastVisited(node.parent);
 				}
 				synchronized (node_layer_map) {
 					node_layer_map.get(node.la).remove(node);
@@ -1070,103 +1243,121 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** If the tree is a cyclic graph, it may destroy all. */
-	public void removeNode(final Node node) {
-		synchronized (node_layer_map) {
-			removeNode(node, node.getSubtreeNodes());
-		}
+	public void removeNode(final Node<T> node) {
+		removeNode(node, node.getSubtreeNodes());
 	}
 
-	// TODO this function is not thread safe. Works well because multiple threads aren't so far calling cache-modifying functions.
-	// Should synchronize on node_layer_map.
-	private void removeNode(final Node node, final Collection<Node> subtree_nodes) {
-		if (null == node.parent) {
-			root = null;
-			clearCache();
-		} else {
-			// if not an end-point, update cached lists
-			if (null != node.children) {
-				Utils.log2("Removing children of node " + node);
-				for (final Node nd : subtree_nodes) { // includes the node itself
-					node_layer_map.get(nd.la).remove(nd);
-					if (null == nd.children && !end_nodes.remove(nd)) {
-						Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
-					}
-				}
+	private void removeNode(final Node<T> node, final Collection<Node<T>> subtree_nodes) {
+		synchronized (node_layer_map) {
+			if (null == node.parent) {
+				root = null;
+				clearCache();
 			} else {
-				Utils.log2("Just removing node " + node);
-				end_nodes.remove(node);
-				node_layer_map.get(node.la).remove(node);
+				// if not an end-point, update cached lists
+				if (null != node.children) {
+					Utils.log2("Removing children of node " + node);
+					for (final Node<T> nd : subtree_nodes) { // includes the node itself
+						node_layer_map.get(nd.la).remove(nd);
+						if (null == nd.children && !end_nodes.remove(nd)) {
+							Utils.log2("WARNING: node to remove doesn't have any children but wasn't in end_nodes list!");
+						}
+					}
+				} else {
+					Utils.log2("Just removing node " + node);
+					end_nodes.remove(node);
+					node_layer_map.get(node.la).remove(node);
+				}
+				if (1 == node.parent.getChildrenCount()) {
+					end_nodes.add(node.parent);
+				}
+				// Update receiver:
+				setLastVisited(node.parent);
+				// Finally, remove from parent node
+				node.parent.remove(node);
 			}
-			if (1 == node.parent.getChildrenCount()) {
-				end_nodes.add(node.parent);
-			}
-			// Finally, remove from parent node
-			node.parent.remove(node);
+			fireNodeRemoved(node);
 		}
 		synchronized (tolink) {
 			if (null != subtree_nodes) {
 				tolink.removeAll(subtree_nodes);
 			} else tolink.remove(node);
 		}
-		fireNodeRemoved(node);
 		updateView();
 	}
 
-	/** Join all given Trees by using the first one as the receiver, and all the others as the ones to be merged into the receiver.
+	/** Check if it is possible to join all given Trees into this,
+	 * by using the first one as the receiver (which should be this),
+	 * and all the others as the ones to be merged into the receiver.
 	 *  Requires each Tree to have a non-null marked Node; otherwise, returns false. */
-	public boolean canJoin(final List<? extends Tree> ts) {
+	public boolean canJoin(final List<? extends Tree<T>> ts) {
 		if (null == marked) {
 			Utils.log("No marked node in to-be parent Tree " + this);
 			return false;
 		}
-		boolean quit = false;
-		for (final Tree tl : ts) {
+		if (null == this.root) {
+			Utils.log("The root of this tree is null!");
+			return false;
+		}
+		if (1 == ts.size()) {
+			Utils.log("No other trees to join!");
+			return false;
+		}
+		for (final Tree<T> tl : ts) {
 			if (this == tl) continue;
+			if (null == tl.root) {
+				Utils.log("Can't join: tree #" + tl.id + " does not have any nodes!");
+				return false;
+			}
+			if (getClass() != tl.getClass()) {
+				Utils.log("For joining, all trees must be of the same kind!");
+				return false;
+			}
 			if (null == tl.marked) {
 				Utils.log("No marked node in to-be child treeline " + tl);
-				quit = true;
+				return false;
 			}
 		}
-		return !quit;
+		return true;
 	}
 
 	/*  Requires each Tree to have a non-null marked Node; otherwise, returns false. */
-	public boolean join(final List<? extends Tree> ts) {
+	public boolean join(final List<? extends Tree<T>> ts) {
 		if (!canJoin(ts)) return false;
-		// All Tree in ts have a marked node
-
-		final AffineTransform at_inv;
-		try {
-			at_inv = this.at.createInverse();
-		} catch (NoninvertibleTransformException nite) {
-			IJError.print(nite);
-			return false;
-		}
-
-		for (final Tree tl : ts) {
+		// Preconditions passed: all Tree in ts have a marked node and are of the same kind
+		for (final Tree<T> tl : ts) {
 			if (this == tl) continue;
 			tl.marked.setRoot();
 			// transform nodes from there to here
+			final AffineTransform at_inv;
+			try {
+				at_inv = this.at.createInverse();
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return false;
+			}
 			final AffineTransform aff = new AffineTransform(tl.at); // 1 - to world coords
 			aff.preConcatenate(at_inv);		// 2 - to this local coords
 			final float[] fps = new float[2];
-			for (final Node nd : (List<Node>) tl.marked.getSubtreeNodes()) { // fails to compile? Why?
+			for (final Node<T> nd : tl.marked.getSubtreeNodes()) {
 				fps[0] = nd.x;
 				fps[1] = nd.y;
 				aff.transform(fps, 0, fps, 0, 1);
 				nd.x = fps[0];
 				nd.y = fps[1];
+				nd.transformData(aff);
+				// Remove review stack if any
+				removeReview(nd);
 			}
-			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE);
+			addNode(this.marked, tl.marked, Node.MAX_EDGE_CONFIDENCE); // will calculateBoundingBox, hence at_inv has to be recomputed every time
 			// Remove from tl pointers
 			tl.root = null; // stolen!
 			tl.setLastMarked(null);
 			// Remove from tl cache
-			tl.node_layer_map.clear();
+			synchronized (tl.node_layer_map) {
+				tl.node_layer_map.clear();
+			}
 			tl.end_nodes.clear();
 		}
-
-		calculateBoundingBox(null);
 
 		// Don't clear this.marked
 
@@ -1174,9 +1365,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 		return true;
 	}
+	
+	protected Node<T> findNodeNear(float x, float y, final Layer layer, final DisplayCanvas dc) {
+		return findNodeNear(x, y, layer, dc, false);
+	}
 
 	/** Expects world coordinates. If no node is near x,y but there is only one node in the current Display view of the layer, then it returns that node. */
-	protected Node findNodeNear(float x, float y, final Layer layer, final double magnification) {
+	protected Node<T> findNodeNear(float x, float y, final Layer layer, final DisplayCanvas dc, final boolean use_receiver_when_null) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -1184,27 +1379,26 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		synchronized (node_layer_map) {
 			// Search within the nodes in layer
-			Set<Node> nodes = node_layer_map.get(layer);
+			Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes || nodes.isEmpty()) {
 				Utils.log("No nodes at " + x + ", " + y + ", " + layer);
 				return null;
 			}
 			// Find a node near the coordinate
-			Node nd = findNode(x, y, layer, magnification);
+			Node<T> nd = findNode(x, y, layer, dc.getMagnification());
 			// If that fails, try any node show all by itself in the display:
 
 			if (null == nd) {
 				// Is there only one node within the srcRect?
 				final Area a;
 				try {
-					a = new Area(Display.getFront().getCanvas().getSrcRect())
-						    .createTransformedArea(this.at.createInverse());
+					a = new Area(dc.getSrcRect()).createTransformedArea(this.at.createInverse());
 				} catch (NoninvertibleTransformException nite) {
 					IJError.print(nite);
 					return null;
 				}
 				int count = 0;
-				for (final Node node : nodes) {
+				for (final Node<T> node : nodes) {
 					if (node.intersects(a)) {
 						nd = node;
 						count++;
@@ -1213,6 +1407,15 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							break;
 						}
 					}
+				}
+			}
+
+			final Node<T> receiver = last_visited;
+			if (null == nd && use_receiver_when_null && null != receiver && receiver.la == layer) {
+				float[] f = new float[]{receiver.x, receiver.y};
+				at.transform(f, 0, f, 0, 1);
+				if (dc.getSrcRect().contains((int)f[0], (int)f[1])) {
+					nd = receiver;
 				}
 			}
 
@@ -1234,14 +1437,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		synchronized (node_layer_map) {
 			// Search within the nodes in layer
-			Set<Node> nodes = node_layer_map.get(layer);
+			Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes || nodes.isEmpty()) {
 				Utils.log("No nodes at " + x + ", " + y + ", " + layer);
 				return false;
 			}
 			nodes = null;
 			// Find a node near the coordinate
-			Node found = findNode(x, y, layer, magnification);
+			Node<T> found = findNode(x, y, layer, magnification);
 			if (null == found) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 				return false;
@@ -1258,32 +1461,54 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return false;
 	}
 
-	protected void setActive(Node nd) {
+	/** The node currently being dragged or edited in some way. */
+	protected void setActive(Node<T> nd) {
 		this.active = nd;
-		if (null != nd) setLastVisited(nd);
 	}
-	protected Node getActive() { return active; }
+	/** The node currently being dragged or edited in some way. */
+	protected Node<T> getActive() { return active; }
 
-	protected void setLastEdited(Node nd) {
+	protected void setLastEdited(Node<T> nd) {
 		this.last_edited = nd;
 		setLastVisited(nd);
 	}
-	protected void setLastAdded(Node nd) {
+	protected void setLastAdded(Node<T> nd) {
 		this.last_added = nd;
 		setLastVisited(nd);
 	}
-	protected void setLastMarked(Node nd) {
+	public void setLastMarked(Node<T> nd) {
 		this.marked = nd;
 		setLastVisited(nd);
 	}
-	protected void setLastVisited(Node nd) { this.last_visited = nd; }
+	/** The node that paints in green, which is the receiver of events. */
+	protected void setLastVisited(Node<T> nd) {
+		this.last_visited = nd;
+	}
+	
+	public Node<T> getMarked() {
+		return marked;
+	}
 
-	protected void fireNodeRemoved(final Node nd) {
+	public Node<T> getLastVisited() {
+		return last_visited;
+	}
+
+	@Override
+	public void deselect() {
+		setLastVisited(null);
+	}
+
+	protected void fireNodeRemoved(final Node<T> nd) {
 		if (nd == marked) marked = null;
 		if (nd == last_added) last_added = null;
 		if (nd == last_edited) last_edited = null;
-		if (nd == last_visited) last_visited = null;
+		if (nd == last_visited) {
+			if (null != nd.parent) last_visited = nd.parent;
+			else if (nd.getChildrenCount() > 0) last_visited = nd.children[0];
+			else last_visited = null;
+		}
 		removeFromLinkLater(nd);
+		removeReview(nd);
 	}
 
 	protected void clearState() {
@@ -1292,15 +1517,18 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	/** The Node double-clicked on, for join operations. */
-	private Node marked = null;
+	private Node<T> marked = null;
 	/** The Node clicked on, for mouse operations. */
-	private Node active = null;
+	private Node<T> active = null;
 	/** The last added node */
-	private Node last_added = null;
+	private Node<T> last_added = null;
 	/** The last edited node, which will be the last added as well until some other node is edited. */
-	private Node last_edited = null;
-	/** The last visited node, either navigating or editing. */
-	private Node last_visited = null;
+	private Node<T> last_edited = null;
+	/** The last visited node, either navigating or editing.
+	 *  It's the only node that can receive new children by clicking*/
+	private Node<T> last_visited = null;
+	
+	// TODO: last_visited and receiver overlap TOTALLY
 
 	static private Polygon MARKED_PARENT, MARKED_CHILD;
 
@@ -1327,7 +1555,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				y_pl = (int)po.y;
 			}
 
-			Node found = findNode(x_pl, y_pl, layer, mag);
+			Node<T> found = findNode(x_pl, y_pl, layer, mag);
 			setActive(found);
 
 			if (null != found) {
@@ -1352,13 +1580,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					setActive(null);
 					return;
 				}
-				if (me.isShiftDown() && !me.isAltDown()) {
-					// Create new branch at point, with local coordinates
-					Node child = newNode(x_pl, y_pl, layer, found);
-					addNode(found, child, Node.MAX_EDGE_CONFIDENCE);
-					setActive(child);
-					return;
-				}
 			} else {
 				if (2 == me.getClickCount()) {
 					setLastMarked(null);
@@ -1369,17 +1590,22 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				}
 				// Add new point
 				if (me.isShiftDown()) {
-					Node[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
+					Node<T>[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
 					if (null != ns) {
-						found = newNode(x_pl, y_pl, layer, ns[0]);
+						found = createNewNode(x_pl, y_pl, layer, ns[0]);
 						insertNode(ns[0], ns[1], found, ns[0].getConfidence(ns[1]));
 						setActive(found);
 					}
 				} else {
+					Node<T> nearest = last_visited;
+					if (null == nearest) {
+						Utils.showMessage("Before adding a new node, please activate an existing node\nby clicking on it, or pushing 'g' on it.");
+						return;
+					}
 					// Find the point closest to any other starting or ending point in all branches
-					Node nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
+					//Node<T> nearest = findNearestEndNode(x_pl, y_pl, layer); // at least the root exists, so it has to find a node, any node
 					// append new child; inherits radius from parent
-					found = newNode(x_pl, y_pl, layer, nearest);
+					found = createNewNode(x_pl, y_pl, layer, nearest);
 					addNode(nearest, found, Node.MAX_EDGE_CONFIDENCE);
 					setActive(found);
 					repaint(true, layer);
@@ -1388,7 +1614,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		} else {
 			// First point
-			root = newNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
+			root = createNewNode(x_p, y_p, layer, null); // world coords, so calculateBoundingBox will do the right thing
 			addNode(null, root, (byte)0);
 			setActive(root);
 		}
@@ -1411,6 +1637,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 		updateViewData(active);
 
+		setLastVisited(active);
 		setActive(null);
 	}
 
@@ -1433,9 +1660,11 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		setLastEdited(active);
 	}
 
-	static private Node to_tag = null;
-	static private Node to_untag = null;
+	static private Node<?> to_tag = null;
+	static private Node<?> to_untag = null;
 	static private boolean show_tag_dialogs = false;
+	
+	protected boolean isTagging() { return null != to_tag || null != to_untag; }
 
 	@Override
 	public void keyPressed(KeyEvent ke) {
@@ -1473,7 +1702,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 
 			final boolean untag = null != to_untag;
-			final Node target = untag ? to_untag : to_tag;
+			final Node<?> target = untag ? to_untag : to_tag;
 
 			try {
 
@@ -1546,6 +1775,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 								else target.addTag(tag);
 								Display.repaint(layer_set);
 								layer_set.addDataEditStep(Tree.this);
+								updateViewData(target);
 							}
 						});
 					}
@@ -1564,6 +1794,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 								Display.repaint(layer_set);
 							}
 							layer_set.addDataEditStep(Tree.this);
+							updateViewData(target);
 						}
 					});
 
@@ -1590,15 +1821,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		}
 
-		Layer la = dc.getDisplay().getLayer();
 		final Point po = dc.getCursorLoc(); // as offscreen coords
 
-		// assumes Node.MAX_EDGE_CONFIDENCE is <= 9.
+		// Set confidence of the receiver node
 		if (keyCode >= KeyEvent.VK_0 && keyCode <= (KeyEvent.VK_0 + Node.MAX_EDGE_CONFIDENCE)) {
-			// Find an edge near the mouse position, by measuring against the middle of it
-			setEdgeConfidence((byte)(keyCode - KeyEvent.VK_0), po.x, po.y, la, dc.getMagnification());
-			Display.repaint(layer_set);
-			ke.consume();
+			if (null != setEdgeConfidence((byte)(keyCode - KeyEvent.VK_0))) {
+				Display.repaint(layer_set);
+				ke.consume();
+			}
 			return;
 		}
 
@@ -1606,16 +1836,16 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		final Display display = Display.getFront();
 		final Layer layer = display.getLayer();
 
-		Node nd = null;
-		Coordinate<Node> c = null;
+		Node<T> nd = null;
+		Coordinate<Node<T>> c = null;
 		try {
 
 		switch (keyCode) {
 			case KeyEvent.VK_T:
 				if (0 == modifiers) {
-					to_tag = findNodeNear(po.x, po.y, layer, dc.getMagnification());
+					to_tag = findNodeNear(po.x, po.y, layer, dc, true);
 				} else if (0 == (modifiers ^ KeyEvent.SHIFT_MASK)) {
-					to_untag = findNodeNear(po.x, po.y, layer, dc.getMagnification());
+					to_untag = findNodeNear(po.x, po.y, layer, dc, true);
 				}
 				ke.consume();
 				return;
@@ -1629,14 +1859,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					ke.consume();
 					return;
 				case KeyEvent.VK_B:
-					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc.getMagnification());
+					c = findPreviousBranchOrRootPoint(po.x, po.y, layer, dc);
 					if (null == c) return;
 					nd = c.object;
 					display.center(c);
 					ke.consume();
 					return;
 				case KeyEvent.VK_N:
-					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc.getMagnification());
+					c = findNextBranchOrEndPoint(po.x, po.y, layer, dc);
 					if (null == c) return;
 					nd = c.object;
 					display.center(c);
@@ -1657,25 +1887,97 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					ke.consume();
 					return;
 				case KeyEvent.VK_CLOSE_BRACKET:
-					display.animateBrowsingTo(findNearAndGetNext(po.x, po.y, layer, dc.getMagnification()));
+					display.animateBrowsingTo(findNearAndGetNext(po.x, po.y, layer, dc));
 					ke.consume();
 					return;
 				case KeyEvent.VK_OPEN_BRACKET:
-					display.animateBrowsingTo(findNearAndGetPrevious(po.x, po.y, layer, dc.getMagnification()));
+					display.animateBrowsingTo(findNearAndGetPrevious(po.x, po.y, layer, dc));
 					ke.consume();
 					return;
 				case KeyEvent.VK_G:
 					nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
 					if (null != nd) {
 						display.toLayer(nd.la);
+						if (nd != last_visited) {
+							setLastVisited(nd);
+							display.getCanvas().repaint(false);
+						}
 						ke.consume();
 						return;
 					}
+					break;
+			}
+		}
+		if (ProjectToolbar.PEN == ProjectToolbar.getToolId() && 0 == (modifiers ^ Event.SHIFT_MASK) && KeyEvent.VK_C == keyCode) {
+			nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
+			if (null == nd) {
+				Node<T> last = getLastVisited();
+				if (null != last && layer == last.getLayer()) nd = last;
+			}
+			if (null != nd && adjustNodeColors(nd)) {
+				ke.consume();
+				return;
 			}
 		}
 		} finally {
 			if (null != nd) setLastVisited(nd);
 		}
+	}
+
+	protected boolean adjustNodeColors(final Node<T> nd) {
+		final Color color = null == nd.color ? this.color : nd.color;
+		GenericDialog gd = new GenericDialog("Node colors");
+		gd.addSlider("Red: ", 0, 255, color.getRed());
+		gd.addSlider("Green: ", 0, 255, color.getGreen());
+		gd.addSlider("Blue: ", 0, 255, color.getBlue());
+		final Scrollbar red = (Scrollbar)gd.getSliders().get(0);
+		final Scrollbar green = (Scrollbar)gd.getSliders().get(1);
+		final Scrollbar blue = (Scrollbar)gd.getSliders().get(2);
+		final Color original = nd.color; // may be null
+		final SliderListener slc = new SliderListener() {
+			public void update() {
+				nd.setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
+				Display.repaint();
+			}
+		};
+		red.addAdjustmentListener(slc);
+		green.addAdjustmentListener(slc);
+		blue.addAdjustmentListener(slc);
+		final String[] choices = {"this node only", "nodes until next branch or end node", "entire subtree"};
+		gd.addChoice("Apply to:", choices, choices[0]);
+		gd.showDialog();
+		if (gd.wasCanceled()) {
+			nd.setColor(original);
+			Display.repaint();
+			return false;
+		}
+		try {
+			layer_set.addDataEditStep(this);
+			final Color c = new Color(red.getValue(), green.getValue(), blue.getValue());
+			switch (gd.getNextChoiceIndex()) {
+				case 0:
+					// this node only: already done
+					return true;
+				case 1:
+					// the downstream slab:
+					for (final Node<T> node : new Node.NodeCollection<T>(nd, Node.SlabIterator.class)) {
+						node.setColor(c);
+					}
+					return true;
+				case 2:
+					// the entire subtree:
+					for (final Node<T> node: new Node.NodeCollection<T>(nd, Node.BreadthFirstSubtreeIterator.class)) {
+						node.setColor(c);
+					}
+					return true;
+				default:
+					layer_set.removeLastUndoStep();
+			}
+		} finally {
+			layer_set.addDataEditStep(this);
+			Display.repaint();
+		}
+		return true;
 	}
 
 	@Override
@@ -1692,25 +1994,27 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			final float x = (float)((mwe.getX() / magnification) + srcRect.x);
 			final float y = (float)((mwe.getY() / magnification) + srcRect.y);
 
-			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, magnification);
+			adjustEdgeConfidence(rotation > 0 ? 1 : -1, x, y, la, dc);
 			Display.repaint(this);
 			mwe.consume();
 		}
 	}
 
 	/** Used when reconstructing from XML. */
-	public void setRoot(final Node new_root) {
+	public void setRoot(final Node<T> new_root) {
 		this.root = new_root;
-		if (null == new_root) clearCache();
-		else cacheSubtree(new_root.getSubtreeNodes());
+		synchronized (node_layer_map) {
+			if (null == new_root) clearCache();
+			else cacheSubtree(new_root.getSubtreeNodes());
+		}
 	}
 
 	@Override
-	public void paintSnapshot(final Graphics2D g, final Layer layer, final Rectangle srcRect, final double mag) {
+	public void paintSnapshot(final Graphics2D g, final Layer layer, final List<Layer> layers, final Rectangle srcRect, final double mag) {
 		switch (layer_set.getSnapshotsMode()) {
 			case 0:
 				// Paint without arrows
-				paint(g, srcRect, mag, false, 0xffffffff, layer, false);
+				paint(g, srcRect, mag, false, 0xffffffff, layer, layers, false, false);
 				return;
 			case 1:
 				paintAsBox(g);
@@ -1719,8 +2023,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public Set<Node> getEndNodes() {
-		return new HashSet<Node>(end_nodes);
+	public Set<Node<T>> getEndNodes() {
+		return new HashSet<Node<T>>(end_nodes);
 	}
 
 	/** Fly-through image stack from source node to mark node.
@@ -1730,15 +2034,15 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		return flyThrough(root, marked, width, height, magnification, type, dir);
 	}
 
-	public LinkedList<Region> generateRegions(final Node first, final Node last, final int width, final int height, final double magnification) {
-		final LinkedList<Region> regions = new LinkedList<Region>();
-		Node node = last;
+	public LinkedList<Region<Node<T>>> generateRegions(final Node<T> first, final Node<T> last, final int width, final int height, final double magnification) {
+		final LinkedList<Region<Node<T>>> regions = new LinkedList<Region<Node<T>>>();
+		Node<T> node = last;
 		float[] fps = new float[2];
 		while (null != node) {
 			fps[0] = node.x;
 			fps[1] = node.y;
 			this.at.transform(fps, 0, fps, 0, 1);
-			regions.addFirst(new Region(new Rectangle((int)fps[0] - width/2,
+			regions.addFirst(new Region<Node<T>>(new Rectangle((int)fps[0] - width/2,
 							          (int)fps[1] - height/2,
 								  width, height),
 						    node.la,
@@ -1751,7 +2055,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	/** Fly-through image stack from first to last node. If first is not lower order than last, then start to last is returned.
 	 *  @param type is ImagePlus.GRAY8 or .COLOR_RGB */
-	public ImagePlus flyThrough(final Node first, final Node last, final int width, final int height, final double magnification, final int type, final String dir) {
+	public ImagePlus flyThrough(final Node<T> first, final Node<T> last, final int width, final int height, final double magnification, final int type, final String dir) {
 		return project.getLoader().createFlyThrough(generateRegions(first, last, width, height, magnification), magnification, type, dir);
 	}
 
@@ -1759,6 +2063,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	 *  Cable length is measured as:
 	 *    Cable length: the sum of all distances between all consecutive pairs of nodes.
 	 *    Lower-bound cable length: the sum of all distances between all end points to branch points, branch points to other branch points, and first branch point to root. */
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == root) return rt;
 		double cable = 0,
@@ -1772,10 +2077,12 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		final float[] fpp = new float[2];
 
 		synchronized (node_layer_map) {
-			for (final Collection<Node> nodes : node_layer_map.values()) {
-				for (final Node nd : nodes) {
+			for (final Collection<Node<T>> nodes : node_layer_map.values()) {
+				for (final Node<T> nd : nodes) {
 					if (nd.getChildrenCount() > 1) branch_points++;
+					// Skip the root node
 					if (null == nd.parent) continue;
+					//
 					fps[0] = nd.x;   fps[2] = nd.parent.x;
 					fps[1] = nd.y;   fps[3] = nd.parent.y;
 					this.at.transform(fps, 0, fps, 0, 2);
@@ -1784,9 +2091,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							 + Math.pow( (nd.la.getZ() - nd.parent.la.getZ()) * pixelWidth, 2));
 
 					// Lower bound cable length:
-					if (1 == nd.getChildrenCount()) continue;
+					if (1 == nd.getChildrenCount()) continue; // include only end nodes and branch nodes
 					else {
-						Node prev = nd.findPreviousBranchOrRootPoint();
+						Node<T> prev = nd.findPreviousBranchOrRootPoint();
 						if (null == prev) {
 							Utils.log("ERROR: Can't find the previous branch or root point for node " + nd);
 							continue;
@@ -1816,7 +2123,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	/** Expects Rectangle in world coords. */
 	public boolean intersects(final Layer layer, final Rectangle r) {
-		Set<Node> nodes = node_layer_map.get(layer);
+		Set<Node<T>> nodes = node_layer_map.get(layer);
 		if (null == nodes || nodes.isEmpty()) return false;
 		try {
 			return null != findFirstIntersectingNode(nodes, new Area(r).createTransformedArea(this.at.createInverse()));
@@ -1827,26 +2134,31 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 	/** Expects Area in world coords. */
 	public boolean intersects(final Layer layer, final Area area) {
-		Set<Node> nodes = node_layer_map.get(layer);
-		if (null == nodes || nodes.isEmpty()) return false;
+		return null != firstIntersectingNode(layer, area);
+	}
+	/** Expects Area in world coords.
+	 * @return The first {@link Node} that intersects the {@param area} at the given {@param layer}, or null if none do. */
+	public Node<T> firstIntersectingNode(final Layer layer, final Area area) {
+		final Set<Node<T>> nodes = node_layer_map.get(layer);
+		if (null == nodes || nodes.isEmpty()) return null;
 		try {
-			return null != findFirstIntersectingNode(nodes, area.createTransformedArea(this.at.createInverse()));
+			return findFirstIntersectingNode(nodes, area.createTransformedArea(this.at.createInverse()));
 		} catch (NoninvertibleTransformException e) {
 			IJError.print(e);
 		}
-		return false;
+		return null;
 	}
 
 	/** Expects an Area in local coordinates. */
-	protected Node findFirstIntersectingNode(final Set<Node> nodes, final Area a) {
-		for (final Node nd : nodes) if (nd.intersects(a)) return nd;
+	protected Node<T> findFirstIntersectingNode(final Set<Node<T>> nodes, final Area a) {
+		for (final Node<T> nd : nodes) if (nd.intersects(a)) return nd;
 		return null;
 	}
 
 	@Override
 	public boolean paintsAt(final Layer layer) {
 		synchronized (node_layer_map) {
-			Collection<Node> nodes = node_layer_map.get(layer);
+			Collection<Node<T>> nodes = node_layer_map.get(layer);
 			return null != nodes && nodes.size() > 0;
 		}
 	}
@@ -1854,8 +2166,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	@Override
 	void removeTag(final Tag tag) {
 		synchronized (node_layer_map) {
-			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-				for (final Node nd : e.getValue()) {
+			for (final Map.Entry<Layer,Set<Node<T>>> e : node_layer_map.entrySet()) {
+				for (final Node<T> nd : e.getValue()) {
 					nd.removeTag(tag);
 				}
 			}
@@ -1872,13 +2184,18 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		if (null == root) return null;
 		return project.getLoader().doLater(new Callable<JFrame>() { public JFrame call() {
 			synchronized (Tree.this) {
-				if (null == tndv) {
-					tndv = new TreeNodesDataView(root);
-					return tndv.frame;
-				} else {
-					tndv.show();
-					return tndv.frame;
+				try {
+					if (null == tndv) {
+						tndv = new TreeNodesDataView(root);
+						return tndv.frame;
+					} else {
+						tndv.show();
+						return tndv.frame;
+					}
+				} catch (Exception e) {
+					IJError.print(e);
 				}
+				return null;
 			}
 		}});
 	}
@@ -1889,7 +2206,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			tndv.recreate(this.root);
 		}
 	}
-	protected void updateViewData(final Node node) {
+	protected void updateViewData(final Node<?> node) {
 		if (null == tndv) return;
 		synchronized (tndv) {
 			tndv.updateData(node);
@@ -1911,8 +2228,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	private class TreeNodesDataView {
 		private JFrame frame;
-		private List<Node> branchnodes,
-				   endnodes,
+		private List<Node<T>> /*branchnodes,
+				   endnodes,*/
 				   allnodes,
 				   searchnodes;
 		private Table table_branchnodes = new Table(),
@@ -1923,11 +2240,31 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				       model_endnodes,
 				       model_allnodes,
 				       model_searchnodes;
-		private final HashMap<Node,NodeData> nodedata = new HashMap<Node,NodeData>();
+		private final HashMap<Node<T>,NodeData> nodedata = new HashMap<Node<T>,NodeData>();
+		private final HashSet<Node<T>> visited_reviews = new HashSet<Node<T>>();
 
-		TreeNodesDataView(final Node root) {
+		TreeNodesDataView(final Node<T> root) {
 			create(root);
 			createGUI();
+		}
+		private final class CustomCellRenderer extends DefaultTableCellRenderer {
+			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+				final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+				// Colorize visited review cells
+				if (8 == column && visited_reviews.contains(((NodeTableModel)table.getModel()).nodes.get(row))) {
+					c.setForeground(Color.white);
+					c.setBackground(Color.green);
+				} else {
+					if (isSelected) {
+						setForeground(table.getSelectionForeground());
+			            setBackground(table.getSelectionBackground());
+					} else {
+						c.setForeground(Color.black);
+						c.setBackground(Color.white);
+					}
+				}
+				return c;
+			}
 		}
 		private final class Table extends JTable {
 			private int last_sorted_column = -1;
@@ -1951,13 +2288,22 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						if (2 == me.getClickCount()) {
 							go(row);
 						} else if (Utils.isPopupTrigger(me)) {
+							if (!project.isInputEnabled()) {
+								Utils.showMessage("Please wait until the current task completes!");
+								return;
+							}
 							JPopupMenu popup = new JPopupMenu();
 							final JMenuItem go = new JMenuItem("Go"); popup.add(go);
 							final JMenuItem review = new JMenuItem("Review"); popup.add(review);
+							review.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0, true));
 							final JMenuItem rm_review = new JMenuItem("Remove review stack"); popup.add(rm_review);
 							popup.addSeparator();
 							final JMenuItem generate = new JMenuItem("Generate all review stacks"); popup.add(generate);
+							final JMenuItem gsub = new JMenuItem("Generate review stacks for subtree"); popup.add(gsub);
 							final JMenuItem rm_reviews = new JMenuItem("Remove all reviews"); popup.add(rm_reviews);
+							popup.addSeparator();
+							final JMenuItem mark_as_reviewed = new JMenuItem("Mark selected as reviewed"); popup.add(mark_as_reviewed);
+							final JMenuItem clear_visited_reviews = new JMenuItem("Unmark all reviewed"); popup.add(clear_visited_reviews);
 							//
 							ActionListener listener = new ActionListener() {
 								public void actionPerformed(ActionEvent ae) {
@@ -1967,7 +2313,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 										if (!Utils.check("Really generate all review stacks?")) {
 											return;
 										}
-										generateAllReviewStacks();
+										generateSubtreeReviewStacks(root);
+									}
+									else if (gsub == src) {
+										if (!Utils.check("Really generate review stacks for the subtree?")) {
+											return;
+										}
+										generateSubtreeReviewStacks(((NodeTableModel)getModel()).nodes.get(getSelectedRow()));
 									}
 									else if (review == src) review(row);
 									else if (rm_reviews == src) {
@@ -1975,8 +2327,28 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 											return;
 										}
 										removeReviews();
+										visited_reviews.clear();
 									}
-									else if (rm_review == src) removeReview(row);
+									else if (rm_review == src) {
+										if (Utils.check("Really remove review stack for " + getReviewTags(row))) {
+											removeReview(row); // will remove the node from visited_reviews
+										}
+									}
+									else if (clear_visited_reviews == src) {
+										visited_reviews.clear();
+										repaint();
+									}
+									else if (mark_as_reviewed == src) {
+										// Get multiple selection
+										final NodeTableModel m = (NodeTableModel)getModel();
+										for (final int row : getSelectedRows()) {
+											final Node<T> nd = m.nodes.get(row);
+											if (!"".equals(m.getNodeData(nd).reviews)) {
+												visited_reviews.add(nd);
+											}
+										}
+										repaint();
+									}
 								}
 							};
 							go.addActionListener(listener);
@@ -1986,23 +2358,57 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							rm_review.setEnabled(hasReviewTag(row));
 							generate.addActionListener(listener);
 							rm_reviews.addActionListener(listener);
+							clear_visited_reviews.addActionListener(listener);
+							mark_as_reviewed.addActionListener(listener);
 							popup.show(Table.this, me.getX(), me.getY());
 						}
 					}
 				});
 				this.addKeyListener(new KeyAdapter() {
 					public void keyPressed(KeyEvent ke) {
-						if (ke.getKeyCode() == KeyEvent.VK_G) {
-							final int row = getSelectedRow();
+						final int keyCode = ke.getKeyCode();
+						final int row = getSelectedRow();
+						if (keyCode == KeyEvent.VK_G) {
 							if (-1 != row) go(row);
-						} else if (ke.getKeyCode() == KeyEvent.VK_W && (0 == (Utils.getControlModifier() ^ ke.getModifiers()))) {
+						} else if (keyCode == KeyEvent.VK_R && 0 == ke.getModifiers()) {
+							// If there is a review stack, open it
+							if (-1 != row) review(row);
+						} else if (keyCode == KeyEvent.VK_W && (0 == (Utils.getControlModifier() ^ ke.getModifiers()))) {
 							frame.dispose();
 						}
 					}
 				});
 			}
+			/*
+			Node<T> getNode(int row) {
+				return ((NodeTableModel)this.getModel()).nodes.get(row);
+			}
+			*/
+			/*
+			String getNodeTags(int row) {
+				NodeTableModel m = (NodeTableModel)this.getModel();
+				Node<T> nd = m.nodes.get(row);
+				return m.getNodeData(nd).tags;
+			}
+			*/
+			String getReviewTags(int row) {
+				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				Set<Tag> tags = nd.getTags();
+				if (null == tags) return null;
+				StringBuilder sb = new StringBuilder();
+				for (Tag t : tags) {
+					if (t.toString().startsWith("#R")) {
+						sb.append(t.toString()).append(", ");
+					}
+				}
+				if (0 == sb.length()) return null;
+				sb.setLength(sb.length() -2);
+				return sb.toString();
+			}
 			void go(int row) {
-				Display.centerAt(Tree.this.createCoordinate(((NodeTableModel)this.getModel()).nodes.get(row)));
+				Node<T> node = ((NodeTableModel)this.getModel()).nodes.get(row);
+				setLastVisited(node);
+				Display.centerAt(Tree.this.createCoordinate(node));
 			}
 			void resort() {
 				if (-1 != last_sorted_column) {
@@ -2010,14 +2416,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				}
 			}
 			private boolean hasReviewTag(final int row) {
-				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				Set<Tag> tags = nd.getTags();
 				if (null == tags) return false;
 				for (Tag tag : tags) if (tag.toString().startsWith("#R-")) return true;
 				return false;
 			}
 			private void review(int row) {
-				Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				// See if there are any tags
 				Set<Tag> tags = nd.getTags();
 				if (null == tags) {
@@ -2036,13 +2442,18 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					Utils.log("Node without review tag!");
 					return;
 				}
+				visited_reviews.add(nd);
 				// Find a stack for the review tag, and open it
 				Tree.this.openImage(getReviewTagPath(review_tag), nd);
+				repaint();
 			}
 			private void removeReview(final int row) {
-				final Node nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				final Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				if (null == nd) return;
-				Tree.this.removeReview(nd);
+				if (Tree.this.removeReview(nd)) {
+					visited_reviews.remove(nd);
+				}
+				Display.repaint(getLayerSet());
 			}
 		}
 		void show() {
@@ -2079,22 +2490,32 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			});
 			JPanel pane = new JPanel();
 			GridBagLayout gb = new GridBagLayout();
+			pane.setLayout(gb);
 			GridBagConstraints c = new GridBagConstraints();
 			c.gridx = 0;
 			c.gridy = 0;
-			c.weightx = 0;
+			c.weightx = 1;
 			c.gridwidth = 1;
 			c.anchor = GridBagConstraints.NORTH;
+			c.fill = GridBagConstraints.BOTH;
+			c.insets = new Insets(4,10,5,2);
 			gb.setConstraints(search, c);
 			pane.add(search);
 			c.gridx = 1;
+			c.weightx = 0;
+			c.fill = GridBagConstraints.NONE;
+			c.insets = new Insets(4,0,5,10);
 			gb.setConstraints(b, c);
 			pane.add(b);
 			c.gridx = 0;
 			c.gridy = 1;
 			c.gridwidth = 2;
+			c.weighty = 1;
 			c.fill = GridBagConstraints.BOTH;
-			pane.add(new JScrollPane(table_searchnodes));
+			JScrollPane scp = new JScrollPane(table_searchnodes);
+			c.insets = new Insets(0,0,0,0);
+			gb.setConstraints(scp, c);
+			pane.add(scp);
 			tabs.add("Search", pane);
 
 			frame.getContentPane().add(tabs);
@@ -2102,22 +2523,29 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			ij.gui.GUI.center(frame);
 			frame.setVisible(true);
 		}
-		private synchronized void create(final Node root) {
-			final ArrayList<Node> branchnodes = new ArrayList<Node>(),
-			      		      endnodes = new ArrayList<Node>(),
-					      allnodes = null == root ? new ArrayList<Node>() : new ArrayList<Node>(root.getSubtreeNodes()),
-					      searchnodes = new ArrayList<Node>();
-			for (final Node nd : allnodes) {
+		private synchronized void create(final Node<T> root) {
+			final ArrayList<Node<T>> branchnodes = new ArrayList<Node<T>>(),
+			      		      endnodes = new ArrayList<Node<T>>(),
+					      searchnodes = new ArrayList<Node<T>>(),
+					      allnodes;
+			synchronized (node_layer_map) {
+				allnodes = null == root ? new ArrayList<Node<T>>() : new ArrayList<Node<T>>(root.getSubtreeNodes());
+			}
+			for (final Node<T> nd : allnodes) {
 				switch (nd.getChildrenCount()) {
 					case 0: endnodes.add(nd); break;
 					case 1: continue; // slab
 					default: branchnodes.add(nd); break;
 				}
 			}
+			// Remove nodes no longer present:
+			visited_reviews.retainAll(allnodes);
 
 			// Swap:
+			/*
 			this.branchnodes = branchnodes;
 			this.endnodes = endnodes;
+			*/
 			this.allnodes = allnodes;
 			this.searchnodes = searchnodes;
 
@@ -2130,17 +2558,32 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			this.table_endnodes.setModel(this.model_endnodes);
 			this.table_allnodes.setModel(this.model_allnodes);
 			this.table_searchnodes.setModel(this.model_searchnodes);
+			
+
+			try {
+				CustomCellRenderer ccr = new CustomCellRenderer();
+				setCellRenderer(table_branchnodes, ccr);
+				setCellRenderer(table_endnodes, ccr);
+				setCellRenderer(table_allnodes, ccr);
+				setCellRenderer(table_searchnodes, ccr);
+			} catch (Exception e) {
+				IJError.print(e);
+			}
 		}
-		void recreate(final Node root) {
+		void setCellRenderer(JTable t, DefaultTableCellRenderer ccr) {
+			t.setDefaultRenderer(t.getColumnClass(8), ccr);
+		}
+		void recreate(final Node<T> root) {
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 				create(root);
-				for (final Table t : new Table[]{table_branchnodes, table_searchnodes, table_endnodes, table_allnodes}) {
-					t.resort();
-				}
+				table_branchnodes.resort();
+				table_searchnodes.resort();
+				table_endnodes.resort();
+				table_allnodes.resort();
 				Utils.revalidateComponent(frame);
 			}});
 		}
-		void updateData(final Node node) {
+		void updateData(final Node<?> node) {
 			synchronized (nodedata) {
 				nodedata.remove(node);
 			}
@@ -2155,9 +2598,9 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			if (!regex.endsWith("$")) sb.append(".*$");
 			try {
 				final Pattern pat = Pattern.compile(sb.toString(), Pattern.CASE_INSENSITIVE | Pattern.MULTILINE | Pattern.DOTALL);
-				this.searchnodes = new ArrayList<Node>();
-				for (final Node nd : allnodes) {
-					final Collection<Tag> tags = (Collection<Tag>) nd.getTags();
+				this.searchnodes = new ArrayList<Node<T>>();
+				for (final Node<T> nd : allnodes) {
+					final Collection<Tag> tags = nd.getTags();
 					if (null == tags) continue;
 					for (final Tag tag : tags) {
 						if (pat.matcher(tag.toString()).matches()) {
@@ -2168,7 +2611,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				}
 				this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
 				this.table_searchnodes.setModel(this.model_searchnodes);
-				this.frame.pack();
 			} catch (Exception e) {
 				IJError.print(e);
 			}
@@ -2177,8 +2619,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	private final class NodeData {
 		final double x, y, z;
-		final String data, tags, conf;
-		NodeData(final Node nd) {
+		final String data, tags, conf, reviews;
+		NodeData(final Node<T> nd) {
 			final float[] fp = new float[]{nd.x, nd.y};
 			Tree.this.at.transform(fp, 0, fp, 0, 1);
 			final Calibration cal = Tree.this.layer_set.getCalibration();
@@ -2200,24 +2642,28 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			//
 			final Set<Tag> ts = nd.getTags();
 			if (null != ts) {
-				if (1 == ts.size()) this.tags = ts.iterator().next().toString();
-				else {
-					final StringBuilder sb = new StringBuilder();
-					for (final Tag t : ts) sb.append(t.toString()).append(", ");
-					sb.setLength(sb.length() -2);
-					this.tags = sb.toString();
+				final StringBuilder sb = new StringBuilder();
+				final StringBuilder sbr = new StringBuilder();
+				for (final Tag t : ts) {
+					String s = t.toString();
+					if ('#' == s.charAt(0) && 'R' == s.charAt(1)) sbr.append(s).append(", ");
+					else sb.append(s).append(", ");
 				}
+				if (sb.length() > 0) sb.setLength(sb.length() -2);
+				if (sbr.length() > 0) sbr.setLength(sbr.length() - 2);
+				this.tags = sb.toString();
+				this.reviews = sbr.toString();
 			} else {
-				this.tags = "";
+				this.tags = this.reviews = "";
 			}
 		}
 	}
 
 	private class NodeTableModel extends AbstractTableModel {
-		List<Node> nodes;
-		final HashMap<Node,NodeData> nodedata;
+		List<Node<T>> nodes;
+		final HashMap<Node<T>,NodeData> nodedata;
 
-		private NodeTableModel(final List<Node> nodes, final HashMap<Node,NodeData> nodedata) {
+		private NodeTableModel(final List<Node<T>> nodes, final HashMap<Node<T>,NodeData> nodedata) {
 			this.nodes = nodes;
 			this.nodedata = nodedata; // a cache
 		}
@@ -2237,14 +2683,15 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				case 5: return "Edge confidence";
 				case 6: return getDataName();
 				case 7: return "Tags";
+				case 8: return "Reviews";
 				default: return null; // should be an error
 			}
 		}
 		public int getRowCount() { return nodes.size(); }
-		public int getColumnCount() { return 8; }
+		public int getColumnCount() { return 9; }
 		public Object getRawValueAt(int row, int col) {
 			if (0 == nodes.size()) return null;
-			final Node nd = nodes.get(row);
+			final Node<T> nd = nodes.get(row);
 			switch (col) {
 				case 0: return row+1;
 				case 1: return getNodeData(nd).x;
@@ -2254,6 +2701,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				case 5: return getNodeData(nd).conf;
 				case 6: return getNodeData(nd).data;
 				case 7: return getNodeData(nd).tags;
+				case 8: return getNodeData(nd).reviews;
 				default: return null;
 			}
 		}
@@ -2261,7 +2709,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			final Object o = getRawValueAt(row, col);
 			return o instanceof Double ? Utils.cutNumber(((Double)o).doubleValue(), 1) : o;
 		}
-		private NodeData getNodeData(final Node nd) {
+		private NodeData getNodeData(final Node<T> nd) {
 			synchronized (nodedata) {
 				NodeData ndat = nodedata.get(nd);
 				if (null == ndat) {
@@ -2276,17 +2724,17 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		}
 		public void setValueAt(Object value, int row, int col) {}
 		public void sortByColumn(final int col, final boolean descending) {
-			final ArrayList<Node> nodes = new ArrayList<Node>(NodeTableModel.this.nodes);
-			Collections.sort(nodes, new Comparator<Node>() {
-				public int compare(Node nd1, Node nd2) {
+			final ArrayList<Node<T>> nodes = new ArrayList<Node<T>>(NodeTableModel.this.nodes);
+			Collections.sort(nodes, new Comparator<Node<T>>() {
+				public int compare(Node<T> nd1, Node<T> nd2) {
 					if (descending) {
-						Node tmp = nd1;
+						Node<T> tmp = nd1;
 						nd1 = nd2;
 						nd2 = tmp;
 					}
 					Object val1 = getRawValueAt(nodes.indexOf(nd1), col);
 					Object val2 = getRawValueAt(nodes.indexOf(nd2), col);
-					if (7 == col) {
+					if (col > 6) { // 7 and 8 are tags
 						// Replace empty strings with a row of z
 						val1 = fixStrings(val1);
 						val2 = fixStrings(val2);
@@ -2309,18 +2757,21 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 
 	synchronized protected boolean layerRemoved(Layer la) {
 		super.layerRemoved(la);
-		final Set<Node> nodes = node_layer_map.remove(la);
+		final Set<Node<T>> nodes;
+		synchronized (node_layer_map) {
+			nodes = node_layer_map.remove(la);
+		}
 		if (null == nodes) return true;
-		final List<Tree> siblings = new ArrayList<Tree>();
-		for (final Iterator<Node> it = nodes.iterator(); it.hasNext(); ) {
-			final Node nd = it.next();
+		for (final Iterator<Node<T>> it = nodes.iterator(); it.hasNext(); ) {
+			final Node<T> nd = it.next();
 			it.remove();
 			fireNodeRemoved(nd);
 			if (null == nd.parent) {
 				switch (nd.getChildrenCount()) {
 					case 1:
 						this.root = nd.children[0];
-						nd.children[0] = null;
+						this.root.parent = null;
+						nd.children[0] = null; // does not matter
 						break;
 					case 0:
 						this.root = null;
@@ -2328,14 +2779,13 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					default:
 						// split: the first child remains as root:
 						this.root = nd.children[0];
+						this.root.parent = null;
 						nd.children[0] = null;
-						// ... and the rest of children become a new Tree each when done
+						// ... and the rest of children become children of the new root
 						for (int i=1; i<nd.children.length; i++) {
-							Tree t = newInstance();
-							t.addToDatabase();
-							t.root = nd.children[i];
-							nd.children[i] = null;
-							siblings.add(t);
+							nd.children[i].parent = null;
+							this.root.add(nd.children[i], nd.children[i].confidence);
+							nd.children[i] = null; // does not matter
 						}
 						break;
 				}
@@ -2346,20 +2796,10 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 					// add all its children to the parent
 					for (int i=0; i<nd.children.length; i++) {
 						nd.children[i].parent = null;
-						nd.parent.add(nd.children[i], nd.confidence[i]);
+						nd.parent.add(nd.children[i], nd.children[i].confidence);
 					}
 				}
 				nd.parent.remove(nd);
-			}
-		}
-		if (!siblings.isEmpty()) {
-			this.clearCache();
-			if (null != this.root) this.cacheSubtree(root.getSubtreeNodes());
-			for (Tree t : siblings) {
-				t.cacheSubtree(t.root.getSubtreeNodes());
-				t.calculateBoundingBox(la);
-				layer_set.add(t);
-				project.getProjectTree().addSibling(this, t);
 			}
 		}
 		this.calculateBoundingBox(la);
@@ -2368,14 +2808,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	}
 
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		mpicbg.models.CoordinateTransform chain = null;
 		synchronized (node_layer_map) {
 			if (null == root) return true;
-			final Set<Node> nodes = node_layer_map.get(la);
+			final Set<Node<T>> nodes = node_layer_map.get(la);
 			if (null == nodes || nodes.isEmpty()) return true;
 			AffineTransform inverse = this.at.createInverse();
 			final Area localroi = roi.createTransformedArea(inverse);
-			mpicbg.models.CoordinateTransform chain = null;
-			for (final Node nd : nodes) {
+			for (final Node<T> nd : nodes) {
 				if (nd.intersects(localroi)) {
 					if (null == chain) {
 						chain = M.wrap(this.at, ict, inverse);
@@ -2383,101 +2823,136 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 				}
 				nd.apply(chain, roi);
 			}
-			if (null != chain) calculateBoundingBox(la);
 		}
+		if (null != chain) calculateBoundingBox(la);
 		return true;
 	}
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
 		synchronized (node_layer_map) {
 			if (null == root) return true;
-			final Set<Node> nodes = node_layer_map.get(vdt.layer);
+			final Set<Node<T>> nodes = node_layer_map.get(vdt.layer);
 			if (null == nodes || nodes.isEmpty()) return true;
 			final VectorDataTransform vlocal = vdt.makeLocalTo(this);
-			for (final Node nd : nodes) {
+			for (final Node<T> nd : nodes) {
 				nd.apply(vlocal);
 			}
-			calculateBoundingBox(vdt.layer);
 		}
+		calculateBoundingBox(vdt.layer);
 		return true;
 	}
 
 	@Override
-	synchronized public Collection<Long> getLayerIds() {
-		final ArrayList<Long> ids = new ArrayList<Long>();
-		for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
-		return ids;
+	public Collection<Long> getLayerIds() {
+		synchronized (node_layer_map) {
+			final ArrayList<Long> ids = new ArrayList<Long>(node_layer_map.size());
+			for (final Layer la : node_layer_map.keySet()) ids.add(la.getId());
+			return ids;
+		}
 	}
 	@Override
-	synchronized public Collection<Layer> getLayersWithData() {
-		return new ArrayList<Layer>(node_layer_map.keySet());
+	public Collection<Layer> getLayersWithData() {
+		synchronized (node_layer_map) {
+			return new ArrayList<Layer>(node_layer_map.keySet());
+		}
 	}
 
-	/** Returns an empty area when there aren't any nodes in @param layer. */
+	/** In world coordinates. Returns an empty area when there aren't any nodes in @param layer. */
 	@Override
 	public Area getAreaAt(final Layer layer) {
 		synchronized (node_layer_map) {
 			final Area a = new Area();
-			final Set<Node> nodes = node_layer_map.get(layer);
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes) return a; // empty
-			for (final Node nd : nodes) a.add(nd.getArea()); // all local
+			for (final Node<T> nd : nodes) a.add(nd.getArea()); // all local
 			a.transform(this.at);
 			return a;
 		}
 	}
 
-	/** Retain the data within the layer range, and through out all the rest. */
+	/** Fast and dirty, never returns a false negative but may return a false positive. */
 	@Override
-	synchronized public boolean crop(List<Layer> range) {
-		// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
-		final HashSet<Layer> keep = new HashSet<Layer>(range);
-		for (final Iterator<Map.Entry<Layer,Set<Node>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
-			final Map.Entry<Layer,Set<Node>> e = it.next();
-			if (keep.contains(e.getKey())) continue;
-			else {
-				// Else, remove the set of nodes for that layer
-				it.remove();
-				// ... and remove all nodes from their parents, merging their children
-				for (final Node nd : e.getValue()) {
-					// if end node, just remove it from its parent
-					if (null == nd.parent) {
-						// The current root:
-						if (null == nd.children) {
-							this.root = null;
-							continue; // a tree of 1 node
-						} else {
-							// First child as new root:
-							nd.children[0].parent = null; // the new root
-							this.root = nd.children[0];
-							// ... and gets any other children of the root
-							for (int i=1; i<nd.children.length; i++) {
-								nd.children[i].parent = null;
-								nd.children[0].add(nd.children[i], nd.confidence[i]);
+	protected boolean isRoughlyInside(final Layer layer, final Rectangle box) {
+		synchronized (node_layer_map) {
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
+			if (null == nodes) return false;
+			try {
+				final Rectangle local = this.at.createInverse().createTransformedShape(box).getBounds();
+				for (final Node<T> nd : nodes) {
+					// May not be enough for lots of corner cases
+					// such as:
+					//  * parent and child node outside, but paint inside
+					//  * data of an outside node spills inside the box
+					//
+					// if (local.contains((int)nd.x, (int)nd.y)) return true;
+
+					// A bit more careful:
+					if (nd.isRoughlyInside(local)) return true;
+				}
+				return false;
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return false;
+			}
+		}
+	}
+
+	/** Retain the data within the layer range, and through out all the rest.
+	 *  Does NOT call calculateBoundingBox or updateBucket; that is your responsibility. */
+	@Override
+	public boolean crop(List<Layer> range) {
+		synchronized (node_layer_map) {
+			// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
+			final HashSet<Layer> keep = new HashSet<Layer>(range);
+			for (final Iterator<Map.Entry<Layer,Set<Node<T>>>> it = node_layer_map.entrySet().iterator(); it.hasNext(); ) {
+				final Map.Entry<Layer,Set<Node<T>>> e = it.next();
+				if (keep.contains(e.getKey())) continue;
+				else {
+					// Else, remove the set of nodes for that layer
+					it.remove();
+					// ... and remove all nodes from their parents, merging their children
+					for (final Node<T> nd : e.getValue()) {
+						// if end node, just remove it from its parent
+						if (null == nd.parent) {
+							// The current root:
+							if (null == nd.children) {
+								this.root = null;
+								continue; // a tree of 1 node
+							} else {
+								// First child as new root:
+								nd.children[0].parent = null; // the new root
+								this.root = nd.children[0];
+								// ... and gets any other children of the root
+								for (int i=1; i<nd.children.length; i++) {
+									nd.children[i].parent = null;
+									nd.children[0].add(nd.children[i], nd.children[i].confidence);
+								}
 							}
-						}
-					} else {
-						// Remove from its parent
-						nd.parent.remove(nd);
-						// ... and handle its children:
-						if (null == nd.children) {
-							// An end point
-							continue;
 						} else {
-							// Else, add all its children to its parent
-							for (int i=0; i<nd.children.length; i++) {
-								nd.children[i].parent = null; // so it can't be rejected when adding it to a node
-								nd.parent.add(nd.children[i], nd.confidence[i]);
+							// Remove from its parent
+							Node<T> nd_parent = nd.parent; //cached, since the statement below will nullify it
+							nd.parent.remove(nd);
+							// ... and handle its children:
+							if (null == nd.children) {
+								// An end point
+								continue;
+							} else {
+								// Else, add all its children to its parent
+								for (int i=0; i<nd.children.length; i++) {
+									nd.children[i].parent = null; // so it can't be rejected when adding it to a node
+									nd_parent.add(nd.children[i], nd.children[i].confidence);
+								}
 							}
 						}
 					}
 				}
 			}
+			clearState();
+			return true;
 		}
-		clearState();
-		return true;
 	}
 
 	/** Open an image in a separate thread and returns the thread. Frees up to 1 Gb for it. */
-	private Future<ImagePlus> openImage(final String path, final Node last) {
+	private Future<ImagePlus> openImage(final String path, final Node<T> last) {
 		return project.getLoader().doLater(new Callable<ImagePlus>() {
 			public ImagePlus call() {
 				try {
@@ -2485,7 +2960,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						Utils.log("Could not find file " + path);
 						return null;
 					}
-					project.getLoader().releaseMemory(1000000000L); // 1 Gb
+					project.getLoader().releaseToFit(1000000000L); // 1 Gb : can't tell for jpegs and tif-jpg, TODO would have to read the header.
 					Opener op = new Opener();
 					op.setSilentMode(true);
 					final ImagePlus imp = op.openImage(path); // TODO WARNING should go via the Loader
@@ -2496,6 +2971,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 						MouseListener[] ml = stack.getCanvas().getMouseListeners();
 						for (MouseListener m : ml) stack.getCanvas().removeMouseListener(m);
 						stack.getCanvas().addMouseListener(new MouseAdapter() {
+							@Override
 							public void mousePressed(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
@@ -2505,7 +2981,7 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 									if (slice == imp.getNSlices()) {
 										Display.centerAt(createCoordinate(last));
 									} else {
-										Node parent = last.getParent();
+										Node<T> parent = last.getParent();
 										int count = imp.getNSlices() -1;
 										while (null != parent) {
 											if (count == slice) {
@@ -2519,12 +2995,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 									}
 								}
 							}
+							@Override
 							public void mouseDragged(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 								}
 							}
-							public void mouseRelesed(MouseEvent me) {
+							@Override
+							public void mouseReleased(MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 								}
@@ -2540,77 +3018,93 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}
 		});
 	}
-
+	
 	public Bureaucrat generateAllReviewStacks() {
+		return generateSubtreeReviewStacks(root);
+	}
+
+	public Bureaucrat generateSubtreeReviewStacks(final Node<T> root) {
 		return Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
 			public void exec() {
+				if (null == root) return;
 
 		// Find all end nodes and branch nodes
 		// Add review tags to end nodes and branch nodes, named: "#R-<x>", where <x> is a number.
 		// Generate a fly-through stack from each found node to its previous branch point or root
-		final ExecutorService exe = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+		final int nproc = Runtime.getRuntime().availableProcessors();
+		final ExecutorService exe = Executors.newFixedThreadPool(Math.max(1, Math.min(4, nproc)));
+		// Above, use maximum 4 threads. I/O bound operations don't deal well with more.
+		
 		// Disable window
 		final TreeNodesDataView tndv = Tree.this.tndv;
 		if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
 		try {
-			int next = 0;
-			final List<Runnable> todo = new ArrayList<Runnable>();
-			final List<Future> fus = new ArrayList<Future>();
+			final List<Future<?>> fus = new ArrayList<Future<?>>();
 			final Object dirsync = new Object();
-			for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-				for (final Node nd : e.getValue()) {
-					if (1 == nd.getChildrenCount() || null == nd.parent) continue; // slab node or root node
-					if (Thread.currentThread().isInterrupted()) return;
-					final int num = ++next;
-					final Tag tag = new Tag("#R-" + next, KeyEvent.VK_R);
-					nd.addTag(tag);
-					updateViewData(nd);
-					//
-					todo.add(new Runnable() {
-						public void run() {
-							try {
-								ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(nd.findPreviousBranchOrRootPoint(), nd, 512, 512, 1.0), 1.0, ImagePlus.COLOR_RGB);
-								imp.setTitle(imp.getTitle() + tag.toString());
-								File fdir = new File(getReviewTagPath(tag));
-								synchronized (dirsync) {
-									File parent = fdir.getParentFile();
-									if (!parent.exists()) {
-										if (!parent.mkdirs()) {
-											Utils.log("FAILED to create directories " + parent.getAbsolutePath()
-											+ "\nNOT created review stack for " + tag.toString());
-											return;
-										}
-									}
-								}
-								ij.IJ.redirectErrorMessages();
-								new FileSaver(imp).saveAsZip(fdir.getAbsolutePath());
-							} catch (Exception e) {
-								IJError.print(e);
-								Utils.log("\nERROR: NOT created review stack for " + tag.toString());
+			
+			final ArrayList<Node<T>> be_nodes = new ArrayList<Node<T>>();
+			// Remove all reviews, if any
+			for (final Node<T> nd : root.getSubtreeNodes()) {
+				removeReview(nd);
+				if (1 != nd.getChildrenCount()) be_nodes.add(nd);
+			}
+
+			final Runnable[] rs = new Runnable[be_nodes.size()];
+			final int n_digits = Integer.toString(rs.length).length();
+			int k = 0;
+			for (final Node<T> nd : be_nodes) {
+				if (Thread.currentThread().isInterrupted()) return;
+				final Tag tag = new Tag("#R-" + Utils.zeroPad(k+1, n_digits), KeyEvent.VK_R);
+				nd.addTag(tag);
+				updateViewData(nd);
+				rs[k] = new Runnable() {
+					public void run() {
+						String filepath = getReviewTagPath(tag);
+						synchronized (dirsync) {
+							if (!Utils.ensure(filepath)) {
+								Utils.log("Did NOT create review stack for tag " + tag);
 								return;
 							}
 						}
-					});
-				}
+						createReviewStack(nd.findPreviousBranchOrRootPoint(), nd, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
+					}
+				};
+				k++;
 			}
+			Display.repaint(getLayerSet());
 			// Now that all tags exists (and will get painted), generate the stacks
-			for (final Runnable r : todo) fus.add(exe.submit(r));
+			for (int i=0; i<rs.length; i++) fus.add(exe.submit(rs[i]));
 			Utils.wait(fus);
 		} catch (Exception e) {
 			IJError.print(e);
 		} finally {
-			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
+			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), true);
 			exe.shutdown();
 			Display.repaint(getLayerSet());
 		}
 			}}, getProject());
 	}
 
+	/** The behavior is undefined if @param last is not a descendant of @param first. */
+	public void createReviewStack(final Node<T> first, final Node<T> last, final Tag tag, final String filepath, final int width, final int height, final double magnification, final int image_type) {
+		try {
+			ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(first, last, width, height, magnification), magnification, image_type, this);
+			imp.setTitle(imp.getTitle() + tag.toString());
+			ij.IJ.redirectErrorMessages();
+			new FileSaver(imp).saveAsZip(filepath);
+		} catch (Exception e) {
+			IJError.print(e);
+			Utils.log("\nERROR: NOT created review stack for " + tag.toString());
+			return;
+		}
+	}
+	
+	
 	private String getReviewTagPath(Tag tag) {
 		// Remove the "#" from the tag name
 		return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
 	}
-	boolean removeReview(final Node nd) {
+	boolean removeReview(final Node<T> nd) {
 		final Set<Tag> tags = nd.getTags();
 		if (null == tags) return true;
 		for (final Tag tag : tags) {
@@ -2624,8 +3118,6 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 							Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
 							return false;
 						}
-					} else {
-						Utils.log("No review file exists for " + s);
 					}
 					// Remove tag:
 					nd.removeTag(tag);
@@ -2644,8 +3136,8 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 		// Remove all review tags
 		// Remove all .zip stacks for this Treeline
 		boolean success = true;
-		for (final Map.Entry<Layer,Set<Node>> e : node_layer_map.entrySet()) {
-			for (final Node nd : e.getValue()) {
+		for (final Map.Entry<Layer,Set<Node<T>>> e : node_layer_map.entrySet()) {
+			for (final Node<T> nd : e.getValue()) {
 				if (Thread.currentThread().isInterrupted()) return;
 				success = success && removeReview(nd);
 			}
@@ -2662,58 +3154,56 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			}}, getProject());
 	}
 
-	public Map<Node,Collection<Displayable>> findIntersecting(final Class c) throws Exception {
-		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
+	public Map<Node<T>,Collection<Displayable>> findIntersecting(final Class<?> c) throws Exception {
+		final HashMap<Node<T>,Collection<Displayable>> m = new HashMap<Node<T>,Collection<Displayable>>();
 		Process.progressive(root.getSubtreeNodes(),
-				     new TaskFactory<Node,Object>() {
-					 public Callable<Object> create(final Node nd) {
-						 return new Callable<Object>() {
-							 public Object call() {
-								final Area a = nd.getArea();
-								a.transform(Tree.this.at);
-								final Collection<Displayable> col = layer_set.find(c, nd.la, a, false, true);
-								if (col.isEmpty()) return null;
-								synchronized (m) {
-									m.put(nd, col);
-								}
-								return null;
-							 }
-						 };
-					 }});
+							new TaskFactory<Node<T>,Object>() {
+								@Override
+					 			public Object process(final Node<T> nd) {
+					 				final Area a = nd.getArea();
+					 				a.transform(Tree.this.at);
+					 				final Collection<Displayable> col = layer_set.find(c, nd.la, a, false, true);
+					 				if (col.isEmpty()) return null;
+					 				synchronized (m) {
+					 					m.put(nd, col);
+					 				}
+					 				return null;
+					 			}
+					 		});
 		return m;
 	}
 
-	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incomming connectors. */
+	/** Returns an array of two Collection of connectors: the first one has the outgoing connectors, and the second one has the incoming connectors. */
+	@SuppressWarnings("unchecked")
 	public List<Connector>[] findConnectors() throws Exception {
-		final HashMap<Node,Collection<Displayable>> m = new HashMap<Node,Collection<Displayable>>();
 		final ArrayList<Connector> outgoing = new ArrayList<Connector>();
-		final ArrayList<Connector> incomming = new ArrayList<Connector>();
-		Process.progressive(root.getSubtreeNodes(),
-				     new TaskFactory<Node,Object>() {
-					 public Callable<Object> create(final Node nd) {
-						 return new Callable<Object>() {
-							 public Object call() {
-								final Area a = nd.getArea();
-								a.transform(Tree.this.at);
-								final Collection<Displayable> col = layer_set.findZDisplayables(Connector.class, nd.la, a, false, false);
-								if (col.isEmpty()) return null;
-								// Outgoing or incomming?
-								for (final Connector c : (Collection<Connector>)(Collection)col) {
-									if (c.intersectsOrigin(a)) {
-										synchronized (outgoing) {
-											outgoing.add(c);
-										}
-									} else {
-										synchronized (incomming) {
-											incomming.add(c);
-										}
+		final ArrayList<Connector> incoming = new ArrayList<Connector>();
+		if (null != root) {
+			Process.progressive(root.getSubtreeNodes(),
+				     new TaskFactory<Node<T>,Object>() {
+						@Override
+					 	public Object process(final Node<T> nd) {
+							final Area a = nd.getArea();
+							a.transform(Tree.this.at);
+							final Collection<Displayable> col = layer_set.findZDisplayables(Connector.class, nd.la, a, false, false);
+							if (col.isEmpty()) return null;
+							// Outgoing or incoming?
+							for (final Connector c : (Collection<Connector>)(Collection)col) {
+								if (c.intersectsOrigin(a, nd.la)) {
+									synchronized (outgoing) {
+										outgoing.add(c);
+									}
+								} else {
+									synchronized (incoming) {
+										incoming.add(c);
 									}
 								}
-								return null;
-							 }
-						 };
-					 }});
-		return (List<Connector>[]) new List[]{outgoing, incomming};
+							}
+							return null;
+						}
+					 });
+		}
+		return (List<Connector>[]) new List[]{outgoing, incoming};
 	}
 
 	@Override
@@ -2728,6 +3218,14 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 	public Point3f getOriginPoint(final boolean calibrated) {
 		if (null == root) return null;
 		return fix(root.asPoint(), calibrated, new float[2]);
+	}
+	
+	/** Return the {@link Node} as a point in space.
+	 * @param nd The Node to extract coordinates from.
+	 * @param calibrated Whether to calibrate or not the point.
+	 * @return The Point3f representing the node. */
+	public Point3f asPoint(final Node<T> nd, final boolean calibrated) {
+		return fix(nd.asPoint(), calibrated, new float[2]);
 	}
 
 	/** Expects a non-null float[] for reuse, and modifies @param p in place. */
@@ -2744,5 +3242,553 @@ public abstract class Tree extends ZDisplayable implements VectorData {
 			p.z *= cal.pixelWidth; // not pixelDepth!
 		}
 		return p;
+	}
+
+	/** Takes a collection of Tree instances and creates duplicate siblings of the target class.
+	 *  Will ignore any non-tree Displayable instances in the Collection.
+	 *  The duplicated trees are added to the ProjectTree as siblings of the originals, and to the LayerSet.
+	 *  @return The map of original trees vs copies in target class form. */
+	public static<A extends Tree<?>> Map<Tree<?>,Tree<?>> duplicateAs(final Collection<Displayable> col, final Class<A> target) throws Exception {
+		final HashMap<Tree<?>,Tree<?>> m = new HashMap<Tree<?>, Tree<?>>();
+		for (final Displayable d : col) {
+			if (target.isInstance(d)) {
+				Utils.log(d + " is already of class " + target.getSimpleName());
+				continue;
+			}
+			if (!(d instanceof Tree<?>)) {
+				Utils.log("Ignoring " + d + ": not a Tree subclass");
+				continue;
+			}
+			final Tree<?> src = (Tree<?>)d;
+			if (null == src.root) {
+				Utils.log("Ignoring empty tree " + src);
+				continue;
+			}
+			if (Treeline.class == target) {
+				/*
+				// Specific for a target Treeline:
+				
+				final Treeline t = new Treeline(src.project, src.title);
+				t.at.setTransform(src.at);
+				
+				final Map<Node<?>,Treeline.RadiusNode> rel = new HashMap<Node<?>,Treeline.RadiusNode>();
+				final LinkedList<Node<?>> todo = new LinkedList<Node<?>>();
+				//t.root = new Treeline.RadiusNode(src.root.x, src.root.y, src.root.la);
+				todo.add(src.root);
+				while (!todo.isEmpty()) {
+					final Node<?> a = todo.removeLast();
+					// Put all children nodes to the end of the todo list
+					if (null != a.children)
+						for (final Node<?> child : a.children)
+							todo.add(child);
+					// Copy the content of the 'a' node
+					Treeline.RadiusNode copy = new Treeline.RadiusNode(a.x, a.y, a.la);
+					copy.copyProperties(a);
+					// Store relationship between original and copy
+					rel.put(a, copy);
+					// Find parent if any
+					if (null == a.parent) continue;
+					// .. and if found, add the copy to the copied parent:
+					rel.get(a.parent).add(copy, copy.confidence);
+				}
+				*/
+				
+				m.put(src, copyAs(src, Treeline.class, Treeline.RadiusNode.class));
+			} else if (AreaTree.class == target) {
+				m.put(src, copyAs(src, AreaTree.class, AreaTree.AreaNode.class));
+			} else {
+				Utils.log("Ignoring " + src);
+			}
+			final Tree<?> copy = m.get(src);
+			if (null != copy) {
+				src.layer_set.add(copy);
+				if (null == src.project.getProjectTree().addSibling(src, copy)) {
+					Utils.log("Could not add " + src.getClass().getSimpleName() + " as " + target.getSimpleName());
+					m.remove(src);
+					src.layer_set.remove(copy);
+				}
+			}
+ 		}
+		return m;
+	}
+	
+	/** Can copy a Treeline to an AreaTree and viceversa.
+	 *  Copies the transform, the nodes (with tags and confidence), and the color. The transparency, locked stated and links are not copied. */
+	static public<A extends Tree<?>, B extends Node<?>> A copyAs(final Tree<?> src, final Class<A> tree_class, final Class<B> node_class) throws Exception {
+		final String title = "copy of " + src.title + " #" + src.id;
+		final A t = tree_class.getConstructor(Project.class, String.class).newInstance(src.project, title);
+		t.at.setTransform(src.at);
+		t.color = src.color;
+		t.width = src.width;
+		t.height = src.height;
+
+		final Map<Node<?>,B> rel = new HashMap<Node<?>,B>();
+		final LinkedList<Node<?>> todo = new LinkedList<Node<?>>();
+		//t.root = new Treeline.RadiusNode(src.root.x, src.root.y, src.root.la);
+		todo.add(src.root);
+		while (!todo.isEmpty()) {
+			final Node<?> a = todo.removeLast();
+			// Put all children nodes to the end of the todo list
+			if (null != a.children)
+				for (final Node<?> child : a.children)
+					todo.add(child);
+			// Copy the content of the 'a' node
+			final B copy = node_class.getConstructor(Float.TYPE, Float.TYPE, Layer.class).newInstance(a.x, a.y, a.la);
+			copy.copyProperties(a);
+			// Store relationship between original and copy
+			rel.put(a, copy);
+			// Find parent if any
+			if (null == a.parent) {
+				// Set the copy as the root
+				t.root = (Node)copy; // need to cast
+				continue;
+			}
+			// .. and if found, add the copy to the copied parent:
+			rel.get(a.parent).add((Node)copy, copy.confidence); // TODO no other way than to cast?
+		}
+		// create internals
+		t.cacheSubtree((Collection)t.root.getSubtreeNodes());
+		return t;
+	}
+
+	/** One color per vertex. */
+	static public class MeshData {
+		final public List<Color3f> colors;
+		final public List<Point3f> verts;
+		public MeshData(final List<Point3f> v, final List<Color3f> c) {
+			this.verts = v;
+			this.colors = c;
+		}
+	}
+
+	private Node<T> guiFindNode(final float x, final float y, final Layer layer, final double magnification) {
+		final Collection<Node<T>> nodes;
+		synchronized (node_layer_map) {
+			nodes = node_layer_map.get(layer);
+		}
+		if (null == nodes) {
+			Utils.log("No nodes in layer " + layer);
+			return null;
+		}
+		final Node<T> node = findClosestNodeW(nodes, x, y, magnification);
+		if (null == node) {
+			Utils.log("Could not find any node! Zoom in for better precision.");
+		}
+		return node;
+	}
+
+	/** @return null if no node is near @param x, @param y */ 
+	public Bureaucrat generateReviewStackForSlab(final float x, final float y, final Layer layer, final double magnification) {
+		return generateReviewStackForSlab(guiFindNode(x, y, layer, magnification));
+	}
+
+	public Bureaucrat generateSubtreeReviewStacks(int x, int y, Layer layer, double magnification) {
+		return generateSubtreeReviewStacks(guiFindNode(x, y, layer, magnification));
+	}
+
+	/** Generate a review stack from the previous branch node or root, to the next branch node or end node. */
+	public Bureaucrat generateReviewStackForSlab(final Node<T> node) {
+		return Bureaucrat.createAndStart(new Worker.Task("Create review stack") {
+			public void exec() {
+				if (null == node) return;
+				final Node<T> first = node.findPreviousBranchOrRootPoint();
+				final Node<T> last = node.findNextBranchOrEndPoint();
+				// Check if 'last' already has a review tag
+				final Set<Tag> tags = last.getTags();
+				String name = "#R-slab-1";
+				if (null != tags && !tags.isEmpty()) {
+					final ArrayList<Integer> a = new ArrayList<Integer>();
+					for (Tag t : tags) {
+						if (t.toString().startsWith("#R-slab-")) {
+							a.add(Integer.parseInt(t.toString().substring(7)));
+						}
+					}
+					if (a.isEmpty()) name += 1;
+					else {
+						Collections.sort(a);
+						name = name + (a.get(a.size()-1) + 1);
+					}
+				}
+				final Tag tag = new Tag(name, KeyEvent.VK_R);
+				last.addTag(tag);
+				final String filepath = getReviewTagPath(tag);
+				Utils.ensure(filepath);
+				createReviewStack(first, last, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
+			}}, project);
+	}
+	
+	static public final class MeasurePathDistance<I> {
+		private double dist = 0;
+		private int branch_points = 0;
+		final private float[] fpA = new float[2],
+							  fpB = new float[2];
+		final private float firstx,
+							firsty;
+		final private List<Node<I>> path;
+		final private Calibration cal;
+		final private Tree<I> tree;
+		final private Node<I> a, b;
+		
+		public double getDistance() { return dist; }
+		public List<Node<I>> getPath() { return path; }
+		public int getBranchNodesInPath() { return branch_points; }
+		public Point3f getFirstNodeCoordinates() {
+			return new Point3f(firstx, firsty, (float)(path.get(0).la.getZ() * cal.pixelWidth));
+		}
+		public Point3f getLastNodeCoordinates() {
+			if (1 == path.size()) {
+				return getFirstNodeCoordinates();
+			}
+			return new Point3f(fpB[0], fpB[1], (float)(path.get(path.size()-1).la.getZ() * cal.pixelWidth));
+		}
+		public MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b) {
+			this(tree, a, b, Node.findPath(a, b));
+		}
+		/** @throws an Exception if a path cannot be found between @param a and @param b. */
+		private MeasurePathDistance(final Tree<I> tree, final Node<I> a, final Node<I> b, final List<Node<I>> path) {
+			this.path = path;
+			this.cal = tree.layer_set.getCalibrationCopy();
+			this.tree = tree;
+			this.a = a;
+			this.b = b;
+			final Iterator<Node<I>> it = path.iterator();
+			//
+			Node<?> first = it.next();
+			if (first.getChildrenCount() > 1) branch_points++;
+			fpA[0] = first.x;
+			fpA[1] = first.y;
+			tree.at.transform(fpA, 0, fpA, 0, 1);
+			double zA = first.la.getZ();
+			//
+			firstx = fpA[0];
+			firsty = fpA[1];
+			//
+			if (1 == path.size()) {
+				fpB[0] = fpA[0];
+				fpB[1] = fpA[1];
+			}
+			//
+			while (it.hasNext()) {
+				Node<?> second = it.next();
+				if (second.getChildrenCount() > 1) branch_points++;
+				fpB[0] = second.x;
+				fpB[1] = second.y;
+				tree.at.transform(fpB, 0, fpB, 0, 1);
+				double zB = second.la.getZ();
+				dist += Math.sqrt(Math.pow((fpB[0] - fpA[0]) * cal.pixelWidth, 2)
+						+ Math.pow((fpB[1] - fpA[1]) * cal.pixelHeight, 2)
+						+ Math.pow((zB - zA) * cal.pixelWidth, 2));
+				// prepare next iteration
+				first = second;
+				fpA[0] = fpB[0];
+				fpA[1] = fpB[1];
+				zA = zB;
+			}
+		}
+		/** Reuses @param rt unless it is null, in which case it creates a new one. */
+		public ResultsTable show(ResultsTable rt) {
+			if (null == rt) rt = Utils.createResultsTable("Tree path measurements", new String[]{"id", "XA", "YA", "Layer A", "XB", "YB", "Layer B", "distance", "N nodes", "N branch points"});
+			rt.incrementCounter();
+			rt.addLabel("units", cal.getUnit());
+			rt.addValue(0, tree.id);
+			rt.addValue(1, firstx);
+			rt.addValue(2, firsty);
+			rt.addValue(3, tree.layer_set.indexOf(a.la) + 1); // 1-based, not zero-based!
+			rt.addValue(4, fpB[0]);
+			rt.addValue(5, fpB[1]);
+			rt.addValue(6, tree.layer_set.indexOf(b.la) + 1);
+			rt.addValue(7, dist);
+			rt.addValue(8, path.size());
+			rt.addValue(9, branch_points);
+			return rt;
+		}
+	}
+
+	/** Reuses @param rt unless it is null, in which case it creates a new one.
+	 *  Will check if both nodes belong to this tree.
+	 *  @return The used ResultsTable instance. */
+	public ResultsTable measurePathDistance(final Node<T> a, final Node<T> b, ResultsTable rt) {
+		synchronized (node_layer_map) {
+			// Do both nodes belong to this Tree?
+			Set<Node<T>> nodes1 = node_layer_map.get(a.la);
+			if (null == nodes1 || !nodes1.contains(a)) {
+				Utils.log("Tree.measurePathDistance: node " + a + " does not belong to tree " + this);
+				return rt;
+			}
+			Set<Node<T>> nodes2 = node_layer_map.get(b.la);
+			if (null == nodes2 || !nodes2.contains(b)) {
+				Utils.log("Tree.measurePathDistance: node " + b + " does not belong to tree " + this);
+				return rt;
+			}
+			try {
+				return new MeasurePathDistance<T>(this, a, b).show(rt);
+			} catch (Exception e) {
+				IJError.print(e);
+			}
+			return rt;
+		}
+	}
+	/** Measure the distance, in calibrated units, between nodes a and b of this tree.
+	 *  Does not check if the nodes really belong to this tree. */
+	public double measurePathDistance(final Node<T> a, final Node<T> b) throws Exception {
+		return new MeasurePathDistance<T>(this, a, b).getDistance();
+	}
+
+	/** Search all nodes for unique tags and returns them. */
+	public Set<Tag> findTags() {
+		final HashSet<Tag> tags = new HashSet<Tag>();
+		synchronized (node_layer_map) {
+			for (final Set<Node<T>> nodes : node_layer_map.values()) {
+				for (final Node<T> node : nodes) {
+					final Set<Tag> t = node.getTags();
+					if (null == t) continue;
+					tags.addAll(t);
+				}
+			}
+		}
+		return tags;
+	}
+	
+	@Override
+	public void destroy() {
+		super.destroy();
+		TreeConnectorsView.dispose(this);
+	}
+
+	public HashMap<Node<T>,Integer> computeAllDegrees() {
+		if (null == root) return new HashMap<Node<T>,Integer>();
+		return root.computeAllDegrees();
+	}
+	
+	public Collection<Node<T>> getBranchNodes() {
+		if (null == root) return new ArrayList<Node<T>>();
+		return root.getBranchNodes();
+	}
+	public Collection<Node<T>> getBranchAndEndNodes() {
+		if (null == root) return new ArrayList<Node<T>>();
+		return root.getBranchAndEndNodes();
+	}
+
+	static private final<T> Collection<Vertex<Node<T>>> findNeighbors(final Node<T> node, final HashMap<Node<T>,Vertex<Node<T>>> m) {
+		final Node<T> parent = node.getParent();
+		final Collection<Vertex<Node<T>>> neighbors = new ArrayList<Vertex<Node<T>>>();
+		if (null != parent) neighbors.add(m.get(parent));
+		for (final Node<T> child : node.getChildrenNodes()) {
+			neighbors.add(m.get(child));
+		}
+		return neighbors;
+	}
+
+	/** Return a representation of this Tree with Vertex instead of Node. */
+	public HashMap<Node<T>,Vertex<Node<T>>> asVertices() {
+		final HashMap<Node<T>,Vertex<Node<T>>> m = new HashMap<Node<T>,Vertex<Node<T>>>();
+		if (null == root) return m;
+		// Create one Vertex per Node<T>
+		for (final Node<T> node : this.getRoot().getSubtreeNodes()) {
+			m.put(node, new Vertex<Node<T>>(node));
+		}
+		// Determine the neighbors of that Vertex
+		for (final Map.Entry<Node<T>,Vertex<Node<T>>> e : m.entrySet()) {
+			e.getValue().neighbors.addAll(findNeighbors(e.getKey(), m));
+		}
+		return m;
+	}
+
+	/** Computes betweenness centrality of each node in the tree,
+	 *  using Ulrik Brandes betweenness centrality algorithm. */
+	public HashMap<Node<T>,Float> computeCentrality() {
+		final HashMap<Node<T>,Float> cs = new HashMap<Node<T>,Float>();
+		if (null == root) return cs;
+
+		final HashMap<Node<T>,Vertex<Node<T>>> m = asVertices();
+		Centrality.compute(m.values());
+		
+		for (final Map.Entry<Node<T>,Vertex<Node<T>>> e : m.entrySet()) {
+			cs.put(e.getKey(), e.getValue().centrality);
+		}
+		return cs;
+	}
+	
+	public void colorizeByNodeBetweennessCentrality() {
+		if (null == root) return;
+		final HashMap<Node<T>,Vertex<Node<T>>> m = asVertices();
+		Centrality.compute(m.values());
+		final IndexColorModel cm = Utils.fireLUT();
+		final Map<Integer,Color> colors = new HashMap<Integer,Color>();
+		double max = 0;
+		for (final Vertex<?> v : m.values()) max = Math.max(max, v.centrality);
+		for (final Map.Entry<Node<T>, Vertex<Node<T>>> e : m.entrySet()) {
+			int i = (int)(255 * (e.getValue().centrality / max) + 0.5f);
+			Color c = colors.get(i);
+			if (null == c) {
+				c = new Color(cm.getRed(i), cm.getGreen(i), cm.getBlue(i));
+				colors.put(i, c);
+			}
+			e.getKey().setColor(c);
+		}
+	}
+	
+	public void colorizeByBranchBetweennessCentrality(final int etching_multiplier) {
+		if (null == root) return;
+		final Collection<Vertex<Node<T>>> vs = asVertices().values();
+		Centrality.branchWise(vs, etching_multiplier);
+		final IndexColorModel cm = Utils.fireLUT();
+		final Map<Integer,Color> colors = new HashMap<Integer,Color>();
+		double max = 0;
+		for (final Vertex<?> v : vs) max = Math.max(max, v.centrality);
+		if (0 == max) {
+			Utils.logAll("Branch centrality: all have zero!");
+			return;
+		}
+		for (final Vertex<Node<T>> v : vs) {
+			int i = (int)(255 * (v.centrality / max) + 0.5f);
+			Utils.log("branch centrality: " + v.centrality + " , i: " + i);
+			Color c = colors.get(i);
+			if (null == c) {
+				c = new Color(cm.getRed(i), cm.getGreen(i), cm.getBlue(i));
+				colors.put(i, c);
+			}
+			v.data.setColor(c);
+		}
+	}
+	
+	public class Pair {
+		/** Two nodes of a tree; there is a unique path that goes from a to b. */
+		public Node<T> a, b;
+
+		public Pair(Node<T> a, Node<T> b) {
+			this.a = a;
+			this.b = b;
+		}
+		
+		/** The calibrated distance from a to b. */
+		public double measureDistance() throws Exception {
+			return new MeasurePathDistance<T>(Tree.this, a, b).getDistance();
+		}
+
+		/** The list of associated data element with each node. */
+		private List<T> getData(final List<Node<T>> path) {
+			final ArrayList<T> d = new ArrayList<T>();
+			for (final Node<T> nd : path) {
+				d.add(nd.getData());
+			}
+			return d;
+		}
+
+		/** The list of data elements associated with each node in the path, ordered from a to b (both included). */
+		public List<T> getData() {
+			return getData(Node.findPath(a, b));
+		}
+	}
+	
+	public class NodePath extends Pair {
+		/** The ordered list of nodes from a to b, both included. */
+		final protected List<Node<T>> path;
+
+		public NodePath(Node<T> a, Node<T> b) {
+			this(a, b, Node.findPath(a, b));
+		}
+
+		/** Assumes that a is the first element in path, and b the last,
+		 * and that a has a lower degree than b (that is, a is upstream of b). */
+		public NodePath(Node<T> a, Node<T> b, List<Node<T>> path) {
+			super(a, b);
+			this.path = path;
+		}
+		
+		public List<Node<T>> getPath() {
+			return path;
+		}
+	}
+	
+	public abstract class MeasurementPair extends NodePath
+	{
+		/** The calibrated path distance between nodes a and b, measured
+		 * as the sum of all the distances between all consecutive pairs
+		 * of nodes between a and b. */
+		final public double distance;
+		/** The ordered list of calibrated data elements of each node in the path
+		 * of nodes between a and b, both included. */
+		final public List<T> data;
+		/** The ordered list of calibrated coordinates of all nodes in the path
+		 * of nodes between a and b, both included. */
+		final public List<Point3f> coords;
+		
+		public MeasurementPair(NodePath np) {
+			this(np.a, np.b, np.path);
+		}
+		public MeasurementPair(Node<T> a, Node<T> b, List<Node<T>> path) {
+			super(a, b, path);
+			this.distance = new MeasurePathDistance<T>(Tree.this, a, b, path).getDistance();
+			this.data = calibratedData();
+			this.coords = new ArrayList<Point3f>();
+			final AffineTransform aff = toCalibration();
+			final float[] fp = new float[2];
+			for (final Node<T> nd : path) {
+				fp[0] = nd.x;
+				fp[1] = nd.y;
+				aff.transform(fp, 0, fp, 0, 1);
+				coords.add(new Point3f(fp[0], fp[1], (float)nd.getLayer().getCalibratedZ()));
+			}
+		}
+		abstract protected List<T> calibratedData();
+		abstract public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample);
+		abstract public MeshData createMesh(final double scale, final int resample);
+		abstract public String getResultsTableTitle();
+		@Override
+		public double measureDistance() {
+			return distance;
+		}
+		@Override
+		public List<T> getData() {
+			return data;
+		}
+		/** Concatenate the affine of the Tree and an affine that expresses the x,y calibration. */
+		protected final AffineTransform toCalibration() {
+			final AffineTransform aff = new AffineTransform(Tree.this.at);
+			final Calibration cal = layer_set.getCalibration();
+			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
+			return aff;
+		}
+	}
+	
+	protected abstract MeasurementPair createMeasurementPair(NodePath np);
+	
+	public List<NodePath> findTaggedPairs(final Tag upstream, final Tag downstream) {
+		final ArrayList<NodePath> pairs = new ArrayList<NodePath>();
+		if (null == root) return pairs;
+		for (final Node<T> nd : root.getSubtreeNodes()) {
+			if (nd.hasTag(downstream)) {
+				List<Node<T>> path = new ArrayList<Node<T>>();
+				path.add(nd);
+				Node<T> parent = nd.getParent();
+				while (!parent.hasTag(upstream)) {
+					path.add(parent);
+					parent = parent.getParent();
+					if (null == parent) break;
+				}
+				if (null == parent) continue;
+				path.add(parent);
+				Collections.reverse(path);
+				pairs.add(new NodePath(parent, nd, path));
+			}
+		}
+		return pairs;
+	}
+	
+	public List<MeasurementPair> measureTaggedPairs(final Tag upstream, final Tag downstream) {
+		final ArrayList<MeasurementPair> pairs = new ArrayList<MeasurementPair>();
+		for (final NodePath np : findTaggedPairs(upstream, downstream)) {
+			pairs.add(createMeasurementPair(np));
+		}
+		return pairs;
+	}
+
+	/** Drop all tags from the nodes of this tree. */
+	public void dropAllTags() {
+		if (null == root) return;
+		for (final Node<T> nd : root.getSubtreeNodes()) {
+			nd.removeAllTags();
+		}
 	}
 }

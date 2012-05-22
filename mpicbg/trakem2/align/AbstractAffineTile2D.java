@@ -30,17 +30,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.Affine2D;
+import mpicbg.models.Model;
 import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
 
+import org.python.google.common.collect.Lists;
+
 /**
  * @version 0.1b
  */
-abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A > > extends mpicbg.models.Tile< A >
+abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A > > extends mpicbg.models.Tile< A >
 {
 	final protected Patch patch;
 	final public Patch getPatch(){ return patch; }
@@ -88,30 +91,6 @@ abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A >
 		for ( PointMatch m : virtualMatches )
 			matches.remove( m );
 		virtualMatches.clear();
-	}
-	
-	/**
-	 * Try to find the tile which is connected by a particular
-	 * {@link PointMatch}.
-	 * 
-	 * Note that this method searches only the known connected tiles to limit
-	 * the cost of that anyway expensive search.
-	 * 
-	 * @param match
-	 * 
-	 * @return connectedTile or null
-	 */
-	final public AbstractAffineTile2D< ? > findConnectedTile( PointMatch match )
-	{
-		final Point p = match.getP2();
-		for ( final mpicbg.models.Tile< ? > t : connectedTiles )
-		{
-			for ( final PointMatch m : t.getMatches() )
-			{
-				if ( p == m.getP1() ) return ( AbstractAffineTile2D< ? > )t;
-			}
-		}
-		return null;
 	}
 	
 	abstract protected void initModel();

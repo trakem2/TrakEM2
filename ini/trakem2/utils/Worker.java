@@ -31,10 +31,10 @@ public abstract class Worker implements Runnable {
 	private String thread_name;
 	private String task_name;
 	private Thread thread;
-	private boolean working = false;
-	protected boolean quit = false;
-	private boolean started = false;
-	private boolean background = false;
+	private volatile boolean working = false;
+	protected volatile boolean quit = false;
+	private volatile boolean started = false;
+	private volatile boolean background = false;
 	private boolean interrupt_on_quit = false;
 	/** Extending classes may store a resulting piece of data. */
 	protected Object result = null;
@@ -99,10 +99,10 @@ public abstract class Worker implements Runnable {
 	public Object getResult() { return this.result; }
 
 	// ugly, ugly ... why, java, do you make me do this, when all I need is a closure?
-	private HashMap properties = null;
+	private HashMap<Object,Object> properties = null;
 	public synchronized void setProperty(Object key, Object value) {
 		if (null == key) return;
-		if (null == properties) properties = new HashMap();
+		if (null == properties) properties = new HashMap<Object,Object>();
 		properties.put(key, value);
 	}
 	public synchronized Object getProperty(Object key) {

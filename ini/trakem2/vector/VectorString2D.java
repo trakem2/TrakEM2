@@ -181,7 +181,7 @@ public class VectorString2D implements VectorString {
 		int j = 1;
 		// some vars:
 		double dx, dy, sum;
-		double angle, angleXY, dist1, dist2;
+		double angleXY, dist1, dist2;
 		int[] ahead = new int[MAX_AHEAD];
 		double[] distances = new double[MAX_AHEAD];
 		int n_ahead = 0;

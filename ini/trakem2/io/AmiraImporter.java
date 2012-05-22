@@ -22,45 +22,30 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.io;
 
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.AreaUtils;
-import ini.trakem2.tree.Thing;
-import ini.trakem2.display.LayerSet;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.io.FileInfo;
+import ij.io.OpenDialog;
+import ij.process.ImageProcessor;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.YesNoDialog;
-
-import amira.*;
-
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.io.OpenDialog;
-import ij.io.FileInfo;
-import ij.gui.ShapeRoi;
-import ij.gui.Roi;
-import ij.measure.Calibration;
-import ij.plugin.filter.ThresholdToSelection;
-import ij.process.ImageProcessor;
-import ij.process.ImageStatistics;
-import ij.IJ;
+import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.Rectangle;
 import java.awt.geom.Area;
-import java.awt.geom.AffineTransform;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.HashSet;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.List;
-import java.util.Collections;
-import java.util.Collection;
-
 import java.util.concurrent.atomic.AtomicInteger;
+
 import mpi.fruitfly.general.MultiThreading;
+import amira.AmiraMeshDecoder;
+import amira.AmiraParameters;
 
 /** Parses an amira labelfield and imports the labels as AreaList instances into the project tree.*/
 public class AmiraImporter {

@@ -1,0 +1,6 @@
+ElasticAlign in TrakEM2
+
+TODO
+
+* Saved features, feature correspondences and other temporary files are not cleaned up on change of a layer yet.  In fact it should be done on each change of a patch.  A proper way of doing this would be to have an hasChanged method that is propagated from leaf to root on any change done to an element.  Part of that method would be to clean up caches and files that are specific to that element.  For ElasticAlign, these are feature and feature correspondence files specific to a layer.
+

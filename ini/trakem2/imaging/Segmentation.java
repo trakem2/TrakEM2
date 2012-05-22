@@ -2,48 +2,46 @@ package ini.trakem2.imaging;
 
 import ij.IJ;
 import ij.ImagePlus;
-import ij.WindowManager;
 import ij.gui.GenericDialog;
 import ij.gui.PointRoi;
+import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.gui.Wand;
+import ij.plugin.WandToolOptions;
+import ij.process.ImageProcessor;
+import ini.trakem2.display.AreaContainer;
+import ini.trakem2.display.AreaWrapper;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.AreaWrapper;
 import ini.trakem2.display.Patch;
-import ini.trakem2.display.AreaContainer;
 import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.OptionPanel;
 import ini.trakem2.utils.M;
+import ini.trakem2.utils.OptionPanel;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import java.awt.Rectangle;
-import java.awt.Polygon;
-import java.awt.geom.Area;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.PathIterator;
 import java.awt.Checkbox;
+import java.awt.Color;
 import java.awt.Component;
+import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Arrays;
-
-import levelsets.ij.ImageContainer;
-import levelsets.ij.ImageProgressContainer;
-import levelsets.ij.StateContainer;
-import levelsets.algorithm.LevelSetImplementation;
-import levelsets.algorithm.ActiveContours;
-import levelsets.algorithm.FastMarching;
-import levelsets.algorithm.Coordinate;
-
+import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 
+import levelsets.algorithm.Coordinate;
+import levelsets.algorithm.FastMarching;
+import levelsets.ij.ImageContainer;
+import levelsets.ij.StateContainer;
 import plugin.Lasso;
 
 
@@ -184,7 +182,7 @@ public class Segmentation {
 		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Fast marching") { public void exec() {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
 			Utils.log2("fmp box is " + box);
-			ImagePlus imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+			ImagePlus imp = new ImagePlus("", Patch.makeFlatImage(ImagePlus.GRAY8, layer, box, 1.0, (Collection)layer.getDisplayables(Patch.class, new Area(box), true), Color.black));
 			// Bandpass filter
 			if (fmp.apply_bandpass_filter) {
 				IJ.run(imp, "Bandpass Filter...", "filter_large=" + fmp.low_frequency_threshold  + " filter_small=" + fmp.high_frequency_threshold + " suppress=None tolerance=5" + (fmp.autoscale_after_filtering ? " autoscale" : "") + (fmp.saturate_when_autoscaling ? " saturate" : ""));
@@ -383,7 +381,7 @@ public class Segmentation {
 			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
 			this.box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
 			Utils.log2("fmp box is " + box);
-			this.imp = (ImagePlus) layer.grab(box, 1.0, Patch.class, 0xffffffff, Layer.IMAGEPLUS, ImagePlus.GRAY8);
+			this.imp = new ImagePlus("", Patch.makeFlatImage(ImagePlus.GRAY8, layer, box, 1.0, (Collection)layer.getDisplayables(Patch.class, new Area(box), true), Color.black));
 			// Bandpass filter
 			if (fmp.apply_bandpass_filter) {
 				IJ.run(imp, "Bandpass Filter...", "filter_large=" + fmp.low_frequency_threshold  + " filter_small=" + fmp.high_frequency_threshold + " suppress=None tolerance=5" + (fmp.autoscale_after_filtering ? " autoscale" : "") + (fmp.saturate_when_autoscaling ? " saturate" : ""));
@@ -434,5 +432,59 @@ public class Segmentation {
 	}
 	static public BlowCommander blowRoi(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks) throws Exception {
 		return new BlowCommander(aw, layer, srcRect, x_p_w, y_p_w, post_tasks);
+	}
+
+	static public Bureaucrat magicWand(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final Runnable post_task, final boolean inverse, final boolean subtract) {
+		return magicWand(aw, layer, srcRect, x_p_w, y_p_w, Arrays.asList(new Runnable[]{post_task}), inverse, subtract);
+	}
+	static public Bureaucrat magicWand(final AreaWrapper aw, final Layer layer, final Rectangle srcRect, final int x_p_w, final int y_p_w, final List<Runnable> post_tasks, final boolean inverse, final boolean subtract) {
+		// Capture pointers before they are set to null
+		final AreaContainer ac = (AreaContainer) aw.getSource();
+		final AffineTransform source_aff = aw.getSource().getAffineTransform();
+		final Rectangle box = new Rectangle(x_p_w - Segmentation.fmp.width/2, y_p_w - Segmentation.fmp.height/2, Segmentation.fmp.width, Segmentation.fmp.height);
+
+		Bureaucrat burro = Bureaucrat.create(new Worker.Task("Magic Wand") { public void exec() {
+			// Capture image as large as the fmp width,height centered on x_p_w,y_p_w
+			Utils.log2("fmp box is " + box);
+			ImageProcessor ip = Patch.makeFlatImage(ImagePlus.GRAY8, layer, box, 1.0, (Collection)layer.getDisplayables(Patch.class, new Area(box), true), Color.black);
+			// Apply wand
+			Wand wand = new Wand(ip);
+			String smode = WandToolOptions.getMode();
+			int mode = Wand.LEGACY_MODE;
+			if (null == smode) {}
+			else if (smode.startsWith("4")) mode = Wand.FOUR_CONNECTED;
+			else if (smode.startsWith("8")) mode = Wand.EIGHT_CONNECTED;
+			wand.autoOutline(ip.getWidth()/2, ip.getHeight()/2, WandToolOptions.getTolerance(), mode); // 8-bit image
+
+			if (wand.npoints > 0) {
+				Area area = M.getArea(new PolygonRoi(wand.xpoints, wand.ypoints, wand.npoints, PolygonRoi.FREEROI));
+				if (inverse) {
+					Area b = new Area(new Rectangle(0, 0, box.width, box.height));
+					b.subtract(area);
+					area = b;
+				}
+
+				// Compose an Area that is local to the AreaWrapper's area
+				final AffineTransform aff = new AffineTransform(1, 0, 0, 1, box.x, box.y);
+				try {
+					aff.preConcatenate(source_aff.createInverse());
+				} catch (NoninvertibleTransformException nite) {
+					IJError.print(nite);
+					return;
+				}
+
+				area.transform(aff);
+
+				if (subtract) aw.getArea().subtract(area);
+				else aw.getArea().add(area);
+	
+				ac.calculateBoundingBox(layer);
+
+				Display.repaint(layer);
+			}
+		}}, layer.getProject());
+		if (null != post_tasks) for (Runnable task : post_tasks) burro.addPostTask(task);
+		burro.goHaveBreakfast();
+		return burro;
 	}
 }

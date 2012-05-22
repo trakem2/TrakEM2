@@ -24,8 +24,10 @@ import java.util.Collection;
 import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.display.VectorDataTransform;
 
+import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 
@@ -400,7 +402,7 @@ public final class M {
 		apply(vdt, a, false);
 	}
 
-	/** Parts of @param a not intersected by any of @pram vdt rois will be left untouched if @param remove_outside is true. */
+	/** Parts of @param a not intersected by any of @param vdt rois will be left untouched if @param remove_outside is false. */
 	static final public void apply(final VectorDataTransform vdt, final Area a, final boolean remove_outside) {
 		final Area b = new Area();
 		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
@@ -632,7 +634,8 @@ public final class M {
 	/** The @param ict is expected to transform the data as if this data was expressed in world coordinates,
 	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
 	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
-		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
+		final mpicbg.models.CoordinateTransformList<mpicbg.models.CoordinateTransform> chain
+		  = new mpicbg.models.CoordinateTransformList<mpicbg.models.CoordinateTransform>(); // bravo!
 		// 1 - Prepend to world
 		final mpicbg.models.AffineModel2D toworld = new mpicbg.models.AffineModel2D();
 		toworld.set(to_world);
@@ -660,5 +663,147 @@ public final class M {
 		} else {
 			sb.append(f);
 		}
+	}
+
+	/** @returns the point of intersection of the two segments a and b, or null if they don't intersect. */
+	public static final float[] computeSegmentsIntersection(
+			float ax0, float ay0, float ax1, float ay1,
+			float bx0, float by0, float bx1, float by1) {
+		float d = (ax0 - ax1)*(by0 - by1) - (ay0 - ay1) * (bx0 - bx1);
+		if (0 == d) return null;
+		float xi = ((bx0 - bx1)*(ax0*ay1 - ay0*ax1) - (ax0 - ax1)*(bx0*by1 - by0*bx1)) / d;
+		float yi = ((by0 - by1)*(ax0*ay1 - ay0*ax1) - (ay0 - ay1)*(bx0*by1 - by0*bx1)) / d;
+		if (xi < Math.min(ax0, ax1) || xi > Math.max(ax0, ax1)) return null;
+		if (xi < Math.min(bx0, bx1) || xi > Math.max(bx0, bx1)) return null;
+		if (yi < Math.min(ay0, ay1) || yi > Math.max(ay0, ay1)) return null;
+		if (yi < Math.min(by0, by1) || yi > Math.max(by0, by1)) return null;
+		return new float[]{xi, yi};
+	}
+	
+	/** Returns an array of two Area objects, or of 1 if the @param proi doesn't intersect @param a. */
+	public static final Area[] splitArea(final Area a, final PolygonRoi proi, final Rectangle world) {
+		if (!a.getBounds().intersects(proi.getBounds())) return new Area[]{a};
+
+		int[] x = proi.getXCoordinates(),
+			  y = proi.getYCoordinates();
+		final Rectangle rb = proi.getBounds();
+		final int len = proi.getNCoordinates();
+		int x0 = x[0] + rb.x;
+		int y0 = y[0] + rb.y;
+		int xN = x[len -1] + rb.x;
+		int yN = y[len -1] + rb.y;
+
+		// corners, clock-wise:
+		int[][] corners = new int[][]{new int[]{world.x, world.y}, // top left
+									  new int[]{world.x + world.width, world.y}, // top right
+									  new int[]{world.x + world.width, world.y + world.height}, // bottom right
+									  new int[]{world.x, world.y + world.height}}; // bottom left
+		// Which corner is closest to x0,y0, and which to xN,yN
+		double min_dist0 = Double.MAX_VALUE;
+		int min_i0 = 0;
+		int i = 0;
+		double min_distN = Double.MAX_VALUE;
+		int min_iN = 0;
+		for (int[] corner : corners) {
+			double d = distance(x0, y0, corner[0], corner[1]);
+			if (d < min_dist0) {
+				min_dist0 = d;
+				min_i0 = i;
+			}
+			d = distance(xN, yN, corner[0], corner[1]);
+			if (d < min_distN) {
+				min_distN = d;
+				min_iN = i;
+			}
+			i++;
+		}
+		// Create new Area 'b' with which to intersect Area 'a':
+		int[] xb, yb;
+		int l,
+		    i1,
+		    i2 = -1;
+		// 0 1 2 3: when there difference is 2, there is a point in between
+		if (2 != Math.abs(min_iN - min_i0)) {
+			l = len +4;
+			xb = new int[l];
+			yb = new int[l];
+			// -4 and -1 will be the drifted corners
+			i1 = -4;
+			xb[l-4] = corners[min_iN][0];
+			yb[l-4] = corners[min_iN][1];
+			xb[l-3] = corners[min_iN][0];
+			yb[l-3] = corners[min_iN][1];
+			xb[l-2] = corners[min_i0][0];
+			yb[l-2] = corners[min_i0][1];
+			xb[l-1] = corners[min_i0][0];
+			yb[l-1] = corners[min_i0][1];
+		} else {
+			l = len +5;
+			xb = new int[l];
+			yb = new int[l];
+			// -5 and -1 will be the drifted corners
+			i1 = -5;
+			xb[l-5] = corners[min_iN][0];
+			yb[l-5] = corners[min_iN][1];
+			xb[l-4] = corners[min_iN][0];
+			yb[l-4] = corners[min_iN][1];
+			xb[l-3] = corners[(min_iN + min_i0) / 2][0];
+			yb[l-3] = corners[(min_iN + min_i0) / 2][1];
+			xb[l-2] = corners[min_i0][0];
+			yb[l-2] = corners[min_i0][1];
+			xb[l-1] = corners[min_i0][0];
+			yb[l-1] = corners[min_i0][1];
+		}
+		// Enter polyline points, corrected for proi bounds
+		for (int k=0; k<len; k++) {
+			xb[k] = x[k] + rb.x;
+			yb[k] = y[k] + rb.y;
+		}
+		// Drift corners to closest point on the sides
+		// Last:
+		int dx = Math.abs(xb[l+i1] - (x[len-1] + rb.x)),
+		    dy = Math.abs(yb[l+i1] - (y[len-1] + rb.y));
+		if (dy < dx) xb[l+i1] = x[len-1] + rb.x;
+		else yb[l+i1] = y[len-1] + rb.y;
+		// First:
+		dx = Math.abs(xb[l+i2] - (x[0] + rb.x));
+		dy = Math.abs(yb[l+i2] - (y[0] + rb.y));
+		if (dy < dx) xb[l+i2] = x[0] + rb.x;
+		else yb[l+i2] = y[0] + rb.y;
+
+		Area b = new Area(new Polygon(xb, yb, xb.length));
+		Area c = new Area(world);
+		c.subtract(b);
+
+		return new Area[]{b, c};
+	}
+
+	public static final VectorString2D asVectorString2D(final Polygon pol, final double z) throws Exception {
+		double[] x = new double[pol.npoints];
+		double[] y = new double[pol.npoints];
+		for (int i=0; i<x.length; i++) {
+			x[i] = pol.xpoints[i];
+			y[i] = pol.ypoints[i];
+		}
+		return new VectorString2D(x, y, z, true);
+	}
+	
+	public static final double volumeOfTruncatedCone(final double r1, final double r2, final double height) {
+		return Math.PI
+				* (  r1 * r1
+				   + r1 * r2
+				   + r2 * r2)
+				* height
+				/ 3;
+	}
+
+	public static final double lateralAreaOfTruncatedCone(final double r1, final double r2, final double height) {
+		return Math.PI * (r1 + r2) * Math.sqrt(Math.pow(r2 - r1, 2) + height * height);
+	}
+
+	/** The lateral area plus the two circles. */
+	public static final double totalAreaOfTruncatedCone(final double r1, final double r2, final double height) {
+		return lateralAreaOfTruncatedCone(r1, r2, height)
+			+ Math.PI * (r1 * r1 + r2 * r2);
 	}
 }

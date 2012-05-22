@@ -26,12 +26,14 @@ import ij.IJ;
 import ij.ImageJ;
 import ij.gui.GenericDialog;
 import ij.gui.YesNoCancelDialog;
+import ini.trakem2.display.ImageJCommandListener;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.Display3D;
 import ini.trakem2.tree.LayerTree;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.TemplateTree;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.RedPhone;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.StdOutWindow;
@@ -61,20 +63,36 @@ public class ControlWindow {
 	static private JTabbedPane tabs = null;
 	/** Project instances are keys, JSplitPane are the objects. */
 	static private Hashtable<Project,JSplitPane> ht_projects = null;
+	/** While the instance is not null, the other fields (frame, tabs, ht_projects) are not null either. */
 	static private ControlWindow instance = null;
+	/** Control changes to the instance. */
+	static private final Object LOCK = new Object();
+	
+	private final RedPhone red_phone = new RedPhone();
 
 	static private boolean gui_enabled = true;
+
+	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
+	private ImageJCommandListener command_listener;
 
 	private ControlWindow() {
 		if (null != ij.gui.Toolbar.getInstance()) {
 			ij.gui.Toolbar.getInstance().addMouseListener(tool_listener);
 		}
-		synchronized (this) {
-			Utils.setup(this);
-			Loader.setupPreloader(this);
-			if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
-			Display3D.init();
-			setLookAndFeel();
+		Utils.setup(this);
+		Loader.setupPreloader(this);
+		if (IJ.isWindows() && isGUIEnabled()) StdOutWindow.start();
+		Display3D.init();
+		setLookAndFeel();
+		this.command_listener = new ImageJCommandListener();
+		this.red_phone.start();
+	}
+	
+	// private to the package
+	static final ControlWindow getInstance() {
+		synchronized (LOCK) {
+			if (null == instance) instance = new ControlWindow();
+			return instance;
 		}
 	}
 
@@ -111,8 +129,10 @@ public class ControlWindow {
 
 	/** Returns null if there are no projects */
 	synchronized static public Set<Project> getProjects() {
-		if (null == ht_projects) return null;
-		return ht_projects.keySet();
+		synchronized (LOCK) {
+			if (null == ht_projects) return null;
+			return ht_projects.keySet();
+		}
 	}
 
 	static private MouseListener tool_listener = new MouseAdapter() {
@@ -127,8 +147,8 @@ public class ControlWindow {
 	};
 
 	static private void destroy() {
-		if (null == instance) return;
-		synchronized(instance) {
+		synchronized(LOCK) {
+			if (null == instance) return;
 			if (IJ.isWindows()) StdOutWindow.quit();
 			Display3D.destroy();
 			if (null != ht_projects) {
@@ -152,18 +172,23 @@ public class ControlWindow {
 				tabs = null;
 			}
 			if (null != frame) {
-				frame.setVisible(false);
-				frame.dispose();
+				final JFrame fr = frame;
+				SwingUtilities.invokeLater(new Runnable() { public void run() {
+					fr.setVisible(false);
+					fr.dispose();
+					if (null != ij.gui.Toolbar.getInstance()) ij.gui.Toolbar.getInstance().repaint();
+				}});
 				frame = null;
 				ProjectToolbar.destroy();
-				if (null != ij.gui.Toolbar.getInstance()) ij.gui.Toolbar.getInstance().repaint();
-				//ij.WindowManager.removeWindow(frame);
 			}
 			if (null != tool_listener && null != ij.gui.Toolbar.getInstance()) {
 				ij.gui.Toolbar.getInstance().removeMouseListener(tool_listener);
 			}
 			Utils.destroy(instance);
 			Loader.destroyPreloader(instance);
+			instance.command_listener.destroy();
+			instance.command_listener = null;
+			if (null != instance.red_phone) instance.red_phone.quit();
 			instance = null;
 		}
 	}
@@ -178,12 +203,8 @@ public class ControlWindow {
 		final Runnable gui_thread = new Runnable() {
 			public void run() {
 
-
-		if (null == instance) {
-			instance = new ControlWindow();
-		}
-
-		synchronized (instance) {
+		synchronized (LOCK) {
+			getInstance(); // init
 			if (null == frame) {
 				if (!hooked) {
 					Runtime.getRuntime().addShutdownHook(new Thread() { // necessary to disconnect properly from the database instead of with an EOF, and also to ask to save changes for FSLoader projects.
@@ -200,12 +221,12 @@ public class ControlWindow {
 				frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 				frame.addWindowListener(new WindowAdapter() {
 					public void windowClosing(WindowEvent we) {
-						synchronized (instance) {
+						synchronized (LOCK) {
 							if (!Utils.check("Close " + (1 == ht_projects.size() ? "the project?" : "all projects?"))) {
 								return;
 							}
+							destroy();
 						}
-						destroy();
 					}
 					public void windowClosed(WindowEvent we) {
 						// ImageJ is quitting (never detected, so I added the dispose extension above)
@@ -308,8 +329,9 @@ public class ControlWindow {
 		}
 
 		}};
-		// I hate java: can't call invokeLater from the EventDispatch thread
+
 		new Thread() {
+			{ setPriority(Thread.NORM_PRIORITY); }
 			public void run() {
 				try {
 					SwingUtilities.invokeAndWait(gui_thread);
@@ -323,42 +345,44 @@ public class ControlWindow {
 	}
 
 	synchronized static public Project getActive() {
-		if (null == tabs || 0 == ht_projects.size()) return null;
-		if (1 == ht_projects.size()) return (Project)ht_projects.keySet().iterator().next();
-		else {
-			Component c = tabs.getSelectedComponent();
-			for (final Map.Entry<Project,JSplitPane> e : ht_projects.entrySet()) {
-				if (e.getValue().equals(c)) return e.getKey();
+		synchronized (LOCK) {
+			if (null == tabs || 0 == ht_projects.size()) return null;
+			if (1 == ht_projects.size()) return (Project)ht_projects.keySet().iterator().next();
+			else {
+				Component c = tabs.getSelectedComponent();
+				for (final Map.Entry<Project,JSplitPane> e : ht_projects.entrySet()) {
+					if (e.getValue().equals(c)) return e.getKey();
+				}
 			}
+			return null;
 		}
-		return null;
 	}
 
 	static public void remove(final Project project) {
-		if (null == tabs || null == ht_projects) return;
-		if (null == instance) return;
-		if (ht_projects.containsKey(project)) {
-			int n_tabs = 0;
-			synchronized (instance) {
+		synchronized (LOCK) {
+			if (null == tabs || null == ht_projects) return;
+			if (null == instance) return;
+			if (ht_projects.containsKey(project)) {
+				int n_tabs = 0;
 				JSplitPane tab = (JSplitPane)ht_projects.get(project);
 				tabs.remove(tab);
 				ht_projects.remove(project);
 				n_tabs = tabs.getTabCount();
-			}
-			// close the ControlWindow if no projects remain open.
-			if (0 == n_tabs) {
-				destroy();
+				// close the ControlWindow if no projects remain open.
+				if (0 == n_tabs) {
+					destroy();
+				}
 			}
 		}
 	}
 
 	static public void updateTitle(final Project project) {
-		if (null == tabs) return;
-		if (ht_projects.containsKey(project)) {
-			SwingUtilities.invokeLater(new Runnable() {
-				public void run() {
-					if (null == instance) return;
-					synchronized (instance) {
+		SwingUtilities.invokeLater(new Runnable() {
+			public void run() {
+				synchronized (LOCK) {
+					if (null == tabs) return;
+					if (ht_projects.containsKey(project)) {
+						if (null == instance) return;
 						JSplitPane tab = (JSplitPane)ht_projects.get(project);
 						int index = tabs.indexOfComponent(tab);
 						if (-1 != index) {
@@ -366,44 +390,41 @@ public class ControlWindow {
 						}
 					}
 				}
-			});
-		}
+			}
+		});
 	}
 
 	private static class TabListener extends MouseAdapter {
 		public void mouseReleased(MouseEvent me) {
 			if (me.isConsumed()) return;
-			Icon icon = null;
-			Component comp = null;
-			synchronized (instance) {
+			synchronized (LOCK) {
+				if (null == tabs) return;
 				int i_tab = tabs.getSelectedIndex();
-				comp = tabs.getComponentAt(i_tab);
-				icon = tabs.getIconAt(i_tab);
-			}
-			if (icon instanceof CloseIcon) {
-				CloseIcon ci = (CloseIcon)icon;
-				// find the project
-				Project project = null;
-				synchronized (instance) {
+				Component comp = tabs.getComponentAt(i_tab);
+				Icon icon = tabs.getIconAt(i_tab);
+				if (icon instanceof CloseIcon) {
+					CloseIcon ci = (CloseIcon)icon;
+					// find the project
+					Project project = null;
 					for (final Map.Entry<Project,JSplitPane> e: ht_projects.entrySet()) {
 						project = e.getKey();
 						if (e.getValue().equals(comp)) break;
 					}
-				}
-				if (ci.contains(me.getX(), me.getY())) {
-					if (null == project) return;
-					// ask for confirmation before closing
-					if (!Utils.check("Close the project " + project.toString() + " ?")) {
-						return;
+					if (ci.contains(me.getX(), me.getY())) {
+						if (null == project) return;
+						// ask for confirmation before closing
+						if (!Utils.check("Close the project " + project.toString() + " ?")) {
+							return;
+						}
+						// proceed to close:
+						if (project.destroy()) { // will call ControlWindow.remove(project)
+							ci.flush();
+						}
+					} else if (2 == me.getClickCount()) {
+						// pop dialog to rename the project
+						if (null == project) return;
+						project.getProjectTree().rename(project.getRootProjectThing());
 					}
-					// proceed to close:
-					if (project.destroy()) { // will call ControlWindow.remove(project)
-						ci.flush();
-					}
-				} else if (2 == me.getClickCount()) {
-					// pop dialog to rename the project
-					if (null == project) return;
-					project.getProjectTree().rename(project.getRootProjectThing());
 				}
 			}
 		}
@@ -511,9 +532,11 @@ public class ControlWindow {
 	static public void endWaitingCursor() { setCursor(Cursor.getDefaultCursor()); }
 
 	static private void setCursor(final Cursor c) {
-		if (null != IJ.getInstance()) IJ.getInstance().setCursor(c);
-		ini.trakem2.display.Display.setCursorToAll(c);
-		if (null != frame && frame.isVisible()) frame.setCursor(c); // the ControlWindow frame
+		Utils.invokeLater(new Runnable() { public void run() {
+			if (null != IJ.getInstance()) IJ.getInstance().setCursor(c);
+			ini.trakem2.display.Display.setCursorToAll(c);
+			if (null != frame && frame.isVisible()) frame.setCursor(c); // the ControlWindow frame
+		}});
 	}
 
 	/** Returns -1 if not found. */

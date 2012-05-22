@@ -1,44 +1,26 @@
 package ini.trakem2.display;
 
-import ij.ImagePlus;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Paintable;
-import ini.trakem2.display.graphics.GraphicsSource;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
+
+import java.awt.BasicStroke;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.Stroke;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.concurrent.Future;
-import java.awt.BasicStroke;
-import java.awt.Image;
-import java.awt.Composite;
-import java.awt.Rectangle;
-import java.awt.Graphics2D;
-import java.awt.Stroke;
-import java.awt.event.MouseEvent;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
 
-import mpicbg.ij.Mapping;
-import mpicbg.ij.TransformMeshMapping;
 import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.transform.CoordinateTransformList;
-import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
 import mpicbg.models.CoordinateTransformMesh;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
-import mpicbg.trakem2.transform.AffineModel2D;
-import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -46,6 +28,12 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
+import mpicbg.trakem2.transform.AffineModel2D;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks;
+import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
 
 public class NonLinearTransformMode extends GroupingMode {
 
@@ -63,10 +51,9 @@ public class NonLinearTransformMode extends GroupingMode {
 			ctl.add( toWorld.createInverse() );
 			
 			final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
-			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping;
-			mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
+			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
 			
-			final HashMap<Paintable, GroupingMode.ScreenPatchRange> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
+			final HashMap<Paintable, GroupingMode.ScreenPatchRange<?>> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
 			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
 			{
 				if (screenPatchRanges != this.screenPatchRanges) {
@@ -146,6 +133,7 @@ public class NonLinearTransformMode extends GroupingMode {
 	
 	private Point p_clicked = null;
 	
+	@Override
 	public void mousePressed( MouseEvent me, int x_p, int y_p, double magnification )
 	{
 		/* find if clicked on a point */
@@ -214,6 +202,7 @@ public class NonLinearTransformMode extends GroupingMode {
 		}
 	}
 
+	@Override
 	public void mouseDragged( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old )
 	{
 		if ( null != p_clicked )
@@ -224,6 +213,8 @@ public class NonLinearTransformMode extends GroupingMode {
 			painter.update();
 		}
 	}
+	
+	@Override
 	public void mouseReleased( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r )
 	{
 		// bring to screen coordinates
@@ -316,13 +307,13 @@ public class NonLinearTransformMode extends GroupingMode {
 				}
 
 				/* Flush images */
-				for ( GroupingMode.ScreenPatchRange spr : new HashSet< GroupingMode.ScreenPatchRange >( screenPatchRanges.values() ) )
+				for ( GroupingMode.ScreenPatchRange<?> spr : new HashSet< GroupingMode.ScreenPatchRange<?> >( screenPatchRanges.values() ) )
 				{
 					spr.flush();
 				}
 
 				/* Wait until all mipmaps are regenerated */
-				for ( Future fu : futures )
+				for ( Future<?> fu : futures )
 					try
 					{
 						fu.get();
@@ -351,7 +342,7 @@ public class NonLinearTransformMode extends GroupingMode {
 		/*
 		 * TODO replace this with the desired parameters of the transformation
 		 */
-		final MovingLeastSquaresTransform mlst = new MovingLeastSquaresTransform();
+		final MovingLeastSquaresTransform2 mlst = new MovingLeastSquaresTransform2();
 		mlst.setAlpha( 1.0f );
 		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 		switch (points.size()) {

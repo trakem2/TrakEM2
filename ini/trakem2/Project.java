@@ -35,7 +35,6 @@ import ini.trakem2.display.DLabel;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Dissector;
-import ini.trakem2.display.ImageJCommandListener;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -45,8 +44,10 @@ import ini.trakem2.display.Profile;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.Treeline;
 import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.plugin.TPlugIn;
@@ -61,7 +62,9 @@ import ini.trakem2.tree.Thing;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Search;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
 import java.awt.Rectangle;
 import java.io.BufferedReader;
@@ -75,7 +78,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.Vector;
 import java.util.concurrent.ScheduledFuture;
@@ -109,9 +114,9 @@ public class Project extends DBObject {
 
 	static private class PlugInSource implements Comparable<PlugInSource> {
 		String menu;
-		Class c;
+		Class<?> c;
 		String title;
-		PlugInSource(String menu, Class c, String title) {
+		PlugInSource(String menu, Class<?> c, String title) {
 			this.menu = menu;
 			this.c = c;
 			this.title = title;
@@ -159,10 +164,9 @@ public class Project extends DBObject {
 						if (-1 == lc) continue;
 						String menu = line.substring(0, fc).trim();
 						if (!menu.equals("Project Tree") && !menu.equals("Display")) continue;
-						Class c;
 						String classname = line.substring(lc+1).trim();
 						try {
-							c = Class.forName(classname);
+							Class.forName(classname);
 						} catch (ClassNotFoundException cnfe) {
 							Utils.log2("TPlugIn class not found: " + classname);
 							continue;
@@ -178,7 +182,7 @@ public class Project extends DBObject {
 						} catch (ClassNotFoundException cnfe) {
 							Utils.log("Could not find TPlugIn class " + classname);
 						}
-					};
+					}
 				} finally {
 					br.close();
 				}
@@ -249,21 +253,21 @@ public class Project extends DBObject {
 	static private TemplateThing layer_template = null;
 	static private TemplateThing layer_set_template = null;
 
-	/** The hashtable of unique TemplateThing types; the key is the type (String). */
-	private HashMap<String,TemplateThing> ht_unique_tt = null;
+	/** The table of unique TemplateThing types; the key is the type (String). */
+	private final Map<String,TemplateThing> ht_unique_tt = Collections.synchronizedMap(new HashMap<String,TemplateThing>());
 
 	private LayerTree layer_tree = null;
 
-	private String title = "Project"; // default  // TODO should be an attribute in the ProjectThing that holds it
+	private String title = "Project";
 
 	private final HashMap<String,String> ht_props = new HashMap<String,String>();
-
-	/** Intercept ImageJ menu commands if the front image is a FakeImagePlus. */
-	static private final ImageJCommandListener command_listener = new ImageJCommandListener();
+	
+	private int mipmaps_mode = Loader.DEFAULT_MIPMAPS_MODE;
 
 	/** The constructor used by the static methods present in this class. */
 	private Project(Loader loader) {
 		super(loader);
+		ControlWindow.getInstance(); // init
 		this.loader = loader;
 		this.project = this; // for the superclass DBObject
 		loader.addToDatabase(this);
@@ -272,11 +276,12 @@ public class Project extends DBObject {
 	/** Constructor used by the Loader to find projects. These projects contain no loader. */
 	public Project(long id, String title) {
 		super(null, id);
+		ControlWindow.getInstance(); // init
 		this.title = title;
 		this.project = this;
 	}
 
-	private ScheduledFuture autosaving = null;
+	private ScheduledFuture<?> autosaving = null;
 
 	private void restartAutosaving() {
 		// cancel current autosaving if it's running
@@ -285,12 +290,23 @@ public class Project extends DBObject {
 		} catch (Throwable t) { IJError.print(t); }
 		//
 		final int interval_in_minutes = getProperty("autosaving_interval", 0);
-		final int interval_in_seconds = interval_in_minutes * 60;
 		if (0 == interval_in_minutes) return;
 		// else, relaunch
 		this.autosaving = FSLoader.autosaver.scheduleWithFixedDelay(new Runnable() {
 			public void run() {
-				save();
+				try {
+					if (loader.hasChanges()) {
+						Bureaucrat.createAndStart(new Worker.Task("auto-saving") {
+							@Override
+							public void exec() {
+								Project.this.save();
+							}
+						}, Project.this).join();
+					}
+				} catch (Throwable e) {
+					Utils.log("*** Autosaver failed:");
+					IJError.print(e);
+				}
 			}
 		}, interval_in_minutes * 60, interval_in_minutes * 60, TimeUnit.SECONDS);
 	}
@@ -336,16 +352,12 @@ public class Project extends DBObject {
 		// query the database for existing projects
 		Project[] projects = loader.getProjects();
 		if (null == projects) {
-			Utils.showMessage("Can't talk to database (null list).");
+			Utils.showMessage("Can't talk to database (null list of projects).");
 			loader.destroy();
 			return null;
 		}
 		Project project = null;
-		if (null == projects) {
-			Utils.showMessage("Can't fetch list of projects.");
-			loader.destroy();
-			return null;
-		} else if (0 == projects.length) {
+		if (0 == projects.length) {
 			Utils.showMessage("No projects in this database.");
 			loader.destroy();
 			return null; 
@@ -388,9 +400,12 @@ public class Project extends DBObject {
 			return null;
 		}
 		project.template_tree = new TemplateTree(project, template_root);
-		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
+		synchronized (project.ht_unique_tt) {
+			project.ht_unique_tt.clear();
+			project.ht_unique_tt.putAll(template_root.getUniqueTypes(new HashMap<String,TemplateThing>()));
+		}
 		// create the project Thing, to be root of the whole user Thing tree (and load all its objects)
-		HashMap hs_d = new HashMap(); // to collect all created displayables, and  then reassign to the proper layers.
+		HashMap<Long,Displayable> hs_d = new HashMap<Long,Displayable>(); // to collect all created displayables, and  then reassign to the proper layers.
 		try {
 			// create a template for the project Thing
 			TemplateThing project_template = new TemplateThing("project");
@@ -415,7 +430,7 @@ public class Project extends DBObject {
 		// fetch the root layer thing and the root layer set (will load all layers and layer sets, with minimal contents of patches; gets the basic objects -profile, pipe, etc.- from the project.root_pt). Will open all existing displays for each layer.
 		LayerThing root_layer_thing = null;
 		try {
-			root_layer_thing = loader.getRootLayerThing(project, project.root_pt, project.layer_set_template, project.layer_template);
+			root_layer_thing = loader.getRootLayerThing(project, project.root_pt, Project.layer_set_template, Project.layer_template);
 			if (null == root_layer_thing) {
 				project.destroy();
 				Utils.showMessage("Could not retrieve the root layer thing.");
@@ -463,9 +478,21 @@ public class Project extends DBObject {
 		return newFSProject(arg, null, null);
 	}
 
-	/** Creates a new project to be based on .xml and image files, not a database. Images are left where they are, keeping the path to them. If the arg equals 'blank', then no template is asked for; if template_root is not null that is used; else, a template file is asked for. */
+	/** Creates a new project to be based on .xml and image files, not a database.
+	 * Images are left where they are, keeping the path to them.
+	 * If the arg equals 'blank', then no template is asked for;
+	 * if template_root is not null that is used; else, a template file is asked for.
+	 * 
+	 * @param arg Either "blank", "amira", "stack" or null. "blank" will generate a default template tree; "amira" will ask for importing an Amira file; "stack" will ask for importing an image stack (single multi-image file, like multi-TIFF).
+	 * @param template_root May be null, in which case a template DTD or XML file will be asked for, unless {@param arg} equals "blank".
+	 * @param storage_folder If null, a dialog asks for it.
+	 */
 	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {
+		return newFSProject(arg, template_root, storage_folder, true);
+	}
+	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder, boolean autocreate_one_layer) {
 		if (Utils.wrongImageJVersion()) return null;
+		FSLoader loader = null;
 		try {
 			String dir_project = storage_folder;
 			if (null == dir_project || !new File(dir_project).isDirectory()) {
@@ -478,17 +505,18 @@ public class Project extends DBObject {
 				}
 				if (IJ.isWindows()) dir_project = dir_project.replace('\\', '/');
 			}
-			FSLoader loader = new FSLoader(dir_project);
-			if (!loader.isReady()) return null;
+			loader = new FSLoader(dir_project);
+
 			Project project = createNewProject(loader, !("blank".equals(arg) || "amira".equals(arg)), template_root);
 
 			// help the helpless users:
-			if (null != project && ControlWindow.isGUIEnabled()) {
+			if (autocreate_one_layer && null != project && ControlWindow.isGUIEnabled()) {
 				Utils.log2("Creating automatic Display.");
 				// add a default layer
 				Layer layer = new Layer(project, 0, 1, project.layer_set);
 				project.layer_set.add(layer);
 				project.layer_tree.addLayer(project.layer_set, layer);
+				layer.recreateBuckets();
 				Display.createDisplay(project, layer);
 			}
 			try {
@@ -497,7 +525,7 @@ public class Project extends DBObject {
 				ie.printStackTrace();
 			}
 
-			if (arg.equals("amira") || arg.equals("stack")) {
+			if ("amira".equals(arg) || "stack".equals(arg)) {
 				// forks into a task thread
 				loader.importStack(project.layer_set.getLayer(0), null, true);
 			}
@@ -507,6 +535,7 @@ public class Project extends DBObject {
 			return project;
 		} catch (Exception e) {
 			IJError.print(e);
+			if (null != loader) loader.destroy();
 		}
 		return null;
 	}
@@ -518,17 +547,19 @@ public class Project extends DBObject {
 	/** Opens a project from an .xml file. If the path is null it'll be asked for.
 	 *  Only one project may be opened at a time.
 	 */
+	@SuppressWarnings("unchecked")
 	synchronized static public Project openFSProject(final String path, final boolean open_displays) {
 		if (Utils.wrongImageJVersion()) return null;
 		final FSLoader loader = new FSLoader();
 		final Object[] data = loader.openFSProject(path, open_displays);
 		if (null == data) {
+			loader.destroy();
 			return null;
 		}
 		final TemplateThing root_tt = (TemplateThing)data[0];
 		final ProjectThing root_pt = (ProjectThing)data[1];
 		final LayerThing root_lt = (LayerThing)data[2];
-		final HashMap ht_pt_expanded = (HashMap)data[3];
+		final HashMap<ProjectThing,Boolean> ht_pt_expanded = (HashMap<ProjectThing,Boolean>)data[3];
 
 		final Project project = (Project)root_pt.getObject();
 		project.createLayerTemplates();
@@ -552,16 +583,15 @@ public class Project extends DBObject {
 		try {
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
-			Hashtable ht_exp = (Hashtable)f.get(project.project_tree);
-			for (Iterator it = ht_pt_expanded.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				ProjectThing pt = (ProjectThing)entry.getKey();
-				Boolean expanded = (Boolean)entry.getValue();
+			Hashtable<Object,Object> ht_exp = (Hashtable<Object,Object>) f.get(project.project_tree);
+			for (Map.Entry<ProjectThing,Boolean> entry : ht_pt_expanded.entrySet()) {
+				ProjectThing pt = entry.getKey();
+				Boolean expanded = entry.getValue();
 				//project.project_tree.expandPath(new TreePath(project.project_tree.findNode(pt, project.project_tree).getPath()));
 				// WARNING the above is wrong in that it will expand the whole thing, not just set the state of the node!!
 				// So the ONLY way to do it is to start from the child-most leafs of the tree, and apply the expanding to them upward. This is RIDICULOUS, how can it be so broken
 				// so, hackerous:
-				DefaultMutableTreeNode nd = project.project_tree.findNode(pt, project.project_tree);
+				DefaultMutableTreeNode nd = DNDTree.findNode(pt, project.project_tree);
 				//if (null == nd) Utils.log2("null node for " + pt);
 				//else Utils.log2("path: " + new TreePath(nd.getPath()));
 				if (null == nd) {
@@ -625,10 +655,6 @@ public class Project extends DBObject {
 		return createNewProject(loader, ask_for_template, null);
 	}
 
-	static private Project createNewSubProject(Project source, Loader loader) {
-		return createNewProject(loader, false, source.root_tt, true);
-	}
-
 	static private Project createNewProject(Loader loader, boolean ask_for_template, TemplateThing template_root) {
 		return createNewProject(loader, ask_for_template, template_root, false);
 	}
@@ -649,7 +675,10 @@ public class Project extends DBObject {
 		project.template_tree = new TemplateTree(project, template_root);
 		project.root_tt = template_root;
 		// collect unique TemplateThing instances
-		project.ht_unique_tt = template_root.getUniqueTypes(new HashMap<String,TemplateThing>());
+		synchronized (project.ht_unique_tt) {
+			project.ht_unique_tt.clear();
+			project.ht_unique_tt.putAll(template_root.getUniqueTypes(new HashMap<String,TemplateThing>()));
+		}
 		// add all TemplateThing objects to the database, recursively
 		if (!clone_ids) template_root.addToDatabase(project);
 		// else already done when cloning the root_tt
@@ -695,18 +724,43 @@ public class Project extends DBObject {
 		return loader;
 	}
 
-	public String getType() {
-		return "project";
-	}
-
+	/** Save the project regardless of what getLoader().hasChanges() reports. */
 	public String save() {
 		Thread.yield(); // let it repaint the log window
-		String path = loader.save(this);
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = true;
+		options.export_images = false;
+		options.patches_dir = null;
+		options.include_coordinate_transform = true;
+		String path = loader.save(this, options);
+		if (null != path) restartAutosaving();
 		return path;
 	}
 
-	public String saveAs(String xml_path, boolean overwrite) {
-		return loader.saveAs(xml_path, overwrite);
+	/** This is not the saveAs used from the menus; this one is meant for programmatic access. */
+	public String saveAs(String xml_path, boolean overwrite) throws IllegalArgumentException {
+		if (null == xml_path) throw new IllegalArgumentException("xml_path cannot be null.");
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = overwrite;
+		options.export_images = false;
+		options.patches_dir = null;
+		options.include_coordinate_transform = true;
+		String path = loader.saveAs(xml_path, options);
+		if (null != path) restartAutosaving();
+		return path;
+	}
+
+	/** Save an XML file that is stripped of coordinate transforms,
+	 * and merely refers to them by the 'ct_id' attribute of each 't2_patch' element;
+	 * this method will NOT overwrite the XML file but save into a new one,
+	 * which is chosen from a file dialog. */
+	public String saveWithoutCoordinateTransforms() {
+		XMLOptions options = new XMLOptions();
+		options.overwriteXMLFile = false;
+		options.export_images = false;
+		options.include_coordinate_transform = false;
+		options.patches_dir = null;
+		return loader.saveAs(this, options);
 	}
 
 	public boolean destroy() {
@@ -717,7 +771,7 @@ public class Project extends DBObject {
 			if (ControlWindow.isGUIEnabled()) {
 				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
 				if (yn.yesPressed()) {
-					loader.save(this);
+					save();
 				}
 			} else {
 				Utils.log2("WARNING: closing project '" + title  + "' with unsaved changes.");
@@ -732,6 +786,7 @@ public class Project extends DBObject {
 			loader.destroy(); // and disconnect
 			loader = null;
 		}
+		if (null != layer_set) layer_set.destroy();
 		ControlWindow.remove(this); // AFTER loader.destroy() call.
 		if (null != template_tree) template_tree.destroy();
 		if (null != project_tree) project_tree.destroy();
@@ -740,6 +795,8 @@ public class Project extends DBObject {
 		this.template_tree = null; // flag to mean: we're closing
 		// close all open Displays
 		Display.close(this);
+		Search.removeTabs(this);
+		synchronized (ptcache) { ptcache.clear(); }
 		return true;
 	}
 
@@ -881,7 +938,7 @@ public class Project extends DBObject {
 		}
 		// find the Thing
 		DefaultMutableTreeNode root = (DefaultMutableTreeNode)project_tree.getModel().getRoot();
-		Enumeration e = root.depthFirstEnumeration();
+		Enumeration<?> e = root.depthFirstEnumeration();
 		DefaultMutableTreeNode node = null;
 		while (e.hasMoreElements()) {
 			node = (DefaultMutableTreeNode)e.nextElement();
@@ -897,15 +954,17 @@ public class Project extends DBObject {
 		return false;
 	}
 
-
 	/** Find the node in the layer tree with a Thing that contains the given object, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Layer layer) {
-		select(layer, layer_tree);
+		layer_tree.selectNode(layer);
 	}
 	/** Find the node in any tree with a Thing that contains the given Displayable, and set it selected/highlighted, deselecting everything else first. */
 	public void select(final Displayable d) {
 		if (d.getClass() == LayerSet.class) select(d, layer_tree);
-		else select(d, project_tree);
+		else {
+			ProjectThing pt = findProjectThing(d); // from cache: one linear search less
+			if (null != pt) DNDTree.selectNode(pt, project_tree);
+		}
 	}
 
 	private final void select(final Object ob, final DNDTree tree) {
@@ -937,10 +996,23 @@ public class Project extends DBObject {
 		return null != lob ? (LayerThing)lob : null;
 	}
 
+	private final Map<Object,ProjectThing> ptcache = new HashMap<Object, ProjectThing>();
+	
 	/** Find a ProjectThing that contains the given object. */
 	public ProjectThing findProjectThing(final Object ob) {
-		final Object pob = root_pt.findChild(ob);
-		return null != pob ? (ProjectThing)pob : null;
+		ProjectThing pt;
+		synchronized (ptcache) { pt = ptcache.get(ob); }
+		if (null == pt) {
+			pt = (ProjectThing) root_pt.findChild(ob);
+			if (null != ob) synchronized (ptcache) { ptcache.put(ob, pt); }
+		}
+		return pt;
+	}
+
+	public void decache(final Object ob) {
+		synchronized (ptcache) {
+			ptcache.remove(ob);
+		}
 	}
 
 	public ProjectThing getRootProjectThing() {
@@ -954,7 +1026,7 @@ public class Project extends DBObject {
 	/** Returns the title of the enclosing abstract node in the ProjectTree.*/
 	public String getParentTitle(final Displayable d) {
 		try {
-			ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+			ProjectThing thing = findProjectThing(d);
 			ProjectThing parent = (ProjectThing)thing.getParent();
 			if (d instanceof Profile) {
 				parent = (ProjectThing)parent.getParent(); // skip the profile_list
@@ -967,9 +1039,32 @@ public class Project extends DBObject {
 		} catch (Exception e) { IJError.print(e); return null; }
 	}
 
+	public String getMeaningfulTitle2(final Displayable d) {
+		final ProjectThing thing = findProjectThing(d);
+		if (null == thing) return d.getTitle(); // happens if there is no associated node
+
+		if (!thing.getType().equals(d.getTitle())) {
+			return new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(']').toString();
+		}
+
+		// Else, search upstream for a ProjectThing whose name differs from its type
+		Thing parent = (ProjectThing)thing.getParent();
+		while (null != parent) {
+			String type = parent.getType();
+			Object ob = parent.getObject();
+			if (ob.getClass() == Project.class) break;
+			if (!ob.equals(type)) {
+				return ob.toString() + " [" + thing.getType() + "]";
+			}
+			parent = parent.getParent();
+		}
+		if (d.getTitle().equals(thing.getType())) return "[" + thing.getType() + "]";
+		return d.getTitle() + " [" + thing.getType() + "]";
+	}
+
 	/** Searches upstream in the Project tree for things that have a user-defined name, stops at the first and returns it along with all the intermediate ones that only have a type and not a title, appended. */
 	public String getMeaningfulTitle(final Displayable d) {
-		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		ProjectThing thing = findProjectThing(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		String title = new StringBuilder(!thing.getType().equals(d.getTitle()) ? d.getTitle() + " [" : "[").append(thing.getType()).append(' ').append('#').append(d.getId()).append(']').toString();
 
@@ -1001,7 +1096,7 @@ public class Project extends DBObject {
 	 *  If no user-defined name is found, then the type is prepended to the id.
 	 */
 	public String getShortMeaningfulTitle(final Displayable d) {
-		ProjectThing thing = (ProjectThing)this.root_pt.findChild(d);
+		ProjectThing thing = findProjectThing(d);
 		if (null == thing) return d.getTitle(); // happens if there is no associated node
 		return getShortMeaningfulTitle(thing, d);
 	}
@@ -1025,7 +1120,7 @@ public class Project extends DBObject {
 		return title;
 	}
 
-	static public String getType(final Class c) {
+	static public String getType(final Class<?> c) {
 		if (AreaList.class == c) return "area_list";
 		if (DLabel.class == c) return "label";
 		String name = c.getName().toLowerCase();
@@ -1039,41 +1134,48 @@ public class Project extends DBObject {
 		return ht_unique_tt.get(type);
 	}
 
-	/** Returns a list of existing unique types in the template tree (thus the 'project' type is not included, nor the label). The basic types are guaranteed to be present even if there are no instances in the template tree. */
+	/** Returns a list of existing unique types in the template tree
+	 * (thus the 'project' type is not included, nor the label).
+	 * The basic types are guaranteed to be present even if there are no instances in the template tree.
+	 * As a side effect, this method populates the HashMap of unique TemplateThing types. */
 	public String[] getUniqueTypes() {
-		// ensure the basic types (pipe, ball, profile, profile_list) are present
-		if (!ht_unique_tt.containsKey("profile")) ht_unique_tt.put("profile", new TemplateThing("profile"));
-		if (!ht_unique_tt.containsKey("profile_list")) {
-			TemplateThing tpl = new TemplateThing("profile_list");
-			tpl.addChild((TemplateThing) ht_unique_tt.get("profile"));
-			ht_unique_tt.put("profile_list", tpl);
-		}
-		if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
-		if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
-		if (!ht_unique_tt.containsKey("treeline")) ht_unique_tt.put("treeline", new TemplateThing("treeline"));
-		if (!ht_unique_tt.containsKey("areatree")) ht_unique_tt.put("areatree", new TemplateThing("areatree"));
-		if (!ht_unique_tt.containsKey("connector")) ht_unique_tt.put("connector", new TemplateThing("connector"));
-		if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
-		if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
-		if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
-		// this should be done automagically by querying the classes in the package ... but java can't do that without peeking into the .jar .class files. Buh.
+		synchronized (ht_unique_tt) {
+			// ensure the basic types (pipe, ball, profile, profile_list) are present
+			if (!ht_unique_tt.containsKey("profile")) ht_unique_tt.put("profile", new TemplateThing("profile"));
+			if (!ht_unique_tt.containsKey("profile_list")) {
+				TemplateThing tpl = new TemplateThing("profile_list");
+				tpl.addChild((TemplateThing) ht_unique_tt.get("profile"));
+				ht_unique_tt.put("profile_list", tpl);
+			}
+			if (!ht_unique_tt.containsKey("pipe")) ht_unique_tt.put("pipe", new TemplateThing("pipe"));
+			if (!ht_unique_tt.containsKey("polyline")) ht_unique_tt.put("polyline", new TemplateThing("polyline"));
+			if (!ht_unique_tt.containsKey("treeline")) ht_unique_tt.put("treeline", new TemplateThing("treeline"));
+			if (!ht_unique_tt.containsKey("areatree")) ht_unique_tt.put("areatree", new TemplateThing("areatree"));
+			if (!ht_unique_tt.containsKey("connector")) ht_unique_tt.put("connector", new TemplateThing("connector"));
+			if (!ht_unique_tt.containsKey("ball")) ht_unique_tt.put("ball", new TemplateThing("ball"));
+			if (!ht_unique_tt.containsKey("area_list")) ht_unique_tt.put("area_list", new TemplateThing("area_list"));
+			if (!ht_unique_tt.containsKey("dissector")) ht_unique_tt.put("dissector", new TemplateThing("dissector"));
+			// this should be done automagically by querying the classes in the package ... but java can't do that without peeking into the .jar .class files. Buh.
 
-		TemplateThing project_tt = ht_unique_tt.remove("project");
-		/* // debug
+			TemplateThing project_tt = ht_unique_tt.remove("project");
+			/* // debug
 		for (Iterator it = ht_unique_tt.keySet().iterator(); it.hasNext(); ) {
 			Utils.log2("class: " + it.next().getClass().getName());
 		} */
-		final String[] ut = new String[ht_unique_tt.size()];
-		ht_unique_tt.keySet().toArray(ut);
-		ht_unique_tt.put("project", project_tt);
-		Arrays.sort(ut);
-		return ut;
+			final String[] ut = new String[ht_unique_tt.size()];
+			ht_unique_tt.keySet().toArray(ut);
+			ht_unique_tt.put("project", project_tt);
+			Arrays.sort(ut);
+			return ut;
+		}
 	}
 
 	/** Remove a unique type from the HashMap. Basic types can't be removed. */
 	public boolean removeUniqueType(String type) {
 		if (null == type || isBasicType(type)) return false;
-		return null != ht_unique_tt.remove(type);
+		synchronized (ht_unique_tt) {
+			return null != ht_unique_tt.remove(type);
+		}
 	}
 
 	public boolean typeExists(String type) {
@@ -1082,19 +1184,22 @@ public class Project extends DBObject {
 
 	/** Returns false if the type exists already. */
 	public boolean addUniqueType(TemplateThing tt) {
-		if (null == ht_unique_tt) this.ht_unique_tt = new HashMap<String,TemplateThing>();
-		if (ht_unique_tt.containsKey(tt.getType())) return false;
-		ht_unique_tt.put(tt.getType(), tt);
+		synchronized (ht_unique_tt) {
+			if (ht_unique_tt.containsKey(tt.getType())) return false;
+			ht_unique_tt.put(tt.getType(), tt);
+		}
 		return true;
 	}
 
 	public boolean updateTypeName(String old_type, String new_type) {
-		if (ht_unique_tt.containsKey(new_type)) {
-			Utils.showMessage("Can't rename type '" + old_type + "' : a type named '"+new_type+"' already exists!");
-			return false;
+		synchronized (ht_unique_tt) {
+			if (ht_unique_tt.containsKey(new_type)) {
+				Utils.showMessage("Can't rename type '" + old_type + "' : a type named '"+new_type+"' already exists!");
+				return false;
+			}
+			ht_unique_tt.put(new_type, ht_unique_tt.remove(old_type));
+			return true;
 		}
-		ht_unique_tt.put(new_type, ht_unique_tt.remove(old_type));
-		return true;
 	}
 
 	private void createLayerTemplates() {
@@ -1108,52 +1213,49 @@ public class Project extends DBObject {
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb, final String indent, final Object any) {
-		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, Object) !!");
+	public void exportXML(final StringBuilder sb, final String indent, final XMLOptions options) {
+		Utils.logAll("ERROR: cannot call Project.exportXML(StringBuilder, String, ExportOptions) !!");
+		throw new UnsupportedOperationException("Cannot call Project.exportXML(StringBuilder, String, Object)");
 	}
 
 	/** Export the main trakem2 tag wrapping four hierarchies (the project tag, the ProjectTree, and the Top Level LayerSet the latter including all Displayable objects) and a list of displays. */
-	public void exportXML(final java.io.Writer writer, final String indent, final Object any) throws Exception {
+	public void exportXML(final java.io.Writer writer, final String indent, final XMLOptions options) throws Exception {
+		Utils.showProgress(0);
 		// 1 - opening tag
 		writer.write(indent);
 		writer.write("<trakem2>\n");
 		final String in = indent + "\t";
 		// 2,3 - export the project itself
-		exportXML(writer, in);
+		exportXML2(writer, in, options);
 		// 4 - export LayerSet hierarchy of Layer, LayerSet and Displayable objects
-		layer_set.exportXML(writer, in, any);
+		layer_set.exportXML(writer, in, options);
 		// 5 - export Display objects
-		Display.exportXML(this, writer, in, any);
+		Display.exportXML(this, writer, in, options);
 		// 6 - closing tag
 		writer.write("</trakem2>\n");
 	}
 
 	// A separate method to ensure that sb_body instance is garbage collected.
-	private final void exportXML(final java.io.Writer writer, final String in) throws Exception {
+	private final void exportXML2(final java.io.Writer writer, final String in, final XMLOptions options) throws Exception {
 		final StringBuilder sb_body = new StringBuilder();
 		// 2 - the project itself
 		sb_body.append(in).append("<project \n")
 		       .append(in).append("\tid=\"").append(id).append("\"\n")
 		       .append(in).append("\ttitle=\"").append(title).append("\"\n");
 		loader.insertXMLOptions(sb_body, in + "\t");
-		for (final Map.Entry<String, String> e : ht_props.entrySet()) {
+		// Write properties, with the additional property of the image_resizing_mode
+		final HashMap<String,String> props = new HashMap<String, String>(ht_props);
+		props.put("image_resizing_mode", Loader.getMipMapModeName(mipmaps_mode));
+		for (final Map.Entry<String, String> e : props.entrySet()) {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
 		sb_body.append(in).append(">\n");
-		// 3 - export ProjectTree abstract hierachy (skip the root since it wraps the project itself)
-		// Create table of expanded states
-		/*
-		final HashMap<ProjectThing,Boolean> expanded_states = new HashMap<ProjectThing,Boolean>();
-		for (final Enumeration e = this.project_tree.getRoot().depthFirstEnumeration(); e.hasMoreElements(); ) {
-			final DefaultMutableTreeNode node = (DefaultMutableTreeNode)e.nextElement();
-			expanded_states.put((ProjectThing)node.getUserObject(), project_tree.isExpanded(node));
-		}
-		*/
-		final HashMap<? extends Thing,Boolean> expanded_states = project_tree.getExpandedStates();
+		// 3 - export ProjectTree abstract hierarchy (skip the root since it wraps the project itself)
+		project_tree.getExpandedStates(options.expanded_states);
 		if (null != root_pt.getChildren()) {
 			final String in2 = in + "\t";
 			for (final ProjectThing pt : root_pt.getChildren()) {
-				pt.exportXML(sb_body, in2, expanded_states);
+				pt.exportXML(sb_body, in2, options);
 			}
 		}
 		sb_body.append(in).append("</project>\n");
@@ -1161,7 +1263,7 @@ public class Project extends DBObject {
 	}
 
 	/** Export a complete DTD listing to export the project as XML. */
-	public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		// 1 - TrakEM2 tag that encloses all hierarchies
 		sb_header.append(indent).append("<!ELEMENT ").append("trakem2 (project,t2_layer_set,t2_display)>\n");
 		// 2 - export user-defined templates
@@ -1206,18 +1308,8 @@ public class Project extends DBObject {
 		return "trakem2_" + root_tt.getType();
 	}
 
-	/** Find an instance containing the given tree. */
-	static public Project getInstance(final DNDTree ob) {
-		for (final Project project : al_open_projects) {
-			if (project.layer_tree.equals(ob)) return project;
-			if (project.project_tree.equals(ob)) return project;
-			if (project.template_tree.equals(ob)) return project;
-		}
-		return null;
-	}
-
 	/** Returns a user-understandable name for the given class. */
-	static public String getName(final Class c) {
+	static public String getName(final Class<?> c) {
 		String name = c.getName();
 		name = name.substring(name.lastIndexOf('.') + 1);
 		if (name.equals("DLabel")) return "Label";
@@ -1269,14 +1361,19 @@ public class Project extends DBObject {
 			// copy template
 			pr.root_tt = this.root_tt.clone(pr, true);
 			pr.template_tree = new TemplateTree(pr, pr.root_tt);
-			pr.ht_unique_tt = root_tt.getUniqueTypes(new HashMap());
+			synchronized (pr.ht_unique_tt) {
+				pr.ht_unique_tt.clear();
+				pr.ht_unique_tt.putAll(root_tt.getUniqueTypes(new HashMap<String,TemplateThing>()));
+			}
 			TemplateThing project_template = new TemplateThing("project");
 			project_template.addChild(pr.root_tt);
 			pr.ht_unique_tt.put("project", project_template);
 			// create the layers templates
 			pr.createLayerTemplates();
 			// copy LayerSet and all involved Displayable objects
+			// (A two-step process to provide the layer_set pointer and all Layer pointers to the ZDisplayable to copy and crop.)
 			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
+			LayerSet.cloneInto(this.layer_set, first, last, pr, pr.layer_set, roi, true);
 			// create layer tree
 			pr.root_lt = new LayerThing(Project.layer_set_template, pr, pr.layer_set);
 			pr.layer_tree = new LayerTree(pr, pr.root_lt);
@@ -1307,12 +1404,15 @@ public class Project extends DBObject {
 		return null;
 	}
 
-	public void parseXMLOptions(final HashMap ht_attributes) {
+	public void parseXMLOptions(final HashMap<String,String> ht_attributes) {
 		((FSLoader)this.project.getLoader()).parseXMLOptions(ht_attributes);
+		//
+		String mipmapsMode = ht_attributes.remove("image_resizing_mode");
+		this.mipmaps_mode = null == mipmapsMode ? Loader.DEFAULT_MIPMAPS_MODE : Loader.getMipMapModeIndex(mipmapsMode);
+		//
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
-		for (final Iterator it = ht_props.entrySet().iterator(); it.hasNext(); ) {
-			Map.Entry prop = (Map.Entry)it.next();
+		for (Map.Entry<String,String> prop : ht_attributes.entrySet()) {
 			Utils.log2("parsed: " + prop.getKey() + "=" + prop.getValue());
 		}
 	}
@@ -1355,13 +1455,13 @@ public class Project extends DBObject {
 		if (null == value) ht_props.remove(key);
 		else ht_props.put(key, value);
 	}
-	private final boolean addBox(final GenericDialog gd, final Class c) {
+	private final boolean addBox(final GenericDialog gd, final Class<?> c) {
 		final String name = Project.getName(c);
 		final boolean link = "true".equals(ht_props.get(name.toLowerCase() + "_nolinks"));
 		gd.addCheckbox(name, link);
 		return link;
 	}
-	private final void setLinkProp(final boolean before, final boolean after, final Class c) {
+	private final void setLinkProp(final boolean before, final boolean after, final Class<?> c) {
 		if (before) {
 			if (!after) ht_props.remove(Project.getName(c).toLowerCase()+"_nolinks");
 		} else if (after) {
@@ -1388,10 +1488,7 @@ public class Project extends DBObject {
 		gd.addMessage("Currently linked objects will remain so\nunless explicitly unlinked.");
 		boolean dissector_zoom = "true".equals(ht_props.get("dissector_zoom"));
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
-		String current_mode = ht_props.get("image_resizing_mode");
-		// Forbid area averaging: doesn't work, and it's not faster than gaussian.
-		if (Utils.indexOf(current_mode, Loader.modes) >= Loader.modes.length) current_mode = Loader.modes[3]; // GAUSSIAN
-		gd.addChoice("Image_resizing_mode: ", Loader.modes, null == current_mode ? Loader.modes[3] : current_mode);
+		gd.addChoice("Image_resizing_mode: ", Loader.MIPMAP_MODES.values().toArray(new String[Loader.MIPMAP_MODES.size()]), Loader.getMipMapModeName(mipmaps_mode));
 		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
@@ -1409,6 +1506,10 @@ public class Project extends DBObject {
 		gd.addNumericField("Look_ahead_cache:", look_ahead_cache, 0, 6, "layers");
 		int autosaving_interval = getProperty("autosaving_interval", 10); // default: every 10 minutes
 		gd.addNumericField("Autosave every:", autosaving_interval, 0, 6, "minutes");
+		int n_mipmap_threads = getProperty("n_mipmap_threads", 1);
+		gd.addSlider("Number of threads for mipmaps", 1, n_mipmap_threads, n_mipmap_threads);
+		int meshResolution = getProperty("mesh_resolution", 32);
+		gd.addSlider("Default mesh resolution for images", 1, 512, meshResolution);
 		//
 		gd.showDialog();
 		//
@@ -1423,7 +1524,7 @@ public class Project extends DBObject {
 		if (adjustProp("dissector_zoom", dissector_zoom, gd.getNextBoolean())) {
 			Display.repaint(layer_set); // TODO: should repaint nested LayerSets as well
 		}
-		setProperty("image_resizing_mode", Loader.modes[gd.getNextChoiceIndex()]);
+		this.mipmaps_mode = Loader.getMipMapModeIndex(gd.getNextChoice());
 
 		final int new_mipmap_format = gd.getNextChoiceIndex();
 		final int old_mipmap_format = loader.getMipMapFormat();
@@ -1481,10 +1582,180 @@ public class Project extends DBObject {
 			setProperty("autosaving_interval", Integer.toString((int)autosaving_interval2));
 			restartAutosaving();
 		}
+		int n_mipmap_threads2 = (int)Math.max(1, gd.getNextNumber());
+		if (n_mipmap_threads != n_mipmap_threads2) {
+			setProperty("n_mipmap_threads", Integer.toString(n_mipmap_threads2));
+			// WARNING: this does it for a static service, affecting all projects!
+			FSLoader.restartMipMapThreads(n_mipmap_threads2);
+		}
+		int meshResolution2 = (int)gd.getNextNumber();
+		if (meshResolution != meshResolution2) {
+			if (meshResolution2 > 0) {
+				setProperty("mesh_resolution", Integer.toString(meshResolution2));
+			} else {
+				Utils.log("WARNING: ignoring invalid mesh resolution value " + meshResolution2);
+			}
+		}
 	}
 
 	/** Return the Universal Near-Unique Id of this project, which may be null for non-FSLoader projects. */
 	public String getUNUId() {
 		return loader.getUNUId();
+	}
+
+	/** Removes an object from this Project. */
+	public final boolean remove(final Displayable d) {
+		final Set<Displayable> s = new HashSet<Displayable>();
+		s.add(d);
+		return removeAll(s);
+	}
+
+	/** Calls Project.removeAll(col, null) */
+	public final boolean removeAll(final Set<Displayable> col) {
+		return removeAll(col, null);
+	}
+	/** Remove any set of Displayable objects from the Layer, LayerSet and Project Tree as necessary.
+	 *  ASSUMES there aren't any nested LayerSet objects in @param col. */
+	public final boolean removeAll(final Set<Displayable> col, final DefaultMutableTreeNode top_node) {
+		// 0. Sort into Displayable and ZDisplayable
+		final Set<ZDisplayable> zds = new HashSet<ZDisplayable>();
+		final List<Displayable> ds = new ArrayList<Displayable>();
+		for (final Displayable d : col) {
+			if (d instanceof ZDisplayable) {
+				zds.add((ZDisplayable)d);
+			} else {
+				ds.add(d);
+			}
+		}
+		
+		// Displayable:
+		// 1. First the Profile from the Project Tree, one by one,
+		//    while creating a map of Layer vs Displayable list to remove in that layer:
+		final HashMap<Layer,Set<Displayable>> ml = new HashMap<Layer,Set<Displayable>>();
+		for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+			final Displayable d = it.next();
+			if (d.getClass() == Profile.class) {
+				if (!project_tree.remove(false, findProjectThing(d), null)) { // like Profile.remove2
+					Utils.log("Could NOT delete " + d);
+					continue;
+				}
+				it.remove(); // remove the Profile
+				continue;
+			}
+			// The map of Layer vs Displayable list
+			Set<Displayable> l = ml.get(d.getLayer());
+			if (null == l) {
+				l = new HashSet<Displayable>();
+				ml.put(d.getLayer(), l);
+			}
+			l.add(d);
+		}
+		// 2. Then the rest, in bulk:
+		if (ml.size() > 0) {
+			for (final Map.Entry<Layer,Set<Displayable>> e : ml.entrySet()) {
+				e.getKey().removeAll(e.getValue());
+			}
+		}
+		// 3. ZDisplayable: bulk removal
+		if (zds.size() > 0) {
+			// 1. From the Project Tree:
+			Set<Displayable> not_removed = project_tree.remove(zds, top_node);
+			// 2. Then only those successfully removed, from the LayerSet:
+			zds.removeAll(not_removed);
+			layer_set.removeAll(zds);
+		}
+
+		// TODO
+		return true;
+		
+	}
+	
+	/** For undo purposes. */
+	public void resetRootProjectThing(final ProjectThing pt, final HashMap<Thing,Boolean> ptree_exp) {
+		this.root_pt = pt;
+		project_tree.reset(ptree_exp);
+	}
+	/** For undo purposes. */
+	public void resetRootTemplateThing(final TemplateThing tt, final HashMap<Thing,Boolean> ttree_exp) {
+		this.root_tt = tt;
+		template_tree.reset(ttree_exp);
+	}
+	/** For undo purposes. */
+	public void resetRootLayerThing(final LayerThing lt, final HashMap<Thing,Boolean> ltree_exp) {
+		this.root_lt = lt;
+		layer_tree.reset(ltree_exp);
+	}
+
+	public TemplateThing getRootTemplateThing() {
+		return root_tt;
+	}
+	
+	public LayerThing getRootLayerThing() {
+		return root_lt;
+	}
+
+	public Bureaucrat saveTask(final String command) {
+		return Bureaucrat.createAndStart(new Worker.Task("Saving") {
+			public void exec() {
+				if (command.equals("Save")) {
+					save();
+				} else if (command.equals("Save as...")) {
+					XMLOptions options = new XMLOptions();
+					options.overwriteXMLFile = false;
+					options.export_images = false;
+					options.include_coordinate_transform = true;
+					options.patches_dir = null;
+					// Will open a file dialog
+					loader.saveAs(project, options);
+					restartAutosaving();
+					//
+				} else if (command.equals("Save as... without coordinate transforms")) {
+					YesNoDialog yn = new YesNoDialog("WARNING",
+							"You are about to save an XML file that lacks the information for the coordinate transforms of each image.\n"
+						  + "These transforms are referred to with the attribute 'ct_id' of each 't2_patch' entry in the XML document,\n"
+						  + "and the data for the transform is stored in an individual file under the folder 'trakem2.cts/'.\n"
+						  + " \n"
+						  + "It is advised to keep a complete XML file with all coordinate transforms included along with this new copy.\n"
+						  + "Please check NOW that you have such a complete XML copy.\n"
+						  + " \n"
+						  + "Proceed?");
+					if (!yn.yesPressed()) return;
+					saveWithoutCoordinateTransforms();
+					//
+				} else if (command.equals("Delete stale files...")) {
+					setTaskName("Deleting stale files");
+					GenericDialog gd = new GenericDialog("Delete stale files");
+					gd.addMessage(
+							"You are about to remove all files under the folder 'trakem2.cts/' which are not referred to from the\n"
+						  + "currently loaded project. If you have sibling XML files whose 't2_patch' entries (the images) refer,\n"
+						  + "via 'ct_id' attributes, to coordinate transforms in 'trakem2.cts/' that this current XML doesn't,\n"
+						  + "they may be LOST FOREVER. Unless you have a version of the XML file with the coordinate transforms\n"
+						  + "written in it, as can be obtained by using the 'Project - Save' command.\n"
+						  + " \n"
+						  + "The same is true for the .zip files that store alpha masks, under folder 'trakem2.masks/'\n"
+						  + "and which are referred to from the 'alpha_mask_id' attribute of 't2_patch' entries.\n"
+						  + " \n"
+						  + "Do you have such complete XML file? Check *NOW*.\n"
+						  + " \n"
+						  + "Proceed with deleting:"
+							);
+					gd.addCheckbox("Delete stale coordinate transform files", true);
+					gd.addCheckbox("Delete stale alpha mask files", true);
+					gd.showDialog();
+					if (gd.wasCanceled()) return;
+					project.getLoader().deleteStaleFiles(gd.getNextBoolean(), gd.getNextBoolean());
+				}
+			}
+		}, project);
+	}
+	
+	/** The mode (aka algorithmic approach) used to generate mipmaps, which defaults to {@link Loader#DEFAULT_MIPMAPS_MODE}. */
+	public int getMipMapsMode() {
+		return this.mipmaps_mode;
+	}
+	
+	/** @see #getMipMapsMode() */
+	public void setMipMapsMode(int mode) {
+		this.mipmaps_mode = mode;
 	}
 }

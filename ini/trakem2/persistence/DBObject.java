@@ -24,7 +24,6 @@ package ini.trakem2.persistence;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Search;
 
 import java.util.Set;
 
@@ -80,7 +79,6 @@ public class DBObject {
 	}
 
 	public boolean updateInDatabase(String key) {
-		Search.repaint(this);
 		return project.getLoader().updateInDatabase(this, key);
 	}
 	public boolean updateInDatabase(Set<String> keys) {
@@ -98,7 +96,7 @@ public class DBObject {
 	}
 
 	/** Subclasses can override this method to store the instance as XML. */
-	public void exportXML(StringBuilder sb_body, String indent, Object any) {
+	public void exportXML(StringBuilder sb_body, String indent, XMLOptions options) {
 		Utils.log("ERROR: exportXML not implemented for " + getClass().getName());
 	}
 

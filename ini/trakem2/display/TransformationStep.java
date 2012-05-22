@@ -27,7 +27,7 @@ public class TransformationStep implements History.Step<Displayable> {
 	public boolean isEmpty() {
 		return ht.isEmpty();
 	}
-	public boolean isIdentical(final History.Step step) {
+	public boolean isIdentical(final History.Step<?> step) {
 		if (step.getClass() != TransformationStep.class) return false;
 		final HashMap<Displayable,AffineTransform> m = ((TransformationStep)step).ht;
 		// cheap test:

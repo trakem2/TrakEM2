@@ -22,9 +22,11 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
-import java.util.*;
-import javax.vecmath.Point3f;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /** To extract and represent the sequence of editions that convert any N-dimensional vector string to any other of the same number of dimensions. */
 public class Editions {
@@ -203,7 +205,7 @@ public class Editions {
 	private double getPhysicalDistance(final int[] g, final boolean average) {
 		int i_start = g[0];
 		int i_end = g[1];
-		boolean skip_ends = 1 == g[2];
+		//boolean skip_ends = 1 == g[2];
 
 		double dist = 0;
 		int len = 0;
@@ -237,7 +239,7 @@ public class Editions {
 	private double getStdDev(final int[] g) {
 		int i_start = g[0];
 		int i_end = g[1];
-		boolean skip_ends = 1 == g[2];
+		//boolean skip_ends = 1 == g[2];
 
 		double dist = 0;
 		int i = 0;
@@ -292,7 +294,7 @@ public class Editions {
 	private double[] getStatistics(final int[] g, final boolean score_mut_only) {
 		int i_start = g[0];
 		int i_end = g[1];
-		boolean skip_ends = 1 == g[2];
+		//boolean skip_ends = 1 == g[2];
 
 		int i = 0;
 		final int len1 = vs1.length();
@@ -714,7 +716,7 @@ public class Editions {
 		double[] mati;
 		double[] mat1;
 		double fun1, fun2, fun3;
-		double dx, dy;
+		//double dx, dy;
 		for (i=1; i < n +1; i++) {
 			mati = matrix[i];
 			mat1 = matrix[i-1];
@@ -868,19 +870,18 @@ public class Editions {
 		else {
 			// All added chunks have the same length (otherwise would have been deleted)
 			// Find the one with the smallest cummulative physical distance
-			double[] dist = new double[chunks.size()];
+			final double[] dist = new double[chunks.size()];
 			int next = 0;
-			Hashtable<Chunk,Double> ht = new Hashtable<Chunk,Double>();
-			for (Chunk c : chunks) {
+			final HashMap<Chunk,Double> ht = new HashMap<Chunk,Double>();
+			for (final Chunk c : chunks) {
 				dist[next] = getPhysicalDistance(new int[]{c.i_start, c.i_end, max_non_mut}, false);
 				ht.put(c, dist[next]);
 				next++;
 			}
 			Arrays.sort(dist);
-			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				if ( ((Double)entry.getValue()).doubleValue() == dist[0]) {
-					chunk = (Chunk)entry.getKey();
+			for (final Map.Entry<Chunk,Double> entry: ht.entrySet()) {
+				if ((entry.getValue()).doubleValue() == dist[0]) {
+					chunk = entry.getKey();
 					break;
 				}
 			}

@@ -26,26 +26,30 @@ import ini.trakem2.utils.Utils;
 
 import javax.swing.JPanel;
 import javax.swing.JCheckBox;
-import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import javax.swing.SwingUtilities;
+
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseAdapter;
 import java.awt.Color;
+import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Event;
 import java.awt.Dimension;
-import java.awt.GridLayout;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Rectangle;
 import java.util.Collection;
-import java.util.ArrayList;
 import java.util.Set;
 import java.util.HashSet;
 
 
 public final class DisplayablePanel extends JPanel implements MouseListener {
+
+	private static final long serialVersionUID = 1L;
 
 	static public final int HEIGHT = 52;
 
@@ -56,8 +60,11 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	static private ImageIcon LINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/linked.png"));
 	static private ImageIcon UNLINKED = new ImageIcon(DisplayablePanel.class.getResource("/img/unlinked.png"));
 
+	static private final Font SMALL = new Font("Courier", Font.ITALIC, 11);
+	static private final Color GRAYISH = new Color(50, 50, 50);
+
 	private JCheckBox c, c_locked, c_linked;
-	private JLabel title, title2;
+	private JLabel title, title2, idlabel;
 	private JPanel titles;
 	private SnapshotPanel sp;
 
@@ -104,29 +111,73 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		title.addMouseListener(this);
 		title2 = new JLabel();
 		title2.addMouseListener(this);
+		idlabel = new JLabel("#" + d.getId());
+		idlabel.setFont(SMALL);
+		idlabel.setForeground(GRAYISH);
 		titles = new JPanel();
 		updateTitle();
-		BoxLayout bt = new BoxLayout(titles, BoxLayout.Y_AXIS);
-		titles.setLayout(bt);
-		titles.setBackground(Color.white);
-		titles.add(title);
-		titles.add(title2);
-		setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
-		JPanel checkboxes = new JPanel();
-		checkboxes.setBackground(Color.white);
-		checkboxes.setLayout(new GridLayout(3,1));
-		checkboxes.setMaximumSize(new Dimension(26, 50));
-		checkboxes.add(c);
-		checkboxes.add(c_locked);
-		checkboxes.add(c_linked);
-		add(checkboxes);
-		add(sp);
-		add(titles);
+		
+		
+		GridBagLayout gb = new GridBagLayout();
+		GridBagConstraints co = new GridBagConstraints();
+		this.setLayout(gb);
 
-		Dimension dim = new Dimension(250 - Display.scrollbar_width, HEIGHT);
-		setMinimumSize(dim);
-		setMaximumSize(dim);
-		//setPreferredSize(dim);
+
+		// Column of checkboxes
+		co.anchor = GridBagConstraints.NORTHWEST;
+		co.fill = GridBagConstraints.NONE;
+		co.gridx = 0;
+		co.gridy = 0;
+		gb.setConstraints(c, co);
+		add(c);
+		//
+		co.gridy = 1;
+		co.anchor = GridBagConstraints.WEST;
+		co.fill = GridBagConstraints.VERTICAL;
+		co.weighty = 1;
+		gb.setConstraints(c_locked, co);
+		add(c_locked);
+		//
+		co.gridy = 2;
+		co.anchor = GridBagConstraints.SOUTHWEST;
+		co.weighty = 0;
+		gb.setConstraints(c_linked, co);
+		add(c_linked);
+		
+		// Snapshot panel
+		co.anchor = GridBagConstraints.NORTHWEST;
+		co.fill = GridBagConstraints.NONE;
+		co.gridx = 1;
+		co.gridy = 0;
+		co.gridheight = 3;
+		gb.setConstraints(sp, co);
+		add(sp);
+		
+		// Column of strings
+		co.gridheight = 1;
+		co.weightx = 1;
+		co.fill = GridBagConstraints.HORIZONTAL;
+		co.gridx = 2;
+		co.gridy = 0;
+		gb.setConstraints(title, co);
+		add(title);
+		//
+		co.gridy = 1;
+		co.anchor = GridBagConstraints.WEST;
+		co.fill = GridBagConstraints.BOTH;
+		co.weighty = 1;
+		gb.setConstraints(title2, co);
+		add(title2);
+		//
+		co.gridy = 2;
+		co.anchor = GridBagConstraints.SOUTHWEST;
+		co.fill = GridBagConstraints.HORIZONTAL;
+		co.weighty = 0;
+		gb.setConstraints(idlabel, co);
+		add(idlabel);
+
+		setMinimumSize(new Dimension(230, DisplayablePanel.HEIGHT));
+		setPreferredSize(new Dimension(248, DisplayablePanel.HEIGHT));
 
 		addMouseListener(this);
 		setBackground(Color.white);
@@ -143,16 +194,9 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		sp.set(d);
 	}
 
-	public void setActive(final boolean active) {
-		if (active) {
-			setBackground(Color.cyan);
-		} else {
-			setBackground(Color.white);
-		}
-	}
-
 	public void paint(final Graphics g) {
-		if (display.isSelected(d)) {
+		if (null == g) return;
+		if (display.getSelection().contains(d)) {
 			if (null != display.getActive() && display.getActive() == d) { // can be null when initializing ... because swing is designed with built-in async
 				setBackground(Color.cyan);
 			} else {
@@ -164,6 +208,7 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		super.paint(g);
 	}
 
+	@Override
 	public void setBackground(Color c) {
 		super.setBackground(c);
 		if (null != titles) {
@@ -176,20 +221,21 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	private String makeUpdatedTitle() {
 		if (null == d) { Utils.log2("null d "); return ""; }
 		else if (null == d.getTitle()) { Utils.log2("null title for " + d); return ""; }
-		final Class c = d.getClass();
-		if (c.equals(Patch.class)) {
+		final Class<?> c = d.getClass();
+		if (c == Patch.class) {
 			return d.getTitle();
-		} else if (c.equals(DLabel.class)) {
+		} else if (c == DLabel.class) {
 			return d.getTitle().replace('\n', ' ');
 		} else {
 			// gather name of the enclosing object in the project tree
-			return d.getProject().getMeaningfulTitle(d);
+			return d.getProject().getMeaningfulTitle2(d);
 		}
 	}
 
-	static private int MAX_CHARS = 23;
+	static private int MAX_CHARS = 20;
 
 	public void updateTitle() {
+		idlabel.setText("#" + d.getId());
 		String t = makeUpdatedTitle();
 		if (t.length() <= MAX_CHARS) {
 			title.setText(t);
@@ -198,27 +244,22 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 		}
 		// else split at MAX_CHARS
 		// First try to see if it can be cut nicely
-		int i = -1;
-		int back = t.length() < ((MAX_CHARS * 3) / 2) ? 12 : 5;
-		for (int k=MAX_CHARS-1; k>MAX_CHARS-6; k--) {
-			char c = t.charAt(k);
-			switch (c) {
-				case ' ':
-				case '/':
-				case '_':
-				case '.':
-					i = k; break;
-				default:
-					break;
-			}
+		int lastbracket = t.lastIndexOf('[');
+		int end = -1,
+		    start = -1;
+		if (lastbracket -1 <= MAX_CHARS && -1 != lastbracket) { // there's a space in front of the [
+			end = lastbracket -1;
+			start = lastbracket;
+		} else {
+			end = start = MAX_CHARS;
 		}
-		if (-1 == i) i = MAX_CHARS; // cut at MAX_CHARS anyway
-		title.setText(t.substring(0, i));
-		String t2 = t.substring(i);
-		if (t2.length() > MAX_CHARS) {
-			t2 = new StringBuilder(t2.substring(0, 7)).append("...").append(t2.substring(t2.length()-13)).toString();
+		title.setText(t.substring(0, end));
+
+		if (t.length() - start -1 > MAX_CHARS) {
+			title2.setText(t.substring(start, start + 7) + "..." + t.substring(t.length() -10));
+		} else {
+			title2.setText(t.substring(start));
 		}
-		title2.setText(t2);
 
 		title.setToolTipText(t);
 		title2.setToolTipText(t);
@@ -229,25 +270,29 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 			display.dispatcher.exec(new Runnable() {
 				public void run() {
 					JCheckBox source = (JCheckBox) me.getSource();
-					if (source.equals(c)) {
+					if (source == c) {
 						if (!source.isSelected()) {
 							d.setVisible(true);
 						} else {
 							// Prevent hiding when transforming
 							if (Display.isTransforming(d)) {
 								Utils.showStatus("Transforming! Can't change visibility.", false);
-								c.setSelected(true);
+								SwingUtilities.invokeLater(new Runnable() { public void run() {
+									c.setSelected(true);
+								}});
 								return;
 							}
 							d.setVisible(false);
 						}
-					} else if (source.equals(c_locked)) {
+					} else if (source == c_locked) {
 						final String[] members = new String[]{"locked"};
 						if (!source.isSelected()) {
 							// Prevent locking while transforming
 							if (Display.isTransforming(d)) {
 								Utils.logAll("Transforming! Can't lock.");
-								c_locked.setSelected(false);
+								SwingUtilities.invokeLater(new Runnable() { public void run() {
+									c_locked.setSelected(false);
+								}});
 								return;
 							}
 							d.getLayerSet().addDataEditStep(d, members);
@@ -264,12 +309,14 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 							lg.remove(d); // not this one!
 							Display.updateCheckboxes(lg, LOCK_STATE, d.isLocked2());
 						}
-					} else if (source.equals(c_linked)) {
+					} else if (source == c_linked) {
 						// Prevent linking/unlinking while transforming
 						if (Display.isTransforming(d)) {
 							Utils.logAll("Transforming! Can't modify linking state.");
+							SwingUtilities.invokeLater(new Runnable() { public void run() {
 								c_linked.setSelected(d.isLinked());
-								return;
+							}});
+							return;
 						}
 
 						final Set<Displayable> hs;
@@ -288,7 +335,9 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 								d.getLayerSet().addDataEditStep(hs, new String[]{"data"}); // "data" contains links, because links are dependent on bounding box of data
 							} else {
 								// Nothing to link, restore icon
-								c_linked.setSelected(false);
+								SwingUtilities.invokeLater(new Runnable() { public void run() {
+									c_linked.setSelected(false);
+								}});
 							}
 						} else {
 							hs = d.getLinkedGroup(null);
@@ -315,15 +364,11 @@ public final class DisplayablePanel extends JPanel implements MouseListener {
 	}
 
 	public void mousePressed(final MouseEvent me) {
-		display.dispatcher.exec(new Runnable() { public void run() {
-
 		if (display.isTransforming()) return;
 		display.select(d, me.isShiftDown());
 		if (me.isPopupTrigger() || (ij.IJ.isMacOSX() && me.isControlDown()) || MouseEvent.BUTTON2 == me.getButton() || 0 != (me.getModifiers() & Event.META_MASK)) {
 			display.getPopupMenu().show(DisplayablePanel.this, me.getX(), me.getY());
 		}
-
-		}});
 	}
 
 	public void mouseReleased(MouseEvent me) {}

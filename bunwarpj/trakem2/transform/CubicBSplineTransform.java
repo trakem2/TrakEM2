@@ -23,6 +23,7 @@ import bunwarpj.BSplineModel;
 import bunwarpj.Param;
 import bunwarpj.Transformation;
 import bunwarpj.bUnwarpJ_;
+import mpicbg.models.AbstractModel;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -34,7 +35,7 @@ import mpicbg.trakem2.transform.CoordinateTransform;
  * 
  * @author Ignacio Arganda-Carreras (ignacio.arganda@gmail.com)
  */
-public class CubicBSplineTransform extends Model< CubicBSplineTransform > implements CoordinateTransform 
+public class CubicBSplineTransform extends AbstractModel< CubicBSplineTransform > implements CoordinateTransform 
 {
 	/** grid of B-spline coefficients for x- transformation */
 	private BSplineModel swx = null;
@@ -255,7 +256,7 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 	/**
 	 * Clone method
 	 */
-	final public CubicBSplineTransform clone()
+	final public CubicBSplineTransform copy()
 	{
 		CubicBSplineTransform transf = new CubicBSplineTransform();	
 		transf.init( toDataString() );
@@ -263,14 +264,14 @@ public class CubicBSplineTransform extends Model< CubicBSplineTransform > implem
 	}
 
 	//@Override
-	public void fit(Collection<PointMatch> matches)
+	public < P extends PointMatch >void fit(Collection< P > matches)
 			throws NotEnoughDataPointsException, IllDefinedDataPointsException 
 	{
 		
 		final Stack< java.awt.Point > sourcePoints = new Stack<java.awt.Point>();
 		final Stack< java.awt.Point > targetPoints = new Stack<java.awt.Point>();
 		
-		for ( final PointMatch pm : matches )
+		for ( final P pm : matches )
 		{
 			final float[] p1 = pm.getP1().getL();
 			final float[] p2 = pm.getP2().getL();

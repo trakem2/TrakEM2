@@ -1,47 +1,43 @@
 package ini.trakem2.display;
 
-import java.awt.Graphics2D;
-import java.awt.Color;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Point2D;
-import java.awt.geom.PathIterator;
-import java.awt.geom.GeneralPath;
-import java.awt.geom.Area;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.Point;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Set;
-import java.awt.event.MouseEvent;
-import java.awt.event.KeyEvent;
-
-import ini.trakem2.display.Layer;
-import ini.trakem2.imaging.Segmentation;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.OptionPanel;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.vector.VectorString3D;
-
 import ij.gui.GenericDialog;
 import ij.gui.OvalRoi;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.process.FloatPolygon;
+import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.OptionPanel;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.vector.VectorString3D;
 
-import java.util.concurrent.Executors;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.PathIterator;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class AreaWrapper {
 
@@ -118,11 +114,7 @@ public class AreaWrapper {
 
 		if (null != this.painter) {
 			try {
-				final Area tmp = this.painter.getTmpArea();
-				if (null != tmp) {
-					if (fill) g.fill(tmp.createTransformedArea(aff));
-					else      g.draw(tmp.createTransformedArea(aff)); // won't be perfect except on mouse release
-				}
+				this.painter.paint(g, aff, fill);
 			} catch (Exception e) {}
 		}
 	}
@@ -135,28 +127,30 @@ public class AreaWrapper {
 		/** The list of all painted points. */
 		private final LinkedList<Point> points = new LinkedList<Point>();
 		/** The last point on which a paint event was done. */
-		private Point previous_p = null;
-		private boolean paint = true;
-		private int brush_size; // the diameter
+		private volatile Point previous_p = null;
+		private final int brush_size; // the diameter
 		private final Area brush;
-		final private int leftClick=16, alt=9;
+		final private int leftClick = InputEvent.BUTTON1_MASK;
+		final private int alt = (InputEvent.ALT_MASK|InputEvent.SHIFT_MASK);
 		final private DisplayCanvas dc = Display.getFront().getCanvas();
-		final private int flags = dc.getModifiers();
-		private boolean adding = (0 == (flags & alt));
+		final private int flags;
+		final private boolean adding;
 		private final Layer la;
-		private final AffineTransform at, at_inv;
-		private final Object arealock = new Object();
+		private final Displayable source;
+		private final Object arealock = new Object(),
+							 pointslock = new Object();
 		private final ExecutorService accumulator;
 		private final ScheduledExecutorService composer;
-		private final ScheduledFuture composition;
+		private final ScheduledFuture<?> composition;
 		private final Runnable interpolator;
 
-		Painter(Area area, double mag, Layer la, AffineTransform at) throws Exception {
+		Painter(final Area area, final double mag, final Layer la, final Displayable source, final int flags) throws Exception {
 			super("AreaWrapper.Painter");
 			setPriority(Thread.NORM_PRIORITY);
 			this.la = la;
-			this.at = at;
-			this.at_inv = at.createInverse();
+			this.source = source;
+			this.flags = flags;
+			this.adding = (0 == (flags & alt));
 			// if adding areas, make it be a copy, to be added on mouse release
 			// (In this way, the receiving Area is small and can be operated on fast)
 			if (adding) {
@@ -170,19 +164,25 @@ public class AreaWrapper {
 			brush_size = ProjectToolbar.getBrushSize();
 			brush = makeBrush(brush_size, mag);
 			if (null == brush) throw new RuntimeException("Can't paint with brush of size 0.");
-			start();
 			accumulator = Utils.newFixedThreadPool(1, "AreaWrapper-accumulator");
 			composer = Executors.newScheduledThreadPool(1);
 			this.interpolator = new Runnable() {
 				public void run() {
 					final ArrayList<Point> ps;
 					final int n_points;
-					synchronized (arealock) {
+					synchronized (pointslock) {
 						n_points = points.size();
 						if (0 == n_points) return;
 						ps = new ArrayList<Point>(points);
 						points.clear();
 						points.add(ps.get(n_points -1)); // to start the next spline from the last point
+					}
+					final AffineTransform at_inv;
+					try {
+						at_inv = source.getAffineTransform().createInverse();
+					} catch (NoninvertibleTransformException nite) {
+						IJError.print(nite);
+						return;
 					}
 					if (n_points < 2) {
 						// No interpolation required
@@ -262,41 +262,84 @@ public class AreaWrapper {
 				}
 			};
 			composition = composer.scheduleWithFixedDelay(interpolator, 200, 500, TimeUnit.MILLISECONDS);
+			start();
 		}
 
-		final void quit() {
-			if (!this.paint) return; // already quit
-			this.paint = false;
-			// Make interpolated points affect add or subtract operations
-			synchronized (this) {
-				try {
+		/** Paint only if area is not the target_area. */
+		private final void paint(final Graphics2D g, final AffineTransform aff, final boolean fill) {
+			if (area == target_area) return;
+			if (null != area) {
+				synchronized (arealock) {
+					if (null == area) return;
+					if (fill) g.fill(area.createTransformedArea(aff));
+					else      g.draw(area.createTransformedArea(aff)); // won't be perfect except on mouse release
+				}
+			}
+		}
+		
+		final AtomicBoolean quitted = new AtomicBoolean(false);
 
+		/** This method must be called exactly and only once.*/
+		final void quit() {
+			//if (!this.paint) return; // already quit
+			//this.paint = false;
+			if (isInterrupted()) return;
+			interrupt();
+
+			// isInterrupted() is not enough of a check because it's not synchronized (or for other reasons), so use:
+			if (quitted.getAndSet(true)) {
+				return;
+			}
+
+			// Make interpolated points affect add or subtract operations
+			try {
 				accumulator.shutdownNow();
 				composition.cancel(true);
 				composer.shutdown();
-				composer.awaitTermination(30, TimeUnit.SECONDS);
+				try {
+					composer.awaitTermination(30, TimeUnit.SECONDS);
+					accumulator.awaitTermination(30, TimeUnit.SECONDS); // must wait until the threads have actually died
+				} catch (InterruptedException ie) {} // proceed in any case
+				
+				// From now on, synchronizing on arealock and pointslock should not be necessary:
+				//   no other threads are operating on the areas.
+				// But paranoid programming requires that I used it anyway.
+				
+				final int psize;
+				synchronized (pointslock) {
+					psize = points.size();
+				}
 
-				if (points.size() > 1) {
+				if (psize > 1) {
 					// one last time:
 					interpolator.run();
 				} else {
 					// Just one point: no interpolation needed
 					// merge the temporary Area, if any, with the general one
-					if (adding) this.target_area.add(area);
-					// If subtracting, it was already done
-					return;
+					if (adding) {
+						synchronized (arealock) {
+							this.target_area.add(area);
+						}
+					} else {
+						// If subtracting, it was already done
+						return;
+					}
 				}
 
 				if (adding) {
-					adding = false;
-					this.target_area.add(area);
+					final Area added;
+
+					synchronized (arealock) {
+						added = new Area(this.target_area);
+						added.add(area);
+					}
 
 					// now, depending on paint mode, alter the new target area:
 
 					if (PAINT_OVERLAP == PP.paint_mode) {
 						// Nothing happens with PAINT_OVERLAP, default mode.
 					} else {
-						final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, target_area.createTransformedArea(source.getAffineTransform()).getBounds(), true);
+						final Map<Displayable,List<Area>> other_areas = la.getParent().findAreas(la, added.createTransformedArea(source.getAffineTransform()).getBounds(), true);
 
 						// prepare undo step:
 						final HashMap<Displayable,Runnable> ops = PAINT_ERODE == PP.paint_mode ? new HashMap<Displayable,Runnable>() : null;
@@ -308,82 +351,94 @@ public class AreaWrapper {
 								if (this.area == a) continue;
 								AffineTransform aff;
 								switch (PP.paint_mode) {
-									case PAINT_ERODE:
-										// subtract this target_area from any other Area that overlaps with it
-										aff = new AffineTransform(this.at);
-										aff.preConcatenate(d.at.createInverse());
-										final Area ta = target_area.createTransformedArea(aff);
-										if (a.getBounds().intersects(ta.getBounds())) {
-											ops.put(d, new Runnable() { public void run() { a.subtract(ta); }});
-										}
-										break;
-									case PAINT_EXCLUDE:
-										// subtract all other overlapping Area from the target_area
-										aff = new AffineTransform(d.at);
-										aff.preConcatenate(this.at.createInverse());
-										final Area q = a.createTransformedArea(aff);
-										if (q.getBounds().intersects(target_area.getBounds())) {
-											target_area.subtract(q);
-										}
-										break;
-									default:
-										Utils.log2("Can't handle paint mode " + PP.paint_mode);
-										break;
+								case PAINT_ERODE:
+									// subtract this target_area from any other Area that overlaps with it
+									aff = new AffineTransform(this.source.getAffineTransform());
+									aff.preConcatenate(d.at.createInverse());
+									final Area ta = added.createTransformedArea(aff);
+									final Rectangle ta_bounds = ta.getBounds();
+									if (a.getBounds().intersects(ta_bounds)) {
+										ops.put(d, new Runnable() { public void run() {
+											a.subtract(ta);
+										}});
+									}
+									break;
+								case PAINT_EXCLUDE:
+									// subtract all other overlapping Area from the target_area
+									aff = new AffineTransform(d.at);
+									aff.preConcatenate(this.source.getAffineTransform().createInverse());
+									final Area q = a.createTransformedArea(aff);
+									if (q.getBounds().intersects(added.getBounds())) {
+										added.subtract(q);
+									}
+									break;
+								default:
+									Utils.log2("Can't handle paint mode " + PP.paint_mode);
+									break;
 								}
 							}
 						}
 
 						if (null != ops && ops.size() > 0) {
 							source.getLayerSet().addDataEditStep(ops.keySet());
-							for (final Runnable r : ops.values()) r.run();
+							for (final Runnable r : ops.values()) {
+								r.run();
+							}
 							something_eroded = true;
 						}
+					}
+					synchronized (arealock) {
+						this.target_area.reset();
+						this.target_area.add(added);
 					}
 				}
 				// else do nothing, the subtract is already done
 
-				} catch (Exception ee) {
-					IJError.print(ee);
-				}
+			} catch (Exception ee) {
+				IJError.print(ee);
 			}
-		}
-		final Area getTmpArea() {
-			if (area != target_area) return area;
-			return null;
 		}
 		/** For best smoothness, each mouse dragged event should be captured!*/
 		public void run() {
+			final AffineTransform at_inv;
+			try {
+				 at_inv = source.getAffineTransform().createInverse();
+			} catch (NoninvertibleTransformException nite) {
+				IJError.print(nite);
+				return;
+			}
 			// create brush
-			while (paint) {
-				// detect mouse up
-				/*
-				if (0 == (flags & leftClick)) { // I think this never happens
+			while (!isInterrupted()) {
+				// detect mouse up (don't use 'flags': was recorded on starting up)
+				if (0 == (dc.getModifiers() & leftClick)) {
+					//Utils.log2("--------->>  Quit brushing from inside loop");
 					quit();
 					return;
 				}
-				*/
 				final Point p = dc.getCursorLoc(); // as offscreen coords
 				if (p.equals(previous_p) /*|| (null != previous_p && p.distance(previous_p) < brush_size/5) */) {
 					try { Thread.sleep(3); } catch (InterruptedException ie) {}
 					continue;
 				}
-				if (!la.contains(p.x, p.y, 0)) {
+				if (!dc.getSrcRect().contains(p.x, p.y)) {
 					// Ignoring point off srcRect
 					continue;
 				}
-				accumulator.submit(new Runnable() {
+				final Runnable task = new Runnable() {
 					public void run() {
 						final AffineTransform aff = new AffineTransform(1, 0, 0, 1, p.x, p.y);
-						aff.concatenate(at_inv);
+						aff.preConcatenate(at_inv);
 						final Area slash = slashInInts(brush.createTransformedArea(aff));
 						synchronized (arealock) {
 							if (0 == (flags & alt)) {
 								// no modifiers, just add
 								area.add(slash);
 							} else {
-								// with alt down, substract
+								// with alt down, subtract
 								area.subtract(slash);
 							}
+						}
+						synchronized (pointslock) {
 							points.add(p);
 						}
 						final Rectangle copy = new Rectangle(p.x - brush_size/2, p.y - brush_size/2, brush_size, brush_size);
@@ -395,7 +450,18 @@ public class AreaWrapper {
 							r_old = copy;
 						}
 					}
-				});
+				};
+				
+				try {
+					accumulator.submit(task);
+				} catch (Throwable t) {
+					// will happen when quit() calls accumulator.shutdown(),
+					// which will then refuse to run any task.
+					// Only the jobs completed up to this time point
+					// will be finished, so the trace may finish earlier
+					// than the mouse release point in slow computers.
+					return;
+				}
 
 				previous_p = p;
 			}
@@ -515,16 +581,7 @@ public class AreaWrapper {
 	public void mousePressed(final MouseEvent me, Layer la, final int x_p_w, final int y_p_w, final double mag, final List<Runnable> post_tasks) {
 		this.post_mouseReleased_tasks = post_tasks;
 
-		// transform the x_p, y_p to the local coordinates
-		int x_p = x_p_w;
-		int y_p = y_p_w;
-		if (!source.getAffineTransform().isIdentity()) {
-			final Point2D.Double p = source.inverseTransformPoint(x_p_w, y_p_w);
-			x_p = (int)p.x;
-			y_p = (int)p.y;
-		}
-
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		if (ProjectToolbar.BRUSH == tool) {
 			if (null != AreaWrapper.controller_key) {
@@ -583,9 +640,9 @@ public class AreaWrapper {
 						bmin = compound;
 					}
 				}
-				// Also try to merge all visible areas in current layer and find a hole there
+				// Also try to merge all visible areas in the current field of view of the current layer and find a hole there
 				final Area all = new Area(); // in world coords
-				for (final Map.Entry<Displayable,List<Area>> e : la.getParent().findAreas(la, la.getParent().get2DBounds(), true).entrySet()) {
+				for (final Map.Entry<Displayable,List<Area>> e : la.getParent().findAreas(la, Display.getFront().getCanvas().getSrcRect(), true).entrySet()) {
 					for (final Area ar : e.getValue()) {
 						all.add(ar.createTransformedArea(e.getKey().at));
 					}
@@ -625,37 +682,50 @@ public class AreaWrapper {
 					} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
 				}
 			} else {
-				if (null != this.painter) this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
+				if (null != this.painter) {
+					this.painter.quit(); // in case there was a mouse release outside the canvas--may not be detected
+				}
 				try {
-					this.painter = new Painter(area, mag, la, source.getAffineTransformCopy());
+					this.painter = new Painter(area, mag, la, source, me.getModifiers());
 				} catch (Exception e) {
 					Utils.log2("Oops: " + e);
 				}
 			}
-		} else if (ProjectToolbar.PENCIL == tool) {
-			final Displayable src = this.source;
+		} else {
 			final ArrayList<Runnable> ptasks = new ArrayList<Runnable>();
 			if (null != post_mouseReleased_tasks) {
 				ptasks.addAll(post_mouseReleased_tasks);
 				post_mouseReleased_tasks = null; // avoid running them twice
 			}
+			final Displayable src = this.source;
 			ptasks.add(new Runnable() {
 				public void run() {
 					// Add data edit step when done for undo/redo
 					src.getLayerSet().addDataEditStep(src);
 				}
 			});
-			if (Utils.isControlDown(me)) {
-				// Grow with blow tool
-				try {
-					blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
 
-				} catch (Exception e) {
-					IJError.print(e);
+			if (ProjectToolbar.PENCIL == tool) {
+				ptasks.add(new Runnable() {
+					public void run() {
+						// Add data edit step when done for undo/redo
+						src.getLayerSet().addDataEditStep(src);
+					}
+				});
+				if (Utils.isControlDown(me)) {
+					// Grow with blow tool
+					try {
+						blowcommander = Segmentation.blowRoi(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
+
+					} catch (Exception e) {
+						IJError.print(e);
+					}
+				} else {
+					// Grow with fast marching
+					Segmentation.fastMarching(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
 				}
-			} else {
-				// Grow with fast marching
-				Segmentation.fastMarching(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks);
+			} else if (ProjectToolbar.WAND == tool) {
+				Segmentation.magicWand(this, la, Display.getFront().getCanvas().getSrcRect(), x_p_w, y_p_w, ptasks, me.isShiftDown(), me.isAltDown());
 			}
 		}
 	}
@@ -674,22 +744,19 @@ public class AreaWrapper {
 		}
 	}
 	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
-		final int tool = ProjectToolbar.getToolId();
-		if (ProjectToolbar.BRUSH == tool) {
-			if (null != AreaWrapper.controller_key) {
-				// finish
-				AreaWrapper.controller_key = null;
-				return;
-			}
-			if (null != this.painter) {
-				this.painter.quit();
-				this.painter = null;
-			}
-		} else if (ProjectToolbar.PENCIL == tool) {
-			if (null != blowcommander) {
-				blowcommander.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
-				blowcommander = null;
-			}
+		// No matter what tool, ensure that moving and brushing operations are always terminated:
+		if (null != this.painter) {
+			this.painter.quit();
+			this.painter = null;
+		}
+		if (null != AreaWrapper.controller_key) {
+			// finish
+			AreaWrapper.controller_key = null;
+			return;
+		}
+		if (null != blowcommander) {
+			blowcommander.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
+			blowcommander = null;
 		}
 
 		if (null != post_mouseReleased_tasks) {
@@ -752,7 +819,7 @@ public class AreaWrapper {
 			ke.consume();
 			return;
 		}
-		if (KeyEvent.VK_M == keyCode) {
+		if (KeyEvent.VK_M == keyCode && ProjectToolbar.getToolId() == ProjectToolbar.BRUSH) {
 			AreaWrapper.controller_key = keyCode;
 			ke.consume();
 			return;
@@ -765,20 +832,27 @@ public class AreaWrapper {
 					return;
 				case KeyEvent.VK_V: // PASTE
 					// Casting a null is fine, and addArea survives a null.
-					Area a = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
-					if (null != a) {
-						add(a.createTransformedArea(source.getAffineTransform().createInverse()), la);
+					Area wa = (Area) DisplayCanvas.getCopyBuffer(source.getClass());
+					if (null != wa) {
+						source.getLayerSet().addDataEditStep(source);
+						add(wa, la); // wa is in world coordinates
 						((AreaContainer)source).calculateBoundingBox(la);
+						source.getLayerSet().addDataEditStep(source);
 					}
 					ke.consume();
 					return;
 				case KeyEvent.VK_F: // fill all holes
+					source.getLayerSet().addDataEditStep(source);
 					fillHoles();
+					source.getLayerSet().addDataEditStep(source);
 					ke.consume();
 					return;
 				case KeyEvent.VK_X: // remove area from current layer, if any
+					if (area.isEmpty()) return;
+					source.getLayerSet().addDataEditStep(source);
 					area.reset();
 					((AreaContainer)source).calculateBoundingBox(la);
+					source.getLayerSet().addDataEditStep(source);
 					ke.consume();
 					return;
 			}
@@ -806,7 +880,6 @@ public class AreaWrapper {
 				break;
 		}
 		ShapeRoi sroi = new ShapeRoi(roi);
-		long layer_id = la.getId();
 		try {
 			switch (keyCode) {
 				case KeyEvent.VK_A:

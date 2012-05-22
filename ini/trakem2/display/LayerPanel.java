@@ -22,10 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.IJ;
 import ini.trakem2.utils.Utils;
 
-import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JSlider;
@@ -41,16 +39,18 @@ import javax.swing.event.ChangeListener;
 import java.awt.Event;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseEvent;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 
 
 public final class LayerPanel extends JPanel implements MouseListener {
 
+	private static final long serialVersionUID = 1L;
 	private final JLabel title;
 	protected final JSlider slider = new JSlider(javax.swing.SwingConstants.HORIZONTAL, 0, 100, 0);
 	private Color color = Color.white;
@@ -68,7 +68,7 @@ public final class LayerPanel extends JPanel implements MouseListener {
 				final float a = slider.getValue() / 100.0f;
 				setAlpha(a);
 				display.storeLayerAlpha(LayerPanel.this, a);
-				display.repaint();
+				display.getCanvas().repaint(true);
 			}
 		});
 
@@ -88,14 +88,30 @@ public final class LayerPanel extends JPanel implements MouseListener {
 		this.title = new JLabel(makeTitle());
 		this.title.addMouseListener(this);
 
-		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+		GridBagLayout gb = new GridBagLayout();
+		setLayout(gb);
+		GridBagConstraints c = new GridBagConstraints();
+		c.anchor = GridBagConstraints.NORTHWEST;
+
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.weighty = 0;
+		gb.setConstraints(title, c);
 		add(title);
+		
+		JPanel empty = new JPanel();
+		c.gridy += 1;
+		c.fill = GridBagConstraints.BOTH;
+		c.weighty = 1;
+		gb.setConstraints(empty, c);
+		
+		c.gridy += 1;
+		c.weighty = 0;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		gb.setConstraints(slider, c);
 		add(slider);
 
-		final Dimension dim = new Dimension(250 - Display.scrollbar_width, DisplayablePanel.HEIGHT);
-		setMinimumSize(dim);
-		setMaximumSize(dim);
-		//setPreferredSize(dim);
+		setMinimumSize(new Dimension(0, DisplayablePanel.HEIGHT));
+		setPreferredSize(new Dimension(250, DisplayablePanel.HEIGHT));
 
 		addMouseListener(this);
 		setBackground(this.color);
@@ -173,6 +189,23 @@ public final class LayerPanel extends JPanel implements MouseListener {
 					display.getCanvas().repaint(true);
 				}
 			});
+			JMenu transp_menu = new JMenu("Overlay items"); popup.add(transp_menu);
+			final JCheckBoxMenuItem cbI = new JCheckBoxMenuItem("Images", display.transp_overlay_images);
+			final JCheckBoxMenuItem cbA = new JCheckBoxMenuItem("Areas", display.transp_overlay_areas);
+			final JCheckBoxMenuItem cbL = new JCheckBoxMenuItem("Text labels", display.transp_overlay_text_labels);
+			ActionListener lis = new ActionListener() {
+				public void actionPerformed(ActionEvent ae) {
+					Object src = ae.getSource();
+					if (src == cbI) display.setTranspOverlayImages(cbI.getState()); 
+					else if (src == cbA) display.setTranspOverlayAreas(cbA.getState());
+					else if (src == cbL) display.setTranspOverlayTextLabels(cbL.getState());
+				}
+			};
+			for (JCheckBoxMenuItem rb : new JCheckBoxMenuItem[]{cbI, cbA, cbL}) {
+				transp_menu.add(rb);
+				rb.addActionListener(lis);
+			}
+	
 			popup.addSeparator();
 			JMenu composites = new JMenu("Composite mode");
 			ButtonGroup group = new ButtonGroup();

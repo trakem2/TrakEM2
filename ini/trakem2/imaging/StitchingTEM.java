@@ -90,13 +90,7 @@ public class StitchingTEM {
 	static public final int TOP_BOTTOM = 4;
 	static public final int LEFT_RIGHT = 5;
 
-	static public final int TOP_LEFT_RULE = 0;
-	static public final int FREE_RULE = 1;
-
 	static public final float DEFAULT_MIN_R = 0.4f;
-
-	/** available stitching rules */
-	public static final String[] rules = new String[]{"Top left", "Free"};
 		
 
 	/** Returns the same Patch instances with their coordinates modified; the top-left image is assumed to be the first one, and thus serves as reference; so, after the first image, coordinates are ignored for each specific Patch.
@@ -121,8 +115,7 @@ public class StitchingTEM {
 			final double default_bottom_top_overlap,
 			final double default_left_right_overlap,
 			final boolean optimize,
-			final int stitching_rule,
-			final PhaseCorrelationParam param_)
+			PhaseCorrelationParam param)
 	{
 		// check preconditions
 		if (null == patch || grid_width < 1) {
@@ -132,14 +125,10 @@ public class StitchingTEM {
 			return null;
 		}
 
-		final PhaseCorrelationParam param;
-
-		if (null == param_) {
+		if (null == param) {
 			// Launch phase correlation dialog
 			param = new PhaseCorrelationParam();
 			param.setup(patch[0]);
-		} else {
-			param = param_;
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
@@ -155,19 +144,7 @@ public class StitchingTEM {
 		Utils.log2("patch layer: " + patch[0].getLayer());
 		patch[0].getLayerSet().addTransformStep(patch[0].getLayer());
 
-		switch (stitching_rule) {
-			case StitchingTEM.TOP_LEFT_RULE:
-				return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
-			case StitchingTEM.FREE_RULE:
-				final HashSet<Patch> hs = new HashSet<Patch>();
-				for (int i=0; i<patch.length; i++) hs.add(patch[i]);
-				final ArrayList<Patch> fixed = new ArrayList<Patch>();
-				fixed.add(patch[0]);
-				return new Runnable() { public void run() { 
-					AlignTask.alignPatches( new ArrayList<Patch>(hs), fixed );
-				}};
-		}
-		return null;
+		return StitchingTEM.stitchTopLeft(patch, grid_width, default_bottom_top_overlap, default_left_right_overlap, optimize, param);
 	}
 	/**
 	 * Stitch array of patches with upper left rule
@@ -434,7 +411,7 @@ public class StitchingTEM {
 		ImageProcessor ip = null;
 		Loader loader =  p.getProject().getLoader();
 		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
-		if (loader.isMipMapsEnabled() && loader.checkMipMapFileExists(p, scale)) 
+		if (loader.isMipMapsRegenerationEnabled() && loader.checkMipMapFileExists(p, scale)) 
 		{
 			
 			// Read the transform image from the patch (this way we avoid the JPEG artifacts)
@@ -691,41 +668,54 @@ public class StitchingTEM {
 	 * For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
 	 *  then consider all successful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
-	static public Bureaucrat montageWithPhaseCorrelation(final Collection<Patch> col) {
+	static public Bureaucrat montageWithPhaseCorrelationTask(final Collection<Patch> col) {
 		if (null == col || col.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage with phase-correlation") {
 			public void exec() {
-				final PhaseCorrelationParam param = new PhaseCorrelationParam();
-				if (!param.setup(col.iterator().next())) {
-					return;
-				}
-				AlignTask.transformPatchesAndVectorData(col, new Runnable() { public void run() {
-					montageWithPhaseCorrelation(col, param);
-				}});
+				montageWithPhaseCorrelation(col);
 			}
 		}, col.iterator().next().getProject());
 	}
+	
+	static public void montageWithPhaseCorrelation(final Collection<Patch> col) {
+		final PhaseCorrelationParam param = new PhaseCorrelationParam();
+		if (!param.setup(col.iterator().next())) {
+			return;
+		}
+		AlignTask.transformPatchesAndVectorData(col, new Runnable() { public void run() {
+			montageWithPhaseCorrelation(col, param);
+		}});
+	}
 
-	static public Bureaucrat montageWithPhaseCorrelation(final List<Layer> layers) {
+	static public Bureaucrat montageWithPhaseCorrelationTask(final List<Layer> layers) {
 		if (null == layers || layers.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage layer 1/" + layers.size()) {
 			public void exec() {
-				final PhaseCorrelationParam param = new PhaseCorrelationParam();
-				final Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
-				if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
-					return;
-				}
-				int i = 1;
-				for (Layer la : layers) {
-					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
-					setTaskName("Montage layer " + i + "/" + layers.size());
-					final Collection<Patch> patches = (Collection<Patch>) (Collection) la.getDisplayables(Patch.class);
-					AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
-						montageWithPhaseCorrelation(patches, param);
-					}});
-				}
+				montageWithPhaseCorrelation(layers, this);
 			}
 		}, layers.get(0).getProject());
+	}
+	
+	/**
+	 * 
+	 * @param layers
+	 * @param worker Optional, the {@link Worker} running this task.
+	 */
+	static public void montageWithPhaseCorrelation(final List<Layer> layers, final Worker worker) {
+		final PhaseCorrelationParam param = new PhaseCorrelationParam();
+		final Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
+		if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
+			return;
+		}
+		int i = 1;
+		for (Layer la : layers) {
+			if (Thread.currentThread().isInterrupted() || (null != worker && worker.hasQuitted())) return;
+			if (null != worker) worker.setTaskName("Montage layer " + i + "/" + layers.size());
+			final Collection<Patch> patches = (Collection<Patch>) (Collection) la.getDisplayables(Patch.class);
+			AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
+				montageWithPhaseCorrelation(patches, param);
+			}});
+		}
 	}
 
 	/**
@@ -788,7 +778,7 @@ public class StitchingTEM {
 				int h = ref.getOHeight();
 				sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
 			}
-			if (sc < 0) sc = 25;
+			if (sc <= 0) sc = 25;
 			else if (sc > 100) sc = 100;
 			gd.addSlider("scale (%):", 1, 100, sc);
 			gd.addNumericField( "max/avg displacement threshold: ", mean_factor, 2 );
@@ -979,7 +969,7 @@ A:				for ( final AbstractAffineTile2D< ? > t : tiles )
 					{
 						if ( p.getDistance() >= e.max )
 						{
-							final AbstractAffineTile2D< ? > o = t.findConnectedTile( p );
+							final Tile< ? > o = t.findConnectedTile( p );
 							t.removeConnectedTile( o );
 							o.removeConnectedTile( t );
 							//Utils.log2( "Removing bad match from configuration, error = " + e.max );
