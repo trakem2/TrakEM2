@@ -272,10 +272,12 @@ final public class AlignTask
 				else if (LINEAR_SIFT_CORRESPONDENCES == mode)
 				{	
 					//final Align.ParamOptimize p = Align.paramOptimize;
-					final GenericDialog gd = new GenericDialog( "Montage Layers" );
-					Align.paramOptimize.addFields( gd );
 					
-					gd.addMessage( "Miscellaneous:" );
+					if ( !Align.paramOptimize.setup( "Montage Layers" ) )
+						return;
+					
+					final GenericDialog gd = new GenericDialog( "Montage Layers: Miscellaneous" );
+					
 					gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
 					gd.addCheckbox( "consider largest graph only", largestGraphOnly );
 					gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
@@ -284,7 +286,6 @@ final public class AlignTask
 					gd.showDialog();
 					if ( gd.wasCanceled() ) return;
 					
-					Align.paramOptimize.readFields( gd );
 					tilesAreInPlace = gd.getNextBoolean();
 					largestGraphOnly = gd.getNextBoolean();
 					hideDisconnectedTiles = gd.getNextBoolean();
