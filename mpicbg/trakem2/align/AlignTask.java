@@ -940,26 +940,14 @@ A:		for ( final Layer layer : layers )
 		
 		/* intra-layer parameters */
 		
-		final GenericDialog gd2 = new GenericDialog( "Align Multi-Layer Mosaic : Intra-Layer" );
-
-		Align.paramOptimize.addFields( gd2 );
-		
-		gd2.showDialog();
-		if ( gd2.wasCanceled() ) return;
-		
-		Align.paramOptimize.readFields( gd2 );
+		if ( !Align.paramOptimize.setup( "Align Multi-Layer Mosaic : Intra-Layer" ) )
+			return;
 		
 		
 		/* cross-layer parameters */
 		
-		final GenericDialog gd3 = new GenericDialog( "Align Multi-Layer Mosaic : Cross-Layer" );
-
-		Align.param.addFields( gd3 );
-		
-		gd3.showDialog();
-		if ( gd3.wasCanceled() ) return;
-		
-		Align.param.readFields( gd3 );
+		if ( !Align.param.setup( "Align Multi-Layer Mosaic : Cross-Layer" ) )
+			return;
 		
 		Align.ParamOptimize p = Align.paramOptimize.clone();
 		Align.Param cp = Align.param.clone();
