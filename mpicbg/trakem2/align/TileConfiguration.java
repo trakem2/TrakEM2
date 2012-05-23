@@ -3,7 +3,14 @@
  */
 package mpicbg.trakem2.align;
 
-import java.awt.AlphaComposite;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.process.ColorProcessor;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.graphics.FilterARGBComposite;
+
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
@@ -11,8 +18,6 @@ import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.Formatter;
-import java.util.HashSet;
 
 import mpicbg.ij.visualization.PointVis;
 import mpicbg.models.ErrorStatistic;
@@ -21,15 +26,6 @@ import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.process.ColorProcessor;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
-import ini.trakem2.display.Patch;
-import ini.trakem2.display.graphics.AddARGBComposite;
-import ini.trakem2.display.graphics.FilterARGBComposite;
-import ini.trakem2.display.graphics.SubtractInverseARGBComposite;
 
 public class TileConfiguration extends mpicbg.models.TileConfiguration
 {
@@ -54,11 +50,11 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		
 		println( "i mean min max" );
 		
-		visualizeOptimizationIterationStep( 0, 0, tiles.iterator().next() );
+		//visualizeOptimizationIterationStep( 0, 0, tiles.iterator().next() );
 		
 		while ( proceed )
 		{
-			//visualizeOptimizationIteration( i );
+			visualizeOptimizationIteration( i );
 			
 			int k = 1;
 			for ( final Tile< ? > tile : tiles )
@@ -76,7 +72,7 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 				tile.apply();
 				updateErrors();
 				
-				visualizeOptimizationIterationStep( i, k++, tile );
+				//visualizeOptimizationIterationStep( i, k++, tile );
 				
 			}
 			updateErrors();
