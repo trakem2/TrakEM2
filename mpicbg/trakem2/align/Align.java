@@ -975,19 +975,19 @@ public class Align
 		tc.addTiles( tiles );
 		
 		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( tiles );
-		for ( Set< Tile< ? > > graph : graphs )
-		{
-			boolean pleaseFix = true;
-			if ( fixedTiles != null )
-				for ( final Tile< ? > t : fixedTiles )
-					if ( graph.contains( t ) )
-					{
-						pleaseFix = false;
-						break;
-					}
-			if ( pleaseFix )
-				tc.fixTile( graph.iterator().next() );
-		}
+//		for ( Set< Tile< ? > > graph : graphs )
+//		{
+//			boolean pleaseFix = true;
+//			if ( fixedTiles != null )
+//				for ( final Tile< ? > t : fixedTiles )
+//					if ( graph.contains( t ) )
+//					{
+//						pleaseFix = false;
+//						break;
+//					}
+//			if ( pleaseFix )
+//				tc.fixTile( graph.iterator().next() );
+//		}
 		for ( final Tile< ? > t : fixedTiles )
 			tc.fixTile( t );
 		
