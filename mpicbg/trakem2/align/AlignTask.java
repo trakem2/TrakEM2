@@ -865,7 +865,9 @@ A:		for ( final Layer layer : layers )
 			
 		if ( Thread.currentThread().isInterrupted() ) return;
 		
-		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
+		/* <visualization> */
+		//Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
+		/* </visualization> */
 		
 		for ( AbstractAffineTile2D< ? > t : interestingTiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
