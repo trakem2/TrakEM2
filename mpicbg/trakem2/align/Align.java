@@ -1135,7 +1135,7 @@ public class Align
 				 */
 				final InterpolatedAffineModel2D< ?, ? > interpolatedModel = new InterpolatedAffineModel2D( m, r, ( float )p.lambda );
 				
-				t = new GenericAffineTile2D< InterpolatedAffineModel2D< ?, ? > >( interpolatedModel, patch );
+				t = new GenericAffineTile2D( interpolatedModel, patch );
 			}
 			else
 			{
