@@ -112,8 +112,8 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 	
 	public void visualizeOptimizationIteration( final int i )
 	{
-		final int width = 512;
-		final int height = 512;
+		final int width = 1280;
+		final int height = 720;
 		
 		final double displayWidth = ( ( AbstractAffineTile2D< ? > )tiles.iterator().next() ).getPatch().getLayerSet().getLayerWidth();
 		final double displayHeight = ( ( AbstractAffineTile2D< ? > )tiles.iterator().next() ).getPatch().getLayerSet().getLayerHeight();
@@ -178,8 +178,8 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		ip.setAntialiasedText( true );
 		ip.setFont( new Font( "Sans", Font.PLAIN, 18 ) );
 		ip.setColor( Color.BLACK );
-		ip.drawString( "i: " + i, 20, 490 );
-		ip.drawString( "e: (" + String.format( "%.2f", minError ) + ", " + String.format( "%.2f", error ) + ", " + String.format( "%.2f", maxError ) + ")", 120, 490 );
+		ip.drawString( "i: " + i, 20, height - 22 );
+		ip.drawString( "e: (" + String.format( "%.2f", minError ) + ", " + String.format( "%.2f", error ) + ", " + String.format( "%.2f", maxError ) + ")", 120, height - 22 );
 		
 		final ImagePlus impI = new ImagePlus( "i " + i, ip );
 		IJ.save( impI, "optimize-" + String.format( "%06d", visCounter++ ) + "-" + String.format( "%04d", lastLayerIndex ) + "-" + String.format( "%04d", i ) + ".tif" );
@@ -187,8 +187,8 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 	
 	public void visualizeOptimizationIterationStep( final int i, final int k, final Tile< ? > tile )
 	{
-		final int width = 512;
-		final int height = 512;
+		final int width = 1280;
+		final int height = 720;
 		
 		final double displayWidth = ( ( AbstractAffineTile2D< ? > )tiles.iterator().next() ).getPatch().getLayerSet().getLayerWidth();
 		final double displayHeight = ( ( AbstractAffineTile2D< ? > )tiles.iterator().next() ).getPatch().getLayerSet().getLayerHeight();
@@ -254,9 +254,9 @@ public class TileConfiguration extends mpicbg.models.TileConfiguration
 		ip.setAntialiasedText( true );
 		ip.setFont( new Font( "Sans", Font.PLAIN, 18 ) );
 		ip.setColor( Color.BLACK );
-		ip.drawString( "i: " + i, 20, 490 );
-		ip.drawString( "t: " + k, 80, 490 );
-		ip.drawString( "e: (" + String.format( "%.2f", minError ) + ", " + String.format( "%.2f", error ) + ", " + String.format( "%.2f", maxError ) + ")", 140, 490 );
+		ip.drawString( "i: " + i, 20, height - 22 );
+		ip.drawString( "t: " + k, 80, height - 22 );
+		ip.drawString( "e: (" + String.format( "%.2f", minError ) + ", " + String.format( "%.2f", error ) + ", " + String.format( "%.2f", maxError ) + ")", 140, height - 22 );
 		
 		final ImagePlus impI = new ImagePlus( "i " + i, ip );
 		IJ.save( impI, "optimize-step-" + String.format( "%04d", lastLayerIndex ) + "-" + String.format( "%04d", i ) + "-" + String.format( "%04d", k ) + ".tif" );
