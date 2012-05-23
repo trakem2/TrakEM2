@@ -22,12 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-
-
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.Collection;
 
 /** A class to be used when a click to select Displayable objects on the Display detects that there are more than one under the mouse cursor.

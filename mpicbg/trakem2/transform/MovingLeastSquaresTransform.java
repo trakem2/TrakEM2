@@ -16,8 +16,15 @@
  */
 package mpicbg.trakem2.transform;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.AffineModel3D;
+import mpicbg.models.IllDefinedDataPointsException;
+import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.RigidModel2D;
@@ -31,7 +38,6 @@ import mpicbg.models.TranslationModel2D;
  */
 public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquaresTransform implements CoordinateTransform
 {
-
 	final public void init( final String data ) throws NumberFormatException
 	{
 		matches.clear();
@@ -87,6 +93,24 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		return data.toString();
 	}
 
+	static private final Comparator< PointMatch > SORTER = new Comparator< PointMatch >() {
+		@Override
+		public final int compare(final PointMatch o1, final PointMatch o2) {
+			final float[] p1 = o1.getP1().getW();
+			final float[] p2 = o1.getP2().getW();
+			final float dx = p1[0] - p2[0];
+			if ( dx < 0) return -1;
+			if ( 0 == dx)
+			{
+				final float dy = p1[1] - p2[1];
+				if ( dy < 0 ) return -1;
+				if ( 0 == dy ) return 0;
+				return 1;
+			}
+			return 1;
+		}
+	};
+	
 	private final void toDataString( final StringBuilder data )
 	{
 		if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
@@ -97,8 +121,14 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		else data.append("unknown");
 		
 		data.append(' ').append(alpha);
-		
-		for ( PointMatch m : matches )
+
+		// Sort matches, so that they are always written the same way
+		// Will help lots git and .zip to reduce XML file size
+
+		final ArrayList< PointMatch > pms = new ArrayList< PointMatch >( matches );
+		Collections.sort( pms, SORTER );
+
+		for ( PointMatch m : pms )
 		{
 			final float[] p1 = m.getP1().getL();
 			final float[] p2 = m.getP2().getW();
@@ -125,10 +155,48 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 	/**
 	 * TODO Make this more efficient
 	 */
-	final public MovingLeastSquaresTransform clone()
+	final public MovingLeastSquaresTransform copy()
 	{
 		final MovingLeastSquaresTransform t = new MovingLeastSquaresTransform();
 		t.init( toDataString() );
 		return t;
+	}
+	
+	@Override
+	final public void applyInPlace( final float[] location )
+	{
+		final Collection< PointMatch > weightedMatches = new ArrayList< PointMatch >();
+		for ( final PointMatch m : matches )
+		{
+			final float[] l = m.getP1().getL();
+
+			float s = 0;
+			for ( int i = 0; i < location.length; ++i )
+			{
+				final float dx = l[ i ] - location[ i ];
+				s += dx * dx;
+			}
+			if ( s <= 0 )
+			{
+				final float[] w = m.getP2().getW();
+				for ( int i = 0; i < location.length; ++i )
+					location[ i ] = w[ i ];
+				return;
+			}
+			final float weight = m.getWeight() * ( float )weigh( s );
+			final PointMatch mw = new PointMatch( m.getP1(), m.getP2(), weight );
+			weightedMatches.add( mw );
+		}
+		
+		try 
+		{
+			synchronized ( model )
+			{
+				model.fit( weightedMatches );
+				model.applyInPlace( location );
+			}
+		}
+		catch ( IllDefinedDataPointsException e ){}
+		catch ( NotEnoughDataPointsException e ){}
 	}
 }

@@ -141,7 +141,7 @@ public class SkinMaker {
 			return null;
 		}
 
-		final ArrayList<SkinMaker.Match> al_matches = new ArrayList();
+		final ArrayList<SkinMaker.Match> al_matches = new ArrayList<SkinMaker.Match>();
 
 		try {
 			// get all morphed curves and return them.
@@ -206,7 +206,7 @@ public class SkinMaker {
 		}
 		/** Generate a list of Point3f points, every three defining a triangle, between vs1 and vs2 using the given sequence of editions. */
 		public List<Point3f> generateTriangles(final boolean closed) {
-			ArrayList<Point3f> triangles = new ArrayList();
+			ArrayList<Point3f> triangles = new ArrayList<Point3f>();
 			if (null == p || 0 == p.length) {
 				triangles.addAll(makeSkin(vs1, vs2, closed, true, true));
 			} else {
@@ -227,7 +227,7 @@ public class SkinMaker {
 			final double[] by = b.getPoints(1);
 			final float bz = (float)b.getPoint(2, 0);
 			final int blength = b.length();
-			final ArrayList<Point3f> triangles = new ArrayList();
+			final ArrayList<Point3f> triangles = new ArrayList<Point3f>();
 			// the sequence of editions defines the edges
 			final int[][] editions = ed.editions;
 			int e_start = 0; // was 1
@@ -321,8 +321,8 @@ public class SkinMaker {
 	/** From an array of VectorString2D, obtain a list of Point3f which define, every three, a triangle of a skin. */
 	static public List<Point3f> generateTriangles(final VectorString2D[] vs, int n_morphed_perimeters, double delta_, boolean closed) {
 		final ArrayList<SkinMaker.Match> al_matches = SkinMaker.getMorphedPerimeters(vs, -1, -1, true); // automatic number of interpolated curves, automatic delta
-		final List triangles = new ArrayList(); // every three consecutive Point3f make a triangle
-		for (SkinMaker.Match match : al_matches) {
+		final List<Point3f> triangles = new ArrayList<Point3f>(); // every three consecutive Point3f make a triangle
+		for (final SkinMaker.Match match : al_matches) {
 			triangles.addAll(match.generateTriangles(closed));
 		}
 		return triangles;

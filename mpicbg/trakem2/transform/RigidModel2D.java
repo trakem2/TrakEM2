@@ -52,7 +52,7 @@ public class RigidModel2D extends mpicbg.models.RigidModel2D implements Invertib
 	/**
 	 * TODO Make this more efficient
 	 */
-	final public RigidModel2D clone()
+	final public RigidModel2D copy()
 	{
 		final RigidModel2D t = new RigidModel2D();
 		t.init( toDataString() );

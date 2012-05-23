@@ -690,15 +690,13 @@ public class Compare {
 		}
 	}
 
-	static private class ChainMatchComparator implements Comparator {
+	static private class ChainMatchComparator implements Comparator<ChainMatch> {
 		/** Sort by the given distance type. */
 		final int distance_type;
 		ChainMatchComparator(final int distance_type) {
 			this.distance_type = distance_type;
 		}
-		public int compare(final Object ob1, final Object ob2) {
-			ChainMatch cm1 = (ChainMatch)ob1;
-			ChainMatch cm2 = (ChainMatch)ob2;
+		public int compare(final ChainMatch cm1, final ChainMatch cm2) {
 			// select for smallest physical distance of the center of mass
 			// double val = cm1.phys_dist - cm2.phys_dist;
 			/*
@@ -1128,27 +1126,29 @@ public class Compare {
 			if (3 == cp.transform_type) {
 				// '3' means moving least squares computed from 3D landmarks
 				Utils.log2("Moving Least Squares Registration based on common fiducial points");
-				// Find fiducial points
+				// Find fiducial points, if any
 				HashMap<Project,Map<String,Tuple3d>> fiducials = new HashMap<Project,Map<String,Tuple3d>>();
 				for (Project pr : p) {
 					Set<ProjectThing> fids = pr.getRootProjectThing().findChildrenOfTypeR("fiducial_points");
 					if (null == fids || 0 == fids.size()) {
-						Utils.log2("No fiducial points found in project: " + pr);
-						return null;
+						Utils.log("No fiducial points found in project: " + pr);
+					} else {
+						fiducials.put(pr, Compare.extractPoints(fids.iterator().next())); // the first fiducial group
 					}
-					fiducials.put(pr, Compare.extractPoints(fids.iterator().next())); // the first fiducial group
 				}
-				// Register all VectorString3D relative to the first project:
-				final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
-				final Calibration cal2 = p[0].getRootLayerSet().getCalibrationCopy();
-				for (Chain chain : chains) {
-					Project pr = chain.pipes.get(0).getProject();
-					if (pr == p[0]) continue; // first project is reference, no need to transform.
-					lvs.clear();
-					lvs.add(chain.vs);
-					chain.vs = transferVectorStrings(lvs, fiducials.get(pr), fiducials.get(p[0])).get(0);
-					// Set (but do not apply!) the calibration of the reference project
-					chain.vs.setCalibration(cal2);
+				if (!fiducials.isEmpty()) {
+					// Register all VectorString3D relative to the first project:
+					final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
+					final Calibration cal2 = p[0].getRootLayerSet().getCalibrationCopy();
+					for (Chain chain : chains) {
+						Project pr = chain.pipes.get(0).getProject();
+						if (pr == p[0]) continue; // first project is reference, no need to transform.
+						lvs.clear();
+						lvs.add(chain.vs);
+						chain.vs = transferVectorStrings(lvs, fiducials.get(pr), fiducials.get(p[0])).get(0);
+						// Set (but do not apply!) the calibration of the reference project
+						chain.vs.setCalibration(cal2);
+					}
 				}
 			} else if (cp.transform_type < 3) {
 				// '0', '1' and '2' involve a 3D affine computed from the 3 axes
@@ -1562,6 +1562,7 @@ public class Compare {
 	 * @param show_3D Whether to show any 3D data.
 	 * @param show_condensed_3D If show_3D, whether to show the condensed vector strings, i.e. the "average" pipes.
 	 * @param show_sources_3D If show_3D, whether to show the source pipes from which the condensed vector string was generated.
+	 * @param source_color_table Which colors to give to the pipes of which Project.
 	 * @param show_envelope_3D If show_3D, whether to generate the variability envelope.
 	 * @param envelope_alpha If show_envelope_3D, the envelope takes an alpha value between 0 (total transparency) and 1 (total opacity)
 	 * @param delta_envelope The delta to resample the envelope to. When smaller than or equal to 1, no envelope resampling occurs.
@@ -1569,12 +1570,12 @@ public class Compare {
 	 * @param heat_map If show_3D, whether to color the variability with a Fire LUT.
 	 *                 If not show_condensed_3D, then the variability is shown in color-coded 3D spheres placed at the entry point to the neuropile.
 	 * @param map_condensed If not null, all VectorString3D are put into this map.
-	 * @param projects The list of projects to use.
+	 * @param projects The projects to use.
 	 * */
 	static public Bureaucrat variabilityAnalysis(final Project reference_project, final String regex,
 						     final String[] ignore,
 						     final boolean show_cata_dialog,
-			                             final boolean generate_plots, final boolean show_plots, final String plot_dir_,
+						     final boolean generate_plots, final boolean show_plots, final String plot_dir_,
 						     final boolean show_3D, final boolean show_condensed_3D, final boolean show_sources_3D,
 						     final Map<Project,Color> sources_color_table,
 						     final boolean show_envelope_3D, final float envelope_alpha, final double delta_envelope, final int envelope_type,
@@ -1635,6 +1636,7 @@ public class Compare {
 
 		Utils.log2("Gathering chains...");
 
+		// Gather chains that do not match the ignore regexes
 		Object[] ob = gatherChains(p, cp, ignore); // will transform them as well to the reference found in the first project in the p array
 		ArrayList<Chain> chains = (ArrayList<Chain>)ob[0];
 		final ArrayList[] p_chains = (ArrayList[])ob[1]; // to keep track of each project's chains
@@ -1653,6 +1655,7 @@ public class Compare {
 		for (Chain chain : chains) {
 			String title = chain.getCellTitle();
 			final String t = title.toLowerCase();
+			/* // Commented out non-general code
 			// ignore:
 			if (-1 != t.indexOf("unknown")) continue;
 			if (-1 != t.indexOf("peduncle")
@@ -1667,11 +1670,12 @@ public class Compare {
 				m.put(t, chain.vs);
 				continue;
 			}
-			if (0 == t.indexOf("lineage") || 0 == t.indexOf("branch")) continue; // unnamed
-			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
+			*/
 
-			// DEBUG:
-			//if (! (title.startsWith("DPLd") || title.startsWith("BAmv1")) ) continue;
+			/* // Commented out non-general code
+			if (0 == t.indexOf("lineage") || 0 == t.indexOf("branch")) continue; // unnamed
+			*/
+			if (0 == t.indexOf('[') || 0 == t.indexOf('#')) continue; // unnamed
 
 			Utils.log("Accepting " + title);
 
@@ -1830,9 +1834,18 @@ public class Compare {
 				}
 				if (show_sources_3D) {
 					if (null != sources_color_table) {
+						final HashSet<String> titles = new HashSet<String>();
 						for (Chain chain : bc) {
-							Color c = sources_color_table.get(chain.getRoot().getProject());
-							Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), null != c ? c : Color.gray);
+							final Color c = sources_color_table.get(chain.getRoot().getProject());
+							final String title = chain.getCellTitle();
+							String t = title;
+							int i = 2;
+							while (titles.contains(t)) {
+								t = title + "-" + i;
+								i += 1;
+							}
+							titles.add(t);
+							Display3D.addMesh(common_ls, chain.vs, t, null != c ? c : Color.gray);
 						}
 					} else {
 						for (Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
@@ -2227,14 +2240,23 @@ public class Compare {
 		}
 		final Map<String,Tuple3d> fide = new HashMap<String,Tuple3d>();
 		for (final ProjectThing child : fiducials) {
-			ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
-			if (null == balls || 0 == balls.size()) {
-				Utils.log2("Ignoring empty fiducial " + child);
-				continue;
+			final Ball ball;
+			final String title;
+			if (child.getType().equals("ball")) {
+				// Method 1: use the ball title as the fiducial type
+				ball = (Ball) child.getObject();
+				title = ball.getTitle();
+			} else {
+				// Method 2: use the ball's parent type as the fiducial type
+				ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
+				if (null == balls || 0 == balls.size()) {
+					Utils.log2("Ignoring empty fiducial " + child);
+					continue;
+				}
+				// pick the first one only
+				ball = (Ball) balls.get(0).getObject();
+				title = child.getType();
 			}
-			// pick the first one only
-			final Ball ball = (Ball) balls.get(0).getObject();
-			final String title = child.getType();
 			final double[][] b = ball.getWorldBalls(); // calibrated
 			if (b.length > 0) {
 				// get the first one only

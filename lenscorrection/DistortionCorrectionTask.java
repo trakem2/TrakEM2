@@ -134,7 +134,7 @@ final public class DistortionCorrectionTask
 			for ( int i = ai.getAndIncrement(); i < patches.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				final Patch patch = patches.get( i );
-//				IJ.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
+//				Utils.log( "Setting transform \"" + transform + "\" for patch \"" + patch.getTitle() + "\"." );
 				patch.setCoordinateTransform( transform );
 				patch.updateMipMaps();
 				patch.getProject().getLoader().decacheImagePlus( patch.getId() );
@@ -165,7 +165,7 @@ final public class DistortionCorrectionTask
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.log( "Setting CoordinateTransform failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			Utils.log( "Setting CoordinateTransform failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
 		}
 	}
 	
@@ -224,7 +224,7 @@ final public class DistortionCorrectionTask
 		}
 		catch ( InterruptedException e )
 		{
-			IJ.log( "Appending CoordinateTransform failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
+			Utils.log( "Appending CoordinateTransform failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
 		}
 	}
 	
@@ -337,7 +337,7 @@ final public class DistortionCorrectionTask
 					
 					List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( tiles );
 					if ( graphs.size() > 1 )
-						IJ.log( "Could not interconnect all images with correspondences.  " );
+						Utils.log( "Could not interconnect all images with correspondences.  " );
 					
 					final List< AbstractAffineTile2D< ? > > interestingTiles;
 					
@@ -353,7 +353,7 @@ final public class DistortionCorrectionTask
 					
 					if ( Thread.currentThread().isInterrupted() ) return;
 					
-					IJ.log( "Estimating lens model:" );
+					Utils.log( "Estimating lens model:" );
 					
 					/* initialize with pure affine */
 					Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
@@ -374,7 +374,7 @@ final public class DistortionCorrectionTask
 					double dEpsilon_0 = 0;
 					NonLinearTransform lensModel = null;
 					
-					IJ.log( "0: epsilon = " + e );
+					Utils.log( "0: epsilon = " + e );
 					
 					/* Store original point locations */
 					final HashMap< Point, Point > originalPoints = new HashMap< Point, Point >();
@@ -442,8 +442,8 @@ final public class DistortionCorrectionTask
 						epsilon_i = e;
 						if ( i == 1 ) dEpsilon_0 = dEpsilon_i;
 						
-						IJ.log( i + ": epsilon = " + e );
-						IJ.log( i + ": epsilon = " + dEpsilon_i );
+						Utils.log( i + ": epsilon = " + e );
+						Utils.log( i + ": epsilon = " + dEpsilon_i );
 					}
 					
 					if ( lensModel != null )
@@ -460,10 +460,10 @@ final public class DistortionCorrectionTask
 						
 						appendCoordinateTransform( allPatches, lensModel, Runtime.getRuntime().availableProcessors() );
 						
-						IJ.log( "Done." );
+						Utils.log( "Done." );
 					}
 					else
-						IJ.log( "No lens model found." );
+						Utils.log( "No lens model found." );
 					
 					Display.repaint();
 				}

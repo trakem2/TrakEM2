@@ -31,6 +31,7 @@ import ini.trakem2.display.graphics.DifferenceARGBComposite;
 import ini.trakem2.display.graphics.MultiplyARGBComposite;
 import ini.trakem2.display.graphics.SubtractARGBComposite;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Search;
@@ -87,6 +88,19 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	public byte getCompositeMode(){ return compositeMode; }
 	protected Composite getComposite( byte mode ) {
 		return Displayable.getComposite(mode, alpha);
+	}
+	/**
+	 * Sets the composite mode, which determines how is this image
+	 * painted to the screen relative to the other images.
+	 * For example, a 16-bit image with a red LUT may be set, with the COMPOSITE_COLOR_YCBCR mode,
+	 * to contribute towards the red channel only of an underlying set of grayscale electron microscopy images.
+	 * 
+	 * @param mode Any of the COMPOSITE_* modes available.
+	 * @throws IllegalArgumentException if the {@param mode} is not valid.
+	 */
+	public void setCompositeMode(final byte mode) {
+		if (mode < 0 || mode > 5) throw new IllegalArgumentException("Invalid composite mode: " + mode);
+		this.compositeMode = mode;
 	}
 	static public Composite getComposite( byte mode, float alpha )
 	{
@@ -512,6 +526,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		if (null == title || 0 == title.length()) return;
 		this.title = title;
 		Display.updateTitle(layer, this); // update the DisplayablePanel(s) that show this Patch
+		Search.repaint(this);
 		updateInDatabase("title");
 	}
 
@@ -655,12 +670,12 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Test whether the given point falls within the perimeter of this Displayable, considering the position x,y. Used by the DisplayCanvas mouse events. */
-	public boolean contains(final int x_p, final int y_p) {
+	public boolean contains(final double x_p, final double y_p) {
 		return getPerimeter().contains(x_p, y_p);
 	}
 
 	/** Calls contains(x_p, y_p) unless overriden -- in ZDisplayable objects, it tests whether the given point is contained in the part of the ZDisplayable that shows in the given layer. */
-	public boolean contains(final Layer layer, final int x_p, final int y_p) {
+	public boolean contains(final Layer layer, final double x_p, final double y_p) {
 		return contains(x_p, y_p);
 	}
 
@@ -1086,7 +1101,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 
 	protected GenericDialog makeAdjustPropertiesDialog() {
 		Rectangle box = getBoundingBox(null);
-		GenericDialog gd = new GD("Properties", this);
+		GenericDialog gd = new GD("Properties of #" + id, this);
 		gd.addStringField("title: ", title);
 		gd.addNumericField("x: ", box.x, 2);
 		gd.addNumericField("y: ", box.y, 2);
@@ -1327,7 +1342,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** The oid is this objects' id, whereas the 'id' tag will be the id of the wrapper Thing object. */ // width and height are used for the data itself, so that for example the image does not need to be loaded
-	public void exportXML(final StringBuilder sb_body, final String in, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		sb_body.append(in).append("oid=\"").append(id).append("\"\n")
@@ -1367,7 +1382,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	}
 
 	/** Add properties, links, etc. Does NOT close the tag. */
-	synchronized protected void restXML(final StringBuilder sb_body, final String in, final Object any) {
+	synchronized protected void restXML(final StringBuilder sb_body, final String in, final XMLOptions options) {
 		// Properties:
 		if (null != props && props.size() > 0) {
 			for (final Map.Entry<String,String> e : props.entrySet()) {
@@ -1934,7 +1949,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 			return this;
 		}
 		/** Java's clone() is useless. */ // I HATE this imperative, fragile, ridiculous language that forces me to go around in circles and O(n) approaches when all I need is a PersistentHashMap with structural sharing, a clone() that WORKS ALWAYS, and metaprogramming abilities aka macros @#$%!
-		@SuppressWarnings("unchecked")
+		@SuppressWarnings({ "unchecked", "rawtypes" })
 		private final Object duplicate(final Object ob, final String field) {
 			if (ob instanceof Color) {
 				final Color c = (Color)ob;

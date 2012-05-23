@@ -180,7 +180,6 @@ public class Selection {
 			// entire 2D bounds:
 			roi = new ShapeRoi(display.getLayerSet().get2DBounds());
 		}
-		//Utils.log2("roi bounds: " + roi.getBounds());
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
 		Area aroi = new Area(M.getShape(shroi));
@@ -188,9 +187,11 @@ public class Selection {
 		Rectangle bounds = shroi.getBounds();
 		affine.translate(bounds.x, bounds.y);
 		aroi = aroi.createTransformedArea(affine);
-		Collection<Displayable> al = display.getLayer().getDisplayables(Displayable.class, aroi, visible_only);
+
+		Collection<Displayable> al = new ArrayList<Displayable>(display.getLayer().getDisplayables(Displayable.class, aroi, visible_only, true));
 		al.addAll(display.getLayer().getParent().findZDisplayables(ZDisplayable.class, display.getLayer(), aroi, visible_only, true));
 		final Rectangle tmp = new Rectangle();
+
 		if (visible_only) {
 			for (Iterator<Displayable> it = al.iterator(); it.hasNext(); ) {
 				Displayable d = (Displayable)it.next();
@@ -209,6 +210,7 @@ public class Selection {
 	}
 
 	public void selectAll(Collection<? extends Displayable> al) {
+		if (al.isEmpty()) return;
 		Displayable the_active = null;
 		try {
 			synchronized (queue_lock) {
@@ -232,6 +234,8 @@ public class Selection {
 				if (null != display) {
 					if (null == this.active) {
 						this.active = the_active = queue.getLast();
+					} else {
+						the_active = this.active;
 					}
 				}
 			}
@@ -632,7 +636,10 @@ public class Selection {
 		return al;
 	}
 
-	/** Returns a list of selected Displayable of class c only.*/
+	/** Returns a list of selected Displayable of class c only.
+	 *  Same as getSelected(Class) but returning a List of the desired type.
+	 *  Uses instanceof, not class equality. */
+	@SuppressWarnings("unchecked")
 	public <T extends Displayable> List<T> get(final Class<T> c) {
 		if (Displayable.class == c) {
 			return (List<T>)getSelected();
@@ -646,7 +653,7 @@ public class Selection {
 
 	/** Returns the subset of selected objects of Class c, in the proper order according to the Layer.indexOf or the LayerSet.indexOf.
 	 *  Class c cannot be Displayable (returns null); must be any Displayable subclass. */
-	public Collection<Displayable> getSelectedSorted(final Class<? extends Displayable> c) {
+	public List<Displayable> getSelectedSorted(final Class<? extends Displayable> c) {
 		if (Displayable.class == c) return null;
 		final ArrayList<Displayable> al = getSelected(c);
 		final TreeMap<Integer,Displayable> tm = new TreeMap<Integer,Displayable>();
@@ -655,7 +662,7 @@ public class Selection {
 		} else {
 			for (final Displayable d : al) tm.put(d.getLayer().indexOf(d), d);
 		}
-		return tm.values();
+		return new ArrayList<Displayable>(tm.values());
 	}
 
 	/** Returns the set of all Displayable objects affected by this selection, that is, the selected ones and their linked ones.*/

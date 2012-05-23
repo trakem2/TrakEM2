@@ -32,13 +32,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
 import java.io.File;
 
-import java.lang.reflect.Field;
-import java.awt.Color;
-import java.awt.PopupMenu;
-import java.awt.MenuItem;
-import java.awt.ItemSelectable;
-import java.awt.event.ItemEvent;
-
 import javax.swing.SwingUtilities;
 
 import ini.trakem2.display.Display;
@@ -53,6 +46,8 @@ public class ProjectToolbar implements MouseListener {
 	public static final int PEN = Toolbar.SPARE3;
 	/**A tool to align objects from two different layers.*/
 	public static final int BRUSH = Toolbar.SPARE4;
+
+	public static final int WAND = Toolbar.SPARE5;
 
 	static private String startup_macros = null;
 
@@ -200,7 +195,9 @@ public class ProjectToolbar implements MouseListener {
 	}
 
 	static public int getToolId() {
-		return Toolbar.getToolId();
+		int tool = Toolbar.getToolId();
+		if (Toolbar.WAND == tool) return ProjectToolbar.WAND;
+		return tool;
 	}
 
 	public void mousePressed(MouseEvent me) {

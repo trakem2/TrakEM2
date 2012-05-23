@@ -34,14 +34,14 @@ import java.awt.image.*;
 public abstract class AbstractTreeTransferHandler implements DragGestureListener, DragSourceListener, DropTargetListener {
  
         private DNDTree tree;
-        private DragSource dragSource; // dragsource
-        private DropTarget dropTarget; //droptarget
+        private DragSource dragSource;
+        private DropTarget dropTarget;
         private static DefaultMutableTreeNode draggedNode; 
         private DefaultMutableTreeNode draggedNodeParent; 
         private static BufferedImage image = null; //buff image
         private Rectangle rect2D = new Rectangle();
         private boolean drawImage;
-	private DragGestureRecognizer dgr;
+        private DragGestureRecognizer dgr;
  
         protected AbstractTreeTransferHandler(DNDTree tree, int action, boolean drawIcon) {
                 this.tree = tree;
@@ -51,32 +51,27 @@ public abstract class AbstractTreeTransferHandler implements DragGestureListener
                 dropTarget = new DropTarget(tree, action, this);
         }
 
-	protected void destroy() {
-		dgr.removeDragGestureListener(this);//TODO throws IllegalArgumentException, don't see why
-		dgr = null;
-		tree = null; // friggin' memory leak
-		dragSource = null;
-		dropTarget = null;
-		draggedNode = null;
-		draggedNodeParent = null;
-		image = null;
-		rect2D = null;
-	}
- 
+        protected void destroy() {
+        	dgr.removeDragGestureListener(this);
+        	dgr = null;
+        	tree = null; // friggin' memory leak
+        	dragSource = null;
+        	dropTarget.removeDropTargetListener(this);
+        	dropTarget = null;
+        	draggedNode = null;
+        	draggedNodeParent = null;
+        	image = null;
+        	rect2D = null;
+        }
+
         /* Methods for DragSourceListener */
         public void dragDropEnd(DragSourceDropEvent dsde) {
-                /* // original
-		if (dsde.getDropSuccess() && dsde.getDropAction()==DnDConstants.ACTION_MOVE && draggedNodeParent != null) {
-                        ((DefaultTreeModel)tree.getModel()).nodeStructureChanged(draggedNodeParent);                            
-                }
-		*/
+        	if (dsde.getDropSuccess() && dsde.getDropAction()==DnDConstants.ACTION_MOVE && draggedNodeParent != null) {
+        		((DefaultTreeModel)tree.getModel()).nodeStructureChanged(draggedNodeParent);
+        		tree.expandPath(new TreePath(draggedNodeParent.getPath()));
+        		tree.expandPath(new TreePath(draggedNode.getPath()));
+        	}
 
-		if (dsde.getDropSuccess() && dsde.getDropAction()==DnDConstants.ACTION_MOVE && draggedNodeParent != null) {
-			((DefaultTreeModel)tree.getModel()).nodeStructureChanged(draggedNodeParent);
-			tree.expandPath(new TreePath(draggedNodeParent.getPath()));
-			tree.expandPath(new TreePath(draggedNode.getPath()));
-		}
-		
         }
         public final void dragEnter(DragSourceDragEvent dsde)  {
                 int action = dsde.getDropAction();
@@ -238,7 +233,7 @@ public abstract class AbstractTreeTransferHandler implements DragGestureListener
                 tree.paintImmediately(rect2D.getBounds());
         }
  
-        public abstract boolean canPerformAction(DNDTree target, DefaultMutableTreeNode draggedNode, int action, Point location);
+        public abstract boolean canPerformAction(DNDTree target, DefaultMutableTreeNode nodeDragged, int action, Point location);
  
-        public abstract boolean executeDrop(DNDTree tree, DefaultMutableTreeNode draggedNode, DefaultMutableTreeNode newParentNode, int action);
+        public abstract boolean executeDrop(DNDTree target, DefaultMutableTreeNode nodeDragged, DefaultMutableTreeNode newParentNode, int action);
 }

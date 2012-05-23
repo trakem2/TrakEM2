@@ -411,7 +411,7 @@ public class StitchingTEM {
 		ImageProcessor ip = null;
 		Loader loader =  p.getProject().getLoader();
 		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
-		if (loader.isMipMapsEnabled() && loader.checkMipMapFileExists(p, scale)) 
+		if (loader.isMipMapsRegenerationEnabled() && loader.checkMipMapFileExists(p, scale)) 
 		{
 			
 			// Read the transform image from the patch (this way we avoid the JPEG artifacts)
@@ -668,41 +668,54 @@ public class StitchingTEM {
 	 * For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
 	 *  then consider all successful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
-	static public Bureaucrat montageWithPhaseCorrelation(final Collection<Patch> col) {
+	static public Bureaucrat montageWithPhaseCorrelationTask(final Collection<Patch> col) {
 		if (null == col || col.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage with phase-correlation") {
 			public void exec() {
-				final PhaseCorrelationParam param = new PhaseCorrelationParam();
-				if (!param.setup(col.iterator().next())) {
-					return;
-				}
-				AlignTask.transformPatchesAndVectorData(col, new Runnable() { public void run() {
-					montageWithPhaseCorrelation(col, param);
-				}});
+				montageWithPhaseCorrelation(col);
 			}
 		}, col.iterator().next().getProject());
 	}
+	
+	static public void montageWithPhaseCorrelation(final Collection<Patch> col) {
+		final PhaseCorrelationParam param = new PhaseCorrelationParam();
+		if (!param.setup(col.iterator().next())) {
+			return;
+		}
+		AlignTask.transformPatchesAndVectorData(col, new Runnable() { public void run() {
+			montageWithPhaseCorrelation(col, param);
+		}});
+	}
 
-	static public Bureaucrat montageWithPhaseCorrelation(final List<Layer> layers) {
+	static public Bureaucrat montageWithPhaseCorrelationTask(final List<Layer> layers) {
 		if (null == layers || layers.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage layer 1/" + layers.size()) {
 			public void exec() {
-				final PhaseCorrelationParam param = new PhaseCorrelationParam();
-				final Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
-				if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
-					return;
-				}
-				int i = 1;
-				for (Layer la : layers) {
-					if (Thread.currentThread().isInterrupted() || hasQuitted()) return;
-					setTaskName("Montage layer " + i + "/" + layers.size());
-					final Collection<Patch> patches = (Collection<Patch>) (Collection) la.getDisplayables(Patch.class);
-					AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
-						montageWithPhaseCorrelation(patches, param);
-					}});
-				}
+				montageWithPhaseCorrelation(layers, this);
 			}
 		}, layers.get(0).getProject());
+	}
+	
+	/**
+	 * 
+	 * @param layers
+	 * @param worker Optional, the {@link Worker} running this task.
+	 */
+	static public void montageWithPhaseCorrelation(final List<Layer> layers, final Worker worker) {
+		final PhaseCorrelationParam param = new PhaseCorrelationParam();
+		final Collection<Displayable> col = layers.get(0).getDisplayables(Patch.class);
+		if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
+			return;
+		}
+		int i = 1;
+		for (Layer la : layers) {
+			if (Thread.currentThread().isInterrupted() || (null != worker && worker.hasQuitted())) return;
+			if (null != worker) worker.setTaskName("Montage layer " + i + "/" + layers.size());
+			final Collection<Patch> patches = (Collection<Patch>) (Collection) la.getDisplayables(Patch.class);
+			AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
+				montageWithPhaseCorrelation(patches, param);
+			}});
+		}
 	}
 
 	/**

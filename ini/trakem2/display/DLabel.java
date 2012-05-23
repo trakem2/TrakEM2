@@ -25,6 +25,7 @@ package ini.trakem2.display;
 import ij.gui.GenericDialog;
 import ij.gui.TextRoi;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Utils;
 
 import java.awt.AlphaComposite;
@@ -323,6 +324,7 @@ public class DLabel extends Displayable implements VectorData {
 	/** When closed, the editor sets the text to the label. */
 	private class Editor extends JFrame implements WindowListener {
 
+		private static final long serialVersionUID = 1L;
 		private DLabel label;
 		private JTextArea jta;
 
@@ -379,10 +381,10 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** */
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_label\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"font-size:").append(font.getSize())
 		       .append(";font-style:").append(font.getStyle())
@@ -391,7 +393,7 @@ public class DLabel extends Displayable implements VectorData {
 		       .append(";fill-opacity:").append(alpha).append(";\"\n")
 		;
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_label>\n");
 	}
 
@@ -401,6 +403,7 @@ public class DLabel extends Displayable implements VectorData {
 		Displayable.exportDTD("t2_label", sb_header, hs, indent);
 	}
 
+	@Override
 	public void adjustProperties() {
 		final GenericDialog gd = makeAdjustPropertiesDialog();
 
@@ -456,7 +459,8 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** Performs a deep copy of this object, except for the Layer pointer. */
-	public Displayable clone(final Project pr, final boolean copy_id) {
+	@Override
+	public DLabel clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final DLabel copy = new DLabel(pr, nid, title, width, height, type, font.getName(), font.getStyle(), font.getSize(), this.locked, (AffineTransform)this.at.clone());
 		copy.alpha = this.alpha;
@@ -468,7 +472,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	@Override
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DPDLabel.class;
 	}
 

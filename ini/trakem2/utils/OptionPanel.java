@@ -2,31 +2,30 @@ package ini.trakem2.utils;
 
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.GridBagLayout;
 import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseWheelEvent;
+import java.awt.event.MouseWheelListener;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.text.JTextComponent;
 import javax.swing.JTextField;
-
-import java.util.Collections;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyListener;
-import java.awt.event.KeyEvent;
-import java.awt.event.KeyAdapter;
-import java.awt.event.MouseWheelEvent;
-import java.awt.event.MouseWheelListener;
-import java.lang.reflect.Field;
+import javax.swing.text.JTextComponent;
 
 public class OptionPanel extends JPanel {
 
+	private static final long serialVersionUID = 1L;
 	private GridBagLayout bl = new GridBagLayout();
 	private GridBagConstraints c = new GridBagConstraints();
 
@@ -236,7 +235,7 @@ public class OptionPanel extends JPanel {
 	}
 
 
-	private void check(List list, int index) throws Exception {
+	private void check(List<?> list, int index) throws Exception {
 		if (index < 0 || index > list.size() -1) throw new IllegalArgumentException("Index out of bounds: " + index);
 	}
 

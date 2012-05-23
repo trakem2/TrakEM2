@@ -31,6 +31,7 @@ import java.awt.Graphics;
 /** A class to prevent ROIs from failing. */
 public class FakeImageWindow extends ImageWindow {
 
+	private static final long serialVersionUID = 1L;
 	private Display display;
 
 	public FakeImageWindow(ImagePlus imp, ImageCanvas ic, Display display) {

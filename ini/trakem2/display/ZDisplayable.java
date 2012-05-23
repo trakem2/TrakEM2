@@ -33,6 +33,7 @@ import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
 
@@ -84,8 +85,8 @@ public abstract class ZDisplayable extends Displayable {
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in. */
 	abstract public Layer getFirstLayer();
 
-	public void exportXML(StringBuilder sb_body, String indent, Object any) {
-		super.exportXML(sb_body, indent, any);
+	public void exportXML(StringBuilder sb_body, String indent, XMLOptions options) {
+		super.exportXML(sb_body, indent, options);
 		sb_body.append(indent).append("layer_set_id=\"").append(layer_set.getId()).append("\"\n");
 	}
 	static public void exportDTD(final String type, final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
@@ -173,8 +174,6 @@ public abstract class ZDisplayable extends Displayable {
 	public Bucketable getBucketable() {
 		return this.layer_set;
 	}
-
-	public void setPosition(FallLine fl) {}
 
 	/** Retain the data within the layer range, and through out all the rest. */
 	public boolean crop(List<Layer> range) {

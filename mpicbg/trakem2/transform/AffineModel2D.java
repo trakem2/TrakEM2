@@ -70,7 +70,7 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 	}
 	
 	@Override
-	public AffineModel2D clone()
+	public AffineModel2D copy()
 	{
 		final AffineModel2D m = new AffineModel2D();
 		m.m00 = m00;

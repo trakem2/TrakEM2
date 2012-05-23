@@ -379,6 +379,7 @@ public abstract class GroupingMode implements Mode {
 
 	public void undoOneStep() {}
 
+	@Override
 	public boolean cancel() {
 		painter.quit();
 		updater.quit();

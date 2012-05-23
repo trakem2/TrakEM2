@@ -30,17 +30,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.Affine2D;
+import mpicbg.models.Model;
 import mpicbg.models.NoninvertibleModelException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
 
+import org.python.google.common.collect.Lists;
+
 /**
  * @version 0.1b
  */
-abstract public class AbstractAffineTile2D< A extends AbstractAffineModel2D< A > > extends mpicbg.models.Tile< A >
+abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A > > extends mpicbg.models.Tile< A >
 {
 	final protected Patch patch;
 	final public Patch getPatch(){ return patch; }

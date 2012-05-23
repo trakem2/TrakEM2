@@ -26,6 +26,7 @@ import ij.gui.GenericDialog;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
@@ -238,6 +239,14 @@ public class Ball extends ZDisplayable implements VectorData {
 
 		final boolean color_cues = layer_set.color_cues;
 		final int n_layers_color_cue = layer_set.n_layers_color_cue;
+		final Color below, above;
+		if (layer_set.use_color_cue_colors) {
+			below = Color.red;
+			above = Color.blue;
+		} else {
+			below = this.color;
+			above = this.color;
+		}
 
 		// Paint a sliced sphere
 		final double current_layer_z = active_layer.getZ();
@@ -270,8 +279,8 @@ public class Ball extends ZDisplayable implements VectorData {
 					final double depth = Math.abs(current_layer_z - z);
 					if (depth < this.p_width[j]) { // compare with untransformed data, in pixels!
 						// intersects!
-						if (z < current_layer_z) g.setColor(Color.red);
-						else g.setColor(Color.blue);
+						if (z < current_layer_z) g.setColor(below);
+						else g.setColor(above);
 						// h^2 = sin^2 + cos^2 ---> p_width[j] is h, and sin*h is depth
 						final int slice_radius = (int)(p_width[j] * Math.sqrt(1 - Math.pow(depth/p_width[j], 2)));
 						final int x = (int)((p[0][j] -slice_radius -srcRect.x) * magnification),
@@ -460,12 +469,12 @@ public class Ball extends ZDisplayable implements VectorData {
 	private void setupForDisplay() {
 		// load points
 		if (null == p) {
-			ArrayList al = project.getLoader().fetchBallPoints(id);
+			ArrayList<?> al = project.getLoader().fetchBallPoints(id);
 			n_points = al.size();
 			p = new double[2][n_points];
 			p_layer = new long[n_points];
 			p_width = new double[n_points];
-			Iterator it = al.iterator();
+			Iterator<?> it = al.iterator();
 			int i = 0;
 			while (it.hasNext()) {
 				Object[] ob = (Object[])it.next();
@@ -510,7 +519,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
 		if (-1 == n_points) setupForDisplay();
 		// TEMPORARY FIX: sort balls by layer_id (by Z, which is roughly the same)
-		final HashMap ht = new HashMap();
+		final HashMap<Long,StringBuffer> ht = new HashMap<Long,StringBuffer>();
 		final char l = '\n';
 		// local pointers, since they may be transformed
 		double[][] p = this.p;
@@ -533,11 +542,9 @@ public class Ball extends ZDisplayable implements VectorData {
 		for (int i=0; i<n_points; i++) {
 			Long layer_id = new Long(p_layer[i]);
 			// Doesn't work ??//if (ht.contains(layer_id)) tmp = (StringBuffer)ht.get(layer_id);
-			for (Iterator it = ht.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry entry = (Map.Entry)it.next();
-				Long lid = (Long)entry.getKey();
-				if (lid.longValue() == p_layer[i]) {
-					tmp = (StringBuffer)entry.getValue();
+			for (Map.Entry<Long,StringBuffer> e : ht.entrySet()) {
+				if (e.getKey().longValue() == p_layer[i]) {
+					tmp = e.getValue();
 				}
 			}
 			if (null == tmp) {
@@ -552,11 +559,10 @@ public class Ball extends ZDisplayable implements VectorData {
 			;
 			tmp = null;
 		}
-		for (Iterator it = ht.values().iterator(); it.hasNext(); ) {
-			tmp = (StringBuffer)it.next();
-			data.append(tmp).append(l);
+		for (StringBuffer s : ht.values()) {
+			data.append(s).append(l);
 
-			Utils.log("tmp : " + tmp.toString());
+			Utils.log("s : " + s.toString());
 		}
 	}
 
@@ -577,31 +583,19 @@ public class Ball extends ZDisplayable implements VectorData {
 		return sql;
 	}
 
-	private String getUpdatePointForSQL(int index) {
-		if (index < 0 || index > n_points-1) return null;
-
-		StringBuilder sb = new StringBuilder("UPDATE ab_ball_points SET ");
-		sb.append("x=").append(p[0][index])
-		  .append(", y=").append(p[1][index])
-		  .append(", width=").append(p_width[index])
-		  .append(", layer_id=").append(p_layer[index])
-		  .append(" WHERE ball_id=").append(this.id)
-		; //end
-		return sb.toString();
-	}
-
 	public boolean isDeletable() {
 		return 0 == n_points;
 	}
 
 	/** Test whether the Ball contains the given point at the given layer. What it does: and tests whether the point is contained in any of the balls present in the given layer. */
-	public boolean contains(Layer layer, int x, int y) {
+	@Override
+	public boolean contains(Layer layer, double x, double y) {
 		if (-1 == n_points) setupForDisplay(); // reload points
 		if (0 == n_points) return false;
 		// make x,y local
 		final Point2D.Double po = inverseTransformPoint(x, y);
-		x = (int)po.x;
-		y = (int)po.y;
+		x = po.x;
+		y = po.y;
 		//
 		final long layer_id = layer.getId();
 		for (int i=0; i<n_points; i++) {
@@ -726,6 +720,15 @@ public class Ball extends ZDisplayable implements VectorData {
 		return b;
 	}
 
+	/** Returns a Point3f for every x,y,z ball, in calibrated world space. */
+	public List<Point3f> asWorldPoints() {
+		final ArrayList<Point3f> ps = new ArrayList<Point3f>();
+		for (final double[] d : getWorldBalls()) {
+			ps.add(new Point3f((float)d[0], (float)d[1], (float)d[2]));
+		}
+		return ps;
+	}
+
 	public void exportSVG(StringBuffer data, double z_scale, String indent) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		if (0 == n_points) return;
@@ -763,13 +766,13 @@ public class Ball extends ZDisplayable implements VectorData {
 
 	/** Similar to exportSVG but the layer_id is saved instead of the z. The convention is my own, a ball_ob that contains ball objects and links. */
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
 		final String in = indent + "\t";
 		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(indent).append("<t2_ball\n");
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		if (!fill_paint) sb_body.append(in).append("fill=\"").append(fill_paint).append("\"\n"); // otherwise no need
 		sb_body.append(in).append("style=\"fill:none;stroke-opacity:").append(alpha).append(";stroke:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";stroke-width:1.0px;\"\n")
 		;
@@ -777,7 +780,7 @@ public class Ball extends ZDisplayable implements VectorData {
 		for (int i=0; i<n_points; i++) {
 			sb_body.append(in).append("<t2_ball_ob x=\"").append(p[0][i]).append("\" y=\"").append(p[1][i]).append("\" layer_id=\"").append(p_layer[i]).append("\" r=\"").append(p_width[i]).append("\" />\n");
 		}
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_ball>\n");
 	}
 
@@ -1063,7 +1066,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	Class getInternalDataPackageClass() {
+	Class<?> getInternalDataPackageClass() {
 		return DPBall.class;
 	}
 
@@ -1218,5 +1221,29 @@ public class Ball extends ZDisplayable implements VectorData {
 		DoEdit current = new DoEdit(this).init(prev);
 		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
 		getLayerSet().addEditStep(current);
+	}
+
+	/** Set the x,y,radius raw pixel values for the ball at index i.
+	 * When done setting values, call repaint(true, null).
+	 * @throws IndexOutOfBoundsException if i &lt; 0 or i &gt;= the number of points. */
+	public void set(final int i, final double x, final double y, final Layer la, final double radius) {
+		if (i < 0 || i > n_points) throw new IndexOutOfBoundsException("i must be 0<=i<n_points, but it is " + i);
+		p[0][i] = x;
+		p[1][i] = y;
+		p_layer[i] = la.getId();
+		p_width[i] = radius;
+	}
+
+	/** Return the number of balls. */
+	public int getCount() {
+		return n_points;
+	}
+
+	/** Set the radius (raw pixel value) for the ball at index i.
+	 * When done setting values, call repaint(true, null).
+	 * @throws IndexOutOfBoundsException if i &lt; 0 or i &gt;= the number of points. */
+	public void setRadius(final int i, final double radius) {
+		if (i < 0 || i > n_points) throw new IndexOutOfBoundsException("i must be 0<=i<n_points, but it is " + i);
+		p_width[i] = radius;
 	}
 }

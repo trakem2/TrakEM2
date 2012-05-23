@@ -24,7 +24,6 @@ package ini.trakem2.display;
 
 //import java.awt.Canvas;
 import javax.swing.JPanel;
-import java.awt.Image;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -93,7 +92,6 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			this.layer = display.getLayer();
 		}
 
-		scale = Math.min(SIDE / display.getLayer().getLayerWidth(), SIDE / display.getLayer().getLayerHeight());
 		RT.paint(null, redraw_displayables);
 	}
 
@@ -190,6 +188,7 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 			}
 
 			final BufferedImage target = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_ARGB);
+			scale = Math.min(SIDE / layer.getLayerWidth(), SIDE / layer.getLayerHeight());
 
 			try {
 				final Graphics2D g = target.createGraphics();
@@ -241,8 +240,8 @@ public final class DisplayNavigator extends JPanel implements MouseListener, Mou
 							if (0 == snapshots_mode) {
 								// paint fully
 								final Patch p = (Patch)d;
-								final Image img = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
-								if (null != img) {
+								final MipMapImage mipMap = d.getProject().getLoader().getCachedClosestAboveImage(p, scale);
+								if (null != mipMap) {
 									if (d.isVisible()) d.paint(g, srcRect, scale, false, p.getChannelAlphas(), layer, layers);
 									hs_painted.add(d);
 								} else  {

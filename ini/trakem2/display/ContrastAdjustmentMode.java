@@ -15,6 +15,8 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.image.BufferedImage;
+
 import javax.swing.JFrame;
 import javax.swing.JButton;
 import javax.swing.JPanel;
@@ -36,6 +38,7 @@ import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Display;
 import ini.trakem2.imaging.ContrastPlot;
 
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
 import ij.IJ;
@@ -49,13 +52,13 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		try {
 			MinMaxData md = min_max.clone();
 			final HashMap<Paintable, GroupingMode.ScreenPatchRange<?>> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
-			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values()) {
+			for ( final GroupingMode.ScreenPatchRange<?> spr : screenPatchRanges.values()) {
 				if (screenPatchRanges != this.screenPatchRanges) {
 					// List has been updated; restart painting
 					// TODO should it call itself:  doPainterUpdate( r, m );
 					break;
 				}
-				spr.update( md );
+				((ScreenPatchRange)spr).update( md );
 			}
 		} catch (Exception e) {}
 	}
@@ -75,30 +78,28 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	}
 
 	private class ScreenPatchRange extends GroupingMode.ScreenPatchRange<MinMaxData> {
+
 		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification )
 		{
+			// The super constructor creates an appropriate alpha mask
 			super(range, srcRect, magnification);
+			super.transformedImage = makeImage(null, null);
 		}
+		@Override
+		protected BufferedImage makeImage( final ImageProcessor ignored, final FloatProcessor mask )
+		{
+			if (null == transformed) return null; // not yet ready
+
+			// Use the super.mask, which never changes. super.transformedMask is empty, don't use it!
+			return super.makeImage(transformed, super.mask);
+		}
+		@Override
 		public void update(MinMaxData m) {
 			// Transform min and max from slider values to image values
 			double[] mm = toImage(m.min, m.max);
-			// Transform min and max image values to 8-bit range
-			double scale = 256 / (initial.getMax() - initial.getMin() + 1);
-			double min = (mm[0] - initial.getMin()) * scale;
-			double max = (mm[1] - initial.getMin()) * scale;
-			//Utils.log2("before  min max 8bit: " + min + ", " + max);
-			if (min < 0) min = 0;
-			if (max > 255) max = 255;
-
-			//Utils.log2("ipTransformed is " + ipTransformed.getClass());
-
-			super.ipTransformed.reset();
-			super.ipTransformed.setMinAndMax(min, max);
-			super.transformedImage = super.makeImage(super.ipTransformed, super.maskTransformed);
-
-			//Utils.log2("min max gui: " + m.min + ", " + m.max);
-			//Utils.log2("min max img: " + mm[0] + ", " + mm[1]);
-			//Utils.log2("min max 8bit: " + min + ", " + max);
+			transformed.reset();
+			transformed.setMinAndMax(mm[0], mm[1]);
+			super.transformedImage = makeImage(null, super.mask);
 		}
 	}
 
@@ -134,7 +135,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		}
 	}
 
-	private final ImageProcessor initial;
+	private ImageProcessor initial, transformed;
 	private final JFrame frame;
 	private final ContrastPlot plot;
 	private final JLabel minLabel, maxLabel;
@@ -149,26 +150,34 @@ public class ContrastAdjustmentMode extends GroupingMode {
 			if (p.getType() != type)
 				throw new Exception("All images must be of the same type!\nFirst offending image: " + p);
 
-		initial = Patch.makeFlatImage(type, layer, srcRect, magnification, originalPatches, Color.black);
+		// Create an ImageProcessor of the correct type (Short, Float, etc.)
+		ArrayList<Patch> patches = new ArrayList<Patch>(originalPatches);
+		Patch first = patches.get(0);
+		int pad = (int)(ScreenPatchRange.pad / magnification);
+		Rectangle box = new Rectangle(srcRect.x - pad, srcRect.y - pad, srcRect.width + 2*pad, srcRect.height + 2*pad);
+		initial = Patch.makeFlatImage(first.getType(), layer, box, magnification, patches, Color.black);
 		initial.resetMinAndMax();
-		Utils.log2("initial min, max: " + initial.getMin() + ", " + initial.getMax());
-		ImageStatistics stats = ImageStatistics.getStatistics(initial, Measurements.AREA + Measurements.MEAN + Measurements.MODE + Measurements.MIN_MAX, layer.getParent().getCalibrationCopy());
-		plot = new ContrastPlot();
-		plot.setDefaultMinAndMax(initial.getMin(), initial.getMax());
+		transformed = initial.duplicate();
+		transformed.setMinAndMax(first.getMin(), first.getMax());
+		transformed.snapshot();
+
+		Utils.log2("transformed min, max: " + transformed.getMin() + ", " + transformed.getMax());
+		ImageStatistics stats = ImageStatistics.getStatistics(transformed, Measurements.AREA + Measurements.MEAN + Measurements.MODE + Measurements.MIN_MAX, layer.getParent().getCalibrationCopy());
+		Utils.log2("stats.min " + stats.min + ", stats.max " + stats.max);
+		// correct min and max, which for some reason can be wrong (the min can be zero, for example):
+		if (stats.min < initial.getMin()) stats.min = initial.getMin();
+		if (stats.max > initial.getMax()) stats.max = initial.getMax();
+
+		// stats is giving a minimum of zero even if its wrong
+		plot = new ContrastPlot(initial.getMin(), initial.getMax(), first.getMin(), first.getMax());
 		plot.setHistogram(stats, Color.black);
-
-		// debug
-		//ImagePlus imp = new ImagePlus("initial", initial.duplicate());
-		//imp.show();
-		//Utils.log("initial hmax: " + imp.getStatistics().maxCount);
-
 
 		this.sliderRange = computeSliderRange();
 
 		// Create GUI
 		this.frame = new JFrame("Contrast adjustment");
 		frame.addWindowListener(new WindowAdapter() {
-			public void windowClosed(WindowEvent we) {
+			public void windowClosing(WindowEvent we) {
 				display.getCanvas().cancelTransform();
 			}
 		});
@@ -231,14 +240,31 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		c.fill = GridBagConstraints.HORIZONTAL;
 		gb.setConstraints(mm, c);
 		panel.add(mm);
-
-		// 3. Min slider
-		final JSlider minslider = createSlider(panel, gb, c, "Minimum", monoFont, sliderRange, 0);
-		final JSlider maxslider = createSlider(panel, gb, c, "Maximum", monoFont, sliderRange, sliderRange);
+		
+		Utils.log2("first min, max " + first.getMin() + ", " + first.getMax());
+		
+		// 3. Sliders
+		double ratio = sliderRange / (initial.getMax() - initial.getMin());
+		double firstMin = (first.getMin() - initial.getMin()) * ratio;
+		double firstMax = (first.getMax() - initial.getMin()) * ratio;
+		plot.update(first.getMin(), first.getMax());
+		
+		
+		int sliderMin = (int)firstMin;
+		int sliderMax = (int)firstMax;
+		// Prevent potential errors
+		if (sliderMin < 0) sliderMin = 0;
+		if (sliderMax > sliderRange -1) sliderMax = sliderRange -1;		
+		if (sliderMin > sliderMax) sliderMin = sliderMax;
+		Utils.log2("After checking, slider min and max values are: " + sliderMin + ", " + sliderMax + " for range " + sliderRange);
+		
+		final JSlider minslider = createSlider(panel, gb, c, "Minimum", monoFont, sliderRange, sliderMin);
+		final JSlider maxslider = createSlider(panel, gb, c, "Maximum", monoFont, sliderRange, sliderMax);
 		ChangeListener adl = new ChangeListener() {
 			public void stateChanged(ChangeEvent ce) {
 				double smin = minslider.getValue();
 				double smax = maxslider.getValue();
+				Utils.log2("smin, smax: " + smin + ", " + smax);
 				min_max.set(smin, smax);
 				updateLabelsAndPlot(smin, smax);
 				//doPainterUpdate(srcRect, magnification);
@@ -301,20 +327,18 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		gb.setConstraints(buttons, c);
 		panel.add(buttons);
 
-
-
 		frame.getContentPane().add(panel);
 		
 		Utils.invokeLater(new Runnable() { public void run() {
+
+			min_max.set(minslider.getValue(), maxslider.getValue());
+			
 			frame.pack();
 
 			// after calling pack
 			Dimension dim = new Dimension(plot.getWidth(), 15);
 			minslider.setMinimumSize(dim);
 			maxslider.setMinimumSize(dim);
-
-			min_max.set(0, sliderRange);
-			updateLabelsAndPlot(0, sliderRange);
 
 			frame.pack(); // again
 
@@ -343,7 +367,12 @@ public class ContrastAdjustmentMode extends GroupingMode {
 	}
 
 	private JSlider createSlider(JPanel panel, GridBagLayout gb, GridBagConstraints c, String title, Font font, int sliderRange, int start) {
+		
+		Utils.log2("createSlider range: " + sliderRange + ", start: " + start);
+		
 		JSlider s = new JSlider(JSlider.HORIZONTAL, 0, sliderRange, start);
+		s.setPaintLabels(false);
+		s.setPaintTicks(false);
 		s.setBackground(Color.white);
 		c.gridy++;
 		c.insets = new Insets(2, 10, 0, 10);
@@ -411,6 +440,7 @@ public class ContrastAdjustmentMode extends GroupingMode {
 		return true;
 	}
 
+	@Override
 	public boolean cancel() {
 		super.cancel();
 		frame.dispose();

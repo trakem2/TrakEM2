@@ -1,39 +1,11 @@
 package ini.trakem2.display;
 
-import java.awt.event.MouseEvent;
-import java.awt.Rectangle;
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Point;
-import java.util.Collections;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.TreeMap;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Set;
-import java.awt.AlphaComposite;
-import java.awt.Composite;
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.image.ColorModel;
-import java.awt.event.MouseEvent;
-
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.utils.History;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
-import ini.trakem2.display.graphics.GraphicsSource;
 import ini.trakem2.display.graphics.DefaultGraphicsSource;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Display;
+import ini.trakem2.display.graphics.GraphicsSource;
+
+import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
+import java.util.Collection;
 
 public class DefaultMode implements Mode {
 

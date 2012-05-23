@@ -807,7 +807,7 @@ public class DBLoader extends Loader {
 			Project[] projects = null;
 			try {
 				ResultSet r = connection.prepareStatement("SELECT title, id FROM ab_projects ORDER BY id").executeQuery();
-				ArrayList al_projects = new ArrayList();
+				ArrayList<Project> al_projects = new ArrayList<Project>();
 				while (r.next()) {
 					al_projects.add(new Project(r.getLong("id"), r.getString("title")));
 				}
@@ -823,27 +823,25 @@ public class DBLoader extends Loader {
 	}
 
 	/** Recursive. Assumes all TemplateThing objects have a unique type. */
-	private void unpack(TemplateThing root, HashMap hs_tt) {
+	private void unpack(TemplateThing root, HashMap<String,TemplateThing> hs_tt) {
 		String type = root.getType();
 		if (null != hs_tt.get(type)) return; // avoid replacing, the higher level one is the right one (for example for neurite_branch)
 		hs_tt.put(type, root);
 		if (null == root.getChildren()) return;
-		Iterator it = root.getChildren().iterator();
-		while (it.hasNext()) {
-			TemplateThing tt = (TemplateThing)it.next();
+		for (TemplateThing tt : root.getChildren()) {
 			unpack(tt, hs_tt);
 		}
 	}
 
 	/** Get all the Thing objects, recursively, for the root, and their corresponding encapsulated objects. Also, fills in the given ArrayList with all loaded Displayable objects. */
-	public ProjectThing getRootProjectThing(Project project, TemplateThing root_tt, TemplateThing project_tt, HashMap hs_d) {
+	public ProjectThing getRootProjectThing(Project project, TemplateThing root_tt, TemplateThing project_tt, HashMap<Long,Displayable> hs_d) {
 		synchronized (db_lock) {
 			//connect if disconnected
 			if (!connectToDatabase()) {
 				return null;
 			}
 			// unpack root_tt (assumes TemplateThing objects have unique types, skips any repeated type to avoid problems in recursive things such as neurite_branch)
-			HashMap hs_tt = new HashMap();
+			HashMap<String,TemplateThing> hs_tt = new HashMap<String,TemplateThing>();
 			unpack(root_tt, hs_tt);
 
 			ProjectThing root = null;
@@ -866,7 +864,7 @@ public class DBLoader extends Loader {
 		}
 	}
 
-	private ProjectThing getProjectThing(ResultSet r, Project project, HashMap hs_tt, HashMap hs_d) throws Exception {
+	private ProjectThing getProjectThing(ResultSet r, Project project, HashMap<String,TemplateThing> hs_tt, HashMap<Long,Displayable> hs_d) throws Exception {
 		long id = r.getLong("id");
 		String type = r.getString("type");
 		TemplateThing tt = (TemplateThing)hs_tt.get(type);
@@ -878,13 +876,13 @@ public class DBLoader extends Loader {
 		Object ob = r.getString("title"); // may be null
 		if (-1 != object_id) {
 			ob = getProjectObject(project, object_id);
-			if (ob instanceof Displayable) hs_d.put(new Long(((DBObject)ob).getId()), ob);
+			if (ob instanceof Displayable) hs_d.put(new Long(((Displayable)ob).getId()), (Displayable)ob);
 			else Utils.log("Loader.getProjectThing: not adding to hs_d: " + ob);
 		}
 		return new ProjectThing(tt, project, id, ob, getChildrenProjectThings(project, id, type, hs_tt, hs_d));
 	}
 
-	private ArrayList<ProjectThing> getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap hs_tt, HashMap hs_d) throws Exception {
+	private ArrayList<ProjectThing> getChildrenProjectThings(Project project, long parent_id, String parent_type, HashMap<String,TemplateThing> hs_tt, HashMap<Long,Displayable> hs_d) throws Exception {
 		final ArrayList<ProjectThing> al_children = new ArrayList<ProjectThing>();
 		ResultSet r = null;
 		if (-1 == parent_id) Utils.log("parent_id = -1 for parent_type=" + parent_type);

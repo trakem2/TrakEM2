@@ -19,7 +19,7 @@ public class PatchScript {
 			vars.put("patch", patch);
 			vars.put("imp", imp);
 			if (null == m) {
-				Class c = Class.forName("common.ScriptRunner");
+				Class<?> c = Class.forName("common.ScriptRunner");
 				m = c.getDeclaredMethod("run", String.class, Map.class);
 			}
 			m.invoke(null, (IJ.isWindows() ? path.replace('/', '\\') : path), vars);

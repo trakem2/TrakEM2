@@ -29,6 +29,7 @@ import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.LayerStack;
 import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -64,7 +65,7 @@ import javax.vecmath.Vector3d;
 
 import tracing.Path;
 import tracing.SearchProgressCallback;
-import tracing.SearchThread;
+import tracing.SearchInterface;
 import tracing.TracerThread;
 
 
@@ -439,7 +440,16 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			n_points = p[0].length;
 		}
 
-		final boolean no_color_cues = "true".equals(project.getProperty("no_color_cues"));
+		final boolean no_color_cues = !layer_set.color_cues;
+		final Color below, above;
+		if (layer_set.use_color_cue_colors) {
+			below = Color.red;
+			above = Color.blue;
+		} else {
+			below = this.color;
+			above = this.color;
+		}
+
 		final long layer_id = active_layer.getId();
 		final double z_current = active_layer.getZ();
 
@@ -449,10 +459,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		boolean paint = true;
 		if (z < z_current) {
 			if (no_color_cues) paint = false;
-			else g.setColor(Color.red);
+			else g.setColor(below);
 		} else if (z == z_current) g.setColor(this.color);
 		else if (no_color_cues) paint = false;
-		else g.setColor(Color.blue);
+		else g.setColor(above);
 
 		// Paint half line:
 		if (paint && n_points > 1) {
@@ -482,10 +492,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			paint = true;
 			if (z < z_current) {
 				if (no_color_cues) paint = false;
-				else g.setColor(Color.red);
+				else g.setColor(below);
 			} else if (z == z_current) g.setColor(this.color);
 			else if (no_color_cues) paint = false;
-			else g.setColor(Color.blue);
+			else g.setColor(above);
 			if (!paint) continue;
 			// paint half line towards previous point:
 			g.drawLine((int)p[0][i], (int)p[1][i],
@@ -554,7 +564,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	static private class TraceParameters {
 		boolean update = true;
 		ImagePlus virtual = null;
-		double scale = 1;
+		//double scale = 1;
 		ComputeCurvatures hessian = null;
 		TracerThread tracer = null; // catched thread for KeyEvent to attempt to stop it
 	}
@@ -613,7 +623,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 				hessian.run();
 
 				tr.virtual = virtual;
-				tr.scale = scale;
+				//tr.scale = scale;
 				tr.hessian = hessian;
 				tr.update = false;
 
@@ -665,15 +675,15 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 								       null,
 								       null != tr.hessian);
 				tr.tracer.addProgressListener(new SearchProgressCallback() {
-					public void pointsInSearch(SearchThread source, int inOpen, int inClosed) {
+					public void pointsInSearch(SearchInterface source, int inOpen, int inClosed) {
 						worker[1].setTaskName("Tracing path: open=" + inOpen + " closed=" + inClosed);
 					}
-					public void finished(SearchThread source, boolean success) {
+					public void finished(SearchInterface source, boolean success) {
 						if (!success) {
 							Utils.logAll("Could NOT trace a path");
 						}
 					}
-					public void threadStatus(SearchThread source, int currentStatus) {
+					public void threadStatus(SearchInterface source, int currentStatus) {
 						// This method gets called every reportEveryMilliseconds
 						if (worker[1].hasQuitted()) {
 							source.requestStop();
@@ -994,7 +1004,8 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		return n_points;
 	}
 
-	synchronized public boolean contains(final Layer layer, final int x, final int y) {
+	@Override
+	synchronized public boolean contains(final Layer layer, final double x, final double y) {
 		Display front = Display.getFront();
 		double radius = 10;
 		if (null != front) {
@@ -1006,10 +1017,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 		// make x,y local
 		final Point2D.Double po = inverseTransformPoint(x, y);
-		return containsLocal(layer, (int)po.x, (int)po.y, radius);	
+		return containsLocal(layer, po.x, po.y, radius);	
 	}
 
-	protected boolean containsLocal(final Layer layer, int x, int y, double radius) {
+	protected boolean containsLocal(final Layer layer, double x, double y, double radius) {
 
 		final long lid = layer.getId();
 		final double z = layer.getZ();
@@ -1093,10 +1104,10 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 	/** Exports data. */
 	@Override
-	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_polyline\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		if (-1 == n_points) setupForDisplay(); // reload
 		//if (0 == n_points) return;
 		final String[] RGB = Utils.getHexRGBColor(color);
@@ -1115,12 +1126,12 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			sb_body.append("\"\n");
 		}
 		sb_body.append(indent).append(">\n");
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_polyline>\n");
 	}
 
 	/** Exports to type t2_polyline. */
-	static public void exportDTD(final StringBuilder sb_header, final HashSet hs, final String indent) {
+	static public void exportDTD(final StringBuilder sb_header, final HashSet<String> hs, final String indent) {
 		final String type = "t2_polyline";
 		if (hs.contains(type)) return;
 		hs.add(type);
@@ -1145,12 +1156,12 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Calibrated. */
-	synchronized public List generateTriangles(double scale, int parallels, int resample) {
+	synchronized public List<Point3f> generateTriangles(double scale, int parallels, int resample) {
 		return generateTriangles(scale, parallels, resample, layer_set.getCalibrationCopy());
 	}
 
 	/** Returns a list of Point3f that define a polyline in 3D, for usage with an ij3d CustomLineMesh CONTINUOUS. @param parallels is ignored. */
-	synchronized public List generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
+	synchronized public List<Point3f> generateTriangles(final double scale, final int parallels, final int resample, final Calibration cal) {
 		if (-1 == n_points) setupForDisplay();
 
 		if (0 == n_points) return null;
@@ -1167,7 +1178,7 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 			p = this.p;
 		}
 
-		final ArrayList list = new ArrayList();
+		final ArrayList<Point3f> list = new ArrayList<Point3f>();
 		final double KW = scale * cal.pixelWidth * resample;
 		final double KH = scale * cal.pixelHeight * resample;
 
@@ -1407,12 +1418,8 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		}
 	}
 
-	public void setPosition(FallLine fl) {
-		// Where are we now?
-	}
-
 	@Override
-	final Class getInternalDataPackageClass() {
+	final Class<?> getInternalDataPackageClass() {
 		return DPPolyline.class;
 	}
 

@@ -78,7 +78,8 @@ public class Connector extends Treeline {
 		}
 		@Override
 		public void paintData(final Graphics2D g, final Rectangle srcRect,
-				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
+				final Tree<Float> tree, final AffineTransform to_screen, final Color cc,
+				final Layer active_layer) {
 			g.setColor(cc);
 			g.draw(to_screen.createTransformedShape(new Ellipse2D.Float(x -r, y -r, r+r, r+r)));
 		}
@@ -207,11 +208,19 @@ public class Connector extends Treeline {
 		}
 	}
 
-	public boolean intersectsOrigin(final Area area) {
-		if (null == root) return false;
+	public boolean intersectsOrigin(final Area area, final Layer la) {
+		if (null == root || root.la != la) return false;
 		final Area a = root.getArea();
 		a.transform(this.at);
 		return M.intersects(area, a);
+	}
+	
+	/** Whether the area of the root node intersects the world coordinates {@param wx}, {@param wy} at {@link Layer} {@param la}. */
+	public boolean intersectsOrigin(final double wx, final double wy, final Layer la) {
+		if (null == root || root.la != la) return false;
+		final Area a = root.getArea();
+		a.transform(this.at);
+		return a.contains(wx, wy);
 	}
 
 	/** Returns the set of Displayable objects under the origin point, or an empty set if none. */
@@ -436,7 +445,7 @@ public class Connector extends Treeline {
 	protected boolean requireAltDownToEditRadius() { return false; }
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node<Float>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<Float>> nodes) {
 		final Rectangle nb = new Rectangle();
 		Rectangle box = null;
 		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
@@ -456,7 +465,9 @@ public class Connector extends Treeline {
 		if (null == root) return true; // it's empty already
 		if (!range.contains(root.la)) {
 			this.root = null;
-			clearCache();
+			synchronized (node_layer_map) {
+				clearCache();
+			}
 			return true;
 		}
 		return super.crop(range);

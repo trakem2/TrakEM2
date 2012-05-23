@@ -6,6 +6,7 @@ import ini.trakem2.utils.*;
 
 import java.io.*;
 import java.util.*;
+import java.util.zip.GZIPInputStream;
 
 /** Reads either a DOCTYPE chunk from an xml file or a .dtd file directly. */
 public class DTDParser {
@@ -14,7 +15,7 @@ public class DTDParser {
 
 	/** Extracts the template by reading the ELEMENT and ATTLIST tags from a .dtd file or the DOCTYPE of an .xml file. */
 	static public TemplateThing[] extractTemplate(String path) throws Exception {
-		if (path.length() -4 == path.lastIndexOf(".xml")) return parseXMLFile(path);
+		if (path.matches(".*(\\.xml|\\.xml\\.gz)")) return parseXMLFile(path);
 		if (path.length() -4 == path.lastIndexOf(".dtd")) return parseDTDFile(path);
 		return null;
 	}
@@ -63,6 +64,7 @@ public class DTDParser {
 				if (!f.exists()) return null;
 				i_stream = new FileInputStream(xml_path);
 			}
+			if (xml_path.endsWith(".xml.gz")) i_stream = new GZIPInputStream(i_stream);
 			dis = new BufferedReader(new InputStreamReader(i_stream));
 			String tmp;
 			while (null != (tmp = dis.readLine())) {

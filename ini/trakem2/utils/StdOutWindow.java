@@ -12,7 +12,6 @@ import java.awt.Dimension;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.io.ByteArrayOutputStream;
-import java.io.BufferedOutputStream;
 import java.io.PrintStream;
 
 /** Captures the last 10000 chars of StdOut and StdErr into two TextArea. */
@@ -78,8 +77,8 @@ public class StdOutWindow {
 		synchronized (instance) {
 			if (null != instance.window) return;
 
-			default_out = System.out;
-			default_err = System.err;
+			StdOutWindow.default_out = System.out;
+			StdOutWindow.default_err = System.err;
 
 			SwingUtilities.invokeLater(new Runnable() { public void run() {
 				try {
@@ -96,8 +95,8 @@ public class StdOutWindow {
 		synchronized (instance) {
 			System.setOut(default_out);
 			System.setErr(default_err);
-			instance.default_out = null;
-			instance.default_err = null;
+			StdOutWindow.default_out = null;
+			StdOutWindow.default_err = null;
 			instance.window.dispose();
 			instance.window = null;
 		}

@@ -26,7 +26,6 @@ import java.awt.Rectangle;
 import java.awt.Graphics2D;
 import java.awt.Color;
 import java.awt.Font;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Collection;
@@ -154,7 +153,7 @@ public class ManualAlignMode implements Mode {
 		/** Sets the point at @param index to the new location. */
 		synchronized public void set(final int index, final float x_d, final float y_d) {
 			if (index < 0 || index >= points.size()) return;
-			Point p = points.remove(index);
+			points.remove(index);
 			points.add(index, new Point(new float[]{x_d, y_d}));
 		}
 
@@ -197,6 +196,7 @@ public class ManualAlignMode implements Mode {
 	private Layer current_layer = null;
 	private int index = -1;
 
+	@Override
 	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
 		current_layer = display.getLayer();
 
@@ -218,9 +218,10 @@ public class ManualAlignMode implements Mode {
 			}
 		}
 
-		display.repaint();
+		display.repaintAll3();
 	}
 
+	@Override
 	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		//Utils.log2("index is " + index);
 		if (-1 != index && current_layer == display.getLayer()) {
@@ -233,6 +234,7 @@ public class ManualAlignMode implements Mode {
 		}
 	}
 
+	@Override
 	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
 		// Do nothing
 	}
@@ -493,7 +495,7 @@ public class ManualAlignMode implements Mode {
 				matches.add(new PointMatch(lm2.points.get(i), lm1.points.get(i)));
 			}
 
-			AbstractAffineModel2D< ? > mod = model.clone();
+			AbstractAffineModel2D< ? > mod = model.copy();
 			try {
 				mod.fit(matches);
 			} catch (Throwable t) {
@@ -656,7 +658,7 @@ public class ManualAlignMode implements Mode {
 		public void endElement(String namespace_URI, String local_name, String qualified_name) {
 			if ("layer".equals(qualified_name)) {
 				Landmarks lm = m.get(this.layer);
-				Utils.log("Loaded " + lm.points.size() + " landmarks for layer " + layer.getParent().indexOf(layer) + ": " + layer);
+				Utils.log("Loaded " + lm.points.size() + " landmarks for layer " + (layer.getParent().indexOf(layer) + 1) + ": " + layer);
 			}
 		}
 	}

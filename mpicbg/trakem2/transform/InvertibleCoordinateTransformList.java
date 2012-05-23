@@ -31,7 +31,7 @@ public class InvertibleCoordinateTransformList< E extends InvertibleCoordinateTr
 	public String toXML( final String indent )
 	{
 		String s = indent + "<iict_transform_list>";
-		for ( E t : l )
+		for ( E t : transforms )
 			s += "\n" + t.toXML( indent + "\t" );
 		return s + "\n" + indent + "</iict_transform_list>";
 	}
@@ -43,11 +43,11 @@ public class InvertibleCoordinateTransformList< E extends InvertibleCoordinateTr
 	}
 	
 	@Override
-	public InvertibleCoordinateTransformList< E > clone()
+	public InvertibleCoordinateTransformList< E > copy()
 	{
 		final InvertibleCoordinateTransformList< E > ctl = new InvertibleCoordinateTransformList< E >();
-		for ( E ct : l )
-			ctl.add( ( E )ct.clone() );
+		for ( E ct : transforms )
+			ctl.add( ( E )ct.copy() );
 		return ctl;
 	}
 }

@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.vector.VectorString2D;
 import ini.trakem2.display.VectorDataTransform;
 
 import ij.gui.PolygonRoi;
@@ -401,7 +402,7 @@ public final class M {
 		apply(vdt, a, false);
 	}
 
-	/** Parts of @param a not intersected by any of @pram vdt rois will be left untouched if @param remove_outside is true. */
+	/** Parts of @param a not intersected by any of @param vdt rois will be left untouched if @param remove_outside is false. */
 	static final public void apply(final VectorDataTransform vdt, final Area a, final boolean remove_outside) {
 		final Area b = new Area();
 		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
@@ -633,7 +634,8 @@ public final class M {
 	/** The @param ict is expected to transform the data as if this data was expressed in world coordinates,
 	 *  so this method returns a transformation list that prepends the transform from local to world, then the @param ict, then from world to local. */
 	static public final mpicbg.models.CoordinateTransform wrap(final AffineTransform to_world, final mpicbg.models.CoordinateTransform ict, final AffineTransform to_local) throws Exception {
-		final mpicbg.models.CoordinateTransformList chain = new mpicbg.models.CoordinateTransformList();
+		final mpicbg.models.CoordinateTransformList<mpicbg.models.CoordinateTransform> chain
+		  = new mpicbg.models.CoordinateTransformList<mpicbg.models.CoordinateTransform>(); // bravo!
 		// 1 - Prepend to world
 		final mpicbg.models.AffineModel2D toworld = new mpicbg.models.AffineModel2D();
 		toworld.set(to_world);
@@ -774,5 +776,34 @@ public final class M {
 		c.subtract(b);
 
 		return new Area[]{b, c};
+	}
+
+	public static final VectorString2D asVectorString2D(final Polygon pol, final double z) throws Exception {
+		double[] x = new double[pol.npoints];
+		double[] y = new double[pol.npoints];
+		for (int i=0; i<x.length; i++) {
+			x[i] = pol.xpoints[i];
+			y[i] = pol.ypoints[i];
+		}
+		return new VectorString2D(x, y, z, true);
+	}
+	
+	public static final double volumeOfTruncatedCone(final double r1, final double r2, final double height) {
+		return Math.PI
+				* (  r1 * r1
+				   + r1 * r2
+				   + r2 * r2)
+				* height
+				/ 3;
+	}
+
+	public static final double lateralAreaOfTruncatedCone(final double r1, final double r2, final double height) {
+		return Math.PI * (r1 + r2) * Math.sqrt(Math.pow(r2 - r1, 2) + height * height);
+	}
+
+	/** The lateral area plus the two circles. */
+	public static final double totalAreaOfTruncatedCone(final double r1, final double r2, final double height) {
+		return lateralAreaOfTruncatedCone(r1, r2, height)
+			+ Math.PI * (r1 * r1 + r2 * r2);
 	}
 }

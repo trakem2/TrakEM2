@@ -34,8 +34,12 @@ import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.Project;
+import ini.trakem2.display.paint.USHORTPaint;
+import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
@@ -56,10 +60,13 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.PathIterator;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -68,6 +75,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 
@@ -122,13 +131,13 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		//arrange transparency
 		Composite original_composite = null;
 		try {
-			if (layer_set.color_cues) {
+			if (layer_set.area_color_cues) {
 				original_composite = g.getComposite();
-				Color c = Color.red;
+				Color c = layer_set.use_color_cue_colors ? Color.red : this.color;
 				g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, Math.min(alpha, 0.25f)));
 				for (final Layer la : layers) {
 					if (active_layer == la) {
-						c = Color.blue;
+						c = layer_set.use_color_cue_colors ? Color.blue : this.color;
 						continue;
 					}
 					Area area = ht_areas.get(la.getId());
@@ -242,7 +251,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Returns whether the point x,y is contained in this object at the given Layer. */
-	public boolean contains(final Layer layer, final int x, final int y) {
+	@Override
+	public boolean contains(final Layer layer, final double x, final double y) {
 		Object ob = ht_areas.get(new Long(layer.getId()));
 		if (null == ob) return false;
 		if (AreaList.UNLOADED == ob) {
@@ -358,35 +368,60 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		aw = null;
 	}
 
-	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in. @param lid is the currently active Layer. */ //This is the only road to sanity for ZDisplayable objects.
+	/** Calculate box, make this width,height be that of the box, and translate all areas to fit in.
+	 * @param la is the currently active Layer.
+	 */
+	@Override
 	public boolean calculateBoundingBox(final Layer la) {
 		try {
 			// check preconditions
 			if (0 == ht_areas.size()) return false;
-			final Area[] area = new Area[ht_areas.size()];
-			ht_areas.values().toArray(area);
-			final Rectangle[] b = new Rectangle[area.length];
-			Rectangle box = null;
-			for (int i=0; i<area.length; i++) {
-				b[i] = area[i].getBounds();
-				if (null == box) box = (Rectangle)b[i].clone();
-				else box.add(b[i]);
-			}
-			if (null == box || 0 == box.width || 0 == box.height) return false; // empty AreaList
 
-			final AffineTransform atb = new AffineTransform();
-			atb.translate(-box.x, -box.y); // make local to overall box, so that box starts now at 0,0
-			/*
-			final Map.Entry<Long,Area>[] entry = (Map.Entry<Long,Area>[])new Map.Entry[area.length];
-			ht_areas.entrySet().toArray(entry);
-			for (int i=0; i<area.length; i++) {
-				entry[i].setValue(area[i].createTransformedArea(atb));
-			}
-			*/
+			Rectangle box = null;
 			for (final Area a : ht_areas.values()) {
-				a.transform(atb);
+				if (null == a || a.isEmpty()) continue;
+				if (null == box) box = a.getBounds();
+				else box.add(a.getBounds());
 			}
-			//this.translate(box.x, box.y);
+
+			// If null, the AreaList was empty
+			// If box.width,height are zero, the AreaList was empty
+			if (null == box || 0 == box.width || 0 == box.height) {
+				return false;
+			}
+
+			// If box.x,y are 0, then no transform is necessary
+			if (0 == box.x && 0 == box.y) {
+				// no translation necessary, but must adjust width and height
+				this.width = box.width;
+				this.height = box.height;
+				updateInDatabase("dimensions");
+				return true;
+			}
+
+			// make local to overall box, so that box starts now at 0,0
+			final AffineTransform atb = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
+
+			// Guess if multithreaded processing would help
+			if (ht_areas.size() > 1 && (box.width > 2048 || box.height > 2048 || ht_areas.size() > 10)) {
+				// Multithreaded
+				final ExecutorService exec = Utils.newFixedThreadPool("AreaList-CBB");
+				final List<Future<?>> fus = new ArrayList<Future<?>>();
+				for (final Area a : ht_areas.values()) {
+					fus.add(exec.submit(new Runnable() {
+						public void run() {
+							a.transform(atb);
+						}
+					}));
+				}
+				Utils.wait(fus);
+				exec.shutdown();
+			} else {
+				// Single threaded
+				for (final Area a : ht_areas.values()) {
+					a.transform(atb);
+				}
+			}
 			this.at.translate(box.x, box.y);
 			this.width = box.width;
 			this.height = box.height;
@@ -412,20 +447,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	@Override
-	public void exportXML(final StringBuilder sb_body, final String indent, final Object any) {
+	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_area_list\n");
 		final String in = indent + "\t";
-		super.exportXML(sb_body, in, any);
+		super.exportXML(sb_body, in, options);
 		sb_body.append(in).append("fill_paint=\"").append(fill_paint).append("\"\n");
 		String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"stroke:none;fill-opacity:").append(alpha).append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n");
 		sb_body.append(indent).append(">\n");
 		for (final Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
+			final Area area = entry.getValue();
+			if (null == area || area.isEmpty()) continue;
 			sb_body.append(in).append("<t2_area layer_id=\"").append(entry.getKey()).append("\">\n");
-			exportArea(sb_body, in + "\t", entry.getValue());
+			exportArea(sb_body, in + "\t", area);
 			sb_body.append(in).append("</t2_area>\n");
 		}
-		super.restXML(sb_body, in, any);
+		super.restXML(sb_body, in, options);
 		sb_body.append(indent).append("</t2_area_list>\n");
 	}
 
@@ -810,9 +847,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Export all given AreaLists as one per pixel value, what is called a "labels" file; a file dialog is offered to save the image as a tiff stack. */
-	static public void exportAsLabels(final java.util.List<Displayable> list, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
+	static public void exportAsLabels(final List<Displayable> listToPaint, final ij.gui.Roi roi, final float scale, int first_layer, int last_layer, final boolean visible_only, final boolean to_file, final boolean as_amira_labels) {
 		// survive everything:
-		if (null == list || 0 == list.size()) {
+		if (null == listToPaint || 0 == listToPaint.size()) {
 			Utils.log("Null or empty list.");
 			return;
 		}
@@ -820,6 +857,15 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
 		}
+		
+		// Select the subset to paint
+		final ArrayList<AreaList> list = new ArrayList<AreaList>();
+		for (final Displayable d : listToPaint) {
+			if (visible_only && !d.isVisible()) continue;
+			if (d instanceof AreaList) list.add((AreaList)d);
+		}
+
+		Utils.log2("exportAsLabels: list.size() is " + list.size());
 
 		// Current AmiraMeshEncoder supports ByteProcessor only: 256 labels max, including background at zero.
 		if (as_amira_labels && list.size() > 255) {
@@ -829,7 +875,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
 			Utils.log(sb.toString());
-			ArrayList<Displayable> li = new ArrayList<Displayable>(list);
+			ArrayList<AreaList> li = new ArrayList<AreaList>(list);
 			list.clear();
 			list.addAll(li.subList(0, 255));
 		}
@@ -852,8 +898,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 		// Create image according to roi and scale
 		final int width, height;
-		Rectangle broi = null;
+		final Rectangle broi;
 		if (null == roi) {
+			broi = null;
 			width = (int)(layer_set.getLayerWidth() * scale);
 			height = (int)(layer_set.getLayerHeight() * scale);
 		} else {
@@ -868,8 +915,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			String label = d.getProperty("label");
 			if (null != label) label_values.add(Integer.parseInt(label));
 		}
-		int lowest = 0;
-		int highest = 0;
+		int lowest=0, highest=0;
 		if (label_values.size() > 0) {
 			lowest = label_values.first();
 			highest = label_values.last();
@@ -877,15 +923,17 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		int n_non_labeled = list.size() - label_values.size();
 		int max_label_value = highest + n_non_labeled;
 
-		final ImageStack stack = new ImageStack(width, height);
-		// processor type:
-		int type = ImagePlus.GRAY8;
-		if (max_label_value > 255) { // 0 is background, and 255 different arealists
-			type = ImagePlus.GRAY16;
-			if (max_label_value > 65535) { // 0 is background, and 65535 different arealists
-				type = ImagePlus.GRAY32;
+		int type_ = ImagePlus.GRAY8;
+		if (max_label_value > 255) {
+			type_ = ImagePlus.GRAY16;
+			if (max_label_value > 65535) {
+				type_ = ImagePlus.GRAY32;
 			}
 		}
+		final int type = type_;
+	
+		final ImageStack stack = new ImageStack(width, height);
+
 		Calibration cal = layer_set.getCalibration();
 
 		String amira_params = null;
@@ -909,9 +957,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final float len = last_layer - first_layer + 1;
 
 		// Assign labels
-		final HashMap<Displayable,Integer> labels = new HashMap<Displayable,Integer>();
-		for (final Displayable d : list) {
-			if (visible_only && !d.isVisible()) continue;
+		final HashMap<AreaList,Integer> labels = new HashMap<AreaList,Integer>();
+		for (final AreaList d : list) {
 			String slabel = d.getProperty("label");
 			int label;
 			if (null != slabel) {
@@ -922,46 +969,156 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			labels.put(d, label);
 		}
 
-		final Area world = new Area(new Rectangle(0, 0, width, height));
+		final ExecutorService exec = Utils.newFixedThreadPool("labels");
+		final Map<Integer,ImageProcessor> slices = Collections.synchronizedMap(new TreeMap<Integer,ImageProcessor>());
+		final List<Future<?>> fus = new ArrayList<Future<?>>();
+		final List<Layer> layers = layer_set.getLayers().subList(first_layer, last_layer+1);
+	
+		for (int k = 0; k < layers.size(); k++) {
+			final Layer la = layers.get(k);
+			final int slice = k;
+			fus.add(exec.submit(new Runnable() {
+				public void run() {
+					Utils.showProgress(slice / len);
+					
+					final ImageProcessor ip;
+					
+					if (ImagePlus.GRAY8 == type) {
+						final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+						final Graphics2D g = bi.createGraphics();
+						
+						for (final AreaList ali : list) {
+							final Area area = ali.getArea(la);
+							if (null == area || area.isEmpty()) continue;
+							// Transform: the scale and the roi
+							final AffineTransform aff = new AffineTransform();
+							// reverse order of transformations:
+							/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+							/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+							g.setTransform(aff);
+							final int label = labels.get(ali);
+							g.setColor(new Color(label, label, label));
+							g.fill(area);
+						}
+						g.dispose();
+						ip = new ByteProcessor(bi);
+						bi.flush();
+						
+					} else if (ImagePlus.GRAY16 == type) {
+						final USHORTPaint paint = new USHORTPaint((short)0);
+						final BufferedImage bi = new BufferedImage(paint.getComponentColorModel(), paint.getComponentColorModel().createCompatibleWritableRaster(width, height), false, null);
+						final Graphics2D g = bi.createGraphics();
+						//final ColorSpace ugray = ColorSpace.getInstance(ColorSpace.CS_GRAY);
+						
+						int painted = 0;
+						
+						for (final AreaList ali : list) {
+							final Area area = ali.getArea(la);
+							if (null == area || area.isEmpty()) continue;
+							// Transform: the scale and the roi
+							final AffineTransform aff = new AffineTransform();
+							// reverse order of transformations:
+							/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+							/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+							// Fill
+							g.setTransform(aff);
+							
+							// The color doesn't work: paints in a stretched 8-bit mode
+							//g.setColor(new Color(ugray, new float[]{((float)labels.get(d)) / range}, 1));
+							
+							Utils.log2("value: " + labels.get(ali).shortValue());
+							paint.setValue(labels.get(ali).shortValue());
+							g.setPaint(paint);
+							
+							g.fill(area); //.createTransformedArea(aff));
+							
+							painted += 1;
+						}
+						g.dispose();
+						ip = new ShortProcessor(bi);
+						bi.flush();
+						
+						Utils.log2("painted: " + painted);
 
-		int count = 0;
-		for (final Layer la : layer_set.getLayers().subList(first_layer, last_layer+1)) {
-			Utils.showProgress(count/len);
-			count++;
-			ImageProcessor ip = Utils.createProcessor(type, width, height);
-			if (!(ip instanceof ByteProcessor)) {
-				ip.setMinAndMax(lowest, highest);
-			}
-			// paint here all arealist that paint to the layer 'la'
-			for (final Displayable d : list) {
-				if (visible_only && !d.isVisible()) continue;
-				ip.setValue(labels.get(d));
-				AreaList ali = (AreaList)d;
-				Area area = ali.getArea(la);
-				if (null == area) {
-					Utils.log2("Layer " + la + " id: " + d.getId() + " area is " + area);
-					continue;
+					} else {
+						// Option 1: could use the same as above, but shifted by 65536, so that 65537 is 1, 65538 is 2, etc.
+						//           and keep doing it until no more need to be shifted.
+						//           The PROBLEM: cannot keep the order without complicated gymnastics to remember
+						//           which label in which image has to be merged to the final image, which prevent
+						//           a simple one-pass blitter.
+						// 
+						// Option 2: paint each arealist, extract the image, use it as a mask for filling:
+			
+						final FloatProcessor fp = new FloatProcessor(width, height);
+						final float[] fpix = (float[]) fp.getPixels();
+						ip = fp;
+
+						final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
+						final Graphics2D gbi = bi.createGraphics();
+						
+						for (final AreaList ali : list) {
+							final Area area = ali.getArea(la);
+							if (null == area || area.isEmpty()) {
+								continue;
+							}
+							// Transform: the scale and the roi
+							// reverse order of transformations:
+							final AffineTransform aff = new AffineTransform();
+							/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
+							/* 2 - To ROI coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
+							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
+							final Area s = area.createTransformedArea(aff);
+							final Rectangle sBounds = s.getBounds();
+							// Need to paint at all?
+							if (0 == sBounds.width || 0 == sBounds.height || !sBounds.intersects(0, 0, width, height)) continue;
+							// Paint shape
+							gbi.setColor(Color.white);
+							gbi.fill(s);
+							// Read out painted region
+							final int x0 = Math.max(0, sBounds.x);
+							final int y0 = Math.max(0, sBounds.y);
+							final int xN = Math.min(width, sBounds.x + sBounds.width);
+							final int yN = Math.min(height, sBounds.y + sBounds.height);
+							// Get the array
+							final byte[] bpix = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData();
+							final float value = labels.get(ali);
+							// For every non-black pixel, set a 'value' pixel in the FloatProcessor
+							for (int y = y0; y < yN; ++y) {
+								for (int x = x0; x < xN; ++x) {
+									final int pos = y * width + x;
+									if (0 == bpix[pos]) continue; // black
+									fpix[pos] = value;
+								}
+							}
+							// Clear image region
+							gbi.setColor(Color.black);
+							gbi.fill(s);
+						}
+						gbi.dispose();
+						bi.flush();
+					}
+	
+					slices.put(slice, ip);
 				}
-				// Transform: the scale and the roi
-				AffineTransform aff = new AffineTransform();
-				// reverse order of transformations:
-				/* 3 - To scale: */ if (1 != scale) aff.scale(scale, scale);
-				/* 2 - To roi coordinates: */ if (null != broi) aff.translate(-broi.x, -broi.y);
-				/* 1 - To world coordinates: */ aff.concatenate(ali.at);
-				Area aroi = area.createTransformedArea(aff);
-				Rectangle b = aroi.getBounds();
-				if (b.x < 0 || b.y < 0 || b.x + b.width >= width || b.y + b.height >= height) {
-					aroi.intersect(world); // work around ij.gui.ShapeRoi bug
-				}
-				ShapeRoi sroi = new ShapeRoi(aroi);
-				ip.setRoi(sroi);
-				ip.fill(sroi.getMask());
-			}
-			stack.addSlice(la.getZ() * cal.pixelWidth + "", ip);
+			}));
 		}
+
+		Utils.wait(fus);
+		exec.shutdownNow();
+
+		for (final Map.Entry<Integer,ImageProcessor> e : slices.entrySet()) {
+			final Layer la = layers.get(e.getKey());
+			stack.addSlice(la.getZ() * cal.pixelWidth + "", e.getValue());
+			if (ImagePlus.GRAY8 != type) {
+				e.getValue().setMinAndMax(lowest, highest);
+			}
+		}
+
 		Utils.showProgress(1);
 		// Save via file dialog:
-		ImagePlus imp = new ImagePlus("Labels", stack); 
+		ImagePlus imp = new ImagePlus("Labels", stack);
 		if (as_amira_labels) imp.setProperty("Info", amira_params);
 		imp.setCalibration(layer_set.getCalibrationCopy());
 		if (to_file) {
@@ -984,7 +1141,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == ht_areas.size()) return rt;
-		if (null == rt) rt = Utils.createResultsTable("AreaList results", new String[]{"id", "volume", "LB-surface", "UBs-surface", "UB-surface", "AVGs-surface", "AVG-surface", "max diameter", "Sum of tops", "name-id"});
+		if (null == rt) rt = Utils.createResultsTable("AreaList results",
+				new String[]{"id", "volume", "LB-surface", "UBs-surface",
+				"UB-surface", "AVGs-surface", "AVG-surface", "max diameter",
+				"Sum of tops", "name-id", "Xcm", "Ycm", "Zcm"});
 		rt.incrementCounter();
 		rt.addLabel("units", layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
@@ -998,6 +1158,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		rt.addValue(7, m[4]); // max diameter
 		rt.addValue(8, m[5]); // sum of all cappings (tops and bottoms)
 		rt.addValue(9, getNameId());
+		rt.addValue(10, m[6]); // X of the center of mass
+		rt.addValue(11, m[7]); // Y
+		rt.addValue(12, m[8]); // Z
 		return rt;
 	}
 
@@ -1008,19 +1171,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	 *  [2] Upper Bound Surface Smoothed: measure smoothed perimeter lengths per section, multiply by thickness to get lateral area. Plus tops and bottoms.
 	 *  [3] Upper Bound Surface: measure raw pixelated perimeter lengths per section, multiply by thickness to get lateral area. Plus top and bottoms.
 	 *  [4] Maximum diameter: longest distance between any two points in the contours of all painted areas.
-	 *  [5] All tops and bottoms: Sum of all included surface areas that are not part of side area. */
+	 *  [5] All tops and bottoms: Sum of all included surface areas that are not part of side area.
+	 *  [6] X coordinate of the center of mass.
+	 *  [7] Y coordinate of the center of mass.
+	 *  [8] Z coordinate of the center of mass. */
 	public double[] measure() {
 		if (0 == ht_areas.size()) return new double[6]; // zeros
 
 		// prepare suitable transform
-		AffineTransform aff = (AffineTransform)this.at.clone();
+		AffineTransform aff = new AffineTransform(this.at);
 		AffineTransform aff2 = new AffineTransform();
-		// remove translation
+		// remove translation (for no reason other than historical, and that it may
+		//   help avoid numerical overflows)
 		Rectangle box = getBoundingBox(null);
 		aff2.translate(-box.x, -box.y);
 		aff.preConcatenate(aff2);
 		aff2 = null;
-		box = null;
 
 		double volume = 0;
 		double lower_bound_surface_h = 0;
@@ -1065,10 +1231,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				Utils.log("Could not find a layer at index " + layer_index);
 				continue;
 			}
+			
+			final Layer la = layers.get(layer_index);
 
 			// fetch Area
 			Area area = e.getValue();
-			if (UNLOADED == area) area = loadLayer(layer.getId());
+			if (UNLOADED == area) area = loadLayer(la.getId());
 			// Transform area to world coordinates
 			area = area.createTransformedArea(aff);
 
@@ -1079,7 +1247,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			//Utils.log2(layer_index + " pixel_area: " + pixel_area + "  surface " + surface);
 
 			// measure volume
-			double thickness = layer.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
+			double thickness = la.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
 			volume += surface * thickness;
 
 			//Utils.log2(layer_index + "  volume: " + volume);
@@ -1201,7 +1369,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			prev_thickness = thickness;
 
 			// Iterate points:
-			final float z = (float) layer.getZ();
+			final float z = (float) la.getZ();
 			for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); pit.next()) {
 				switch (pit.currentSegment(coords)) {
 					case PathIterator.SEG_MOVETO:
@@ -1225,15 +1393,31 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		// Compute maximum diameter
 		double max_diameter_sq = 0;
 		final int lp = points.size();
-		for (int i=0; i<lp; i++) {
-			final Point3f p = points.get(i);
-			for (int j=i; j<lp; j++) {
-				double len = p.distanceSquared(points.get(j));
-				if (len > max_diameter_sq) max_diameter_sq = len;
+		final Point3f c;
+		if (lp > 0) {
+			c = new Point3f(points.get(0)); // center of mass
+			for (int i=0; i<lp; i++) {
+				final Point3f p = points.get(i);
+				for (int j=i; j<lp; j++) {
+					double len = p.distanceSquared(points.get(j));
+					if (len > max_diameter_sq) max_diameter_sq = len;
+				}
+				if (0 == i) continue;
+				c.x += p.x;
+				c.y += p.y;
+				c.z += p.z;
 			}
+		} else {
+			c = new Point3f(Float.NaN, Float.NaN, Float.NaN);
 		}
+		// Translate the center of mass 
+		c.x = box.x + c.x / lp;
+		c.y = box.y + c.y / lp;
+		c.z /= lp;
 
-		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed, upper_bound_surface, Math.sqrt(max_diameter_sq), all_tops_and_bottoms};
+		return new double[]{volume, lower_bound_surface_h, upper_bound_surface_smoothed,
+				upper_bound_surface, Math.sqrt(max_diameter_sq), all_tops_and_bottoms,
+				c.x, c.y, c.z};
 	}
 
 	@Override
@@ -1361,6 +1545,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return new ArrayList<Long>(ht_areas.keySet());
 	}
 
+	/** In world coordinates, a copy of the area at {@param layer}. May be null. */
 	@Override
 	public Area getAreaAt(final Layer layer) {
 		final Area a = getArea(layer);
@@ -1398,5 +1583,89 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			IJError.print(nite);
 			return false;
 		}
+	}
+
+	@Override
+	public ResultsTable measureAreas(ResultsTable rt) {
+		if (0 == ht_areas.size()) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Area results", new String[]{"id", "name-id", "layer index", "area"});
+		final double nameId = getNameId();
+		final Calibration cal = layer_set.getCalibration();
+		final String units = cal.getUnit();
+		// Sort by Layer
+		final TreeMap<Layer,Area> sm = new TreeMap<Layer, Area>(Layer.COMPARATOR);
+		for (final Map.Entry<Long,Area> e : ht_areas.entrySet()) {
+			sm.put(layer_set.getLayer(e.getKey()), e.getValue());
+		}
+		for (final Map.Entry<Layer,Area> e : sm.entrySet()) {
+			Area area = e.getValue();
+			if (area.isEmpty()) continue;
+			rt.incrementCounter();
+			rt.addLabel("units", units);
+			rt.addValue(0, this.id);
+			rt.addValue(1, nameId);
+			rt.addValue(2, layer_set.indexOf(e.getKey()) + 1); // 1-based
+			// measure surface
+			double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
+			double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
+			rt.addValue(3, surface);
+		}
+		return rt;
+	}
+
+	/** Interpolate areas between the given first and last layers,
+	 * both of which must contain an area.
+	 * 
+	 * @return false if the interpolation could not be done. 
+	 * @throws Exception */
+	public boolean interpolate(final Layer first, final Layer last, final boolean always_use_distance_map) throws Exception {
+
+		int i1 = layer_set.indexOf(first);
+		int i2 = layer_set.indexOf(last);
+		if (i1 > i2) {
+			int tmp = i1;
+			i1 = i2;
+			i2 = tmp;
+		}
+		final List<Layer> range = layer_set.getLayers().subList(i1, i2+1);
+
+		Area start = null;
+		int istart = 0;
+		int inext = -1;
+
+		final HashSet<Layer> touched = new HashSet<Layer>();
+
+		for (final Layer la : range) {
+			inext++;
+			final Area next = getArea(la);
+			if (null == next || next.isEmpty()) continue;
+			if (null == start || 0 == inext - istart -1) { // skip for first area or for no space in between
+				start = next;
+				istart = inext;
+				continue;
+			}
+			// Interpolate from start to next
+			Area[] as = always_use_distance_map? null : AreaUtils.singularInterpolation(start, next, inext - istart -1);
+
+			if (null == as) {
+				// NOT SINGULAR: must use BinaryInterpolation2D
+				as = AreaUtils.manyToManyInterpolation(start, next, inext - istart -1);
+			}
+			if (null != as) {
+				for (int k=0; k<as.length; k++) {
+					final Layer la2 = range.get(k + istart + 1);
+					addArea(la2.getId(), as[k]);
+					touched.add(la2);
+				}
+			}
+
+			// Prepare next interval
+			start = next;
+			istart = inext;
+		}
+
+		for (Layer la : touched) calculateBoundingBox(la);
+
+		return true;
 	}
 }

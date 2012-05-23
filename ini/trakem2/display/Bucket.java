@@ -78,6 +78,10 @@ public class Bucket {
 	}
 
 	synchronized final void populate(final Bucketable container, final Layer layer, final HashMap<Displayable,HashSet<Bucket>> db_map) {
+		// Reset
+		if (null != this.map) this.map.clear();
+		this.children = null;
+		// Refill:
 		final HashMap<Integer,Displayable> list = new HashMap<Integer,Displayable>();
 		int i = 0;
 		// cache all bounding boxes
@@ -179,7 +183,7 @@ public class Bucket {
 			(th < y || th > r.y));
 	}
 
-	private final boolean contains(final int px, final int py) {
+	private final boolean contains(final double px, final double py) {
 		return px >= x &&
 		       py >= y &&
 		       px <= x + w &&
@@ -294,13 +298,13 @@ public class Bucket {
 	}
 
 	/** Find all Displayable objects that contain the given point at the given layer (here layer acts as the Z coordinate, then) and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final int px, final int py, final Layer layer, final boolean visible_only) {
+	synchronized final Collection<Displayable> find(final double px, final double py, final Layer layer, final boolean visible_only) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
 		find(accum, px, py, layer, visible_only);
 		return accum.values(); // sorted by integer key
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final int px, final int py, final Layer layer, final boolean visible_only) {
+	private void find(final TreeMap<Integer,Displayable> accum, final double px, final double py, final Layer layer, final boolean visible_only) {
 		if (empty || !contains(px, py)) return;
 		if (null != children) {
 			for (final Bucket bu : children) {
@@ -319,13 +323,13 @@ public class Bucket {
 	}
 
 	/** Find all Displayable objects that contain the given point at the given layer (here layer acts as the Z coordinate, then) and return them ordered by stack_index. If @param visible_only is trye, then hidden Displayable objects are ignored. */
-	synchronized final Collection<Displayable> find(final Class<?> c, final int px, final int py, final Layer layer, final boolean visible_only, final boolean instance_of) {
+	synchronized final Collection<Displayable> find(final Class<?> c, final double px, final double py, final Layer layer, final boolean visible_only, final boolean instance_of) {
 		final TreeMap<Integer,Displayable> accum = new TreeMap<Integer,Displayable>();
 		find(accum, c, px, py, layer, visible_only, instance_of);
 		return accum.values(); // sorted by integer key
 	}
 	/** Recursive search, accumulates Displayable objects that contain the given point and, if @param visible_only is true, then checks first if so. */
-	private void find(final TreeMap<Integer,Displayable> accum, final Class<?> c, final int px, final int py, final Layer layer, final boolean visible_only, final boolean instance_of) {
+	private void find(final TreeMap<Integer,Displayable> accum, final Class<?> c, final double px, final double py, final Layer layer, final boolean visible_only, final boolean instance_of) {
 		if (empty || !contains(px, py)) return;
 		if (null != children) {
 			for (final Bucket bu : children) {
@@ -543,21 +547,6 @@ public class Bucket {
 			}
 			return success;
 		} else if (null != map) {
-			final Displayable d2 = map.remove(old_stack_index);
-			if (d != d2) {
-				success = false;
-				// improper removal: re-add d2
-				map.put(old_stack_index, d2);
-				// ... and find d, and remove it
-				for (final Iterator<Map.Entry<Integer,Displayable>> it = map.entrySet().iterator(); it.hasNext(); ) {
-					final Map.Entry<Integer,Displayable> e = it.next();
-					if (e.getValue() == d) {
-						it.remove();
-						Utils.log2("Wanted to remove " + d + " at " + old_stack_index + " BUT found it at index " + e.getKey());
-						break;
-					}
-				}
-			}
 			reindex(new_stack_indices);
 		}
 		return success;
@@ -576,7 +565,6 @@ public class Bucket {
 				if (!bu.removeAll2(old_stack_indices, new_stack_indices)) this.empty = false;
 			}
 		} else if (null != map) {
-			for (final Integer i : old_stack_indices) map.remove(i);
 			reindex(new_stack_indices);
 			return map.isEmpty();
 		}

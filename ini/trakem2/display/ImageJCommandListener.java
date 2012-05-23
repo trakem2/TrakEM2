@@ -4,6 +4,7 @@ import fiji.geom.AreaCalculations;
 import ij.CommandListener;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.Menus;
 import ij.WindowManager;
 import ij.gui.Roi;
 import ij.gui.Toolbar;
@@ -17,6 +18,7 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Event;
+import java.awt.Menu;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
@@ -37,7 +39,7 @@ public class ImageJCommandListener implements CommandListener {
 	}
 
 	private void notAvailable(String command) {
-		Utils.log("'" + command + "' -- is not available.");
+		Utils.log("'" + command + "' -- is not available in TrakEM2");
 	}
 
 	private boolean in(String command, String[] list) {
@@ -111,7 +113,7 @@ public class ImageJCommandListener implements CommandListener {
 		//
 		// FILE menu
 		if (command.equals("Save")) {
-			project.getLoader().save(project);
+			project.save();
 			return null;
 		}
 
@@ -441,7 +443,16 @@ public class ImageJCommandListener implements CommandListener {
 			//Utils.log2("Skipping " + command);
 		}*/
 
-		// give it back to ImageJ for execution
+		// If it's part of "Save As", ignore it
+		Menu menu = Menus.getSaveAsMenu();
+		for (int i = menu.getItemCount() -1; i > -1; i--) {
+			if (command.equals(menu.getItem(i).getActionCommand())) {
+				notAvailable(command);
+				return null;
+			}
+		}
+
+		// Give it back to ImageJ
 		return command;
 	}
 }

@@ -47,6 +47,15 @@ public abstract class Node<T> implements Taggable {
 	protected Color color;
 	public Color getColor() { return this.color; }
 	public void setColor(final Color c) { this.color = c; }
+	public void setPosition(final float x, final float y) {
+		this.x = x;
+		this.y = y;
+	}
+	/** Expects two dimensions. */
+	public void setPosition(final float[] p) {
+		this.x = p[0];
+		this.y = p[1];
+	}
 
 	/** The confidence value of the edge towards the parent;
 	 *  in other words, how much this node can be trusted to continue from its parent node.
@@ -173,39 +182,45 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 
-	static protected final int TRUE = 0,
-							   FALSE = 1,
-							   TEST = 2;
-
 	/** Paint this node, and edges to parent and children varies according to whether they are included in the to_paint list.
 	 *  Returns a task (or null) to paint the tags. */
 	final Runnable paint(final Graphics2D g, final Layer active_layer,
 			final boolean active, final Rectangle srcRect,
 			final double magnification, final Collection<Node<T>> to_paint,
 			final Tree<T> tree, final AffineTransform to_screen,
-			final boolean with_arrows, final boolean with_confidence_boxes,
-			final boolean with_data) {
+			final boolean with_arrows, final boolean with_tags,
+			final boolean with_confidence_boxes, final boolean with_data,
+			Color above, Color below) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
 		
 		final double actZ = active_layer.getZ();
 		final double thisZ = this.la.getZ();
-		final Color node_color = null == this.color ? tree.color : this.color; 
+		final Color node_color;
+		if (null == this.color) {
+			// this node doesn't have its color set, so use tree color and given above/below colors
+			node_color = tree.color;
+		} else {
+			node_color = this.color;
+			// Depth cue colors may not be in use:
+			if (tree.color == above) above = this.color;
+			if (tree.color == below) below = this.color;
+		}
 		// Which edge color?
 		final Color local_edge_color;
 		if (active_layer == this.la) {
 			local_edge_color = node_color;
 		} // default color
 		else if (actZ > thisZ) {
-			local_edge_color = Color.red;
-		} else if (actZ < thisZ) local_edge_color = Color.blue;
+			local_edge_color = below;
+		} else if (actZ < thisZ) local_edge_color = above;
 		else local_edge_color = node_color;
 
-		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color);
+		if (with_data) paintData(g, srcRect, tree, to_screen, local_edge_color, active_layer);
 
 		//if (null == children && !paint) return null;
 
-		final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
-		if (null == parent && !paint) return null;
+		//final boolean paint = with_arrows && null != tags; // with_arrows acts as a flag for both arrows and tags
+		//if (null == parent && !paint) return null;
 
 		final float[] fps = new float[4];
 		final int parent_x, parent_y;
@@ -227,7 +242,7 @@ public abstract class Node<T> implements Taggable {
 		final int y = (int)((fps[1] - srcRect.y) * magnification);
 
 		final Runnable tagsTask;
-		if (paint) {
+		if (with_tags && null != tags) {
 			tagsTask = new Runnable() {
 				public void run() {
 					paintTags(g, x, y, local_edge_color);
@@ -235,7 +250,7 @@ public abstract class Node<T> implements Taggable {
 			};
 		} else tagsTask = null;
 
-		if (null == parent) return tagsTask;
+		//if (null == parent) return tagsTask;
 
 		synchronized (this) {
 			if (null != parent) {
@@ -255,9 +270,9 @@ public abstract class Node<T> implements Taggable {
 					// Distal either red or blue:
 					Color c = local_edge_color;
 					// If other towards higher Z:
-					if (actZ < parent.la.getZ()) c = Color.blue;
+					if (actZ < parent.la.getZ()) c = above;
 					// If other towards lower Z:
-					else if (actZ > parent.la.getZ()) c = Color.red;
+					else if (actZ > parent.la.getZ()) c = below;
 					//
 					g.setColor(c);
 					g.drawLine(parent_x, parent_y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
@@ -271,19 +286,19 @@ public abstract class Node<T> implements Taggable {
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 				} else if (thisZ < actZ && actZ < parent.la.getZ()) {
 					// proximal half in red
-					g.setColor(Color.red);
+					g.setColor(below);
 					g.drawLine(x, y, parent_x + (x - parent_x)/2, (parent_y + (y - parent_y)/2));
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 					// distal half in blue
-					g.setColor(Color.blue);
+					g.setColor(above);
 					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, parent_x, parent_y);
 				} else if (thisZ > actZ && actZ > parent.la.getZ()) {
 					// proximal half in blue
-					g.setColor(Color.blue);
+					g.setColor(above);
 					g.drawLine(x, y, parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2);
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 					// distal half in red
-					g.setColor(Color.red);
+					g.setColor(below);
 					g.drawLine(parent_x + (x - parent_x)/2, parent_y + (y - parent_y)/2, parent_x, parent_y);
 				} else if ((thisZ < actZ && parent.la.getZ() < actZ)
 						|| (thisZ > actZ && parent.la.getZ() > actZ)) {
@@ -297,6 +312,12 @@ public abstract class Node<T> implements Taggable {
 					}
 					if (with_arrows) g.fill(M.createArrowhead(parent_x, parent_y, x, y, magnification));
 				}
+			} else if (with_arrows && !active) {
+				// paint a gray handle for the root
+				g.setColor(active_layer == this.la ? Color.gray : local_edge_color);
+				g.fillOval((int)x - 6, (int)y - 6, 11, 11);
+				g.setColor(Color.black);
+				g.drawString("S", (int)x -3, (int)y + 4); // TODO ensure Font is proper
 			}
 			if (null != children) {
 				final float[] fp = new float[2];
@@ -326,8 +347,8 @@ public abstract class Node<T> implements Taggable {
 				final String s = Integer.toString(confidence);
 				final Dimension dim = Utils.getDimensions(s, g.getFont());
 				g.setColor(Color.white);
-				final int xc = (int)(x + (x - parent_x)/2),
-				yc = (int)(y + (y - parent_y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
+				final int xc = (int)(parent_x + (x - parent_x)/2),
+						  yc = (int)(parent_y + (y - parent_y)/2);  // y + 0.5*chy - 0.5y = (y + chy)/2
 				g.fillRect(xc, yc, dim.width+2, dim.height+2);
 				g.setColor(Color.black);
 				g.drawString(s, xc+1, yc+dim.height+1);
@@ -335,13 +356,13 @@ public abstract class Node<T> implements Taggable {
 		}
 		return tagsTask; 
 	}	
-	
+
 	static private final Color receiver_color = Color.green.brighter();
 
 	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t) {
 		paintHandle(g, srcRect, magnification, t, false);
 	}
-	
+
 	/** Paint in the context of offscreen space, without transformations. */
 	protected void paintHandle(final Graphics2D g, final Rectangle srcRect, final double magnification, final Tree<T> t, final boolean paint_background) {
 		final Point2D.Double po = t.transformPoint(this.x, this.y);
@@ -512,7 +533,7 @@ public abstract class Node<T> implements Taggable {
 	 *  including both a (the first element) and b (the last element).
 	 *  Thanks to Johannes Schindelin.
 	 */
-	public static<I> List<Node<I>> findPath(Node<I> a, Node<I> b) {
+	public static <I> List<Node<I>> findPath(Node<I> a, Node<I> b) {
 	    int degreeA = a.computeDegree(),
 	    	degreeB = b.computeDegree();
 	    final List<Node<I>> listA = new ArrayList<Node<I>>(),
@@ -629,16 +650,11 @@ public abstract class Node<T> implements Taggable {
 		this.parent = null;
 		*/
 	}
-	synchronized public final boolean setConfidence(final Node<T> child, final byte conf) {
-		if (null == children) return false;
+	/** Set the confidence value of this node with its parent. */
+	synchronized public final boolean setConfidence(final byte conf) {
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
-		for (int i=0; i<children.length; i++) {
-			if (child == children[i]) {
-				children[i].confidence = conf;
-				return true;
-			}
-		}
-		return false;
+		confidence = conf;
+		return true;
 	}
 	/** Adjust the confidence value of this node with its parent. */
 	final public boolean adjustConfidence(final int inc) {
@@ -692,7 +708,8 @@ public abstract class Node<T> implements Taggable {
 	public abstract Node<T> newInstance(float x, float y, Layer layer);
 
 	abstract public void paintData(final Graphics2D g, final Rectangle srcRect,
-			final Tree<T> tree, final AffineTransform to_screen, final Color cc);
+			final Tree<T> tree, final AffineTransform to_screen, final Color cc,
+			final Layer active_layer);
 
 	/** Expects Area in local coords. */
 	public abstract boolean intersects(Area a);
@@ -707,7 +724,7 @@ public abstract class Node<T> implements Taggable {
 		}
 	}
 
-	/** Returns are in local coords. */
+	/** Returns area in local coords. */
 	public Area getArea() {
 		return new Area(new Rectangle2D.Float(x, y, 1, 1)); // a "little square" -- sinful! xDDD
 	}
@@ -1129,5 +1146,14 @@ public abstract class Node<T> implements Taggable {
 	/** Apply @param op to this Node and all its subtree nodes until reaching a branch node or end node, inclusive. */
 	public void applyToSlab(final Operation<T> op) throws Exception {
 		apply(op, new SlabIterator<T>(this));
+	}
+
+	public boolean hasSameTags(final Node<?> other) {
+		if (null == this.tags && null == other.tags) return true;
+		final Set<Tag> t1 = getTags(),
+					   t2 = other.getTags();
+		if (null == t1 || null == t2) return false; // at least one is not null
+		t1.removeAll(t2);
+		return t1.isEmpty();
 	}
 }

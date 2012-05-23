@@ -1,6 +1,7 @@
 package ini.trakem2.display;
 
 import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 import ij.gui.GenericDialog;
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
@@ -10,6 +11,7 @@ import ini.trakem2.utils.ProjectToolbar;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Set;
 import java.awt.Point;
 import java.awt.Choice;
@@ -327,7 +329,8 @@ public class Treeline extends Tree<Float> {
 
 		@Override
 		public void paintData(final Graphics2D g, final Rectangle srcRect,
-				final Tree<Float> tree, final AffineTransform to_screen, final Color cc) {
+				final Tree<Float> tree, final AffineTransform to_screen, final Color cc,
+				final Layer active_layer) {
 			if (null == this.parent) return; // doing it here for less total cost
 			if (0 == this.r && 0 == parent.getData()) return;
 
@@ -674,10 +677,15 @@ public class Treeline extends Tree<Float> {
 					// the vector perpendicular to the plane is 0,0,1
 					// the vector from parent to child is:
 					Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
-					Vector3f cross = new Vector3f();
-					cross.cross(vpc, vplane);
-					cross.normalize(); // not needed?
-					aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
+					
+					if (x == parx && y == pary) {
+						aa.set(0, 0, 1, 0);
+					} else {
+						Vector3f cross = new Vector3f();
+						cross.cross(vpc, vplane);
+						cross.normalize(); // not needed?
+						aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
+					}
 					t.set(aa);
 
 
@@ -729,11 +737,9 @@ public class Treeline extends Tree<Float> {
 
 	static private final List<Point3f> transform(final Transform3D t, final List<Point3f> plane, final float x, final float y, final float z, final float radius) {
 		final List<Point3f> ps = new ArrayList<Point3f>(plane.size());
-		for (Point3f p : plane) {
-			p = new Point3f(p);
-			p.x *= radius;
-			p.y *= radius;
-			p.z *= radius;
+		for (final Point3f p2 : plane) {
+			final Point3f p = new Point3f(p2);
+			p.scale(radius);
 			t.transform(p);
 			p.x += x;
 			p.y += y;
@@ -763,12 +769,8 @@ public class Treeline extends Tree<Float> {
 
 				switch (ke.getKeyCode()) {
 					case KeyEvent.VK_O:
-						layer_set.addDataEditStep(this);
 						if (askAdjustRadius(p.x, p.y, layer, dc.getMagnification())) {
 							ke.consume();
-							layer_set.addDataEditStep(this); // current state
-						} else {
-							layer_set.removeLastUndoStep(); // dialog canceled
 						}
 						break;
 				}
@@ -785,10 +787,19 @@ public class Treeline extends Tree<Float> {
 		if (null == nodes) return false;
 
 		RadiusNode nd = (RadiusNode) findClosestNodeW(nodes, x, y, magnification);
+		if (null == nd) {
+			Node<Float> last = getLastVisited();
+			if (last.getLayer() == layer) nd = (RadiusNode)last;
+		}
 		if (null == nd) return false;
 
+		return askAdjustRadius(nd);
+	}
+	
+	protected boolean askAdjustRadius(final Node<Float> nd) {
+
 		GenericDialog gd = new GenericDialog("Adjust radius");
-		final Calibration cal = layer.getParent().getCalibration();
+		final Calibration cal = layer_set.getCalibration();
 		String unit = cal.getUnit(); 
 		if (!unit.toLowerCase().startsWith("pixel")) {
 			final String[] units = new String[]{"pixels", unit};
@@ -830,6 +841,7 @@ public class Treeline extends Tree<Float> {
 		};
 		// Apply to:
 		try {
+			layer_set.addDataEditStep(this);
 			switch (gd.getNextChoiceIndex()) {
 				case 0:
 					// Just the node
@@ -846,8 +858,10 @@ public class Treeline extends Tree<Float> {
 				default:
 					return false;
 			}
+			layer_set.addDataEditStep(this);
 		} catch (Exception e) {
 			IJError.print(e);
+			layer_set.undoOneStep();
 		}
 
 		calculateBoundingBox(layer);
@@ -857,9 +871,9 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node<Float>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<Float>> nodes) {
 		Rectangle box = null;
-		for (final RadiusNode nd : (Collection<RadiusNode>)(Collection)nodes) {
+		for (final RadiusNode nd : (Collection<RadiusNode>) nodes) {
 			if (null == nd.parent) {
 				if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
 				else box.add((int)nd.x, (int)nd.y);
@@ -870,5 +884,101 @@ public class Treeline extends Tree<Float> {
 			else box.add(nd.getSegment().getBounds());
 		}
 		return box;
+	}
+	
+	private class RadiusMeasurementPair extends Tree<Float>.MeasurementPair
+	{
+		public RadiusMeasurementPair(Tree<Float>.NodePath np) {
+			super(np);
+		}
+		/** A list of calibrated radii, one per node in the path.*/
+		@Override
+		protected List<Float> calibratedData() {
+			final ArrayList<Float> data = new ArrayList<Float>();
+			final AffineTransform aff = new AffineTransform(Treeline.this.at);
+			final Calibration cal = layer_set.getCalibration();
+			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
+			final float[] fp = new float[4];
+			for (final Node<Float> nd : super.path) {
+				Float r = nd.getData();
+				if (null == r) data.add(null);
+				fp[0] = nd.x;
+				fp[1] = nd.y;
+				fp[2] = nd.x + r.floatValue();
+				fp[3] = nd.y;
+				aff.transform(fp, 0, fp, 0, 2);
+				data.add((float)Math.sqrt(Math.pow(fp[2] - fp[0], 2) + Math.pow(fp[3] - fp[1], 2)));
+			}
+			return data;
+		}
+		@Override
+		public String getResultsTableTitle() {
+			return "Treeline tagged pairs";
+		}
+		@Override
+		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
+			if (null == rt) {
+				final String unit = layer_set.getCalibration().getUnit();
+				rt = Utils.createResultsTable(getResultsTableTitle(),
+					new String[]{"id", "index", "length " + unit, "volume " + unit + "^3",
+					"shortest diameter " + unit, "longest diameter " + unit,
+					"average diameter " + unit, "stdDev diameter"});
+			}
+			rt.incrementCounter();
+			rt.addValue(0, Treeline.this.id);
+			rt.addValue(1, index);
+			rt.addValue(2, distance);
+			double minRadius = Double.MAX_VALUE,
+				   maxRadius = 0,
+				   sumRadii = 0,
+				   volume = 0;
+			int i = 0;
+			double last_r = 0;
+			Point3f last_p = null;
+			final Iterator<Point3f> itp = coords.iterator();
+			final Iterator<Float> itr = data.iterator();
+			while (itp.hasNext()) {
+				final double r = itr.next();
+				final Point3f p = itp.next();
+				//
+				minRadius = Math.min(minRadius, r);
+				maxRadius = Math.max(maxRadius, r);
+				sumRadii += r;
+				//
+				if (i > 0) {
+					volume += M.volumeOfTruncatedCone(r, last_r, p.distance(last_p));
+				}
+				//
+				i += 1;
+				last_r = r;
+				last_p = p;
+			}
+			final int count = path.size();
+			final double avgRadius = (sumRadii / count);
+			// Compute standard deviation of the diameters:
+			double s = 0;
+			for (final Float r : data) s += Math.pow(2 * (r - avgRadius), 2);
+			final double stdDev = Math.sqrt(s / count);
+			//
+			rt.addValue(3, volume);
+			rt.addValue(4, minRadius * 2);
+			rt.addValue(5, maxRadius * 2);
+			rt.addValue(6, avgRadius * 2);
+			rt.addValue(7, stdDev);
+			return rt;
+		}
+		@Override
+		public MeshData createMesh(final double scale, final int parallels) {
+			Treeline sub = new Treeline(project, -1, title, width, height, alpha, visible, color, locked, new AffineTransform(Treeline.this.at));
+			sub.layer_set = Treeline.this.layer_set;
+			sub.root = path.get(0);
+			sub.cacheSubtree(path);
+			return sub.generateMesh(scale, parallels);
+		}
+	}
+	
+	@Override
+	protected MeasurementPair createMeasurementPair(NodePath np) {
+		return new RadiusMeasurementPair(np);
 	}
 }

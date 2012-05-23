@@ -74,6 +74,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 	*/
 
+	private static final long serialVersionUID = 1L;
 	private DefaultMutableTreeNode selected_node = null;
 
 	public ProjectTree(Project project, ProjectThing project_thing) {
@@ -102,6 +103,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		JMenu node_menu = new JMenu("Node");
 		JMenuItem item = new JMenuItem("Move up"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0, true)); node_menu.add(item);
 		item = new JMenuItem("Move down"); item.addActionListener(this); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0, true)); node_menu.add(item);
+		item = new JMenuItem("Collapse nodes of children nodes"); item.addActionListener(this); node_menu.add(item);
 		popup.add(node_menu);
 
 		JMenu send_menu = new JMenu("Send to");
@@ -219,12 +221,12 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Display.getFront().getFrame().toFront();
 				}
 			} else if (command.equals("many...")) {
-				ArrayList children = thing.getTemplate().getChildren();
+				ArrayList<TemplateThing> children = thing.getTemplate().getChildren();
 				if (null == children || 0 == children.size()) return;
 				String[] cn = new String[children.size()];
 				int i=0;
-				for (Iterator it = children.iterator(); it.hasNext(); ) {
-					cn[i] = ((TemplateThing)it.next()).getType();
+				for (final TemplateThing child : children) {
+					cn[i] = child.getType();
 					i++;
 				}
 				GenericDialog gd = new GenericDialog("Add many children");
@@ -239,8 +241,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					return;
 				}
 				project.getRootLayerSet().addChangeTreesStep();
-				final ArrayList nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
-				addLeafs((ArrayList<Thing>)nc, new Runnable() {
+				final ArrayList<ProjectThing> nc = thing.createChildren(cn[gd.getNextChoiceIndex()], amount, gd.getNextBoolean());
+				addLeafs(nc, new Runnable() {
 					public void run() {
 						project.getRootLayerSet().addChangeTreesStep();
 					}});
@@ -255,9 +257,11 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					Display.showCentered(displ.getLayer(), displ, true, 0 != (ae.getModifiers() & ActionEvent.SHIFT_MASK));
 				}
 			} else if (command.equals("Show tabular view")) {
-				((Tree)obd).createMultiTableView();
+				((Tree<?>)obd).createMultiTableView();
 			} else if (command.equals("Show in 3D")) {
-				ini.trakem2.display.Display3D.showAndResetView(thing);
+				Display3D.showAndResetView(thing);
+			} else if (command.equals("Remove from 3D view")) {
+				Display3D.removeFrom3D(thing);
 			} else if (command.equals("Hide")) {
 				// find all Thing objects in this subtree starting at Thing and hide their Displayable objects.
 				thing.setVisible(false);
@@ -312,6 +316,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				move(selected_node, -1);
 			} else if (command.equals("Move down")) {
 				move(selected_node, 1);
+			} else if (command.equals("Collapse nodes of children nodes")) {
+				if (null == selected_node) return;
+				Enumeration<?> c = selected_node.children();
+				while (c.hasMoreElements()) {
+					DefaultMutableTreeNode child = (DefaultMutableTreeNode) c.nextElement();
+					if (child.isLeaf()) continue;
+					collapsePath(new TreePath(child.getPath()));
+				}
 			} else if (command.equals("Sibling project")) {
 				sendToSiblingProjectTask(selected_node);
 			} else {
@@ -414,7 +426,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	*/
 
 	/** Creates a new node of basic type for each AreaList, Ball, Pipe or Polyline present in the ArrayList. Other elements are ignored. */
-	public void insertSegmentations(final Project project, final Collection<? extends Displayable> al) {
+	public void insertSegmentations(final Collection<? extends Displayable> al) {
 		final TemplateThing tt_root = (TemplateThing)project.getTemplateTree().getRoot().getUserObject();
 		// create a new abstract node called "imported_segmentations", if not there
 		final String imported_labels = "imported_labels";
@@ -437,25 +449,25 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 
 		final DefaultMutableTreeNode node_pt_is = new DefaultMutableTreeNode(pt_is); //addChild(pt_is, ctn);
 
-		final HashMap<Class,String> types = new HashMap<Class,String>();
+		final HashMap<Class<?>,String> types = new HashMap<Class<?>,String>();
 		types.put(AreaList.class, "area_list");
 		types.put(Pipe.class, "pipe");
 		types.put(Polyline.class, "polyline");
 		types.put(Ball.class, "ball");
+		types.put(Treeline.class, "treeline");
+		types.put(AreaTree.class, "areatree");
+		types.put(Connector.class, "connector");
 
 		// now, insert a new ProjectThing if of type AreaList, Ball and/or Pipe under node_child
-		for (Iterator it = al.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
-			TemplateThing tt = null;
-			String type = types.get(ob.getClass());
+		for (final Displayable d : al) {
+			final String type = types.get(d.getClass());
 			if (null == type) {
-				Utils.log("insertSegmentations: ignoring " + ob);
+				Utils.log("insertSegmentations: ignoring " + d);
 				continue;
-			} else {
-				tt = getOrCreateChildTemplateThing(tt_is, type);
 			}
 			try {
-				ProjectThing one = new ProjectThing(tt, project, ob);
+				final TemplateThing tt = getOrCreateChildTemplateThing(tt_is, type);
+				ProjectThing one = new ProjectThing(tt, project, d);
 				pt_is.addChild(one);
 				//addChild(one, node_pt_is);
 				node_pt_is.add(new DefaultMutableTreeNode(one)); // at the end
@@ -589,7 +601,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	 *  If a Displayable is not found, it returns it in a set of not found objects.
 	 *  If all are removed, returns an empty set. */
 	public final Set<Displayable> remove(final Set<? extends Displayable> displayables, final DefaultMutableTreeNode top) {
-		final Enumeration en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
+		final Enumeration<?> en = (null == top ? (DefaultMutableTreeNode)getModel().getRoot() : top).depthFirstEnumeration();
 		final HashSet<DefaultMutableTreeNode> to_remove = new HashSet<DefaultMutableTreeNode>();
 		final HashSet<Displayable> remaining = new HashSet<Displayable>(displayables);
 		while (en.hasMoreElements()) {
@@ -637,28 +649,22 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			display.select(d, shift_down);
 		} else {
 			// select all basic types under this leaf
-			HashSet hs = thing.findBasicTypeChildren();
-			boolean first = true;
+			final List<Displayable> ds = thing.findChildrenOfType(Displayable.class);
 			Display display = null;
-			for (Iterator it = hs.iterator(); it.hasNext(); ) {
-				Object ptob = ((ProjectThing)it.next()).getObject();
-				if (!(ptob instanceof Displayable)) {
-					Utils.log2("Skipping non-Displayable object " + ptob);
-					continue;
-				}
-				Displayable d = (Displayable)ptob;
+			for (final Iterator<Displayable> it = ds.iterator(); it.hasNext(); ) {
+				final Displayable d = it.next();
 				if (null == display) {
 					display = Display.getFront(d.getProject());
 					if (null == display) return;
 				}
-				if (!d.isVisible()) d.setVisible(true);
-				if (first) {
-					display.select(d, shift_down);
-					first = false;
-				} else {
-					display.select(d, true);
+				if (!d.isVisible()) {
+					Utils.log("Skipping non-visible object " + d);
+					it.remove();
 				}
 			}
+			if (null == display) return;
+			if (!shift_down) display.getSelection().clear();
+			display.getSelection().selectAll(ds);
 		}
 	}
 
@@ -708,6 +714,39 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		((DefaultTreeModel)getModel()).insertNodeInto(node, (DefaultMutableTreeNode)enode.getParent(), index + 1);
 		return node;
 	}
+	
+	/** Attempt to add the {@param d} as a {@link ProjectThing} child of type {@param childType}
+	 * to the parent {@link ProjectThing} {@param parent}. A new {@link DefaultMutableTreeNode}
+	 * will be added to the {@link DefaultMutableTreeNode} that encapsulates the {@param parent}.
+	 * 
+	 * Will fail by returning null if:
+	 *  1. The {@param parent} {@link ProjectThing} cannot have a child of type {@param childType}.
+	 *  2. The {@link ProjectThing} constructor throws an Exception, for example if {@link d} is null.
+	 *  3. The {@param parent} {@link ProjectThing#addChild(Thing)} returns false.
+	 *  
+	 *  @return The new {@link DefaultMutableTreeNode}.
+	 * */
+	public DefaultMutableTreeNode addChild(final ProjectThing parent, final String childType, final Displayable d) {
+		if (!parent.canHaveAsChild(childType)) {
+			Utils.log("The type '" + parent.getType() + "' cannot have as child the type '" + childType + "'");
+			return null;
+		}
+		ProjectThing pt;
+		try {
+			pt = new ProjectThing(project.getTemplateThing(childType), project, d);
+		} catch (Exception e) {
+			IJError.print(e);
+			return null;
+		}
+		if (!parent.addChild(pt)) {
+			Utils.log("Could not add child to " + parent);
+			return null;
+		}
+		DefaultMutableTreeNode parentNode = DNDTree.findNode(parent, this);
+		DefaultMutableTreeNode node = new DefaultMutableTreeNode(pt);
+		((DefaultTreeModel)getModel()).insertNodeInto(node, parentNode, parentNode.getChildCount());
+		return node;
+	}
 
 	protected DNDTree.NodeRenderer createNodeRenderer() {
 		return new ProjectThingNodeRenderer();
@@ -716,6 +755,8 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	static protected final Color ACTIVE_DISPL_COLOR = new Color(1.0f, 1.0f, 0.0f, 0.5f);
 
 	protected final class ProjectThingNodeRenderer extends DNDTree.NodeRenderer {
+		private static final long serialVersionUID = 1L;
+
 		public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean selected, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
 			final JLabel label = (JLabel)super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
 			label.setText(label.getText().replace('_', ' ')); // just for display
@@ -761,6 +802,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	 *  transforming the VectorData as appropriate to fall onto the same locations on the images.
 	 *  The ids of the copied objects will be new and unique for the target project.
 	 *  A dialog opens asking for options. */
+	@SuppressWarnings("unchecked")
 	public boolean sendToSiblingProject(final DefaultMutableTreeNode node) {
 		ArrayList<Project> ps = Project.getProjects();
 		if (1 == ps.size()) {
@@ -778,7 +820,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		// Find all potential landing nodes for this node: those with a TemplateThing type like the parent of node:
 		final String parent_type = ((ProjectThing)pt.getParent()).getTemplate().getType();
 		final List<ProjectThing> landing_pt = new ArrayList<ProjectThing>(psother.get(0).getRootProjectThing().findChildrenOfTypeR(parent_type));
-		final Comparator comparator = new Comparator<ProjectThing>() {
+		final Comparator<ProjectThing> comparator = new Comparator<ProjectThing>() {
 			public int compare(ProjectThing t1, ProjectThing t2) {
 				return t1.toString().compareTo(t2.toString());
 			}
@@ -790,6 +832,33 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		if (landing_pt.isEmpty()) {
 			landing = new String[]{"-- NONE --"};
 		} else for (ProjectThing t : landing_pt) landing[next++] = t.toString();
+		
+		// Suggest the first potential landing node that has the same title
+		String parentTitle = pt.getParent().toString();
+		int k = 0;
+		boolean matched = false;
+		// First search for exact match
+		for (final String candidate : landing) {
+			if (candidate.equals(parentTitle)) {
+				matched = true;
+				break;
+			}
+			k += 1;
+		}
+		// If not matched, find one that contains the string
+		if (!matched) {
+			k = 0;
+			for (final String candidate : landing) {
+				if (-1 != candidate.indexOf(parentTitle)) {
+					matched = true;
+					break;
+				}
+				k += 1;
+			}
+		}
+		if (!matched) {
+			k = 0;
+		}
 
 		// Ask:
 		GenericDialog gd = new GenericDialog("Send to sibling project");
@@ -799,7 +868,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		String[] ptitles = new String[psother.size()];
 		for (int i=0; i<ptitles.length; i++) ptitles[i] = psother.get(i).toString();
 		gd.addChoice("Target project:", ptitles, ptitles[0]);
-		gd.addChoice("Landing node:", landing, landing[0]);
+		gd.addChoice("Landing node:", landing, landing[k]);
 		final Vector<Choice> vc = (Vector<Choice>) gd.getChoices();
 		final Choice choice_project = vc.get(vc.size()-2);
 		final Choice choice_landing = vc.get(vc.size()-1);
@@ -823,10 +892,28 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			return false;
 		}
 
-		final String transfer_mode = gd.getNextChoice();
+		final int transfer_mode = gd.getNextChoiceIndex();
 		final Project target_project = psother.get(gd.getNextChoiceIndex());
 		final ProjectThing landing_parent = landing_pt.get(gd.getNextChoiceIndex());
 
+		return rawSendToSiblingProject(pt, transfer_mode, target_project, landing_parent);
+	}
+	
+	/** Assumes that both projects have the same TemplateThing structure,
+	 * and assumes that the parent of the ({@param source_pt} and the {@param landing_parent}
+	 * instances are of the same type.
+	 * 
+	 * @param source_pt The {@link ProjectThing} to be cloned.
+	 * @param transfer_mode Either 0 ("As is") or 1 ("Transformed with the images").
+	 * @param target_project The sibling project into which insert a clone of the {@param source_pt}.
+	 * @param landing_parent The ProjectThing in the sibling project that receives the cloned {@param source_pt}.
+	 * 
+	 * */
+	public boolean rawSendToSiblingProject(
+			final ProjectThing source_pt, // the source ProjectThing to copy to the target project
+			final int transfer_mode,
+			final Project target_project,
+			final ProjectThing landing_parent) {
 
 		try {
 			// Check that all the Layers used by the objects to transfer also exist in the target project!
@@ -848,7 +935,7 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				// Further checking needed (there could just simply be more layers in the target than in the source project):
 				// 2 - Expensive way: check the layers in which each Displayable to clone from this project has data.
 				//                    All their layers MUST be in the target project.
-				for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
+				for (final ProjectThing child : source_pt.findChildrenOfTypeR(Displayable.class)) {
 					final Displayable d = (Displayable) child.getObject();
 					if (!tgt_lids.containsAll(d.getLayerIds())) {
 						Utils.log("CANNOT transfer: not all required layers are present in the target project!\n  First object that couldn't be transfered: \n    " + d);
@@ -864,9 +951,10 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 			// Deep cloning of the ProjectThing to transfer, then added to the landing_parent in the other tree.
 			ProjectThing copy;
 			try{
-				copy = pt.deepClone(target_project, false); // new ids, taken from target_project
+				copy = source_pt.deepClone(target_project, false); // new ids, taken from target_project
 			} catch (Exception ee) {
-				Utils.log("Can't send: " + ee.getMessage());
+				Utils.logAll("Can't send: " + ee.getMessage());
+				IJError.print(ee);
 				return false;
 			}
 			if (null == landing_parent.getChildTemplate(copy.getTemplate().getType())) {
@@ -876,8 +964,16 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 				Utils.log("Could NOT transfer the node!");
 				return false;
 			}
+			
+			// Get the list of Profile instances in the source Project, in the same order
+			// that they will be in the target project:
+			final List<Profile> srcProfiles = new ArrayList<Profile>();
+			for (final ProjectThing profile_pt : source_pt.findChildrenOfTypeR(Profile.class)) {
+				srcProfiles.add((Profile)profile_pt.getObject());
+			}
 
 			final List<ProjectThing> copies = copy.findChildrenOfTypeR(Displayable.class);
+			final List<Profile> newProfiles = new ArrayList<Profile>();
 			//Utils.log2("copies size: " + copies.size());
 			final List<Displayable> vdata = new ArrayList<Displayable>();
 			final List<ZDisplayable> zd = new ArrayList<ZDisplayable>();
@@ -888,21 +984,44 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 					zd.add((ZDisplayable)d);
 				} else {
 					// profile: always special
-					Utils.log("Cannot copy Profile: not implemented yet"); // some day I will make a ProfileList extends ZDisplayable object...
+					newProfiles.add((Profile)d);
 				}
 			}
+
+			// Fix Profile instances: exploit that the order as been conserved when copying.
+			int profileIndex = 0;
+			for (final Profile newProfile : newProfiles) {
+				// Corresponding Profile:
+				final Profile srcProfile = srcProfiles.get(profileIndex++);
+				// Corresponding layer: layers have the same IDs by definition of what a sibling Project is.
+				final Layer newLayer = target_project.getRootLayerSet().getLayer(srcProfile.getLayer().getId());
+				newLayer.add(newProfile);
+				// Corresponding links
+				for (final Displayable srcLinkedProfile : srcProfile.getLinked(Profile.class)) {
+					newProfile.link(newProfiles.get(srcProfiles.indexOf(srcLinkedProfile)));
+				}
+			}
+
 			target_project.getRootLayerSet().addAll(zd); // add them all in one shot
 
 			target_project.getTemplateTree().rebuild(); // could have changed
 			target_project.getProjectTree().rebuild(); // When trying to rebuild just the landing_parent, it doesn't always work. Needs checking TODO
 
+			// Open up the path to the landing parent node
+			final TreePath tp = new TreePath(DNDTree.findNode(landing_parent, target_project.getProjectTree()).getPath());
+			Utils.invokeLater(new Runnable() { public void run() {
+				target_project.getProjectTree().scrollPathToVisible(tp);
+				target_project.getProjectTree().setSelectionPath(tp);
+			}});
+			
+
 			// Now that all have been copied, transform if so asked for:
 
-			if (transfer_mode.equals(trmode[1])) {
+			if (1 == transfer_mode) {
 				// Collect original vdata
 				if (null == original_vdata) {
 					original_vdata = new ArrayList<Displayable>();
-					for (final ProjectThing child : pt.findChildrenOfTypeR(Displayable.class)) {
+					for (final ProjectThing child : source_pt.findChildrenOfTypeR(Displayable.class)) {
 						final Displayable d = (Displayable) child.getObject();
 						if (d instanceof VectorData) {
 							original_vdata.add(d);
@@ -928,5 +1047,45 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	@Override
 	protected Thing getRootThing() {
 		return project.getRootProjectThing();
+	}
+
+	/** If the parent node of {@param active} can accept a Connector or has a direct child
+	 * node that can accept a {@link Connector}, add a new {@link Connector} and return it.
+	 * 
+	 * @param d The {@link Displayable} that serves as reference, to decide which node to add the new {@link Connector}.
+	 * @param selectNode Whether to select the new node containing the {@link Connector} in the ProjectTree.
+	 * 
+	 * @return The newly created {@link Connector}. */
+	public Connector tryAddNewConnector(final Displayable d, final boolean selectNode) {
+		ProjectThing pt = project.findProjectThing(d);
+		ProjectThing parent = (ProjectThing) pt.getParent();
+		TemplateThing connectorType = project.getTemplateThing("connector");
+		boolean add = false;
+		if (parent.canHaveAsChild(connectorType)) {
+			// Add as a sibling of pt
+			add = true;
+		} else {
+			// Inspect if any of the sibling nodes can have it as child
+			for (final ProjectThing child : parent.getChildren()) {
+				if (child.canHaveAsChild(connectorType)) {
+					parent = child;
+					add = true;
+					break;
+				}
+			}
+		}
+		Connector c = null;
+		DefaultMutableTreeNode node = null;
+		if (add) {
+			c = new Connector(project, connectorType.getType()); // reuse same String instance
+			node = addChild(parent, connectorType.getType(), c);
+		}
+		if (null != node) {
+			d.getLayerSet().add(c);
+			if (selectNode) setSelectionPath(new TreePath(node.getPath()));
+			return c;
+		}
+		Utils.logAll("Could not add a new Connector related to " + d);
+		return null;
 	}
 }

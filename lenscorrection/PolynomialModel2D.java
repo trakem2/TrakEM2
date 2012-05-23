@@ -19,6 +19,7 @@ package lenscorrection;
 import java.util.Collection;
 
 import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AbstractModel;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -31,7 +32,7 @@ import mpicbg.models.PointMatch;
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  * @version 0.1a
  */
-public class PolynomialModel2D extends Model< PolynomialModel2D >
+public class PolynomialModel2D extends AbstractModel< PolynomialModel2D >
 {
 	private NonLinearTransform nlt = new NonLinearTransform();
 	private AbstractAffineModel2D< ? > affine = null;
@@ -53,17 +54,17 @@ public class PolynomialModel2D extends Model< PolynomialModel2D >
 
 	
 	@Override
-	public PolynomialModel2D clone()
+	public PolynomialModel2D copy()
 	{
 		final PolynomialModel2D clone = new PolynomialModel2D();
-		clone.nlt = nlt.clone();
-		clone.affine = affine.clone();
+		clone.nlt = nlt.copy();
+		clone.affine = affine.copy();
 		clone.lambda = lambda;
 		return clone;
 	}
 
 	@Override
-	public void fit( Collection< PointMatch > pointMatches ) throws NotEnoughDataPointsException, IllDefinedDataPointsException
+	public < P extends PointMatch >void fit( Collection< P > pointMatches ) throws NotEnoughDataPointsException, IllDefinedDataPointsException
 	{
 		if ( pointMatches.size() < getMinNumMatches() )
 			throw new NotEnoughDataPointsException( pointMatches.size() + " data points are not enough to estimate a 2d polynomial of order " + nlt.getDimension() + ", at least " + getMinNumMatches() + " data points required." );
@@ -74,7 +75,7 @@ public class PolynomialModel2D extends Model< PolynomialModel2D >
 	    final double h2[][] = new double[ pointMatches.size() ][ 2 ];
 	    
 	    int i = 0;
-		for ( final PointMatch match : pointMatches )
+		for ( final P match : pointMatches )
 	    {	
 	    	final float[] tmp1 = match.getP1().getL().clone();
 	    	affine.applyInPlace( tmp1 );
@@ -100,7 +101,7 @@ public class PolynomialModel2D extends Model< PolynomialModel2D >
 	public void set( PolynomialModel2D m )
 	{
 		nlt.set( m.nlt );
-		affine = m.affine.clone();
+		affine = m.affine.copy();
 		lambda = m.lambda;
 	}
 

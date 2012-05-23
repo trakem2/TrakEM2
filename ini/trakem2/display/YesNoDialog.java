@@ -32,7 +32,8 @@ import java.awt.event.*;
 	Almost literally copied from ij.gui.YesNoCancelDialog class
 */
 public class YesNoDialog extends Dialog implements ActionListener, KeyListener {
-    private Button yesB, noB;
+	private static final long serialVersionUID = 1L;
+	private Button yesB, noB;
     private boolean yesPressed;
 	private boolean firstPaint = true;
 	private Runnable closing_task = null;

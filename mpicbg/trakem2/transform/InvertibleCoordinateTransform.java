@@ -27,5 +27,5 @@ package mpicbg.trakem2.transform;
  */
 public interface InvertibleCoordinateTransform extends mpicbg.models.InvertibleCoordinateTransform, CoordinateTransform
 {
-	public InvertibleCoordinateTransform clone();
+	public InvertibleCoordinateTransform copy();
 }

@@ -33,6 +33,8 @@ import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 
 import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
 public class SnapshotPanel extends JPanel implements MouseListener {
 
@@ -89,9 +91,14 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 			}
 		}
 		// Else, repaint background to avoid flickering
+		final Layer la = display.getLayer();
+		if (null == la) {
+			Utils.log2("SnapshotPanel: null layer?");
+			return;
+		}
 
-		final double lw = d.getLayer().getLayerWidth();
-		final double lh = d.getLayer().getLayerHeight();
+		final double lw = la.getLayerWidth();
+		final double lh = la.getLayerHeight();
 		final double scale = Math.min(SIDE / lw,
 			                      SIDE / lh);
 		final int slw = (int)(lw * scale);
@@ -101,29 +108,34 @@ public class SnapshotPanel extends JPanel implements MouseListener {
 
 		// ... and create the image in a separate thread and repaint again
 		FSLoader.repainter.submit(new Runnable() { public void run() {
-			if (!display.isPartiallyWithinViewport(d)) return;
-			BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_RGB);
-			Graphics2D g2 = img.createGraphics();
-
-			fillBackground(g2, lw, lh, slw, slh);
-
-			g2.scale(scale, scale);
-
 			try {
-				// Avoid painting images that have an alpha mask: takes forever.
-				//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
-				//	d.paintAsBox(g2);
-				//} else {
+				if (!display.isPartiallyWithinViewport(d)) return;
+				BufferedImage img = new BufferedImage(SIDE, SIDE, BufferedImage.TYPE_INT_RGB);
+				Graphics2D g2 = img.createGraphics();
+
+				fillBackground(g2, lw, lh, slw, slh);
+
+				g2.scale(scale, scale);
+
+				try {
+					// Avoid painting images that have an alpha mask: takes forever.
+					//if (d.getClass() == Patch.class && ((Patch)d).hasAlphaChannel()) {
+					//	d.paintAsBox(g2);
+					//} else {
 					final Layer la = display.getLayer();
 					d.paintSnapshot(g2, la, la.getParent().getColorCueLayerRange(la), d.getLayerSet().get2DBounds(), scale);
-				//}
-			} catch (Exception e) {
-				d.paintAsBox(g2);
+					//}
+				} catch (Exception e) {
+					d.paintAsBox(g2);
+				}
+				synchronized (this) {
+					if (null != SnapshotPanel.this.img) SnapshotPanel.this.img.flush();
+					SnapshotPanel.this.img = img;
+				}
+				repaint();
+			} catch (Throwable t) {
+				IJError.print(t);
 			}
-			synchronized (this) {
-				SnapshotPanel.this.img = img;
-			}
-			repaint();
 		}});
 	}
 

@@ -20,7 +20,7 @@ public class LayerStack extends ImageStack {
 	/** The virtualization scale. */
 	final private double scale;
 	/** The class of the objects included. */
-	final private Class clazz;
+	final private Class<?> clazz;
 	final private int c_alphas;
 	final private boolean invert;
 	/** In world coordinates. */
@@ -29,12 +29,12 @@ public class LayerStack extends ImageStack {
 	
 	private ImagePlus layer_imp = null;
 
-	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz, final int c_alphas, final boolean invert) {
+	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class<?> clazz, final int c_alphas, final boolean invert) {
 		this(layer_set.getLayers(), layer_set.get2DBounds(), scale, type, clazz, c_alphas, invert);
 	}
 
 	/** If scale <=0 || scale > 1, throws IllegalArgumentException. */
-	public LayerStack(final List<Layer> layers, final Rectangle roi, final double scale, final int type, final Class clazz, final int c_alphas, final boolean invert) {
+	public LayerStack(final List<Layer> layers, final Rectangle roi, final double scale, final int type, final Class<?> clazz, final int c_alphas, final boolean invert) {
 		super((int)(roi.width * scale), (int)(roi.height * scale), Patch.DCM);
 		if (scale <= 0 || scale > 1) throw new IllegalArgumentException("Cannot operate with a scale larger than 1 or smaller or equal to 0!");
 		this.layers = layers;
@@ -46,7 +46,7 @@ public class LayerStack extends ImageStack {
 		this.roi = new Rectangle(roi);
 	}
 
-	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class clazz, final int c_alphas) {
+	public LayerStack(final LayerSet layer_set, final double scale, final int type, final Class<?> clazz, final int c_alphas) {
 		this(layer_set, scale, type, clazz, c_alphas, false);
 	}
 

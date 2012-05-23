@@ -1,50 +1,26 @@
 package ini.trakem2.display;
 
-import ini.trakem2.display.Display;
-import ini.trakem2.display.DisplayCanvas;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Paintable;
-import ini.trakem2.display.Selection;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.display.graphics.GraphicsSource;
-import ini.trakem2.display.TransformationStep;
+import ini.trakem2.utils.History;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.ProjectToolbar;
-import java.util.Collection;
-import java.awt.Rectangle;
-import java.awt.Graphics2D;
-import java.awt.event.MouseEvent;
-import java.awt.Rectangle;
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Point;
-import java.util.Collections;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.TreeMap;
-import java.util.Iterator;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.Set;
-import java.awt.Stroke;
+import ini.trakem2.utils.Utils;
+
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.image.ColorModel;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.Stroke;
 import java.awt.event.MouseEvent;
-
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.utils.History;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
+import java.awt.geom.AffineTransform;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class AffineTransformMode implements Mode {
 
@@ -87,7 +63,6 @@ public class AffineTransformMode implements Mode {
 	}
 
 	synchronized public void undoOneStep() {
-		LayerSet layerset = display.getLayer().getParent();
 		if (null == history) return;
 		// store the current state if at end:
 		Utils.log2("index at end: " + history.indexAtEnd());
@@ -164,7 +139,7 @@ public class AffineTransformMode implements Mode {
 				//Utils.log("box painting: " + box);
 
 				// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
-				float mag = (float)magnification;
+				//float mag = (float)magnification;
 				float[] dashPattern = { 30, 10, 10, 10 };
 				g.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
 				g.setColor(Color.yellow);
@@ -214,10 +189,6 @@ public class AffineTransformMode implements Mode {
 	private final int iS = 5;
 	private final int iSW = 6;
 	private final int iW = 7;
-	private final int rNW = 8;
-	private final int rNE = 9;
-	private final int rSE = 10;
-	private final int rSW = 11;
 	private final int ROTATION = 12;
 	private final int FLOATER = 13;
 	private final Handle NW = new BoxHandle(0,0, iNW);
@@ -278,7 +249,6 @@ public class AffineTransformMode implements Mode {
 			double res = dx / 2.0;
 			res -= Math.floor(res);
 			res *= 2;
-			int extra = (int)res;
 			int anchor_x = 0,
 			    anchor_y = 0;
 			switch (this.id) { // java sucks to such an extent, I don't even bother
@@ -579,7 +549,7 @@ public class AffineTransformMode implements Mode {
 	public boolean cancel() {
 		if (null != history) {
 			// apply first
-			display.getLayer().getParent().applyTransforms(((TransformationStep)history.get(0)).ht);
+			LayerSet.applyTransforms(((TransformationStep)history.get(0)).ht);
 		}
 		return true;
 	}
@@ -616,8 +586,9 @@ public class AffineTransformMode implements Mode {
 	private mpicbg.models.Point[] q = null;
 	private mpicbg.models.AbstractAffineModel2D<?> model = null;
 	private AffineTransform free_affine = null;
-	private HashMap initial_affines = null;
-	
+	private HashMap<Displayable,AffineTransform> initial_affines = null;
+
+	/*
 	private void forgetAffine() {
 		affine_handles = null;
 		matches = null;
@@ -626,6 +597,7 @@ public class AffineTransformMode implements Mode {
 		free_affine = null;
 		initial_affines = null;
 	}
+	*/
 
 	private void initializeModel() {
 		// Store current "initial" state in the accumulated affine
@@ -678,13 +650,11 @@ public class AffineTransformMode implements Mode {
 		} catch (Exception e) {}
 		
 		final AffineTransform model_affine = model.createAffine();
-		for (final Iterator it = initial_affines.entrySet().iterator(); it.hasNext(); ) {
-			final Map.Entry e = (Map.Entry)it.next();
-			final Displayable d = (Displayable)e.getKey();
-			final AffineTransform at = new AffineTransform((AffineTransform)e.getValue());
+		for (final Map.Entry<Displayable,AffineTransform> e : initial_affines.entrySet()) {
+			final AffineTransform at = new AffineTransform(e.getValue());
 			at.preConcatenate(free_affine);
 			at.preConcatenate(model_affine);
-			d.setAffineTransform(at);
+			e.getKey().setAffineTransform(at);
 		}
 	}
 
@@ -744,7 +714,7 @@ public class AffineTransformMode implements Mode {
 		for (int i=handles.length -1; i>-1; i--) {
 			if (handles[i].contains(x_p, y_p, radius)) {
 				grabbed = handles[i];
-				if (grabbed.id >= rNW && grabbed.id <= ROTATION) rotating = true;
+				if (grabbed.id > iW && grabbed.id <= ROTATION) rotating = true;
 				return;
 			}
 		}

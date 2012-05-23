@@ -24,7 +24,6 @@ package ini.trakem2.display;
 
 import ini.trakem2.utils.Utils;
 
-import javax.swing.BoxLayout;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JSlider;
@@ -45,6 +44,8 @@ import java.awt.event.MouseEvent;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Dimension;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 
 
 public final class LayerPanel extends JPanel implements MouseListener {
@@ -87,14 +88,30 @@ public final class LayerPanel extends JPanel implements MouseListener {
 		this.title = new JLabel(makeTitle());
 		this.title.addMouseListener(this);
 
-		setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
+		GridBagLayout gb = new GridBagLayout();
+		setLayout(gb);
+		GridBagConstraints c = new GridBagConstraints();
+		c.anchor = GridBagConstraints.NORTHWEST;
+
+		c.fill = GridBagConstraints.HORIZONTAL;
+		c.weighty = 0;
+		gb.setConstraints(title, c);
 		add(title);
+		
+		JPanel empty = new JPanel();
+		c.gridy += 1;
+		c.fill = GridBagConstraints.BOTH;
+		c.weighty = 1;
+		gb.setConstraints(empty, c);
+		
+		c.gridy += 1;
+		c.weighty = 0;
+		c.fill = GridBagConstraints.HORIZONTAL;
+		gb.setConstraints(slider, c);
 		add(slider);
 
-		final Dimension dim = new Dimension(250 - Display.scrollbar_width, DisplayablePanel.HEIGHT);
-		setMinimumSize(dim);
-		setMaximumSize(dim);
-		//setPreferredSize(dim);
+		setMinimumSize(new Dimension(0, DisplayablePanel.HEIGHT));
+		setPreferredSize(new Dimension(250, DisplayablePanel.HEIGHT));
 
 		addMouseListener(this);
 		setBackground(this.color);

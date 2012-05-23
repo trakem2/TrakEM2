@@ -1,5 +1,8 @@
 package ini.trakem2.display;
 
+import fiji.geom.AreaCalculations;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.utils.AreaUtils;
@@ -25,14 +28,22 @@ import java.awt.geom.Point2D;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
+
+import customnode.CustomTriangleMesh;
 
 public class AreaTree extends Tree<Area> implements AreaContainer {
 
@@ -126,8 +137,10 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 		@Override
 		public void paintData(final Graphics2D g, final Rectangle srcRect,
-				final Tree<Area> tree, final AffineTransform to_screen, final Color cc) {
+				final Tree<Area> tree, final AffineTransform to_screen, final Color cc,
+				final Layer active_layer) {
 			if (null == aw) return;
+			if (!tree.layer_set.area_color_cues && active_layer != this.la) return;
 			Composite oc = null;
 			if (cc != tree.color) {
 				oc = g.getComposite();
@@ -199,6 +212,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 	}
 
+	/** Return the list of areas, in world coordinates, at the given layer, that intersect the given bounding box. */
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {
 		synchronized (node_layer_map) {
 			final Set<Node<Area>> nodes = node_layer_map.get(layer);
@@ -249,18 +263,22 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				this.height = 0;
 				return false;
 			}
-
+			
 			Rectangle box = null;
+			int countNodes = 0;
+			// Compute bounds for all nodes in all layers
 			synchronized (node_layer_map) {
-				for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
-					for (final AreaNode nd : (Collection<AreaNode>) (Collection) nodes) {
-						if (null == box) box = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-						else box.add((int)nd.x, (int)nd.y);
-						if (null != nd.aw) box.add(nd.aw.getArea().getBounds());
-					}
+				for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+					Rectangle b = getBounds(nodes);
+					if (null == b) continue;
+					if (null == box) box = b;
+					else box.add(b);
+					countNodes += nodes.size();
 				}
 			}
 
+			if (null == box) return false; // empty
+			
 			this.width = box.width;
 			this.height = box.height;
 
@@ -271,12 +289,35 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 			final AffineTransform aff = new AffineTransform(1, 0, 0, 1, -box.x, -box.y);
 
-			// now readjust points to make min_x,min_y be the x,y
-			for (final Collection<Node<Area>> nodes : node_layer_map.values()) {
-				for (final Node<Area> nd : nodes) {
-					nd.translate(-box.x, -box.y); // just the x,y itself
-					nd.getData().transform(aff);
-				}}
+			// now adjust points to make min_x,min_y be the x,y
+			synchronized (node_layer_map) {
+				if (node_layer_map.size() < 10 && countNodes < 100 ) {
+					for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+						for (final AreaNode nd : (Collection<AreaNode>) nodes) {
+							nd.translate(-box.x, -box.y); // just the x,y itself
+							if (null != nd.aw) nd.aw.getArea().transform(aff);
+						}
+					}
+				} else {
+					ExecutorService exe = Utils.newFixedThreadPool("AreaTree-CBB");
+					Collection<Future<?>> fus = new ArrayList<Future<?>>();
+					final float dx = -box.x;
+					final float dy = -box.y;
+					for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
+						fus.add(exe.submit(new Runnable() {
+							public void run() {
+								// WARNING potential concurrent modification exception of 'nodes'
+								for (final AreaNode nd : (Collection<AreaNode>) nodes) {
+									nd.translate(dx, dy); // just the x,y itself
+									if (null != nd.aw) nd.aw.getArea().transform(aff);
+								}
+							}
+						}));
+					}
+					Utils.wait(fus);
+					exe.shutdown();
+				}
+			}
 			this.at.translate(box.x, box.y); // not using super.translate(...) because a preConcatenation is not needed; here we deal with the data.
 
 			return true;
@@ -466,6 +507,11 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 				AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
 
+				// Prepare for paste command:
+				if (null != nd && null == nd.aw && ke.getKeyCode() == KeyEvent.VK_V) {
+					nd.getData(); // creates an.aw
+				}
+
 				if (null != nd && null != nd.aw) {
 					nd.aw.setSource(this);
 					nd.aw.keyPressed(ke, dc, layer);
@@ -484,19 +530,22 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	@Override
-	protected Rectangle getBounds(final Collection<Node<Area>> nodes) {
+	protected Rectangle getBounds(final Collection<? extends Node<Area>> nodes) {
 		Rectangle box = null;
-		for (final AreaNode nd : (Collection<AreaNode>)(Collection)nodes) {
+		for (final AreaNode nd : (Collection<AreaNode>) nodes) {
 			final Rectangle b;
 			if (null == nd.aw || nd.aw.getArea().isEmpty()) b = new Rectangle((int)nd.x, (int)nd.y, 1, 1);
-			else b = nd.aw.getArea().getBounds();
+			else {
+				b = nd.aw.getArea().getBounds();
+				b.add(new Rectangle((int)nd.x, (int)nd.y, 1, 1)); // the node itself, if not contained
+			}
 			//
 			if (null == box) box = b;
 			else box.add(b);
 		}
 		return box;
 	}
-
+	
 	public MeshData generateMesh(final double scale, final int resample) {
 		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
@@ -514,7 +563,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		// Determine colors by proximity to a node, since there isn't any other way.
 		// TODO
 		Utils.log("WARNING: AreaTree multicolor 3D mesh is not yet implemented.");
-		final Color3f cf = new Color3f(this.color);
+		final Color3f cf = new Color3f(color);
 		for (int i=0; i<ps.size(); i++) colors.add(cf);
 		
 		return new MeshData(ps, colors);
@@ -540,5 +589,207 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			if (an.getData().contains(lx, ly)) return true;
 		}
 		return false;
+	}
+
+	@Override
+	public ResultsTable measureAreas(ResultsTable rt) {
+		if (null == root) return rt;
+		if (null == rt) rt = Utils.createResultsTable("Area results", new String[]{"id", "name-id", "layer index", "area"});
+		final double nameId = getNameId();
+		final Calibration cal = layer_set.getCalibration();
+		final String units = cal.getUnit();
+		final TreeMap<Layer,Collection<Area>> sm = new TreeMap<Layer,Collection<Area>>(Layer.COMPARATOR);
+		// Sort by layer index
+		synchronized (node_layer_map) {
+			for (final Node<Area> nd : root.getSubtreeNodes()) {
+				Area area = nd.getData();
+				if (null == area || area.isEmpty()) continue;
+				Collection<Area> col = sm.get(nd.getLayer());
+				if (null == col) {
+					col = new ArrayList<Area>();
+					sm.put(nd.getLayer(), col);
+				}
+				col.add(area);
+			}
+		}
+		for (final Map.Entry<Layer,Collection<Area>> e : sm.entrySet()) {
+			final int index = layer_set.indexOf(e.getKey()) + 1; // 1-based
+			for (final Area area : e.getValue()) {
+				rt.incrementCounter();
+				rt.addLabel("units", units);
+				rt.addValue(0, this.id);
+				rt.addValue(1, nameId);
+				rt.addValue(2, index);
+				// measure surface
+				double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
+				double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
+				rt.addValue(3, surface);
+			}
+		}
+		return rt;
+	}
+
+	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@param nd} to it.
+	 * 
+	 * @param nd The node to start interpolating from, towards its nearest parent with an area.
+	 * @param node_centric If true, consider areas relative to the node coordinates. If false, relative to the overall AreaTree.
+	 * 
+	 * @throws Exception */
+	public boolean interpolateTowardsParent(final Node<Area> nd, final boolean node_centric, final boolean always_use_distance_map) throws Exception {
+		if (null == nd || null == nd.parent) return false;
+		Area first = nd.getData();
+		if (null == first || first.isEmpty()) {
+			return false;
+		}
+		final LinkedList<Node<Area>> chain = new LinkedList<Node<Area>>();
+		Node<Area> p = nd.parent;
+		while (null != p && (null == p.getData() || p.getData().isEmpty())) {
+			chain.add(p);
+			p = p.parent;
+		}
+		if (p == nd.parent) {
+			// Nothing to interpolate
+			return false;
+		}
+
+		Area last = p.getData();
+
+		int minx = 0, miny = 0;
+		if (node_centric) {
+			// Make areas relative to the nodes:
+			first = first.createTransformedArea(new AffineTransform(1, 0, 0, 1, -nd.x, -nd.y));
+			last = last.createTransformedArea(new AffineTransform(1, 0, 0, 1, -p.x, -p.y));
+			// Remove translations
+			final Rectangle bfirst = first.getBounds();
+			final Rectangle blast = last.getBounds();
+			minx = Math.min(bfirst.x, blast.x);
+			miny = Math.min(bfirst.y, blast.y);
+			final AffineTransform rmtrans = new AffineTransform(1, 0, 0, 1, -minx, -miny);
+			first = first.createTransformedArea(rmtrans);
+			last = last.createTransformedArea(rmtrans);
+		}
+		// Interpolate
+		final Area[] as;
+		if (!always_use_distance_map && first.isSingular() && last.isSingular()) {
+			as = AreaUtils.singularInterpolation(first, last, chain.size());
+		} else {
+			as = AreaUtils.manyToManyInterpolation(first, last, chain.size());
+		}
+		// Assign each area
+		for (final Area interpolated : as) {
+			final Node<Area> target = chain.removeFirst();
+			if (node_centric) {
+				interpolated.transform(new AffineTransform(1, 0, 0, 1, minx + target.x, miny + target.y));
+			}
+			target.setData(interpolated);
+		}
+
+		return true;
+	}
+	
+	/** Processes shorter chains first. */
+	public boolean interpolateAllGaps(final boolean node_centric, final boolean always_use_distance_map) throws Exception {
+		if (null == root) return false;
+		// Find all nodes that have an area
+		Map<Node<Area>,Integer> m = new HashMap<Node<Area>,Integer>();
+		for (final Node.NodeIterator<Area> it = new Node.FilteredIterator<Area>(root) {
+				public boolean accept(ini.trakem2.display.Node<Area> node) {
+					return null != node.getData() && !node.getData().isEmpty();
+				}
+			}; it.hasNext(); ) {
+			final Node<Area> node = it.next();
+			// Skip root node
+			if (null == node.parent) continue;
+			// Gather the chain towards the nearest parent with an area
+			final LinkedList<Node<Area>> chain = new LinkedList<Node<Area>>();
+			Node<Area> p = node.parent;
+			while (null != p && (null == p.getData() || p.getData().isEmpty())) {
+				chain.add(p);
+				p = p.parent;
+			}
+			// Skip pairs of nodes with areas
+			if (chain.isEmpty()) continue;
+			// Record
+			m.put(node, chain.size());
+		}
+		// Sort by size
+		ArrayList<Map.Entry<Node<Area>,Integer>> l = new ArrayList<Map.Entry<Node<Area>,Integer>>(m.entrySet());
+		Collections.sort(l, new Comparator<Map.Entry<Node<Area>,Integer>>() {
+			@Override
+			public int compare(Map.Entry<Node<Area>, Integer> o1,
+					Map.Entry<Node<Area>, Integer> o2) {
+				return o1.getValue() - o2.getValue();
+			}
+		});
+		// Process in order: shorter chains first
+		boolean processed = false;
+		for (Map.Entry<Node<Area>,Integer> e : l) {
+			Node<Area> node = e.getKey();
+			processed |= interpolateTowardsParent(node, node_centric, always_use_distance_map);
+		}
+		
+		return processed;
+	}
+
+	/** Assumes {@param nd} is an AreaNode. Otherwise fails with {@link ClassCastException}.
+	 * @param nd An AreaNode. */
+	public void addWorldAreaTo(final Node<?> nd, final Area a) {
+		AreaNode an = (AreaNode) nd;
+		if (null == an.aw) an.getData(); // creates an.aw
+		an.aw.add(a, nd.la);
+	}
+	
+
+	private class AreaMeasurementPair extends Tree<Area>.MeasurementPair
+	{
+		public AreaMeasurementPair(Tree<Area>.NodePath np) {
+			super(np);
+		}
+		/** A list of calibrated areas, one per node in the path.*/
+		@Override
+		protected List<Area> calibratedData() {
+			final ArrayList<Area> data = new ArrayList<Area>();
+			final AffineTransform aff = new AffineTransform(AreaTree.this.at);
+			final Calibration cal = layer_set.getCalibration();
+			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
+			for (final Node<Area> nd : super.path) {
+				Area a = nd.getData();
+				if (null == a) data.add(null);
+				data.add(a.createTransformedArea(aff));
+			}
+			return data;
+		}
+		@Override
+		public String getResultsTableTitle() {
+			return "AreaTree tagged pairs";
+		}
+		@Override
+		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
+			if (null == rt) {
+				final String unit = layer_set.getCalibration().getUnit();
+				rt = Utils.createResultsTable(getResultsTableTitle(),
+					new String[]{"id", "index", "length " + unit, "volume " + unit + "^3"});
+			}
+			rt.incrementCounter();
+			rt.addValue(0, AreaTree.this.id);
+			rt.addValue(1, index);
+			rt.addValue(2, distance);
+			CustomTriangleMesh mesh = new CustomTriangleMesh(createMesh(scale, resample).verts);
+			rt.addValue(3, mesh.getVolume());
+			return rt;
+		}
+		@Override
+		public MeshData createMesh(final double scale, final int resample) {
+			AreaTree sub = new AreaTree(project, -1, "", width, height, alpha, true, color, false, new AffineTransform(at));
+			sub.layer_set = AreaTree.this.layer_set;
+			sub.root = path.get(0);
+			sub.cacheSubtree(path);
+			return sub.generateMesh(scale, resample);
+		}
+	}
+	
+	@Override
+	protected MeasurementPair createMeasurementPair(NodePath np) {
+		return new AreaMeasurementPair(np);
 	}
 }

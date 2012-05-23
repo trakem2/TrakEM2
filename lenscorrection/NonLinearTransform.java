@@ -815,7 +815,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 	/**
 	 * TODO Make this more efficient
 	 */
-	final public NonLinearTransform clone()
+	final public NonLinearTransform copy()
 	{
 		final NonLinearTransform t = new NonLinearTransform();
 		t.init( toDataString() );

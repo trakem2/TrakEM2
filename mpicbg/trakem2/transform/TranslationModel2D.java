@@ -51,7 +51,7 @@ public class TranslationModel2D extends mpicbg.models.TranslationModel2D impleme
 	/**
 	 * TODO Make this more efficient
 	 */
-	final public TranslationModel2D clone()
+	final public TranslationModel2D copy()
 	{
 		final TranslationModel2D t = new TranslationModel2D();
 		t.init( toDataString() );

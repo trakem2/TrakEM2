@@ -23,30 +23,34 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Pipe;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.imaging.FloatProcessorT2;
-import ini.trakem2.tree.ProjectThing.Profile_List;
-import ini.trakem2.vector.VectorString3D;
-import ini.trakem2.plugin.TPlugIn;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.Menus;
 import ij.WindowManager;
 import ij.gui.GenericDialog;
-import ij.gui.YesNoCancelDialog;
 import ij.gui.OvalRoi;
-import ij.text.TextWindow;
+import ij.gui.YesNoCancelDialog;
+import ij.io.OpenDialog;
+import ij.io.SaveDialog;
 import ij.measure.ResultsTable;
-import ij.process.*;
-import ij.io.*;
-import ij.process.ImageProcessor;
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageConverter;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ij.text.TextWindow;
+import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.plugin.TPlugIn;
+import ini.trakem2.tree.ProjectThing.Profile_List;
+import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Checkbox;
 import java.awt.Choice;
@@ -54,48 +58,57 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Dimension;
-import java.awt.EventQueue;
-import java.awt.FontMetrics;
-import java.awt.Font;
-import java.awt.MenuBar;
-import java.awt.Menu;
-import java.awt.MenuItem;
-import java.io.*;
-import java.awt.event.ItemListener;
-import java.awt.event.ItemEvent;
-import java.awt.event.MouseEvent;
-import java.awt.event.InputEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.ActionEvent;
-import javax.swing.KeyStroke;
-import java.awt.event.KeyEvent;
 import java.awt.Event;
-import javax.swing.SwingUtilities;
-import javax.swing.JMenuItem;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenu;
-
+import java.awt.EventQueue;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Image;
+import java.awt.Menu;
+import java.awt.MenuBar;
+import java.awt.MenuItem;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.InputEvent;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.FilenameFilter;
+import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.lang.reflect.Field;
-
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.LinkedList;
-import java.util.Iterator;
-import java.util.Vector;
 import java.util.Calendar;
-import java.lang.Iterable;
 import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
-import java.util.regex.Matcher;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.Future;
+import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -103,7 +116,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.8j 2010-10-05";
+	static public String version = "0.9h 2012-04-10";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -280,6 +293,15 @@ public class Utils implements ij.plugin.PlugIn {
 			System.out.println(msg);
 		}
 	}
+	
+	/** Intended for the user to see; time-stamps every logging line. */
+	static public final void logStamped(final String msg) {
+		if (ControlWindow.isGUIEnabled() && null != logger) {
+			logger.log(new Date().toString() + " : " + msg);
+		} else {
+			System.out.println(new Date().toString() + " : " + msg);
+		}
+	}
 
 	/** Print in all printable places: log window, System.out.println, and status bar.*/
 	static public final void logAll(final String msg) {
@@ -354,15 +376,14 @@ public class Utils implements ij.plugin.PlugIn {
 		} else if (ob instanceof Object[]) {
 			final Object[] s = (Object[])ob;
 			for (int i=0; i<s.length; i++) sb.append(Utils.toString(s[i])).append(", ");
-		} else if (ob instanceof Iterable) {
-			final Iterable s = (Iterable)ob;
-			for (Iterator it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
-		} else if (ob instanceof Map) {
+		} else if (ob instanceof Iterable<?>) {
+			final Iterable<?> s = (Iterable<?>)ob;
+			for (Iterator<?> it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
+		} else if (ob instanceof Map<?,?>) {
 			sb.setCharAt(0, '{');
 			closing = '}';
-			final Map s = (Map)ob;
-			for (Iterator it = s.entrySet().iterator(); it.hasNext(); ) {
-				Map.Entry e = (Map.Entry)it.next();
+			final Map<?,?> s = (Map<?,?>)ob;
+			for (final Map.Entry<?,?> e : s.entrySet()) {
 				sb.append(Utils.toString(e.getKey())).append(" => ").append(Utils.toString(e.getValue())).append(", ");
 			}
 		} else if (ob instanceof long[]) {
@@ -956,7 +977,7 @@ public class Utils implements ij.plugin.PlugIn {
 		final int i_first = first.getParent().indexOf(first);
 		final int i_last = last.getParent().indexOf(last);
 		gd.addChoice("Start: ", layers, layers[i_first]);
-		final Vector v = gd.getChoices();
+		final Vector<?> v = gd.getChoices();
 		final Choice cstart = (Choice)v.get(v.size()-1);
 		gd.addChoice("End: ", layers, layers[i_last]);
 		final Choice cend = (Choice)v.get(v.size()-1);
@@ -1480,6 +1501,18 @@ public class Utils implements ij.plugin.PlugIn {
 				fu.get(); // wait until done
 			} catch (Exception e) {
 				IJError.print(e);
+				if (Thread.currentThread().isInterrupted()) return;
+			}
+		}
+	}
+
+	static public final void waitIfAlive(final Collection<Future<?>> fus, final boolean throwException) {
+		for (final Future<?> fu : fus) {
+			if (Thread.currentThread().isInterrupted()) return;
+			if (null != fu) try {
+				fu.get(); // wait until done
+			} catch (Exception e) {
+				if (throwException) IJError.print(e);
 			}
 		}
 	}
@@ -1721,5 +1754,23 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 			entry.getValue().show(title + " results");
 		}
+	}
+	
+	/** Returns a byte[3][256] containing the colors of the fire LUT. */
+	public static final IndexColorModel fireLUT() {
+		ImagePlus imp = new ImagePlus("fire", new ByteProcessor(1, 1));
+		IJ.run(imp, "Fire", "");
+		return (IndexColorModel) imp.getProcessor().getColorModel();
+	}
+	
+
+	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
+		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
+		final Image img = bp.createImage();
+		if (img instanceof BufferedImage) return (BufferedImage)img;
+		//else:
+		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
+		bi.createGraphics().drawImage(img, 0, 0, null);
+		return bi;
 	}
 }
