@@ -426,21 +426,6 @@ public final class M {
 		a.add(b);
 	}
 
-	static private Field shape_field = null;
-
-	static public final Shape getShape(final ShapeRoi roi) {
-		try {
-			if (null == shape_field) {
-				shape_field = ShapeRoi.class.getDeclaredField("shape");
-				shape_field.setAccessible(true);
-			}
-			return (Shape)shape_field.get(roi);
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		return null;
-	}
-
 	/** Detect if a point is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
 	static public final Polygon findPath(final Area area, final int x, final int y) {
 		Polygon pol = new Polygon();
