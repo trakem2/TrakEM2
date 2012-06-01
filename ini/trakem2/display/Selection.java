@@ -182,7 +182,7 @@ public class Selection {
 		}
 		ShapeRoi shroi = roi instanceof ShapeRoi ? (ShapeRoi)roi : new ShapeRoi(roi);
 
-		Area aroi = new Area(M.getShape(shroi));
+		Area aroi = new Area(shroi.getShape());
 		AffineTransform affine = new AffineTransform();
 		Rectangle bounds = shroi.getBounds();
 		affine.translate(bounds.x, bounds.y);
