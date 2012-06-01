@@ -473,7 +473,7 @@ public final class M {
 	static public final Area areaInInts(final Area area) {
 		final Area a = new Area();
 		for (final Polygon pol : M.getPolygons(area)) {
-			a.add(new Area(pol));
+			a.exclusiveOr(new Area(pol));
 		}
 		return a;
 	}
