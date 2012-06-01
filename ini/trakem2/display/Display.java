@@ -3061,6 +3061,10 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (null == active) item.setEnabled(false);
 		item = new JMenuItem("Set coordinate transform of selected image layer-wise"); item.addActionListener(tml); st.add(item);
 		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Set affine transform of selected image to other selected images"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
+		item = new JMenuItem("Set affine transform of selected image layer-wise"); item.addActionListener(tml); st.add(item);
+		if (null == active) item.setEnabled(false);
 		popup.add(st);
 
 		JMenu link_menu = new JMenu("Link");
@@ -3848,7 +3852,45 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 				
 				setCoordinateTransform(patches, ct, existingCT);
+			} else if (command.equals("Set affine transform of selected image to other selected images")) {
+				if (null == active || !(active instanceof Patch)) return;
+				final AffineTransform aff = active.getAffineTransformCopy();
+				final HashSet<Layer> layers = new HashSet<Layer>();
+				final Collection<Displayable> patches = selection.getSelected(Patch.class);
+				getLayerSet().addTransformStep(patches);
+				for (final Displayable p : patches) {
+					if (p == active) continue;
+					p.setAffineTransform(aff);
+					layers.add(p.getLayer());
+				}
+				for (final Layer l : layers) {
+					l.recreateBuckets();
+				}
+				// Current state
+				getLayerSet().addTransformStep(patches);
+			} else if (command.equals("Set affine transform of selected image layer-wise")) {
+				if (null == active || !(active instanceof Patch)) return;
+				final AffineTransform aff = active.getAffineTransformCopy();
+				final GenericDialog gd = new GenericDialog("Choose range of layers");
+				Utils.addLayerRangeChoices(Display.this.layer, gd);
+				gd.showDialog();
+				if (gd.wasCanceled()) return;
+				final ArrayList<Patch> patches = new ArrayList<Patch>();
+				final List<Layer> layers = getLayerSet().getLayers().subList(gd.getNextChoiceIndex(), gd.getNextChoiceIndex()+1);
+				for (final Layer layer : layers) {
+					patches.addAll(layer.getAll(Patch.class));
+				}
+				getLayerSet().addTransformStep(patches);
+				for (final Patch p: patches) {
+					p.setAffineTransform(aff);
+				}
+				for (final Layer l : layers) {
+					l.recreateBuckets();
+				}
+				// Current state
+				getLayerSet().addTransformStep(patches);
 			}
+			repaint();
 		}
 		private NonLinearTransform findFirstLensDeformationModel(CoordinateTransform ct) {
 			/* unwind CT lists to get the very first actual CT */
