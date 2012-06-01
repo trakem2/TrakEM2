@@ -21,7 +21,6 @@ import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collection;
-import java.lang.reflect.Field;
 
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.vector.VectorString2D;
@@ -237,8 +236,9 @@ public final class M {
 		AffineTransform at = new AffineTransform();
 		Rectangle bounds = sroi.getBounds();
 		at.translate(bounds.x, bounds.y);
-		Area area = new Area(getShape(sroi));
-		return area.createTransformedArea(at);
+		Area area = new Area(sroi.getShape());
+		area.transform(at);
+		return area;
 	}
 
 	/** Returns the approximated area of the given Area object; Loader can be null; if not, it's used to secure memory space. */
@@ -303,21 +303,23 @@ public final class M {
 		return true;
 	}
 
+	@SuppressWarnings("null")
 	static public final Collection<Polygon> getPolygons(Area area) {
 		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
-		Polygon pol = new Polygon();
+		Polygon pol = null;
 
 		final float[] coords = new float[6];
 		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
 			int seg_type = pit.currentSegment(coords);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
+					pol = new Polygon();
+				//$FALL-THROUGH$
+			case PathIterator.SEG_LINETO:
 					pol.addPoint((int)coords[0], (int)coords[1]);
 					break;
 				case PathIterator.SEG_CLOSE:
 					pols.add(pol);
-					pol = new Polygon();
 					break;
 				default:
 					Utils.log2("WARNING: unhandled seg type.");
@@ -328,6 +330,7 @@ public final class M {
 				break;
 			}
 		}
+		
 		return pols;
 	}
 	static public final Collection<Polygon> getPolygonsByRounding(final Area area) {
