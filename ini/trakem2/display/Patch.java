@@ -23,12 +23,16 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.gui.Toolbar;
 import ij.io.FileOpener;
 import ij.io.TiffDecoder;
 import ij.io.TiffEncoder;
+import ij.plugin.WandToolOptions;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
@@ -61,6 +65,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
@@ -1556,17 +1561,17 @@ public final class Patch extends Displayable implements ImageData {
 		return false_color;
 	}
 
-	public void keyPressed(KeyEvent ke) {
+	public void keyPressed(final KeyEvent ke) {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 		DisplayCanvas dc = (DisplayCanvas)source;
 		final Roi roi = dc.getFakeImagePlus().getRoi();
 
+		final int mod = ke.getModifiers();
+		
 		switch (ke.getKeyCode()) {
 			case KeyEvent.VK_C:
 				// copy into ImageJ clipboard
-				int mod = ke.getModifiers();
-
 				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
 				if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
 					// Place the source image, untransformed, into clipboard:
@@ -1597,13 +1602,25 @@ public final class Patch extends Displayable implements ImageData {
 				ke.consume();
 				break;
 			case KeyEvent.VK_F:
-				// fill mask with current ROI using 
-				Utils.log2("VK_F: roi is " + roi);
+				// fill mask with current ROI using
 				if (null != roi && M.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker.Task("Filling image mask") {
 						public void exec() {
 							getLayerSet().addDataEditStep(Patch.this);
-							addAlphaMask(roi, ProjectToolbar.getForegroundColorValue());
+							if (0 == mod) {
+								addAlphaMask(roi, ProjectToolbar.getForegroundColorValue());
+							} else if (0 == (mod ^ Event.SHIFT_MASK)) {
+								// shift is down: fill outside
+								try {
+									Area localRoi = M.areaInInts(M.getArea(roi)).createTransformedArea(at.createInverse());
+									Area invLocalRoi = new Area(new Rectangle(0, 0, getOWidth()	, getOHeight()));
+									invLocalRoi.subtract(localRoi);
+									addAlphaMaskLocal(invLocalRoi, ProjectToolbar.getForegroundColorValue());
+								} catch (NoninvertibleTransformException e) {
+									IJError.print(e);
+									return;
+								}
+							}
 							getLayerSet().addDataEditStep(Patch.this);
 							try { updateMipMaps().get(); } catch (Throwable t) { IJError.print(t); } // wait
 							Display.repaint();
@@ -1746,6 +1763,18 @@ public final class Patch extends Displayable implements ImageData {
 	/** Add the given roi, in world coords, to the alpha mask, using the given fill value. */
 	public void addAlphaMask(final Roi roi, int value) {
 		if (null == roi || !M.isAreaROI(roi)) return;
+		addAlphaMask(M.areaInInts(M.getArea(roi)), value);
+	}
+	
+	/** Add the given area, in world coords, to the alpha mask, using the given fill value. */
+	public void addAlphaMask(final Area aw, int value) {
+		try {
+			addAlphaMaskLocal(aw.createTransformedArea(Patch.this.at.createInverse()), value);
+		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+	}
+	
+	/** Add the given area, in local coordinates, to the alpha mask, using the given fill value. */
+	public void addAlphaMaskLocal(final Area aLocal, int value) {
 		if (value < 0) value = 0;
 		if (value > 255) value = 255;
 		//
@@ -1753,55 +1782,49 @@ public final class Patch extends Displayable implements ImageData {
 		if (hasCoordinateTransform() && null == (ct = getCT())) {
 			return;
 		}
-		//
-		try {
-			// a roi local to the image bounding box
-			//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
-			//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
+		
+		// When the area is larger than the image, sometimes the area fails to be set at all
+		// Also, intersection accelerates calls to contains(x,y) for complex polygons
+		final Area a = new Area(new Rectangle(0, 0, (int)(width+1), (int)(height+1)));
+		a.intersect(aLocal);
+		
+		
+		if (M.isEmpty(a)) {
+			Utils.log("ROI does not intersect the active image!");
+			return;
+		}
 
-			final Area a = M.areaInInts(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
-			if (M.isEmpty(a)) {
-				Utils.log("ROI does not intersect the active image!");
-				return;
+		ByteProcessor mask = getAlphaMask();
+
+		// Use imglib to bypass all the problems with ShapeROI
+		// Create a Shape image with background and the Area on it with 'value'
+		final int background = (null != mask && 255 == value) ? 0 : 255;
+		final ShapeList<UnsignedByteType> shapeList = new ShapeList<UnsignedByteType>(new int[]{(int)width, (int)height, 1}, new UnsignedByteType(background));
+		shapeList.addShape(a, new UnsignedByteType(value), new int[]{0});
+		final mpicbg.imglib.image.Image<UnsignedByteType> shapeListImage = new mpicbg.imglib.image.Image<UnsignedByteType>(shapeList, shapeList.getBackground(), "mask");
+
+		ByteProcessor rmask = (ByteProcessor) ImageJFunctions.copyToImagePlus(shapeListImage, ImagePlus.GRAY8).getProcessor();
+
+		if (hasCoordinateTransform()) {
+			// inverse the coordinate transform
+			final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
+			final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
+			rmask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
+		}
+
+		if (null == mask) {
+			// There wasn't a mask, hence just set it
+			mask = rmask;
+		} else {
+			final byte[] b1 = (byte[]) mask.getPixels();
+			final byte[] b2 = (byte[]) rmask.getPixels();
+			// Whatever is not background in the new mask gets set on the old mask
+			for (int i=0; i<b1.length; i++) {
+				if (background == (b2[i]&0xff)) continue; // background pixel in new mask 
+				b1[i] = b2[i]; // replace old pixel with new pixel
 			}
-			if (!new Rectangle(0, 0, (int)width, (int)height).contains(a.getBounds())) {
-				// Crop most of the superfluous, leaving room for the buggy Area.intersect method to fail gracefully
-				// The cropping speeds up contains(x,y) calls for complex polygons
-				a.intersect(new Area(new Rectangle(-2, -2, (int)width+2, (int)height+2)));
-			}
-
-			ByteProcessor mask = getAlphaMask();
-
-			// Use imglib to bypass all the problems with ShapeROI
-			// Create a Shape image with background and the Area on it with 'value'
-			final int background = (null != mask && 255 == value) ? 0 : 255;
-			final ShapeList<UnsignedByteType> shapeList = new ShapeList<UnsignedByteType>(new int[]{(int)width, (int)height, 1}, new UnsignedByteType(background));
-			shapeList.addShape(a, new UnsignedByteType(value), new int[]{0});
-			final mpicbg.imglib.image.Image<UnsignedByteType> shapeListImage = new mpicbg.imglib.image.Image<UnsignedByteType>(shapeList, shapeList.getBackground(), "mask");
-
-			ByteProcessor rmask = (ByteProcessor) ImageJFunctions.copyToImagePlus(shapeListImage, ImagePlus.GRAY8).getProcessor();
-
-			if (hasCoordinateTransform()) {
-				// inverse the coordinate transform
-				final TransformMesh mesh = new TransformMesh(ct, meshResolution, o_width, o_height);
-				final TransformMeshMapping mapping = new TransformMeshMapping( mesh );
-				rmask = (ByteProcessor) mapping.createInverseMappedImageInterpolated(rmask);
-			}
-
-			if (null == mask) {
-				// There wasn't a mask, hence just set it
-				mask = rmask;
-			} else {
-				final byte[] b1 = (byte[]) mask.getPixels();
-				final byte[] b2 = (byte[]) rmask.getPixels();
-				// Whatever is not background in the new mask gets set on the old mask
-				for (int i=0; i<b1.length; i++) {
-					if (background == (b2[i]&0xff)) continue; // background pixel in new mask 
-					b1[i] = b2[i]; // replace old pixel with new pixel
-				}
-			}
-			setAlphaMask(mask);
-		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+		}
+		setAlphaMask(mask);
 	}
 
 	public String getPreprocessorScriptPath() {
@@ -2336,5 +2359,41 @@ public final class Patch extends Displayable implements ImageData {
 		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y ) / SQRT2;
 		
 		return ( l1 + l2 ) / 2.0;
+	}
+	
+	@Override
+	public void mousePressed(final MouseEvent me, final Layer la, final int x_p, final int y_p, final double mag) {
+		final int tool = ProjectToolbar.getToolId();
+		final DisplayCanvas canvas = (DisplayCanvas)me.getSource();
+		if (ProjectToolbar.WAND == tool) {
+			if (null == canvas) return;
+			Bureaucrat.createAndStart(new Worker.Task("Magic Wand ROI") {
+				@Override
+				public void exec() {
+					PatchImage pai = createTransformedImage();
+					pai.target.setMinAndMax(min, max);
+					final ImagePlus patchImp = new ImagePlus("", pai.target.convertToByte(true));
+					final float[] fp = new float[2];
+					fp[0] = x_p;
+					fp[1] = y_p;
+					try {
+						at.createInverse().transform(fp, 0, fp, 0, 1);
+					} catch (NoninvertibleTransformException e) {
+						IJError.print(e);
+						return;
+					}
+					int npoints = IJ.doWand(patchImp, (int)fp[0], (int)fp[1], WandToolOptions.getTolerance(), WandToolOptions.getMode());
+					if (npoints > 0) {
+						System.out.println("npoints " + npoints);
+						Roi roi = patchImp.getRoi();
+						if (null != roi) {
+							Area aroi = M.getArea(roi);
+							aroi.transform(at);
+							canvas.getFakeImagePlus().setRoi(new ShapeRoi(aroi));
+						}
+					}
+				}
+			}, project);
+		}
 	}
 }
