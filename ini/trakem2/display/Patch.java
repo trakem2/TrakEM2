@@ -1578,7 +1578,6 @@ public final class Patch extends Displayable implements ImageData {
 				break;
 			case KeyEvent.VK_F:
 				// fill mask with current ROI using
-				System.out.println("mod: " + mod + ", ^: " + (mod ^ Event.SHIFT_MASK));
 				if (null != roi && M.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker.Task("Filling image mask") {
 						public void exec() {
@@ -1750,7 +1749,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 	
 	/** Add the given area, in local coordinates, to the alpha mask, using the given fill value. */
-	public void addAlphaMaskLocal(final Area a, int value) {
+	public void addAlphaMaskLocal(final Area aLocal, int value) {
 		if (value < 0) value = 0;
 		if (value > 255) value = 255;
 		//
@@ -1758,18 +1757,16 @@ public final class Patch extends Displayable implements ImageData {
 		if (hasCoordinateTransform() && null == (ct = getCT())) {
 			return;
 		}
-		// a roi local to the image bounding box
-		//final Area a = new Area(new Rectangle(0, 0, (int)o_width, (int)o_height));
-		//a.intersect(M.getArea(roi).createTransformedArea(Patch.this.at.createInverse()));
-
+		
+		// When the area is larger than the image, sometimes the area fails to be set at all
+		// Also, intersection accelerates calls to contains(x,y) for complex polygons
+		final Area a = new Area(new Rectangle(0, 0, (int)(width+1), (int)(height+1)));
+		a.intersect(aLocal);
+		
+		
 		if (M.isEmpty(a)) {
 			Utils.log("ROI does not intersect the active image!");
 			return;
-		}
-		if (!new Rectangle(0, 0, (int)width, (int)height).contains(a.getBounds())) {
-			// Crop most of the superfluous, leaving room for the buggy Area.intersect method to fail gracefully
-			// The cropping speeds up contains(x,y) calls for complex polygons
-			a.intersect(new Area(new Rectangle(-2, -2, (int)width+2, (int)height+2)));
 		}
 
 		ByteProcessor mask = getAlphaMask();
