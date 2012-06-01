@@ -23,13 +23,16 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
+import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.gui.Toolbar;
 import ij.io.FileOpener;
 import ij.io.TiffDecoder;
 import ij.io.TiffEncoder;
+import ij.plugin.WandToolOptions;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
@@ -62,6 +65,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
@@ -2334,5 +2338,41 @@ public final class Patch extends Displayable implements ImageData {
 		final double l2 = Math.sqrt( l2x * l2x + l2y * l2y ) / SQRT2;
 		
 		return ( l1 + l2 ) / 2.0;
+	}
+	
+	@Override
+	public void mousePressed(final MouseEvent me, final Layer la, final int x_p, final int y_p, final double mag) {
+		final int tool = ProjectToolbar.getToolId();
+		final DisplayCanvas canvas = (DisplayCanvas)me.getSource();
+		if (ProjectToolbar.WAND == tool) {
+			if (null == canvas) return;
+			Bureaucrat.createAndStart(new Worker.Task("Magic Wand ROI") {
+				@Override
+				public void exec() {
+					PatchImage pai = createTransformedImage();
+					pai.target.setMinAndMax(min, max);
+					final ImagePlus patchImp = new ImagePlus("", pai.target.convertToByte(true));
+					final float[] fp = new float[2];
+					fp[0] = x_p;
+					fp[1] = y_p;
+					try {
+						at.createInverse().transform(fp, 0, fp, 0, 1);
+					} catch (NoninvertibleTransformException e) {
+						IJError.print(e);
+						return;
+					}
+					int npoints = IJ.doWand(patchImp, (int)fp[0], (int)fp[1], WandToolOptions.getTolerance(), WandToolOptions.getMode());
+					if (npoints > 0) {
+						System.out.println("npoints " + npoints);
+						Roi roi = patchImp.getRoi();
+						if (null != roi) {
+							Area aroi = M.getArea(roi);
+							aroi.transform(at);
+							canvas.getFakeImagePlus().setRoi(new ShapeRoi(aroi));
+						}
+					}
+				}
+			}, project);
+		}
 	}
 }
