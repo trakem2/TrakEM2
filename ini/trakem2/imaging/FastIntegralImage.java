@@ -79,6 +79,34 @@ public final class FastIntegralImage
 		return f;
 	}
 
+	static public final long[] longIntegralImage(final short[] b, final int w, final int h) {
+		final int w2 = w+1;
+		final int h2 = h+1;
+		final long[] f = new long[w2 * h2];
+		// Sum rows
+		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
+			long s = b[offset1] & 0xff;
+			f[offset2] = s;
+			for (int x=1; x<w; ++x) {
+				s += b[offset1 + x] & 0xff;
+				f[offset2 + x] = s;
+			}
+			offset1 += w;
+			offset2 += w2;
+		}
+		// Sum columns over the summed rows
+		for (int x=1; x<w2; ++x) {
+			 long s = 0;
+			 for (int y=1, i=w2+x; y<h2; ++y) {
+				 s += f[i];
+				 f[i] = s;
+				 i += w2;
+			 }
+		}
+
+		return f;
+	}
+
 	/** For testing. */
 	static public final void main(String[] args) {
 		{
