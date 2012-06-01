@@ -2497,19 +2497,29 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item = new JMenuItem("Show in 3D"); item.addActionListener(this); popup.add(item);
 				popup.addSeparator();
 			} else if (Patch.class == aclass) {
-				item = new JMenuItem("Unlink from images"); item.addActionListener(this); popup.add(item);
+				JMenu m = new JMenu("Patch");
+				item = new JMenuItem("Fill ROI in alpha mask"); item.addActionListener(this); m.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, 0));
+				item.setEnabled(null != getRoi());
+				item = new JMenuItem("Fill inverse ROI in alpha mask"); item.addActionListener(this); m.add(item);
+				item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, Event.SHIFT_MASK));
+				item.setEnabled(null != getRoi());
+				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); m.add(item);
+				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
+				item = new JMenuItem("Unlink from images"); item.addActionListener(this); m.add(item);
 				if (!active.isLinked(Patch.class)) item.setEnabled(false);
 				if (((Patch)active).isStack()) {
-					item = new JMenuItem("Unlink slices"); item.addActionListener(this); popup.add(item);
+					item = new JMenuItem("Unlink slices"); item.addActionListener(this); m.add(item);
 				}
-				int n_sel_patches = selection.getSelected(Patch.class).size(); 
-				if (1 == n_sel_patches) {
-					item = new JMenuItem("Snap"); item.addActionListener(this); popup.add(item);
-				} else if (n_sel_patches > 1) {
-					item = new JMenuItem("Montage"); item.addActionListener(this); popup.add(item);
-					item = new JMenuItem("Lens correction"); item.addActionListener(this); popup.add(item);
-					item = new JMenuItem("Blend"); item.addActionListener(this); popup.add(item);
-				}
+				int n_sel_patches = selection.getSelected(Patch.class).size();
+				item = new JMenuItem("Snap"); item.addActionListener(this); m.add(item);
+				item.setEnabled(1 == n_sel_patches);
+				item = new JMenuItem("Montage"); item.addActionListener(this); m.add(item);
+				item.setEnabled(n_sel_patches > 1);
+				item = new JMenuItem("Lens correction"); item.addActionListener(this); m.add(item);
+				item.setEnabled(n_sel_patches > 1);
+				item = new JMenuItem("Blend"); item.addActionListener(this); m.add(item);
+				item.setEnabled(n_sel_patches > 1);
 				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
 					@Override
 					public void actionPerformed(ActionEvent e) {
@@ -2517,14 +2527,13 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							p.getImagePlus().show();
 						}
 					}
-				}); popup.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.SHIFT_MASK, true));
-				item = new JMenuItem("Remove alpha mask"); item.addActionListener(this); popup.add(item);
-				if ( ! ((Patch)active).hasAlphaMask()) item.setEnabled(false);
-				item = new JMenuItem("View volume"); item.addActionListener(this); popup.add(item);
+				}); m.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.SHIFT_MASK, true));
+				item = new JMenuItem("View volume"); item.addActionListener(this); m.add(item);
 				HashSet<Displayable> hs = active.getLinked(Patch.class);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false);
-				item = new JMenuItem("View orthoslices"); item.addActionListener(this); popup.add(item);
+				item = new JMenuItem("View orthoslices"); item.addActionListener(this); m.add(item);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false); // if no Patch instances among the directly linked, then it's not a stack
+				popup.add(m);
 				popup.addSeparator();
 			} else {
 				item = new JMenuItem("Unlink"); item.addActionListener(this); popup.add(item);
@@ -5080,6 +5089,14 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			Segmentation.fmp.setup();
 		} else if (command.equals("Adjust arealist paint parameters...")) {
 			AreaWrapper.PP.setup();
+		} else if (command.equals("Fill ROI in alpha mask")) {
+			if (active.getClass() == Patch.class) {
+				((Patch)active).keyPressed(new KeyEvent(getCanvas(), -1, System.currentTimeMillis(), 0, KeyEvent.VK_F, 'f'));
+			}
+		} else if (command.equals("Fill inverse ROI in alpha mask")) {
+			if (active.getClass() == Patch.class) {
+				((Patch)active).keyPressed(new KeyEvent(getCanvas(), -1, System.currentTimeMillis(), Event.SHIFT_MASK, KeyEvent.VK_F, 'f'));
+			}
 		} else if (command.equals("Search...")) {
 			Search.showWindow();
 		} else if (command.equals("Select all")) {
