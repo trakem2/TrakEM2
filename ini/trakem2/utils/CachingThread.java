@@ -25,11 +25,11 @@ public class CachingThread extends Thread
 		private final A getOrCreateArray(final int length) {
 			final LinkedList<SoftReference<A>> l = this.get(length);
 			if (null == l) return newArray(length);
-			A a;
-			do {
-				a = l.removeFirst().get();
-			} while (null == a && !l.isEmpty());
+			A a = null;
 			if (l.isEmpty()) this.remove(length);
+			else do {
+				a = l.removeFirst().get();
+			} while (null == a);
 			System.out.println("reusing a: " + a);
 			return null == a ? newArray(length) : a;
 		}
