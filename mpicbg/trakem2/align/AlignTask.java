@@ -942,15 +942,16 @@ A:		for ( final Layer layer : layers )
 		if ( !Align.paramOptimize.setup( "Align Multi-Layer Mosaic : Intra-Layer" ) )
 			return;
 		
+		Align.ParamOptimize p = Align.paramOptimize.clone();
+		Align.ParamOptimize pcp = p.clone();
+		
 		
 		/* cross-layer parameters */
 		
 		if ( !Align.param.setup( "Align Multi-Layer Mosaic : Cross-Layer" ) )
 			return;
 		
-		Align.ParamOptimize p = Align.paramOptimize.clone();
 		Align.Param cp = Align.param.clone();
-		Align.ParamOptimize pcp = p.clone();
 		pcp.desiredModelIndex = cp.desiredModelIndex;
 
 		final List< Layer > layerRange = new ArrayList< Layer >();
