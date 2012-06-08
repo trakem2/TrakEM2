@@ -1222,34 +1222,34 @@ A:		for ( final Layer layer : layers )
 			
 			/* generate snapshots of the graphs and preregister them using the parameters defined in cp */
 			final List< AbstractAffineTile2D< ? >[] > crossLayerTilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
-//			for ( final Set< Tile< ? > > currentLayerGraph : currentLayerGraphs )
-//			{
-//				for ( final Set< Tile< ? > > previousLayerGraph : previousLayerGraphs )
-//				{
-//					if (Thread.currentThread().isInterrupted()) return;
-//					alignGraphs( cp, layer, previousLayer, currentLayerGraph, previousLayerGraph );
-//					
-//					/* TODO this is pointless data shuffling just for type incompatibility---fix this at the root */
-//					final ArrayList< AbstractAffineTile2D< ? > > previousLayerGraphTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-//					previousLayerGraphTiles.addAll( ( Set )previousLayerGraph );
-//					
-//					final ArrayList< AbstractAffineTile2D< ? > > currentLayerGraphTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-//					currentLayerGraphTiles.addAll( ( Set )currentLayerGraph );
-//					
-//					/* <visualization> */
-//					//AbstractAffineTile2D.pairOverlappingTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
-//					AbstractAffineTile2D.pairTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
-//					/* </visualization> */
-//					
-//				}
-//			}
+			for ( final Set< Tile< ? > > currentLayerGraph : currentLayerGraphs )
+			{
+				for ( final Set< Tile< ? > > previousLayerGraph : previousLayerGraphs )
+				{
+					if (Thread.currentThread().isInterrupted()) return;
+					alignGraphs( cp, layer, previousLayer, currentLayerGraph, previousLayerGraph );
+					
+					/* TODO this is pointless data shuffling just for type incompatibility---fix this at the root */
+					final ArrayList< AbstractAffineTile2D< ? > > previousLayerGraphTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+					previousLayerGraphTiles.addAll( ( Set )previousLayerGraph );
+					
+					final ArrayList< AbstractAffineTile2D< ? > > currentLayerGraphTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+					currentLayerGraphTiles.addAll( ( Set )currentLayerGraph );
+					
+					/* <visualization> */
+					AbstractAffineTile2D.pairOverlappingTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
+					//AbstractAffineTile2D.pairTiles( previousLayerGraphTiles, currentLayerGraphTiles, crossLayerTilePairs );
+					/* </visualization> */
+					
+				}
+			}
 			
 			
 			/* ------------------------------------------------------------------------ */
 			
 			
 			/* this is without the affine/rigid approximation per graph */
-			AbstractAffineTile2D.pairTiles( previousLayerTiles, csCurrentLayerTiles, crossLayerTilePairs );
+//			AbstractAffineTile2D.pairTiles( previousLayerTiles, csCurrentLayerTiles, crossLayerTilePairs );
 			
 			Align.connectTilePairs( cp, csCurrentLayerTiles, crossLayerTilePairs, Runtime.getRuntime().availableProcessors() );
 			if (Thread.currentThread().isInterrupted()) return;
