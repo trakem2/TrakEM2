@@ -966,8 +966,8 @@ A:		for ( final Layer layer : layers )
 			final Align.Param p,
 			final Layer layer1,
 			final Layer layer2,
-			final Set< Tile< ? > > graph1,
-			final Set< Tile< ? > > graph2 )
+			final Iterable< Tile< ? > > graph1,
+			final Iterable< Tile< ? > > graph2 )
 	{
 		final Align.Param cp = p.clone();
 		
