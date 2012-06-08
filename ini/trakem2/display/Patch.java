@@ -975,6 +975,11 @@ public final class Patch extends Displayable implements ImageData {
 								copy.createAlphaMaskFilePath(copy.alpha_mask_id))) {
 					Utils.log("ERROR: could not copy alpha mask file for patch #" + this.id);
 				}
+			} catch (IOException ioe) {
+				IJError.print(ioe);
+				Utils.log("ERROR: could not copy alpha mask file for patch #" + this.id);
+			}
+			try {
 				if (0 != copy.ct_id
 						&& !Utils.safeCopy(
 								this.createCTFilePath(this.ct_id),
@@ -983,7 +988,7 @@ public final class Patch extends Displayable implements ImageData {
 				}
 			} catch (IOException ioe) {
 				IJError.print(ioe);
-				Utils.log("ERROR: could not copy alpha mask file or coordinate transform file for patch #" + this.id);
+				Utils.log("ERROR: could not copy coordinate transform file for patch #" + this.id);
 			}
 		}
 		copy.addToDatabase();
