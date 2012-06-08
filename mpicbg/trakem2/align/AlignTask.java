@@ -3,43 +3,6 @@
  */
 package mpicbg.trakem2.align;
 
-import java.awt.Color;
-import java.awt.Rectangle;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.Area;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-
-import mpicbg.ij.FeatureTransform;
-import mpicbg.ij.SIFT;
-import mpicbg.imagefeatures.Feature;
-import mpicbg.imagefeatures.FloatArray2DSIFT;
-import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.models.AffineModel2D;
-import mpicbg.models.NotEnoughDataPointsException;
-import mpicbg.models.Point;
-import mpicbg.models.PointMatch;
-import mpicbg.models.SimilarityModel2D;
-import mpicbg.models.Tile;
-import mpicbg.models.Transforms;
-import mpicbg.trakem2.transform.CoordinateTransform;
-import mpicbg.trakem2.transform.CoordinateTransformList;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
-import mpicbg.trakem2.transform.RigidModel2D;
-import mpicbg.trakem2.transform.TranslationModel2D;
-import mpicbg.models.NoninvertibleModelException;
-import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
-
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
@@ -53,14 +16,48 @@ import ini.trakem2.display.VectorData;
 import ini.trakem2.display.VectorDataTransform;
 import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.persistence.DBObject;
-import ini.trakem2.utils.Worker;
 import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
+import java.awt.Color;
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+
+import mpicbg.ij.FeatureTransform;
+import mpicbg.ij.SIFT;
+import mpicbg.imagefeatures.Feature;
+import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.NoninvertibleModelException;
+import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.Point;
+import mpicbg.models.PointMatch;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.Tile;
+import mpicbg.models.Transforms;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
+import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.transform.RigidModel2D;
+import mpicbg.trakem2.transform.TranslationModel2D;
 
 /**
  * Methods collection to be called from the GUI for alignment tasks.
@@ -848,23 +845,7 @@ A:		for ( final Layer layer : layers )
 						t.getPatch().remove( false );
 		}
 		else
-		{
 			interestingTiles = tiles;
-			
-			/**
-			 * virtually interconnect disconnected intersecting graphs
-			 * 
-			 * TODO Not yet tested---Do we need these virtual connections?
-			 */
-			
-//			if ( graphs.size() > 1 && tilesAreInPlace )
-//			{
-//				for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
-//					for ( Set< Tile< ? > > graph : graphs )
-//						if ( graph.contains( tilePair[ 0 ] ) && !graph.contains( tilePair[ 1 ] ) )
-//							tilePair[ 0 ].makeVirtualConnection( tilePair[ 1 ] );
-//			}
-		}
 			
 		if ( Thread.currentThread().isInterrupted() ) return;
 		
@@ -1246,7 +1227,7 @@ A:		for ( final Layer layer : layers )
 			
 			
 			/* this is without the affine/rigid approximation per graph */
-			//AbstractAffineTile2D.pairTiles( previousLayerTiles, csCurrentLayerTiles, crossLayerTilePairs );
+//			AbstractAffineTile2D.pairTiles( previousLayerTiles, csCurrentLayerTiles, crossLayerTilePairs );
 			
 			Align.connectTilePairs( cp, csCurrentLayerTiles, crossLayerTilePairs, Runtime.getRuntime().availableProcessors() );
 			if (Thread.currentThread().isInterrupted()) return;
