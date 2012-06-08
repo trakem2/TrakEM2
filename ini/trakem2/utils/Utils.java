@@ -1783,7 +1783,7 @@ public class Utils implements ij.plugin.PlugIn {
 	 * @throws IOException 
 	 */
 	static public final boolean safeCopy(final String source, final String target) throws IOException {
-		final File f2 = new File(source);
+		final File f2 = new File(target);
 		if (f2.exists()) return false;
 		RandomAccessFile sra = null,
 		                 tra = null;
