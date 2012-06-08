@@ -1085,6 +1085,11 @@ A:		for ( final Layer layer : layers )
 				
 				for ( Displayable d : selection1.getSelected( Patch.class ) )
 					d.preTransform( b, false );
+				
+				/* assign patch affine transformation to the tile model */
+				for ( final Tile< ? > t : graph1 )
+					( ( AbstractAffineTile2D< ? > )t ).initModel();
+					
 				Display.repaint( layer1 );
 			}
 			else
