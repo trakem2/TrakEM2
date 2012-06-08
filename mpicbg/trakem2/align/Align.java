@@ -972,9 +972,11 @@ public class Align
 			final List< AbstractAffineTile2D< ? > > fixedTiles )
 	{
 		final TileConfiguration tc = new TileConfiguration();
-		tc.addTiles( tiles );
+		for ( AbstractAffineTile2D< ? > t : tiles )
+			if ( t.getConnectedTiles().size() > 0 )
+				tc.addTile( t );
 		
-		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( tiles );
+//		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( tiles );
 //		for ( Set< Tile< ? > > graph : graphs )
 //		{
 //			boolean pleaseFix = true;
