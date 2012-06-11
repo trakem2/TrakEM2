@@ -2503,7 +2503,8 @@ public final class FSLoader extends Loader {
 
 	/** Returns the path where the imp is saved to: the storage folder plus a name. */
 	public String handlePathlessImage(final ImagePlus imp) {
-		final FileInfo fi = imp.getOriginalFileInfo();
+		FileInfo fi = imp.getOriginalFileInfo();
+		if (null == fi) fi = imp.getFileInfo();
 		if (null == fi.fileName || fi.fileName.equals("")) {
 			fi.fileName = "img_" + System.currentTimeMillis() + ".tif";
 		}
