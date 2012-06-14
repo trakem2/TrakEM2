@@ -643,16 +643,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 
 		switch (tool) {
-		/*
-		case Toolbar.WAND:
-			if (null != active && active instanceof Patch) {
-				me.translatePoint(-(int) active.getX(), -(int) active.getY());
-				super.mousePressed(me);
-				repaint();
-				// TODO should use LayerStack virtualization ... then scale back the ROI
-			}
-			return;
-		*/
 		case ProjectToolbar.PENCIL:
 			if (null != active && active.isVisible() && active.getClass() == Profile.class) {
 				Profile prof = (Profile) active;
@@ -2022,6 +2012,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_H:
 				handleHide(ke);
 				ke.consume();
+				break;
+			case KeyEvent.VK_J:
+				if (!display.getSelection().isEmpty()) {
+					display.adjustMinAndMaxGUI();
+					ke.consume();
+				}
 				break;
 			case KeyEvent.VK_F1:
 			case KeyEvent.VK_F2:

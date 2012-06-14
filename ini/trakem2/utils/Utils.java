@@ -83,6 +83,7 @@ import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -116,7 +117,7 @@ import javax.swing.SwingUtilities;
  */
 public class Utils implements ij.plugin.PlugIn {
 
-	static public String version = "0.9h 2012-04-10";
+	static public String version = "0.9i 2012-06-01";
 
 	static public boolean debug = false;
 	static public boolean debug_mouse = false;
@@ -1541,7 +1542,7 @@ public class Utils implements ij.plugin.PlugIn {
 		exec.setThreadFactory(new ThreadFactory() {
 			public Thread newThread(final Runnable r) {
 				final ThreadGroup tg = Thread.currentThread().getThreadGroup();
-				final Thread t = new Thread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
+				final Thread t = new CachingThread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
 				t.setDaemon(true);
 				t.setPriority(Thread.NORM_PRIORITY);
 				return t;
@@ -1772,5 +1773,29 @@ public class Utils implements ij.plugin.PlugIn {
 		final BufferedImage bi = new BufferedImage(bp.getWidth(), bp.getHeight(), BufferedImage.TYPE_BYTE_INDEXED, Loader.GRAY_LUT);
 		bi.createGraphics().drawImage(img, 0, 0, null);
 		return bi;
+	}
+
+	/**
+	 * 
+	 * @param source The file to copy.
+	 * @param target The new file to create.
+	 * @return Whether the file could be copied; also returns false if the target file exists.
+	 * @throws IOException 
+	 */
+	static public final boolean safeCopy(final String source, final String target) throws IOException {
+		final File f2 = new File(target);
+		if (f2.exists()) return false;
+		RandomAccessFile sra = null,
+		                 tra = null;
+		try {
+			Utils.ensure(f2);
+			sra = new RandomAccessFile(new File(source), "r");
+			tra = new RandomAccessFile(f2, "rw");
+			sra.getChannel().transferTo(0, sra.length(), tra.getChannel());
+		} finally {
+			if (null != tra) tra.close();
+			if (null != sra) sra.close();
+		}
+		return true;
 	}
 }

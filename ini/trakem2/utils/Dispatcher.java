@@ -63,7 +63,7 @@ public class Dispatcher {
 						   Thread.currentThread().getThreadGroup();
 		}
 		final public Thread newThread(final Runnable r) {
-			final Thread t = new Thread(group, r, tag);
+			final Thread t = new CachingThread(group, r, tag);
 			if (t.isDaemon()) t.setDaemon(false);
 			if (t.getPriority() != Thread.NORM_PRIORITY) t.setPriority(Thread.NORM_PRIORITY);
 			return t;

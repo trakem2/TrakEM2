@@ -22,13 +22,13 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.CachingThread;
 
 import java.awt.Component;
 import java.awt.Rectangle;
 import java.util.LinkedList;
 
-public abstract class AbstractRepaintThread extends Thread {
+public abstract class AbstractRepaintThread extends CachingThread {
 
 	final protected AbstractOffscreenThread off;
 	private final java.util.List<PaintEvent> events = new LinkedList<PaintEvent>();

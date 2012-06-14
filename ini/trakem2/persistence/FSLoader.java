@@ -51,6 +51,7 @@ import ini.trakem2.io.ImageSaver;
 import ini.trakem2.io.RagMipMaps;
 import ini.trakem2.io.RawMipMaps;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
@@ -2502,7 +2503,8 @@ public final class FSLoader extends Loader {
 
 	/** Returns the path where the imp is saved to: the storage folder plus a name. */
 	public String handlePathlessImage(final ImagePlus imp) {
-		final FileInfo fi = imp.getOriginalFileInfo();
+		FileInfo fi = imp.getOriginalFileInfo();
+		if (null == fi) fi = imp.getFileInfo();
 		if (null == fi.fileName || fi.fileName.equals("")) {
 			fi.fileName = "img_" + System.currentTimeMillis() + ".tif";
 		}
@@ -2968,7 +2970,10 @@ public final class FSLoader extends Loader {
 						return ImageSaver.saveAsPNG(bi, path);
 				}
 			} finally {
-				if (null != bi) bi.flush();
+				if (null != bi) {
+					bi.flush();
+					CachingThread.storeArrayForReuse(bi);
+				}
 			}
 			return false;
 		}
@@ -3016,7 +3021,11 @@ public final class FSLoader extends Loader {
 		}
 		@Override
 		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
-			return RawMipMaps.save(path, b, width, height);
+			try {
+				return RawMipMaps.save(path, b, width, height);
+			} finally {
+				CachingThread.storeForReuse(b);
+			}
 		}
 	}
 	private final class RWImageRag extends RWImage {
@@ -3030,7 +3039,11 @@ public final class FSLoader extends Loader {
 		}
 		@Override
 		final boolean save(final String path, final byte[][] b, final int width, final int height, final float quality) {
-			return RagMipMaps.save(path, b, width, height);
+			try {
+				return RagMipMaps.save(path, b, width, height);
+			} finally {
+				CachingThread.storeForReuse(b);
+			}
 		}
 	}
 }

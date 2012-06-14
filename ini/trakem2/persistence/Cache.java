@@ -3,10 +3,12 @@ package ini.trakem2.persistence;
 import ij.ImagePlus;
 import ij.io.FileInfo;
 import ini.trakem2.display.MipMapImage;
+import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.TypedHashMap;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Image;
+import java.lang.ref.SoftReference;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -40,7 +42,9 @@ public class Cache {
 		private final Image[] images;
 		private TypedHashMap<Long,Pyramid> interval = null;
 		private final long id;
-		private ImagePlus imp;
+		//private ImagePlus imp;
+		private SoftReference<ImagePlus> srimp;
+		private long impSize;
 		private int n_images; // counts non-null instances in images array
 
 		/** ASSUMES that @param image is not null. */
@@ -55,7 +59,7 @@ public class Cache {
 		 *  i.e. the dimensions of the mipmap images. */
 		Pyramid(final long id, final ImagePlus imp, final int maxdim) {
 			this.id = id;
-			this.imp = imp;
+			setImagePlus(imp);
 			this.images = new Image[maxLevel(maxdim)];
 			this.n_images = 0;
 		}
@@ -75,13 +79,13 @@ public class Cache {
 					// C: old is not null, and new is null: must return freed bytes
 					n_images--;
 					long b = -Cache.size(images[level]); // some bytes to free
-					images[level].flush();
+					images[level].flush(); CachingThread.storeArrayForReuse(images[level]);
 					images[level] = null;
 					return b;
 				} else if (img != images[level]) {
 					// D: both are not null, and are not the same instance:
 					long b = Cache.size(img) - Cache.size(images[level]); // some bytes to free or to be added
-					images[level].flush();
+					images[level].flush(); CachingThread.storeArrayForReuse(images[level]);
 					images[level] = img;
 					return b;
 				}
@@ -91,38 +95,52 @@ public class Cache {
 
 		/** Returns the number of bytes used/free (positive/negative). */
 		final long replace(final ImagePlus impNew) {
+			final ImagePlus pyrimp = getImagePlus();
 			if (null == impNew) {
-				if (null == this.imp) return 0; // A: both null
-				// B: this.imp is not null; some bytes to be free
-				long b = -Cache.size(this.imp);
-				this.imp = impNew; // nullifying
-				return b;
+				if (null == pyrimp) return 0; // A: both null
+				// B: this.imp is not null; some bytes to be free 
+				if (null != this.srimp) this.srimp.clear();
+				return -impSize;
 			} else {
 				// imp is not null:
-				if (null == this.imp) {
+				if (null == pyrimp) {
 					// C: this.imp is null; some bytes to be used
-					this.imp = impNew;
-					return Cache.size(impNew);
+					setImagePlus(impNew);
+					return impSize;
 				} else {
 					// D: both not null
-					if (this.imp.getType() == impNew.getType() && this.imp.getWidth() == impNew.getWidth() && this.imp.getHeight() == impNew.getHeight()) {
-						this.imp = impNew;
-						return 0; // ImageProcessor is of identical dimensions
-					}
-					// else:
-					this.imp = impNew;
-					return Cache.size(impNew) - Cache.size(this.imp); // ImageProcessor may be different
+					final long pyrimpSize = this.impSize;
+					setImagePlus(impNew);
+					return this.impSize - pyrimpSize;
 				}
 			}
+		}
+
+		final void setImagePlus(final ImagePlus imp) {
+			if (null == imp) {
+				this.impSize = 0;
+				this.srimp = null;
+				return;
+			}
+			this.impSize = Cache.size(imp);
+			this.srimp = new SoftReference<ImagePlus>(imp);
+		}
+
+		final ImagePlus getImagePlus() {
+			return null == this.srimp ? null : this.srimp.get();
 		}
 	}
 
 	private final class ImagePlusUsers {
 		final Set<Long> users = new HashSet<Long>();
-		final ImagePlus imp;
+		//final ImagePlus imp;
+		final SoftReference<ImagePlus> srimp;
 		ImagePlusUsers(final ImagePlus imp, final Long firstUser) {
-			this.imp = imp;
+			this.srimp = new SoftReference<ImagePlus>(imp);
 			users.add(firstUser);
+		}
+		final ImagePlus getImagePlus() {
+			return null == this.srimp ? null : this.srimp.get();
 		}
 		final void addUser(final Long id) {
 			users.add(id);
@@ -255,17 +273,18 @@ public class Cache {
 
 	public final ImagePlus get(final String path) {
 		final ImagePlusUsers u = imps.getValue(path);
-		return null == u ? null : u.imp;
+		return null == u ? null : u.getImagePlus();
 	}
 	
 	public final ImagePlus get(final long id) {
 		final Pyramid p = pyramids.getValue(id);
 		if (null == p) return null;
-		if (null == p.imp) return null;
+		final ImagePlus pyrimp = p.getImagePlus();
+		if (null == pyrimp) return null;
 		
 		update(p);
 		
-		return p.imp;
+		return pyrimp;
 	}
 
 	public final Map<Integer,Image> getAll(final long id) {
@@ -409,10 +428,11 @@ public class Cache {
 			count++;
 		} else {
 			update(p);
-			if (null == p.imp) count++;
-			else if (imp != p.imp) {
+			final ImagePlus pyrimp = p.getImagePlus();
+			if (null == pyrimp) count++;
+			else if (imp != pyrimp) {
 				// Remove from old
-				final String path1 = getPath(p.imp);
+				final String path1 = getPath(pyrimp);
 				final ImagePlusUsers u1 = imps.getValue(path1);
 				u1.removeUser(id, path1);
 				// Add to new, which may have to be created
@@ -442,7 +462,7 @@ public class Cache {
 			count--;
 		}
 		// If at least one level is still not null, keep the pyramid; otherwise drop it
-		if (0 == p.n_images && null == p.imp) {
+		if (0 == p.n_images && null == p.getImagePlus()) {
 			p.interval.removeEntry(id);
 			pyramids.removeEntry(id);
 		}
@@ -455,9 +475,11 @@ public class Cache {
 	}
 	
 	private final ImagePlus removeImagePlus(final Pyramid p) {
-		if (null == p || null == p.imp) return null;
-		final ImagePlus imp = p.imp;
-		p.imp = null;
+		if (null == p) return null;
+		final ImagePlus pyrimp = p.getImagePlus();
+		if (null == pyrimp) return null;
+		final ImagePlus imp = pyrimp;
+		p.setImagePlus(null);
 		//
 		final String path = getPath(imp);
 		final ImagePlusUsers u = imps.getValue(path);
@@ -481,7 +503,7 @@ public class Cache {
 	public final void remove(final long id) {
 		final Pyramid p = pyramids.removeEntry(id);
 		if (null == p) return;
-		if (null != p.imp) {
+		if (null != p.getImagePlus()) {
 			removeImagePlus(p);
 		}
 		count -= p.n_images;
@@ -498,7 +520,7 @@ public class Cache {
 			p.replace(null); // the imp may need cleanup
 			for (int i=0; i<p.images.length; i++) {
 				if (null == p.images[i]) continue;
-				p.images[i].flush();
+				p.images[i].flush(); CachingThread.storeArrayForReuse(p.images[i]);
 			}
 		}
 		reset();
@@ -514,7 +536,7 @@ public class Cache {
 			if (null == p.images[i]) continue;
 			addBytes(p.replace(null, i));
 		}
-		if (null == p.imp) {
+		if (null == p.getImagePlus()) {
 			pyramids.removeEntry(id);
 			p.interval.removeEntry(id);
 		}
@@ -527,8 +549,9 @@ public class Cache {
 			final TypedHashMap<Long,Pyramid> interval = intervals.getFirst();
 			for (final Iterator<Pyramid> it = interval.values().iterator(); it.hasNext(); ) {
 				final Pyramid p = it.next();
-				if (null != p.imp) {
-					final String path = getPath(p.imp);
+				final ImagePlus pyrimp = p.getImagePlus();
+				if (null != pyrimp) {
+					final String path = getPath(pyrimp);
 					final ImagePlusUsers u = imps.getValue(path);
 					if (null == path || null == u || 1 == u.users.size()) {
 						//
@@ -577,8 +600,9 @@ public class Cache {
 			final TypedHashMap<Long,Pyramid> interval = intervals.getFirst();
 			for (final Iterator<Pyramid> it = interval.values().iterator(); it.hasNext(); ) {
 				final Pyramid p = it.next();
-				if (null != p.imp) {
-					final String path = getPath(p.imp);
+				final ImagePlus pyrimp = p.getImagePlus();
+				if (null != pyrimp) {
+					final String path = getPath(pyrimp);
 					final ImagePlusUsers u = imps.getValue(path);
 					if (null == path || null == u || 1 == u.users.size()) {
 						//
@@ -633,7 +657,7 @@ public class Cache {
 		Utils.log2("pyramids: " + pyramids.size());
 		for (Map.Entry<Long,Pyramid> e : new TreeMap<Long,Pyramid>(pyramids).entrySet()) {
 			Pyramid p = e.getValue();
-			Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + ";  imp: " + e.getValue().imp);
+			Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + ";  imp: " + e.getValue().getImagePlus());
 		}
 		Utils.log2("----");
 		int i = 0;
@@ -641,7 +665,7 @@ public class Cache {
 			Utils.log2("interval " + (++i));
 			for (Map.Entry<Long,Pyramid> e : new TreeMap<Long,Pyramid>(m).entrySet()) {
 				Pyramid p = e.getValue();
-				Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + "; imp: " + e.getValue().imp);
+				Utils.log2("p id:" + e.getKey() + ";  images: " + p.n_images + " / " + p.images.length + "; imp: " + e.getValue().getImagePlus());
 				int[] levels = new int[p.images.length];
 				for (int k=0; k<levels.length; k++) levels[k] = null == p.images[k] ? 0 : 1;
 				Utils.log2("      levels: " + Utils.toString(levels));
@@ -669,7 +693,7 @@ public class Cache {
 	
 	public final long seqFindId(final ImagePlus imp) {
 		for (final Pyramid p : pyramids.values()) {
-			if (p.imp == imp) return p.id;
+			if (p.getImagePlus() == imp) return p.id;
 		}
 		return Long.MIN_VALUE;
 	}

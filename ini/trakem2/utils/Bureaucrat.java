@@ -45,7 +45,7 @@ public class Bureaucrat extends Thread {
 		super(tg, "T2-Bureaucrat");
 		setPriority(Thread.NORM_PRIORITY);
 		this.worker = worker;
-		this.worker_thread = new Thread(tg, worker, worker.getThreadName());
+		this.worker_thread = new CachingThread(tg, worker, worker.getThreadName());
 		this.worker_thread.setPriority(NORM_PRIORITY);
 		worker.setThread(worker_thread);
 		this.project = project;
