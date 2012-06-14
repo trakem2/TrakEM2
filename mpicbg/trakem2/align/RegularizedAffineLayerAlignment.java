@@ -47,6 +47,7 @@ import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
 import mpicbg.models.AbstractModel;
+import mpicbg.models.Affine2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.HomographyModel2D;
 import mpicbg.models.InterpolatedAffineModel2D;
@@ -406,9 +407,9 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
 			if ( p.regularize )
-				tiles.add( new Tile( m.copy() ) );
-			else
 				tiles.add( new Tile( new InterpolatedAffineModel2D( m.copy(), r.copy(), p.lambda ) ) );
+			else
+				tiles.add( new Tile( m.copy() ) );
 		}
 		
 		/* collect all pairs of slices for which a model could be found */
@@ -650,7 +651,7 @@ J:			for ( int j = i + 1; j < range; )
 			final AffineTransform b = new AffineTransform();
 			b.translate( box.x, box.y );
 //			b.scale( 1.0f / scale, 1.0f / scale );
-			b.concatenate( ( ( InterpolatedAffineModel2D< ?, ? > )tiles.get( i ).getModel() ).createAffineModel2D().createAffine() );
+			b.concatenate( ( ( Affine2D< ? > )tiles.get( i ).getModel() ).createAffine() );
 //			b.scale( scale, scale );
 			b.translate( -box.x, -box.y);
 			
