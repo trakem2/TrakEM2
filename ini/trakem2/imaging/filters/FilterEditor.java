@@ -379,7 +379,7 @@ public class FilterEditor {
 		
 		final JFrame frame = new JFrame("Image filters");
 		JButton set = new JButton("Set");
-		final JComboBox pulldown = new JComboBox(new String[]{"Selected images (" + patches.size() + ")", "All images in layer " + ref.getLayer().getParent().indexOf(ref.getLayer()), "All images in layer range..."});
+		final JComboBox pulldown = new JComboBox(new String[]{"Selected images (" + patches.size() + ")", "All images in layer " + (ref.getLayer().getParent().indexOf(ref.getLayer()) + 1), "All images in layer range..."});
 
 		final Component[] cs = new Component[]{set, pulldown, tcf, tp, taf};
 	
