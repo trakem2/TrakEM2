@@ -1272,7 +1272,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 					minSqDist = d;
 				}
 				// If the Patch has a CoordinateTransform, find the closest perimeter point
-				if (null != p.getCoordinateTransform()) {
+				if (p.hasCoordinateTransform()) {
 					for (final Polygon pol : M.getPolygons(p.getArea())) { // Area in world coordinates
 						for (int i=0; i<pol.npoints; ++i) {
 							double sqDist = Math.pow(pol.xpoints[0] - world_x, 2) + Math.pow(pol.ypoints[1] - world_y, 2);

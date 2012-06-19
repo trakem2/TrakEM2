@@ -3978,7 +3978,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				new Filter<Patch>() {
 					@Override
 					public boolean accept(Patch t) {
-						return null != t.getCoordinateTransform();
+						return t.hasCoordinateTransform();
 					}
 				});
 	}
