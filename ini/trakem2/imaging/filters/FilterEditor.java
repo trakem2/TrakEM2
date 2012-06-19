@@ -48,7 +48,7 @@ public class FilterEditor {
 	// They are all IFilter, and all have protected fields.
 	@SuppressWarnings("rawtypes")
 	static public final Class[] available =
-		new Class[]{CLAHE.class, EqualizeHistogram.class, GaussianBlur.class,
+		new Class[]{CLAHE.class, NormalizeLocalContrast.class, EqualizeHistogram.class, GaussianBlur.class,
 		            Invert.class, Normalize.class, RankFilter.class,
 		            SubtractBackground.class,
 		            LUTRed.class, LUTGreen.class, LUTBlue.class,
@@ -135,6 +135,7 @@ public class FilterEditor {
 				if (Double.TYPE == c) v = Double.parseDouble(sv);
 				else if (Float.TYPE == c) v = Float.parseFloat(sv);
 				else if (Integer.TYPE == c) v = Integer.parseInt(sv);
+				else if (Boolean.TYPE == c) v = Boolean.parseBoolean(sv);
 				else if (Long.TYPE == c) v = Long.parseLong(sv);
 				else if (Short.TYPE == c) v = Short.parseShort(sv);
 				else if (Byte.TYPE == c) v = Byte.parseByte(sv);
