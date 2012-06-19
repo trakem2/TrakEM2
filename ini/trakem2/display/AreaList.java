@@ -215,7 +215,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return last_layer;
 	} // I do REALLY miss Lisp macros. Writting the above two methods in a lispy way would make the java code unreadable
 
-	/** Get the range of layers betweeh the first and last layers in which this AreaList paints to. */
+	/** Get the range of layers between the first and last layers in which this AreaList paints to. */
 	public List<Layer> getLayerRange() {
 		return layer_set.getLayers(getFirstLayer(), getLastLayer());
 	}
