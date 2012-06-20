@@ -155,8 +155,8 @@ final public class AlignLayersTask
 				int index = cref.getSelectedIndex();
 				if (index > 0)
 				{
-					if (index < cstart.getSelectedIndex() - 1) cstart.select(index - 1);
-					if (index >= cend.getSelectedIndex()) cend.select(index - 1);
+					if (index <= cstart.getSelectedIndex()) cstart.select(index - 1);
+					if (index > cend.getSelectedIndex()) cend.select(index - 1);
 				}
 			}
 		});
@@ -164,7 +164,7 @@ final public class AlignLayersTask
 			public void itemStateChanged(ItemEvent ie) {
 				int index = cend.getSelectedIndex();
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
-				if (cref.getSelectedIndex() > 0 && index <= cref.getSelectedIndex()) cref.select(index + 1);
+				if (cref.getSelectedIndex() > 0 && cref.getSelectedIndex() >= index) cref.select(index + 1);
 			}
 		});
 		
