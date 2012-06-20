@@ -85,10 +85,10 @@ public final class FastIntegralImage
 		final long[] f = new long[w2 * h2];
 		// Sum rows
 		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
-			long s = b[offset1] & 0xff;
+			long s = b[offset1] & 0xffff;
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
-				s += b[offset1 + x] & 0xff;
+				s += b[offset1 + x] & 0xffff;
 				f[offset2 + x] = s;
 			}
 			offset1 += w;
