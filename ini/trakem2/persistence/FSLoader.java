@@ -1625,10 +1625,23 @@ public final class FSLoader extends Loader {
 				min = patch.getMin(); // may have changed
 				max = patch.getMax();
 			}
-
+			
 			// Set for the level 0 image, which is a duplicate of the one in the cache in any case
 			ip.setMinAndMax(min, max);
 
+
+			// ImageJ no longer stretches the bytes for ByteProcessor with setMinAndmax
+			if (ByteProcessor.class == ip.getClass()) {
+				if (0 != min && 255 != max) {
+					final byte[] b = (byte[]) ip.getPixels();
+					final double scale = 255 / (max - min);
+					for (int i=0; i<b.length; ++i) {
+						final int val = b[i] & 0xff;
+						if (val < min) b[i] = 0;
+						else b[i] = (byte)Math.min(255, ((val - min) * scale));
+					}
+				}
+			}
 
 			// Proper support for LUT images: treat them as RGB
 			if (ip.isColorLut() || type == ImagePlus.COLOR_256) {
