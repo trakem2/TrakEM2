@@ -1658,15 +1658,6 @@ public final class FSLoader extends Loader {
 				}
 				long t2 = System.currentTimeMillis();
 				System.out.println("MipMaps with area downsampling: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
-			} else if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
-				long t0 = System.currentTimeMillis();
-				final ImageBytes[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
-				long t1 = System.currentTimeMillis();
-				for (int i=0; i<b.length; ++i) {
-					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
-				}
-				long t2 = System.currentTimeMillis();
-				System.out.println("MipMaps with integral images: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
 			} else if (Loader.GAUSSIAN == resizing_mode) {
 				if (ImagePlus.COLOR_RGB == type) {
 					// TODO releaseToFit proper
