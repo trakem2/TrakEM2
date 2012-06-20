@@ -95,6 +95,10 @@ public final class RagMipMaps
 	}
 	
 	static public final ImageBytes load(final String path) {
+		return load(path, 0);
+	}
+
+	static private final ImageBytes load(final String path, final int retry) {
 		RandomAccessFile ra = null;
 		try {
 			final File f = new File(path);
@@ -130,7 +134,17 @@ public final class RagMipMaps
 		} catch (FileNotFoundException fnfe) {
 			Utils.log2("File not found: " + path);
 		} catch (Exception e) {
-			IJError.print(e);
+			// Possible: EOFException, NegativeArraySizeException
+			// ... all meaning that the file exists but hasn't yet been fully written
+			// Rather than going fancy with file locks, just wait 100 ms and retry
+			// Retry
+			if (retry < 2) {
+				// Wait for image to be fully written
+				try { Thread.sleep(100); } catch (InterruptedException ie) {}
+				return load(path, retry + 1);
+			}
+			// Else the error is for real
+			else IJError.print(e);
 		} finally {
 			if (null != ra) try { ra.close(); } catch (Exception e) { IJError.print(e); }
 		}

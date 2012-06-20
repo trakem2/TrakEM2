@@ -1339,7 +1339,20 @@ public final class Patch extends Displayable implements ImageData {
 	public final Rectangle getCoordinateTransformBoundingBox() {
 		if (!hasCoordinateTransform())
 			return new Rectangle(0,0,o_width,o_height);
-		final TransformMesh mesh = new TransformMesh(getCoordinateTransform(), meshResolution, o_width, o_height);
+		return Patch.getCoordinateTransformBoundingBox(this, getCoordinateTransform());
+	}
+	
+	/**
+	 * Allow reusing a {@link CoordinateTransform} that was already loaded from a file.
+	 * 
+	 * @param p
+	 * @param ct
+	 * @return
+	 */
+	protected static final Rectangle getCoordinateTransformBoundingBox(final Patch p, final CoordinateTransform ct) {
+		if (!p.hasCoordinateTransform())
+			return new Rectangle(0,0,p.o_width,p.o_height);
+		final TransformMesh mesh = new TransformMesh(ct, p.meshResolution, p.o_width, p.o_height);
 		return mesh.getBoundingBox();
 	}
 
@@ -2009,11 +2022,11 @@ public final class Patch extends Displayable implements ImageData {
 			at.concatenate( p.getAffineTransform() );
 			
 			// 1. The coordinate tranform of the Patch, if any
-			final CoordinateTransform ct = p.getCoordinateTransform();
-			if (null != ct) {
+			if (p.hasCoordinateTransform()) {
+				CoordinateTransform ct = p.getCoordinateTransform();
 				list.add(ct);
 				// Remove the translation in the patch_affine that the ct added to it
-				final Rectangle box = p.getCoordinateTransformBoundingBox();
+				final Rectangle box = Patch.getCoordinateTransformBoundingBox(p, ct);
 				at.translate( -box.x, -box.y );
 			}
 			

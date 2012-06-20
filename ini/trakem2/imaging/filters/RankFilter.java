@@ -5,8 +5,8 @@ import java.util.Map;
 import ij.plugin.filter.RankFilters;
 import ij.process.ImageProcessor;
 
-public class RankFilter implements IFilter {
-
+public class RankFilter implements IFilter
+{
 	protected double radius = 2;
 	/** See {@link RankFilters}. */
 	protected int type = RankFilters.MEDIAN;

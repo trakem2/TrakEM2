@@ -17,6 +17,7 @@ public class CachingThread extends Thread
 	{
 		private static final long serialVersionUID = 1L;
 		private final Class<A> clazz;
+		private int count = 0;
 		
 		private ArrayCache(final Class<A> clazz) {
 			this.clazz = clazz;
@@ -49,17 +50,24 @@ public class CachingThread extends Thread
 				this.put(length, l);
 			}
 			l.add(new SoftReference<A>(a));
+			++count;
 			// Clean up
-			if (this.size() > 30) {
-				removeStaleReferences();
+			if (count > 30) {
+				restructure();
 			}
 		}
 
-		private final void removeStaleReferences() {
+		private final void restructure() {
+			count = 0;
 			for (final LinkedList<SoftReference<A>> l : this.values()) {
+				// Remove stale references
 				for (final Iterator<SoftReference<A>> it = l.iterator(); it.hasNext(); ) {
 					if (it.next().get() == null) it.remove();
 				}
+				// Crop to maximum of 30
+				while (l.size() > 30) l.removeLast(); // newest are easiest to throw away
+				// Update
+				count += l.size();
 			}
 		}
 	}

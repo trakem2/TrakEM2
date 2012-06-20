@@ -4771,7 +4771,6 @@ while (it.hasNext()) {
 
 	// Modes used for scaling images when creating mipmap pyramids
 	static public final int GAUSSIAN = 3;
-	static public final int INTEGRAL_AREA_AVERAGING = 5;
 	static public final int AREA_DOWNSAMPLING = 6;
 	
 	// Home-made enum. Java enum have too much magic.
@@ -4779,7 +4778,6 @@ while (it.hasNext()) {
 	static {
 		final TreeMap<Integer,String> modes = new TreeMap<Integer, String>();
 		modes.put(GAUSSIAN, "Gaussian");
-		modes.put(INTEGRAL_AREA_AVERAGING, "Integral area averaging");
 		modes.put(AREA_DOWNSAMPLING, "Area downsampling");
 		MIPMAP_MODES = Collections.unmodifiableSortedMap(modes);
 	}

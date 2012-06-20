@@ -1625,10 +1625,23 @@ public final class FSLoader extends Loader {
 				min = patch.getMin(); // may have changed
 				max = patch.getMax();
 			}
-
+			
 			// Set for the level 0 image, which is a duplicate of the one in the cache in any case
 			ip.setMinAndMax(min, max);
 
+
+			// ImageJ no longer stretches the bytes for ByteProcessor with setMinAndmax
+			if (ByteProcessor.class == ip.getClass()) {
+				if (0 != min && 255 != max) {
+					final byte[] b = (byte[]) ip.getPixels();
+					final double scale = 255 / (max - min);
+					for (int i=0; i<b.length; ++i) {
+						final int val = b[i] & 0xff;
+						if (val < min) b[i] = 0;
+						else b[i] = (byte)Math.min(255, ((val - min) * scale));
+					}
+				}
+			}
 
 			// Proper support for LUT images: treat them as RGB
 			if (ip.isColorLut() || type == ImagePlus.COLOR_256) {
@@ -1645,15 +1658,6 @@ public final class FSLoader extends Loader {
 				}
 				long t2 = System.currentTimeMillis();
 				System.out.println("MipMaps with area downsampling: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
-			} else if (Loader.INTEGRAL_AREA_AVERAGING == resizing_mode) {
-				long t0 = System.currentTimeMillis();
-				final ImageBytes[] b = IntegralImageMipMaps.create(patch, ip, alpha_mask, outside_mask, type);
-				long t1 = System.currentTimeMillis();
-				for (int i=0; i<b.length; ++i) {
-					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
-				}
-				long t2 = System.currentTimeMillis();
-				System.out.println("MipMaps with integral images: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
 			} else if (Loader.GAUSSIAN == resizing_mode) {
 				if (ImagePlus.COLOR_RGB == type) {
 					// TODO releaseToFit proper
