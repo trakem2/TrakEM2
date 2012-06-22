@@ -1596,6 +1596,24 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		at2.rotate(radians, xo, yo);
 		preTransform(at2, linked);
 	}
+	
+	/** Preconcatenate the {@param at} to every {@link Displayable} in {@param ds},
+	 * without touching their links; then the buckets are updated for all necessary layers. */
+	static public final void preConcatenate(final AffineTransform at, final Collection<Displayable> ds) {
+		if (ds.isEmpty()) return;
+		final LayerSet ls = ds.iterator().next().getLayerSet();
+		
+		final HashSet<Long> layerIds = new HashSet<Long>();
+		
+		for (final Displayable d : ds) {
+			d.at.preConcatenate(at); // all linked ones already included in the hashset
+			layerIds.addAll(d.getLayerIds());
+		}
+		for (final Long lid : layerIds) {
+			ls.getLayer(lid).recreateBuckets();
+		}
+	}
+	
 
 	/** Commands the parent container (a Layer or a LayerSet) to update the bucket position of this Displayable. */
 	public void updateBucket() {
