@@ -68,6 +68,9 @@ public class LUTCustom implements IFilter
 	public String toXML(String indent) {
 		return new StringBuilder(indent)
 			.append("<t2_filter class=\"").append(getClass().getName())
+			.append("\" r=\"").append(r)
+			.append("\" g=\"").append(g)
+			.append("\" b=\"").append(b)
 			.append("\" />\n").toString();
 	}
 
