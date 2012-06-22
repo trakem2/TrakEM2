@@ -13,14 +13,19 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.imaging.filters.EqualizeHistogram;
 import ini.trakem2.imaging.filters.IFilter;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.Vector;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -196,13 +201,20 @@ public class ContrastEnhancerWrapper {
 					sub.addAll(patches);
 				} else {
 					// build stack statistics, ordered by stdDev
-					final TreeMap<Stats,Patch> sp = new TreeMap<Stats,Patch>();
-					for (final Patch p : patches) {
-						if (Thread.currentThread().isInterrupted()) return false;
-						ImagePlus imp = p.getImagePlus();
-						p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 2);
-						sp.put(new Stats(imp.getStatistics()), p);
-					}
+					final SortedMap<Stats,Patch> sp = Collections.synchronizedSortedMap(new TreeMap<Stats,Patch>());
+					Process.progressive(
+							patches,
+							new TaskFactory<Patch, Stats>() {
+								public Stats process(final Patch p) {
+									if (Thread.currentThread().isInterrupted()) return null;
+									ImagePlus imp = p.getImagePlus();
+									p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 2);
+									Stats s = new Stats(imp.getStatistics());
+									sp.put(s, p);
+									return s;
+								}
+							});
+					if (Thread.currentThread().isInterrupted()) return false;
 					final ArrayList<Patch> a = new ArrayList<Patch>(sp.values());
 					final int count = a.size();
 					if (count < 3) {
@@ -224,25 +236,29 @@ public class ContrastEnhancerWrapper {
 
 			final Calibration cal = patches.get(0).getLayer().getParent().getCalibrationCopy();
 
-			for (final Patch p : patches) {
-				if (Thread.currentThread().isInterrupted()) return false;
-				p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 3);
-				ImageProcessor ip = p.getImageProcessor().duplicate(); // a throw-away copy
-				if (this.from_existing_min_and_max) {
-					ip.setMinAndMax(p.getMin(), p.getMax());
-				}
-				ImageStatistics st = stats;
-				if (null == stats) {
-					Utils.log2("Null stats, using image's self");
-					st = ImageStatistics.getStatistics(ip, Measurements.MIN_MAX, cal);
-				}
-				ce.stretchHistogram(ip, saturated, st);
-				// This is all we care about from stretching the histogram:
-				p.setMinAndMax(ip.getMin(), ip.getMax());
+			Process.progressive(
+					patches,
+					new TaskFactory<Patch, Object>() {
+						public Object process(final Patch p) {
+							if (Thread.currentThread().isInterrupted()) return null;
+							p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 3);
+							ImageProcessor ip = p.getImageProcessor().duplicate(); // a throw-away copy
+							if (ContrastEnhancerWrapper.this.from_existing_min_and_max) {
+								ip.setMinAndMax(p.getMin(), p.getMax());
+							}
+							ImageStatistics st = stats;
+							if (null == stats) {
+								Utils.log2("Null stats, using image's self");
+								st = ImageStatistics.getStatistics(ip, Measurements.MIN_MAX, cal);
+							}
+							ce.stretchHistogram(ip, saturated, st);
+							// This is all we care about from stretching the histogram:
+							p.setMinAndMax(ip.getMin(), ip.getMax());
 
-				regenerateMipMaps(p);
-			}
-
+							regenerateMipMaps(p);
+							return null;
+						}
+					});
 		} catch (Exception e) {
 			IJError.print(e);
 			return false;
