@@ -50,7 +50,7 @@ public class FilterEditor {
 	static public final Class[] available =
 		new Class[]{CLAHE.class, NormalizeLocalContrast.class, EqualizeHistogram.class, GaussianBlur.class,
 		            Invert.class, Normalize.class, RankFilter.class,
-		            SubtractBackground.class,
+		            SubtractBackground.class, ResetMinAndMax.class,
 		            LUTRed.class, LUTGreen.class, LUTBlue.class,
 		            LUTMagenta.class, LUTCyan.class, LUTYellow.class,
 		            LUTOrange.class, LUTCustom.class};
