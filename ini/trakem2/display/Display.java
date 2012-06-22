@@ -4274,8 +4274,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		final Calibration cal = ls.getCalibration();
 		final Layer last = ls.getLayer(ls.size()-1);
 		final double depth = (last.getZ() - ls.getLayer(0).getZ() + last.getThickness()) * cal.pixelWidth;
-		final String title = new StringBuilder()
+		final String title = new StringBuilder(100)
 			.append(layer.getParent().indexOf(layer) + 1).append('/').append(layer.getParent().size())
+			.append("  z:").append(layer.getZ() * cal.pixelWidth).append(' ').append(cal.getUnits()).append(' ') // Not pixelDepth
 			.append(' ').append(layer.getLayerThingTitle())
 			.append(scale)
 			.append(" -- ").append(getProject().toString())
