@@ -20,7 +20,7 @@ public class ResetMinAndMax implements IFilter
 	public String toXML(String indent) {
 		return new StringBuilder(indent).append("<t2_filter class=\"")
 			.append(getClass().getName())
-			.append("\" />").toString();
+			.append("\" />\n").toString();
 	}
 	
 	@Override
