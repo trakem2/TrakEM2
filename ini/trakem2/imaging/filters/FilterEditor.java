@@ -49,7 +49,7 @@ public class FilterEditor {
 	@SuppressWarnings("rawtypes")
 	static public final Class[] available =
 		new Class[]{CLAHE.class, NormalizeLocalContrast.class, EqualizeHistogram.class,
-					EnhanceContrast.class, ResetMinAndMax.class,
+					EnhanceContrast.class, ResetMinAndMax.class, DefaultMinAndMax.class,
 					GaussianBlur.class, Invert.class, Normalize.class,
 		            RankFilter.class, SubtractBackground.class,
 		            LUTRed.class, LUTGreen.class, LUTBlue.class,
