@@ -1004,7 +1004,6 @@ public class TMLHandler extends DefaultHandler {
 
 	final private IFilter newFilter(final HashMap<String, String> ht_attributes) {
 		try {
-			Utils.log2(Utils.toString(ht_attributes));
 			return (IFilter) Class.forName(ht_attributes.remove("class")).getConstructor(Map.class).newInstance(ht_attributes);
 		} catch (Exception e) {
 			throw new RuntimeException("Could not create filter for Patch #" + last_patch.getId(), e);
