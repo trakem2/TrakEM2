@@ -851,7 +851,7 @@ A:		for ( final Layer layer : layers )
 		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
 		
 		for ( AbstractAffineTile2D< ? > t : interestingTiles )
-			t.getPatch().setAffineTransform( t.getModel().createAffine() );
+			t.getPatch().getAffineTransform().setTransform( t.getModel().createAffine() );
 		
 		Utils.log( "Montage done." );
 	}
@@ -1064,7 +1064,7 @@ A:		for ( final Layer layer : layers )
 				b.translate( -graph1Box.x, -graph1Box.y);
 				
 				for ( Displayable d : selection1.getSelected( Patch.class ) )
-					d.preTransform( b, false );
+					d.getAffineTransform().preConcatenate( b );
 				
 				/* assign patch affine transformation to the tile model */
 				for ( final Tile< ? > t : graph1 )

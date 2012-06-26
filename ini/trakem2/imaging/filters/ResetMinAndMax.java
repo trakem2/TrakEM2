@@ -1,18 +1,18 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.process.ImageProcessor;
 
-public class Invert implements IFilter
+import java.util.Map;
+
+public class ResetMinAndMax implements IFilter
 {
-	public Invert() {}
+	public ResetMinAndMax() {}
 	
-	public Invert(Map<String, String> params) {}
+	public ResetMinAndMax(Map<String, String> params) {}
 	
 	@Override
 	public ImageProcessor process(ImageProcessor ip) {
-		ip.invert();
+		ip.resetMinAndMax();
 		return ip;
 	}
 
@@ -25,6 +25,6 @@ public class Invert implements IFilter
 	
 	@Override
 	public boolean equals(final Object o) {
-		return null != o && o.getClass() == Invert.class;
+		return null != o && o.getClass() == ResetMinAndMax.class;
 	}
 }

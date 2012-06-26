@@ -954,7 +954,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		boolean all = Displayable.class == c;
 		for (final Displayable d : al_displayables) {
 			if (all || d.getClass() == c) {
-				d.preTransform(at, false);
+				d.at.preConcatenate(at);
 			}
 		}
 		recreateBuckets();

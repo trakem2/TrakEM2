@@ -582,22 +582,14 @@ public class Selection {
 	public void rotate(final double angle, final double xo, final double yo) {
 		final AffineTransform at = new AffineTransform();
 		at.rotate(Math.toRadians(angle), xo, yo);
-
-		for (final Displayable d : getAffected()) {
-			d.preTransform(at, false); // all linked ones included in the hashset
-		}
-		// TODO update affine mode
+		Displayable.preConcatenate(at, getAffected());
 	}
 
 	/** Translate all selected objects and their links by the given differentials. The floater position is unaffected; if you want to update it call centerFloater() */
 	public void translate(final double dx, final double dy) {
 		final AffineTransform at = new AffineTransform();
 		at.translate(dx, dy);
-
-		for (final Displayable d : getAffected()) {
-			d.preTransform(at, false); // all linked ones already included in the hashset
-		}
-		// TODO update affine mode
+		Displayable.preConcatenate(at, getAffected());
 	}
 
 	/** Scale all selected objects and their links by by the given scales, relative to the origin position. */
@@ -612,10 +604,10 @@ public class Selection {
 		at.scale(sx, sy);
 		at.translate(-x_o, -y_o);
 
-		for (final Displayable d : getAffected()) {
-			d.preTransform(at, false); // all linked ones already included in the hashset
-		}
+		Displayable.preConcatenate(at, getAffected());
 	}
+	
+	
 
 	/** Returns a copy of the list of all selected Displayables (and not their linked ones). */
 	public ArrayList<Displayable> getSelected() {

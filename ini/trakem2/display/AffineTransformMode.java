@@ -329,9 +329,7 @@ public class AffineTransformMode implements Mode {
 
 			if (null != accum_affine) accum_affine.preConcatenate(at);
 
-			for (final Displayable d : display.getSelection().getAffected()) {
-				d.preTransform(at, false);
-			}
+			Displayable.preConcatenate(at, display.getSelection().getAffected());
 			fixAffinePoints(at);
 
 			// finally:
@@ -819,9 +817,7 @@ public class AffineTransformMode implements Mode {
 
 		if (null != accum_affine) accum_affine.preConcatenate(at);
 
-		for (final Displayable d : display.getSelection().getAffected()) {
-			d.preTransform(at, false); // all linked ones included in the hashset
-		}
+		Displayable.preConcatenate(at, display.getSelection().getAffected());
 		fixAffinePoints(at);
 		resetBox();
 	}
@@ -835,9 +831,7 @@ public class AffineTransformMode implements Mode {
 
 		if (null != accum_affine) accum_affine.preConcatenate(at);
 
-		for (final Displayable d : display.getSelection().getAffected()) {
-			d.preTransform(at, false); // all linked ones already included in the hashset
-		}
+		Displayable.preConcatenate(at, display.getSelection().getAffected());
 		fixAffinePoints(at);
 		resetBox();
 	}
@@ -858,9 +852,7 @@ public class AffineTransformMode implements Mode {
 
 		if (null != accum_affine) accum_affine.preConcatenate(at);
 
-		for (final Displayable d : display.getSelection().getAffected()) {
-			d.preTransform(at, false); // all linked ones already included in the hashset
-		}
+		Displayable.preConcatenate(at, display.getSelection().getAffected());
 		fixAffinePoints(at);
 		resetBox();
 	}
