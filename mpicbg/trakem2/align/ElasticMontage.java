@@ -150,14 +150,6 @@ public class ElasticMontage extends AbstractElasticAlignment
 			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", bmMaxLocalEpsilon, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (relative):", bmMaxLocalTrust, 2 );
 			
-			/* TODO suggest a resolution that matches maxEpsilon */
-			gdBlockMatching.addMessage( "Spring Mesh:" );
-			gdBlockMatching.addNumericField( "spring_length :", springLengthSpringMesh, 2, 6, "px" );
-			gdBlockMatching.addNumericField( "stiffness :", stiffnessSpringMesh, 2 );
-			gdBlockMatching.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
-			gdBlockMatching.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
-			gdBlockMatching.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
-			
 			gdBlockMatching.addMessage( "Montage :" );
 			gdBlockMatching.addCheckbox( "tiles_are_pre-montaged", isAligned );
 			
@@ -179,29 +171,42 @@ public class ElasticMontage extends AbstractElasticAlignment
 			bmMaxLocalEpsilon = ( float )gdBlockMatching.getNextNumber();
 			bmMaxLocalTrust = ( float )gdBlockMatching.getNextNumber();
 			
-			springLengthSpringMesh = ( float )gdBlockMatching.getNextNumber();
-			stiffnessSpringMesh = ( float )gdBlockMatching.getNextNumber();
-			maxStretchSpringMesh = ( float )gdBlockMatching.getNextNumber();
-			maxIterationsSpringMesh = ( int )gdBlockMatching.getNextNumber();
-			maxPlateauwidthSpringMesh = ( int )gdBlockMatching.getNextNumber();
-			
 			isAligned = gdBlockMatching.getNextBoolean();
+			
+			
+			final GenericDialog gdSpringMesh = new GenericDialog( "Elastic montage: Spring Meshes" );
+			
+			/* TODO suggest a resolution that matches maxEpsilon */
+			gdSpringMesh.addNumericField( "spring_length :", springLengthSpringMesh, 2, 6, "px" );
+			gdSpringMesh.addNumericField( "stiffness :", stiffnessSpringMesh, 2 );
+			gdSpringMesh.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
+			gdSpringMesh.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
+			gdSpringMesh.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
+			
+			gdSpringMesh.showDialog();
+			
+			if ( gdSpringMesh.wasCanceled() )
+				return false;
+			
+			springLengthSpringMesh = ( float )gdSpringMesh.getNextNumber();
+			stiffnessSpringMesh = ( float )gdSpringMesh.getNextNumber();
+			maxStretchSpringMesh = ( float )gdSpringMesh.getNextNumber();
+			maxIterationsSpringMesh = ( int )gdSpringMesh.getNextNumber();
+			maxPlateauwidthSpringMesh = ( int )gdSpringMesh.getNextNumber();
 			
 			if ( isAligned )
 				po.desiredModelIndex = 3;
-			
-			
-			if ( !isAligned )
+			else
 			{
-				final GenericDialog gdSIFT = new GenericDialog( "Elastic montage: SIFT based pre-montage" );
-				po.addFields( gdSIFT );
-				gdSIFT.addMessage( "Miscellaneous:" );
+				if ( !po.setup( "Elastic montage : SIFT based pre-montage" ) )
+					return false;
+				
+				final GenericDialog gdSIFT = new GenericDialog( "Elastic montage : SIFT based pre-montage: Miscellaneous" );
 				gdSIFT.addCheckbox( "tiles_are_roughly_in_place", tilesAreInPlace );
 				gdSIFT.showDialog();
 				if ( gdSIFT.wasCanceled() )
 					return false;
 				
-				po.readFields( gdSIFT );
 				tilesAreInPlace = gdSIFT.getNextBoolean();
 			}
 			
