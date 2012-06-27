@@ -1388,7 +1388,7 @@ public class Align
 	final static public MovingLeastSquaresTransform2 createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
 	{
 		final MovingLeastSquaresTransform2 mlst = new MovingLeastSquaresTransform2();
-		mlst.setAlpha( 1.0f );
+		mlst.setAlpha( alpha );
 		Class< ? extends AbstractAffineModel2D< ? > > c = AffineModel2D.class;
 		switch ( matches.size() )
 		{
