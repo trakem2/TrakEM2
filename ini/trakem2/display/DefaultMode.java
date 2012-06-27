@@ -63,9 +63,6 @@ public class DefaultMode implements Mode {
 			display.getLayerSet().addTransformStep(display.getSelection().getAffected()); // all selected and their links: i.e. all that will change
 		}
 
-		// me is null when calling from Display, because of popup interfering with mouseReleased
-		if (null != me) execDrag(me, x_r - x_d, y_r - y_d);
-
 		dragging = false;
 	}
 
