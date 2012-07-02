@@ -964,10 +964,10 @@ public final class Patch extends Displayable implements ImageData {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		copy.ct_id = this.ct_id; // files are immutable so they can be shared
-		copy.alpha_mask_id = this.alpha_mask_id; // files are immutable so they can be shared
-		if (pr != this.project) {
-			// Copy the files over to the other project.
+		copy.ct_id = this.ct_id;
+		copy.alpha_mask_id = this.alpha_mask_id;
+		// Copy the files
+		if (!copy_id || pr != this.project) {
 			try {
 				if (0 != copy.alpha_mask_id
 						&& !Utils.safeCopy(
