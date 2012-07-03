@@ -43,6 +43,7 @@ import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.filters.FilterEditor;
 import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.io.CoordinateTransformXML;
+import ini.trakem2.io.ImageSaver;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.XMLOptions;
@@ -1438,6 +1439,25 @@ public final class Patch extends Displayable implements ImageData {
 		final public ByteProcessor getMask()
 		{
 			return mask == null ? outside == null ? null : outside : mask;
+		}
+		
+		final public Image createImage(final double min, final double max) {
+			final ImageProcessor ip = target;
+			ip.setMinAndMax(min, max);
+			ByteProcessor alpha_mask = mask; // can be null;
+			final ByteProcessor outside_mask = outside; // can be null
+			if (null == alpha_mask) {
+				alpha_mask = outside_mask;
+			}
+			if (null != alpha_mask) {
+				return ImageSaver.createARGBImagePre(
+						Loader.embedAlphaPre((int[])ip.convertToRGB().getPixels(),
+								(byte[])alpha_mask.getPixels(),
+								null == outside_mask ? null : (byte[])outside_mask.getPixels()),
+								ip.getWidth(), ip.getHeight());
+			} else {
+				return ip.createImage();
+			}
 		}
 	}
 

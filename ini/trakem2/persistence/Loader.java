@@ -1080,23 +1080,7 @@ abstract public class Loader {
 			Patch.PatchImage pai = p.createTransformedImage();
 			synchronized (plock) {
 				if (null != pai && null != pai.target) {
-					final ImageProcessor ip = pai.target;
-					ip.setMinAndMax(p.getMin(), p.getMax());
-					ByteProcessor alpha_mask = pai.mask; // can be null;
-					final ByteProcessor outside_mask = pai.outside; // can be null
-					if (null == alpha_mask) {
-						alpha_mask = outside_mask;
-					}
-					pai = null;
-					if (null != alpha_mask) {
-						mawt = ImageSaver.createARGBImagePre(
-								embedAlphaPre((int[])ip.convertToRGB().getPixels(),
-										(byte[])alpha_mask.getPixels(),
-										null == outside_mask ? null : (byte[])outside_mask.getPixels()),
-								ip.getWidth(), ip.getHeight());
-					} else {
-						mawt = ip.createImage();
-					}
+					mawt = pai.createImage(p.getMin(), p.getMax());
 				}
 			}
 		} catch (Exception e) {
@@ -1120,7 +1104,7 @@ abstract public class Loader {
 		}
 
 		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
-	}
+	}	
 
 	/**
 	 * @see Patch#getAlphaMask()
@@ -4866,7 +4850,7 @@ while (it.hasNext()) {
 	}
 
 	/** Assumes alpha is never null, but outside may be null. */
-	protected static final int[] embedAlphaPre(final int[] pix, final byte[] alpha, final byte[] outside) {
+	public static final int[] embedAlphaPre(final int[] pix, final byte[] alpha, final byte[] outside) {
 		if (null == outside) {
 			for (int i=0; i<pix.length; ++i) {
 				final int a = alpha[i] & 0xff;
