@@ -2680,7 +2680,16 @@ public final class FSLoader extends Loader {
 					return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
 				}
 				// Now the image should be good:
-				return fetchImage(p, mag);
+				mipMap = fetchImage(p, mag);
+				
+				// Check in any case:
+				if (Loader.isSignalImage(mipMap.image)) {
+					// Attempt to create from scratch
+					return new MipMapImage( p.createTransformedImage().createImage(p.getMin(), p.getMax()), 1, 1);
+				} else {
+					return mipMap;
+				}
+				
 			} catch (Throwable e) {
 				IJError.print(e);
 			}
