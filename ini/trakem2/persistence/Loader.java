@@ -3963,6 +3963,7 @@ while (it.hasNext()) {
 		// Select a file to export to. Puts .xml extension in the name, not in the extension argument,
 		// otherwise one can't specify the ".xml.gz" because SaveDialog removes it and ends up using .xml.xml
 		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, "untitled.xml", null) : new File(xmlpath);
+		if (null == fxml) return null; // User canceled dialog
 		// ... which means we must do some checking here:
 		final String name = fxml.getName();
 		if ( !(name.endsWith(".xml") || name.endsWith(".xml.gz"))) {
