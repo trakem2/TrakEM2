@@ -1000,6 +1000,11 @@ public final class Patch extends Displayable implements ImageData {
 		// Copy preprocessor scripts
 		String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
 		if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
+		
+		// Copy image filters
+		if (null != filters) {
+			copy.filters = FilterEditor.duplicate(this.filters);
+		}
 
 		return copy;
 	}
