@@ -1656,7 +1656,20 @@ public class Project extends DBObject {
 				e.getKey().removeAll(e.getValue());
 			}
 		}
-		// 3. ZDisplayable: bulk removal
+		// 3. Stacks
+		if (zds.size() > 0) {
+			final Set<ZDisplayable> stacks = new HashSet<ZDisplayable>();
+			for (final Iterator<ZDisplayable> it = zds.iterator(); it.hasNext(); ) {
+				final ZDisplayable zd = it.next();
+				if (zd.getClass() == Stack.class) {
+					it.remove();
+					stacks.add(zd);
+				}
+			}
+			layer_set.removeAll(stacks);
+		}
+		
+		// 4. ZDisplayable: bulk removal
 		if (zds.size() > 0) {
 			// 1. From the Project Tree:
 			Set<Displayable> not_removed = project_tree.remove(zds, top_node);
