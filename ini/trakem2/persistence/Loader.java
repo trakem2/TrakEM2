@@ -3967,18 +3967,21 @@ while (it.hasNext()) {
 	}
 
 	/** Exports to an XML file chosen by the user in a dialog if @param xmlpath is null. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
-	public String saveAs(Project project, String xmlpath, XMLOptions options) {
-		String storage_dir = getStorageFolder();
-		String mipmaps_dir = getMipMapsFolder();
-		// Select a file to export to
-		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, null, ".xml") : new File(xmlpath);
-		Map<Long,String> copy = null;
-		if (null == fxml) return null;
-		else {
-			copy = getPathsCopy();
-			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
+	public String saveAs(final Project project, final String xmlpath, final XMLOptions options) {
+		final String storage_dir = getStorageFolder();
+		final String mipmaps_dir = getMipMapsFolder();
+		// Select a file to export to. Puts .xml extension in the name, not in the extension argument,
+		// otherwise one can't specify the ".xml.gz" because SaveDialog removes it and ends up using .xml.xml
+		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, "untitled.xml", null) : new File(xmlpath);
+		// ... which means we must do some checking here:
+		final String name = fxml.getName();
+		if ( !(name.endsWith(".xml") || name.endsWith(".xml.gz"))) {
+			// Default to compressed XML
+			fxml = new File(Utils.fixDir(fxml.getParent()) + name + ".xml.gz");
 		}
-		String path = export(project, fxml, options);
+		final Map<Long,String> copy = getPathsCopy();
+		makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
+		final String path = export(project, fxml, options);
 		if (null != path) setChanged(false);
 		else {
 			// failed, so restore paths
