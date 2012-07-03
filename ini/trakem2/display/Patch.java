@@ -556,7 +556,8 @@ public final class Patch extends Displayable implements ImageData {
 		return bi;
 	}
 
-	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+	@Override
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
 		paint(g, fetchImage(magnification, channels, true), srcRect);
 	}
 
