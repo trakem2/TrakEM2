@@ -2617,11 +2617,14 @@ while (it.hasNext()) {
 			if (layer.length > 1) {
 				// Get all slices
 				ImageStack stack = null;
+				Utils.showProgress(0);
 				for (int i=0; i<layer.length; i++) {
 					if (Thread.currentThread().isInterrupted()) return;
 					
 					/* free memory */
 					releaseAll();
+					
+					Utils.showProgress(i / (float)layer.length);
 					
 					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
@@ -2635,6 +2638,9 @@ while (it.hasNext()) {
 						stack.addSlice(layer[i].getProject().findLayerThing(layer[i]).toString(), slice.getProcessor());
 					}
 				}
+				
+				Utils.showProgress(1);
+				
 				if (null != stack) {
 					imp = new ImagePlus("z=" + layer[0].getZ() + " to z=" + layer[layer.length-1].getZ(), stack);
 					final Calibration impCalibration = layer[0].getParent().getCalibrationCopy();
