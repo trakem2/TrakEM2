@@ -685,6 +685,7 @@ public final class Patch extends Displayable implements ImageData {
 			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( mipMap.image, atp, null );
 		} catch (Throwable t) {
+			g.setComposite(original_composite);
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
 			g.drawImage( mipMap.image, atp, null );
 		}
