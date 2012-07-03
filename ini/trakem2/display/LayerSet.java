@@ -1413,7 +1413,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final Rectangle roi = new Rectangle(0, 0, (int)Math.ceil(getLayerWidth()), (int)Math.ceil(getLayerHeight()));
-		final LayerSet copy = (LayerSet) clone(pr, al_layers.get(0), al_layers.get(al_layers.size()-1), roi, false, copy_id);
+		final LayerSet copy = (LayerSet) clone(pr, al_layers.get(0), al_layers.get(al_layers.size()-1), roi, false, copy_id, false);
 		try {
 			LayerSet.cloneInto(this, al_layers.get(0), al_layers.get(al_layers.size()-1), pr, copy, roi, copy_id);
 		} catch (Exception e) {
@@ -1425,7 +1425,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 
 	/** Clone the contents of this LayerSet, from first to last given layers, and cropping for the given rectangle;
 	 *  does NOT copy the ZDisplayable, which may be copied using the LayerSet.cloneInto method. */
-	public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id) {
+	public Displayable clone(Project pr, Layer first, Layer last, Rectangle roi, boolean add_to_tree, boolean copy_id, boolean ignore_hidden_patches) {
 		// obtain a LayerSet
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final LayerSet copy = new LayerSet(pr, nid, getTitle(), this.width, this.height, this.rot_x, this.rot_y, this.rot_z, roi.width, roi.height, this.locked, this.snapshots_mode, (AffineTransform)this.at.clone());
@@ -1435,7 +1435,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		final java.util.List<Layer> range = new ArrayList<Layer>(al_layers).subList(indexOf(first), indexOf(last) +1);
 		Utils.log2("range.size() : " + range.size());
 		for (Layer layer : range) {
-			Layer layercopy = layer.clone(pr, copy, roi, copy_id);
+			Layer layercopy = layer.clone(pr, copy, roi, copy_id, ignore_hidden_patches);
 			copy.addSilently(layercopy);
 			if (add_to_tree) pr.getLayerTree().addLayer(copy, layercopy);
 		}
