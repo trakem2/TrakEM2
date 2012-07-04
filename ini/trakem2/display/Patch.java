@@ -1605,6 +1605,7 @@ public final class Patch extends Displayable implements ImageData {
 		return false_color;
 	}
 
+	@Override
 	public void keyPressed(final KeyEvent ke) {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
