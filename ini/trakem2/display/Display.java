@@ -2520,7 +2520,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item.setEnabled(n_sel_patches > 1);
 				item = new JMenuItem("Blend"); item.addActionListener(this); m.add(item);
 				item.setEnabled(n_sel_patches > 1);
-				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
+				item = new JMenuItem("Open image"); item.addActionListener(new ActionListener() {
 					@Override
 					public void actionPerformed(ActionEvent e) {
 						for (final Patch p : selection.get(Patch.class)) {
@@ -2528,6 +2528,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						}
 					}
 				}); m.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.SHIFT_MASK, true));
+				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						for (final Patch p : selection.get(Patch.class)) {
+							p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 5);
+							p.getProject().getLoader().openImagePlus(p.getImageFilePath()).show();
+						}
+					}
+				});
 				item = new JMenuItem("View volume"); item.addActionListener(this); m.add(item);
 				HashSet<Displayable> hs = active.getLinked(Patch.class);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false);
