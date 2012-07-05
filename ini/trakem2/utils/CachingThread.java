@@ -7,12 +7,13 @@ import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import java.lang.ref.SoftReference;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.lang.reflect.Array;
 
 public class CachingThread extends Thread
 {
+	static private final int SIZE = 10;
+	
 	static private final class ArrayCache<A> extends HashMap<Integer, LinkedList<SoftReference<A>>>
 	{
 		private static final long serialVersionUID = 1L;
@@ -34,6 +35,7 @@ public class CachingThread extends Thread
 			A a;
 			do {
 				a = l.removeFirst().get();
+				--count;
 			} while (null == a && !l.isEmpty());
 			return null == a ? newArray(length) : a;
 		}
@@ -52,20 +54,25 @@ public class CachingThread extends Thread
 			l.add(new SoftReference<A>(a));
 			++count;
 			// Clean up
-			if (count > 30) {
+			if (count > SIZE) {
 				restructure();
 			}
 		}
 
-		private final void restructure() {
+		@SuppressWarnings("unchecked")
+		synchronized private final void restructure() {
 			count = 0;
-			for (final LinkedList<SoftReference<A>> l : this.values()) {
-				// Remove stale references
-				for (final Iterator<SoftReference<A>> it = l.iterator(); it.hasNext(); ) {
-					if (it.next().get() == null) it.remove();
+			final LinkedList<SoftReference<A>>[] ls = this.values().toArray(new LinkedList[this.size()]);
+			for (final LinkedList<SoftReference<A>> l : ls) {
+				final SoftReference<A>[] s = l.toArray(new SoftReference[l.size()]);
+				// Remove stale references and crop to maximum SIZE
+				l.clear();
+				for (int i=0, c=count; i < s.length && c < SIZE; ++i) {
+					if (null == s[i].get()) continue; // stale reference
+					// Re-add good reference
+					l.add(s[i]);
+					++c;
 				}
-				// Crop to maximum of 30
-				while (l.size() > 30) l.removeLast(); // newest are easiest to throw away
 				// Update
 				count += l.size();
 			}
@@ -77,8 +84,8 @@ public class CachingThread extends Thread
 	private final ArrayCache<int[]> cacheInts = new ArrayCache<int[]>(int[].class);	
 
 	public void clear() {
-		cacheBytes.clear();
-		cacheInts.clear();
+		synchronized (cacheBytes) { cacheBytes.clear(); }
+		synchronized (cacheInts) { cacheInts.clear(); }
 	}
 	
 	public CachingThread() { super(); }
@@ -158,16 +165,19 @@ public class CachingThread extends Thread
 	
 	/** Tell all instances to clear their caches. */
 	public static final void releaseAll() {
+		// Find the top-most parent Thread
 		ThreadGroup parent = Thread.currentThread().getThreadGroup();
 		while (true) {
 		    ThreadGroup p = parent.getParent();
 		    if (null == p) break;
 		    parent = p;
 		}
+		// Collect all live Thread instances
 		Thread[] ts = new Thread[parent.activeCount()];
 		while (parent.enumerate(ts, true) == ts.length) {
 		    ts = new Thread[ ts.length * 2 ];
 		}
+		// For each Thread, if it's a CachingThread, clear its contents
 		for (Thread t : ts) {
 			if (null == t) continue;
 			if (CachingThread.class.isAssignableFrom(t.getClass())) {
