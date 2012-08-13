@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+		http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>org.scijava</groupId>
+		<artifactId>pom-scijava</artifactId>
+		<version>1.17</version>
+	</parent>
+
+	<groupId>sc.fiji</groupId>
+	<artifactId>pom-trakem2</artifactId>
+	<version>2.0.0-SNAPSHOT</version>
+	<packaging>pom</packaging>
+
+	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
+	<description></description>
+
+	<modules>
+		<module>TrakEM2_</module>
+		<module>VectorString</module>
+		<module>T2-NIT</module>
+		<module>T2-TreelineGraph</module>
+	</modules>
+
+	<scm>
+		<connection>scm:git:git://repo.or.cz/trakem2.git</connection>
+		<developerConnection>scm:git:repo.or.cz:/srv/git/trakem2.git</developerConnection>
+		<tag>HEAD</tag>
+		<url>http://repo.or.cz/w/trakem2.git</url>
+	</scm>
+
+	<!-- NB: for project parent -->
+	<repositories>
+		<repository>
+			<id>imagej.releases</id>
+			<url>http://maven.imagej.net/content/repositories/releases</url>
+		</repository>
+		<repository>
+			<id>imagej.snapshots</id>
+			<url>http://maven.imagej.net/content/repositories/snapshots</url>
+		</repository>
+		<repository>
+			<id>JBoss 3rdparty</id>
+			<url>https://repository.jboss.org/nexus/content/repositories/thirdparty-releases</url>
+		</repository>
+	</repositories>
+
+</project>
+
+
