@@ -43,6 +43,7 @@ import ini.trakem2.imaging.PatchStack;
 import ini.trakem2.imaging.filters.FilterEditor;
 import ini.trakem2.imaging.filters.IFilter;
 import ini.trakem2.io.CoordinateTransformXML;
+import ini.trakem2.io.ImageSaver;
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.persistence.XMLOptions;
@@ -555,7 +556,8 @@ public final class Patch extends Displayable implements ImageData {
 		return bi;
 	}
 
-	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer) {
+	@Override
+	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
 		paint(g, fetchImage(magnification, channels, true), srcRect);
 	}
 
@@ -685,6 +687,7 @@ public final class Patch extends Displayable implements ImageData {
 			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( mipMap.image, atp, null );
 		} catch (Throwable t) {
+			g.setComposite(original_composite);
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
 			g.drawImage( mipMap.image, atp, null );
 		}
@@ -964,10 +967,10 @@ public final class Patch extends Displayable implements ImageData {
 		copy.channels = this.channels;
 		copy.min = this.min;
 		copy.max = this.max;
-		copy.ct_id = this.ct_id; // files are immutable so they can be shared
-		copy.alpha_mask_id = this.alpha_mask_id; // files are immutable so they can be shared
-		if (pr != this.project) {
-			// Copy the files over to the other project.
+		copy.ct_id = this.ct_id;
+		copy.alpha_mask_id = this.alpha_mask_id;
+		// Copy the files
+		if (!copy_id || pr != this.project) {
 			try {
 				if (0 != copy.alpha_mask_id
 						&& !Utils.safeCopy(
@@ -997,6 +1000,11 @@ public final class Patch extends Displayable implements ImageData {
 		// Copy preprocessor scripts
 		String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
 		if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
+		
+		// Copy image filters
+		if (null != filters) {
+			copy.filters = FilterEditor.duplicate(this.filters);
+		}
 
 		return copy;
 	}
@@ -1438,6 +1446,25 @@ public final class Patch extends Displayable implements ImageData {
 		{
 			return mask == null ? outside == null ? null : outside : mask;
 		}
+		
+		final public Image createImage(final double min, final double max) {
+			final ImageProcessor ip = target;
+			ip.setMinAndMax(min, max);
+			ByteProcessor alpha_mask = mask; // can be null;
+			final ByteProcessor outside_mask = outside; // can be null
+			if (null == alpha_mask) {
+				alpha_mask = outside_mask;
+			}
+			if (null != alpha_mask) {
+				return ImageSaver.createARGBImagePre(
+						Loader.embedAlphaPre((int[])ip.convertToRGB().getPixels(),
+								(byte[])alpha_mask.getPixels(),
+								null == outside_mask ? null : (byte[])outside_mask.getPixels()),
+								ip.getWidth(), ip.getHeight());
+			} else {
+				return ip.createImage();
+			}
+		}
 	}
 
 	/** Returns a PatchImage object containing the bottom-of-transformation-stack image and alpha mask, if any (except the AffineTransform, which is used for direct hw-accel screen rendering). */
@@ -1578,6 +1605,7 @@ public final class Patch extends Displayable implements ImageData {
 		return false_color;
 	}
 
+	@Override
 	public void keyPressed(final KeyEvent ke) {
 		Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;

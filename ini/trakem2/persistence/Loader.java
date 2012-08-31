@@ -1080,23 +1080,7 @@ abstract public class Loader {
 			Patch.PatchImage pai = p.createTransformedImage();
 			synchronized (plock) {
 				if (null != pai && null != pai.target) {
-					final ImageProcessor ip = pai.target;
-					ip.setMinAndMax(p.getMin(), p.getMax());
-					ByteProcessor alpha_mask = pai.mask; // can be null;
-					final ByteProcessor outside_mask = pai.outside; // can be null
-					if (null == alpha_mask) {
-						alpha_mask = outside_mask;
-					}
-					pai = null;
-					if (null != alpha_mask) {
-						mawt = ImageSaver.createARGBImagePre(
-								embedAlphaPre((int[])ip.convertToRGB().getPixels(),
-										(byte[])alpha_mask.getPixels(),
-										null == outside_mask ? null : (byte[])outside_mask.getPixels()),
-								ip.getWidth(), ip.getHeight());
-					} else {
-						mawt = ip.createImage();
-					}
+					mawt = pai.createImage(p.getMin(), p.getMax());
 				}
 			}
 		} catch (Exception e) {
@@ -1120,7 +1104,7 @@ abstract public class Loader {
 		}
 
 		return new MipMapImage( NOT_FOUND, p.getWidth() / NOT_FOUND.getWidth(), p.getHeight() / NOT_FOUND.getHeight() );
-	}
+	}	
 
 	/**
 	 * @see Patch#getAlphaMask()
@@ -2617,11 +2601,14 @@ while (it.hasNext()) {
 			if (layer.length > 1) {
 				// Get all slices
 				ImageStack stack = null;
+				Utils.showProgress(0);
 				for (int i=0; i<layer.length; i++) {
 					if (Thread.currentThread().isInterrupted()) return;
 					
 					/* free memory */
 					releaseAll();
+					
+					Utils.showProgress(i / (float)layer.length);
 					
 					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
 					if (null == slice) {
@@ -2635,6 +2622,9 @@ while (it.hasNext()) {
 						stack.addSlice(layer[i].getProject().findLayerThing(layer[i]).toString(), slice.getProcessor());
 					}
 				}
+				
+				Utils.showProgress(1);
+				
 				if (null != stack) {
 					imp = new ImagePlus("z=" + layer[0].getZ() + " to z=" + layer[layer.length-1].getZ(), stack);
 					final Calibration impCalibration = layer[0].getParent().getCalibrationCopy();
@@ -3967,18 +3957,22 @@ while (it.hasNext()) {
 	}
 
 	/** Exports to an XML file chosen by the user in a dialog if @param xmlpath is null. Images exist already in the file system, so none are exported. Returns the full path to the xml file. */
-	public String saveAs(Project project, String xmlpath, XMLOptions options) {
-		String storage_dir = getStorageFolder();
-		String mipmaps_dir = getMipMapsFolder();
-		// Select a file to export to
-		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, null, ".xml") : new File(xmlpath);
-		Map<Long,String> copy = null;
-		if (null == fxml) return null;
-		else {
-			copy = getPathsCopy();
-			makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
+	public String saveAs(final Project project, final String xmlpath, final XMLOptions options) {
+		final String storage_dir = getStorageFolder();
+		final String mipmaps_dir = getMipMapsFolder();
+		// Select a file to export to. Puts .xml extension in the name, not in the extension argument,
+		// otherwise one can't specify the ".xml.gz" because SaveDialog removes it and ends up using .xml.xml
+		File fxml = null == xmlpath ? Utils.chooseFile(storage_dir, "untitled.xml", null) : new File(xmlpath);
+		if (null == fxml) return null; // User canceled dialog
+		// ... which means we must do some checking here:
+		final String name = fxml.getName();
+		if ( !(name.endsWith(".xml") || name.endsWith(".xml.gz"))) {
+			// Default to compressed XML
+			fxml = new File(Utils.fixDir(fxml.getParent()) + name + ".xml.gz");
 		}
-		String path = export(project, fxml, options);
+		final Map<Long,String> copy = getPathsCopy();
+		makeAllPathsRelativeTo(fxml.getAbsolutePath().replace('\\', '/'), project);
+		final String path = export(project, fxml, options);
 		if (null != path) setChanged(false);
 		else {
 			// failed, so restore paths
@@ -4857,7 +4851,7 @@ while (it.hasNext()) {
 	}
 
 	/** Assumes alpha is never null, but outside may be null. */
-	protected static final int[] embedAlphaPre(final int[] pix, final byte[] alpha, final byte[] outside) {
+	public static final int[] embedAlphaPre(final int[] pix, final byte[] alpha, final byte[] outside) {
 		if (null == outside) {
 			for (int i=0; i<pix.length; ++i) {
 				final int a = alpha[i] & 0xff;

@@ -2520,7 +2520,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				item.setEnabled(n_sel_patches > 1);
 				item = new JMenuItem("Blend"); item.addActionListener(this); m.add(item);
 				item.setEnabled(n_sel_patches > 1);
-				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
+				item = new JMenuItem("Open image"); item.addActionListener(new ActionListener() {
 					@Override
 					public void actionPerformed(ActionEvent e) {
 						for (final Patch p : selection.get(Patch.class)) {
@@ -2528,6 +2528,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						}
 					}
 				}); m.add(item); item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_D, KeyEvent.SHIFT_MASK, true));
+				item = new JMenuItem("Open original image"); item.addActionListener(new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						for (final Patch p : selection.get(Patch.class)) {
+							p.getProject().getLoader().releaseToFit(p.getOWidth(), p.getOHeight(), p.getType(), 5);
+							p.getProject().getLoader().openImagePlus(p.getImageFilePath()).show();
+						}
+					}
+				});
 				item = new JMenuItem("View volume"); item.addActionListener(this); m.add(item);
 				HashSet<Displayable> hs = active.getLinked(Patch.class);
 				if (null == hs || 0 == hs.size()) item.setEnabled(false);
@@ -3158,7 +3167,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		this.project.getLoader().setupMenuItems(menu, this.getProject());
 		item = new JMenuItem("Project properties..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Create subproject"); item.addActionListener(this); menu.add(item);
-		if (null == canvas.getFakeImagePlus().getRoi()) item.setEnabled(false);
 		item = new JMenuItem("Create sibling project with retiled layers"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Release memory..."); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
@@ -5718,21 +5726,23 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				Utils.log("Can only duplicate images and text labels.\nDuplicate *other* objects in the Project Tree.\n");
 			}
 		} else if (command.equals("Create subproject")) {
+			// Choose a 2D rectangle
 			Roi roi = canvas.getFakeImagePlus().getRoi();
-			if (null == roi) return; // the menu item is not active unless there is a ROI
-			Layer first, last;
-			if (1 == layer.getParent().size()) {
-				first = last = layer;
-			} else {
-				GenericDialog gd = new GenericDialog("Choose layer range");
-				Utils.addLayerRangeChoices(layer, gd);
-				gd.showDialog();
-				if (gd.wasCanceled()) return;
-				first = layer.getParent().getLayer(gd.getNextChoiceIndex());
-				last = layer.getParent().getLayer(gd.getNextChoiceIndex());
-				Utils.log2("first, last: " + first + ", " + last);
-			}
-			Project sub = getProject().createSubproject(roi.getBounds(), first, last);
+			Rectangle bounds;
+			if (null != roi) {
+				if (!Utils.check("Use bounds as defined by the ROI:\n" + roi.getBounds() + " ?")) return;
+				bounds = roi.getBounds();
+			} else bounds = getLayerSet().get2DBounds();
+			// Choose a layer range, and whether to ignore hidden images
+			GenericDialog gd = new GenericDialog("Choose layer range");
+			Utils.addLayerRangeChoices(layer, gd);
+			gd.addCheckbox("Ignore hidden images", true);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			Layer first = layer.getParent().getLayer(gd.getNextChoiceIndex());
+			Layer last = layer.getParent().getLayer(gd.getNextChoiceIndex());
+			boolean ignore_hidden_patches = gd.getNextBoolean();
+			Project sub = getProject().createSubproject(bounds, first, last, ignore_hidden_patches);
 			if (null == sub) {
 				Utils.log("ERROR: failed to create subproject.");
 				return;

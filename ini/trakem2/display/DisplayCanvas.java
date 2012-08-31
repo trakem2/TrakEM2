@@ -2057,7 +2057,9 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (ke.isConsumed()) return;
 
 		if (null != active) {
-			active.keyPressed(ke);
+			if (display.getMode().getClass() == DefaultMode.class) {
+				active.keyPressed(ke);
+			}
 			if (ke.isConsumed()) return;
 		}
 

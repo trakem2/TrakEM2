@@ -1350,7 +1350,7 @@ public class Project extends DBObject {
 
 	/** Create a new subproject for the given layer range and ROI.
 	*   Create a new Project using the given project as template. This means the DTD of the given project is copied, as well as the storage and mipmaps folders; everything else is empty in the new project. */
-	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last) {
+	public Project createSubproject(final Rectangle roi, final Layer first, final Layer last, final boolean ignore_hidden_patches) {
 		try {
 			// The order matters.
 			final Project pr = new Project(new FSLoader(this.getLoader().getStorageFolder()));
@@ -1372,7 +1372,7 @@ public class Project extends DBObject {
 			pr.createLayerTemplates();
 			// copy LayerSet and all involved Displayable objects
 			// (A two-step process to provide the layer_set pointer and all Layer pointers to the ZDisplayable to copy and crop.)
-			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true);
+			pr.layer_set = (LayerSet)this.layer_set.clone(pr, first, last, roi, false, true, ignore_hidden_patches);
 			LayerSet.cloneInto(this.layer_set, first, last, pr, pr.layer_set, roi, true);
 			// create layer tree
 			pr.root_lt = new LayerThing(Project.layer_set_template, pr, pr.layer_set);
@@ -1656,7 +1656,20 @@ public class Project extends DBObject {
 				e.getKey().removeAll(e.getValue());
 			}
 		}
-		// 3. ZDisplayable: bulk removal
+		// 3. Stacks
+		if (zds.size() > 0) {
+			final Set<ZDisplayable> stacks = new HashSet<ZDisplayable>();
+			for (final Iterator<ZDisplayable> it = zds.iterator(); it.hasNext(); ) {
+				final ZDisplayable zd = it.next();
+				if (zd.getClass() == Stack.class) {
+					it.remove();
+					stacks.add(zd);
+				}
+			}
+			layer_set.removeAll(stacks);
+		}
+		
+		// 4. ZDisplayable: bulk removal
 		if (zds.size() > 0) {
 			// 1. From the Project Tree:
 			Set<Displayable> not_removed = project_tree.remove(zds, top_node);
