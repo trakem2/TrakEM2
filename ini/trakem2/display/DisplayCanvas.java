@@ -553,10 +553,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		g.setTransform(original);
 	}
 
-	protected void setDrawingColor(int ox, int oy, boolean setBackground) {
-		super.setDrawingColor(ox, oy, setBackground);
-	}
-
 	/** As offscreen. */
 	private int x_p, y_p, x_d, y_d, x_d_old, y_d_old;
 
