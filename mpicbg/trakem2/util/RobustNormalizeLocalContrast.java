@@ -20,6 +20,13 @@ import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
+
+import java.util.ArrayList;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
 import mpicbg.ij.integral.BlockStatistics;
 import mpicbg.ij.plugin.RemoveOutliers;
 import mpicbg.util.Util;
@@ -116,9 +123,11 @@ public class RobustNormalizeLocalContrast
 		final double ipMin = ip.getMin();
 		final double ipLength = ip.getMax() - ipMin;
 		
-		FloatProcessor std = ( FloatProcessor )ip.convertToFloat();
+		FloatProcessor ipScaled = ( FloatProcessor )ip.convertToFloat();
 		for ( int i = 0; i < scaleLevel; ++i )
-			std = Downsampler.downsampleFloatProcessor( std );
+			ipScaled = Downsampler.downsampleFloatProcessor( ipScaled );
+		
+		final FloatProcessor std = ipScaled;
 		
 //		new ImagePlus("downsampled", std.duplicate() ).show();
 		
@@ -139,46 +148,77 @@ public class RobustNormalizeLocalContrast
 		final int w = mean.getWidth();
 		final int h = mean.getHeight();
 		
+		final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+		final ArrayList< Future< ? > > tasks = new ArrayList< Future< ? > >();
+		
 		/* the big inside */
 		for ( int y = 1; y < h; ++y )
 		{
 			final int ya = y - 1;
+			final int yb = y;
 			
-			for ( int x = 1; x < w; ++x )
+			tasks.add( exec.submit( new Runnable()
 			{
-				final int xa = x - 1;
-				
-				final float meanA = mean.getf( xa, ya );
-				final float meanB = mean.getf( x, ya );
-				final float meanC = mean.getf( xa, y );
-				final float meanD = mean.getf( x, y );
-				
-				final float stdA = std.getf( xa, ya );
-				final float stdB = std.getf( x, ya );
-				final float stdC = std.getf( xa, y );
-				final float stdD = std.getf( x, y );
-				
-				int ys = y * scale - scale2;
-				final int xss = x * scale - scale2;
-				for ( int yi = 0; yi < scale; ++ys, ++yi )
-					for ( int xs = xss, xi = 0; xi < scale; ++xs, ++xi )
+				final public void run()
+				{
+					for ( int x = 1; x < w; ++x )
 					{
-						final double meanAB = meanA * f[ xi ] + meanB * ( 1.0 - f[ xi ] );
-						final double meanCD = meanC * f[ xi ] + meanD * ( 1.0 - f[ xi ] );
-						final double meanABCD = meanAB * f[ yi ] + meanCD * ( 1.0 - f[ yi ] );
+						final int xa = x - 1;
 						
-						final double stdAB = stdA * f[ xi ] + stdB * ( 1.0 - f[ xi ] );
-						final double stdCD = stdC * f[ xi ] + stdD * ( 1.0 - f[ xi ] );
-						final double stdABCD = stdAB * f[ yi ] + stdCD * ( 1.0 - f[ yi ] );
+						final float meanA = mean.getf( xa, ya );
+						final float meanB = mean.getf( x, ya );
+						final float meanC = mean.getf( xa, yb );
+						final float meanD = mean.getf( x, yb );
 						
-						final double d = stds2 * stdABCD;
-						final double min = meanABCD - d;
+						final float stdA = std.getf( xa, ya );
+						final float stdB = std.getf( x, ya );
+						final float stdC = std.getf( xa, yb );
+						final float stdD = std.getf( x, yb );
 						
-						final int i = ys * ipWidth + xs;
-						setter.setf(  i, ( float )( ( ip.getf( i ) - min ) / 2 / d * ipLength + ipMin ) );
+						int ys = yb * scale - scale2;
+						final int xss = x * scale - scale2;
+						for ( int yi = 0; yi < scale; ++ys, ++yi )
+							for ( int xs = xss, xi = 0; xi < scale; ++xs, ++xi )
+							{
+								final double meanAB = meanA * f[ xi ] + meanB * ( 1.0 - f[ xi ] );
+								final double meanCD = meanC * f[ xi ] + meanD * ( 1.0 - f[ xi ] );
+								final double meanABCD = meanAB * f[ yi ] + meanCD * ( 1.0 - f[ yi ] );
+								
+								final double stdAB = stdA * f[ xi ] + stdB * ( 1.0 - f[ xi ] );
+								final double stdCD = stdC * f[ xi ] + stdD * ( 1.0 - f[ xi ] );
+								final double stdABCD = stdAB * f[ yi ] + stdCD * ( 1.0 - f[ yi ] );
+								
+								final double d = stds2 * stdABCD;
+								final double min = meanABCD - d;
+								
+								final int i = ys * ipWidth + xs;
+								setter.setf(  i, ( float )( ( ip.getf( i ) - min ) / 2 / d * ipLength + ipMin ) );
+							}
 					}
+				}
+			} ) );
+		}
+		
+		for ( Future< ? > task : tasks )
+		{
+			try
+			{
+				task.get();
+			}
+			catch ( InterruptedException e )
+			{
+				exec.shutdownNow();
+				return;
+			}
+			catch ( ExecutionException e )
+			{
+				exec.shutdownNow();
+				return;
 			}
 		}
+		
+		tasks.clear();
+		exec.shutdown();
 		
 		/* top and bottom */
 		for ( int x = 1; x < w; ++x )
