@@ -50,6 +50,7 @@ import mpicbg.models.AbstractModel;
 import mpicbg.models.Affine2D;
 import mpicbg.models.AffineModel2D;
 import mpicbg.models.HomographyModel2D;
+import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.InterpolatedAffineModel2D;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
@@ -68,7 +69,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 {
 	final static protected class Param implements Serializable
 	{
-		private static final long serialVersionUID = 9091322002492805732L;
+		private static final long serialVersionUID = 6389009534364599550L;
 
 		final public ParamPointMatch ppm = new ParamPointMatch();
 		{
@@ -97,6 +98,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		 */
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
 		public int expectedModelIndex = 3;
+		public boolean multipleHypotheses = false;
 		
 		/**
 		 * Regularization
@@ -108,7 +110,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		/**
 		 * Ignore identity transform up to a given tolerance
 		 */
-		public boolean rejectIdentity = true;
+		public boolean rejectIdentity = false;
 		public float identityTolerance = 5.0f;
 		
 		/**
@@ -163,8 +165,10 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 			gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
 			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
 			gd.addChoice( "expected_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
+			gd.addCheckbox( "test_multiple_hypotheses", multipleHypotheses );
 			gd.addCheckbox( "ignore constant background", rejectIdentity );
 			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
+			gd.addMessage( "Layer neighbor range:" );
 			gd.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
 			gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
 			
@@ -177,6 +181,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 			minInlierRatio = ( float )gd.getNextNumber();
 			minNumInliers = ( int )gd.getNextNumber();
 			expectedModelIndex = gd.getNextChoiceIndex();
+			multipleHypotheses = gd.getNextBoolean();
 			rejectIdentity = gd.getNextBoolean();
 			identityTolerance = ( float )gd.getNextNumber();
 			maxNumNeighbors = ( int )gd.getNextNumber();
@@ -219,11 +224,109 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 			
 			return true;
 		}
+		
+		public Param() {}
+		
+		public Param(
+				final int SIFTfdBins,
+				final int SIFTfdSize,
+				final float SIFTinitialSigma,
+				final int SIFTmaxOctaveSize,
+				final int SIFTminOctaveSize,
+				final int SIFTsteps,
+				
+				final boolean clearCache,
+				final int maxNumThreadsSift,
+				final float rod,
+				
+				final int desiredModelIndex,
+				final int expectedModelIndex,
+				final float identityTolerance,
+				final boolean isAligned,
+				final float lambda,
+				final float maxEpsilon,
+				final int maxIterationsOptimize,
+				final int maxNumFailures,
+				final int maxNumNeighbors,
+				final int maxNumThreads,
+				final int maxPlateauwidthOptimize,
+				final float minInlierRatio,
+				final int minNumInliers,
+				final boolean multipleHypotheses,
+				final boolean regularize,
+				final int regularizerIndex,
+				final boolean rejectIdentity,
+				final boolean visualize )
+		{
+			ppm.sift.fdBins = SIFTfdBins;
+			ppm.sift.fdSize = SIFTfdSize;
+			ppm.sift.initialSigma = SIFTinitialSigma;
+			ppm.sift.maxOctaveSize = SIFTmaxOctaveSize;
+			ppm.sift.minOctaveSize = SIFTminOctaveSize;
+			ppm.sift.steps = SIFTsteps;
+			
+			ppm.clearCache = clearCache;
+			ppm.maxNumThreadsSift = maxNumThreadsSift;
+			ppm.rod = rod;
+			
+			this.desiredModelIndex = desiredModelIndex;
+			this.expectedModelIndex = expectedModelIndex;
+			this.identityTolerance = identityTolerance;
+			this.isAligned = isAligned;
+			this.lambda = lambda;
+			this.maxEpsilon = maxEpsilon;
+			this.maxIterationsOptimize = maxIterationsOptimize;
+			this.maxNumFailures = maxNumFailures;
+			this.maxNumNeighbors = maxNumNeighbors;
+			this.maxNumThreads = maxNumThreads;
+			this.maxPlateauwidthOptimize = maxPlateauwidthOptimize;
+			this.minInlierRatio = minInlierRatio;
+			this.minNumInliers = minNumInliers;
+			this.multipleHypotheses = multipleHypotheses;
+			this.regularize = regularize;
+			this.regularizerIndex = regularizerIndex;
+			this.rejectIdentity = rejectIdentity;
+			this.visualize = visualize;
+		}
+		
+		@Override
+		final public Param clone()
+		{
+			return new Param(
+					ppm.sift.fdBins,
+					ppm.sift.fdSize,
+					ppm.sift.initialSigma,
+					ppm.sift.maxOctaveSize,
+					ppm.sift.minOctaveSize,
+					ppm.sift.steps,
+					
+					ppm.clearCache,
+					ppm.maxNumThreadsSift,
+					ppm.rod,
+					
+					desiredModelIndex,
+					expectedModelIndex,
+					identityTolerance,
+					isAligned,
+					lambda,
+					maxEpsilon,
+					maxIterationsOptimize,
+					maxNumFailures,
+					maxNumNeighbors,
+					maxNumThreads,
+					maxPlateauwidthOptimize,
+					minInlierRatio,
+					minNumInliers,
+					multipleHypotheses,
+					regularize,
+					regularizerIndex,
+					rejectIdentity,
+					visualize );
+		}
 	}
 	
 	final static Param p = new Param();
 
-	
 	final static private String layerName( final Layer layer )
 	{
 		return new StringBuffer( "layer z=" )
@@ -247,7 +350,6 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 	 * @throws Exception
 	 */
 	final static protected void extractAndSaveLayerFeatures(
-			final LayerSet layerSet,
 			final List< Layer > layerRange,
 			final Rectangle box,
 			final double scale,
@@ -281,7 +383,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 							
 							ArrayList< Feature > fs = null;
 							if ( !clearCache )
-								fs = mpicbg.trakem2.align.Util.deserializeFeatures( layerSet.getProject(), siftParam, "layer", layer.getId() );
+								fs = mpicbg.trakem2.align.Util.deserializeFeatures( layer.getProject(), siftParam, "layer", layer.getId() );
 							
 							if ( null == fs )
 							{
@@ -295,7 +397,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 								ijSIFT.extractFeatures( ip, fs );
 								Utils.log( fs.size() + " features extracted for " + layerName );
 								
-								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layerSet.getProject(), siftParam, "layer", layer.getId(), fs ) )
+								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layer.getProject(), siftParam, "layer", layer.getId(), fs ) )
 									Utils.log( "FAILED to store serialized features for " + layerName );
 							}
 							else
@@ -331,96 +433,41 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		exec.shutdown();
 	}
 	
-	
-
 	/**
-	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
 	 * 
-	 * @param layerSet
-	 * @param firstIn
-	 * @param lastIn
+	 * @param param
+	 * @param layerRange
+	 * @param fixedLayers
+	 * @param emptyLayers
+	 * @param box
 	 * @param propagateTransform
 	 * @param fov
 	 * @param filter
+	 * @throws Exception
 	 */
-	@SuppressWarnings( "unchecked" )
+	@SuppressWarnings( { "rawtypes", "unchecked" } )
 	final public void exec(
-			final LayerSet layerSet,
-			final int firstIn,
-			final int lastIn,
-			final int ref,
+			final Param param,
+			final List< Layer > layerRange,
+			final List< Layer > fixedLayers,
+			final List< Layer > emptyLayers,
+			final Rectangle box,
 			final boolean propagateTransform,
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
 	{
-		final int first = Math.min( firstIn, lastIn );
-		final int last = Math.max( firstIn, lastIn );
-		
-		/* always first index first despite the method would return inverse order if last > first */
-		final List< Layer > layerRange = layerSet.getLayers( first, last );
-		
-		Utils.log( layerRange.size() + "" );
-		
-		Rectangle box = null;
-		final ArrayList< Layer > emptyLayers = new ArrayList< Layer >();
-		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
-		{
-			/* remove empty layers */
-			final Layer la = it.next();
-			if ( !la.contains( Patch.class, true ) )
-			{
-				emptyLayers.add( la );
-//				it.remove();
-			}
-			else
-			{
-				/* accumulate boxes */
-				if ( null == box ) // The first layer:
-					box = la.getMinimalBoundingBox( Patch.class, true );
-				else
-					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
-			}
-		}
-		
-		if ( box == null )
-			box = new Rectangle();
-		
-		if ( fov != null )
-			box = box.intersection( fov );
-		
-		if ( box.width <= 0 || box.height <= 0 )
-		{
-			Utils.log( "Bounding box empty." );
-			return;
-		}
-		
-		if ( !p.setup( box ) ) return;
-		
-		if ( layerRange.size() == emptyLayers.size() )
-		{
-			Utils.log( "All layers in range are empty!" );
-			return;
-		}
-		
-		/* do not work if there is only one layer selected */
-		if ( layerRange.size() - emptyLayers.size() < 2 )
-		{
-			Utils.log( "All except one layer in range are empty!" );
-			return;
-		}
-
-		final double scale = Math.min( 1.0, Math.min( ( double )p.ppm.sift.maxOctaveSize / ( double )box.width, ( double )p.ppm.sift.maxOctaveSize / ( double )box.height ) );
+		final double scale = Math.min( 1.0, Math.min( ( double )param.ppm.sift.maxOctaveSize / ( double )box.width, ( double )param.ppm.sift.maxOctaveSize / ( double )box.height ) );
 		
 		
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
-		final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( p.desiredModelIndex );
-		final AbstractAffineModel2D< ? > r = ( AbstractAffineModel2D< ? > )Util.createModel( p.regularizerIndex );
+		final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( param.desiredModelIndex );
+		final AbstractAffineModel2D< ? > r = ( AbstractAffineModel2D< ? > )Util.createModel( param.regularizerIndex );
 		
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
-			if ( p.regularize )
-				tiles.add( new Tile( new InterpolatedAffineModel2D( m.copy(), r.copy(), p.lambda ) ) );
+			if ( param.regularize )
+				tiles.add( new Tile( new InterpolatedAffineModel2D( m.copy(), r.copy(), param.lambda ) ) );
 			else
 				tiles.add( new Tile( m.copy() ) );
 		}
@@ -432,7 +479,7 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		/* extract and save features, overwrite cached files if requested */
 		try
 		{
-			extractAndSaveLayerFeatures( layerSet, layerRange, box, scale, filter, p.ppm.sift, p.ppm.clearCache );
+			extractAndSaveLayerFeatures( layerRange, box, scale, filter, param.ppm.sift, param.ppm.clearCache );
 		}
 		catch ( final Exception e )
 		{
@@ -446,17 +493,17 @@ public class RegularizedAffineLayerAlignment extends AbstractElasticAlignment
 		
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
-			final ArrayList< Thread > threads = new ArrayList< Thread >( p.maxNumThreads );
+			final ArrayList< Thread > threads = new ArrayList< Thread >( param.maxNumThreads );
 
 			final int sliceA = i;
 			final Layer layerA = layerRange.get( i );
-			final int range = Math.min( layerRange.size(), i + p.maxNumNeighbors + 1 );
+			final int range = Math.min( layerRange.size(), i + param.maxNumNeighbors + 1 );
 			
 			final String layerNameA = layerName( layerA );
 			
 J:			for ( int j = i + 1; j < range; )
 			{
-				final int numThreads = Math.min( p.maxNumThreads, range - j );
+				final int numThreads = Math.min( param.maxNumThreads, range - j );
 				final ArrayList< Triple< Integer, Integer, Collection< PointMatch > > > models =
 					new ArrayList< Triple< Integer, Integer, Collection< PointMatch > > >( numThreads );
 				
@@ -481,17 +528,17 @@ J:			for ( int j = i + 1; j < range; )
 //							Utils.log( "matching " + layerNameB + " -> " + layerNameA + "..." );
 						
 							ArrayList< PointMatch > candidates = null;
-							if ( !p.ppm.clearCache )
+							if ( !param.ppm.clearCache )
 								candidates = mpicbg.trakem2.align.Util.deserializePointMatches(
-										layerSet.getProject(), p.ppm, "layer", layerB.getId(), layerA.getId() );
+										layerB.getProject(), param.ppm, "layer", layerB.getId(), layerA.getId() );
 							
 							if ( null == candidates )
 							{
 								final ArrayList< Feature > fs1 = mpicbg.trakem2.align.Util.deserializeFeatures(
-										layerSet.getProject(), p.ppm.sift, "layer", layerA.getId() );
+										layerA.getProject(), param.ppm.sift, "layer", layerA.getId() );
 								final ArrayList< Feature > fs2 = mpicbg.trakem2.align.Util.deserializeFeatures(
-										layerSet.getProject(), p.ppm.sift, "layer", layerB.getId() );
-								candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, p.ppm.rod ) );
+										layerB.getProject(), param.ppm.sift, "layer", layerB.getId() );
+								candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, param.ppm.rod ) );
 								
 								/* scale the candidates */
 								for ( final PointMatch pm : candidates )
@@ -515,12 +562,12 @@ J:			for ( int j = i + 1; j < range; )
 								}
 								
 								if ( !mpicbg.trakem2.align.Util.serializePointMatches(
-										layerSet.getProject(), p.ppm, "layer", layerB.getId(), layerA.getId(), candidates ) )
+										layerB.getProject(), param.ppm, "layer", layerB.getId(), layerA.getId(), candidates ) )
 								Utils.log( "Could not store point match candidates for layers " + layerNameB + " and " + layerNameA + "." );
 							}
 		
 							AbstractModel< ? > model;
-							switch ( p.expectedModelIndex )
+							switch ( param.expectedModelIndex )
 							{
 							case 0:
 								model = new TranslationModel2D();
@@ -543,45 +590,72 @@ J:			for ( int j = i + 1; j < range; )
 							
 							final ArrayList< PointMatch > inliers = new ArrayList< PointMatch >();
 							
-							boolean modelFound;
 							boolean again = false;
+							int nHypotheses = 0;
 							try
 							{
 								do
 								{
 									again = false;
-									modelFound = model.filterRansac(
+									final ArrayList< PointMatch > inliers2 = new ArrayList< PointMatch >();
+									final boolean modelFound = model.filterRansac(
 												candidates,
-												inliers,
+												inliers2,
 												1000,
-												p.maxEpsilon,
-												p.minInlierRatio,
-												p.minNumInliers,
+												param.maxEpsilon,
+												param.minInlierRatio,
+												param.minNumInliers,
 												3 );
-									if ( modelFound && p.rejectIdentity )
+									if ( modelFound )
 									{
-										final ArrayList< Point > points = new ArrayList< Point >();
-										PointMatch.sourcePoints( inliers, points );
-										if ( Transforms.isIdentity( model, points, p.identityTolerance ) )
+										candidates.removeAll( inliers2 );
+										
+										if ( param.rejectIdentity )
 										{
-											IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
-											candidates.removeAll( inliers );
-											inliers.clear();
-											again = true;
+											final ArrayList< Point > points = new ArrayList< Point >();
+											PointMatch.sourcePoints( inliers2, points );
+											if ( Transforms.isIdentity( model, points, param.identityTolerance ) )
+											{
+												IJ.log( "Identity transform for " + inliers2.size() + " matches rejected." );
+												again = true;
+											}
+											else
+											{
+												++nHypotheses;
+												inliers.addAll( inliers2 );
+												again = param.multipleHypotheses;
+											}
+										}
+										else
+										{
+											++nHypotheses;
+											inliers.addAll( inliers2 );
+											again = param.multipleHypotheses;
 										}
 									}
 								}
 								while ( again );
 							}
-							catch ( final NotEnoughDataPointsException e )
+							catch ( final NotEnoughDataPointsException e ) {}
+							
+							if ( nHypotheses > 0 && param.multipleHypotheses )
 							{
-								modelFound = false;
+								try
+								{
+										model.fit( inliers );
+										PointMatch.apply( inliers, model );
+								}
+								catch ( final NotEnoughDataPointsException e ) {}
+								catch ( final IllDefinedDataPointsException e )
+								{
+									nHypotheses = 0;
+								}
 							}
 							
-							if ( modelFound )
-							{
+							if ( nHypotheses > 0 )
+							{								
 								Utils.log( layerNameB + " -> " + layerNameA + ": " + inliers.size() + " corresponding features with an average displacement of " + ( PointMatch.meanDistance( inliers ) ) + "px identified." );
-								Utils.log( "Estimated transformation model: " + model );
+								Utils.log( "Estimated transformation model: " + model + ( param.multipleHypotheses ? ( " from " + nHypotheses + " hypotheses" ) : "" ) );
 								models.set( ti, new Triple< Integer, Integer, Collection< PointMatch > >( sliceA, sliceB, inliers ) );
 							}
 							else
@@ -622,7 +696,7 @@ J:			for ( int j = i + 1; j < range; )
 					final Triple< Integer, Integer, Collection< PointMatch > > pair = models.get( t );
 					if ( pair == null )
 					{
-						if ( ++numFailures > p.maxNumFailures )
+						if ( ++numFailures > param.maxNumFailures )
 							break J;
 					}
 					else
@@ -648,17 +722,22 @@ J:			for ( int j = i + 1; j < range; )
 			t2.connect( t1, pair.c );
 		}
 		
-		if ( ref >= first && ref <= last )
-			tileConfiguration.fixTile( tiles.get( ref - first ) );
+		for ( int i = 0; i < layerRange.size(); ++i )
+		{
+			final Layer layer = layerRange.get( i );
+			if ( fixedLayers.contains( layer ) )
+				tileConfiguration.fixTile( tiles.get( i ) );
+		}
 		
 		final List< Tile< ? >  > nonPreAlignedTiles = tileConfiguration.preAlign();
+		
 		
 		IJ.log( "pre-aligned all but " + nonPreAlignedTiles.size() + " tiles" );
 		
 		tileConfiguration.optimize(
-				p.maxEpsilon,
-				p.maxIterationsOptimize,
-				p.maxPlateauwidthOptimize );
+				param.maxEpsilon,
+				param.maxIterationsOptimize,
+				param.maxPlateauwidthOptimize );
 		
 		Utils.log( new StringBuffer( "Successfully optimized configuration of " ).append( tiles.size() ).append( " tiles:" ).toString() );
 		Utils.log( "  average displacement: " + String.format( "%.3f", tileConfiguration.getError() ) + "px" );
@@ -679,5 +758,150 @@ J:			for ( int j = i + 1; j < range; )
 		}
 			
 		Utils.log( "Done." );
+	}
+	
+	
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 *
+	 * @param layerRange
+	 * @param fixedLayers
+	 * @param propagateTransform
+	 * @param fov
+	 * @param filter
+	 * @throws Exception
+	 */
+	final public void exec(
+			final List< Layer > layerRange,
+			final List< Layer > fixedLayers,
+			final boolean propagateTransform,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{	
+		Rectangle box = null;
+		final ArrayList< Layer > emptyLayers = new ArrayList< Layer >();
+		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
+		{
+			/* remove empty layers */
+			final Layer la = it.next();
+			if ( !la.contains( Patch.class, true ) )
+			{
+				emptyLayers.add( la );
+//				it.remove();
+			}
+			else
+			{
+				/* accumulate boxes */
+				if ( null == box ) // The first layer:
+					box = la.getMinimalBoundingBox( Patch.class, true );
+				else
+					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
+			}
+		}
+		
+		if ( box == null )
+			box = new Rectangle();
+		
+		if ( fov != null )
+			box = box.intersection( fov );
+		
+		if ( box.width <= 0 || box.height <= 0 )
+		{
+			Utils.log( "Bounding box empty." );
+			return;
+		}
+		
+		if ( layerRange.size() == emptyLayers.size() )
+		{
+			Utils.log( "All layers in range are empty!" );
+			return;
+		}
+		
+		/* do not work if there is only one layer selected */
+		if ( layerRange.size() - emptyLayers.size() < 2 )
+		{
+			Utils.log( "All except one layer in range are empty!" );
+			return;
+		}
+
+		if ( !p.setup( box ) ) return;
+		
+		exec( p.clone(), layerRange, fixedLayers, emptyLayers, box, propagateTransform, fov, filter );
+	}
+	
+	
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 * 
+	 * @param layerSet
+	 * @param firstIn
+	 * @param lastIn
+	 * @param ref
+	 * @param propagateTransform
+	 * @param fov
+	 * @param filter
+	 */
+	final public void exec(
+			final LayerSet layerSet,
+			final int firstIn,
+			final int lastIn,
+			final int ref,
+			final boolean propagateTransform,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{
+		final int first = Math.min( firstIn, lastIn );
+		final int last = Math.max( firstIn, lastIn );
+		
+		/* always first index first despite the method would return inverse order if last > first */
+		final List< Layer > layerRange = layerSet.getLayers( first, last );
+		final ArrayList< Layer > fixedLayers = new ArrayList< Layer >();
+		
+		if ( ref - firstIn >= 0 )
+			fixedLayers.add( layerRange.get( ref - firstIn ) );
+		
+		Utils.log( layerRange.size() + "" );
+		
+		exec( layerRange, fixedLayers, propagateTransform, fov, filter );
+	}
+	
+	
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 * 
+	 * @param layerSet
+	 * @param firstIn
+	 * @param lastIn
+	 * @param ref1
+	 * @param ref2
+	 * @param propagateTransform
+	 * @param fov
+	 * @param filter
+	 */
+	final public void exec(
+			final LayerSet layerSet,
+			final int firstIn,
+			final int lastIn,
+			final int ref1,
+			final int ref2,
+			final boolean propagateTransform,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{
+		final int first = Math.min( firstIn, lastIn );
+		final int last = Math.max( firstIn, lastIn );
+		
+		/* always first index first despite the method would return inverse order if last > first */
+		final List< Layer > layerRange = layerSet.getLayers( first, last );
+		final ArrayList< Layer > fixedLayers = new ArrayList< Layer >();
+		
+		if ( ref1 - firstIn >= 0 )
+			fixedLayers.add( layerRange.get( ref1 - firstIn ) );
+		if ( ref2 - firstIn >= 0 )
+			fixedLayers.add( layerRange.get( ref2 - firstIn ) );
+		
+		Utils.log( layerRange.size() + "" );
+		
+		exec( layerRange, fixedLayers, propagateTransform, fov, filter );
 	}
 }
