@@ -478,7 +478,7 @@ J:			for ( int j = i + 1; j < range; )
 						{
 							IJ.showProgress( sliceA, layerRange.size() - 1 );
 							
-							Utils.log( "matching " + layerNameB + " -> " + layerNameA + "..." );
+//							Utils.log( "matching " + layerNameB + " -> " + layerNameA + "..." );
 						
 							ArrayList< PointMatch > candidates = null;
 							if ( !p.ppm.clearCache )
@@ -636,29 +636,34 @@ J:			for ( int j = i + 1; j < range; )
 		
 		
 		/* Optimization */
-		final TileConfiguration tileConifguration = new TileConfiguration();
+		final TileConfiguration tileConfiguration = new TileConfiguration();
 		
 		for ( final Triple< Integer, Integer, Collection< PointMatch > > pair : pairs )
 		{
 			final Tile< ? > t1 = tiles.get( pair.a );
 			final Tile< ? > t2 = tiles.get( pair.b );
 			
-			tileConifguration.addTile( t1 );
-			tileConifguration.addTile( t2 );
+			tileConfiguration.addTile( t1 );
+			tileConfiguration.addTile( t2 );
 			t2.connect( t1, pair.c );
 		}
 		
 		if ( ref >= first && ref <= last )
-			tileConifguration.fixTile( tiles.get( ref - first ) );
+			tileConfiguration.fixTile( tiles.get( ref - first ) );
 		
-		final List< Tile< ? >  > nonPreAlignedTiles = tileConifguration.preAlign();
+		final List< Tile< ? >  > nonPreAlignedTiles = tileConfiguration.preAlign();
 		
 		IJ.log( "pre-aligned all but " + nonPreAlignedTiles.size() + " tiles" );
 		
-		tileConifguration.optimize(
+		tileConfiguration.optimize(
 				p.maxEpsilon,
 				p.maxIterationsOptimize,
 				p.maxPlateauwidthOptimize );
+		
+		Utils.log( new StringBuffer( "Successfully optimized configuration of " ).append( tiles.size() ).append( " tiles:" ).toString() );
+		Utils.log( "  average displacement: " + String.format( "%.3f", tileConfiguration.getError() ) + "px" );
+		Utils.log( "  minimal displacement: " + String.format( "%.3f", tileConfiguration.getMinError() ) + "px" );
+		Utils.log( "  maximal displacement: " + String.format( "%.3f", tileConfiguration.getMaxError() ) + "px" );
 		
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
