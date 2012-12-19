@@ -315,7 +315,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			final LayerSet layerSet,
 			final List< Layer > layerRange,
 			final Rectangle box,
-			final float scale,
+			final double scale,
 			final Filter< Patch > filter,
 			final FloatArray2DSIFT.Param siftParam,
 			final boolean clearCache ) throws ExecutionException, InterruptedException
@@ -333,6 +333,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			siftTasks.add(
 					exec.submit( new Callable< ArrayList< Feature > >()
 					{
+						@Override
 						public ArrayList< Feature > call()
 						{
 							final Layer layer = layerRange.get( layerIndex );
@@ -373,17 +374,17 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		/* join */
 		try
 		{
-			for ( Future< ArrayList< Feature > > fu : siftTasks )
+			for ( final Future< ArrayList< Feature > > fu : siftTasks )
 				fu.get();
 		}
-		catch ( InterruptedException e )
+		catch ( final InterruptedException e )
 		{
 			Utils.log( "Feature extraction interrupted." );
 			siftTasks.clear();
 			exec.shutdown();
 			throw e;
 		}
-		catch ( ExecutionException e )
+		catch ( final ExecutionException e )
 		{
 			Utils.log( "Execution exception during feature extraction." );
 			siftTasks.clear();
@@ -401,41 +402,51 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
 	 * 
 	 * @param layerSet
-	 * @param first
-	 * @param last
+	 * @param firstIn
+	 * @param lastIn
 	 * @param propagateTransform
 	 * @param fov
 	 * @param filter
 	 */
 	final public void exec(
 			final LayerSet layerSet,
-			final int first,
-			final int last,
+			final int firstIn,
+			final int lastIn,
 			final boolean propagateTransform,
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
 	{
+		final int first = Math.min( firstIn, lastIn );
+		final int last = Math.max( firstIn, lastIn );
+		
+		/* always first index first despite the method would return inverse order if last > first */
 		final List< Layer > layerRange = layerSet.getLayers( first, last );
 		
 		Utils.log( layerRange.size() + "" );
 		
 		Rectangle box = null;
-		for ( Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
+		final ArrayList< Layer > emptyLayers = new ArrayList< Layer >();
+		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
 		{
 			/* remove empty layers */
 			final Layer la = it.next();
 			if ( !la.contains( Patch.class, true ) )
 			{
-				it.remove();
-				continue;
+				emptyLayers.add( la );
+//				it.remove();
 			}
-			
-			/* accumulate boxes */
-			if ( null == box ) // The first layer:
-				box = la.getMinimalBoundingBox( Patch.class, true );
 			else
-				box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
+			{
+				/* accumulate boxes */
+				if ( null == box ) // The first layer:
+					box = la.getMinimalBoundingBox( Patch.class, true );
+				else
+					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
+			}
 		}
+		
+		if ( box == null )
+			box = new Rectangle();
 		
 		if ( fov != null )
 			box = box.intersection( fov );
@@ -448,20 +459,20 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		
 		if ( !p.setup( box ) ) return;
 		
-		if ( layerRange.size() == 0 )
+		if ( layerRange.size() == emptyLayers.size() )
 		{
 			Utils.log( "All layers in range are empty!" );
 			return;
 		}
 		
 		/* do not work if there is only one layer selected */
-		if ( layerRange.size() < 2 )
+		if ( layerRange.size() - emptyLayers.size() < 2 )
 		{
 			Utils.log( "All except one layer in range are empty!" );
 			return;
 		}
 
-		final float scale = Math.min(  1.0f, Math.min( ( float )p.ppm.sift.maxOctaveSize / ( float )box.width, ( float )p.ppm.sift.maxOctaveSize / ( float )box.height ) );
+		final double scale = Math.min( 1.0, Math.min( ( double )p.ppm.sift.maxOctaveSize / ( double )box.width, ( double )p.ppm.sift.maxOctaveSize / ( double )box.height ) );
 		
 		
 		/* create tiles and models for all layers */
@@ -502,7 +513,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			{
 				extractAndSaveLayerFeatures( layerSet, layerRange, box, scale, filter, p.ppm.sift, p.ppm.clearCache );
 			}
-			catch ( Exception e )
+			catch ( final Exception e )
 			{
 				return;
 			}
@@ -510,7 +521,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			/* match and filter feature correspondences */
 			int numFailures = 0;
 			
-			final float pointMatchScale = p.layerScale / scale;
+			final double pointMatchScale = p.layerScale / scale;
 			
 			for ( int i = 0; i < layerRange.size(); ++i )
 			{
@@ -541,6 +552,7 @@ J:				for ( int j = i + 1; j < range; )
 						
 						final Thread thread = new Thread()
 						{
+							@Override
 							public void run()
 							{
 								IJ.showProgress( sliceA, layerRange.size() - 1 );
@@ -554,9 +566,9 @@ J:				for ( int j = i + 1; j < range; )
 								
 								if ( null == candidates )
 								{
-									ArrayList< Feature > fs1 = mpicbg.trakem2.align.Util.deserializeFeatures(
+									final ArrayList< Feature > fs1 = mpicbg.trakem2.align.Util.deserializeFeatures(
 											layerSet.getProject(), p.ppm.sift, "layer", layerA.getId() );
-									ArrayList< Feature > fs2 = mpicbg.trakem2.align.Util.deserializeFeatures(
+									final ArrayList< Feature > fs2 = mpicbg.trakem2.align.Util.deserializeFeatures(
 											layerSet.getProject(), p.ppm.sift, "layer", layerB.getId() );
 									candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, p.ppm.rod ) );
 									
@@ -640,7 +652,7 @@ J:				for ( int j = i + 1; j < range; )
 									}
 									while ( again );
 								}
-								catch ( NotEnoughDataPointsException e )
+								catch ( final NotEnoughDataPointsException e )
 								{
 									modelFound = false;
 								}
@@ -667,7 +679,7 @@ J:				for ( int j = i + 1; j < range; )
 						for ( final Thread thread : threads )
 							thread.join();
 					}
-					catch ( InterruptedException e )
+					catch ( final InterruptedException e )
 					{
 						Utils.log( "Establishing feature correspondences interrupted." );
 						for ( final Thread thread : threads )
@@ -677,7 +689,7 @@ J:				for ( int j = i + 1; j < range; )
 							for ( final Thread thread : threads )
 								thread.join();
 						}
-						catch ( InterruptedException f ) {}
+						catch ( final InterruptedException f ) {}
 						return;
 					}
 					
@@ -754,8 +766,8 @@ J:				for ( int j = i + 1; j < range; )
 			final SpringMesh m1 = meshes.get( pair.a );
 			final SpringMesh m2 = meshes.get( pair.b );
 
-			ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
-			ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
+			final ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
+			final ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
 
 			final Collection< Vertex > v1 = m1.getVertices();
 			final Collection< Vertex > v2 = m2.getVertices();
@@ -816,7 +828,7 @@ J:				for ( int j = i + 1; j < range; )
 						pm12,
 						new ErrorStatistic( 1 ) );
 			}
-			catch ( InterruptedException e )
+			catch ( final InterruptedException e )
 			{
 				Utils.log( "Block matching interrupted." );
 				IJ.showProgress( 1.0 );
@@ -870,7 +882,7 @@ J:				for ( int j = i + 1; j < range; )
 						pm21,
 						new ErrorStatistic( 1 ) );
 			}
-			catch ( InterruptedException e )
+			catch ( final InterruptedException e )
 			{
 				Utils.log( "Block matching interrupted." );
 				IJ.showProgress( 1.0 );
@@ -956,7 +968,7 @@ J:				for ( int j = i + 1; j < range; )
 		/* optimize the meshes */
 		try
 		{
-			long t0 = System.currentTimeMillis();
+			final long t0 = System.currentTimeMillis();
 			Utils.log("Optimizing spring meshes...");
 			
 			SpringMesh.optimizeMeshes(
@@ -969,7 +981,7 @@ J:				for ( int j = i + 1; j < range; )
 			Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
 			
 		}
-		catch ( NotEnoughDataPointsException e )
+		catch ( final NotEnoughDataPointsException e )
 		{
 			Utils.log( "There were not enough data points to get the spring mesh optimizing." );
 			e.printStackTrace();
@@ -1024,6 +1036,7 @@ J:				for ( int j = i + 1; j < range; )
 				final Thread thread = new Thread(
 						new Runnable()
 						{
+							@Override
 							final public void run()
 							{
 								try
@@ -1031,7 +1044,7 @@ J:				for ( int j = i + 1; j < range; )
 									for ( int i = ai.getAndIncrement(); i < patches.size() && !Thread.interrupted(); i = ai.getAndIncrement() )
 										mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patches.get( i ), mlt.copy() );
 								}
-								catch ( Exception e )
+								catch ( final Exception e )
 								{
 									e.printStackTrace();
 								}
