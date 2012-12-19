@@ -45,7 +45,7 @@ public abstract class AbstractElasticAlignment
 		public float rod = 0.92f;
 		
 		@Override
-		public boolean equals( Object o )
+		public boolean equals( final Object o )
 		{
 			if ( getClass().isInstance( o ) )
 			{
@@ -58,7 +58,7 @@ public abstract class AbstractElasticAlignment
 				return false;
 		}
 		
-		public boolean clearCache = false;
+		public boolean clearCache = true;
 		
 		public int maxNumThreadsSift = Runtime.getRuntime().availableProcessors();
 	}
