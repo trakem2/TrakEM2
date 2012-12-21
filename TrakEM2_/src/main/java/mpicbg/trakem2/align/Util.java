@@ -30,7 +30,6 @@ import java.awt.geom.AffineTransform;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.Future;
 
 import mpicbg.imagefeatures.Feature;
 import mpicbg.models.AbstractModel;
@@ -150,7 +149,7 @@ public class Util
 				if ( fe.key != null && key.equals( fe.key ) )
 					return fe.features;
 			}
-			catch ( Exception e )
+			catch ( final Exception e )
 			{
 				Utils.log( "Exception during feature deserialization." );
 				e.printStackTrace();
@@ -226,7 +225,7 @@ public class Util
 				if ( pm.key != null && key.equals( pm.key ) )
 					return pm.pointMatches;
 			}
-			catch ( Exception e )
+			catch ( final Exception e )
 			{
 				Utils.log( "Exception during pointmatch deserialization." );
 				e.printStackTrace();
@@ -270,7 +269,7 @@ public class Util
 	}
 	
 	
-	final static public void applyLayerTransformToPatch( final Patch patch, CoordinateTransform ct ) throws Exception
+	final static public void applyLayerTransformToPatch( final Patch patch, final CoordinateTransform ct ) throws Exception
 	{
 		final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
 		final AffineTransform pat = new AffineTransform();

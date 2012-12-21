@@ -22,6 +22,7 @@ public class GenericAffineTile2D< A extends Model< A > & Affine2D< A > > extends
 		super( model, patch );
 	}
 	
+	@SuppressWarnings( "rawtypes" )
 	@Override
 	protected void initModel()
 	{

@@ -61,13 +61,14 @@ import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.align.Align.ParamOptimize;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.util.Triple;
 import mpicbg.util.Util;
 
 /**
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  * @version 0.1a
  */
-public class ElasticMontage extends AbstractElasticAlignment
+public class ElasticMontage
 {
 	final static protected class Param implements Serializable
 	{	
@@ -292,6 +293,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 			siftTasks.add(
 					exec.submit( new Callable< ArrayList< Feature > >()
 					{
+						@Override
 						public ArrayList< Feature > call()
 						{
 							final AbstractAffineTile2D< ? > tile = tiles.get( tileIndex );
@@ -325,7 +327,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		}
 		
 		/* join */
-		for ( Future< ArrayList< Feature > > fu : siftTasks )
+		for ( final Future< ArrayList< Feature > > fu : siftTasks )
 			fu.get();
 		
 		siftTasks.clear();
@@ -505,8 +507,8 @@ public class ElasticMontage extends AbstractElasticAlignment
 			final SpringMesh m1 = tileMeshMap.get( t1 );
 			final SpringMesh m2 = tileMeshMap.get( t2 );
 
-			ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
-			ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
+			final ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
+			final ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
 
 			final Collection< Vertex > v1 = m1.getVertices();
 			final Collection< Vertex > v2 = m2.getVertices();
@@ -514,26 +516,26 @@ public class ElasticMontage extends AbstractElasticAlignment
 			final String patchName1 = patchName( t1.getPatch() );
 			final String patchName2 = patchName( t2.getPatch() );
 			
-			PatchImage pi1 = t1.getPatch().createTransformedImage();
+			final PatchImage pi1 = t1.getPatch().createTransformedImage();
 			if ( pi1 == null )
 			{
 				Utils.log( "Patch `" + patchName1 + "' failed generating a transformed image.  Skipping..." );
 				continue;
 			}
-			PatchImage pi2 = t2.getPatch().createTransformedImage();
+			final PatchImage pi2 = t2.getPatch().createTransformedImage();
 			if ( pi2 == null )
 			{
 				Utils.log( "Patch `" + patchName2 + "' failed generating a transformed image.  Skipping..." );
 				continue;
 			}
 			
-			FloatProcessor fp1 = ( FloatProcessor )pi1.target.convertToFloat();
-			ByteProcessor mask1 = pi1.getMask();
-			FloatProcessor fpMask1 = mask1 == null ? null : scaleByte( mask1 );
+			final FloatProcessor fp1 = ( FloatProcessor )pi1.target.convertToFloat();
+			final ByteProcessor mask1 = pi1.getMask();
+			final FloatProcessor fpMask1 = mask1 == null ? null : scaleByte( mask1 );
 			
-			FloatProcessor fp2 = ( FloatProcessor )pi2.target.convertToFloat();
-			ByteProcessor mask2 = pi2.getMask();
-			FloatProcessor fpMask2 = mask2 == null ? null : scaleByte( mask2 );
+			final FloatProcessor fp2 = ( FloatProcessor )pi2.target.convertToFloat();
+			final ByteProcessor mask2 = pi2.getMask();
+			final FloatProcessor fpMask2 = mask2 == null ? null : scaleByte( mask2 );
 			
 			if ( !fixedTiles.contains( t1 ) )
 			{
@@ -645,13 +647,13 @@ public class ElasticMontage extends AbstractElasticAlignment
 		}
 		
 		/* initialize */
-		for ( Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() )
+		for ( final Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() )
 			entry.getValue().init( entry.getKey().getModel() );
 		
 		/* optimize the meshes */
 		try
 		{
-			long t0 = System.currentTimeMillis();
+			final long t0 = System.currentTimeMillis();
 			IJ.log( "Optimizing spring meshes..." );
 			
 			SpringMesh.optimizeMeshes(
@@ -664,7 +666,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 			IJ.log( "Done optimizing spring meshes. Took " + ( System.currentTimeMillis() - t0 ) + " ms" );
 			
 		}
-		catch ( NotEnoughDataPointsException e )
+		catch ( final NotEnoughDataPointsException e )
 		{
 			Utils.log( "There were not enough data points to get the spring mesh optimizing." );
 			e.printStackTrace();
@@ -672,7 +674,7 @@ public class ElasticMontage extends AbstractElasticAlignment
 		}
 		
 		/* apply */
-		for ( Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() ) 
+		for ( final Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() ) 
 		{
 			final AbstractAffineTile2D< ? > tile = entry.getKey();
 			if ( !fixedTiles.contains( tile ) )

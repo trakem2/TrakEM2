@@ -21,7 +21,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
+import ini.trakem2.Project;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
@@ -34,16 +34,12 @@ import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import mpicbg.ij.SIFT;
 import mpicbg.ij.blockmatching.BlockMatching;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
@@ -65,59 +61,16 @@ import mpicbg.models.Transforms;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.util.Triple;
 
 /**
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  */
-public class ElasticLayerAlignment extends AbstractElasticAlignment
+public class ElasticLayerAlignment
 {
-	final static protected class Param implements Serializable
+	final static protected class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
-		private static final long serialVersionUID = -1808331849689168473L;
-
-		final public ParamPointMatch ppm = new ParamPointMatch();
-		{
-			ppm.sift.fdSize = 8;
-		}
-		
-		public boolean isAligned = false;
-		
-		/**
-		 * Maximal accepted alignment error in px
-		 */
-		public float maxEpsilon = 200.0f;
-		
-		/**
-		 * Inlier/candidates ratio
-		 */
-		public float minInlierRatio = 0.0f;
-		
-		/**
-		 * Minimal absolute number of inliers
-		 */
-		public int minNumInliers = 12;
-		
-		/**
-		 * Transformation models for choice
-		 */
-		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine", "Perspective" };
-		public int modelIndex = 3;
-		
-		/**
-		 * Ignore identity transform up to a given tolerance
-		 */
-		public boolean rejectIdentity = true;
-		public float identityTolerance = 5.0f;
-		
-		/**
-		 * Maximal number of consecutive sections to be tested for an alignment model
-		 */
-		public int maxNumNeighbors = 10;
-		
-		/**
-		 * Maximal number of consecutive slices for which no model could be found
-		 */
-		public int maxNumFailures = 3;
+		private static final long serialVersionUID = 7311578169972106107L;
 		
 		public float layerScale = 0.1f;
 		public float minR = 0.6f;
@@ -132,20 +85,12 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		public float maxLocalEpsilon = searchRadius / 2;
 		public float maxLocalTrust = 3;
 		
-		public int modelIndexOptimize = 1;
-		public int maxIterationsOptimize = 1000;
-		public int maxPlateauwidthOptimize = 200;
-		
 		public int resolutionSpringMesh = 16;
 		public float stiffnessSpringMesh = 0.1f;
 		public float dampSpringMesh = 0.6f;
 		public float maxStretchSpringMesh = 2000.0f;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
-		
-		public boolean visualize = false;
-		
-		public int maxNumThreads = Runtime.getRuntime().availableProcessors();
 		
 		public boolean setup( final Rectangle box )
 		{
@@ -203,29 +148,8 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			
 			if ( !isAligned )
 			{
-				/* SIFT */
-				final GenericDialog gdSIFT = new GenericDialog( "Elastically align layers: SIFT parameters" );
-				
-				SIFT.addFields( gdSIFT, ppm.sift );
-				
-				gdSIFT.addMessage( "Local Descriptor Matching:" );
-				gdSIFT.addNumericField( "closest/next_closest_ratio :", ppm.rod, 2 );
-				
-				gdSIFT.addMessage( "Miscellaneous:" );
-				gdSIFT.addCheckbox( "clear_cache", ppm.clearCache );
-				gdSIFT.addNumericField( "feature_extraction_threads :", ppm.maxNumThreadsSift, 0 );
-				
-				gdSIFT.showDialog();
-				
-				if ( gdSIFT.wasCanceled() )
+				if ( !setupSIFT( "Elastically align layers: " ) )
 					return false;
-				
-				SIFT.readFields( gdSIFT, ppm.sift );
-				
-				ppm.rod = ( float )gdSIFT.getNextNumber();
-				ppm.clearCache = gdSIFT.getNextBoolean();
-				ppm.maxNumThreadsSift = ( int )gdSIFT.getNextNumber();
-				
 				
 				/* Geometric filters */
 				
@@ -234,7 +158,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 				gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
 				gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
 				gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
-				gd.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ modelIndex ] );
+				gd.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
 				gd.addCheckbox( "ignore constant background", rejectIdentity );
 				gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 				gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
@@ -247,7 +171,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 				maxEpsilon = ( float )gd.getNextNumber();
 				minInlierRatio = ( float )gd.getNextNumber();
 				minNumInliers = ( int )gd.getNextNumber();
-				modelIndex = gd.getNextChoiceIndex();
+				expectedModelIndex = gd.getNextChoiceIndex();
 				rejectIdentity = gd.getNextBoolean();
 				identityTolerance = ( float )gd.getNextNumber();
 				maxNumFailures = ( int )gd.getNextNumber();
@@ -258,7 +182,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			final GenericDialog gdOptimize = new GenericDialog( "Elastically align layers: Optimization" );
 			
 			gdOptimize.addMessage( "Approximate Optimizer:" );
-			gdOptimize.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ modelIndexOptimize ] );
+			gdOptimize.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ desiredModelIndex ] );
 			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
 			
@@ -273,7 +197,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			if ( gdOptimize.wasCanceled() )
 				return false;
 			
-			modelIndexOptimize = gdOptimize.getNextChoiceIndex();
+			desiredModelIndex = gdOptimize.getNextChoiceIndex();
 			maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
 			maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
 			
@@ -283,6 +207,149 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			maxPlateauwidthSpringMesh = ( int )gdOptimize.getNextNumber();
 			
 			return true;
+		}
+		
+		public Param() {}
+		
+		public Param(
+				final int SIFTfdBins,
+				final int SIFTfdSize,
+				final float SIFTinitialSigma,
+				final int SIFTmaxOctaveSize,
+				final int SIFTminOctaveSize,
+				final int SIFTsteps,
+				
+				final boolean clearCache,
+				final int maxNumThreadsSift,
+				final float rod,
+				
+				final int desiredModelIndex,
+				final int expectedModelIndex,
+				final float identityTolerance,
+				final boolean isAligned,
+				final float maxEpsilon,
+				final int maxIterationsOptimize,
+				final int maxNumFailures,
+				final int maxNumNeighbors,
+				final int maxNumThreads,
+				final int maxPlateauwidthOptimize,
+				final float minInlierRatio,
+				final int minNumInliers,
+				final boolean multipleHypotheses,
+				final boolean rejectIdentity,
+				final boolean visualize,
+				
+				final int blockRadius,
+				final float dampSpringMesh,
+				final float layerScale,
+				final int localModelIndex,
+				final float localRegionSigma,
+				final float maxCurvatureR,
+				final int maxIterationsSpringMesh,
+				final float maxLocalEpsilon,
+				final float maxLocalTrust,
+				final int maxPlateauwidthSpringMesh,
+				final float maxStretchSpringMesh,
+				final float minR,
+				final int resolutionSpringMesh,
+				final float rodR,
+				final int searchRadius,
+				final float stiffnessSpringMesh,
+				final boolean useLocalSmoothnessFilter )
+		{
+			super(
+					SIFTfdBins,
+					SIFTfdSize,
+					SIFTinitialSigma,
+					SIFTmaxOctaveSize,
+					SIFTminOctaveSize,
+					SIFTsteps,
+					clearCache,
+					maxNumThreadsSift,
+					rod,
+					desiredModelIndex,
+					expectedModelIndex,
+					identityTolerance,
+					isAligned,
+					maxEpsilon,
+					maxIterationsOptimize,
+					maxNumFailures,
+					maxNumNeighbors,
+					maxNumThreads,
+					maxPlateauwidthOptimize,
+					minInlierRatio,
+					minNumInliers,
+					multipleHypotheses,
+					rejectIdentity,
+					visualize );
+			
+			this.blockRadius = blockRadius;
+			this.dampSpringMesh = dampSpringMesh;
+			this.layerScale = layerScale;
+			this.localModelIndex = localModelIndex;
+			this.localRegionSigma = localRegionSigma;
+			this.maxCurvatureR = maxCurvatureR;
+			this.maxIterationsSpringMesh = maxIterationsSpringMesh;
+			this.maxLocalEpsilon = maxLocalEpsilon;
+			this.maxLocalTrust = maxLocalTrust;
+			this.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
+			this.maxStretchSpringMesh = maxStretchSpringMesh;
+			this.minR = minR;
+			this.resolutionSpringMesh = resolutionSpringMesh;
+			this.rodR = rodR;
+			this.searchRadius = searchRadius;
+			this.stiffnessSpringMesh = stiffnessSpringMesh;
+			this.useLocalSmoothnessFilter = useLocalSmoothnessFilter;
+		}
+		
+		@Override
+		public Param clone()
+		{
+			return new Param(
+					ppm.sift.fdBins,
+					ppm.sift.fdSize,
+					ppm.sift.initialSigma,
+					ppm.sift.maxOctaveSize,
+					ppm.sift.minOctaveSize,
+					ppm.sift.steps,
+					
+					ppm.clearCache,
+					ppm.maxNumThreadsSift,
+					ppm.rod,
+					
+					desiredModelIndex,
+					expectedModelIndex,
+					identityTolerance,
+					isAligned,
+					maxEpsilon,
+					maxIterationsOptimize,
+					maxNumFailures,
+					maxNumNeighbors,
+					maxNumThreads,
+					maxPlateauwidthOptimize,
+					minInlierRatio,
+					minNumInliers,
+					multipleHypotheses,
+					rejectIdentity,
+					visualize,
+					
+					blockRadius,
+					dampSpringMesh,
+					layerScale,
+					localModelIndex,
+					localRegionSigma,
+					maxCurvatureR,
+					maxIterationsSpringMesh,
+					maxLocalEpsilon,
+					maxLocalTrust,
+					maxPlateauwidthSpringMesh,
+					maxStretchSpringMesh,
+					minR,
+					resolutionSpringMesh,
+					rodR,
+					searchRadius,
+					stiffnessSpringMesh,
+					useLocalSmoothnessFilter );
 		}
 	}
 	
@@ -300,178 +367,31 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		
 	}
 	
-	/**
-	 * Extract SIFT features and save them into the project folder.
-	 * 
-	 * @param layerSet the layerSet that contains all layers
-	 * @param layerRange the list of layers to be aligned
-	 * @param box a rectangular region of interest that will be used for alignment
-	 * @param scale scale factor <= 1.0
-	 * @param filter a name based filter for Patches (can be null)
-	 * @param p SIFT extraction parameters
-	 * @throws Exception
-	 */
-	final static protected void extractAndSaveLayerFeatures(
-			final LayerSet layerSet,
-			final List< Layer > layerRange,
-			final Rectangle box,
-			final double scale,
-			final Filter< Patch > filter,
-			final FloatArray2DSIFT.Param siftParam,
-			final boolean clearCache ) throws ExecutionException, InterruptedException
-	{
-		final ExecutorService exec = Executors.newFixedThreadPool( p.ppm.maxNumThreadsSift );
-		
-		/* extract features for all slices and store them to disk */
-		final AtomicInteger counter = new AtomicInteger( 0 );
-		final ArrayList< Future< ArrayList< Feature > > > siftTasks = new ArrayList< Future< ArrayList< Feature > > >();
-		
-		for ( int i = 0; i < layerRange.size(); ++i )
-		{
-			final int layerIndex = i;
-			final Rectangle finalBox = box;
-			siftTasks.add(
-					exec.submit( new Callable< ArrayList< Feature > >()
-					{
-						@Override
-						public ArrayList< Feature > call()
-						{
-							final Layer layer = layerRange.get( layerIndex );
-							
-							final String layerName = layerName( layer );
-							
-							IJ.showProgress( counter.getAndIncrement(), layerRange.size() - 1 );
-							
-							final List< Patch > patches = filterPatches( layer, filter );
-							
-							ArrayList< Feature > fs = null;
-							if ( !clearCache )
-								fs = mpicbg.trakem2.align.Util.deserializeFeatures( layerSet.getProject(), siftParam, "layer", layer.getId() );
-							
-							if ( null == fs )
-							{
-								/* free memory */
-								layer.getProject().getLoader().releaseAll();
-								
-								final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
-								final SIFT ijSIFT = new SIFT( sift );
-								fs = new ArrayList< Feature >();
-								final ImageProcessor ip = layer.getProject().getLoader().getFlatImage( layer, finalBox, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
-								ijSIFT.extractFeatures( ip, fs );
-								Utils.log( fs.size() + " features extracted for " + layerName );
-								
-								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layerSet.getProject(), siftParam, "layer", layer.getId(), fs ) )
-									Utils.log( "FAILED to store serialized features for " + layerName );
-							}
-							else
-								Utils.log( fs.size() + " features loaded for " + layerName );
-							
-							return fs;
-						}
-					} ) );
-		}
-		
-		/* join */
-		try
-		{
-			for ( final Future< ArrayList< Feature > > fu : siftTasks )
-				fu.get();
-		}
-		catch ( final InterruptedException e )
-		{
-			Utils.log( "Feature extraction interrupted." );
-			siftTasks.clear();
-			exec.shutdown();
-			throw e;
-		}
-		catch ( final ExecutionException e )
-		{
-			Utils.log( "Execution exception during feature extraction." );
-			siftTasks.clear();
-			exec.shutdown();
-			throw e;
-		}
-		
-		siftTasks.clear();
-		exec.shutdown();
-	}
 	
-	
-
 	/**
-	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
 	 * 
-	 * @param layerSet
-	 * @param firstIn
-	 * @param lastIn
+	 * @param param
+	 * @param layerRange
+	 * @param fixedLayers
+	 * @param emptyLayers
+	 * @param box
 	 * @param propagateTransform
 	 * @param fov
 	 * @param filter
+	 * @throws Exception
 	 */
 	final public void exec(
-			final LayerSet layerSet,
-			final int firstIn,
-			final int lastIn,
-			final boolean propagateTransform,
+			final Param param,
+			final Project project,
+			final List< Layer > layerRange,
+			final Set< Layer > fixedLayers,
+			final Set< Layer > emptyLayers,
+			final Rectangle box,
+			final boolean propagateTransformBefore,
+			final boolean propagateTransformAfter,
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
 	{
-		final int first = Math.min( firstIn, lastIn );
-		final int last = Math.max( firstIn, lastIn );
-		
-		/* always first index first despite the method would return inverse order if last > first */
-		final List< Layer > layerRange = layerSet.getLayers( first, last );
-		
-		Utils.log( layerRange.size() + "" );
-		
-		Rectangle box = null;
-		final ArrayList< Layer > emptyLayers = new ArrayList< Layer >();
-		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
-		{
-			/* remove empty layers */
-			final Layer la = it.next();
-			if ( !la.contains( Patch.class, true ) )
-			{
-				emptyLayers.add( la );
-//				it.remove();
-			}
-			else
-			{
-				/* accumulate boxes */
-				if ( null == box ) // The first layer:
-					box = la.getMinimalBoundingBox( Patch.class, true );
-				else
-					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
-			}
-		}
-		
-		if ( box == null )
-			box = new Rectangle();
-		
-		if ( fov != null )
-			box = box.intersection( fov );
-		
-		if ( box.width <= 0 || box.height <= 0 )
-		{
-			Utils.log( "Bounding box empty." );
-			return;
-		}
-		
-		if ( !p.setup( box ) ) return;
-		
-		if ( layerRange.size() == emptyLayers.size() )
-		{
-			Utils.log( "All layers in range are empty!" );
-			return;
-		}
-		
-		/* do not work if there is only one layer selected */
-		if ( layerRange.size() - emptyLayers.size() < 2 )
-		{
-			Utils.log( "All except one layer in range are empty!" );
-			return;
-		}
-
 		final double scale = Math.min( 1.0, Math.min( ( double )p.ppm.sift.maxOctaveSize / ( double )box.width, ( double )p.ppm.sift.maxOctaveSize / ( double )box.height ) );
 		
 		
@@ -479,7 +399,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
-			switch ( p.modelIndexOptimize )
+			switch ( p.desiredModelIndex )
 			{
 			case 0:
 				tiles.add( new Tile< TranslationModel2D >( new TranslationModel2D() ) );
@@ -511,7 +431,7 @@ public class ElasticLayerAlignment extends AbstractElasticAlignment
 			/* extract and save features, overwrite cached files if requested */
 			try
 			{
-				extractAndSaveLayerFeatures( layerSet, layerRange, box, scale, filter, p.ppm.sift, p.ppm.clearCache );
+				AlignmentUtils.extractAndSaveLayerFeatures( layerRange, box, scale, filter, param.ppm.sift, param.ppm.clearCache, param.ppm.maxNumThreadsSift );
 			}
 			catch ( final Exception e )
 			{
@@ -562,14 +482,14 @@ J:				for ( int j = i + 1; j < range; )
 								ArrayList< PointMatch > candidates = null;
 								if ( !p.ppm.clearCache )
 									candidates = mpicbg.trakem2.align.Util.deserializePointMatches(
-											layerSet.getProject(), p.ppm, "layer", layerB.getId(), layerA.getId() );
+											project, p.ppm, "layer", layerB.getId(), layerA.getId() );
 								
 								if ( null == candidates )
 								{
 									final ArrayList< Feature > fs1 = mpicbg.trakem2.align.Util.deserializeFeatures(
-											layerSet.getProject(), p.ppm.sift, "layer", layerA.getId() );
+											project, p.ppm.sift, "layer", layerA.getId() );
 									final ArrayList< Feature > fs2 = mpicbg.trakem2.align.Util.deserializeFeatures(
-											layerSet.getProject(), p.ppm.sift, "layer", layerB.getId() );
+											project, p.ppm.sift, "layer", layerB.getId() );
 									candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, p.ppm.rod ) );
 									
 									/* scale the candidates */
@@ -594,12 +514,12 @@ J:				for ( int j = i + 1; j < range; )
 									}
 									
 									if ( !mpicbg.trakem2.align.Util.serializePointMatches(
-											layerSet.getProject(), p.ppm, "layer", layerB.getId(), layerA.getId(), candidates ) )
+											project, p.ppm, "layer", layerB.getId(), layerA.getId(), candidates ) )
 										Utils.log( "Could not store point match candidates for layers " + layerNameB + " and " + layerNameA + "." );
 								}
 			
 								AbstractModel< ? > model;
-								switch ( p.modelIndex )
+								switch ( p.expectedModelIndex )
 								{
 								case 0:
 									model = new TranslationModel2D();
@@ -761,7 +681,7 @@ J:				for ( int j = i + 1; j < range; )
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
 		{
 			/* free memory */
-			layerSet.getProject().getLoader().releaseAll();
+			project.getLoader().releaseAll();
 			
 			final SpringMesh m1 = meshes.get( pair.a );
 			final SpringMesh m2 = meshes.get( pair.b );
@@ -772,188 +692,211 @@ J:				for ( int j = i + 1; j < range; )
 			final Collection< Vertex > v1 = m1.getVertices();
 			final Collection< Vertex > v2 = m2.getVertices();
 			
-			final Layer layer1 =  layerRange.get( pair.a );
-			final Layer layer2 =  layerRange.get( pair.b );
+			final Layer layer1 = layerRange.get( pair.a );
+			final Layer layer2 = layerRange.get( pair.b );
 			
-			final Image img1 = layerSet.getProject().getLoader().getFlatAWTImage(
-					layer1,
-					box,
-					p.layerScale,
-					0xffffffff,
-					ImagePlus.COLOR_RGB,
-					Patch.class,
-					filterPatches( layer1, filter ),
-					true,
-					new Color( 0x00ffffff, true ) );
-			
-			final Image img2 = layerSet.getProject().getLoader().getFlatAWTImage(
-					layer2,
-					box,
-					p.layerScale,
-					0xffffffff,
-					ImagePlus.COLOR_RGB,
-					Patch.class,
-					filterPatches( layer2, filter ),
-					true,
-					new Color( 0x00ffffff, true ) );
-			
-			final int width = img1.getWidth( null );
-			final int height = img1.getHeight( null );
-
-			final FloatProcessor ip1 = new FloatProcessor( width, height );
-			final FloatProcessor ip2 = new FloatProcessor( width, height );
-			final FloatProcessor ip1Mask = new FloatProcessor( width, height );
-			final FloatProcessor ip2Mask = new FloatProcessor( width, height );
-			
-			mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
-			mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
-			
-			try
-			{
-				BlockMatching.matchByMaximalPMCC(
-						ip1,
-						ip2,
-						ip1Mask,
-						ip2Mask,
-						1.0f,
-						( ( InvertibleCoordinateTransform )pair.c ).createInverse(),
-						blockRadius,
-						blockRadius,
-						searchRadius,
-						searchRadius,
-						p.minR,
-						p.rodR,
-						p.maxCurvatureR,
-						v1,
-						pm12,
-						new ErrorStatistic( 1 ) );
-			}
-			catch ( final InterruptedException e )
-			{
-				Utils.log( "Block matching interrupted." );
-				IJ.showProgress( 1.0 );
-				return;
-			}
-			if ( Thread.interrupted() )
-			{
-				Utils.log( "Block matching interrupted." );
-				IJ.showProgress( 1.0 );
-				return;
-			}
-
-			if ( p.useLocalSmoothnessFilter )
-			{
-				Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
-				localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
-				Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
-			}
-			else
-			{
-				Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
-			}
-
-			/* <visualisation> */
-			//			final List< Point > s1 = new ArrayList< Point >();
-			//			PointMatch.sourcePoints( pm12, s1 );
-			//			final ImagePlus imp1 = new ImagePlus( i + " >", ip1 );
-			//			imp1.show();
-			//			imp1.setOverlay( BlockMatching.illustrateMatches( pm12 ), Color.yellow, null );
-			//			imp1.setRoi( Util.pointsToPointRoi( s1 ) );
-			//			imp1.updateAndDraw();
-			/* </visualisation> */
-
-			try
-			{
-				BlockMatching.matchByMaximalPMCC(
-						ip2,
-						ip1,
-						ip2Mask,
-						ip1Mask,
-						1.0f,
-						pair.c,
-						blockRadius,
-						blockRadius,
-						searchRadius,
-						searchRadius,
-						p.minR,
-						p.rodR,
-						p.maxCurvatureR,
-						v2,
-						pm21,
-						new ErrorStatistic( 1 ) );
-			}
-			catch ( final InterruptedException e )
-			{
-				Utils.log( "Block matching interrupted." );
-				IJ.showProgress( 1.0 );
-				return;
-			}
-			if ( Thread.interrupted() )
-			{
-				Utils.log( "Block matching interrupted." );
-				IJ.showProgress( 1.0 );
-				return;
-			}
-
-			if ( p.useLocalSmoothnessFilter )
-			{
-				Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
-				localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
-				Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
-			}
-			else
-			{
-				Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
-			}
-			
-			/* <visualisation> */
-			//			final List< Point > s2 = new ArrayList< Point >();
-			//			PointMatch.sourcePoints( pm21, s2 );
-			//			final ImagePlus imp2 = new ImagePlus( i + " <", ip2 );
-			//			imp2.show();
-			//			imp2.setOverlay( BlockMatching.illustrateMatches( pm21 ), Color.yellow, null );
-			//			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
-			//			imp2.updateAndDraw();
-			/* </visualisation> */
-			
-			final float springConstant  = 1.0f / ( pair.b - pair.a );
-			Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
-	
-			for ( final PointMatch pm : pm12 )
-			{
-				final Vertex p1 = ( Vertex )pm.getP1();
-				final Vertex p2 = new Vertex( pm.getP2() );
-				p1.addSpring( p2, new Spring( 0, springConstant ) );
-				m2.addPassiveVertex( p2 );
-			}
-		
-			for ( final PointMatch pm : pm21 )
-			{
-				final Vertex p1 = ( Vertex )pm.getP1();
-				final Vertex p2 = new Vertex( pm.getP2() );
-				p1.addSpring( p2, new Spring( 0, springConstant ) );
-				m1.addPassiveVertex( p2 );
-			}
+			final boolean layer1Fixed = fixedLayers.contains( layer1 );
+			final boolean layer2Fixed = fixedLayers.contains( layer2 );
 			
 			final Tile< ? > t1 = tiles.get( pair.a );
 			final Tile< ? > t2 = tiles.get( pair.b );
 			
-			/*
-			 * adding Tiles to the initialing TileConfiguration, adding a Tile
-			 * multiple times does not harm because the TileConfiguration is
-			 * backed by a Set. 
-			 */
-			if ( pm12.size() > pair.c.getMinNumMatches() )
+			if ( !( layer1Fixed && layer2Fixed ) )
 			{
-				initMeshes.addTile( t1 );
-				initMeshes.addTile( t2 );
-				t1.connect( t2, pm12 );
-			}
-			if ( pm21.size() > pair.c.getMinNumMatches() )
-			{
-				initMeshes.addTile( t1 );
-				initMeshes.addTile( t2 );
-				t2.connect( t1, pm21 );
+				final Image img1 = project.getLoader().getFlatAWTImage(
+						layer1,
+						box,
+						p.layerScale,
+						0xffffffff,
+						ImagePlus.COLOR_RGB,
+						Patch.class,
+						AlignmentUtils.filterPatches( layer1, filter ),
+						true,
+						new Color( 0x00ffffff, true ) );
+				
+				final Image img2 = project.getLoader().getFlatAWTImage(
+						layer2,
+						box,
+						p.layerScale,
+						0xffffffff,
+						ImagePlus.COLOR_RGB,
+						Patch.class,
+						AlignmentUtils.filterPatches( layer2, filter ),
+						true,
+						new Color( 0x00ffffff, true ) );
+				
+				final int width = img1.getWidth( null );
+				final int height = img1.getHeight( null );
+	
+				final FloatProcessor ip1 = new FloatProcessor( width, height );
+				final FloatProcessor ip2 = new FloatProcessor( width, height );
+				final FloatProcessor ip1Mask = new FloatProcessor( width, height );
+				final FloatProcessor ip2Mask = new FloatProcessor( width, height );
+				
+				mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
+				mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
+				
+				final float springConstant  = 1.0f / ( pair.b - pair.a );
+				
+				if ( layer1Fixed )
+					initMeshes.fixTile( t1 );
+				else
+				{
+					try
+					{
+						BlockMatching.matchByMaximalPMCC(
+								ip1,
+								ip2,
+								ip1Mask,
+								ip2Mask,
+								1.0f,
+								( ( InvertibleCoordinateTransform )pair.c ).createInverse(),
+								blockRadius,
+								blockRadius,
+								searchRadius,
+								searchRadius,
+								p.minR,
+								p.rodR,
+								p.maxCurvatureR,
+								v1,
+								pm12,
+								new ErrorStatistic( 1 ) );
+					}
+					catch ( final InterruptedException e )
+					{
+						Utils.log( "Block matching interrupted." );
+						IJ.showProgress( 1.0 );
+						return;
+					}
+					if ( Thread.interrupted() )
+					{
+						Utils.log( "Block matching interrupted." );
+						IJ.showProgress( 1.0 );
+						return;
+					}
+		
+					if ( p.useLocalSmoothnessFilter )
+					{
+						Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
+						localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+						Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
+					}
+					else
+					{
+						Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+					}
+		
+					/* <visualisation> */
+					//			final List< Point > s1 = new ArrayList< Point >();
+					//			PointMatch.sourcePoints( pm12, s1 );
+					//			final ImagePlus imp1 = new ImagePlus( i + " >", ip1 );
+					//			imp1.show();
+					//			imp1.setOverlay( BlockMatching.illustrateMatches( pm12 ), Color.yellow, null );
+					//			imp1.setRoi( Util.pointsToPointRoi( s1 ) );
+					//			imp1.updateAndDraw();
+					/* </visualisation> */
+					
+					for ( final PointMatch pm : pm12 )
+					{
+						final Vertex p1 = ( Vertex )pm.getP1();
+						final Vertex p2 = new Vertex( pm.getP2() );
+						p1.addSpring( p2, new Spring( 0, springConstant ) );
+						m2.addPassiveVertex( p2 );
+					}
+					
+					/*
+					 * adding Tiles to the initialing TileConfiguration, adding a Tile
+					 * multiple times does not harm because the TileConfiguration is
+					 * backed by a Set. 
+					 */
+					if ( pm12.size() > pair.c.getMinNumMatches() )
+					{
+						initMeshes.addTile( t1 );
+						initMeshes.addTile( t2 );
+						t1.connect( t2, pm12 );
+					}
+				}
+	
+				if ( layer2Fixed )
+					initMeshes.fixTile( t2 );
+				else
+				{
+					try
+					{
+						BlockMatching.matchByMaximalPMCC(
+								ip2,
+								ip1,
+								ip2Mask,
+								ip1Mask,
+								1.0f,
+								pair.c,
+								blockRadius,
+								blockRadius,
+								searchRadius,
+								searchRadius,
+								p.minR,
+								p.rodR,
+								p.maxCurvatureR,
+								v2,
+								pm21,
+								new ErrorStatistic( 1 ) );
+					}
+					catch ( final InterruptedException e )
+					{
+						Utils.log( "Block matching interrupted." );
+						IJ.showProgress( 1.0 );
+						return;
+					}
+					if ( Thread.interrupted() )
+					{
+						Utils.log( "Block matching interrupted." );
+						IJ.showProgress( 1.0 );
+						return;
+					}
+		
+					if ( p.useLocalSmoothnessFilter )
+					{
+						Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
+						localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+						Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
+					}
+					else
+					{
+						Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
+					}
+					
+					/* <visualisation> */
+					//			final List< Point > s2 = new ArrayList< Point >();
+					//			PointMatch.sourcePoints( pm21, s2 );
+					//			final ImagePlus imp2 = new ImagePlus( i + " <", ip2 );
+					//			imp2.show();
+					//			imp2.setOverlay( BlockMatching.illustrateMatches( pm21 ), Color.yellow, null );
+					//			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
+					//			imp2.updateAndDraw();
+					/* </visualisation> */
+					
+					for ( final PointMatch pm : pm21 )
+					{
+						final Vertex p1 = ( Vertex )pm.getP1();
+						final Vertex p2 = new Vertex( pm.getP2() );
+						p1.addSpring( p2, new Spring( 0, springConstant ) );
+						m1.addPassiveVertex( p2 );
+					}
+					
+					/*
+					 * adding Tiles to the initialing TileConfiguration, adding a Tile
+					 * multiple times does not harm because the TileConfiguration is
+					 * backed by a Set. 
+					 */
+					if ( pm21.size() > pair.c.getMinNumMatches() )
+					{
+						initMeshes.addTile( t1 );
+						initMeshes.addTile( t2 );
+						t2.connect( t1, pm21 );
+					}
+				}
+				
+				Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
 			}
 		}
 		
@@ -1005,9 +948,30 @@ J:				for ( int j = i + 1; j < range; )
 		}
 		
 		/* free memory */
-		layerSet.getProject().getLoader().releaseAll();
+		project.getLoader().releaseAll();
+		
+		final Layer first = layerRange.get( 0 );
+		final List< Layer > layers = first.getParent().getLayers();
 		
 		/* transfer layer transform into patch transforms and append to patches */
+		if ( propagateTransformBefore || propagateTransformAfter )
+		{
+			if ( propagateTransformBefore )
+			{
+				final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( 0 ).getVA().keySet() );
+				final int firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
+				for ( int i = 0; i < firstLayerIndex; ++i )
+					applyTransformToLayer( layers.get( i ), mlt, filter );
+			}
+			if ( propagateTransformAfter )
+			{
+				final Layer last = layerRange.get( layerRange.size() - 1 );
+				final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( meshes.size() - 1 ).getVA().keySet() );
+				final int lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
+				for ( int i = lastLayerIndex + 1; i < layers.size(); ++i )
+					applyTransformToLayer( layers.get( i ), mlt, filter );
+			}
+		}
 		for ( int l = 0; l < layerRange.size(); ++l )
 		{
 			IJ.showStatus( "Applying transformation to patches ..." );
@@ -1020,42 +984,7 @@ J:				for ( int j = i + 1; j < range; )
 			mlt.setAlpha( 2.0f );
 			mlt.setMatches( meshes.get( l ).getVA().keySet() );
 			
-			/*
-			 * Setting a transformation to a patch can take some time because
-			 * the new bounding box needs to be estimated which requires the
-			 * TransformMesh to be generated and all vertices iterated.
-			 * 
-			 * Therefore multithreading.
-			 */
-			final List< Patch > patches = filterPatches( layer, filter );
-			
-			final ArrayList< Thread > applyThreads = new ArrayList< Thread >( p.maxNumThreads );
-			final AtomicInteger ai = new AtomicInteger( 0 );
-			for ( int t = 0; t < p.maxNumThreads; ++t )
-			{
-				final Thread thread = new Thread(
-						new Runnable()
-						{
-							@Override
-							final public void run()
-							{
-								try
-								{
-									for ( int i = ai.getAndIncrement(); i < patches.size() && !Thread.interrupted(); i = ai.getAndIncrement() )
-										mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patches.get( i ), mlt.copy() );
-								}
-								catch ( final Exception e )
-								{
-									e.printStackTrace();
-								}
-							}
-						} );
-				applyThreads.add( thread );
-				thread.start();
-			}
-			
-			for ( final Thread thread : applyThreads )
-				thread.join();
+			applyTransformToLayer( layer, mlt, filter );
 					
 			if ( Thread.interrupted() )
 			{
@@ -1066,10 +995,258 @@ J:				for ( int j = i + 1; j < range; )
 		}
 		
 		/* update patch mipmaps */
-		for ( final Layer layer : layerRange )
-			for ( final Patch patch : filterPatches( layer, filter ) )
-				patch.updateMipMaps();
+		final int firstLayerIndex;
+		final int lastLayerIndex;
+		
+		if ( propagateTransformBefore )
+			firstLayerIndex = 0;
+		else
+		{
+			firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
+		}
+		if ( propagateTransformAfter )
+			 lastLayerIndex = layers.size() - 1;
+		else
+		{
+			final Layer last = layerRange.get( layerRange.size() - 1 );
+			lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
+		}
+		
+		for ( int i = firstLayerIndex; i <= lastLayerIndex; ++i )
+		{
+			final Layer layer = layers.get( i );
+			if ( !( emptyLayers.contains( layer ) || fixedLayers.contains( layer ) ) )
+			{
+				for ( final Patch patch : AlignmentUtils.filterPatches( layer, filter ) )
+					patch.updateMipMaps();
+			}
+		}
 		
 		Utils.log( "Done." );
+	}
+	
+	final static protected MovingLeastSquaresTransform2 makeMLST2( final Set< PointMatch > matches ) throws Exception
+	{
+		final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
+		mlt.setModel( AffineModel2D.class );
+		mlt.setAlpha( 2.0f );
+		mlt.setMatches( matches );
+		return mlt;
+	}
+	
+	final static protected void applyTransformToLayer( final Layer layer, final MovingLeastSquaresTransform2 mlt, final Filter< Patch > filter ) throws InterruptedException
+	{
+		/*
+		 * Setting a transformation to a patch can take some time because
+		 * the new bounding box needs to be estimated which requires the
+		 * TransformMesh to be generated and all vertices iterated.
+		 * 
+		 * Therefore multithreading.
+		 */
+		final List< Patch > patches = AlignmentUtils.filterPatches( layer, filter );
+		
+		final ArrayList< Thread > applyThreads = new ArrayList< Thread >( p.maxNumThreads );
+		final AtomicInteger ai = new AtomicInteger( 0 );
+		for ( int t = 0; t < p.maxNumThreads; ++t )
+		{
+			final Thread thread = new Thread(
+					new Runnable()
+					{
+						@Override
+						final public void run()
+						{
+							try
+							{
+								for ( int i = ai.getAndIncrement(); i < patches.size() && !Thread.interrupted(); i = ai.getAndIncrement() )
+									mpicbg.trakem2.align.Util.applyLayerTransformToPatch( patches.get( i ), mlt.copy() );
+							}
+							catch ( final Exception e )
+							{
+								e.printStackTrace();
+							}
+						}
+					} );
+			applyThreads.add( thread );
+			thread.start();
+		}
+		
+		for ( final Thread thread : applyThreads )
+			thread.join();
+	}
+	
+	
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 *
+	 * @param layerRange
+	 * @param fixedLayers
+	 * @param propagateTransformBefore
+	 * @param propagateTransformAfter
+	 * @param fov
+	 * @param filter
+	 * @throws Exception
+	 */
+	final public void exec(
+			final Project project,
+			final List< Layer > layerRange,
+			final Set< Layer > fixedLayers,
+			final boolean propagateTransformBefore,
+			final boolean propagateTransformAfter,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{	
+		Rectangle box = null;
+		final HashSet< Layer > emptyLayers = new HashSet< Layer >();
+		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
+		{
+			/* remove empty layers */
+			final Layer la = it.next();
+			if ( !la.contains( Patch.class, true ) )
+			{
+				emptyLayers.add( la );
+//				it.remove();
+			}
+			else
+			{
+				/* accumulate boxes */
+				if ( null == box ) // The first layer:
+					box = la.getMinimalBoundingBox( Patch.class, true );
+				else
+					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
+			}
+		}
+		
+		if ( box == null )
+			box = new Rectangle();
+		
+		if ( fov != null )
+			box = box.intersection( fov );
+		
+		if ( box.width <= 0 || box.height <= 0 )
+		{
+			Utils.log( "Bounding box empty." );
+			return;
+		}
+		
+		if ( layerRange.size() == emptyLayers.size() )
+		{
+			Utils.log( "All layers in range are empty!" );
+			return;
+		}
+		
+		/* do not work if there is only one layer selected */
+		if ( layerRange.size() - emptyLayers.size() < 2 )
+		{
+			Utils.log( "All except one layer in range are empty!" );
+			return;
+		}
+
+		if ( !p.setup( box ) ) return;
+		
+		exec( p.clone(), project, layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, fov, filter );
+	}
+	
+
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 * 
+	 * @param layerSet
+	 * @param firstIn
+	 * @param lastIn
+	 * @param propagateTransformBefore
+	 * @param propagateTransformAfter
+	 * @param fov
+	 * @param filter
+	 */
+	final public void exec(
+			final LayerSet layerSet,
+			final int firstIn,
+			final int lastIn,
+			final int ref,
+			final boolean propagateTransformBefore,
+			final boolean propagateTransformAfter,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{
+		final int first = Math.min( firstIn, lastIn );
+		final int last = Math.max( firstIn, lastIn );
+		
+		/* always first index first despite the method would return inverse order if last > first */
+		final List< Layer > layerRange = layerSet.getLayers( first, last );
+		final HashSet< Layer > fixedLayers = new HashSet< Layer >();
+		
+		if ( ref - firstIn >= 0 )
+			fixedLayers.add( layerRange.get( ref - firstIn ) );
+		
+		Utils.log( layerRange.size() + "" );
+		
+		exec( layerSet.getProject(), layerRange, fixedLayers, propagateTransformBefore, propagateTransformAfter, fov, filter );
+	}
+	
+	
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 * 
+	 * @param layerSet
+	 * @param firstIn
+	 * @param lastIn
+	 * @param ref
+	 * @param propagateTransform
+	 * @param fov
+	 * @param filter
+	 */
+	final public void exec(
+			final LayerSet layerSet,
+			final int firstIn,
+			final int lastIn,
+			final int ref,
+			final boolean propagateTransform,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{
+		if ( firstIn < lastIn )
+			exec( layerSet, firstIn, lastIn, ref, false, propagateTransform, fov, filter );
+		else
+			exec( layerSet, firstIn, lastIn, ref, propagateTransform, false, fov, filter );
+	}
+	
+	/**
+	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
+	 * 
+	 * @param layerSet
+	 * @param firstIn
+	 * @param lastIn
+	 * @param ref1
+	 * @param ref2
+	 * @param propagateTransformAfter
+	 * @param fov
+	 * @param filter
+	 */
+	final public void exec(
+			final LayerSet layerSet,
+			final int firstIn,
+			final int lastIn,
+			final int ref1,
+			final int ref2,
+			final boolean propagateTransformBefore,
+			final boolean propagateTransformAfter,
+			final Rectangle fov,
+			final Filter< Patch > filter ) throws Exception
+	{
+		final int first = Math.min( firstIn, lastIn );
+		final int last = Math.max( firstIn, lastIn );
+		
+		/* always first index first despite the method would return inverse order if last > first */
+		final List< Layer > layerRange = layerSet.getLayers( first, last );
+		final HashSet< Layer > fixedLayers = new HashSet< Layer >();
+		
+		if ( ref1 - first >= 0 )
+			fixedLayers.add( layerRange.get( ref1 - first ) );
+		if ( ref2 - first >= 0 )
+			fixedLayers.add( layerRange.get( ref2 - first ) );
+		
+		Utils.log( layerRange.size() + "" );
+		
+		exec( layerSet.getProject(), layerRange, fixedLayers, propagateTransformBefore, propagateTransformAfter, fov, filter );
 	}
 }
