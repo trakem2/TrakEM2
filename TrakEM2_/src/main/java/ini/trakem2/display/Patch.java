@@ -178,11 +178,11 @@ public final class Patch extends Displayable implements ImageData {
 	 * @return the new Patch.
 	 * @throws Exception if the image cannot be loaded from the {@param filepath}, or it's an unsupported type such as a composite image or a hyperstack. */
 	static public final Patch createPatch(final Project project, final String filepath) throws Exception {
-		ImagePlus imp = project.getLoader().openImagePlus(filepath);
+		final ImagePlus imp = project.getLoader().openImagePlus(filepath);
 		if (null == imp) throw new Exception("Cannot create Patch: the image cannot be opened from filepath " + filepath);
 		if (imp.isComposite()) throw new Exception("Cannot create Patch: composite images are not supported. Convert them to RGB first.");
 		if (imp.isHyperStack()) throw new Exception("Cannot create Patch: hyperstacks are not supported.");
-		Patch p = new Patch(project, new File(filepath).getName(), 0, 0, imp);
+		final Patch p = new Patch(project, new File(filepath).getName(), 0, 0, imp);
 		project.getLoader().addedPatchFrom(filepath, p);
 		return p;
 	}
@@ -192,7 +192,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * by calling {@link Loader#addedPatchFrom(String, Patch)}, as in this example:
 	 * 
 	 * project.getLoader().addedPatchFrom("/path/to/file.png", thePatch); */
-	public Patch(Project project, String title, double x, double y, ImagePlus imp) {
+	public Patch(final Project project, final String title, final double x, final double y, final ImagePlus imp) {
 		super(project, title, x, y);
 		this.type = imp.getType();
 		// Color LUT in ImageJ is a nightmare of inconsistency. We set the COLOR_256 only for 8-bit images that are LUT images themselves; not for 16 or 32-bit images that may have a color LUT (which, by the way, ImageJ tiff encoder cannot save with the tif file.)
@@ -210,10 +210,10 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Reconstruct a Patch from the database. The ImagePlus will be loaded when necessary. */
-	public Patch(Project project, long id, String title,
-		     float width, float height,
-		     int o_width, int o_height,
-		     int type, boolean locked, double min, double max, AffineTransform at) {
+	public Patch(final Project project, final long id, final String title,
+		     final float width, final float height,
+		     final int o_width, final int o_height,
+		     final int type, final boolean locked, final double min, final double max, final AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.type = type;
 		this.min = min;
@@ -228,14 +228,14 @@ public final class Patch extends Displayable implements ImageData {
 	/** Create a new Patch defining all necessary parameters; it is the responsibility
 	 * of the caller to ensure that the parameters are in agreement with the image
 	 * contained in the {@param file_path}. */
-	public Patch(Project project, String title,
-		     float width, float height,
-		     int o_width, int o_height,
-		     int type, float alpha,
-		     Color color, boolean locked,
-		     double min, double max,
-		     AffineTransform at,
-		     String file_path) {
+	public Patch(final Project project, final String title,
+		     final float width, final float height,
+		     final int o_width, final int o_height,
+		     final int type, final float alpha,
+		     final Color color, final boolean locked,
+		     final double min, final double max,
+		     final AffineTransform at,
+		     final String file_path) {
 		this(project, project.getLoader().getNextId(), title, width, height, o_width, o_height, type, locked, min, max, at);
 		this.alpha = Math.max(0, Math.min(alpha, 1.0f));
 		this.color = null == color ? Color.yellow : color;
@@ -243,7 +243,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Reconstruct from an XML entry. */
-	public Patch(Project project, long id, HashMap<String,String> ht_attributes, HashMap<Displayable,String> ht_links) {
+	public Patch(final Project project, final long id, final HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// cache path:
 		project.getLoader().addedPatchFrom(ht_attributes.get("file_path"), this);
@@ -280,7 +280,7 @@ public final class Patch extends Displayable implements ImageData {
 				final Dimension dim = project.getLoader().getDimensions(this);
 				o_width = dim.width;
 				o_height = dim.height;
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				Utils.log("Could not read source data width/height for patch " + this +"\n --> To fix it, close the project and add o_width=\"XXX\" o_height=\"YYY\"\n     to patch entry with oid=\"" + id + "\",\n     where o_width,o_height are the image dimensions as defined in the image file.");
 				// So set them to whatever is somewhat survivable for the moment
 				o_width = (int)width;
@@ -356,7 +356,7 @@ public final class Patch extends Displayable implements ImageData {
 			this.height = o_height;
 			updateBucket();
 		}
-		ImageProcessor ip = imp.getProcessor();
+		final ImageProcessor ip = imp.getProcessor();
 		this.min = ip.getMin();
 		this.max = ip.getMax();
 		final HashSet<String> keys = new HashSet<String>();
@@ -375,7 +375,7 @@ public final class Patch extends Displayable implements ImageData {
 			if (null == new_imp) return null;
 			// 0 - set original_path to the current path if there is no original_path recorded:
 			if (isStack()) {
-				for (Patch p : getStackPatches()) {
+				for (final Patch p : getStackPatches()) {
 					if (null == p.original_path) original_path = p.project.getLoader().getAbsolutePath(p);
 				}
 			} else {
@@ -389,7 +389,7 @@ public final class Patch extends Displayable implements ImageData {
 			}
 			// 2 - update properties and mipmaps
 			if (isStack()) {
-				for (Patch p : getStackPatches()) {
+				for (final Patch p : getStackPatches()) {
 					p.readProps(new_imp);
 					project.getLoader().regenerateMipMaps(p);
 				}
@@ -434,7 +434,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** The min and max values are stored with the Patch, so that the image can be flushed away but the non-destructive contrast settings preserved. */
-	public void setMinAndMax(double min, double max) {
+	public void setMinAndMax(final double min, final double max) {
 		this.min = min;
 		this.max = max;
 		checkMinMax();
@@ -450,7 +450,7 @@ public final class Patch extends Displayable implements ImageData {
 		return type;
 	}
 
-	public Image createImage(ImagePlus imp) {
+	public Image createImage(final ImagePlus imp) {
 		return adjustChannels(channels, true, imp);
 	}
 
@@ -480,11 +480,11 @@ public final class Patch extends Displayable implements ImageData {
 				// pixels array will be shared using ij138j and above
 			} else {
 				// modified from ij.process.ColorProcessor.createImage() by Wayne Rasband
-				int[] pixels = (int[])ip.getPixels();
-				float cr = ((c&0xff0000)>>16) / 255.0f;
-				float cg = ((c&0xff00)>>8) / 255.0f;
-				float cb = (c&0xff) / 255.0f;
-				int[] pix = new int[pixels.length];
+				final int[] pixels = (int[])ip.getPixels();
+				final float cr = ((c&0xff0000)>>16) / 255.0f;
+				final float cg = ((c&0xff00)>>8) / 255.0f;
+				final float cb = (c&0xff) / 255.0f;
+				final int[] pix = new int[pixels.length];
 				int p;
 				for (int i=pixels.length -1; i>-1; i--) {
 					p = pixels[i];
@@ -492,8 +492,8 @@ public final class Patch extends Displayable implements ImageData {
 						+ (((int)(((p&0xff00)>>8) * cg))<<8)
 						+   (int) ((p&0xff) * cb);
 				}
-				int w = imp.getWidth();
-				MemoryImageSource source = new MemoryImageSource(w, imp.getHeight(), DCM, pix, 0, w);
+				final int w = imp.getWidth();
+				final MemoryImageSource source = new MemoryImageSource(w, imp.getHeight(), DCM, pix, 0, w);
 				source.setAnimated(true);
 				source.setFullBufferUpdates(true);
 				awt = Toolkit.getDefaultToolkit().createImage(source);
@@ -512,7 +512,7 @@ public final class Patch extends Displayable implements ImageData {
 	static final public DirectColorModel DCM = new DirectColorModel(24, 0xff0000, 0xff00, 0xff);
 
 	/** Just throws the cached image away if the alpha of the channels has changed. */
-	private final void checkChannels(int channels, double magnification) {
+	private final void checkChannels(final int channels, final double magnification) {
 		if (this.channels != channels && (ImagePlus.COLOR_RGB == this.type || ImagePlus.COLOR_256 == this.type)) {
 			final int old_channels = this.channels;
 			this.channels = channels; // before, so if any gets recreated it's done right
@@ -557,12 +557,12 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	@Override
-	public void paintOffscreen(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> layers) {
+	public void paintOffscreen(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		paint(g, fetchImage(magnification, channels, true), srcRect);
 	}
 
 	@Override
-	public void paint(Graphics2D g, Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, List<Layer> _ignored) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> _ignored) {
 		paint(g, fetchImage(magnification, channels, false), srcRect);
 	}
 
@@ -594,7 +594,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	private void paint(final Graphics2D g, final MipMapImage mipMap, final Rectangle srcRect ) {
 
-		AffineTransform atp = new AffineTransform();
+		final AffineTransform atp = new AffineTransform();
 		
 		/*
 		 * Compensate for AWT considering coordinates at pixel corners
@@ -625,7 +625,7 @@ public final class Patch extends Displayable implements ImageData {
 	@Override
 	public void prePaint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> _ignored) {
 
-		AffineTransform atp = new AffineTransform();
+		final AffineTransform atp = new AffineTransform();
 		
 		/*
 		 * Compensate for AWT considering coordinates at pixel corners
@@ -686,7 +686,7 @@ public final class Patch extends Displayable implements ImageData {
 		try {
 			g.setComposite( getComposite(getCompositeMode()) );
 			g.drawImage( mipMap.image, atp, null );
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			g.setComposite(original_composite);
 			Utils.log(new StringBuilder("Cannot paint Patch with composite type ").append(compositeModes[getCompositeMode()]).append("\nReason:\n").append(t.toString()).toString());
 			g.drawImage( mipMap.image, atp, null );
@@ -694,22 +694,24 @@ public final class Patch extends Displayable implements ImageData {
 		g.setComposite( original_composite );
 	}
 
+	@Override
 	public boolean isDeletable() {
 		return 0 == width && 0 == height;
 	}
 
 	/** Remove only if linked to other Patches or to noone. */
-	public boolean remove(boolean check) {
+	@Override
+	public boolean remove(final boolean check) {
 		if (check && !Utils.check("Really remove " + this.toString() + " ?")) return false;
 		if (isStack()) { // this Patch is part of a stack
-			GenericDialog gd = new GenericDialog("Stack!");
+			final GenericDialog gd = new GenericDialog("Stack!");
 			gd.addMessage("Really delete the entire stack?");
 			gd.addCheckbox("Delete layers if empty", true);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
-			boolean delete_empty_layers = gd.getNextBoolean();
+			final boolean delete_empty_layers = gd.getNextBoolean();
 			// gather all
-			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+			final HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
 			Utils.log2("Removing stack patches: " + ht.size());
 			for (final Patch p : ht.values()) {
@@ -718,7 +720,7 @@ public final class Patch extends Displayable implements ImageData {
 					return false;
 				}
 			}
-			ArrayList<Layer> layers_to_remove = new ArrayList<Layer>();
+			final ArrayList<Layer> layers_to_remove = new ArrayList<Layer>();
 			for (final Patch p : ht.values()) {
 				if (!p.layer.remove(p) || !p.removeFromDatabase()) {
 					Utils.showMessage("Can't delete Patch " + p);
@@ -797,12 +799,12 @@ public final class Patch extends Displayable implements ImageData {
 		final ArrayList<Patch> list2 = new ArrayList<Patch>();
 		while (list1.size() > 0) {
 			list2.clear();
-			for (Patch p : list1) {
+			for (final Patch p : list1) {
 				if (null != p.hs_linked) {
-					for (Iterator<?> it = p.hs_linked.iterator(); it.hasNext(); ) {
-						Object ln = it.next();
+					for (final Iterator<?> it = p.hs_linked.iterator(); it.hasNext(); ) {
+						final Object ln = it.next();
 						if (ln.getClass() == Patch.class) {
-							Patch pa = (Patch)ln;
+							final Patch pa = (Patch)ln;
 							if (!ht.containsValue(pa)) {
 								ht.put(pa.layer.getZ(), pa);
 								list2.add(pa);
@@ -819,7 +821,7 @@ public final class Patch extends Displayable implements ImageData {
 	/** Opens and closes the tag and exports data. The image is saved in the directory provided in @param any as a String. */
 	@Override
 	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) { // TODO the Loader should handle the saving of images, not this class.
-		String in = indent + "\t";
+		final String in = indent + "\t";
 		String path = null;
 		String path2 = null;
 		if (options.export_images) {
@@ -847,7 +849,7 @@ public final class Patch extends Displayable implements ImageData {
 		// For FSLoader projects, saving a second time will save images as null unless calling it
 		if (null == rel_path) {
 			//Utils.log2("path2 was null");
-			Object ob = project.getLoader().getPath(this);
+			final Object ob = project.getLoader().getPath(this);
 			path2 = null == ob ? null : (String)ob;
 			if (null == path2) {
 				//Utils.log2("ERROR: No path for Patch id=" + id + " and title: " + title);
@@ -860,11 +862,11 @@ public final class Patch extends Displayable implements ImageData {
 		//Utils.log("Patch path is: " + rel_path);
 
 		super.exportXML(sb_body, in, options);
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		int type = this.type;
 		if (-1 == this.type) {
 			Utils.log2("Retrieving type for p = " + this);
-			ImagePlus imp = project.getLoader().fetchImagePlus(this);
+			final ImagePlus imp = project.getLoader().fetchImagePlus(this);
 			if (null != imp) type = imp.getType();
 		}
 		sb_body.append(in).append("type=\"").append(type /*null == any ? ImagePlus.GRAY8 : type*/).append("\"\n")
@@ -879,7 +881,7 @@ public final class Patch extends Displayable implements ImageData {
 		sb_body.append(in).append("min=\"").append(min).append("\"\n");
 		sb_body.append(in).append("max=\"").append(max).append("\"\n");
 
-		String pps = getPreprocessorScriptPath();
+		final String pps = getPreprocessorScriptPath();
 		if (null != pps) sb_body.append(in).append("pps=\"").append(project.getLoader().makeRelativePath(pps)).append("\"\n");
 
 		sb_body.append(in).append("mres=\"").append(meshResolution).append("\"\n");
@@ -900,7 +902,7 @@ public final class Patch extends Displayable implements ImageData {
 				char[] ct_chars = null;
 				try {
 					ct_chars = readCoordinateTransformFile();
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					IJError.print(e);
 				}
 				if (null != ct_chars) {
@@ -912,7 +914,7 @@ public final class Patch extends Displayable implements ImageData {
 		}
 
 		if (null != filters && filters.length > 0) {
-			for (IFilter f : filters) sb_body.append(f.toXML(in)); // specify their own line termination
+			for (final IFilter f : filters) sb_body.append(f.toXML(in)); // specify their own line termination
 		}
 
 		super.restXML(sb_body, in, options);
@@ -957,6 +959,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Performs a copy of this object, without the links, unlocked and visible, except for the image which is NOT duplicated. */
+	@Override
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Patch copy = new Patch(pr, nid, null != title ? title.toString() : null, width, height, o_width, o_height, type, false, min, max, (AffineTransform)at.clone());
@@ -978,7 +981,7 @@ public final class Patch extends Displayable implements ImageData {
 								copy.createAlphaMaskFilePath(copy.alpha_mask_id))) {
 					Utils.log("ERROR: could not copy alpha mask file for patch #" + this.id);
 				}
-			} catch (IOException ioe) {
+			} catch (final IOException ioe) {
 				IJError.print(ioe);
 				Utils.log("ERROR: could not copy alpha mask file for patch #" + this.id);
 			}
@@ -989,7 +992,7 @@ public final class Patch extends Displayable implements ImageData {
 								copy.createCTFilePath(copy.ct_id))) {
 					Utils.log("ERROR: could not copy coordinate transform file for patch #" + this.id);
 				}
-			} catch (IOException ioe) {
+			} catch (final IOException ioe) {
 				IJError.print(ioe);
 				Utils.log("ERROR: could not copy coordinate transform file for patch #" + this.id);
 			}
@@ -998,7 +1001,7 @@ public final class Patch extends Displayable implements ImageData {
 		pr.getLoader().addedPatchFrom(this.project.getLoader().getAbsolutePath(this), copy);
 
 		// Copy preprocessor scripts
-		String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
+		final String pspath = this.project.getLoader().getPreprocessorScriptPath(this);
 		if (null != pspath) pr.getLoader().setPreprocessorScriptPathSilently(copy, pspath);
 		
 		// Copy image filters
@@ -1034,6 +1037,7 @@ public final class Patch extends Displayable implements ImageData {
 
 
 	/** Override to cancel. */
+	@Override
 	public boolean linkPatches() {
 		Utils.log2("Patch class can't link other patches using Displayable.linkPatches()");
 		return false;
@@ -1059,7 +1063,7 @@ public final class Patch extends Displayable implements ImageData {
 	static protected void crosslink(final Collection<Displayable> patches, final boolean overlapping_only) {
 		if (null == patches) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>();
-		for (Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
+		for (final Object ob : patches) if (ob instanceof Patch) al.add((Patch)ob); // ... 
 		final int len = al.size();
 		if (len < 2) return;
 		final Patch[] pa = new Patch[len];
@@ -1074,7 +1078,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y). Expects x,y in world coordinates. This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method.*/
-	public int getPixel(double mag, final int x, final int y) {
+	public int getPixel(final double mag, final int x, final int y) {
 		final int[] iArray = getPixel(x, y, mag);
 		if (ImagePlus.COLOR_RGB == this.type) {
 			return (iArray[0]<<16) + (iArray[1]<<8) + iArray[2];
@@ -1083,7 +1087,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Magnification-dependent counterpart to ImageProcessor.getPixel(x, y, iArray). Expects x,y in world coordinates.  This method is intended for grabing an occasional pixel; to grab all pixels, see @getImageProcessor method.*/
-	public int[] getPixel(double mag, final int x, final int y, final int[] iArray) {
+	public int[] getPixel(final double mag, final int x, final int y, final int[] iArray) {
 		final int[] ia = getPixel(x, y, mag);
 		if(null != iArray) {
 			iArray[0] = ia[0];
@@ -1107,7 +1111,7 @@ public final class Patch extends Displayable implements ImageData {
 		final PixelGrabber pg = new PixelGrabber( mipMap.image, x2, y2, 1, 1, pvalue, 0, w);
 		try {
 			pg.grabPixels();
-		} catch (InterruptedException ie) {
+		} catch (final InterruptedException ie) {
 			return pvalue;
 		}
 
@@ -1168,11 +1172,12 @@ public final class Patch extends Displayable implements ImageData {
 	/** Returns the value of the field original_path, which may be null. If not null, the value may contain the slice info in it if it's part of a stack. */
 	synchronized public String getOriginalPath() { return original_path; }
 
-	protected void setAlpha(float alpha, boolean update) {
+	@Override
+	protected void setAlpha(final float alpha, final boolean update) {
 		if (isStack()) {
-			HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
+			final HashMap<Double,Patch> ht = new HashMap<Double,Patch>();
 			getStackPatchesNR(ht);
-			for (Patch pa : ht.values()) {
+			for (final Patch pa : ht.values()) {
 				pa.alpha = alpha;
 				pa.updateInDatabase("alpha");
 				Display.repaint(pa.layer, pa, 5);
@@ -1202,7 +1207,7 @@ public final class Patch extends Displayable implements ImageData {
 			}
 			// 3 - update path in loader, and cache imp for each stack slice id
 			if (isStack()) {
-				for (Patch p : getStackPatches()) {
+				for (final Patch p : getStackPatches()) {
 					p.project.getLoader().addedPatchFrom(p.original_path, p);
 					p.project.getLoader().cacheImagePlus(p.id, imp);
 					p.project.getLoader().regenerateMipMaps(p);
@@ -1231,7 +1236,7 @@ public final class Patch extends Displayable implements ImageData {
 				// New XML with ct_id attribute
 				writeNewCoordinateTransform(ct, this.ct_id);
 			}
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 	}
@@ -1256,7 +1261,7 @@ public final class Patch extends Displayable implements ImageData {
 
 		try {
 			setNewCoordinateTransform(ct);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			throw new RuntimeException(e);
 		}
 		this_ct = ct;
@@ -1369,6 +1374,44 @@ public final class Patch extends Displayable implements ImageData {
 	 * @see #setCoordinateTransform(CoordinateTransform) */
 	public final CoordinateTransform getCoordinateTransform() { return getCT(); }
 	
+	/**
+	 * Create a {@link CoordinateTransform} that incorporates both the
+	 * {@link CoordinateTransform} of this {@link Patch} (if present) and its
+	 * {@link AffineTransform}.  The returned {@link CoordinateTransform} directly
+	 * transfers the {@link Patch} into world coordinates.  An image can be rendered
+	 * e.g. using {@link mpicbg.ij.TransformMeshMapping} with an
+	 * {@link mpicbg.models.TransformMesh}.  Note that you may prefer to use 
+	 * {@link mpicbg.models.TransformMesh} which does not perform auto-boxing as
+	 * opposed to {@link TransformMesh} in the mpicbg.trakem2 package.
+	 * 
+	 * @return
+	 */
+	final public CoordinateTransform getFullCoordinateTransform()
+	{
+		final CoordinateTransform ctp = getCoordinateTransform();
+		if ( ctp == null )
+		{
+			final AffineModel2D affine = new AffineModel2D();
+			affine.set( at );
+			return affine;
+		}
+		else
+		{
+			final Rectangle box = getCoordinateTransformBoundingBox();
+			final AffineTransform at2 = new AffineTransform( at );
+			at2.translate( -box.x, -box.y );
+			final AffineModel2D affine = new AffineModel2D();
+			affine.set( at );
+			
+			final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
+			ctl.add( ctp );
+			ctl.add( affine );
+			
+			return ctl;
+		}
+	}
+	
+	
 	public final Patch.PatchImage createCoordinateTransformedImage() {
 		if (!hasCoordinateTransform()) return null;
 		
@@ -1422,7 +1465,7 @@ public final class Patch extends Displayable implements ImageData {
 		/** Whether the image was generated with a CoordinateTransform or not. */
 		final public boolean coordinate_transformed;
 
-		private PatchImage( ImageProcessor target, ByteProcessor mask, ByteProcessor outside, Rectangle box, boolean coordinate_transformed ) {
+		private PatchImage( final ImageProcessor target, final ByteProcessor mask, final ByteProcessor outside, final Rectangle box, final boolean coordinate_transformed ) {
 			this.target = target;
 			this.mask = mask;
 			this.outside = outside;
@@ -1552,12 +1595,12 @@ public final class Patch extends Displayable implements ImageData {
 				return null;
 			}
 			return (ByteProcessor) (mask.getClass() == ByteProcessor.class ? mask : mask.convertToByte(false));
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			Utils.log2("Could not load alpha mask for patch #" + this.id + " from file " + path);
 			IJError.print(t);
 			return null;
 		} finally {
-			try { if (null != zis) zis.close(); } catch (Exception e) { IJError.print(e); }
+			try { if (null != zis) zis.close(); } catch (final Exception e) { IJError.print(e); }
 		}
 	}
 
@@ -1572,20 +1615,20 @@ public final class Patch extends Displayable implements ImageData {
 			final File f = new File(createAlphaMaskFilePath(amID));
 			Utils.ensure(f);
 			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
-			FileOutputStream fos = new FileOutputStream(f);
-			ZipOutputStream zos = new ZipOutputStream(fos);
+			final FileOutputStream fos = new FileOutputStream(f);
+			final ZipOutputStream zos = new ZipOutputStream(fos);
 			out = new DataOutputStream(new BufferedOutputStream(zos, 32768));
-			ImagePlus imp = new ImagePlus("mask.tif", bp); // ImageJ looks for ".tif" extension in the ZipEntry
+			final ImagePlus imp = new ImagePlus("mask.tif", bp); // ImageJ looks for ".tif" extension in the ZipEntry
 			zos.putNextEntry(new ZipEntry(imp.getTitle()));
-			TiffEncoder te = new TiffEncoder(imp.getFileInfo());
+			final TiffEncoder te = new TiffEncoder(imp.getFileInfo());
 			te.write(out);
 			out.flush();
 			fos.getFD().sync();
 			return true;
-		} catch (Throwable e) {
+		} catch (final Throwable e) {
 			IJError.print(e);
 		} finally {
-			try { if (null != out) out.close(); } catch (Throwable t) { IJError.print(t); }
+			try { if (null != out) out.close(); } catch (final Throwable t) { IJError.print(t); }
 		}
 		return false;
 	}
@@ -1607,9 +1650,9 @@ public final class Patch extends Displayable implements ImageData {
 
 	@Override
 	public void keyPressed(final KeyEvent ke) {
-		Object source = ke.getSource();
+		final Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
-		DisplayCanvas dc = (DisplayCanvas)source;
+		final DisplayCanvas dc = (DisplayCanvas)source;
 		final Roi roi = dc.getFakeImagePlus().getRoi();
 
 		final int mod = ke.getModifiers();
@@ -1620,7 +1663,7 @@ public final class Patch extends Displayable implements ImageData {
 				// Ignoring masks: outside is already black, and ImageJ cannot handle alpha masks.
 				if (0 == (mod ^ (Event.SHIFT_MASK | Event.ALT_MASK))) {
 					// Place the source image, untransformed, into clipboard:
-					ImagePlus imp = getImagePlus();
+					final ImagePlus imp = getImagePlus();
 					if (null != imp) imp.copy(false);
 				} else if (0 == mod || (0 == (mod ^ Event.SHIFT_MASK))) {
 					CoordinateTransformList<CoordinateTransform> list = null;
@@ -1629,15 +1672,15 @@ public final class Patch extends Displayable implements ImageData {
 						list.add(getCoordinateTransform());
 					}
 					if (0 == mod) { //SHIFT is not down
-						AffineModel2D am = new AffineModel2D();
+						final AffineModel2D am = new AffineModel2D();
 						am.set(this.at);
 						if (null == list) list = new CoordinateTransformList<CoordinateTransform>();
 						list.add(am);
 					}
 					ImageProcessor ip;
 					if (null != list) {
-						TransformMesh mesh = new TransformMesh(list, meshResolution, o_width, o_height);
-						TransformMeshMapping mapping = new TransformMeshMapping(mesh);
+						final TransformMesh mesh = new TransformMesh(list, meshResolution, o_width, o_height);
+						final TransformMeshMapping mapping = new TransformMeshMapping(mesh);
 						ip = mapping.createMappedImageInterpolated(getImageProcessor());
 					} else {
 						ip = getImageProcessor();
@@ -1650,6 +1693,7 @@ public final class Patch extends Displayable implements ImageData {
 				// fill mask with current ROI using
 				if (null != roi && M.isAreaROI(roi)) {
 					Bureaucrat.createAndStart(new Worker.Task("Filling image mask") {
+						@Override
 						public void exec() {
 							getLayerSet().addDataEditStep(Patch.this);
 							if (0 == mod) {
@@ -1657,17 +1701,17 @@ public final class Patch extends Displayable implements ImageData {
 							} else if (0 == (mod ^ Event.SHIFT_MASK)) {
 								// shift is down: fill outside
 								try {
-									Area localRoi = M.areaInInts(M.getArea(roi)).createTransformedArea(at.createInverse());
-									Area invLocalRoi = new Area(new Rectangle(0, 0, getOWidth()	, getOHeight()));
+									final Area localRoi = M.areaInInts(M.getArea(roi)).createTransformedArea(at.createInverse());
+									final Area invLocalRoi = new Area(new Rectangle(0, 0, getOWidth()	, getOHeight()));
 									invLocalRoi.subtract(localRoi);
 									addAlphaMaskLocal(invLocalRoi, ProjectToolbar.getForegroundColorValue());
-								} catch (NoninvertibleTransformException e) {
+								} catch (final NoninvertibleTransformException e) {
 									IJError.print(e);
 									return;
 								}
 							}
 							getLayerSet().addDataEditStep(Patch.this);
-							try { updateMipMaps().get(); } catch (Throwable t) { IJError.print(t); } // wait
+							try { updateMipMaps().get(); } catch (final Throwable t) { IJError.print(t); } // wait
 							Display.repaint();
 						}
 					}, project);
@@ -1711,6 +1755,7 @@ public final class Patch extends Displayable implements ImageData {
 			// type is dependent on path, so absolute
 			// o_width, o_height idem
 		}
+		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Patch p = (Patch) d;
@@ -1762,7 +1807,7 @@ public final class Patch extends Displayable implements ImageData {
 		final PixelGrabber pg = new PixelGrabber(mipMap.image, x2, y2, 1, 1, pvalue, 0, w);
 		try {
 			pg.grabPixels();
-		} catch (InterruptedException ie) {
+		} catch (final InterruptedException ie) {
 			return super.contains(x_p, y_p);
 		}
 		// Not true if alpha value is zero
@@ -1785,19 +1830,19 @@ public final class Patch extends Displayable implements ImageData {
 			imp = null;
 			if (w != this.o_width || h != this.o_height) {
 				// replace source ImagePlus o_width,o_height
-				int old_o_width = this.o_width;
-				int old_o_height = this.o_height;
+				final int old_o_width = this.o_width;
+				final int old_o_height = this.o_height;
 				this.o_width = w;
 				this.o_height = h;
 
 				// scale width,height
-				double old_width = this.width;
-				double old_height = this.height;
+				final double old_width = this.width;
+				final double old_height = this.height;
 				this.width  *= ((double)this.o_width)  / old_o_width;
 				this.height *= ((double)this.o_height) / old_o_height;
 
 				// translate Patch to preserve the center
-				AffineTransform aff = new AffineTransform();
+				final AffineTransform aff = new AffineTransform();
 				aff.translate((old_width - this.width) / 2, (old_height - this.height) / 2);
 				updateInDatabase("dimensions");
 				preTransform(aff, false);
@@ -1806,16 +1851,16 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Add the given roi, in world coords, to the alpha mask, using the given fill value. */
-	public void addAlphaMask(final Roi roi, int value) {
+	public void addAlphaMask(final Roi roi, final int value) {
 		if (null == roi || !M.isAreaROI(roi)) return;
 		addAlphaMask(M.areaInInts(M.getArea(roi)), value);
 	}
 	
 	/** Add the given area, in world coords, to the alpha mask, using the given fill value. */
-	public void addAlphaMask(final Area aw, int value) {
+	public void addAlphaMask(final Area aw, final int value) {
 		try {
 			addAlphaMaskLocal(aw.createTransformedArea(Patch.this.at.createInverse()), value);
-		} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+		} catch (final NoninvertibleTransformException nite) { IJError.print(nite); }
 	}
 	
 	/** Add the given area, in local coordinates, to the alpha mask, using the given fill value. */
@@ -1900,11 +1945,11 @@ public final class Patch extends Displayable implements ImageData {
 				}
 				// Threshold all non-zero areas of the mask:
 				alpha_mask.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
-				ImagePlus imp = new ImagePlus("", alpha_mask);
-				ThresholdToSelection tts = new ThresholdToSelection(); // TODO replace by our much faster method that scans by line, in AmiraImporter
+				final ImagePlus imp = new ImagePlus("", alpha_mask);
+				final ThresholdToSelection tts = new ThresholdToSelection(); // TODO replace by our much faster method that scans by line, in AmiraImporter
 				tts.setup("", imp);
 				tts.run(alpha_mask);
-				Roi roi = imp.getRoi();
+				final Roi roi = imp.getRoi();
 				if (null == roi) {
 					// All pixels in the alpha mask have a value of zero
 					return new Area();
@@ -2051,7 +2096,7 @@ public final class Patch extends Displayable implements ImageData {
 			
 			// 1. The coordinate tranform of the Patch, if any
 			if (p.hasCoordinateTransform()) {
-				CoordinateTransform ct = p.getCoordinateTransform();
+				final CoordinateTransform ct = p.getCoordinateTransform();
 				list.add(ct);
 				// Remove the translation in the patch_affine that the ct added to it
 				final Rectangle box = Patch.getCoordinateTransformBoundingBox(p, ct);
@@ -2068,7 +2113,7 @@ public final class Patch extends Displayable implements ImageData {
 
 			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( list, p.meshResolution, p.getOWidth(), p.getOHeight() );
 			
-			mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
+			final mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh> mapping = new mpicbg.ij.TransformMeshMapping<CoordinateTransformMesh>( mesh );
 			
 			// 4. Convert the patch to the required type
 			ImageProcessor pi = p.getImageProcessor();
@@ -2108,8 +2153,8 @@ public final class Patch extends Displayable implements ImageData {
 	}
 	/** Make the border have an alpha of zero. */
 	public boolean maskBorder(final int left, final int top, final int right, final int bottom) {
-		int w = o_width - right - left;
-		int h = o_height - top - bottom;
+		final int w = o_width - right - left;
+		final int h = o_height - top - bottom;
 		if (w < 0 || h < 0 || left > o_width || top > o_height) {
 			Utils.log("Cannot cut border for patch " + this + " : border off image bounds.");
 			return false;
@@ -2124,7 +2169,7 @@ public final class Patch extends Displayable implements ImageData {
 			} else {
 				// make borders black
 				bp.setValue(0);
-				for (Roi r : new Roi[]{new Roi(0, 0, o_width, top),
+				for (final Roi r : new Roi[]{new Roi(0, 0, o_width, top),
 						       new Roi(0, top, left, o_height - top - bottom),
 						       new Roi(0, o_height - bottom, o_width, bottom),
 						       new Roi(o_width - right, top, right, o_height - top - bottom)}) {
@@ -2133,7 +2178,7 @@ public final class Patch extends Displayable implements ImageData {
 				}
 			}
 			setAlphaMask(bp);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			return false;
 		}
@@ -2156,13 +2201,13 @@ public final class Patch extends Displayable implements ImageData {
 	 * @param fs The array of {@link IFilter} to use for this Patch.
 	 * @see #setFilters(Filter[]), {@link #getFilters()}
 	 */
-	public void appendFilters(IFilter[] fs) {
+	public void appendFilters(final IFilter[] fs) {
 		if (null == filters || 0 == filters.length) {
 			filters = fs;
 			return;
 		}
 		if (null == fs) return;
-		IFilter[] c = new IFilter[filters.length + fs.length];
+		final IFilter[] c = new IFilter[filters.length + fs.length];
 		for (int i=0; i<filters.length; ++i) c[i] = filters[i];
 		for (int i=filters.length; i<c.length; ++i) c[i] = fs[i-filters.length];
 		this.filters = c;
@@ -2174,7 +2219,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * @param fs The array of {@link IFilter} to use for this Patch. Can be null.
 	 * @see #appendFilters(Filter[]), {@link #getFilters()}
 	 */
-	public void setFilters(IFilter[] fs) {
+	public void setFilters(final IFilter[] fs) {
 		this.filters = fs;
 	}
 	
@@ -2218,7 +2263,7 @@ public final class Patch extends Displayable implements ImageData {
 	private final CoordinateTransform getCT() {
 		try {
 			return fetchCoordinateTransform();
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			throw new RuntimeException(e);
 		}
@@ -2246,7 +2291,7 @@ public final class Patch extends Displayable implements ImageData {
 			reader = new BufferedReader(new FileReader(f), 32768); // TODO make this larger			
 			int s = 0;
 			while (s < c.length) {
-				int r = reader.read(c, s, c.length - s);
+				final int r = reader.read(c, s, c.length - s);
 				if (-1 == r) break; // done
 				s += r;
 			}
@@ -2296,7 +2341,7 @@ public final class Patch extends Displayable implements ImageData {
 			pw.flush();
 			return true;
 		} finally {
-			if (null != pw) try { pw.close(); } catch (Exception e) { IJError.print(e); }
+			if (null != pw) try { pw.close(); } catch (final Exception e) { IJError.print(e); }
 		}
 	}
 
@@ -2350,7 +2395,7 @@ public final class Patch extends Displayable implements ImageData {
 				mpicbg.models.InvertibleCoordinateTransform.class.isAssignableFrom(ct.getClass()) ?
 					(mpicbg.models.InvertibleCoordinateTransform) ct
 					: new mpicbg.trakem2.transform.TransformMesh(ct, meshResolution, o_width, o_height);
-				try { t.applyInverseInPlace(f); } catch ( NoninvertibleModelException e ) {}
+				try { t.applyInverseInPlace(f); } catch ( final NoninvertibleModelException e ) {}
 				d[0] = f[0];
 				d[1] = f[1];
 		}
@@ -2379,7 +2424,7 @@ public final class Patch extends Displayable implements ImageData {
 			{
 				at.inverseTransform( w, 0, w, 0, 1 );
 			}
-			catch ( NoninvertibleTransformException e ) {}
+			catch ( final NoninvertibleTransformException e ) {}
 			final TransformMesh mesh = new TransformMesh( ct, meshResolution, o_width, o_height );
 			final mpicbg.models.AffineModel2D triangle = mesh.closestTargetAffine( new float[]{ ( float )w[ 0 ], ( float )w[ 1 ] } );
 			affine.concatenate( triangle.createAffine() );
@@ -2415,7 +2460,7 @@ public final class Patch extends Displayable implements ImageData {
 			Bureaucrat.createAndStart(new Worker.Task("Magic Wand ROI") {
 				@Override
 				public void exec() {
-					PatchImage pai = createTransformedImage();
+					final PatchImage pai = createTransformedImage();
 					pai.target.setMinAndMax(min, max);
 					final ImagePlus patchImp = new ImagePlus("", pai.target.convertToByte(true));
 					final float[] fp = new float[2];
@@ -2423,16 +2468,16 @@ public final class Patch extends Displayable implements ImageData {
 					fp[1] = y_p;
 					try {
 						at.createInverse().transform(fp, 0, fp, 0, 1);
-					} catch (NoninvertibleTransformException e) {
+					} catch (final NoninvertibleTransformException e) {
 						IJError.print(e);
 						return;
 					}
-					int npoints = IJ.doWand(patchImp, (int)fp[0], (int)fp[1], WandToolOptions.getTolerance(), WandToolOptions.getMode());
+					final int npoints = IJ.doWand(patchImp, (int)fp[0], (int)fp[1], WandToolOptions.getTolerance(), WandToolOptions.getMode());
 					if (npoints > 0) {
 						System.out.println("npoints " + npoints);
-						Roi roi = patchImp.getRoi();
+						final Roi roi = patchImp.getRoi();
 						if (null != roi) {
-							Area aroi = M.getArea(roi);
+							final Area aroi = M.getArea(roi);
 							aroi.transform(at);
 							canvas.getFakeImagePlus().setRoi(new ShapeRoi(aroi));
 						}
