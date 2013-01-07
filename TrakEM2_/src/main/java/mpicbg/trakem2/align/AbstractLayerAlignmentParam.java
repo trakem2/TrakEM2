@@ -11,8 +11,6 @@ public class AbstractLayerAlignmentParam
 		ppm.sift.fdSize = 8;
 	}
 	
-	public boolean isAligned = false;
-	
 	/**
 	 * Maximal accepted alignment error in px
 	 */
@@ -105,7 +103,6 @@ public class AbstractLayerAlignmentParam
 			final int desiredModelIndex,
 			final int expectedModelIndex,
 			final float identityTolerance,
-			final boolean isAligned,
 			final float maxEpsilon,
 			final int maxIterationsOptimize,
 			final int maxNumFailures,
@@ -132,7 +129,6 @@ public class AbstractLayerAlignmentParam
 		this.desiredModelIndex = desiredModelIndex;
 		this.expectedModelIndex = expectedModelIndex;
 		this.identityTolerance = identityTolerance;
-		this.isAligned = isAligned;
 		this.maxEpsilon = maxEpsilon;
 		this.maxIterationsOptimize = maxIterationsOptimize;
 		this.maxNumFailures = maxNumFailures;
@@ -164,7 +160,6 @@ public class AbstractLayerAlignmentParam
 				desiredModelIndex,
 				expectedModelIndex,
 				identityTolerance,
-				isAligned,
 				maxEpsilon,
 				maxIterationsOptimize,
 				maxNumFailures,
