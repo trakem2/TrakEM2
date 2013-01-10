@@ -284,6 +284,7 @@ public class ElasticLayerAlignment
 					rejectIdentity,
 					visualize );
 			
+			this.isAligned = isAligned;
 			this.blockRadius = blockRadius;
 			this.dampSpringMesh = dampSpringMesh;
 			this.layerScale = layerScale;
