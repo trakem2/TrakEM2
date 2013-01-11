@@ -121,7 +121,7 @@ final public class AlignTask
 		for ( final Displayable d : selection.getSelected() )
 			if ( d instanceof Patch ) patches.add( ( Patch )d );
 
-		final List< Patch > fixedPatches = new ArrayList< Patch >();
+		final HashSet< Patch > fixedPatches = new HashSet< Patch >();
 
 		// Add active Patch, if any, as the nail
 		final Displayable active = selection.getActive();
@@ -136,7 +136,7 @@ final public class AlignTask
 		alignPatches( patches, fixedPatches, m );
 	}
 
-	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final List< Patch > fixedPatches )
+	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final Set< Patch > fixedPatches )
 	{
 		if ( 0 == patches.size())
 		{
@@ -189,7 +189,7 @@ final public class AlignTask
 	 */
 	final static public void alignPatches(
 			final List< Patch > patches,
-			final List< Patch > fixedPatches,
+			final Set< Patch > fixedPatches,
 			final int m
 		) throws Exception
 	{
@@ -356,7 +356,7 @@ A:		for ( final Layer layer : layers )
 			Utils.log("====\nMontaging layer " + layer);
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
-			new ElasticMontage().exec( p, patchesList, new ArrayList< Patch >() );
+			new ElasticMontage().exec( p, patchesList, new HashSet< Patch >() );
 			Display.repaint( layer );
 		}
 	}
@@ -800,7 +800,7 @@ A:		for ( final Layer layer : layers )
 	final static public void alignPatches(
 			final Align.ParamOptimize p,
 			final List< Patch > patches,
-			final List< Patch > fixedPatches,
+			final Collection< Patch > fixedPatches,
 			final boolean tilesAreInPlaceIn,
 			final boolean largestGraphOnlyIn,
 			final boolean hideDisconnectedTilesIn,

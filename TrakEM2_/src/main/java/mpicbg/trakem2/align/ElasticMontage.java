@@ -348,7 +348,7 @@ public class ElasticMontage
 	
 	final public void exec(
 			final List< Patch > patches,
-			final List< Patch > fixedPatches ) throws Exception
+			final Set< Patch > fixedPatches ) throws Exception
 	{
 		/* make sure that passed patches are ok */
 		if ( patches.size() < 2 )
@@ -385,7 +385,7 @@ public class ElasticMontage
 	final public void exec(
 			final Param param,
 			final List< Patch > patches,
-			final List< Patch > fixedPatches ) throws Exception
+			final Set< Patch > fixedPatches ) throws Exception
 	{
 		/* free memory */
 		patches.get( 0 ).getProject().getLoader().releaseAll();
