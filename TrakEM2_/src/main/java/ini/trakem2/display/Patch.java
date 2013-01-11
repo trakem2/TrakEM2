@@ -1401,7 +1401,7 @@ public final class Patch extends Displayable implements ImageData {
 			final AffineTransform at2 = new AffineTransform( at );
 			at2.translate( -box.x, -box.y );
 			final AffineModel2D affine = new AffineModel2D();
-			affine.set( at );
+			affine.set( at2 );
 			
 			final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 			ctl.add( ctp );
