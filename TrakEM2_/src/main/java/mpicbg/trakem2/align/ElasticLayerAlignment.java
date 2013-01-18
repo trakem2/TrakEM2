@@ -33,7 +33,6 @@ import java.awt.Image;
 import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -690,8 +689,8 @@ J:				for ( int j = i + 1; j < range; )
 			final ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
 			final ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
 
-			final Collection< Vertex > v1 = m1.getVertices();
-			final Collection< Vertex > v2 = m2.getVertices();
+			final ArrayList< Vertex > v1 = m1.getVertices();
+			final ArrayList< Vertex > v2 = m2.getVertices();
 			
 			final Layer layer1 = layerRange.get( pair.a );
 			final Layer layer2 = layerRange.get( pair.b );

@@ -30,7 +30,6 @@ import ini.trakem2.utils.Utils;
 import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -510,8 +509,8 @@ public class ElasticMontage
 			final ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
 			final ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
 
-			final Collection< Vertex > v1 = m1.getVertices();
-			final Collection< Vertex > v2 = m2.getVertices();
+			final ArrayList< Vertex > v1 = m1.getVertices();
+			final ArrayList< Vertex > v2 = m2.getVertices();
 			
 			final String patchName1 = patchName( t1.getPatch() );
 			final String patchName2 = patchName( t2.getPatch() );
