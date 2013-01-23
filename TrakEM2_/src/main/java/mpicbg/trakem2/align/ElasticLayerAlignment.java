@@ -17,28 +17,30 @@
 package mpicbg.trakem2.align;
 
 
+import archipelago.Cluster;
+import archipelago.ijsupport.FloatProcessorChunk;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.process.FloatProcessor;
 import ini.trakem2.Project;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
-import ini.trakem2.display.Patch;
+import ini.trakem2.display.*;
+import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.Image;
 import java.awt.Rectangle;
+import java.awt.geom.Area;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import mpicbg.ij.blockmatching.BlockMatching;
 import mpicbg.imagefeatures.Feature;
@@ -68,6 +70,267 @@ import mpicbg.trakem2.util.Triple;
  */
 public class ElasticLayerAlignment
 {
+
+    private static AtomicLong idGenerator = new AtomicLong(1);
+    private static Hashtable<Long, Point> pointCache = new Hashtable<Long, Point>();
+
+    protected synchronized static void cachePoints(Collection<? extends Point> points)
+    {
+        for (Point p : points)
+        {
+            if (p.getID() == 0)
+            {
+                p.setID(idGenerator.getAndIncrement());
+                pointCache.put(p.getID(), p);
+            }
+        }
+    }
+
+    protected synchronized static void syncPointMatch(Collection<PointMatch> pointMatches)
+    {
+        for (PointMatch pm : pointMatches)
+        {
+            final Point p1 = pm.getP1(), p2 = pm.getP2();
+            if (p1.getID() != 0)
+            {
+                final Point mp1 = pointCache.get(p1.getID());
+                if (mp1 != p1)
+                {
+                    mp1.set(p1);
+                    pm.setP1(mp1);
+                }
+            }
+
+            if (p2.getID() != 0)
+            {
+                final Point mp2 = pointCache.get(p2.getID());
+                if (mp2 != p2)
+                {
+                    mp2.set(p2);
+                    pm.setP2(mp2);
+                }
+            }
+        }
+    }
+    
+    protected static class PMCResults implements Serializable
+    {
+        final public ArrayList<PointMatch> pm12;
+        final public ArrayList<PointMatch> pm21;
+        final public Triple<Integer, Integer, AbstractModel<?>> pair;
+        public boolean needsSync;
+
+        public PMCResults(final ArrayList<PointMatch> pm12,
+                          final ArrayList<PointMatch> pm21,
+                          Triple<Integer, Integer, AbstractModel<?>> pair)
+        {
+            this.pm12 = pm12;
+            this.pm21 = pm21;
+            this.pair = pair;
+            this.needsSync = false;
+        }
+
+        private void readObject(ObjectInputStream input) throws ClassNotFoundException, IOException
+        {
+            input.defaultReadObject();
+            this.needsSync = true;
+        }
+
+    }
+
+    protected static class PointMatchCallable implements Callable<PMCResults>, Serializable
+    {
+        private final Triple<Integer, Integer, AbstractModel<?>> pair;
+        private transient Project project;
+        private transient List<Layer> layerRange;
+        private transient Filter<Patch> filter;
+        private transient Rectangle box;
+
+        private boolean fpsInitted;
+
+        private final boolean layer1Fixed, layer2Fixed;
+
+        private final int blockRadius;
+        private final int searchRadius;
+        private final float minR, maxCurvatureR, rodR, layerScale;
+
+        private final Collection<Vertex> v1, v2;
+
+        private FloatProcessorChunk fp1, fp2, fp1Mask, fp2Mask;
+
+        public PointMatchCallable(final Triple<Integer, Integer, AbstractModel<?>> pair,
+                                  final Project project,
+                                  final List<Layer> layerRange,                                  
+                                  final Filter<Patch> filter,
+                                  final Rectangle box,
+                                  final Collection<Vertex> v1,
+                                  final Collection<Vertex> v2,
+                                  final Param p,
+                                  final boolean layer1Fixed,
+                                  final boolean layer2Fixed)
+        {
+            this.pair = pair;
+            this.project = project;
+            this.layerRange = layerRange;
+            this.filter = filter;
+            this.box = box;
+            this.v1 = v1;
+            this.v2 = v2;
+            this.layer1Fixed = layer1Fixed;
+            this.layer2Fixed = layer2Fixed;
+
+            fp1 = null;
+            fp2 = null;
+            fp1Mask = null;
+            fp2Mask = null;
+
+            fpsInitted = false;
+
+            blockRadius = Math.max( 16, mpicbg.util.Util.roundPos( p.layerScale * p.blockRadius ) );
+
+            /* scale pixel distances */
+            searchRadius = ( int )Math.round( p.layerScale * p.searchRadius );
+
+            rodR = p.rodR;
+            maxCurvatureR = p.maxCurvatureR;
+            minR = p.minR;
+            layerScale = p.layerScale;
+            
+        }
+
+        private void writeObject(ObjectOutputStream outStream) throws IOException
+        {
+            if (!fpsInitted)
+            {
+                generateFPCs();
+            }
+
+            outStream.defaultWriteObject();
+
+            release();
+        }
+
+        private void release()
+        {
+            fp1 = null;
+            fp2 = null;
+            fp1Mask = null;
+            fp2Mask = null;
+            fpsInitted = false;
+            System.gc();
+        }
+
+        private void generateFPCs()
+        {
+            final Layer layer1 =  layerRange.get( pair.a );
+            final Layer layer2 =  layerRange.get( pair.b );
+            project.getLoader().releaseAll();
+
+            final Image img1 = project.getLoader().getFlatAWTImage(
+                    layer1,
+                    box,
+                    layerScale,
+                    0xffffffff,
+                    ImagePlus.COLOR_RGB,
+                    Patch.class,
+                    AlignmentUtils.filterPatches( layer1, filter ),
+                    true,
+                    new Color( 0x00ffffff, true ) );
+
+            final Image img2 = project.getLoader().getFlatAWTImage(
+                    layer2,
+                    box,
+                    layerScale,
+                    0xffffffff,
+                    ImagePlus.COLOR_RGB,
+                    Patch.class,
+                    AlignmentUtils.filterPatches( layer1, filter ),
+                    true,
+                    new Color( 0x00ffffff, true ) );
+
+            final int width = img1.getWidth( null );
+            final int height = img1.getHeight( null );
+
+            final FloatProcessor ip1 = new FloatProcessor( width, height );
+            final FloatProcessor ip2 = new FloatProcessor( width, height );
+            final FloatProcessor ip1Mask = new FloatProcessor( width, height );
+            final FloatProcessor ip2Mask = new FloatProcessor( width, height );
+
+            mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
+            mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
+
+            fp1 = new FloatProcessorChunk(ip1);
+            fp2 = new FloatProcessorChunk(ip2);
+            fp1Mask = new FloatProcessorChunk(ip1Mask);
+            fp2Mask = new FloatProcessorChunk(ip2Mask);
+
+            fpsInitted = true;
+        }
+
+
+        public PMCResults call() throws Exception
+        {
+            if (!fpsInitted)
+            {
+                generateFPCs();
+            }
+
+            ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
+            ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
+
+            if (!layer1Fixed)
+            {
+                BlockMatching.matchByMaximalPMCC(
+                        fp1.getData(),
+                        fp2.getData(),
+                        fp1Mask.getData(),
+                        fp2Mask.getData(),
+                        1.0f,
+                        ( ( InvertibleCoordinateTransform )pair.c ).createInverse(),
+                        blockRadius,
+                        blockRadius,
+                        searchRadius,
+                        searchRadius,
+                        minR,
+                        rodR,
+                        maxCurvatureR,
+                        v1,
+                        pm12,
+                        new ErrorStatistic( 1 ) );
+            }
+
+            if (!layer2Fixed)
+            {
+                BlockMatching.matchByMaximalPMCC(
+                        fp2.getData(),
+                        fp1.getData(),
+                        fp2Mask.getData(),
+                        fp1Mask.getData(),
+                        1.0f,
+                        pair.c,
+                        blockRadius,
+                        blockRadius,
+                        searchRadius,
+                        searchRadius,
+                        minR,
+                        rodR,
+                        maxCurvatureR,
+                        v2,
+                        pm21,
+                        new ErrorStatistic( 1 ) );
+            }
+            
+            release();
+
+            System.out.println("Done");
+
+            return new PMCResults(pm12, pm21, pair);
+        }
+    }
+
+
+
+
 	final static public class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
 		private static final long serialVersionUID = 398966126705836033L;
@@ -678,7 +941,15 @@ J:				for ( int j = i + 1; j < range; )
 		
 		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( param.localModelIndex );
 		
-		
+        final ExecutorService executor = Cluster.activeCluster() ? Cluster.getCluster() : Executors.newSingleThreadExecutor(); 
+        
+		final ArrayList<Future<PMCResults>> results = new ArrayList<Future<PMCResults>>();
+
+        for (SpringMesh mesh : meshes)
+        {
+            cachePoints(mesh.getVertices());
+        }
+        
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
 		{
 			/* free memory */
@@ -686,9 +957,6 @@ J:				for ( int j = i + 1; j < range; )
 			
 			final SpringMesh m1 = meshes.get( pair.a );
 			final SpringMesh m2 = meshes.get( pair.b );
-
-			final ArrayList< PointMatch > pm12 = new ArrayList< PointMatch >();
-			final ArrayList< PointMatch > pm21 = new ArrayList< PointMatch >();
 
 			final Collection< Vertex > v1 = m1.getVertices();
 			final Collection< Vertex > v2 = m2.getVertices();
@@ -699,207 +967,171 @@ J:				for ( int j = i + 1; j < range; )
 			final boolean layer1Fixed = fixedLayers.contains( layer1 );
 			final boolean layer2Fixed = fixedLayers.contains( layer2 );
 			
-			final Tile< ? > t1 = tiles.get( pair.a );
-			final Tile< ? > t2 = tiles.get( pair.b );
-			
 			if ( !( layer1Fixed && layer2Fixed ) )
 			{
-				final Image img1 = project.getLoader().getFlatAWTImage(
-						layer1,
-						box,
-						param.layerScale,
-						0xffffffff,
-						ImagePlus.COLOR_RGB,
-						Patch.class,
-						AlignmentUtils.filterPatches( layer1, filter ),
-						true,
-						new Color( 0x00ffffff, true ) );
-				
-				final Image img2 = project.getLoader().getFlatAWTImage(
-						layer2,
-						box,
-						param.layerScale,
-						0xffffffff,
-						ImagePlus.COLOR_RGB,
-						Patch.class,
-						AlignmentUtils.filterPatches( layer2, filter ),
-						true,
-						new Color( 0x00ffffff, true ) );
-				
-				final int width = img1.getWidth( null );
-				final int height = img1.getHeight( null );
-	
-				final FloatProcessor ip1 = new FloatProcessor( width, height );
-				final FloatProcessor ip2 = new FloatProcessor( width, height );
-				final FloatProcessor ip1Mask = new FloatProcessor( width, height );
-				final FloatProcessor ip2Mask = new FloatProcessor( width, height );
-				
-				mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
-				mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
-				
-				final float springConstant  = 1.0f / ( pair.b - pair.a );
-				
-				if ( layer1Fixed )
-					initMeshes.fixTile( t1 );
-				else
-				{
-					try
-					{
-						BlockMatching.matchByMaximalPMCC(
-								ip1,
-								ip2,
-								ip1Mask,
-								ip2Mask,
-								1.0f,
-								( ( InvertibleCoordinateTransform )pair.c ).createInverse(),
-								blockRadius,
-								blockRadius,
-								searchRadius,
-								searchRadius,
-								param.minR,
-								param.rodR,
-								param.maxCurvatureR,
-								v1,
-								pm12,
-								new ErrorStatistic( 1 ) );
-					}
-					catch ( final InterruptedException e )
-					{
-						Utils.log( "Block matching interrupted." );
-						IJ.showProgress( 1.0 );
-						return;
-					}
-					if ( Thread.interrupted() )
-					{
-						Utils.log( "Block matching interrupted." );
-						IJ.showProgress( 1.0 );
-						return;
-					}
-		
-					if ( param.useLocalSmoothnessFilter )
-					{
-						Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
-						localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
-						Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
-					}
-					else
-					{
-						Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
-					}
-		
-					/* <visualisation> */
-					//			final List< Point > s1 = new ArrayList< Point >();
-					//			PointMatch.sourcePoints( pm12, s1 );
-					//			final ImagePlus imp1 = new ImagePlus( i + " >", ip1 );
-					//			imp1.show();
-					//			imp1.setOverlay( BlockMatching.illustrateMatches( pm12 ), Color.yellow, null );
-					//			imp1.setRoi( Util.pointsToPointRoi( s1 ) );
-					//			imp1.updateAndDraw();
-					/* </visualisation> */
-					
-					for ( final PointMatch pm : pm12 )
-					{
-						final Vertex p1 = ( Vertex )pm.getP1();
-						final Vertex p2 = new Vertex( pm.getP2() );
-						p1.addSpring( p2, new Spring( 0, springConstant ) );
-						m2.addPassiveVertex( p2 );
-					}
-					
-					/*
-					 * adding Tiles to the initialing TileConfiguration, adding a Tile
-					 * multiple times does not harm because the TileConfiguration is
-					 * backed by a Set. 
-					 */
-					if ( pm12.size() > pair.c.getMinNumMatches() )
-					{
-						initMeshes.addTile( t1 );
-						initMeshes.addTile( t2 );
-						t1.connect( t2, pm12 );
-					}
-				}
-	
-				if ( layer2Fixed )
-					initMeshes.fixTile( t2 );
-				else
-				{
-					try
-					{
-						BlockMatching.matchByMaximalPMCC(
-								ip2,
-								ip1,
-								ip2Mask,
-								ip1Mask,
-								1.0f,
-								pair.c,
-								blockRadius,
-								blockRadius,
-								searchRadius,
-								searchRadius,
-								param.minR,
-								param.rodR,
-								param.maxCurvatureR,
-								v2,
-								pm21,
-								new ErrorStatistic( 1 ) );
-					}
-					catch ( final InterruptedException e )
-					{
-						Utils.log( "Block matching interrupted." );
-						IJ.showProgress( 1.0 );
-						return;
-					}
-					if ( Thread.interrupted() )
-					{
-						Utils.log( "Block matching interrupted." );
-						IJ.showProgress( 1.0 );
-						return;
-					}
-		
-					if ( param.useLocalSmoothnessFilter )
-					{
-						Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
-						localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
-						Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
-					}
-					else
-					{
-						Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
-					}
-					
-					/* <visualisation> */
-					//			final List< Point > s2 = new ArrayList< Point >();
-					//			PointMatch.sourcePoints( pm21, s2 );
-					//			final ImagePlus imp2 = new ImagePlus( i + " <", ip2 );
-					//			imp2.show();
-					//			imp2.setOverlay( BlockMatching.illustrateMatches( pm21 ), Color.yellow, null );
-					//			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
-					//			imp2.updateAndDraw();
-					/* </visualisation> */
-					
-					for ( final PointMatch pm : pm21 )
-					{
-						final Vertex p1 = ( Vertex )pm.getP1();
-						final Vertex p2 = new Vertex( pm.getP2() );
-						p1.addSpring( p2, new Spring( 0, springConstant ) );
-						m1.addPassiveVertex( p2 );
-					}
-					
-					/*
-					 * adding Tiles to the initialing TileConfiguration, adding a Tile
-					 * multiple times does not harm because the TileConfiguration is
-					 * backed by a Set. 
-					 */
-					if ( pm21.size() > pair.c.getMinNumMatches() )
-					{
-						initMeshes.addTile( t1 );
-						initMeshes.addTile( t2 );
-						t2.connect( t1, pm21 );
-					}
-				}
-				
-				Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
+                results.add(executor.submit(new PointMatchCallable(
+                        pair,
+                        project,
+                        layerRange,
+                        filter,
+                        box,
+                        v1,
+                        v2,
+                        param,
+                        layer1Fixed,
+                        layer2Fixed)));
 			}
 		}
+
+        for (Future<PMCResults> future : results)
+        {
+
+            PMCResults pmcResult;
+            try
+            {
+                pmcResult = future.get();
+            }
+            catch (ExecutionException ee)
+            {
+                Utils.log( "Block matching interrupted." );
+                IJ.showProgress( 1.0 );
+                return;
+            }
+            catch (InterruptedException ie)
+            {
+                Utils.log( "Block matching interrupted." );
+                IJ.showProgress( 1.0 );
+                return;
+            }
+
+            final Triple<Integer, Integer, AbstractModel<?>> pair = pmcResult.pair;
+            final float springConstant  = 1.0f / ( pair.b - pair.a );
+            boolean layer1Fixed = false;
+            boolean layer2Fixed = false;
+            final Tile<?> t1 = tiles.get(pair.a);
+            final Tile<?> t2 = tiles.get(pair.b);
+            final SpringMesh m1 = meshes.get( pair.a );
+            final SpringMesh m2 = meshes.get( pair.b );
+
+            final ArrayList< PointMatch > pm12 = pmcResult.pm12;
+            final ArrayList< PointMatch > pm21 = pmcResult.pm21;
+
+            if (pmcResult.needsSync)
+            {
+                syncPointMatch(pmcResult.pm12);
+                syncPointMatch(pmcResult.pm21);
+            }
+            
+            if ( layer1Fixed )
+            {
+                initMeshes.fixTile( t1 );
+            }
+            else
+            {
+
+                if ( param.useLocalSmoothnessFilter )
+                {
+                    Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
+                    localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
+                    Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
+                }
+                else
+                {
+                    Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+                }
+
+                /* <visualisation> */
+                //			final List< Point > s1 = new ArrayList< Point >();
+                //			PointMatch.sourcePoints( pm12, s1 );
+                //			final ImagePlus imp1 = new ImagePlus( i + " >", ip1 );
+                //			imp1.show();
+                //			imp1.setOverlay( BlockMatching.illustrateMatches( pm12 ), Color.yellow, null );
+                //			imp1.setRoi( Util.pointsToPointRoi( s1 ) );
+                //			imp1.updateAndDraw();
+                /* </visualisation> */
+
+                for ( final PointMatch pm : pm12 )
+                {
+                    final Vertex p1 = ( Vertex )pm.getP1();
+                    final Vertex p2 = new Vertex( pm.getP2() );
+                    p1.addSpring( p2, new Spring( 0, springConstant ) );
+                    m2.addPassiveVertex( p2 );
+                }
+
+                /*
+                         * adding Tiles to the initialing TileConfiguration, adding a Tile
+                         * multiple times does not harm because the TileConfiguration is
+                         * backed by a Set. 
+                         */
+                if ( pm12.size() > pair.c.getMinNumMatches() )
+                {
+                    initMeshes.addTile( t1 );
+                    initMeshes.addTile( t2 );
+                    t1.connect( t2, pm12 );
+                }
+            }
+
+            if ( layer2Fixed )
+                initMeshes.fixTile( t2 );
+            else
+            {
+//                catch ( final InterruptedException e )
+//                {
+//                    Utils.log( "Block matching interrupted." );
+//                    IJ.showProgress( 1.0 );
+//                    return;
+//                }
+//                if ( Thread.interrupted() )
+//                {
+//                    Utils.log( "Block matching interrupted." );
+//                    IJ.showProgress( 1.0 );
+//                    return;
+//                }
+
+                if ( param.useLocalSmoothnessFilter )
+                {
+                    Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
+                    localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
+                    Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
+                }
+                else
+                {
+                    Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
+                }
+
+                /* <visualisation> */
+                //			final List< Point > s2 = new ArrayList< Point >();
+                //			PointMatch.sourcePoints( pm21, s2 );
+                //			final ImagePlus imp2 = new ImagePlus( i + " <", ip2 );
+                //			imp2.show();
+                //			imp2.setOverlay( BlockMatching.illustrateMatches( pm21 ), Color.yellow, null );
+                //			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
+                //			imp2.updateAndDraw();
+                /* </visualisation> */
+
+                for ( final PointMatch pm : pm21 )
+                {
+                    final Vertex p1 = ( Vertex )pm.getP1();
+                    final Vertex p2 = new Vertex( pm.getP2() );
+                    p1.addSpring( p2, new Spring( 0, springConstant ) );
+                    m1.addPassiveVertex( p2 );
+                }
+
+                /*
+                         * adding Tiles to the initialing TileConfiguration, adding a Tile
+                         * multiple times does not harm because the TileConfiguration is
+                         * backed by a Set. 
+                         */
+                if ( pm21.size() > pair.c.getMinNumMatches() )
+                {
+                    initMeshes.addTile( t1 );
+                    initMeshes.addTile( t2 );
+                    t2.connect( t1, pm21 );
+                }
+
+                Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
+            }
+        }
 		
 		/* pre-align by optimizing a piecewise linear model */ 
 		initMeshes.optimize(
@@ -954,6 +1186,16 @@ J:				for ( int j = i + 1; j < range; )
 		final Layer first = layerRange.get( 0 );
 		final List< Layer > layers = first.getParent().getLayers();
 		
+        final List<VectorData> vectorData = new ArrayList<VectorData>();
+        vectorData.addAll(first.getParent().getAll(AreaList.class));
+        vectorData.addAll(first.getParent().getAll(Ball.class));
+        vectorData.addAll(first.getParent().getAll(Dissector.class));
+        vectorData.addAll(first.getParent().getAll(Pipe.class));
+        vectorData.addAll(first.getParent().getAll(Polyline.class));
+        vectorData.addAll(first.getParent().getAll(Tree.class));
+        
+        Area infArea = AreaUtils.infiniteArea();
+        
 		/* transfer layer transform into patch transforms and append to patches */
 		if ( propagateTransformBefore || propagateTransformAfter )
 		{
@@ -984,8 +1226,24 @@ J:				for ( int j = i + 1; j < range; )
 			mlt.setModel( AffineModel2D.class );
 			mlt.setAlpha( 2.0f );
 			mlt.setMatches( meshes.get( l ).getVA().keySet() );
-			
-			applyTransformToLayer( layer, mlt, filter );
+
+            for (VectorData vectorDatum : vectorData)
+            {
+                vectorDatum.apply(layer, infArea, mlt);
+            }
+
+            for (DLabel dl : layer.getAll(DLabel.class))
+            {
+                dl.apply(layer, infArea, mlt);
+            }
+
+            for (Profile p : layer.getAll(Profile.class))
+            {
+                p.apply(layer, infArea, mlt);
+            }
+
+
+            applyTransformToLayer( layer, mlt, filter );
 					
 			if ( Thread.interrupted() )
 			{
@@ -1053,7 +1311,7 @@ J:				for ( int j = i + 1; j < range; )
 			final Thread thread = new Thread(
 					new Runnable()
 					{
-						@Override
+						//@Override
 						final public void run()
 						{
 							try

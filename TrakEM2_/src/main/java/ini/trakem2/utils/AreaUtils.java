@@ -17,6 +17,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -522,4 +523,17 @@ public final class AreaUtils {
 		
 		return as;
 	}
+
+        public static Area infiniteArea()
+        {
+            final Path2D.Double path = new Path2D.Double();
+            path.moveTo(Double.MAX_VALUE, Double.MAX_VALUE);
+            path.lineTo(-Double.MAX_VALUE, Double.MAX_VALUE);
+            path.lineTo(-Double.MAX_VALUE, -Double.MAX_VALUE);
+            path.lineTo(Double.MAX_VALUE, -Double.MAX_VALUE);
+            path.lineTo(Double.MAX_VALUE, Double.MAX_VALUE);
+
+            return new Area(path);
+        }
+
 }
