@@ -16,15 +16,13 @@
  */
 package mpicbg.trakem2.align;
 
-
-import archipelago.Cluster;
-import archipelago.ijsupport.FloatProcessorChunk;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.process.FloatProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.*;
+import ini.trakem2.persistence.FloatProcessorSASE;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
@@ -62,6 +60,7 @@ import mpicbg.models.TileConfiguration;
 import mpicbg.models.Transforms;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
+import mpicbg.trakem2.concurrent.ThreadPool;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.util.Triple;
 
@@ -156,7 +155,7 @@ public class ElasticLayerAlignment
 
         private final Collection<Vertex> v1, v2;
 
-        private FloatProcessorChunk fp1, fp2, fp1Mask, fp2Mask;
+        private FloatProcessorSASE fp1, fp2, fp1Mask, fp2Mask;
 
         public PointMatchCallable(final Triple<Integer, Integer, AbstractModel<?>> pair,
                                   final Project project,
@@ -259,10 +258,10 @@ public class ElasticLayerAlignment
             mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
             mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
 
-            fp1 = new FloatProcessorChunk(ip1);
-            fp2 = new FloatProcessorChunk(ip2);
-            fp1Mask = new FloatProcessorChunk(ip1Mask);
-            fp2Mask = new FloatProcessorChunk(ip2Mask);
+            fp1 = new FloatProcessorSASE(ip1);
+            fp2 = new FloatProcessorSASE(ip2);
+            fp1Mask = new FloatProcessorSASE(ip1Mask);
+            fp2Mask = new FloatProcessorSASE(ip2Mask);
 
             fpsInitted = true;
         }
@@ -941,7 +940,7 @@ J:				for ( int j = i + 1; j < range; )
 		
 		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( param.localModelIndex );
 		
-        final ExecutorService executor = Cluster.activeCluster() ? Cluster.getCluster() : Executors.newSingleThreadExecutor(); 
+        final ExecutorService executor = ThreadPool.getExecutorService(1);
         
 		final ArrayList<Future<PMCResults>> results = new ArrayList<Future<PMCResults>>();
 
