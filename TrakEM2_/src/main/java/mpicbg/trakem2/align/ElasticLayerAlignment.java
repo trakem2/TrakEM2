@@ -114,19 +114,24 @@ public class ElasticLayerAlignment
     
     protected static class PMCResults implements Serializable
     {
-        final public ArrayList<PointMatch> pm12;
-        final public ArrayList<PointMatch> pm21;
+        final public ArrayList<PointMatch> pm12, pm21;
         final public Triple<Integer, Integer, AbstractModel<?>> pair;
+        final public boolean layer1fixed, layer2fixed;
         public boolean needsSync;
 
         public PMCResults(final ArrayList<PointMatch> pm12,
                           final ArrayList<PointMatch> pm21,
-                          Triple<Integer, Integer, AbstractModel<?>> pair)
+                          Triple<Integer, Integer, AbstractModel<?>> pair,
+                          final boolean layer1fixed,
+                          final boolean layer2fixed)
         {
             this.pm12 = pm12;
             this.pm21 = pm21;
             this.pair = pair;
+            this.layer1fixed = layer1fixed;
+            this.layer2fixed = layer2fixed;
             this.needsSync = false;
+
         }
 
         private void readObject(ObjectInputStream input) throws ClassNotFoundException, IOException
@@ -219,50 +224,52 @@ public class ElasticLayerAlignment
             System.gc();
         }
 
-        private void generateFPCs()
+        private void generateFPCs()                
         {
-            final Layer layer1 =  layerRange.get( pair.a );
-            final Layer layer2 =  layerRange.get( pair.b );
-            project.getLoader().releaseAll();
+            if (! (layer1Fixed && layer2Fixed))
+            {
+                final Layer layer1 =  layerRange.get( pair.a );
+                final Layer layer2 =  layerRange.get( pair.b );
+                project.getLoader().releaseAll();
 
-            final Image img1 = project.getLoader().getFlatAWTImage(
-                    layer1,
-                    box,
-                    layerScale,
-                    0xffffffff,
-                    ImagePlus.COLOR_RGB,
-                    Patch.class,
-                    AlignmentUtils.filterPatches( layer1, filter ),
-                    true,
-                    new Color( 0x00ffffff, true ) );
+                final Image img1 = project.getLoader().getFlatAWTImage(
+                        layer1,
+                        box,
+                        layerScale,
+                        0xffffffff,
+                        ImagePlus.COLOR_RGB,
+                        Patch.class,
+                        AlignmentUtils.filterPatches( layer1, filter ),
+                        true,
+                        new Color( 0x00ffffff, true ) );
 
-            final Image img2 = project.getLoader().getFlatAWTImage(
-                    layer2,
-                    box,
-                    layerScale,
-                    0xffffffff,
-                    ImagePlus.COLOR_RGB,
-                    Patch.class,
-                    AlignmentUtils.filterPatches( layer1, filter ),
-                    true,
-                    new Color( 0x00ffffff, true ) );
+                final Image img2 = project.getLoader().getFlatAWTImage(
+                        layer2,
+                        box,
+                        layerScale,
+                        0xffffffff,
+                        ImagePlus.COLOR_RGB,
+                        Patch.class,
+                        AlignmentUtils.filterPatches( layer2, filter ),
+                        true,
+                        new Color( 0x00ffffff, true ) );
 
-            final int width = img1.getWidth( null );
-            final int height = img1.getHeight( null );
+                final int width = img1.getWidth( null );
+                final int height = img1.getHeight( null );
 
-            final FloatProcessor ip1 = new FloatProcessor( width, height );
-            final FloatProcessor ip2 = new FloatProcessor( width, height );
-            final FloatProcessor ip1Mask = new FloatProcessor( width, height );
-            final FloatProcessor ip2Mask = new FloatProcessor( width, height );
+                final FloatProcessor ip1 = new FloatProcessor( width, height );
+                final FloatProcessor ip2 = new FloatProcessor( width, height );
+                final FloatProcessor ip1Mask = new FloatProcessor( width, height );
+                final FloatProcessor ip2Mask = new FloatProcessor( width, height );
 
-            mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
-            mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
+                mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
+                mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
 
-            fp1 = new FloatProcessorSASE(ip1);
-            fp2 = new FloatProcessorSASE(ip2);
-            fp1Mask = new FloatProcessorSASE(ip1Mask);
-            fp2Mask = new FloatProcessorSASE(ip2Mask);
-
+                fp1 = new FloatProcessorSASE(ip1);
+                fp2 = new FloatProcessorSASE(ip2);
+                fp1Mask = new FloatProcessorSASE(ip1Mask);
+                fp2Mask = new FloatProcessorSASE(ip2Mask);
+            }
             fpsInitted = true;
         }
 
@@ -323,7 +330,7 @@ public class ElasticLayerAlignment
 
             System.out.println("Done");
 
-            return new PMCResults(pm12, pm21, pair);
+            return new PMCResults(pm12, pm21, pair, layer1Fixed, layer2Fixed);
         }
     }
 
@@ -639,8 +646,6 @@ public class ElasticLayerAlignment
 	 * @param fixedLayers
 	 * @param emptyLayers
 	 * @param box
-	 * @param propagateTransform
-	 * @param fov
 	 * @param filter
 	 * @throws Exception
 	 */
@@ -657,6 +662,7 @@ public class ElasticLayerAlignment
 	{
 		final double scale = Math.min( 1.0, Math.min( ( double )param.ppm.sift.maxOctaveSize / ( double )box.width, ( double )param.ppm.sift.maxOctaveSize / ( double )box.height ) );
 		
+        System.out.println("Your are using TrakEM Larry Rev B");
 		
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
@@ -934,7 +940,7 @@ J:				for ( int j = i + 1; j < range; )
 		Utils.log( "effective block radius = " + blockRadius );
 		
 		/* scale pixel distances */
-		final int searchRadius = ( int )Math.round( param.layerScale * param.searchRadius );
+		//final int searchRadius = ( int )Math.round( param.layerScale * param.searchRadius );
 		final float localRegionSigma = param.layerScale * param.localRegionSigma;
 		final float maxLocalEpsilon = param.layerScale * param.maxLocalEpsilon;
 		
@@ -942,7 +948,7 @@ J:				for ( int j = i + 1; j < range; )
 		
         final ExecutorService executor = ThreadPool.getExecutorService(1);
         
-		final ArrayList<Future<PMCResults>> results = new ArrayList<Future<PMCResults>>();
+		final ArrayList<Future<PMCResults>> results = new ArrayList<Future<PMCResults>>(pairs.size());
 
         for (SpringMesh mesh : meshes)
         {
@@ -966,8 +972,6 @@ J:				for ( int j = i + 1; j < range; )
 			final boolean layer1Fixed = fixedLayers.contains( layer1 );
 			final boolean layer2Fixed = fixedLayers.contains( layer2 );
 			
-			if ( !( layer1Fixed && layer2Fixed ) )
-			{
                 results.add(executor.submit(new PointMatchCallable(
                         pair,
                         project,
@@ -979,8 +983,7 @@ J:				for ( int j = i + 1; j < range; )
                         param,
                         layer1Fixed,
                         layer2Fixed)));
-			}
-		}
+        }
 
         for (Future<PMCResults> future : results)
         {
@@ -1005,8 +1008,8 @@ J:				for ( int j = i + 1; j < range; )
 
             final Triple<Integer, Integer, AbstractModel<?>> pair = pmcResult.pair;
             final float springConstant  = 1.0f / ( pair.b - pair.a );
-            boolean layer1Fixed = false;
-            boolean layer2Fixed = false;
+            boolean layer1Fixed = pmcResult.layer1fixed;
+            boolean layer2Fixed = pmcResult.layer2fixed;
             final Tile<?> t1 = tiles.get(pair.a);
             final Tile<?> t2 = tiles.get(pair.b);
             final SpringMesh m1 = meshes.get( pair.a );
@@ -1015,65 +1018,68 @@ J:				for ( int j = i + 1; j < range; )
             final ArrayList< PointMatch > pm12 = pmcResult.pm12;
             final ArrayList< PointMatch > pm21 = pmcResult.pm21;
 
-            if (pmcResult.needsSync)
-            {
-                syncPointMatch(pmcResult.pm12);
-                syncPointMatch(pmcResult.pm21);
-            }
-            
-            if ( layer1Fixed )
-            {
-                initMeshes.fixTile( t1 );
-            }
-            else
+            if ( !( layer1Fixed && layer2Fixed ))
             {
 
-                if ( param.useLocalSmoothnessFilter )
+                if (pmcResult.needsSync)
                 {
-                    Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
-                    localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
-                    Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
+                    syncPointMatch(pmcResult.pm12);
+                    syncPointMatch(pmcResult.pm21);
+                }
+
+                if ( layer1Fixed )
+                {
+                    initMeshes.fixTile( t1 );
                 }
                 else
                 {
-                    Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+
+                    if ( param.useLocalSmoothnessFilter )
+                    {
+                        Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
+                        localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
+                        Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
+                    }
+                    else
+                    {
+                        Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondences." );
+                    }
+
+                    /* <visualisation> */
+                    //			final List< Point > s1 = new ArrayList< Point >();
+                    //			PointMatch.sourcePoints( pm12, s1 );
+                    //			final ImagePlus imp1 = new ImagePlus( i + " >", ip1 );
+                    //			imp1.show();
+                    //			imp1.setOverlay( BlockMatching.illustrateMatches( pm12 ), Color.yellow, null );
+                    //			imp1.setRoi( Util.pointsToPointRoi( s1 ) );
+                    //			imp1.updateAndDraw();
+                    /* </visualisation> */
+
+                    for ( final PointMatch pm : pm12 )
+                    {
+                        final Vertex p1 = ( Vertex )pm.getP1();
+                        final Vertex p2 = new Vertex( pm.getP2() );
+                        p1.addSpring( p2, new Spring( 0, springConstant ) );
+                        m2.addPassiveVertex( p2 );
+                    }
+
+                    /*
+                    * adding Tiles to the initialing TileConfiguration, adding a Tile
+                    * multiple times does not harm because the TileConfiguration is
+                    * backed by a Set.
+                    */
+                    if ( pm12.size() > pair.c.getMinNumMatches() )
+                    {
+                        initMeshes.addTile( t1 );
+                        initMeshes.addTile( t2 );
+                        t1.connect( t2, pm12 );
+                    }
                 }
 
-                /* <visualisation> */
-                //			final List< Point > s1 = new ArrayList< Point >();
-                //			PointMatch.sourcePoints( pm12, s1 );
-                //			final ImagePlus imp1 = new ImagePlus( i + " >", ip1 );
-                //			imp1.show();
-                //			imp1.setOverlay( BlockMatching.illustrateMatches( pm12 ), Color.yellow, null );
-                //			imp1.setRoi( Util.pointsToPointRoi( s1 ) );
-                //			imp1.updateAndDraw();
-                /* </visualisation> */
-
-                for ( final PointMatch pm : pm12 )
+                if ( layer2Fixed )
+                    initMeshes.fixTile( t2 );
+                else
                 {
-                    final Vertex p1 = ( Vertex )pm.getP1();
-                    final Vertex p2 = new Vertex( pm.getP2() );
-                    p1.addSpring( p2, new Spring( 0, springConstant ) );
-                    m2.addPassiveVertex( p2 );
-                }
-
-                /*
-                         * adding Tiles to the initialing TileConfiguration, adding a Tile
-                         * multiple times does not harm because the TileConfiguration is
-                         * backed by a Set. 
-                         */
-                if ( pm12.size() > pair.c.getMinNumMatches() )
-                {
-                    initMeshes.addTile( t1 );
-                    initMeshes.addTile( t2 );
-                    t1.connect( t2, pm12 );
-                }
-            }
-
-            if ( layer2Fixed )
-                initMeshes.fixTile( t2 );
-            else
-            {
 //                catch ( final InterruptedException e )
 //                {
 //                    Utils.log( "Block matching interrupted." );
@@ -1087,45 +1093,46 @@ J:				for ( int j = i + 1; j < range; )
 //                    return;
 //                }
 
-                if ( param.useLocalSmoothnessFilter )
-                {
-                    Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
-                    localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
-                    Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
-                }
-                else
-                {
-                    Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
-                }
+                    if ( param.useLocalSmoothnessFilter )
+                    {
+                        Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
+                        localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
+                        Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
+                    }
+                    else
+                    {
+                        Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondences." );
+                    }
 
-                /* <visualisation> */
-                //			final List< Point > s2 = new ArrayList< Point >();
-                //			PointMatch.sourcePoints( pm21, s2 );
-                //			final ImagePlus imp2 = new ImagePlus( i + " <", ip2 );
-                //			imp2.show();
-                //			imp2.setOverlay( BlockMatching.illustrateMatches( pm21 ), Color.yellow, null );
-                //			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
-                //			imp2.updateAndDraw();
-                /* </visualisation> */
+                    /* <visualisation> */
+                    //			final List< Point > s2 = new ArrayList< Point >();
+                    //			PointMatch.sourcePoints( pm21, s2 );
+                    //			final ImagePlus imp2 = new ImagePlus( i + " <", ip2 );
+                    //			imp2.show();
+                    //			imp2.setOverlay( BlockMatching.illustrateMatches( pm21 ), Color.yellow, null );
+                    //			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
+                    //			imp2.updateAndDraw();
+                    /* </visualisation> */
 
-                for ( final PointMatch pm : pm21 )
-                {
-                    final Vertex p1 = ( Vertex )pm.getP1();
-                    final Vertex p2 = new Vertex( pm.getP2() );
-                    p1.addSpring( p2, new Spring( 0, springConstant ) );
-                    m1.addPassiveVertex( p2 );
-                }
+                    for ( final PointMatch pm : pm21 )
+                    {
+                        final Vertex p1 = ( Vertex )pm.getP1();
+                        final Vertex p2 = new Vertex( pm.getP2() );
+                        p1.addSpring( p2, new Spring( 0, springConstant ) );
+                        m1.addPassiveVertex( p2 );
+                    }
 
-                /*
-                         * adding Tiles to the initialing TileConfiguration, adding a Tile
-                         * multiple times does not harm because the TileConfiguration is
-                         * backed by a Set. 
-                         */
-                if ( pm21.size() > pair.c.getMinNumMatches() )
-                {
-                    initMeshes.addTile( t1 );
-                    initMeshes.addTile( t2 );
-                    t2.connect( t1, pm21 );
+                    /*
+                    * adding Tiles to the initialing TileConfiguration, adding a Tile
+                    * multiple times does not harm because the TileConfiguration is
+                    * backed by a Set.
+                    */
+                    if ( pm21.size() > pair.c.getMinNumMatches() )
+                    {
+                        initMeshes.addTile( t1 );
+                        initMeshes.addTile( t2 );
+                        t2.connect( t1, pm21 );
+                    }
                 }
 
                 Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
