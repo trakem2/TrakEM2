@@ -71,9 +71,9 @@ public class ElasticLayerAlignment
 {
 
     private static AtomicLong idGenerator = new AtomicLong(1);
-    private static Hashtable<Long, Point> pointCache = new Hashtable<Long, Point>();
+    private Hashtable<Long, Point> pointCache = new Hashtable<Long, Point>();
 
-    protected synchronized static void cachePoints(Collection<? extends Point> points)
+    protected synchronized void cachePoints(Collection<? extends Point> points)
     {
         for (Point p : points)
         {
@@ -85,7 +85,7 @@ public class ElasticLayerAlignment
         }
     }
 
-    protected synchronized static void syncPointMatch(Collection<PointMatch> pointMatches)
+    protected synchronized void syncPointMatch(Collection<PointMatch> pointMatches)
     {
         for (PointMatch pm : pointMatches)
         {
@@ -111,6 +111,13 @@ public class ElasticLayerAlignment
             }
         }
     }
+
+    protected synchronized void clearPointCache()
+    {
+        pointCache.clear();
+    }
+
+
     
     protected static class PMCResults implements Serializable
     {
@@ -1138,7 +1145,9 @@ J:				for ( int j = i + 1; j < range; )
                 Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
             }
         }
-		
+
+        clearPointCache();
+
 		/* pre-align by optimizing a piecewise linear model */ 
 		initMeshes.optimize(
 				param.maxEpsilon * param.layerScale,
