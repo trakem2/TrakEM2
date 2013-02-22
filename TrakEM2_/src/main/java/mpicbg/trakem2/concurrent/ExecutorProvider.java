@@ -10,6 +10,8 @@ import java.util.concurrent.ExecutorService;
 public interface ExecutorProvider
 {
 
-    public ExecutorService getExecutor(int nThreads);
+    public ExecutorService getService(int nThreads);
+    
+    public ExecutorService getService(float fractionThreads);
 
 }

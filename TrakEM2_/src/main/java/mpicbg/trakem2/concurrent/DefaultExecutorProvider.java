@@ -10,7 +10,15 @@ import java.util.concurrent.Executors;
  */
 public class DefaultExecutorProvider implements ExecutorProvider
 {
-    public ExecutorService getExecutor(int nThreads) {
+    public ExecutorService getService(int nThreads)
+    {
         return Executors.newFixedThreadPool(nThreads);
+    }
+    
+    public ExecutorService getService(float fractionThreads)
+    {
+        int nc = (int)(fractionThreads *
+                (float)Runtime.getRuntime().availableProcessors());
+        return Executors.newFixedThreadPool(nc > 0 ? nc : 1);
     }
 }

@@ -14,7 +14,12 @@ public class ThreadPool
     
     public static ExecutorService getExecutorService(final int nThreads)
     {
-        return provider.getExecutor(nThreads);
+        return provider.getService(nThreads);
+    }
+    
+    public static ExecutorService getExecutorService(final float fractionThreads)
+    {
+        return provider.getService(fractionThreads);
     }
     
     public static void setProvider(final ExecutorProvider ep)
