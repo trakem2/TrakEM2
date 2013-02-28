@@ -68,9 +68,11 @@ import mpicbg.trakem2.util.Triple;
  */
 public class ElasticLayerAlignment
 {
-	final static protected class Param extends AbstractLayerAlignmentParam implements Serializable
+	final static public class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
-		private static final long serialVersionUID = 7311578169972106107L;
+		private static final long serialVersionUID = 398966126705836033L;
+
+		public boolean isAligned = false;
 		
 		public float layerScale = 0.1f;
 		public float minR = 0.6f;
@@ -270,7 +272,6 @@ public class ElasticLayerAlignment
 					desiredModelIndex,
 					expectedModelIndex,
 					identityTolerance,
-					isAligned,
 					maxEpsilon,
 					maxIterationsOptimize,
 					maxNumFailures,
@@ -283,6 +284,7 @@ public class ElasticLayerAlignment
 					rejectIdentity,
 					visualize );
 			
+			this.isAligned = isAligned;
 			this.blockRadius = blockRadius;
 			this.dampSpringMesh = dampSpringMesh;
 			this.layerScale = layerScale;
@@ -389,17 +391,16 @@ public class ElasticLayerAlignment
 			final Rectangle box,
 			final boolean propagateTransformBefore,
 			final boolean propagateTransformAfter,
-			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
 	{
-		final double scale = Math.min( 1.0, Math.min( ( double )p.ppm.sift.maxOctaveSize / ( double )box.width, ( double )p.ppm.sift.maxOctaveSize / ( double )box.height ) );
+		final double scale = Math.min( 1.0, Math.min( ( double )param.ppm.sift.maxOctaveSize / ( double )box.width, ( double )param.ppm.sift.maxOctaveSize / ( double )box.height ) );
 		
 		
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
-			switch ( p.desiredModelIndex )
+			switch ( param.desiredModelIndex )
 			{
 			case 0:
 				tiles.add( new Tile< TranslationModel2D >( new TranslationModel2D() ) );
@@ -425,7 +426,7 @@ public class ElasticLayerAlignment
 		final ArrayList< Triple< Integer, Integer, AbstractModel< ? > > > pairs = new ArrayList< Triple< Integer, Integer, AbstractModel< ? > > >();
 		
 		
-		if ( !p.isAligned )
+		if ( !param.isAligned )
 		{
 		
 			/* extract and save features, overwrite cached files if requested */
@@ -441,21 +442,21 @@ public class ElasticLayerAlignment
 			/* match and filter feature correspondences */
 			int numFailures = 0;
 			
-			final double pointMatchScale = p.layerScale / scale;
+			final double pointMatchScale = param.layerScale / scale;
 			
 			for ( int i = 0; i < layerRange.size(); ++i )
 			{
-				final ArrayList< Thread > threads = new ArrayList< Thread >( p.maxNumThreads );
+				final ArrayList< Thread > threads = new ArrayList< Thread >( param.maxNumThreads );
 				
 				final int sliceA = i;
 				final Layer layerA = layerRange.get( i );
-				final int range = Math.min( layerRange.size(), i + p.maxNumNeighbors + 1 );
+				final int range = Math.min( layerRange.size(), i + param.maxNumNeighbors + 1 );
 				
 				final String layerNameA = layerName( layerA );
 				
 J:				for ( int j = i + 1; j < range; )
 				{
-					final int numThreads = Math.min( p.maxNumThreads, range - j );
+					final int numThreads = Math.min( param.maxNumThreads, range - j );
 					final ArrayList< Triple< Integer, Integer, AbstractModel< ? > > > models =
 						new ArrayList< Triple< Integer, Integer, AbstractModel< ? > > >( numThreads );
 					
@@ -480,17 +481,17 @@ J:				for ( int j = i + 1; j < range; )
 								Utils.log( "matching " + layerNameB + " -> " + layerNameA + "..." );
 								
 								ArrayList< PointMatch > candidates = null;
-								if ( !p.ppm.clearCache )
+								if ( !param.ppm.clearCache )
 									candidates = mpicbg.trakem2.align.Util.deserializePointMatches(
-											project, p.ppm, "layer", layerB.getId(), layerA.getId() );
+											project, param.ppm, "layer", layerB.getId(), layerA.getId() );
 								
 								if ( null == candidates )
 								{
 									final ArrayList< Feature > fs1 = mpicbg.trakem2.align.Util.deserializeFeatures(
-											project, p.ppm.sift, "layer", layerA.getId() );
+											project, param.ppm.sift, "layer", layerA.getId() );
 									final ArrayList< Feature > fs2 = mpicbg.trakem2.align.Util.deserializeFeatures(
-											project, p.ppm.sift, "layer", layerB.getId() );
-									candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, p.ppm.rod ) );
+											project, param.ppm.sift, "layer", layerB.getId() );
+									candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, param.ppm.rod ) );
 									
 									/* scale the candidates */
 									for ( final PointMatch pm : candidates )
@@ -514,12 +515,12 @@ J:				for ( int j = i + 1; j < range; )
 									}
 									
 									if ( !mpicbg.trakem2.align.Util.serializePointMatches(
-											project, p.ppm, "layer", layerB.getId(), layerA.getId(), candidates ) )
+											project, param.ppm, "layer", layerB.getId(), layerA.getId(), candidates ) )
 										Utils.log( "Could not store point match candidates for layers " + layerNameB + " and " + layerNameA + "." );
 								}
 			
 								AbstractModel< ? > model;
-								switch ( p.expectedModelIndex )
+								switch ( param.expectedModelIndex )
 								{
 								case 0:
 									model = new TranslationModel2D();
@@ -553,15 +554,15 @@ J:				for ( int j = i + 1; j < range; )
 													candidates,
 													inliers,
 													1000,
-													p.maxEpsilon * p.layerScale,
-													p.minInlierRatio,
-													p.minNumInliers,
+													param.maxEpsilon * param.layerScale,
+													param.minInlierRatio,
+													param.minNumInliers,
 													3 );
-										if ( modelFound && p.rejectIdentity )
+										if ( modelFound && param.rejectIdentity )
 										{
 											final ArrayList< Point > points = new ArrayList< Point >();
 											PointMatch.sourcePoints( inliers, points );
-											if ( Transforms.isIdentity( model, points, p.identityTolerance *  p.layerScale ) )
+											if ( Transforms.isIdentity( model, points, param.identityTolerance *  param.layerScale ) )
 											{
 												IJ.log( "Identity transform for " + inliers.size() + " matches rejected." );
 												candidates.removeAll( inliers );
@@ -579,7 +580,7 @@ J:				for ( int j = i + 1; j < range; )
 								
 								if ( modelFound )
 								{
-									Utils.log( layerNameB + " -> " + layerNameA + ": " + inliers.size() + " corresponding features with an average displacement of " + ( PointMatch.meanDistance( inliers ) / p.layerScale ) + "px identified." );
+									Utils.log( layerNameB + " -> " + layerNameA + ": " + inliers.size() + " corresponding features with an average displacement of " + ( PointMatch.meanDistance( inliers ) / param.layerScale ) + "px identified." );
 									Utils.log( "Estimated transformation model: " + model );
 									models.set( ti, new Triple< Integer, Integer, AbstractModel< ? > >( sliceA, sliceB, model ) );
 								}
@@ -621,7 +622,7 @@ J:				for ( int j = i + 1; j < range; )
 						final Triple< Integer, Integer, AbstractModel< ? > > pair = models.get( t );
 						if ( pair == null )
 						{
-							if ( ++numFailures > p.maxNumFailures )
+							if ( ++numFailures > param.maxNumFailures )
 								break J;
 						}
 						else
@@ -637,7 +638,7 @@ J:				for ( int j = i + 1; j < range; )
 		{
 			for ( int i = 0; i < layerRange.size(); ++i )
 			{
-				final int range = Math.min( layerRange.size(), i + p.maxNumNeighbors + 1 );
+				final int range = Math.min( layerRange.size(), i + param.maxNumNeighbors + 1 );
 				
 				for ( int j = i + 1; j < range; ++j )
 				{
@@ -651,31 +652,31 @@ J:				for ( int j = i + 1; j < range; )
 		/* Initialization */
 		final TileConfiguration initMeshes = new TileConfiguration();
 		
-		final int meshWidth = ( int )Math.ceil( box.width * p.layerScale );
-		final int meshHeight = ( int )Math.ceil( box.height * p.layerScale );
+		final int meshWidth = ( int )Math.ceil( box.width * param.layerScale );
+		final int meshHeight = ( int )Math.ceil( box.height * param.layerScale );
 		
 		final ArrayList< SpringMesh > meshes = new ArrayList< SpringMesh >( layerRange.size() );
 		for ( int i = 0; i < layerRange.size(); ++i )
 			meshes.add(
 					new SpringMesh(
-							p.resolutionSpringMesh,
+							param.resolutionSpringMesh,
 							meshWidth,
 							meshHeight,
-							p.stiffnessSpringMesh,
-							p.maxStretchSpringMesh * p.layerScale,
-							p.dampSpringMesh ) );
+							param.stiffnessSpringMesh,
+							param.maxStretchSpringMesh * param.layerScale,
+							param.dampSpringMesh ) );
 		
 		//final int blockRadius = Math.max( 32, meshWidth / p.resolutionSpringMesh / 2 );
-		final int blockRadius = Math.max( 16, mpicbg.util.Util.roundPos( p.layerScale * p.blockRadius ) );
+		final int blockRadius = Math.max( 16, mpicbg.util.Util.roundPos( param.layerScale * param.blockRadius ) );
 		
 		Utils.log( "effective block radius = " + blockRadius );
 		
 		/* scale pixel distances */
-		final int searchRadius = ( int )Math.round( p.layerScale * p.searchRadius );
-		final float localRegionSigma = p.layerScale * p.localRegionSigma;
-		final float maxLocalEpsilon = p.layerScale * p.maxLocalEpsilon;
+		final int searchRadius = ( int )Math.round( param.layerScale * param.searchRadius );
+		final float localRegionSigma = param.layerScale * param.localRegionSigma;
+		final float maxLocalEpsilon = param.layerScale * param.maxLocalEpsilon;
 		
-		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( p.localModelIndex );
+		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( param.localModelIndex );
 		
 		
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
@@ -706,7 +707,7 @@ J:				for ( int j = i + 1; j < range; )
 				final Image img1 = project.getLoader().getFlatAWTImage(
 						layer1,
 						box,
-						p.layerScale,
+						param.layerScale,
 						0xffffffff,
 						ImagePlus.COLOR_RGB,
 						Patch.class,
@@ -717,7 +718,7 @@ J:				for ( int j = i + 1; j < range; )
 				final Image img2 = project.getLoader().getFlatAWTImage(
 						layer2,
 						box,
-						p.layerScale,
+						param.layerScale,
 						0xffffffff,
 						ImagePlus.COLOR_RGB,
 						Patch.class,
@@ -755,9 +756,9 @@ J:				for ( int j = i + 1; j < range; )
 								blockRadius,
 								searchRadius,
 								searchRadius,
-								p.minR,
-								p.rodR,
-								p.maxCurvatureR,
+								param.minR,
+								param.rodR,
+								param.maxCurvatureR,
 								v1,
 								pm12,
 								new ErrorStatistic( 1 ) );
@@ -775,10 +776,10 @@ J:				for ( int j = i + 1; j < range; )
 						return;
 					}
 		
-					if ( p.useLocalSmoothnessFilter )
+					if ( param.useLocalSmoothnessFilter )
 					{
 						Utils.log( pair.a + " > " + pair.b + ": found " + pm12.size() + " correspondence candidates." );
-						localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+						localSmoothnessFilterModel.localSmoothnessFilter( pm12, pm12, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
 						Utils.log( pair.a + " > " + pair.b + ": " + pm12.size() + " candidates passed local smoothness filter." );
 					}
 					else
@@ -834,9 +835,9 @@ J:				for ( int j = i + 1; j < range; )
 								blockRadius,
 								searchRadius,
 								searchRadius,
-								p.minR,
-								p.rodR,
-								p.maxCurvatureR,
+								param.minR,
+								param.rodR,
+								param.maxCurvatureR,
 								v2,
 								pm21,
 								new ErrorStatistic( 1 ) );
@@ -854,10 +855,10 @@ J:				for ( int j = i + 1; j < range; )
 						return;
 					}
 		
-					if ( p.useLocalSmoothnessFilter )
+					if ( param.useLocalSmoothnessFilter )
 					{
 						Utils.log( pair.a + " < " + pair.b + ": found " + pm21.size() + " correspondence candidates." );
-						localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, p.maxLocalTrust );
+						localSmoothnessFilterModel.localSmoothnessFilter( pm21, pm21, localRegionSigma, maxLocalEpsilon, param.maxLocalTrust );
 						Utils.log( pair.a + " < " + pair.b + ": " + pm21.size() + " candidates passed local smoothness filter." );
 					}
 					else
@@ -902,9 +903,9 @@ J:				for ( int j = i + 1; j < range; )
 		
 		/* pre-align by optimizing a piecewise linear model */ 
 		initMeshes.optimize(
-				p.maxEpsilon * p.layerScale,
-				p.maxIterationsSpringMesh,
-				p.maxPlateauwidthSpringMesh );
+				param.maxEpsilon * param.layerScale,
+				param.maxIterationsSpringMesh,
+				param.maxPlateauwidthSpringMesh );
 		for ( int i = 0; i < layerRange.size(); ++i )
 			meshes.get( i ).init( tiles.get( i ).getModel() );
 
@@ -916,10 +917,10 @@ J:				for ( int j = i + 1; j < range; )
 			
 			SpringMesh.optimizeMeshes(
 					meshes,
-					p.maxEpsilon * p.layerScale,
-					p.maxIterationsSpringMesh,
-					p.maxPlateauwidthSpringMesh,
-					p.visualize );
+					param.maxEpsilon * param.layerScale,
+					param.maxIterationsSpringMesh,
+					param.maxPlateauwidthSpringMesh,
+					param.visualize );
 
 			Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
 			
@@ -940,10 +941,10 @@ J:				for ( int j = i + 1; j < range; )
 				final Point p2 = pm.getP2();
 				final float[] l = p1.getL();
 				final float[] w = p2.getW();
-				l[ 0 ] = l[ 0 ] / p.layerScale + box.x;
-				l[ 1 ] = l[ 1 ] / p.layerScale + box.y;
-				w[ 0 ] = w[ 0 ] / p.layerScale + box.x;
-				w[ 1 ] = w[ 1 ] / p.layerScale + box.y;
+				l[ 0 ] = l[ 0 ] / param.layerScale + box.x;
+				l[ 1 ] = l[ 1 ] / param.layerScale + box.y;
+				w[ 0 ] = w[ 0 ] / param.layerScale + box.x;
+				w[ 1 ] = w[ 1 ] / param.layerScale + box.y;
 			}
 		}
 		
@@ -1143,7 +1144,7 @@ J:				for ( int j = i + 1; j < range; )
 
 		if ( !p.setup( box ) ) return;
 		
-		exec( p.clone(), project, layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, fov, filter );
+		exec( p.clone(), project, layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, filter );
 	}
 	
 

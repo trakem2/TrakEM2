@@ -5088,7 +5088,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
 			
 			// find any locked or selected patches
-			final ArrayList<Patch> fixed = new ArrayList<Patch>();
+			final HashSet<Patch> fixed = new HashSet<Patch>();
 			for (final Patch p : patches) {
 				if (p.isLocked2() || selection.contains(p)) fixed.add(p);
 			}

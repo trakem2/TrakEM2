@@ -70,9 +70,9 @@ import mpicbg.util.Util;
  */
 public class ElasticMontage
 {
-	final static protected class Param implements Serializable
+	final static public class Param implements Serializable
 	{	
-		private static final long serialVersionUID = -9038685991584959571L;
+		private static final long serialVersionUID = -6399667695920639981L;
 
 		public ParamOptimize po = new ParamOptimize();
 		{
@@ -348,7 +348,7 @@ public class ElasticMontage
 	
 	final public void exec(
 			final List< Patch > patches,
-			final List< Patch > fixedPatches ) throws Exception
+			final Set< Patch > fixedPatches ) throws Exception
 	{
 		/* make sure that passed patches are ok */
 		if ( patches.size() < 2 )
@@ -385,7 +385,7 @@ public class ElasticMontage
 	final public void exec(
 			final Param param,
 			final List< Patch > patches,
-			final List< Patch > fixedPatches ) throws Exception
+			final Set< Patch > fixedPatches ) throws Exception
 	{
 		/* free memory */
 		patches.get( 0 ).getProject().getLoader().releaseAll();

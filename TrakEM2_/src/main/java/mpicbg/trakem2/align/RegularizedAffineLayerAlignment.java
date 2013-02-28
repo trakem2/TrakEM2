@@ -61,10 +61,10 @@ import mpicbg.trakem2.util.Triple;
  */
 public class RegularizedAffineLayerAlignment
 {
-	final static protected class Param extends AbstractLayerAlignmentParam implements Serializable
+	final static public class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
-		private static final long serialVersionUID = 6389009534364599550L;
-
+		private static final long serialVersionUID = 9206075439084906961L;
+		
 		/**
 		 * Regularization
 		 */
@@ -162,7 +162,6 @@ public class RegularizedAffineLayerAlignment
 				final int desiredModelIndex,
 				final int expectedModelIndex,
 				final float identityTolerance,
-				final boolean isAligned,
 				final float lambda,
 				final float maxEpsilon,
 				final int maxIterationsOptimize,
@@ -191,7 +190,6 @@ public class RegularizedAffineLayerAlignment
 					desiredModelIndex,
 					expectedModelIndex,
 					identityTolerance,
-					isAligned,
 					maxEpsilon,
 					maxIterationsOptimize,
 					maxNumFailures,
@@ -227,7 +225,6 @@ public class RegularizedAffineLayerAlignment
 					desiredModelIndex,
 					expectedModelIndex,
 					identityTolerance,
-					isAligned,
 					lambda,
 					maxEpsilon,
 					maxIterationsOptimize,
@@ -256,7 +253,6 @@ public class RegularizedAffineLayerAlignment
 	 * @param emptyLayers
 	 * @param box
 	 * @param propagateTransformAfter
-	 * @param fov
 	 * @param filter
 	 * @throws Exception
 	 */
@@ -269,7 +265,6 @@ public class RegularizedAffineLayerAlignment
 			final Rectangle box,
 			final boolean propagateTransformBefore,
 			final boolean propagateTransformAfter,
-			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
 	{
 		final double scale = Math.min( 1.0, Math.min( ( double )param.ppm.sift.maxOctaveSize / ( double )box.width, ( double )param.ppm.sift.maxOctaveSize / ( double )box.height ) );
@@ -672,7 +667,7 @@ J:			for ( int j = i + 1; j < range; )
 
 		if ( !p.setup( box ) ) return;
 		
-		exec( p.clone(), layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, fov, filter );
+		exec( p.clone(), layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, filter );
 	}
 	
 	/**
