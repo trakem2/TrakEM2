@@ -1,8 +1,9 @@
 package ini.trakem2.parallel;
 
 import ini.trakem2.utils.Utils;
-import java.util.LinkedList;
+
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -13,7 +14,7 @@ public class Process {
 	static private final int MIN_AHEAD = 4;
 	static public final int NUM_PROCESSORS = Runtime.getRuntime().availableProcessors();
 
-	static private final int sensible(final int nproc) {
+	static final int sensible(final int nproc) {
 		return Math.max(1, Math.min(nproc, NUM_PROCESSORS + 2));
 	}
 
