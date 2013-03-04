@@ -1,7 +1,6 @@
 package ini.trakem2.imaging.filters;
 
 import ij.process.ImageProcessor;
-import ij.process.ImageStatistics;
 import ij.process.ShortProcessor;
 import ini.trakem2.imaging.IntegralHistogram2d;
 
@@ -79,7 +78,6 @@ public class CorrectBackground implements IFilter {
 		for (int i=0; i<p.length; ++i) {
 			final double m = median[i] & 0xffff;
 			p[i] = (short)(((p[i]&0xffff) / m) * mean);
-			if (0 == i % 100000) System.out.println(i + ": " + p[i]);
 		}
 		
 		return ip;
