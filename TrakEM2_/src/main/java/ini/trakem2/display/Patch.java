@@ -2196,6 +2196,19 @@ public final class Patch extends Displayable implements ImageData {
 		return l == this.layer && r.intersects(getBoundingBox());
 	}
 	
+	@Override
+	public boolean intersects(final Displayable d) {
+		if (hasAlphaChannel()) {
+			// First try a cheap operation
+			if (!getBoundingBox().intersects(d.getBoundingBox())) {
+				return false;
+			}
+			// If bounding boxes overlap, test with precision
+			return M.intersects(getArea(), d.getAreaAt(this.layer));
+		}
+		return super.intersects(d);
+	}
+	
 	/**
 	 * Append an array of {@link IFilter} to the array of existing {@link IFilter}. 
 	 * @param fs The array of {@link IFilter} to use for this Patch.
