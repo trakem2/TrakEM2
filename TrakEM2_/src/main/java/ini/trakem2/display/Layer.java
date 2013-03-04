@@ -684,23 +684,24 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
-	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself included if present in this very Layer). */
-	synchronized public Collection<Displayable> getIntersecting(final Displayable d, final Class<?> target) {
+	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box)
+	 * intersect the given Displayable (which is itself included if present in this very Layer). */
+	synchronized public <T extends Displayable> Collection<T> getIntersecting(final Displayable d, final Class<T> target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());
-			if (root.isBetter(area.getBounds(), this)) return root.find(area, this, false);
-		}
-		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (int i = al_displayables.size() -1; i>-1; i--) {
-			final Object ob = al_displayables.get(i);
-			if (ob.getClass() != target) continue;
-			final Displayable da = (Displayable)ob;
-			if (d.intersects(da)) {
-				al.add(da);
+			if (root.isBetter(area.getBounds(), this)) {
+				return (Collection<T>) root.find(target, area, this, false, true);
 			}
 		}
-		// remove the calling one
-		if (al.contains(d)) al.remove(d);
+		final ArrayList<T> al = new ArrayList<T>();
+		for (int i = al_displayables.size() -1; i>-1; i--) {
+			final Object ob = al_displayables.get(i);
+			if (target.isAssignableFrom(ob.getClass())) continue;
+			final Displayable da = (Displayable)ob;
+			if (d.intersects(da)) {
+				al.add((T)da);
+			}
+		}
 		return al;
 	}
 
