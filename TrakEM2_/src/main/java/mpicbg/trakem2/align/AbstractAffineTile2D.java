@@ -21,11 +21,13 @@ package mpicbg.trakem2.align;
 
 import ij.process.ByteProcessor;
 import ini.trakem2.display.Patch;
+import ini.trakem2.utils.M;
 
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +39,7 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
+import mpicbg.trakem2.util.Pair;
 
 /**
  * @version 0.1b
@@ -265,16 +268,29 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 			final List< AbstractAffineTile2D< ? > > tiles,
 			final List< AbstractAffineTile2D< ? >[] > tilePairs )
 	{
-		for ( int a = 0; a < tiles.size(); ++a )
-		{
-			for ( int b = a + 1; b < tiles.size(); ++b )
-			{
-				final AbstractAffineTile2D< ? > ta = tiles.get( a );
-				final AbstractAffineTile2D< ? > tb = tiles.get( b );
-				if ( ta.intersects( tb ) )
-					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+		
+		final HashMap< Patch, Pair< AbstractAffineTile2D< ? >, Area > > m = new HashMap< Patch, Pair< AbstractAffineTile2D< ? >, Area > >();
+		for ( final AbstractAffineTile2D< ? > t : tiles ) {
+			m.put( t.patch, new Pair< AbstractAffineTile2D< ? >, Area >( t, t.patch.getArea() ) );
+		}
+		
+		for ( final AbstractAffineTile2D< ? > ta : tiles ) {
+			// Avoid doing all-to-all intersections by using layer buckets,
+			// which do targeted lightweight perimeter-based intersection comparisons
+			final Area a = m.get( ta.patch ).b;
+			for ( final Patch p : ta.patch.getLayer().getIntersecting( ta.patch, Patch.class ) ) {
+				if ( p == ta.patch )
+					continue;
+				final Pair< AbstractAffineTile2D< ? >, Area > pair =  m.get(p);
+				// Check that the Patch is among those to consider in the alignment
+				if ( null != pair ) {
+					// Check that the Patch visible pixels overlap -- may not if it has an alpha mask or coordinate transform
+					if ( M.intersects( a, pair.b ) ) {
+						tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, pair.a });
+					}
+				}
 			}
-		}		
+		}	
 	}
 	
 	/**
