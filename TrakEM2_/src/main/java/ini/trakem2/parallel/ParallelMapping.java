@@ -54,14 +54,18 @@ public final class ParallelMapping<I,O> implements Iterable<O>
 		// Check whether the inputs where already consumed
 		if (!in.hasNext()) return null;
 		
-		final ExecutorService exec = Utils.newFixedThreadPool(n_proc, getClass().getSimpleName());
+		final ExecutorService exec = Utils.newFixedThreadPool(n_proc, ParallelMapping.class.getSimpleName());
 		final LinkedList<Future<O>> futures = new LinkedList<Future<O>>();
 		
 		return new Iterator<O>() {
 
 			@Override
 			public boolean hasNext() {
-				return !futures.isEmpty() || in.hasNext();
+				final boolean b = !futures.isEmpty() || in.hasNext();
+				if (!b) {
+					exec.shutdown();
+				}
+				return b;
 			}
 
 			@Override
