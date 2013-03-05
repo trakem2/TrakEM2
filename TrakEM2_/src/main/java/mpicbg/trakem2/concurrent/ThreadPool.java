@@ -26,5 +26,10 @@ public class ThreadPool
     {
         provider = ep;
     }
+
+    public static ExecutorProvider getProvider()
+    {
+        return provider;
+    }
     
 }
