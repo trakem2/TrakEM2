@@ -953,7 +953,7 @@ J:				for ( int j = i + 1; j < range; )
 		
 		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( param.localModelIndex );
 		
-        final ExecutorService executor = ThreadPool.getExecutorService(0.5f);
+        final ExecutorService executor = ThreadPool.getExecutorService(1.0f);
         
 		final ArrayList<Future<PMCResults>> results = new ArrayList<Future<PMCResults>>(pairs.size());
 
