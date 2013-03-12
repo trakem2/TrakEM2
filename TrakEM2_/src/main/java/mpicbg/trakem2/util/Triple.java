@@ -1,6 +1,8 @@
 package mpicbg.trakem2.util;
 
-public class Triple<A, B, C>
+import java.io.Serializable;
+
+public class Triple<A, B, C> implements Serializable
 {
 	public final A a;
 	public final B b;
