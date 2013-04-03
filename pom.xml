@@ -19,6 +19,10 @@
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
 	<description></description>
 
+	<properties>
+		<trakem2.version>1.0b-SNAPSHOT</trakem2.version>
+	</properties>
+
 	<modules>
 		<module>TrakEM2_</module>
 		<module>VectorString</module>
