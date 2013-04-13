@@ -22,6 +22,12 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
+import java.awt.Polygon;
+import java.io.IOException;
+
+import ij.gui.PolygonRoi;
+import ij.gui.ShapeRoi;
+import ij.io.RoiDecoder;
 import ij.measure.Calibration;
 
 /** String of vectors. */
@@ -126,25 +132,78 @@ public class VectorString2D implements VectorString {
 		this.delta = delta; // store for checking purposes
 		this.resample();
 	}
-
-	/** As in the resampling method for CurveMorphing_just_C.c but for 2D. Uses the assigned 'delta'. Will reorder to counter-clock wise if necessary. */
-	private void resample() {
-		final int MAX_AHEAD = 6;
-		final double MAX_DISTANCE = 2.5 * delta;
-		double[] ps_x = new double[length];
-		double[] ps_y = new double[length];
-		double[] v_x = new double[length];
-		double[] v_y = new double[length];
-		final int p_length = this.length; // to keep my head cool
-		int ps_length = this.length; // the length of the resampled vectors
-
+	
+	static private class Sequence {
+		protected int i = -1;
+		protected int size;
+		public Sequence(final int size) {
+			this.size = size;
+		}
+		int next() {
+			++i;
+			return i == size ? -1 : i;
+		}
+		void setPosition(final int k) {
+			if (k < 0 || k >= size) throw new RuntimeException( k + " is out of bounds.");
+			this.i = k;
+		}
+		final int position() {
+			return i;
+		}
+	}
+	
+	static private final class CircularSequence extends Sequence {
+		public CircularSequence(final int size) {
+			super(size);
+		}
+		@Override
+		final int next() {
+			++i;
+			i = i % size;
+			return i;
+		}
+		@Override
+		final void setPosition(final int k) {
+			i = k;
+			if (i < 0) i = size - ((-i) % size);
+			else i = i % size;
+		}
+	}
+	
+	static private final class GrowablePolygon {
+		private double[] x, y;
+		private int last = -1, growth;
+		GrowablePolygon(final int initialSize, final int growth) {
+			this.growth = growth;
+			this.x = new double[initialSize];
+			this.y = new double[initialSize];
+		}
+		final void resize() {
+			final double[] x2 = new double[this.x.length + this.growth];
+			System.arraycopy(this.x, 0, x2, 0, x.length);
+			this.x = x2;
+			final double[] y2 = new double[x2.length];
+			System.arraycopy(this.y, 0, y2, 0, y.length);
+			this.y = y2;
+		}
+		final void append(final double px, final double py) {
+			this.last += 1;
+			if (this.last == this.x.length) resize();
+			this.x[last] = px;
+			this.y[last] = py;
+		}
+		final double lastX() { return this.x[last]; }
+		final double lastY() { return this.y[last]; }
+	}
+	
+	private final void reorderToCCW() {
 		// reorder to CCW if needed: (so all curves have the same orientation)
 		// find bounding box:
 		double x_max = 0;			int x_max_i = 0;
 		double y_max = 0;			int y_max_i = 0;
 		double x_min = Double.MAX_VALUE;		int x_min_i = 0;
 		double y_min = Double.MAX_VALUE;		int y_min_i = 0;
-		for (int i=0;i <p_length; i++) {
+		for (int i=0;i <this.length; i++) {
 			if (x[i] > x_max) { x_max = x[i]; x_max_i = i; } // this lines could be optimized, the p->x etc. are catched below
 			if (y[i] > y_max) { y_max = y[i]; y_max_i = i; }
 			if (x[i] < x_min) { x_min = x[i]; x_min_i = i; }
@@ -158,9 +217,9 @@ public class VectorString2D implements VectorString {
 		//if (3 == collect)
 		if (3 != collect) { // this should be '3 == collect', but then we are looking at the curves from the other side relative to what ImageJ is showing. In any case as long as one or the other gets rearranged, they'll be fine.
 			// Clockwise! Reorder to CCW by reversing the arrays in place
-			int n = p_length;
+			int n = this.length;
 			double tmp;
-			for (int i=0; i< p_length /2; i++) {
+			for (int i=0; i< this.length /2; i++) {
 
 				tmp = x[i];
 				x[i] = x[n-i-1];
@@ -171,6 +230,143 @@ public class VectorString2D implements VectorString {
 				y[n-i-1] = tmp;
 			}
 		}
+	}
+	
+	static private final class DoubleArray {
+		private double[] a;
+		private int next = 0;
+		DoubleArray(final int initialCapacity) {
+			this.a = new double[initialCapacity];
+		}
+		final void append(final double d) {
+			this.a[next] = d;
+			++next;
+			if (this.a.length == next) {
+				final double[] b = new double[this.a.length + 1008];
+				System.arraycopy(this.a, 0, b, 0, this.a.length);
+				this.a = b;
+			}
+		}
+		final void reset() {
+			this.next = 0;
+		}
+		final int size() {
+			return next;
+		}
+	}
+	
+	private void resample() {
+		System.out.println("NEW RESAMPLE: " + delta + ", " + x.length);
+		reorderToCCW();
+		final double MAX_DISTANCE = 4 * delta;
+		final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
+		final double deltaSq = delta * delta;
+		final Sequence seq = this.closed ? new CircularSequence(this.length) : new Sequence(this.length);
+		final GrowablePolygon gpol = new GrowablePolygon(this.length, 200);
+		final DoubleArray w = new DoubleArray(16);
+		boolean end_seen = false;
+		final int last = closed ? 0 : this.length -1;
+		// First resampled point is the same as zero
+		gpol.append(x[0], y[0]);
+		// Start using the first point for interpolations
+		seq.setPosition(1);
+		// Grow all the way to the last point
+		loop: while (true) {
+			final double lastX = gpol.lastX(),
+			               lastY = gpol.lastY();
+			final int first_i = seq.position(); // the first point ahead to consider
+			double sumW = 0; // the sum of weights, for normalization
+			int i = first_i; // the index over the original sequence of points
+			int next_i = first_i; // the next index for the next iteration
+			w.reset(); // reset the array of weights: empty it
+			// Iterate over next points within MAX_DISTANCE to estimate the next gpol point
+			while (true) {
+				// Determine termination:
+				if (!end_seen) end_seen = i == last;
+				if (end_seen) {
+					double distSq_to_last = Math.pow(this.x[last] - lastX, 2) + Math.pow(this.y[last] - lastY, 2);
+					if (distSq_to_last < deltaSq) {
+						// Do not add more points
+						break loop;
+					}
+				}
+
+				// If i is the first point to be further than delta, record it as the next starting index:
+				double distSq = Math.pow(this.x[i] - lastX, 2) + Math.pow(this.y[i] - lastY, 2);
+				if (next_i == first_i && distSq > deltaSq) {
+					next_i = i;
+				}
+				// If i is within MAX_DISTANCE, include it in the estimation of the next gpol point
+				if (distSq < MAX_DISTANCE_SQ) {
+					double weight = Math.sqrt(distSq);
+					sumW += weight;
+					w.append(weight);
+					// ... and advance to the next
+					i = seq.next();
+				} else {
+					break;
+				}
+			}
+			
+			if (w.size() > 0) {
+				// Normalize weights so that their sum equals 1
+				double sumW2 = 0;
+				for (int j=w.size() -1; j > -1; --j) {
+					w.a[j] /= sumW;
+					sumW2 += w.a[j];
+				}
+				// Correct for floating-point issues: add error to first weight
+				if (sumW2 < 1.0) {
+					w.a[0] += 1.0 - sumW2;
+				}
+				// Create next interpolated point
+				seq.setPosition(first_i);
+				double dx = 0,
+				        dy = 0;
+				for (int j=0, k = seq.position(); j<w.size(); ++j, k = seq.next()) {
+					final double angleXY = Util.getAngle(x[k] - lastX, y[k] - lastY);
+					dx += w.a[j] * Math.cos(angleXY);
+					dy += w.a[j] * Math.sin(angleXY);
+				}
+				gpol.append(lastX + dx * delta, lastY + dy * delta);
+			} else {
+				// Use the next point
+				final double angleXY = Util.getAngle(x[i] - lastX, y[i] - lastY);
+				gpol.append(lastX + Math.cos(angleXY) * delta,
+				            lastY + Math.sin(angleXY) * delta);
+			}
+			// Set next point:
+			seq.setPosition(next_i);
+		}
+		
+		// assign the new resampled points
+		this.length = gpol.last + 1;
+		this.x = gpol.x;
+		this.y = gpol.y;
+		// assign the vectors
+		this.v_x = new double[this.length];
+		this.v_y = new double[this.length];
+		for (int k=1; k<this.length; ++k) {
+			this.v_x[k] = this.x[k] - this.x[k-1];
+			this.v_y[k] = this.y[k] - this.y[k-1];
+		}
+		// For non-closed this arrangement of vectors seems wrong, but IIRC the vector at zero is ignored.
+		this.v_x[0] = this.x[0] - this.x[this.length -1];
+		this.v_y[0] = this.y[0] - this.y[this.length -1];
+	}
+
+	/** As in the resampling method for CurveMorphing_just_C.c but for 2D. Uses the assigned 'delta'. Will reorder to counter-clock wise if necessary. */
+	private void resampleOld() {
+		final int MAX_AHEAD = 6;
+		final double MAX_DISTANCE = 2.5 * delta;
+		double[] ps_x = new double[length];
+		double[] ps_y = new double[length];
+		double[] v_x = new double[length];
+		double[] v_y = new double[length];
+		final int p_length = this.length; // to keep my head cool
+		int ps_length = this.length; // the length of the resampled vectors
+
+		reorderToCCW();
 
 		// first resampled point is the same as 0
 		ps_x[0] = x[0];
@@ -192,9 +388,18 @@ public class VectorString2D implements VectorString {
 		double dist_ahead;
 		double[] w = new double[MAX_AHEAD];
 
+		// HERE IS A great opportunity to change the resampling function
+		// to a convolution with a gaussian, and then sample points so that they are delta apart.
+		// Perhaps the approach is the opposite: loop over the expected number of points
+		// and then compute the X,Y position for each according to the points in the line.
+		
 		// start infinite loop
 		for (;prev_i <= i;) {
-			if (prev_i > i) {//the loop has completed one round, since 'i' can go up to MAX_POINTS ahead of the last point into the points at the beggining of the array. Whenever the next point 'i' to start exploring is set beyond the length of the array, then the condition is met.
+			if (prev_i > i) {
+				//the loop has completed one round, since 'i' can go up to MAX_POINTS ahead
+				// of the last point into the points at the begining of the array. Whenever
+				// the next point 'i' to start exploring is set beyond the length of the array,
+				// then the condition is met.
 				break;
 			}
 			// check ps and v array lengths
@@ -205,6 +410,7 @@ public class VectorString2D implements VectorString {
 				v_y = Util.copy(v_y, ps_length);
 				ps_x = Util.copy(ps_x, ps_length);
 				ps_y = Util.copy(ps_y, ps_length);
+				System.out.println("Enlarged to: " + ps_length);
 			}
 			// get distances of MAX_POINTs ahead from the previous point
 			n_ahead = 0; // reset
@@ -268,7 +474,7 @@ public class VectorString2D implements VectorString {
 				if (sum < 1.0) {
 					w[0] += 1.0 - sum;
 				} else {
-					w = recalculate(w, n_ahead, sum);
+					recalculate(w, n_ahead, sum);
 				}
 				// calculate the new point using the weights
 				dx = 0.0;
@@ -363,7 +569,7 @@ public class VectorString2D implements VectorString {
 		// done!
 	}
 
-	private final double[] recalculate(final double[] w, final int length, final double sum_) {
+	static private final void recalculate(final double[] w, final int length, final double sum_) {
 		double sum = 0;
 		int q;
 		for (q=0; q<length; q++) {
@@ -378,9 +584,8 @@ public class VectorString2D implements VectorString {
 		if (error < 0.005) {
 			w[0] += 1.0 - sum;
 		} else if (sum > 1.0) {
-			return recalculate(w, length, sum);
+			recalculate(w, length, sum);
 		}
-		return w;
 	}
 
 	public void reorder(final int new_zero) { // this function is optimized for speed: no array duplications beyond minimally necessary, and no superfluous method calls.
@@ -504,5 +709,37 @@ public class VectorString2D implements VectorString {
 	}
 	public Calibration getCalibrationCopy() {
 		return null == this.cal ? null : this.cal.copy();
+	}
+	
+	static public final void main(String[] args) {
+		try {
+			RoiDecoder rd = new RoiDecoder("/home/albert/Desktop/t2/test-spline/1067-polygon.roi");
+			PolygonRoi sroi = (PolygonRoi)rd.getRoi();
+			Polygon pol = sroi.getPolygon();
+			double[] x = new double[pol.npoints];
+			double[] y = new double[pol.npoints];
+			for (int i=0; i<pol.npoints; ++i) {
+				x[i] = pol.xpoints[i];
+				y[i] = pol.ypoints[i];
+			}
+			VectorString2D v = new VectorString2D(x, y, 0, true);
+			v.resample(1);
+			StringBuffer sb = new StringBuffer();
+			sb.append("x = [");
+			for (int i=0; i<v.length; ++i) {
+				sb.append(v.x[i] + ",\n");
+			}
+			sb.setLength(sb.length() -2);
+			sb.append("]\n");
+			sb.append("\ny = [");
+			for (int i=0; i<v.length; ++i) {
+				sb.append(v.y[i] + ",\n");
+			}
+			sb.setLength(sb.length() -2);
+			sb.append("]\n");
+			System.out.println(sb.toString());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 }
