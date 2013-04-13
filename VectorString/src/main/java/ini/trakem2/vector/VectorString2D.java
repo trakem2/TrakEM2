@@ -23,10 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.vector;
 
 import java.awt.Polygon;
-import java.io.IOException;
-
 import ij.gui.PolygonRoi;
-import ij.gui.ShapeRoi;
 import ij.io.RoiDecoder;
 import ij.measure.Calibration;
 
@@ -194,6 +191,11 @@ public class VectorString2D implements VectorString {
 		}
 		final double lastX() { return this.x[last]; }
 		final double lastY() { return this.y[last]; }
+		final void remove(final int i) {
+			System.arraycopy(this.x, i+1, this.x, i, last - i);
+			System.arraycopy(this.y, i+1, this.y, i, last - i);
+			--this.last;
+		}
 	}
 	
 	private final void reorderToCCW() {
@@ -256,7 +258,6 @@ public class VectorString2D implements VectorString {
 	}
 	
 	private void resample() {
-		System.out.println("NEW RESAMPLE: " + delta + ", " + x.length);
 		reorderToCCW();
 		final double MAX_DISTANCE = 4 * delta;
 		final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
@@ -298,7 +299,7 @@ public class VectorString2D implements VectorString {
 				}
 				// If i is within MAX_DISTANCE, include it in the estimation of the next gpol point
 				if (distSq < MAX_DISTANCE_SQ) {
-					double weight = Math.sqrt(distSq);
+					final double weight = Math.sqrt(distSq);
 					sumW += weight;
 					w.append(weight);
 					// ... and advance to the next
@@ -339,6 +340,15 @@ public class VectorString2D implements VectorString {
 			seq.setPosition(next_i);
 		}
 		
+		// Fix the junction between first and last point: check if second point suits best.
+		if (closed) {
+			final double distSq =   Math.pow(gpol.x[1] - gpol.x[gpol.last], 2)
+			                       + Math.pow(gpol.y[1] - gpol.y[gpol.last], 2);
+			if (distSq < delta) {
+				gpol.remove(0);
+			}
+		}
+		
 		// assign the new resampled points
 		this.length = gpol.last + 1;
 		this.x = gpol.x;
@@ -353,239 +363,6 @@ public class VectorString2D implements VectorString {
 		// For non-closed this arrangement of vectors seems wrong, but IIRC the vector at zero is ignored.
 		this.v_x[0] = this.x[0] - this.x[this.length -1];
 		this.v_y[0] = this.y[0] - this.y[this.length -1];
-	}
-
-	/** As in the resampling method for CurveMorphing_just_C.c but for 2D. Uses the assigned 'delta'. Will reorder to counter-clock wise if necessary. */
-	private void resampleOld() {
-		final int MAX_AHEAD = 6;
-		final double MAX_DISTANCE = 2.5 * delta;
-		double[] ps_x = new double[length];
-		double[] ps_y = new double[length];
-		double[] v_x = new double[length];
-		double[] v_y = new double[length];
-		final int p_length = this.length; // to keep my head cool
-		int ps_length = this.length; // the length of the resampled vectors
-
-		reorderToCCW();
-
-		// first resampled point is the same as 0
-		ps_x[0] = x[0];
-		ps_y[0] = y[0];
-		// the index over x,y
-		int i = 1;
-		// the index over ps (the resampled points)
-		int j = 1;
-		// some vars:
-		double dx, dy, sum;
-		double angleXY, dist1, dist2;
-		int[] ahead = new int[MAX_AHEAD];
-		double[] distances = new double[MAX_AHEAD];
-		int n_ahead = 0;
-		int u, ii, k;
-		int t, s;
-		int prev_i = i;
-		int iu;
-		double dist_ahead;
-		double[] w = new double[MAX_AHEAD];
-
-		// HERE IS A great opportunity to change the resampling function
-		// to a convolution with a gaussian, and then sample points so that they are delta apart.
-		// Perhaps the approach is the opposite: loop over the expected number of points
-		// and then compute the X,Y position for each according to the points in the line.
-		
-		// start infinite loop
-		for (;prev_i <= i;) {
-			if (prev_i > i) {
-				//the loop has completed one round, since 'i' can go up to MAX_POINTS ahead
-				// of the last point into the points at the begining of the array. Whenever
-				// the next point 'i' to start exploring is set beyond the length of the array,
-				// then the condition is met.
-				break;
-			}
-			// check ps and v array lengths
-			if (j >= ps_length) {
-				// must enlarge
-				ps_length += 20;
-				v_x = Util.copy(v_x, ps_length);
-				v_y = Util.copy(v_y, ps_length);
-				ps_x = Util.copy(ps_x, ps_length);
-				ps_y = Util.copy(ps_y, ps_length);
-				System.out.println("Enlarged to: " + ps_length);
-			}
-			// get distances of MAX_POINTs ahead from the previous point
-			n_ahead = 0; // reset
-			for (t=0; t<MAX_AHEAD; t++) {
-				s = i + t; // 'i' is the first to start inspecting from
-				// fix 's' if it goes over the end // TODO this is problematic for sure for open curves.
-				if (s >= p_length) {
-					if (this.closed) s = s - p_length;
-					else s = p_length -1; // the last
-				}
-				dist_ahead = Math.sqrt((x[s] - ps_x[j-1])*(x[s] - ps_x[j-1]) + (y[s] - ps_y[j-1])*(y[s] - ps_y[j-1]));
-				if (dist_ahead < MAX_DISTANCE) {
-					ahead[n_ahead] = s;
-					distances[n_ahead] = dist_ahead;
-					n_ahead++;
-				}
-			}
-			//
-			if (0 == n_ahead) { // no points ahead found within MAX_DISTANCE
-				// all MAX_POINTS ahead lay under delta.
-				// ...
-				// simpler version: use just the next point
-				dist1 = Math.sqrt((x[i] - ps_x[j-1])*(x[i] - ps_x[j-1]) + (y[i] - ps_y[j-1])*(y[i] - ps_y[j-1]));
-				angleXY = Util.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
-
-				dx = Math.cos(angleXY) * delta;
-				dy = Math.sin(angleXY) * delta;
-				ps_x[j] = ps_x[j-1] + dx;
-				ps_y[j] = ps_y[j-1] + dy;
-				v_x[j] = dx;
-				v_y[j] = dy;
-
-				//correct for point overtaking the not-close-enough point ahead in terms of 'delta_p' as it is represented in MAX_DISTANCE, but overtaken by the 'delta' used for subsampling:
-				if (dist1 <= delta) {
-					//look for a point ahead that is over distance delta from the previous j, so that it will lay ahead of the current j
-					for (u=i; u<=p_length; u++) {
-						dist2 = Math.sqrt((x[u] - ps_x[j-1])*(x[u] - ps_x[j-1]) + (y[u] - ps_y[j-1])*(y[u] - ps_y[j-1]));
-						if (dist2 > delta) {
-							prev_i = i;
-							i = u;
-							break;
-						}
-					}
-				}
-			} else {
-				w[0] = distances[0] / MAX_DISTANCE;
-				double largest = w[0];
-				for (u=1; u<n_ahead; u++) {
-					w[u] = 1 - (distances[u] / MAX_DISTANCE);
-					if (w[u] > largest) {
-						largest = w[u];
-					}
-				}
-				// normalize weights: divide by largest
-				sum = 0;
-				for (u=0; u<n_ahead; u++) {
-					w[u] = w[u] / largest;
-					sum += w[u];
-				}
-				// correct error. The closest point gets the extra
-				if (sum < 1.0) {
-					w[0] += 1.0 - sum;
-				} else {
-					recalculate(w, n_ahead, sum);
-				}
-				// calculate the new point using the weights
-				dx = 0.0;
-				dy = 0.0;
-				for (u=0; u<n_ahead; u++) {
-					iu = i+u;
-					if (iu >= p_length) iu -= p_length; 
-					angleXY = Util.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
-					dx += w[u] * Math.cos(angleXY);
-					dy += w[u] * Math.sin(angleXY);
-				}
-				// make vector and point:
-				dx = dx * delta;
-				dy = dy * delta;
-				ps_x[j] = ps_x[j-1] + dx;
-				ps_y[j] = ps_y[j-1] + dy;
-				v_x[j] = dx;
-				v_y[j] = dy;
-
-				// find the first point that is right ahead of the newly added point
-				// so: loop through points that lay within MAX_DISTANCE, and find the first one that is right past delta.
-				ii = i;
-				for (k=0; k<n_ahead; k++) {
-					if (distances[k] > delta) {
-						ii = ahead[k];
-						break;
-					}
-				}
-				// correct for the case of unseen point (because all MAX_POINTS ahead lay under delta):
-				prev_i = i;
-				if (i == ii) {
-					i = ahead[n_ahead-1] +1; //the one after the last.
-					if (i >= p_length) i = i - p_length;
-				} else {
-					i = ii;
-				}
-			}
-			//advance index in the new points
-			j += 1;
-		} // end of for (;;) loop
-
-		// see whether the subsampling terminated too early, and fill with a line of points.
-		// TODO this is sort of a patch. Why didn't j overcome the last point is not resolved.
-		double lastx = x[0];
-		double lasty = y[0];
-		if (!closed) {
-			lastx = x[p_length -1];
-			lasty = y[p_length -1];
-		}
-		dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
-		if (dist1 > delta*1.2) {
-			// TODO needs revision
-			// System.out.println("resampling terminated too early. Why?");
-			angleXY = Util.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
-			dx = Math.cos(angleXY) * delta;
-			dy = Math.sin(angleXY) * delta;
-			while (dist1 > delta*1.2) {//added 1.2 to prevent last point from being generated too close to the first point
-				// check ps and v array lengths
-				if (j >= ps_length) {
-					// must enlarge.
-					ps_length += 20;
-					v_x = Util.copy(v_x, ps_length);
-					v_y = Util.copy(v_y, ps_length);
-					ps_x = Util.copy(ps_x, ps_length);
-					ps_y = Util.copy(ps_y, ps_length);
-				}
-				//add a point
-				ps_x[j] = ps_x[j-1] + dx;
-				ps_y[j] = ps_y[j-1] + dy;
-				v_x[j] = dx;
-				v_y[j] = dy;
-				j++;
-				dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
-			}
-		}
-		// set vector 0 to be the vector from the last point to the first // TODO also for non-closed?
-		angleXY = Util.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
-		//v_x[0] = Math.cos(angle) * delta;
-		//v_y[0] = Math.sin(angle) * delta; // can't use delta, it may be too long and thus overtake the first point!
-		v_x[0] = Math.cos(angleXY) * dist1;
-		v_y[0] = Math.sin(angleXY) * dist1;
-
-		// assign the new subsampled points
-		this.x = ps_x;
-		this.y = ps_y;
-		// assign the vectors
-		this.v_x = v_x;
-		this.v_y = v_y;
-		// j is now the length of the ps_x, ps_y, v_x and v_y arrays (i.e. the number of resampled points).
-		this.length = j;
-
-		// done!
-	}
-
-	static private final void recalculate(final double[] w, final int length, final double sum_) {
-		double sum = 0;
-		int q;
-		for (q=0; q<length; q++) {
-			w[q] = w[q] / sum_;
-			sum += w[q];
-		}
-		double error = 1.0 - sum;
-		// make it be an absolute value
-		if (error < 0.0) {
-			error = -error;
-		}
-		if (error < 0.005) {
-			w[0] += 1.0 - sum;
-		} else if (sum > 1.0) {
-			recalculate(w, length, sum);
-		}
 	}
 
 	public void reorder(final int new_zero) { // this function is optimized for speed: no array duplications beyond minimally necessary, and no superfluous method calls.
