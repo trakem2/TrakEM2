@@ -280,28 +280,38 @@ public class VectorString2D implements VectorString {
 			int i = first_i; // the index over the original sequence of points
 			int next_i = first_i; // the next index for the next iteration
 			w.reset(); // reset the array of weights: empty it
-			// Iterate over next points within MAX_DISTANCE to estimate the next gpol point
+			// Iterate the points from i onward that lay within MAX_DISTANCE to estimate the next gpol point
+			// and determine from which of the seen next points the estimation should start in the next iteration
+			// or use again the same i of not overtaken.
 			while (true) {
 				// Determine termination:
 				if (!end_seen) end_seen = i == last;
 				if (end_seen) {
-					double distSq_to_last = Math.pow(this.x[last] - lastX, 2) + Math.pow(this.y[last] - lastY, 2);
-					if (distSq_to_last < deltaSq) {
-						// Do not add more points
-						break loop;
+					double distToEndSq = Math.pow(this.x[last] - lastX, 2) + Math.pow(this.y[last] - lastY, 2);
+					if (distToEndSq > deltaSq) {
+						// Populate towards the end in a straight line
+						// While this may not be smooth, termination is otherwise a devilish issue.
+						final int n = (int)(Math.sqrt(distToEndSq) / delta);
+						final double angleXY = Util.getAngle(x[last] - lastX, y[last] - lastY);
+						double dX = Math.cos(angleXY) * delta,
+								dY = Math.sin(angleXY) * delta;
+						for (int k=1; k<=n; ++k) {
+							gpol.append(lastX + dX * k, lastY + dY * k);
+						}
 					}
-				}
-
-				// If i is the first point to be further than delta, record it as the next starting index:
-				double distSq = Math.pow(this.x[i] - lastX, 2) + Math.pow(this.y[i] - lastY, 2);
-				if (next_i == first_i && distSq > deltaSq) {
-					next_i = i;
+					break loop;
 				}
 				// If i is within MAX_DISTANCE, include it in the estimation of the next gpol point
+				final double distSq = Math.pow(this.x[i] - lastX, 2) + Math.pow(this.y[i] - lastY, 2);
+				// Choose next i: the first one further than delta from lastX, lastY
+				// and if the same is to be used, then use the next one if there's another under MAX_DISTANCE
+				if (first_i == next_i && distSq > deltaSq) { // if not yet changed and distance is larger than delta
+					next_i = i;
+				}
 				if (distSq < MAX_DISTANCE_SQ) {
-					final double weight = Math.sqrt(distSq);
-					sumW += weight;
-					w.append(weight);
+					final double dist = Math.sqrt(distSq);
+					sumW += dist;
+					w.append(dist);
 					// ... and advance to the next
 					i = seq.next();
 				} else {
@@ -331,8 +341,8 @@ public class VectorString2D implements VectorString {
 				}
 				gpol.append(lastX + dx * delta, lastY + dy * delta);
 			} else {
-				// Use the next point
-				final double angleXY = Util.getAngle(x[i] - lastX, y[i] - lastY);
+				// Use the first_i, which was not yet overtaken
+				final double angleXY = Util.getAngle(x[first_i] - lastX, y[first_i] - lastY);
 				gpol.append(lastX + Math.cos(angleXY) * delta,
 				            lastY + Math.sin(angleXY) * delta);
 			}
@@ -347,13 +357,16 @@ public class VectorString2D implements VectorString {
 			if (distSq < delta) {
 				gpol.remove(0);
 			}
+		} else {		
+			// When not closed, append the last point--regardless of its distance to lastX, lastY.
+			gpol.append(this.x[this.length -1], this.y[this.length -1]);
 		}
 		
-		// assign the new resampled points
+		// Assign the new resampled points
 		this.length = gpol.last + 1;
 		this.x = gpol.x;
 		this.y = gpol.y;
-		// assign the vectors
+		// Assign the vectors
 		this.v_x = new double[this.length];
 		this.v_y = new double[this.length];
 		for (int k=1; k<this.length; ++k) {
@@ -490,7 +503,7 @@ public class VectorString2D implements VectorString {
 	
 	static public final void main(String[] args) {
 		try {
-			RoiDecoder rd = new RoiDecoder("/home/albert/Desktop/t2/test-spline/1067-polygon.roi");
+			RoiDecoder rd = new RoiDecoder("/home/albert/Desktop/t2/test-spline/1152-polygon.roi");
 			PolygonRoi sroi = (PolygonRoi)rd.getRoi();
 			Polygon pol = sroi.getPolygon();
 			double[] x = new double[pol.npoints];
