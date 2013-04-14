@@ -794,4 +794,33 @@ public final class M {
 		return lateralAreaOfTruncatedCone(r1, r2, height)
 			+ Math.PI * (r1 * r1 + r2 * r2);
 	}
+	
+	public static final void convolveGaussianSigma1(final float[] in, final float[] out, final CircularSequence seq) {
+		// Weights for sigma = 1 and kernel 5x1, normalized so they add up to 1.
+		final float w2 = 0.05448869f,
+		             w1 = 0.24420134f,
+		             w0 = 0.40261994f;
+		for (int i=0; i<2; ++i) {
+			out[i] =   in[seq.setPosition(i -2)] * w2
+					 + in[seq.setPosition(i -1)] * w1
+					 + in[seq.setPosition(i   )] * w0
+					 + in[seq.setPosition(i +1)] * w1
+					 + in[seq.setPosition(i +2)] * w2;
+		}
+		final int cut = out.length -2;
+		for (int i=2; i<cut; ++i) {
+			out[i] =   in[i -2] * w2
+					 + in[i -1] * w1
+					 + in[i   ] * w0
+					 + in[i +1] * w1
+					 + in[i +2] * w2;
+		}
+		for (int i=cut; i<out.length; ++i) {
+			out[i] =   in[seq.setPosition(i -2)] * w2
+					 + in[seq.setPosition(i -1)] * w1
+					 + in[seq.setPosition(i   )] * w0
+					 + in[seq.setPosition(i +1)] * w1
+					 + in[seq.setPosition(i +2)] * w2;
+		}
+	}
 }
