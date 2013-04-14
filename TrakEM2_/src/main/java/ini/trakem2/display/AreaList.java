@@ -1221,6 +1221,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final float[] coords = new float[6];
 		final float fpixelWidth = (float) pixelWidth;
 		final float fpixelHeight = (float) pixelHeight;
+		
+		final float resampling_delta = project.getProperty("measurement_resampling_delta", 1.0f);
 
 		// for each area, measure its area and its perimeter, to compute volume and surface
 		for (final Map.Entry<Integer,Area> e : ias.entrySet()) {
@@ -1279,7 +1281,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						// Also, VectorString3D gets stuck in an infinite loop if the sequence is 6 points!
 						//VectorString3D v = new VectorString3D(xp, yp, new double[pol.npoints], true);
 						VectorString2D v = new VectorString2D(xp, yp, 0, true);
-						v.resample(1);
+						v.resample(resampling_delta);
 
 
 						// TESTING: make a polygon roi and show it
@@ -1391,16 +1393,19 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		all_tops_and_bottoms += prev_surface;
 
 		// Compute maximum diameter
-		double max_diameter_sq = 0;
+		final boolean measure_largest_diameter = project.getBooleanProperty("measure_largest_diameter");
+		double max_diameter_sq = measure_largest_diameter ? 0 : Double.NaN;
 		final int lp = points.size();
 		final Point3f c;
 		if (lp > 0) {
 			c = new Point3f(points.get(0)); // center of mass
 			for (int i=0; i<lp; i++) {
 				final Point3f p = points.get(i);
-				for (int j=i; j<lp; j++) {
-					double len = p.distanceSquared(points.get(j));
-					if (len > max_diameter_sq) max_diameter_sq = len;
+				if (measure_largest_diameter) {
+					for (int j=i; j<lp; j++) {
+						double len = p.distanceSquared(points.get(j));
+						if (len > max_diameter_sq) max_diameter_sq = len;
+					}
 				}
 				if (0 == i) continue;
 				c.x += p.x;
