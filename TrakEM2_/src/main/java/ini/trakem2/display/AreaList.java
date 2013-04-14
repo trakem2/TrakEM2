@@ -28,12 +28,14 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.GenericDialog;
+import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.io.FileSaver;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ij.process.ByteProcessor;
+import ij.process.FloatPolygon;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -41,6 +43,7 @@ import ini.trakem2.Project;
 import ini.trakem2.display.paint.USHORTPaint;
 import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.CircularSequence;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
@@ -1252,37 +1255,70 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			double thickness = la.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
 			volume += surface * thickness;
 
-			//Utils.log2(layer_index + "  volume: " + volume);
-
 			double pix_perimeter = AreaCalculations.circumference(area.getPathIterator(null));
 			double perimeter = pix_perimeter * pixelWidth;
 
 			double smooth_perimeter = 0;
 
 			// smoothed perimeter:
-			// Get all paths, make VectorString2D from them
 			{
 				double smooth_pix_perimeter = 0;
 				for (Polygon pol : M.getPolygons(area)) {
-					if (pol.npoints < 7) {
-						// no point in smoothing out such a short polygon:
-						smooth_perimeter += pol.npoints;
-						continue;
-					}
-					double[] xp = new double[pol.npoints];
-					double[] yp = new double[pol.npoints];
-					for (int p=0; p<pol.npoints; p++) {
-						xp[p] = pol.xpoints[p];
-						yp[p] = pol.ypoints[p];
-					}
+					
 					try {
 						// Should use VectorString2D, but takes for ever -- bug in resample?
 						// And VectorString3D is likely not respecting the 'closed' flag for resampling.
 						// Also, VectorString3D gets stuck in an infinite loop if the sequence is 6 points!
 						//VectorString3D v = new VectorString3D(xp, yp, new double[pol.npoints], true);
+						
+						/*
+						// Works but it is not the best smoothing of the Area's countour
+						if (pol.npoints < 7) {
+							// no point in smoothing out such a short polygon:
+							smooth_perimeter += pol.npoints;
+							continue;
+						}
+						double[] xp = new double[pol.npoints];
+						double[] yp = new double[pol.npoints];
+						for (int p=0; p<pol.npoints; p++) {
+							xp[p] = pol.xpoints[p];
+							yp[p] = pol.ypoints[p];
+						}
 						VectorString2D v = new VectorString2D(xp, yp, 0, true);
 						v.resample(resampling_delta);
+						smooth_pix_perimeter += v.length() * resampling_delta;
+						*/
 
+						// The best solution I've found:
+						// 1. Run getInterpolatedPolygon with an interval of 1 to get a point at every pixel
+						// 2. convolve with a gaussian
+						// Resample to 1 so that every one pixel of the countour there is a point
+						final FloatPolygon fpol = new PolygonRoi(pol, PolygonRoi.POLYGON).getInterpolatedPolygon(1, true); // second argument doesn't apply to PolygonRoi
+						// Convolve with a sigma of 1 to smooth it out
+						final FloatPolygon gpol = new FloatPolygon(new float[fpol.npoints], new float[fpol.npoints], fpol.npoints);
+						final CircularSequence seq = new CircularSequence(fpol.npoints);
+						M.convolveGaussianSigma1(fpol.xpoints, gpol.xpoints, seq);
+						M.convolveGaussianSigma1(fpol.ypoints, gpol.ypoints, seq);
+						// Resample it to the desired resolution (also facilitates measurement: npoints * resampling_delta)
+						final FloatPolygon fp;
+						if (gpol.npoints > resampling_delta) {
+							fp = new PolygonRoi(gpol, PolygonRoi.POLYGON).getInterpolatedPolygon(resampling_delta, false); // second argument doesn't apply to PolygonRoi anyway
+						} else {
+							fp = gpol;
+						}
+						// Measure perimeter: last point is potentially shorter or longer
+						smooth_pix_perimeter += (fp.npoints -1) * resampling_delta
+												+ Math.sqrt(  Math.pow(fp.xpoints[0] - fp.xpoints[fp.npoints-1], 2)
+												            + Math.pow(fp.ypoints[0] - fp.ypoints[fp.npoints-1], 2));
+						
+						// VectorString2D.resample is a dangerous operation, not well defined,
+						// but the approach below results in jittered contours for delta of 1, which is the default.
+						/*
+						final PolygonRoi proi = new PolygonRoi(pol, PolygonRoi.POLYGON);
+						proi.fitSpline();
+						final FloatPolygon fpol = proi.getInterpolatedPolygon(resampling_delta, true);
+						smooth_pix_perimeter += fpol.npoints * resampling_delta;
+						*/
 
 						// TESTING: make a polygon roi and show it
 						// ... just in case to see that resampling works as expected, without weird endings
@@ -1305,9 +1341,6 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						imp.setRoi(new PolygonRoi(x, y, x.length, PolygonRoi.POLYGON));
 						imp.show();
 						*/
-
-						smooth_pix_perimeter += v.length() -1; // resampled to 1, so just number_of_points * delta_of_1.
-						                                       // Subtracting 1: the resampled curve has the first point as the last too.
 					} catch (Exception le) { le.printStackTrace(); }
 				}
 
