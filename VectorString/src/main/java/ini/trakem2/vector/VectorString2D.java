@@ -259,7 +259,7 @@ public class VectorString2D implements VectorString {
 	
 	private void resample() {
 		reorderToCCW();
-		final double MAX_DISTANCE = 4 * delta;
+		final double MAX_DISTANCE = 2.5 * delta;
 		final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
 		final double deltaSq = delta * delta;
 		final Sequence seq = this.closed ? new CircularSequence(this.length) : new Sequence(this.length);
@@ -301,13 +301,13 @@ public class VectorString2D implements VectorString {
 					}
 					break loop;
 				}
-				// If i is within MAX_DISTANCE, include it in the estimation of the next gpol point
 				final double distSq = Math.pow(this.x[i] - lastX, 2) + Math.pow(this.y[i] - lastY, 2);
 				// Choose next i: the first one further than delta from lastX, lastY
 				// and if the same is to be used, then use the next one if there's another under MAX_DISTANCE
 				if (first_i == next_i && distSq > deltaSq) { // if not yet changed and distance is larger than delta
 					next_i = i;
 				}
+				// If i is within MAX_DISTANCE, include it in the estimation of the next gpol point
 				if (distSq < MAX_DISTANCE_SQ) {
 					final double dist = Math.sqrt(distSq);
 					sumW += dist;
