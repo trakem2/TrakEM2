@@ -29,6 +29,7 @@ import ini.trakem2.display.VectorDataTransform;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
+import ij.process.FloatPolygon;
 
 /** TrakEM2's mathematician. */
 public final class M {
@@ -800,6 +801,18 @@ public final class M {
 		final float w2 = 0.05448869f,
 		             w1 = 0.24420134f,
 		             w0 = 0.40261994f;
+		// Handle boundary case
+		if (out.length < 5) {
+			for (int i=0; i<out.length; ++i) {
+				out[i] =   in[seq.setPosition(i -2)] * w2
+						 + in[seq.setPosition(i -1)] * w1
+						 + in[seq.setPosition(i   )] * w0
+						 + in[seq.setPosition(i +1)] * w1
+						 + in[seq.setPosition(i +2)] * w2;
+			}
+			return;
+		}
+		// Optimized general case: use the CircularSequence only at the ends
 		for (int i=0; i<2; ++i) {
 			out[i] =   in[seq.setPosition(i -2)] * w2
 					 + in[seq.setPosition(i -1)] * w1
@@ -822,5 +835,63 @@ public final class M {
 					 + in[seq.setPosition(i +1)] * w1
 					 + in[seq.setPosition(i +2)] * w2;
 		}
+	}
+	
+	/** Copied from ImageJ's ij.gui.PolygonRoi.getInterpolatedPolygon, by Wayne Rasband and collaborators.
+	 * The reason I copied this method is that creating a new PolygonRoi just to get an interpolated polygon
+	 * processes the float[] arrays of the coordinates, subtracting the minimum x,y. Not only it is an extra
+	 * operation but it is also in place, altering data arrays. Fortunately FloatPolygon does not touch the arrays. */
+	final static public FloatPolygon createInterpolatedPolygon(
+			final FloatPolygon p,
+			final double interval,
+			final boolean isLine) {
+		double length = p.getLength(isLine);
+		int npoints2 = (int)((length*1.2)/interval);
+		float[] xpoints2 = new float[npoints2];
+		float[] ypoints2 = new float[npoints2];
+		xpoints2[0] = p.xpoints[0];
+		ypoints2[0] = p.ypoints[0];
+		int n=1, n2;
+		double inc = 0.01;
+		double distance=0.0, distance2=0.0, dx=0.0, dy=0.0, xinc, yinc;
+		double x, y, lastx, lasty, x1, y1, x2=p.xpoints[0], y2=p.ypoints[0];
+		int npoints = p.npoints;
+		if (!isLine) npoints++;
+		for (int i=1; i<npoints; i++) {
+			x1=x2; y1=y2;
+			x=x1; y=y1;
+			if (i<p.npoints) {
+				x2=p.xpoints[i];
+				y2=p.ypoints[i];
+			} else {
+				x2=p.xpoints[0];
+				y2=p.ypoints[0];
+			}
+			dx = x2-x1;
+			dy = y2-y1;
+			distance = Math.sqrt(dx*dx+dy*dy);
+			xinc = dx*inc/distance;
+			yinc = dy*inc/distance;
+			lastx=xpoints2[n-1]; lasty=ypoints2[n-1];
+			//n2 = (int)(dx/xinc);
+			n2 = (int)(distance/inc);
+			if (npoints==2) n2++;
+			do {
+				dx = x-lastx;
+				dy = y-lasty;
+				distance2 = Math.sqrt(dx*dx+dy*dy);
+				//IJ.log(i+"   "+IJ.d2s(xinc,5)+"   "+IJ.d2s(yinc,5)+"   "+IJ.d2s(distance,2)+"   "+IJ.d2s(distance2,2)+"   "+IJ.d2s(x,2)+"   "+IJ.d2s(y,2)+"   "+IJ.d2s(lastx,2)+"   "+IJ.d2s(lasty,2)+"   "+n+"   "+n2);
+				if (distance2>=interval-inc/2.0 && n<xpoints2.length-1) {
+					xpoints2[n] = (float)x;
+					ypoints2[n] = (float)y;
+					//IJ.log("--- "+IJ.d2s(x,2)+"   "+IJ.d2s(y,2)+"  "+n);
+					n++;
+					lastx=x; lasty=y;
+				}
+				x += xinc;
+				y += yinc;
+			} while (--n2>0);
+		}
+		return new FloatPolygon(xpoints2, ypoints2, n);
 	}
 }

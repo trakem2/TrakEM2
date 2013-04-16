@@ -48,7 +48,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.vector.VectorString2D;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -1263,7 +1262,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			// smoothed perimeter:
 			{
 				double smooth_pix_perimeter = 0;
-				for (Polygon pol : M.getPolygons(area)) {
+				for (final Polygon pol : M.getPolygons(area)) {
 					
 					try {
 						// Should use VectorString2D, but takes for ever -- bug in resample?
@@ -1271,13 +1270,16 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						// Also, VectorString3D gets stuck in an infinite loop if the sequence is 6 points!
 						//VectorString3D v = new VectorString3D(xp, yp, new double[pol.npoints], true);
 						
-						/*
-						// Works but it is not the best smoothing of the Area's countour
-						if (pol.npoints < 7) {
-							// no point in smoothing out such a short polygon:
-							smooth_perimeter += pol.npoints;
+						
+						
+						if (pol.npoints < 5) {
+							// No point in smoothing out such a short polygon:
+							// (Plus can't convolve it with a gaussian that needs 5 points adjacent)
+							smooth_perimeter += new PolygonRoi(pol, PolygonRoi.POLYGON).getLength();
 							continue;
 						}
+						/*
+						// Works but it is not the best smoothing of the Area's countour
 						double[] xp = new double[pol.npoints];
 						double[] yp = new double[pol.npoints];
 						for (int p=0; p<pol.npoints; p++) {
@@ -1292,34 +1294,38 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						// The best solution I've found:
 						// 1. Run getInterpolatedPolygon with an interval of 1 to get a point at every pixel
 						// 2. convolve with a gaussian
-						// Resample to 1 so that every one pixel of the countour there is a point
-						final FloatPolygon fpol = new PolygonRoi(pol, PolygonRoi.POLYGON).getInterpolatedPolygon(1, true); // second argument doesn't apply to PolygonRoi
-						// Convolve with a sigma of 1 to smooth it out
-						final FloatPolygon gpol = new FloatPolygon(new float[fpol.npoints], new float[fpol.npoints], fpol.npoints);
-						final CircularSequence seq = new CircularSequence(fpol.npoints);
-						M.convolveGaussianSigma1(fpol.xpoints, gpol.xpoints, seq);
-						M.convolveGaussianSigma1(fpol.ypoints, gpol.ypoints, seq);
-						// Resample it to the desired resolution (also facilitates measurement: npoints * resampling_delta)
-						final FloatPolygon fp;
-						if (gpol.npoints > resampling_delta) {
-							fp = new PolygonRoi(gpol, PolygonRoi.POLYGON).getInterpolatedPolygon(resampling_delta, false); // second argument doesn't apply to PolygonRoi anyway
-						} else {
-							fp = gpol;
+						// Resample to 1 so that at every one pixel of the countour there is a point
+						FloatPolygon fpol = new FloatPolygon(new float[pol.npoints], new float[pol.npoints], pol.npoints);
+						for (int i=0; i<pol.npoints; ++i) {
+							fpol.xpoints[i] = pol.xpoints[i];
+							fpol.ypoints[i] = pol.ypoints[i];
 						}
-						// Measure perimeter: last point is potentially shorter or longer
-						smooth_pix_perimeter += (fp.npoints -1) * resampling_delta
-												+ Math.sqrt(  Math.pow(fp.xpoints[0] - fp.xpoints[fp.npoints-1], 2)
-												            + Math.pow(fp.ypoints[0] - fp.ypoints[fp.npoints-1], 2));
-						
-						// VectorString2D.resample is a dangerous operation, not well defined,
-						// but the approach below results in jittered contours for delta of 1, which is the default.
-						/*
-						final PolygonRoi proi = new PolygonRoi(pol, PolygonRoi.POLYGON);
-						proi.fitSpline();
-						final FloatPolygon fpol = proi.getInterpolatedPolygon(resampling_delta, true);
-						smooth_pix_perimeter += fpol.npoints * resampling_delta;
-						*/
+						fpol = M.createInterpolatedPolygon(fpol, 1, false);
+						final FloatPolygon fp;
+						if (fpol.npoints < 5) {
+							smooth_pix_perimeter += fpol.getLength(false);
+							fp = fpol;
+						} else {
+							// Convolve with a sigma of 1 to smooth it out
+							final FloatPolygon gpol = new FloatPolygon(new float[fpol.npoints], new float[fpol.npoints], fpol.npoints);
+							final CircularSequence seq = new CircularSequence(fpol.npoints);
+							M.convolveGaussianSigma1(fpol.xpoints, gpol.xpoints, seq);
+							M.convolveGaussianSigma1(fpol.ypoints, gpol.ypoints, seq);
+							// Resample it to the desired resolution (also facilitates measurement: npoints * resampling_delta)
+							if (gpol.npoints > resampling_delta) {
+								fp = M.createInterpolatedPolygon(gpol, resampling_delta, false);
+							} else {
+								fp = gpol;
+							}
+							// Measure perimeter: last line segment is potentially shorter or longer than resampling_delta
+							smooth_pix_perimeter += (fp.npoints -1) * resampling_delta
+													+ Math.sqrt(  Math.pow(fp.xpoints[0] - fp.xpoints[fp.npoints-1], 2)
+																+ Math.pow(fp.ypoints[0] - fp.ypoints[fp.npoints-1], 2));
+						}
 
+						// TEST:
+						//ij.plugin.frame.RoiManager.getInstance().addRoi(new PolygonRoi(fp, PolygonRoi.POLYGON));
+						
 						// TESTING: make a polygon roi and show it
 						// ... just in case to see that resampling works as expected, without weird endings
 						/*
