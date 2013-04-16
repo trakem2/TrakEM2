@@ -23,9 +23,12 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.vector;
 
 import java.awt.Polygon;
+import java.awt.Rectangle;
+
 import ij.gui.PolygonRoi;
 import ij.io.RoiDecoder;
 import ij.measure.Calibration;
+import ij.process.FloatPolygon;
 
 /** String of vectors. */
 public class VectorString2D implements VectorString {
@@ -130,74 +133,6 @@ public class VectorString2D implements VectorString {
 		this.resample();
 	}
 	
-	static private class Sequence {
-		protected int i = -1;
-		protected int size;
-		public Sequence(final int size) {
-			this.size = size;
-		}
-		int next() {
-			++i;
-			return i == size ? -1 : i;
-		}
-		void setPosition(final int k) {
-			if (k < 0 || k >= size) throw new RuntimeException( k + " is out of bounds.");
-			this.i = k;
-		}
-		final int position() {
-			return i;
-		}
-	}
-	
-	static private final class CircularSequence extends Sequence {
-		public CircularSequence(final int size) {
-			super(size);
-		}
-		@Override
-		final int next() {
-			++i;
-			i = i % size;
-			return i;
-		}
-		@Override
-		final void setPosition(final int k) {
-			i = k;
-			if (i < 0) i = size - ((-i) % size);
-			else i = i % size;
-		}
-	}
-	
-	static private final class GrowablePolygon {
-		private double[] x, y;
-		private int last = -1, growth;
-		GrowablePolygon(final int initialSize, final int growth) {
-			this.growth = growth;
-			this.x = new double[initialSize];
-			this.y = new double[initialSize];
-		}
-		final void resize() {
-			final double[] x2 = new double[this.x.length + this.growth];
-			System.arraycopy(this.x, 0, x2, 0, x.length);
-			this.x = x2;
-			final double[] y2 = new double[x2.length];
-			System.arraycopy(this.y, 0, y2, 0, y.length);
-			this.y = y2;
-		}
-		final void append(final double px, final double py) {
-			this.last += 1;
-			if (this.last == this.x.length) resize();
-			this.x[last] = px;
-			this.y[last] = py;
-		}
-		final double lastX() { return this.x[last]; }
-		final double lastY() { return this.y[last]; }
-		final void remove(final int i) {
-			System.arraycopy(this.x, i+1, this.x, i, last - i);
-			System.arraycopy(this.y, i+1, this.y, i, last - i);
-			--this.last;
-		}
-	}
-	
 	private final void reorderToCCW() {
 		// reorder to CCW if needed: (so all curves have the same orientation)
 		// find bounding box:
@@ -234,138 +169,27 @@ public class VectorString2D implements VectorString {
 		}
 	}
 	
-	static private final class DoubleArray {
-		private double[] a;
-		private int next = 0;
-		DoubleArray(final int initialCapacity) {
-			this.a = new double[initialCapacity];
-		}
-		final void append(final double d) {
-			this.a[next] = d;
-			++next;
-			if (this.a.length == next) {
-				final double[] b = new double[this.a.length + 1008];
-				System.arraycopy(this.a, 0, b, 0, this.a.length);
-				this.a = b;
-			}
-		}
-		final void reset() {
-			this.next = 0;
-		}
-		final int size() {
-			return next;
-		}
-	}
-	
 	private void resample() {
 		reorderToCCW();
-		final double MAX_DISTANCE = 2.5 * delta;
-		final double MAX_DISTANCE_SQ = MAX_DISTANCE * MAX_DISTANCE;
-		final double deltaSq = delta * delta;
-		final Sequence seq = this.closed ? new CircularSequence(this.length) : new Sequence(this.length);
-		final GrowablePolygon gpol = new GrowablePolygon(this.length, 200);
-		final DoubleArray w = new DoubleArray(16);
-		boolean end_seen = false;
-		final int last = closed ? 0 : this.length -1;
-		// First resampled point is the same as zero
-		gpol.append(x[0], y[0]);
-		// Start using the first point for interpolations
-		seq.setPosition(1);
-		// Grow all the way to the last point
-		loop: while (true) {
-			final double lastX = gpol.lastX(),
-			               lastY = gpol.lastY();
-			final int first_i = seq.position(); // the first point ahead to consider
-			double sumW = 0; // the sum of weights, for normalization
-			int i = first_i; // the index over the original sequence of points
-			int next_i = first_i; // the next index for the next iteration
-			w.reset(); // reset the array of weights: empty it
-			// Iterate the points from i onward that lay within MAX_DISTANCE to estimate the next gpol point
-			// and determine from which of the seen next points the estimation should start in the next iteration
-			// or use again the same i of not overtaken.
-			while (true) {
-				// Determine termination:
-				if (!end_seen) end_seen = i == last;
-				if (end_seen) {
-					double distToEndSq = Math.pow(this.x[last] - lastX, 2) + Math.pow(this.y[last] - lastY, 2);
-					if (distToEndSq > deltaSq) {
-						// Populate towards the end in a straight line
-						// While this may not be smooth, termination is otherwise a devilish issue.
-						final int n = (int)(Math.sqrt(distToEndSq) / delta);
-						final double angleXY = Util.getAngle(x[last] - lastX, y[last] - lastY);
-						double dX = Math.cos(angleXY) * delta,
-								dY = Math.sin(angleXY) * delta;
-						for (int k=1; k<=n; ++k) {
-							gpol.append(lastX + dX * k, lastY + dY * k);
-						}
-					}
-					break loop;
-				}
-				final double distSq = Math.pow(this.x[i] - lastX, 2) + Math.pow(this.y[i] - lastY, 2);
-				// Choose next i: the first one further than delta from lastX, lastY
-				// and if the same is to be used, then use the next one if there's another under MAX_DISTANCE
-				if (first_i == next_i && distSq > deltaSq) { // if not yet changed and distance is larger than delta
-					next_i = i;
-				}
-				// If i is within MAX_DISTANCE, include it in the estimation of the next gpol point
-				if (distSq < MAX_DISTANCE_SQ) {
-					final double dist = Math.sqrt(distSq);
-					sumW += dist;
-					w.append(dist);
-					// ... and advance to the next
-					i = seq.next();
-				} else {
-					break;
-				}
-			}
-			
-			if (w.size() > 0) {
-				// Normalize weights so that their sum equals 1
-				double sumW2 = 0;
-				for (int j=w.size() -1; j > -1; --j) {
-					w.a[j] /= sumW;
-					sumW2 += w.a[j];
-				}
-				// Correct for floating-point issues: add error to first weight
-				if (sumW2 < 1.0) {
-					w.a[0] += 1.0 - sumW2;
-				}
-				// Create next interpolated point
-				seq.setPosition(first_i);
-				double dx = 0,
-				        dy = 0;
-				for (int j=0, k = seq.position(); j<w.size(); ++j, k = seq.next()) {
-					final double angleXY = Util.getAngle(x[k] - lastX, y[k] - lastY);
-					dx += w.a[j] * Math.cos(angleXY);
-					dy += w.a[j] * Math.sin(angleXY);
-				}
-				gpol.append(lastX + dx * delta, lastY + dy * delta);
-			} else {
-				// Use the first_i, which was not yet overtaken
-				final double angleXY = Util.getAngle(x[first_i] - lastX, y[first_i] - lastY);
-				gpol.append(lastX + Math.cos(angleXY) * delta,
-				            lastY + Math.sin(angleXY) * delta);
-			}
-			// Set next point:
-			seq.setPosition(next_i);
+		// PROBLEM: will fail when delta is larger than the length of the polygon
+		Util.DoublePolygon dpol = Util.createInterpolatedPolygon(
+				new Util.DoublePolygon(this.x, this.y, this.length), 1.0, !closed);
+		final Util.CircularSequence seq = new Util.CircularSequence(dpol.npoints);
+		final double[] xpoints = new double[dpol.npoints],
+		                 ypoints = new double[dpol.npoints];
+		Util.convolveGaussianSigma1(dpol.xpoints, xpoints, seq);
+		Util.convolveGaussianSigma1(dpol.ypoints, ypoints, seq);
+		// Resample to the desired resolution, aka delta
+		if (dpol.npoints > delta) {
+			dpol = Util.createInterpolatedPolygon(
+					new Util.DoublePolygon(xpoints, ypoints, dpol.npoints), delta, !closed);
 		}
 		
-		// Fix the junction between first and last point: check if second point suits best.
-		if (closed) {
-			final double distSq =   Math.pow(gpol.x[1] - gpol.x[gpol.last], 2)
-			                       + Math.pow(gpol.y[1] - gpol.y[gpol.last], 2);
-			if (distSq < delta) {
-				gpol.remove(0);
-			}
-		} else {		
-			// When not closed, append the last point--regardless of its distance to lastX, lastY.
-			gpol.append(this.x[this.length -1], this.y[this.length -1]);
-		}
+		// Assign points
+		this.length = dpol.npoints;
+		this.x = dpol.xpoints;
+		this.y = dpol.ypoints;
 		
-		// Assign the new resampled points
-		this.length = gpol.last + 1;
-		this.x = gpol.x;
-		this.y = gpol.y;
 		// Assign the vectors
 		this.v_x = new double[this.length];
 		this.v_y = new double[this.length];
