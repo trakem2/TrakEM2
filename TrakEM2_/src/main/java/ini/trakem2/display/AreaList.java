@@ -1294,7 +1294,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						// The best solution I've found:
 						// 1. Run getInterpolatedPolygon with an interval of 1 to get a point at every pixel
 						// 2. convolve with a gaussian
-						// Resample to 1 so that at every one pixel of the countour there is a point
+						// Resample to 1 so that at every one pixel of the contour there is a point
 						FloatPolygon fpol = new FloatPolygon(new float[pol.npoints], new float[pol.npoints], pol.npoints);
 						for (int i=0; i<pol.npoints; ++i) {
 							fpol.xpoints[i] = pol.xpoints[i];
