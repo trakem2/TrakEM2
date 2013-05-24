@@ -832,7 +832,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	/** Useful for typeless scripts so that a ZDisplayable can be added; the
 	 * overloaded method add(Layer) and add(ZDisplayable) is not distinguishable otherwise. */
 	public void addZDisplayable(final ZDisplayable zdispl) {
-		return add(zdispl);
+		add(zdispl);
 	}
 
 	/** Add a Displayable to be painted in all Layers, such as a Pipe. Also updates open displays of the fact. */
