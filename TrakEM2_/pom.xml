@@ -39,7 +39,7 @@
 			<version>1.5.2</version>
 		</dependency>
 		<dependency>
-			<groupId>loci</groupId>
+			<groupId>${scifio.groupId}</groupId>
 			<artifactId>scifio</artifactId>
 			<version>${scifio.version}</version>
 		</dependency>
