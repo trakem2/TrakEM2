@@ -8,7 +8,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>1.24</version>
+		<version>1.48</version>
 	</parent>
 
 	<groupId>sc.fiji</groupId>
@@ -20,6 +20,7 @@
 	<description></description>
 
 	<properties>
+		<fiji.version>2.0.0-SNAPSHOT</fiji.version>
 		<trakem2.version>1.0b-SNAPSHOT</trakem2.version>
 	</properties>
 
