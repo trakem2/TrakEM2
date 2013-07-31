@@ -7,7 +7,7 @@ import ij.process.ImageProcessor;
 /** Smooth with a Gaussian. */
 public class GaussianBlur implements IFilter
 {
-	protected double sigmaX = 2, sigmaY = 2, accuracy = 0.02;
+	protected double sigmaX = 2, sigmaY = 2, accuracy = 0.002;
 	
 	public GaussianBlur() {}
 
