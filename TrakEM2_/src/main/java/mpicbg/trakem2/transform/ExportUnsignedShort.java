@@ -8,6 +8,8 @@ import ij.process.ShortProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
+import ini.trakem2.process.ParallelMapping;
+import ini.trakem2.process.TaskFactory;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -340,6 +342,43 @@ public class ExportUnsignedShort
 		for ( final PatchIntensityRange pir : patchIntensityRanges )
 		{
 			map( new PatchTransform( pir ), roi.x, roi.y, mapIntensities( pir, min, max ), sp );
+		}
+		
+		return sp;
+	}
+
+	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final int n_threads) {
+		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
+		double min = Double.MAX_VALUE;
+		double max = -Double.MAX_VALUE;
+
+		for ( final PatchIntensityRange pir : new ParallelMapping<Patch,PatchIntensityRange>(n_threads, patches, new TaskFactory<Patch,PatchIntensityRange>() {
+			public PatchIntensityRange process(final Patch patch) {
+				return new PatchIntensityRange( patch );
+			}
+		}) ) {
+			min = Math.min(min, pir.min);
+			max = Math.max(max, pir.max);
+			patchIntensityRanges.add( pir );
+		}
+
+		final double minI = -min * 65535.0 / ( max - min );
+		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
+		
+		final ShortProcessor sp = new ShortProcessor( roi.width, roi.height );
+		sp.setMinAndMax( minI, maxI );
+		if (0 != backgroundValue) {
+			sp.setValue(backgroundValue);
+			sp.setRoi(0, 0, roi.width, roi.height);
+			sp.fill();
+		}
+
+		for ( final ShortProcessor pir_sp : new ParallelMapping<PatchIntensityRange,ShortProcessor>(n_threads, patchIntensityRanges, new TaskFactory<PatchIntensityRange,ShortProcessor>() {
+			public ShortProcessor process(final PatchIntensityRange pir) {
+				return mapIntensities( pir, min, max );
+			}
+		}) ) {
+			map( new PatchTransform( pir ), roi.x, roi.y, pir_sp, sp );
 		}
 		
 		return sp;
