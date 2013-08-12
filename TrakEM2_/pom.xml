@@ -56,7 +56,7 @@
 		<dependency>
 			<groupId>mpicbg</groupId>
 			<artifactId>mpicbg</artifactId>
-			<version>0.6.0-SNAPSHOT</version>
+			<version>${mpicbg.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>mpicbg</groupId>
