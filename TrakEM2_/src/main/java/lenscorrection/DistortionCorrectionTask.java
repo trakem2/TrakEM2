@@ -382,6 +382,10 @@ final public class DistortionCorrectionTask
 						for ( final PointMatch pm : t.getMatches() )
 							originalPoints.put( pm.getP1(), pm.getP1().clone() );
 					
+					/* ad hoc conditions to terminate iteration:
+					 * small improvement ( 1/1000) relative to first iteration
+					 * less than 20 iterations
+					 * at least 2 iterations */
 					for ( int i = 1; i < 20 && ( i < 2 || dEpsilon_i <= dEpsilon_0 / 1000 ); ++i )
 					{
 						if ( Thread.currentThread().isInterrupted() ) return;
