@@ -8,8 +8,8 @@ import ij.process.ShortProcessor;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
-import ini.trakem2.process.ParallelMapping;
-import ini.trakem2.process.TaskFactory;
+import ini.trakem2.parallel.ParallelMapping;
+import ini.trakem2.parallel.TaskFactory;
 
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -23,6 +23,7 @@ import mpicbg.models.CoordinateTransformList;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.trakem2.util.Triple;
+import mpicbg.trakem2.util.Pair;
 
 public class ExportUnsignedShort
 {
@@ -373,12 +374,15 @@ public class ExportUnsignedShort
 			sp.fill();
 		}
 
-		for ( final ShortProcessor pir_sp : new ParallelMapping<PatchIntensityRange,ShortProcessor>(n_threads, patchIntensityRanges, new TaskFactory<PatchIntensityRange,ShortProcessor>() {
-			public ShortProcessor process(final PatchIntensityRange pir) {
-				return mapIntensities( pir, min, max );
+		final double minF = min,
+		             maxF = max;
+
+		for ( final Pair<PatchTransform,ShortProcessor> p : new ParallelMapping<PatchIntensityRange,Pair<PatchTransform,ShortProcessor>>(n_threads, patchIntensityRanges, new TaskFactory<PatchIntensityRange,Pair<PatchTransform,ShortProcessor>>() {
+			public Pair<PatchTransform,ShortProcessor> process(final PatchIntensityRange pir) {
+				return new Pair<PatchTransform,ShortProcessor>( new PatchTransform( pir ), mapIntensities( pir, minF, maxF ) );
 			}
 		}) ) {
-			map( new PatchTransform( pir ), roi.x, roi.y, pir_sp, sp );
+			map( p.a, roi.x, roi.y, p.b, sp );
 		}
 		
 		return sp;

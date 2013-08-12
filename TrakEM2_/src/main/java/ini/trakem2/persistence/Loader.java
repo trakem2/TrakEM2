@@ -3168,7 +3168,7 @@ while (it.hasNext()) {
 					} else if (ImagePlus.GRAY8 == type) {
 						// Respect alpha masks and display range:
 						Utils.log("WARNING: ignoring scale for 'use original images' and '8-bit' options");
-						snapshot = ExportUnsignedShort.makeFlatImage((ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), srcRect, 0).convertToByte(true);						
+						snapshot = ExportUnsignedShort.makeFlatImage((ArrayList<Patch>)(List)layer.getDisplayables(Patch.class, true), srcRect, 0, layer.getProject().getProperty("n_mipmap_threads", Runtime.getRuntime().availableProcessors())).convertToByte(true);
 					} else {
 						Utils.log("ERROR: don't know how to generate mipmaps for type '" + type + "'");
 						cleanUp();
