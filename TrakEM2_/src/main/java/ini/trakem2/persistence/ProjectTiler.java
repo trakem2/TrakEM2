@@ -221,10 +221,13 @@ public class ProjectTiler {
 		}
 
 		// Copy all segmentations "As is"
-		final ProjectThing source_pt = srcProject.getRootProjectThing().getChildren().get(0);
-		final int transfer_mode = 0; // "As is"
-		final ProjectThing landing_parent = newProject.getRootProjectThing();
-		srcProject.getProjectTree().rawSendToSiblingProject(source_pt, transfer_mode, newProject, landing_parent);
+		final ProjectThing root = srcProject.getRootProjectThing();
+		if (null != root.getChildren() && !root.getChildren().isEmpty()) {
+			final ProjectThing source_pt = srcProject.getRootProjectThing().getChildren().get(0);
+			final int transfer_mode = 0; // "As is"
+			final ProjectThing landing_parent = newProject.getRootProjectThing();
+			srcProject.getProjectTree().rawSendToSiblingProject(source_pt, transfer_mode, newProject, landing_parent);
+		}
 		
 		// Copy all floating text labels
 		i = 0;
