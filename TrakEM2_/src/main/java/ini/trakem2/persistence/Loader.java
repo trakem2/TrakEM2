@@ -3099,6 +3099,7 @@ while (it.hasNext()) {
 			.append("\"offset_x_px\": 0,\n")
 			.append("\"offset_y_px\": 0,\n")
 			.append("\"offset_z_px\": ").append(indices.get(indices.firstKey()).getZ() * cal.pixelWidth / cal.pixelDepth).append(',').append('\n')
+			.append("\"tile_side\": ").append(tileSide).append('"').append(',').append('\n')
 			.append("\"missing_layers\": [");
 			for (final Integer i : missingIndices) sb.append(i - smallestIndex).append(',');
 			sb.setLength(sb.length()-1); // remove last comma
