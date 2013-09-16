@@ -23,9 +23,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import ij.gui.GenericDialog;
 import ij.ImagePlus;
-
+import ij.gui.GenericDialog;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.DBObject;
@@ -35,21 +34,20 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
-
 import java.awt.Color;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.NoninvertibleTransformException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 import mpicbg.models.NoninvertibleModelException;
 
@@ -67,15 +65,17 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Compare layers by Z. */
 	static public final Comparator<Layer> COMPARATOR = new Comparator<Layer>() {
+		@Override
 		public final int compare(final Layer l1, final Layer l2) {
 			if (l1 == l2) return 0; // the same layer
 			if (l1.getZ() < l2.getZ()) return -1;
 			return 1; // even if same Z, prefer the second
 		}
-		public final boolean equals(Object ob) { return this == ob; }
+		@Override
+		public final boolean equals(final Object ob) { return this == ob; }
 	};
 
-	public Layer(Project project, double z, double thickness, LayerSet parent) {
+	public Layer(final Project project, final double z, final double thickness, final LayerSet parent) {
 		super(project);
 		this.z = z;
 		this.thickness = thickness;
@@ -84,7 +84,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Reconstruct from database*/
-	public Layer(Project project, long id, double z, double thickness) {
+	public Layer(final Project project, final long id, final double z, final double thickness) {
 		super(project, id);
 		this.z = z;
 		this.thickness = thickness;
@@ -92,7 +92,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Reconstruct from XML file. */
-	public Layer(final Project project, final long id, HashMap<String,String> ht_attributes) {
+	public Layer(final Project project, final long id, final HashMap<String,String> ht_attributes) {
 		super(project, id);
 		this.parent = null;
 		// parse data
@@ -104,23 +104,23 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Creates a new Layer asking for z and thickness, and adds it to the parent and returns it. Returns null if the dialog was canceled.*/
-	static public Layer create(Project project, LayerSet parent) {
+	static public Layer create(final Project project, final LayerSet parent) {
 		if (null == parent) return null;
-		GenericDialog gd = ControlWindow.makeGenericDialog("New Layer");
+		final GenericDialog gd = ControlWindow.makeGenericDialog("New Layer");
 		gd.addMessage("In pixels:"); // TODO set elsewhere the units!
 		gd.addNumericField("z coordinate: ", 0.0D, 3);
 		gd.addNumericField("thickness: ", 1.0D, 3);
 		gd.showDialog();
 		if (gd.wasCanceled()) return null;
 		try {
-			double z = gd.getNextNumber();
-			double thickness = gd.getNextNumber();
+			final double z = gd.getNextNumber();
+			final double thickness = gd.getNextNumber();
 			if (Double.isNaN(z) || Double.isNaN(thickness)) return null;
-			Layer layer = new Layer(project, z, thickness, parent);
+			final Layer layer = new Layer(project, z, thickness, parent);
 			parent.add(layer);
 			parent.recreateBuckets(layer, true);
 			return layer;
-		} catch (Exception e) {}
+		} catch (final Exception e) {}
 		return null;
 	}
 
@@ -128,9 +128,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	 *  and whether to skip the creation of any layers whose Z and thickness match
 	 *  that of existing layers.
 	 *  @return The newly created layers. */
-	static public List<Layer> createMany(Project project, LayerSet parent) {
+	static public List<Layer> createMany(final Project project, final LayerSet parent) {
 		if (null == parent) return null;
-		GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
+		final GenericDialog gd = ControlWindow.makeGenericDialog("Many new layers");
 		gd.addNumericField("First Z coord: ", 0, 3);
 		gd.addNumericField("thickness: ", 1.0, 3);
 		gd.addNumericField("Number of layers: ", 1, 0);
@@ -139,9 +139,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (gd.wasCanceled()) return null;
 		// start iteration to add layers
 		double z = gd.getNextNumber();
-		double thickness = gd.getNextNumber();
-		int n_layers = (int)gd.getNextNumber();
-		boolean skip = gd.getNextBoolean();
+		final double thickness = gd.getNextNumber();
+		final int n_layers = (int)gd.getNextNumber();
+		final boolean skip = gd.getNextBoolean();
 		if (thickness < 0) {
 			Utils.log("Can't create layers with negative thickness");
 			return null;
@@ -150,7 +150,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			Utils.log("Invalid number of layers");
 			return null;
 		}
-		List<Layer> layers = new ArrayList<Layer>(n_layers);
+		final List<Layer> layers = new ArrayList<Layer>(n_layers);
 		for (int i=0; i<n_layers; i++) {
 			Layer la = null;
 			if (skip) {
@@ -187,6 +187,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return sb.toString();
 	}
 
+	@Override
 	public String toString() {
 		if (null == parent) return new StringBuilder("z=").append(Utils.cutNumber(z, 4)).toString();
 		//return "z=" + Utils.cutNumber(z / parent.getCalibration().pixelDepth * z !!!?? I don't have the actual depth to correct with.
@@ -201,9 +202,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Add a displayable and update all Display instances showing this Layer. */
-	public void add(Displayable displ) { add(displ, true); }
+	public void add(final Displayable displ) { add(displ, true); }
 
-	public void add(Displayable displ, boolean update_displays) {
+	public void add(final Displayable displ, final boolean update_displays) {
 		add(displ, update_displays, true);
 	}
 
@@ -296,6 +297,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 	}
 
+	@Override
 	public HashMap<Displayable, HashSet<Bucket>> getBucketMap(final Layer layer) { // ignore layer
 		return db_map;
 	}
@@ -306,7 +308,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		try {
 			((Displayable)displ).setLayer(this, false);
 			al_displayables.add((Displayable)displ);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			Utils.log("Layer.addSilently: Not a Displayable/LayerSet, not adding DBObject id=" + displ.getId());
 			return;
 		}
@@ -349,13 +351,13 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Used for reconstruction purposes. */
-	public void setParentSilently(LayerSet layer_set) {
+	public void setParentSilently(final LayerSet layer_set) {
 		if (layer_set == this.parent) return;
 		this.parent = layer_set;
 		//Utils.log("Layer " +id + ": I have as new parent the LayerSet " + layer_set.getId());
 	}
 
-	public void setParent(LayerSet layer_set) { // can be null
+	public void setParent(final LayerSet layer_set) { // can be null
 		if (layer_set == this.parent) return;
 		this.parent = layer_set;
 		updateInDatabase("layer_set_id");
@@ -376,13 +378,14 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Remove this layer and all its contents from the project. */
-	public boolean remove(boolean check) {
+	@Override
+	public boolean remove(final boolean check) {
 		try {
 			if (check && !Utils.check("Really delete " + this.toString() + " and all its children?")) return false;
 			// destroy the Display objects that show this layer
 			Display.remove(this);
 			// proceed to remove all the children
-			Displayable[] displ = new Displayable[al_displayables.size()]; // to avoid concurrent modifications
+			final Displayable[] displ = new Displayable[al_displayables.size()]; // to avoid concurrent modifications
 			al_displayables.toArray(displ);
 			for (int i=0; i<displ.length; i++) {
 				if (!displ[i].remove2(false)) { // will call back Layer.remove(Displayable)
@@ -396,19 +399,19 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			parent.remove(this);
 			Display.updateLayerScroller(parent);
 			removeFromDatabase();
-		} catch (Exception e) { IJError.print(e); return false; }
+		} catch (final Exception e) { IJError.print(e); return false; }
 		return true;
 	}
 
-	public void setZ(double z) {
+	public void setZ(final double z) {
 		if (Double.isNaN(z) || z == this.z) return;
 		this.z = z;
 		if (null != parent) {
 			parent.reposition(this);
 			// fix ordering in the trees (must be done after repositioning in the parent)
-			LayerThing lt = project.findLayerThing(this);
+			final LayerThing lt = project.findLayerThing(this);
 			if (null != lt) {
-				LayerThing p = (LayerThing)lt.getParent();
+				final LayerThing p = (LayerThing)lt.getParent();
 				if (null != p) {
 					p.removeChild(lt); // does not affect the database
 					p.addChild(lt); // idem
@@ -435,7 +438,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Returns true if any of the Displayable objects are of the given class. */
 	public boolean contains(final Class<?> c) {
-		for (Object ob : al_displayables) {
+		for (final Object ob : al_displayables) {
 			if (ob.getClass() == c) return true;
 		}
 		return false;
@@ -454,7 +457,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	/** Count instances of the given Class. */
 	public int count(final Class<?> c) {
 		int n = 0;
-		for (Object ob : al_displayables) {
+		for (final Object ob : al_displayables) {
 			if (ob.getClass() == c) n++;
 		}
 		return n;
@@ -471,6 +474,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Returns the real list of displayables, not a copy. If you modify this list, Thor may ground you with His lightning. */
+	@Override
 	public final ArrayList<Displayable> getDisplayableList() {
 		return al_displayables;
 	}
@@ -588,15 +592,17 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	public Displayable get(final long id) {
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (d.getId() == id) return d;
 		}
 		return null;
 	}
 
+	@Override
 	public float getLayerWidth() {
 		return parent.getLayerWidth();
 	}
+	@Override
 	public float getLayerHeight() {
 		return parent.getLayerHeight();
 	}
@@ -610,7 +616,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (null != root) return root.find(x, y, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
-			Displayable d = (Displayable)al_displayables.get(i);
+			final Displayable d = (Displayable)al_displayables.get(i);
 			if (visible_only && !d.isVisible()) continue;
 			if (d.contains(x, y)) {
 				al.add(d);
@@ -633,7 +639,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (Displayable.class == c) return find(x, y, visible_only); // search among all
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
 		for (int i = al_displayables.size() -1; i>-1; i--) {
-			Displayable d = al_displayables.get(i);
+			final Displayable d = al_displayables.get(i);
 			if (visible_only && !d.isVisible()) continue;
 			if (d.getClass() == c && d.contains(x, y)) {
 				al.add(d);
@@ -678,23 +684,24 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return al;
 	}
 
-	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box) intersect the given Displayable (which is itself included if present in this very Layer). */
-	synchronized public Collection<Displayable> getIntersecting(final Displayable d, final Class<?> target) {
+	/** Find the Displayable objects of class 'target' whose perimeter (not just the bounding box)
+	 * intersect the given Displayable (which is itself included if present in this very Layer). */
+	synchronized public <T extends Displayable> Collection<T> getIntersecting(final Displayable d, final Class<T> target) {
 		if (null != root) {
 			final Area area = new Area(d.getPerimeter());
-			if (root.isBetter(area.getBounds(), this)) return root.find(area, this, false);
-		}
-		final ArrayList<Displayable> al = new ArrayList<Displayable>();
-		for (int i = al_displayables.size() -1; i>-1; i--) {
-			Object ob = al_displayables.get(i);
-			if (ob.getClass() != target) continue;
-			Displayable da = (Displayable)ob;
-			if (d.intersects(da)) {
-				al.add(da);
+			if (root.isBetter(area.getBounds(), this)) {
+				return (Collection<T>) root.find(target, area, this, false, true);
 			}
 		}
-		// remove the calling one
-		if (al.contains(d)) al.remove(d);
+		final ArrayList<T> al = new ArrayList<T>();
+		for (int i = al_displayables.size() -1; i>-1; i--) {
+			final Object ob = al_displayables.get(i);
+			if (target.isAssignableFrom(ob.getClass())) continue;
+			final Displayable da = (Displayable)ob;
+			if (d.intersects(da)) {
+				al.add((T)da);
+			}
+		}
 		return al;
 	}
 
@@ -724,7 +731,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		if (null == d || -1 == i || 0 == i) return;
 		if (al_displayables.get(i-1).getClass() == d.getClass()) {
 			//swap
-			Displayable o = al_displayables.remove(i-1);
+			final Displayable o = al_displayables.remove(i-1);
 			al_displayables.add(i, o);
 		} else return;
 		updateInDatabase("stack_index");
@@ -765,7 +772,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	public void moveBottom(final Displayable d) {
 		final int i = al_displayables.indexOf(d);
 		if (null == d || -1 == i || 0 == i) return;
-		Class<?> c = d.getClass();
+		final Class<?> c = d.getClass();
 		boolean done = false;
 		int j = i - 1;
 		for (; j > -1; j--) {
@@ -806,10 +813,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Get the index of the given Displayable relative to the rest of its class. Beware that the order of the al_displayables is bottom at zero, top at last, but the relative index returned here is inverted: top at zero, bottom at last -to match the tabs' vertical orientation in a Display.*/
 	public int relativeIndexOf(final Displayable d) {
-		int k = al_displayables.indexOf(d);
+		final int k = al_displayables.indexOf(d);
 		if (-1 == k) return -1;
-		Class<?> c = d.getClass();
-		int size = al_displayables.size();
+		final Class<?> c = d.getClass();
+		final int size = al_displayables.size();
 		int i = k+1;
 		for (; i<size; i++) {
 			if (al_displayables.get(i).getClass() == c) continue;
@@ -825,11 +832,11 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Note: Not recursive into embedded LayerSet objects. Returns the hash set of objects whose visibility has changed. */
-	public HashSet<Displayable> setVisible(String type, boolean visible, boolean repaint) {
+	public HashSet<Displayable> setVisible(String type, final boolean visible, final boolean repaint) {
 		type = type.toLowerCase();
 		if (type.equals("image")) type = "patch";
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (visible != d.isVisible() && d.getClass().getName().toLowerCase().endsWith(type)) {
 				d.setVisible(visible, false); // don't repaint
 				hs.add(d);
@@ -842,9 +849,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return hs;
 	}
 	/** Returns the collection of Displayable whose visibility state has changed. */
-	public Collection<Displayable> setAllVisible(boolean repaint) {
+	public Collection<Displayable> setAllVisible(final boolean repaint) {
 		final Collection<Displayable> col = new ArrayList<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (!d.isVisible()) {
 				d.setVisible(true, repaint);
 				col.add(d);
@@ -854,9 +861,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Hide all except those whose type is in 'type' list, whose visibility flag is left unchanged. Returns the list of displayables made hidden. */
-	public HashSet<Displayable> hideExcept(ArrayList<Class<?>> type, boolean repaint) {
+	public HashSet<Displayable> hideExcept(final ArrayList<Class<?>> type, final boolean repaint) {
 		final HashSet<Displayable> hs = new HashSet<Displayable>();
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (!type.contains(d.getClass()) && d.isVisible()) {
 				d.setVisible(false, repaint);
 				hs.add(d);
@@ -874,7 +881,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		       .append(in).append(" z=\"").append(z).append("\"\n")
 		;
 		// TODO this search is linear!
-		String title = project.findLayerThing(this).getTitle();
+		final LayerThing lt = project.findLayerThing(this);
+		String title;
+		if (null == lt) title = null;
+		else title = lt.getTitle();
 		if (null == title) title = "";
 		sb_body.append(in).append(" title=\"").append(title).append("\"\n"); // TODO 'title' should be a property of the Layer, not the LayerThing. Also, the LayerThing should not exist: LayerSet and Layer should be directly presentable in a tree. They are not Things as in "objects of the sample", but rather, structural necessities such as Patch.
 		sb_body.append(indent).append(">\n");
@@ -901,13 +911,14 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	protected String getLayerThingTitle() {
-		LayerThing lt = project.findLayerThing(this);
+		final LayerThing lt = project.findLayerThing(this);
 		if (null == lt || null == lt.getTitle() || 0 == lt.getTitle().trim().length()) return "";
 		return lt.getTitle();
 	}
 	
+	@Override
 	public String getTitle() {
-		LayerThing lt = project.findLayerThing(this);
+		final LayerThing lt = project.findLayerThing(this);
 		if (null == lt || null == lt.getTitle() || 0 == lt.getTitle().trim().length()) return this.toString();
 		return lt.getTitle();
 	}
@@ -940,7 +951,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Returns an Area in world coordinates that represents the inside of all Patches. */
 	public Area getPatchArea(final boolean visible_only) {
-		Area area = new Area(); // with width,height zero
+		final Area area = new Area(); // with width,height zero
 		for (final Patch p: getAll(Patch.class)) {
 			if (visible_only && p.isVisible()) {
 				area.add(p.getArea());
@@ -951,7 +962,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	/** Preconcatenate the given AffineTransform to all Displayable objects of class c, without respecting their links. */
 	public void apply(final Class<?> c, final AffineTransform at) {
-		boolean all = Displayable.class == c;
+		final boolean all = Displayable.class == c;
 		for (final Displayable d : al_displayables) {
 			if (all || d.getClass() == c) {
 				d.at.preConcatenate(at);
@@ -961,7 +972,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Make a copy of this layer into the given LayerSet, enclosing only Displayable objects within the roi, and translating them for that roi x,y. */
-	public Layer clone(final Project pr, LayerSet ls, final Rectangle roi, final boolean copy_id, final boolean ignore_hidden_patches) {
+	public Layer clone(final Project pr, final LayerSet ls, final Rectangle roi, final boolean copy_id, final boolean ignore_hidden_patches) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Layer copy = new Layer(pr, nid, z, thickness);
 		copy.parent = ls;
@@ -1005,7 +1016,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	public DBObject findById(final long id) {
 		if (this.id == id) return this;
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (d.getId() == id) return d;
 		}
 		return null;
@@ -1013,7 +1024,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	// private to the package
 	void linkPatchesR() {
-		for (Displayable d : al_displayables) {
+		for (final Displayable d : al_displayables) {
 			if (d.getClass() == LayerSet.class) ((LayerSet)d).linkPatchesR();
 			d.linkPatches(); // Patch.class does nothing
 		}
@@ -1022,7 +1033,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	/** Recursive into nested LayerSet objects.*/
 	public void updateLayerTree() {
 		project.getLayerTree().addLayer(parent, this);
-		for (Displayable d : getDisplayables(LayerSet.class)) {
+		for (final Displayable d : getDisplayables(LayerSet.class)) {
 			((LayerSet)d).updateLayerTree();
 		}
 	}
@@ -1045,6 +1056,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 	/** Update buckets of a position change for the given Displayable. */
+	@Override
 	public void updateBucket(final Displayable d, final Layer layer) { // ignore layer
 		if (null != root) root.updatePosition(d, this, db_map);
 	}
@@ -1055,7 +1067,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 
 	private boolean use_buckets = true;
 
-	public void setBucketsEnabled(boolean b) {
+	public void setBucketsEnabled(final boolean b) {
 		this.use_buckets = b;
 		if (!use_buckets) this.root = null;
 	}
@@ -1068,14 +1080,18 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			this.z = layer.z;
 			this.thickness = layer.thickness;
 		}
+		@Override
 		public Displayable getD() { return null; }
+		@Override
 		public boolean isEmpty() { return false; }
+		@Override
 		public boolean isIdenticalTo(final Object ob) {
 			if (!(ob instanceof Layer)) return false;
 			final Layer layer = (Layer) ob;
 			return this.la.id == layer.id && this.z == layer.z && this.thickness == layer.thickness;
 		}
-		public boolean apply(int action) {
+		@Override
+		public boolean apply(final int action) {
 			la.z = this.z;
 			la.thickness = this.thickness;
 			la.getProject().getLayerTree().updateUILater();
@@ -1091,8 +1107,11 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				this.all.add(new DoEditLayer(la));
 			}
 		}
+		@Override
 		public Displayable getD() { return null; }
+		@Override
 		public boolean isEmpty() { return all.isEmpty(); }
+		@Override
 		public boolean isIdenticalTo(final Object ob) {
 			if (!(ob instanceof DoEditLayers)) return false;
 			final DoEditLayers other = (DoEditLayers) ob;
@@ -1105,7 +1124,8 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			}
 			return true;
 		}
-		public boolean apply(int action) {
+		@Override
+		public boolean apply(final int action) {
 			boolean failed = false;
 			for (final DoEditLayer one : all) {
 				if (!one.apply(action)) {
@@ -1124,10 +1144,13 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			this.la = la;
 			this.al = la.getDisplayables(); // a copy
 		}
+		@Override
 		public Displayable getD() { return null; }
+		@Override
 		public boolean isEmpty() { return false; }
 		/** Check that the Displayable objects of this layer are the same and in the same quantity and order. */
-		public boolean isIdenticalTo(Object ob) {
+		@Override
+		public boolean isIdenticalTo(final Object ob) {
 			if (!(ob instanceof DoContentChange)) return false;
 			final DoContentChange dad = (DoContentChange) ob;
 			if (la != dad.la || al.size() != dad.al.size()) return false;
@@ -1139,6 +1162,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			}
 			return true;
 		}
+		@Override
 		public boolean apply(final int action) {
 			// find the subset in la.al_displayables that is not in this.al
 			final HashSet<Displayable> sub1 = new HashSet<Displayable>(la.al_displayables);
@@ -1190,7 +1214,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			this.al_displayables = new ArrayList<Displayable>(layer.al_displayables);
 		}
 		@Override
-		public boolean apply(int action) {
+		public boolean apply(final int action) {
 			// Replace all ZDisplayable
 			layer.al_displayables.clear();
 			layer.al_displayables.addAll(this.al_displayables);
@@ -1206,7 +1230,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			return null;
 		}
 		@Override
-		public boolean isIdenticalTo(Object ob) {
+		public boolean isIdenticalTo(final Object ob) {
 			if (!(ob instanceof DoMoveDisplayable)) return false;
 			final DoMoveDisplayable dm = (DoMoveDisplayable)ob;
 			if (dm.layer != this.layer) return false;
@@ -1234,13 +1258,14 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	/** Set to null to remove the Overlay.
 	 *  @return the previous Overlay, if any. */
 	synchronized public Overlay setOverlay(final Overlay o) {
-		Overlay old = this.overlay;
+		final Overlay old = this.overlay;
 		this.overlay = o;
 		return old;
 	}
 
+	@Override
 	public int compareTo(final Layer layer) {
-		double diff = this.z - layer.z;
+		final double diff = this.z - layer.z;
 		if (diff < 0) return -1;
 		if (diff > 0) return 1;
 		return 0;
@@ -1263,7 +1288,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 			for (final Patch p : patches) {
 				// Check if any of the 4 corners of the bounding box are beyond minSqDist
 				final Rectangle b = p.getBoundingBox();
-				double d1 = Math.pow(b.x - world_x, 2) + Math.pow(b.y - world_y, 2),
+				final double d1 = Math.pow(b.x - world_x, 2) + Math.pow(b.y - world_y, 2),
 				       d2 = Math.pow(b.x + b.width - world_x, 2) + Math.pow(b.y - world_y, 2),
 				       d3 = Math.pow(b.x - world_x, 2) + Math.pow(b.y + b.height - world_y, 2),
 				       d4 = Math.pow(b.x + b.width - world_x, 2) + Math.pow(b.y + b.height - world_y, 2),
@@ -1276,7 +1301,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 				if (p.hasCoordinateTransform()) {
 					for (final Polygon pol : M.getPolygons(p.getArea())) { // Area in world coordinates
 						for (int i=0; i<pol.npoints; ++i) {
-							double sqDist = Math.pow(pol.xpoints[0] - world_x, 2) + Math.pow(pol.ypoints[1] - world_y, 2);
+							final double sqDist = Math.pow(pol.xpoints[0] - world_x, 2) + Math.pow(pol.ypoints[1] - world_y, 2);
 							if (sqDist < minSqDist) {
 								minSqDist = sqDist;
 								patch = p;

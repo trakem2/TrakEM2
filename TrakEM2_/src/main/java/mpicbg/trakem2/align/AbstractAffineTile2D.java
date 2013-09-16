@@ -21,11 +21,16 @@ package mpicbg.trakem2.align;
 
 import ij.process.ByteProcessor;
 import ini.trakem2.display.Patch;
+import ini.trakem2.parallel.ParallelMapping;
+import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.utils.M;
 
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -37,6 +42,7 @@ import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
+import mpicbg.trakem2.util.Pair;
 
 /**
  * @version 0.1b
@@ -261,20 +267,62 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 	 * @param tiles
 	 * @param tilePairs
 	 */
-	final static public void pairOverlappingTiles(
-			final List< AbstractAffineTile2D< ? > > tiles,
+	final static public <AAT extends AbstractAffineTile2D< ? >> void pairOverlappingTiles(
+			final List< AAT > tiles,
 			final List< AbstractAffineTile2D< ? >[] > tilePairs )
 	{
-		for ( int a = 0; a < tiles.size(); ++a )
-		{
-			for ( int b = a + 1; b < tiles.size(); ++b )
-			{
-				final AbstractAffineTile2D< ? > ta = tiles.get( a );
-				final AbstractAffineTile2D< ? > tb = tiles.get( b );
-				if ( ta.intersects( tb ) )
-					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
-			}
-		}		
+		// 1. Precompute the Area of each tile's Patch
+		final HashMap< Patch, Pair< AAT, Area > > m = new HashMap< Patch, Pair< AAT, Area > >();
+		// A lazy collection of pairs, computed in parallel ahead of consumption
+		final Iterable< Pair< AAT, Area > > ts =
+				new ParallelMapping< AAT, Pair< AAT, Area > >(
+						tiles,
+						new TaskFactory< AAT, Pair< AAT, Area > >() {
+							@Override
+							public Pair< AAT, Area > process( final AAT tile ) {
+								return new Pair< AAT, Area >( tile, tile.patch.getArea() );
+							}
+						}
+				);
+		for ( final Pair< AAT, Area > t : ts) {
+			m.put( t.a.patch, t );
+		}
+		
+		// 2. Obtain the list of tile pairs, at one list per tile
+		final Iterable< List<AbstractAffineTile2D< ? >[]> > pairsList =
+				new ParallelMapping< AAT, List<AbstractAffineTile2D< ? >[]> >(
+						tiles,
+						new TaskFactory< AAT, List<AbstractAffineTile2D< ? >[]> >() {
+							@Override
+							public List<AbstractAffineTile2D< ? >[]> process( final AAT ta ) {
+								final Area a;
+								synchronized (m) {
+									a = m.get( ta.patch ).b;
+								}
+								final ArrayList<AbstractAffineTile2D< ? >[]> seq = new ArrayList<AbstractAffineTile2D< ? >[]>();
+								for ( final Patch p : ta.patch.getLayer().getIntersecting( ta.patch, Patch.class ) ) {
+									if ( p == ta.patch )
+										continue;
+									final Pair< AAT, Area > pair;
+									synchronized (m) {
+										pair =  m.get(p);
+									}
+									// Check that the Patch is among those to consider in the alignment
+									if ( null != pair ) {
+										// Check that the Patch visible pixels overlap -- may not if it has an alpha mask or coordinate transform
+										if ( M.intersects( a, pair.b ) ) {
+											seq.add( new AbstractAffineTile2D< ? >[]{ ta, pair.a });
+										}
+									}
+								}
+								return seq;
+							}
+						}
+				);
+		
+		for (final List<AbstractAffineTile2D<?>[]> list: pairsList) {
+			tilePairs.addAll(list);
+		}	
 	}
 	
 	/**

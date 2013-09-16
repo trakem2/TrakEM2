@@ -22,7 +22,13 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
+import java.awt.Polygon;
+import java.awt.Rectangle;
+
+import ij.gui.PolygonRoi;
+import ij.io.RoiDecoder;
 import ij.measure.Calibration;
+import ij.process.FloatPolygon;
 
 /** String of vectors. */
 public class VectorString2D implements VectorString {
@@ -126,25 +132,15 @@ public class VectorString2D implements VectorString {
 		this.delta = delta; // store for checking purposes
 		this.resample();
 	}
-
-	/** As in the resampling method for CurveMorphing_just_C.c but for 2D. Uses the assigned 'delta'. Will reorder to counter-clock wise if necessary. */
-	private void resample() {
-		final int MAX_AHEAD = 6;
-		final double MAX_DISTANCE = 2.5 * delta;
-		double[] ps_x = new double[length];
-		double[] ps_y = new double[length];
-		double[] v_x = new double[length];
-		double[] v_y = new double[length];
-		final int p_length = this.length; // to keep my head cool
-		int ps_length = this.length; // the length of the resampled vectors
-
+	
+	private final void reorderToCCW() {
 		// reorder to CCW if needed: (so all curves have the same orientation)
 		// find bounding box:
 		double x_max = 0;			int x_max_i = 0;
 		double y_max = 0;			int y_max_i = 0;
 		double x_min = Double.MAX_VALUE;		int x_min_i = 0;
 		double y_min = Double.MAX_VALUE;		int y_min_i = 0;
-		for (int i=0;i <p_length; i++) {
+		for (int i=0;i <this.length; i++) {
 			if (x[i] > x_max) { x_max = x[i]; x_max_i = i; } // this lines could be optimized, the p->x etc. are catched below
 			if (y[i] > y_max) { y_max = y[i]; y_max_i = i; }
 			if (x[i] < x_min) { x_min = x[i]; x_min_i = i; }
@@ -158,9 +154,9 @@ public class VectorString2D implements VectorString {
 		//if (3 == collect)
 		if (3 != collect) { // this should be '3 == collect', but then we are looking at the curves from the other side relative to what ImageJ is showing. In any case as long as one or the other gets rearranged, they'll be fine.
 			// Clockwise! Reorder to CCW by reversing the arrays in place
-			int n = p_length;
+			int n = this.length;
 			double tmp;
-			for (int i=0; i< p_length /2; i++) {
+			for (int i=0; i< this.length /2; i++) {
 
 				tmp = x[i];
 				x[i] = x[n-i-1];
@@ -171,216 +167,39 @@ public class VectorString2D implements VectorString {
 				y[n-i-1] = tmp;
 			}
 		}
-
-		// first resampled point is the same as 0
-		ps_x[0] = x[0];
-		ps_y[0] = y[0];
-		// the index over x,y
-		int i = 1;
-		// the index over ps (the resampled points)
-		int j = 1;
-		// some vars:
-		double dx, dy, sum;
-		double angleXY, dist1, dist2;
-		int[] ahead = new int[MAX_AHEAD];
-		double[] distances = new double[MAX_AHEAD];
-		int n_ahead = 0;
-		int u, ii, k;
-		int t, s;
-		int prev_i = i;
-		int iu;
-		double dist_ahead;
-		double[] w = new double[MAX_AHEAD];
-
-		// start infinite loop
-		for (;prev_i <= i;) {
-			if (prev_i > i) {//the loop has completed one round, since 'i' can go up to MAX_POINTS ahead of the last point into the points at the beggining of the array. Whenever the next point 'i' to start exploring is set beyond the length of the array, then the condition is met.
-				break;
-			}
-			// check ps and v array lengths
-			if (j >= ps_length) {
-				// must enlarge
-				ps_length += 20;
-				v_x = Util.copy(v_x, ps_length);
-				v_y = Util.copy(v_y, ps_length);
-				ps_x = Util.copy(ps_x, ps_length);
-				ps_y = Util.copy(ps_y, ps_length);
-			}
-			// get distances of MAX_POINTs ahead from the previous point
-			n_ahead = 0; // reset
-			for (t=0; t<MAX_AHEAD; t++) {
-				s = i + t; // 'i' is the first to start inspecting from
-				// fix 's' if it goes over the end // TODO this is problematic for sure for open curves.
-				if (s >= p_length) {
-					if (this.closed) s = s - p_length;
-					else s = p_length -1; // the last
-				}
-				dist_ahead = Math.sqrt((x[s] - ps_x[j-1])*(x[s] - ps_x[j-1]) + (y[s] - ps_y[j-1])*(y[s] - ps_y[j-1]));
-				if (dist_ahead < MAX_DISTANCE) {
-					ahead[n_ahead] = s;
-					distances[n_ahead] = dist_ahead;
-					n_ahead++;
-				}
-			}
-			//
-			if (0 == n_ahead) { // no points ahead found within MAX_DISTANCE
-				// all MAX_POINTS ahead lay under delta.
-				// ...
-				// simpler version: use just the next point
-				dist1 = Math.sqrt((x[i] - ps_x[j-1])*(x[i] - ps_x[j-1]) + (y[i] - ps_y[j-1])*(y[i] - ps_y[j-1]));
-				angleXY = Util.getAngle(x[i] - ps_x[j-1], y[i] - ps_y[j-1]);
-
-				dx = Math.cos(angleXY) * delta;
-				dy = Math.sin(angleXY) * delta;
-				ps_x[j] = ps_x[j-1] + dx;
-				ps_y[j] = ps_y[j-1] + dy;
-				v_x[j] = dx;
-				v_y[j] = dy;
-
-				//correct for point overtaking the not-close-enough point ahead in terms of 'delta_p' as it is represented in MAX_DISTANCE, but overtaken by the 'delta' used for subsampling:
-				if (dist1 <= delta) {
-					//look for a point ahead that is over distance delta from the previous j, so that it will lay ahead of the current j
-					for (u=i; u<=p_length; u++) {
-						dist2 = Math.sqrt((x[u] - ps_x[j-1])*(x[u] - ps_x[j-1]) + (y[u] - ps_y[j-1])*(y[u] - ps_y[j-1]));
-						if (dist2 > delta) {
-							prev_i = i;
-							i = u;
-							break;
-						}
-					}
-				}
-			} else {
-				w[0] = distances[0] / MAX_DISTANCE;
-				double largest = w[0];
-				for (u=1; u<n_ahead; u++) {
-					w[u] = 1 - (distances[u] / MAX_DISTANCE);
-					if (w[u] > largest) {
-						largest = w[u];
-					}
-				}
-				// normalize weights: divide by largest
-				sum = 0;
-				for (u=0; u<n_ahead; u++) {
-					w[u] = w[u] / largest;
-					sum += w[u];
-				}
-				// correct error. The closest point gets the extra
-				if (sum < 1.0) {
-					w[0] += 1.0 - sum;
-				} else {
-					w = recalculate(w, n_ahead, sum);
-				}
-				// calculate the new point using the weights
-				dx = 0.0;
-				dy = 0.0;
-				for (u=0; u<n_ahead; u++) {
-					iu = i+u;
-					if (iu >= p_length) iu -= p_length; 
-					angleXY = Util.getAngle(x[iu] - ps_x[j-1], y[iu] - ps_y[j-1]);
-					dx += w[u] * Math.cos(angleXY);
-					dy += w[u] * Math.sin(angleXY);
-				}
-				// make vector and point:
-				dx = dx * delta;
-				dy = dy * delta;
-				ps_x[j] = ps_x[j-1] + dx;
-				ps_y[j] = ps_y[j-1] + dy;
-				v_x[j] = dx;
-				v_y[j] = dy;
-
-				// find the first point that is right ahead of the newly added point
-				// so: loop through points that lay within MAX_DISTANCE, and find the first one that is right past delta.
-				ii = i;
-				for (k=0; k<n_ahead; k++) {
-					if (distances[k] > delta) {
-						ii = ahead[k];
-						break;
-					}
-				}
-				// correct for the case of unseen point (because all MAX_POINTS ahead lay under delta):
-				prev_i = i;
-				if (i == ii) {
-					i = ahead[n_ahead-1] +1; //the one after the last.
-					if (i >= p_length) i = i - p_length;
-				} else {
-					i = ii;
-				}
-			}
-			//advance index in the new points
-			j += 1;
-		} // end of for (;;) loop
-
-		// see whether the subsampling terminated too early, and fill with a line of points.
-		// TODO this is sort of a patch. Why didn't j overcome the last point is not resolved.
-		double lastx = x[0];
-		double lasty = y[0];
-		if (!closed) {
-			lastx = x[p_length -1];
-			lasty = y[p_length -1];
-		}
-		dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
-		if (dist1 > delta*1.2) {
-			// TODO needs revision
-			// System.out.println("resampling terminated too early. Why?");
-			angleXY = Util.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
-			dx = Math.cos(angleXY) * delta;
-			dy = Math.sin(angleXY) * delta;
-			while (dist1 > delta*1.2) {//added 1.2 to prevent last point from being generated too close to the first point
-				// check ps and v array lengths
-				if (j >= ps_length) {
-					// must enlarge.
-					ps_length += 20;
-					v_x = Util.copy(v_x, ps_length);
-					v_y = Util.copy(v_y, ps_length);
-					ps_x = Util.copy(ps_x, ps_length);
-					ps_y = Util.copy(ps_y, ps_length);
-				}
-				//add a point
-				ps_x[j] = ps_x[j-1] + dx;
-				ps_y[j] = ps_y[j-1] + dy;
-				v_x[j] = dx;
-				v_y[j] = dy;
-				j++;
-				dist1 = Math.sqrt((lastx - ps_x[j-1])*(lastx - ps_x[j-1]) + (lasty - ps_y[j-1])*(lasty - ps_y[j-1]));
-			}
-		}
-		// set vector 0 to be the vector from the last point to the first // TODO also for non-closed?
-		angleXY = Util.getAngle(lastx - ps_x[j-1], lasty - ps_y[j-1]);
-		//v_x[0] = Math.cos(angle) * delta;
-		//v_y[0] = Math.sin(angle) * delta; // can't use delta, it may be too long and thus overtake the first point!
-		v_x[0] = Math.cos(angleXY) * dist1;
-		v_y[0] = Math.sin(angleXY) * dist1;
-
-		// assign the new subsampled points
-		this.x = ps_x;
-		this.y = ps_y;
-		// assign the vectors
-		this.v_x = v_x;
-		this.v_y = v_y;
-		// j is now the length of the ps_x, ps_y, v_x and v_y arrays (i.e. the number of resampled points).
-		this.length = j;
-
-		// done!
 	}
-
-	private final double[] recalculate(final double[] w, final int length, final double sum_) {
-		double sum = 0;
-		int q;
-		for (q=0; q<length; q++) {
-			w[q] = w[q] / sum_;
-			sum += w[q];
+	
+	private void resample() {
+		reorderToCCW();
+		// PROBLEM: will fail when delta is larger than the length of the polygon
+		Util.DoublePolygon dpol = Util.createInterpolatedPolygon(
+				new Util.DoublePolygon(this.x, this.y, this.length), 1.0, !closed);
+		final Util.CircularSequence seq = new Util.CircularSequence(dpol.npoints);
+		final double[] xpoints = new double[dpol.npoints],
+		                 ypoints = new double[dpol.npoints];
+		Util.convolveGaussianSigma1(dpol.xpoints, xpoints, seq);
+		Util.convolveGaussianSigma1(dpol.ypoints, ypoints, seq);
+		// Resample to the desired resolution, aka delta
+		if (dpol.npoints > delta) {
+			dpol = Util.createInterpolatedPolygon(
+					new Util.DoublePolygon(xpoints, ypoints, dpol.npoints), delta, !closed);
 		}
-		double error = 1.0 - sum;
-		// make it be an absolute value
-		if (error < 0.0) {
-			error = -error;
+		
+		// Assign points
+		this.length = dpol.npoints;
+		this.x = dpol.xpoints;
+		this.y = dpol.ypoints;
+		
+		// Assign the vectors
+		this.v_x = new double[this.length];
+		this.v_y = new double[this.length];
+		for (int k=1; k<this.length; ++k) {
+			this.v_x[k] = this.x[k] - this.x[k-1];
+			this.v_y[k] = this.y[k] - this.y[k-1];
 		}
-		if (error < 0.005) {
-			w[0] += 1.0 - sum;
-		} else if (sum > 1.0) {
-			return recalculate(w, length, sum);
-		}
-		return w;
+		// For non-closed this arrangement of vectors seems wrong, but IIRC the vector at zero is ignored.
+		this.v_x[0] = this.x[0] - this.x[this.length -1];
+		this.v_y[0] = this.y[0] - this.y[this.length -1];
 	}
 
 	public void reorder(final int new_zero) { // this function is optimized for speed: no array duplications beyond minimally necessary, and no superfluous method calls.
@@ -504,5 +323,37 @@ public class VectorString2D implements VectorString {
 	}
 	public Calibration getCalibrationCopy() {
 		return null == this.cal ? null : this.cal.copy();
+	}
+	
+	static public final void main(String[] args) {
+		try {
+			RoiDecoder rd = new RoiDecoder("/home/albert/Desktop/t2/test-spline/1152-polygon.roi");
+			PolygonRoi sroi = (PolygonRoi)rd.getRoi();
+			Polygon pol = sroi.getPolygon();
+			double[] x = new double[pol.npoints];
+			double[] y = new double[pol.npoints];
+			for (int i=0; i<pol.npoints; ++i) {
+				x[i] = pol.xpoints[i];
+				y[i] = pol.ypoints[i];
+			}
+			VectorString2D v = new VectorString2D(x, y, 0, true);
+			v.resample(1);
+			StringBuffer sb = new StringBuffer();
+			sb.append("x = [");
+			for (int i=0; i<v.length; ++i) {
+				sb.append(v.x[i] + ",\n");
+			}
+			sb.setLength(sb.length() -2);
+			sb.append("]\n");
+			sb.append("\ny = [");
+			for (int i=0; i<v.length; ++i) {
+				sb.append(v.y[i] + ",\n");
+			}
+			sb.setLength(sb.length() -2);
+			sb.append("]\n");
+			System.out.println(sb.toString());
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 }

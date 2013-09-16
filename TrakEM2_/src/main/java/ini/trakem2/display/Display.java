@@ -3172,6 +3172,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Flush image cache"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate all mipmaps"); item.addActionListener(this); menu.add(item);
 		item = new JMenuItem("Regenerate mipmaps (selected images)"); item.addActionListener(this); menu.add(item);
+		menu.addSeparator();
+		item = new JMenuItem("Measurement options..."); item.addActionListener(this); menu.add(item);
 		popup.add(menu);
 
 		menu = new JMenu("Selection");
@@ -4988,6 +4990,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				break;
 			}
 			updateSelection();
+		} else if (command.equals("Measurement options...")) {
+			adjustMeasurementOptions();
 		} else if (command.equals("Show current 2D position in 3D")) {
 			Point p = canvas.consumeLastPopupPoint();
 			if (null == p) return;
@@ -5088,7 +5092,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Collection<Displayable> col = la.getParent().addTransformStepWithDataForAll(Arrays.asList(new Layer[]{la}));
 			
 			// find any locked or selected patches
-			final ArrayList<Patch> fixed = new ArrayList<Patch>();
+			final HashSet<Patch> fixed = new HashSet<Patch>();
 			for (final Patch p : patches) {
 				if (p.isLocked2() || selection.contains(p)) fixed.add(p);
 			}
@@ -6032,6 +6036,30 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 			}
 		}, list.get(0).getProject());
+	}
+	
+	public void adjustMeasurementOptions() {
+		final GenericDialog gd = new GenericDialog("Measurement options");
+		gd.addMessage("The point interdistance for resampling the contours\nof AreaLists when measuring areas and volumes.\nThe recommended value is one calibrated unit, in pixels.\nThe default value is one pixel.");
+		gd.addNumericField("Resolution", project.getProperty("measurement_resampling_delta", 1.0f), 1, 10, "pixels");
+		gd.addMessage("Whether to measure the largest diameter of an AreaList\nwhich is the largest distance between any two points of its contours.\nA very expensive operation, by default it is turned off.");
+		final boolean diameters = project.getBooleanProperty("measure_largest_diameter");
+		gd.addCheckbox("Measure_largest_diameter", diameters);
+		gd.showDialog();
+		
+		if (gd.wasCanceled()) return;
+		
+		final float delta = (float)gd.getNextNumber();
+		if (Float.isNaN(delta) || delta <= 0) {
+			Utils.log("Rejected resampling resolution of " + delta + ", which should be larger than zero.");
+		} else {
+			project.setProperty("measurement_resampling_delta", Float.toString(delta));
+		}
+		
+		final boolean diameters2 = gd.getNextBoolean();
+		if (diameters != diameters2) {
+			project.setProperty("measure_largest_diameter", Boolean.toString(diameters2));
+		}
 	}
 
 	/** Pops up a dialog to adjust the alpha, visible, color, locked and compositeMode of all Displayables in {@param col}.

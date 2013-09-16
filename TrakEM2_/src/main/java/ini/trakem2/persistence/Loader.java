@@ -3149,7 +3149,7 @@ while (it.hasNext()) {
 				// create single tile per layer
 				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver);
 			} else {
-				// create piramid of tiles
+				// create pyramid of tiles
 				if (from_original_images) {
 					Utils.log("Exporting from web using original images");
 					// Create a giant 8-bit image of the whole layer from original images

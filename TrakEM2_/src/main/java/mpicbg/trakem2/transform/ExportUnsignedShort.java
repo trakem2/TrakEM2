@@ -10,7 +10,6 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 
 import java.awt.Rectangle;
-import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -50,27 +49,7 @@ public class ExportUnsignedShort
 		PatchTransform( final PatchIntensityRange pir )
 		{
 			this.pir = pir;
-			final CoordinateTransform ctp = pir.patch.getCoordinateTransform();
-			if ( ctp == null )
-			{
-				final AffineModel2D affine = new AffineModel2D();
-				affine.set( pir.patch.getAffineTransform() );
-				ct = affine;
-			}
-			else
-			{
-				final Rectangle box = pir.patch.getCoordinateTransformBoundingBox();
-				final AffineTransform at = pir.patch.getAffineTransformCopy();
-				at.translate( -box.x, -box.y );
-				final AffineModel2D affine = new AffineModel2D();
-				affine.set( at );
-				
-				final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
-				ctl.add( ctp );
-				ctl.add( affine );
-				
-				ct = ctl;
-			}
+			ct = pir.patch.getFullCoordinateTransform();
 		}
 	}
 	

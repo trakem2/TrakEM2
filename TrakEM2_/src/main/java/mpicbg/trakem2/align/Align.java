@@ -56,6 +56,8 @@ public class Align
 {
 	static public class Param implements Serializable
 	{	
+		private static final long serialVersionUID = -6469820142091971052L;
+
 		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
 
 		/**
@@ -249,9 +251,10 @@ public class Align
 			return true;
 		}
 		
+		@Override
 		public Param clone()
 		{
-			Param p = new Param();
+			final Param p = new Param();
 			
 			p.sift.initialSigma = this.sift.initialSigma;
 			p.sift.steps = this.sift.steps;
@@ -289,7 +292,7 @@ public class Align
 		 * @param p
 		 * @return
 		 */
-		public boolean equals( Param p )
+		public boolean equals( final Param p )
 		{
 			return
 				sift.equals( p.sift ) &&
@@ -308,6 +311,8 @@ public class Align
 	
 	static public class ParamOptimize extends Param
 	{
+		private static final long serialVersionUID = 2173278806083343006L;
+
 		/**
 		 * Maximal number of iteration allowed for the optimizer.
 		 */
@@ -380,7 +385,7 @@ public class Align
 		@Override
 		final public ParamOptimize clone()
 		{
-			ParamOptimize p = new ParamOptimize();
+			final ParamOptimize p = new ParamOptimize();
 			
 			p.sift.initialSigma = this.sift.initialSigma;
 			p.sift.steps = this.sift.steps;
@@ -409,7 +414,7 @@ public class Align
 			return p;
 		}
 		
-		public boolean equals( ParamOptimize p )
+		public boolean equals( final ParamOptimize p )
 		{
 			return
 				super.equals( p ) &&
@@ -479,13 +484,13 @@ public class Align
 		@Override
 		final public void run()
 		{
-			FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
-			SIFT ijSIFT = new SIFT( sift );
+			final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
+			final SIFT ijSIFT = new SIFT( sift );
 
 			for ( int i = ai.getAndIncrement(); i < tiles.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				if (isInterrupted()) return;
-				AbstractAffineTile2D< ? > tile = tiles.get( i );
+				final AbstractAffineTile2D< ? > tile = tiles.get( i );
 				Collection< Feature > features = deserializeFeatures( p, tile );
 				if ( features == null )
 				{
@@ -496,14 +501,14 @@ public class Align
 						try
 						{
 							features = new ArrayList< Feature >();
-							long s = System.currentTimeMillis();
+							final long s = System.currentTimeMillis();
 							ijSIFT.extractFeatures( tile.createMaskedByteImage(), features );
 							Utils.log( features.size() + " features extracted in tile " + i + " \"" + tile.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
 							if ( !serializeFeatures( p, tile, features ) )
 								Utils.log( "Saving features failed for tile \"" + tile.getPatch() + "\"" );
 							memoryFlushed = false;
 						}
-						catch ( OutOfMemoryError e )
+						catch ( final OutOfMemoryError e )
 						{
 							Utils.log2( "Flushing memory for feature extraction" );
 							Loader.releaseAllCaches();
@@ -565,7 +570,7 @@ public class Align
 				{
 					inliers = new ArrayList< PointMatch >();
 					
-					long s = System.currentTimeMillis();
+					final long s = System.currentTimeMillis();
 					
 					FeatureTransform.matchFeatures(
 						fetchFeatures( p, tilePair[ 0 ] ),
@@ -593,7 +598,7 @@ public class Align
 						return;
 					}
 		
-					boolean modelFound = findModel(
+					final boolean modelFound = findModel(
 							model,
 							candidates,
 							inliers,
@@ -675,7 +680,7 @@ public class Align
 			}
 			while ( again );
 		}
-		catch ( NotEnoughDataPointsException e )
+		catch ( final NotEnoughDataPointsException e )
 		{
 			modelFound = false;
 		}
@@ -684,7 +689,7 @@ public class Align
 	}
 	
 	
-	final static protected boolean serializeFeatures( final Param p, AbstractAffineTile2D< ? > t, final Collection< Feature > f )
+	final static protected boolean serializeFeatures( final Param p, final AbstractAffineTile2D< ? > t, final Collection< Feature > f )
 	{
 		final ArrayList< Feature > list = new ArrayList< Feature >();
 		list.addAll( f );
@@ -715,7 +720,7 @@ public class Align
 					return fe.features;
 				}
 			}
-			catch ( Exception e )
+			catch ( final Exception e )
 			{
 				e.printStackTrace();
 			}
@@ -734,7 +739,7 @@ public class Align
 			final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 			final SIFT ijSIFT = new SIFT( sift );
 			features = new ArrayList< Feature >();
-			long s = System.currentTimeMillis();
+			final long s = System.currentTimeMillis();
 			ijSIFT.extractFeatures( t.createMaskedByteImage(), features );
 			Utils.log( features.size() + " features extracted in tile \"" + t.getPatch().getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
 			if ( !serializeFeatures( p, t, features ) )
@@ -800,7 +805,7 @@ public class Align
 					return pm.pointMatches;
 				}
 			}
-			catch ( Exception e )
+			catch ( final Exception e )
 			{
 				e.printStackTrace();
 			}
@@ -832,13 +837,13 @@ public class Align
 			final AbstractAffineTile2D< ? > t1,
 			final AbstractAffineTile2D< ? > t2 )
 	{
-		Collection< PointMatch > pointMatches = deserializePointMatches( p, t1, t2 );
+		final Collection< PointMatch > pointMatches = deserializePointMatches( p, t1, t2 );
 		if ( pointMatches == null )
 		{
 			final List< PointMatch > candidates = new ArrayList< PointMatch >();
 			final List< PointMatch > inliers = new ArrayList< PointMatch >();
 				
-			long s = System.currentTimeMillis();
+			final long s = System.currentTimeMillis();
 			FeatureTransform.matchFeatures(
 					fetchFeatures( p, t1 ),
 					fetchFeatures( p, t2 ),
@@ -864,7 +869,7 @@ public class Align
 				return null;
 			}
 	
-			boolean modelFound = findModel(
+			final boolean modelFound = findModel(
 					model,
 					candidates,
 					inliers,
@@ -972,7 +977,7 @@ public class Align
 			final List< AbstractAffineTile2D< ? > > fixedTiles )
 	{
 		final TileConfiguration tc = new TileConfiguration();
-		for ( AbstractAffineTile2D< ? > t : tiles )
+		for ( final AbstractAffineTile2D< ? > t : tiles )
 			if ( t.getConnectedTiles().size() > 0 )
 				tc.addTile( t );
 		
@@ -1000,16 +1005,16 @@ public class Align
 			else
 				tc.optimize( p.maxEpsilon, p.maxIterations, p.maxPlateauwidth );
 		}
-		catch ( Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
+		catch ( final Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
 	}
 	
 	
 	final static protected void pairwiseAlign(
-			AbstractAffineTile2D< ? > tile,
-			Set< AbstractAffineTile2D< ? > > visited )
+			final AbstractAffineTile2D< ? > tile,
+			final Set< AbstractAffineTile2D< ? > > visited )
 	{
 		visited.add( tile );
-		for ( Tile< ? > t : tile.getConnectedTiles() )
+		for ( final Tile< ? > t : tile.getConnectedTiles() )
 		{
 			if ( visited.contains( t ) ) continue;
 			pairwiseAlign( ( AbstractAffineTile2D< ? > )t, visited );
@@ -1058,7 +1063,7 @@ public class Align
 			for ( final ExtractFeaturesThread thread : extractFeaturesThreads )
 				thread.join();
 		}
-		catch ( InterruptedException e )
+		catch ( final InterruptedException e )
 		{
 			Utils.log( "Feature extraction interrupted." );
 			for ( final Thread thread : extractFeaturesThreads )
@@ -1068,7 +1073,7 @@ public class Align
 				for ( final Thread thread : extractFeaturesThreads )
 					thread.join();
 			}
-			catch ( InterruptedException f ) {}
+			catch ( final InterruptedException f ) {}
 			Thread.currentThread().interrupt();
 			IJ.showProgress( 1.0 );
 			return;
@@ -1078,7 +1083,7 @@ public class Align
 		ai.set( 0 );
 		for ( int i = 0; i < numThreads; ++i )
 		{
-			MatchFeaturesAndFindModelThread thread = new MatchFeaturesAndFindModelThread( p.clone(), tiles, tilePairs, ai, ap, steps );
+			final MatchFeaturesAndFindModelThread thread = new MatchFeaturesAndFindModelThread( p.clone(), tiles, tilePairs, ai, ap, steps );
 			matchFeaturesAndFindModelThreads.add( thread );
 			thread.start();
 		}
@@ -1087,7 +1092,7 @@ public class Align
 			for ( final MatchFeaturesAndFindModelThread thread : matchFeaturesAndFindModelThreads )
 				thread.join();
 		}
-		catch ( InterruptedException e )
+		catch ( final InterruptedException e )
 		{
 			Utils.log( "Establishing feature correspondences interrupted." );
 			for ( final Thread thread : matchFeaturesAndFindModelThreads )
@@ -1097,7 +1102,7 @@ public class Align
 				for ( final Thread thread : matchFeaturesAndFindModelThreads )
 					thread.join();
 			}
-			catch ( InterruptedException f ) {}
+			catch ( final InterruptedException f ) {}
 			Thread.currentThread().interrupt();
 			IJ.showProgress( 1.0 );
 		}
@@ -1115,6 +1120,7 @@ public class Align
 	 * @param fixedTiles will contain the {@link AbstractAffineTile2D Tiles}
 	 *   corresponding to the {@link Patch Patches} in fixedPatches
 	 */
+	@SuppressWarnings( { "unchecked", "rawtypes" } )
 	final static public void tilesFromPatches(
 			final Param p,
 			final List< ? extends Patch > patches,
@@ -1135,6 +1141,7 @@ public class Align
 				 * case below but here I will go for the easy route and let
 				 * Java cast it to what is required and ignore the warning.
 				 */
+				@SuppressWarnings( { } )
 				final InterpolatedAffineModel2D< ?, ? > interpolatedModel = new InterpolatedAffineModel2D( m, r, ( float )p.lambda );
 				
 				t = new GenericAffineTile2D( interpolatedModel, patch );
@@ -1171,7 +1178,7 @@ public class Align
 	 * 
 	 * @param layer
 	 */
-	final static public void alignSelectedPatches( Selection selection, final int numThreads )
+	final static public void alignSelectedPatches( final Selection selection, final int numThreads )
 	{
 		final List< Patch > patches = new ArrayList< Patch >();
 		for ( final Displayable d : selection.getSelected() )
@@ -1181,9 +1188,9 @@ public class Align
 		
 		if ( !paramOptimize.setup( "Align selected patches" ) ) return;
 		
-		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		List< Patch > fixedPatches = new ArrayList< Patch >();
+		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< Patch > fixedPatches = new ArrayList< Patch >();
 		final Displayable active = selection.getActive();
 		if ( active != null && active instanceof Patch )
 			fixedPatches.add( ( Patch )active );
@@ -1191,7 +1198,7 @@ public class Align
 		
 		alignTiles( paramOptimize, tiles, fixedTiles, numThreads );
 		
-		for ( AbstractAffineTile2D< ? > t : tiles )
+		for ( final AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
 	
@@ -1205,17 +1212,17 @@ public class Align
 	{
 		if ( !paramOptimize.setup( "Align patches in layer" ) ) return;
 		
-		List< Displayable > displayables = layer.getDisplayables( Patch.class );
-		List< Patch > patches = new ArrayList< Patch >();
-		for ( Displayable d : displayables )
+		final List< Displayable > displayables = layer.getDisplayables( Patch.class );
+		final List< Patch > patches = new ArrayList< Patch >();
+		for ( final Displayable d : displayables )
 			patches.add( ( Patch )d );
-		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		tilesFromPatches( paramOptimize, patches, null, tiles, fixedTiles );
 		
 		alignTiles( paramOptimize, tiles, fixedTiles, numThreads );
 		
-		for ( AbstractAffineTile2D< ? > t : tiles )
+		for ( final AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
 
@@ -1255,13 +1262,13 @@ public class Align
 		Rectangle box2 = null;
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
-		List< PointMatch > candidates = new ArrayList< PointMatch >();
-		List< PointMatch > inliers = new ArrayList< PointMatch >();
+		final List< PointMatch > candidates = new ArrayList< PointMatch >();
+		final List< PointMatch > inliers = new ArrayList< PointMatch >();
 		
 		final AffineTransform a = new AffineTransform();
 		
 		int i = 0;
-		for ( Layer l : layers )
+		for ( final Layer l : layers )
 		{
 			long s = System.currentTimeMillis();
 			
@@ -1349,7 +1356,7 @@ public class Align
 					}
 					while ( again );
 				}
-				catch ( NotEnoughDataPointsException e )
+				catch ( final NotEnoughDataPointsException e )
 				{
 					modelFound = false;
 				}
@@ -1447,8 +1454,8 @@ public class Align
 		
 		final Collection< Feature > featuresA = new ArrayList< Feature >();
 		final Collection< Feature > featuresB = new ArrayList< Feature >();
-		List< PointMatch > candidates = new ArrayList< PointMatch >();
-		List< PointMatch > inliers = new ArrayList< PointMatch >();
+		final List< PointMatch > candidates = new ArrayList< PointMatch >();
+		final List< PointMatch > inliers = new ArrayList< PointMatch >();
 		
 		long s = System.currentTimeMillis();
 		ijSIFT.extractFeatures(
@@ -1518,7 +1525,7 @@ public class Align
 				}
 				while ( again );
 			}
-			catch ( NotEnoughDataPointsException e )
+			catch ( final NotEnoughDataPointsException e )
 			{
 				modelFound = false;
 			}

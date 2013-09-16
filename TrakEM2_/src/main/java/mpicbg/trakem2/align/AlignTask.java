@@ -89,21 +89,23 @@ final public class AlignTask
 	
 	final static public Bureaucrat alignSelectionTask ( final Selection selection )
 	{
-		Worker worker = new Worker("Aligning selected images", false, true) {
+		final Worker worker = new Worker("Aligning selected images", false, true) {
+			@Override
 			public void run() {
 				startedWorking();
 				try {
-					int mode = chooseAlignmentMode();
-					if (-1 == mode)
+					final int m = chooseAlignmentMode();
+					if (-1 == m)
 						return;
-					alignSelection( selection, mode );
+					alignSelection( selection, m );
 					Display.repaint(selection.getLayer());
-				} catch (Throwable e) {
+				} catch (final Throwable e) {
 					IJError.print(e);
 				} finally {
 					finishedWorking();
 				}
 			}
+			@Override
 			public void cleanup() {
 				if (!selection.isEmpty())
 					selection.getLayer().getParent().undoOneStep();
@@ -113,16 +115,16 @@ final public class AlignTask
 	}
 
 
-	final static public void alignSelection( final Selection selection, final int mode ) throws Exception
+	final static public void alignSelection( final Selection selection, final int m ) throws Exception
 	{
-		List< Patch > patches = new ArrayList< Patch >();
-		for ( Displayable d : selection.getSelected() )
+		final List< Patch > patches = new ArrayList< Patch >();
+		for ( final Displayable d : selection.getSelected() )
 			if ( d instanceof Patch ) patches.add( ( Patch )d );
 
-		List< Patch > fixedPatches = new ArrayList< Patch >();
+		final HashSet< Patch > fixedPatches = new HashSet< Patch >();
 
 		// Add active Patch, if any, as the nail
-		Displayable active = selection.getActive();
+		final Displayable active = selection.getActive();
 		if ( null != active && active instanceof Patch )
 			fixedPatches.add( (Patch)active );
 
@@ -131,31 +133,33 @@ final public class AlignTask
 			if ( patch.isLocked() )
 				fixedPatches.add( patch );
 
-		alignPatches( patches, fixedPatches, mode );
+		alignPatches( patches, fixedPatches, m );
 	}
 
-	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final List< Patch > fixedPatches )
+	final static public Bureaucrat alignPatchesTask ( final List< Patch > patches , final Set< Patch > fixedPatches )
 	{
 		if ( 0 == patches.size())
 		{
 			Utils.log("Can't align zero patches.");
 			return null;
 		}
-		Worker worker = new Worker("Aligning images", false, true) {
+		final Worker worker = new Worker("Aligning images", false, true) {
+			@Override
 			public void run() {
 				startedWorking();
 				try {
-					int mode = chooseAlignmentMode();
-					if (-1 == mode)
+					final int m = chooseAlignmentMode();
+					if (-1 == m)
 						return;
-					alignPatches( patches, fixedPatches, mode );
+					alignPatches( patches, fixedPatches, m );
 					Display.repaint();
-				} catch (Throwable e) {
+				} catch (final Throwable e) {
 					IJError.print(e);
 				} finally {
 					finishedWorking();
 				}
 			}
+			@Override
 			public void cleanup() {
 				patches.get(0).getLayer().getParent().undoOneStep();
 			}
@@ -172,7 +176,7 @@ final public class AlignTask
 		if ( gdMode.wasCanceled() )
 			return -1;
 
-		int m = gdMode.getNextChoiceIndex();
+		final int m = gdMode.getNextChoiceIndex();
 		// Set the static for future use
 		mode = m;
 		return m;
@@ -185,8 +189,8 @@ final public class AlignTask
 	 */
 	final static public void alignPatches(
 			final List< Patch > patches,
-			final List< Patch > fixedPatches,
-			final int mode
+			final Set< Patch > fixedPatches,
+			final int m
 		) throws Exception
 	{
 		if ( patches.size() < 2 )
@@ -206,14 +210,14 @@ final public class AlignTask
 
 		//final Align.ParamOptimize p = Align.paramOptimize;
 		
-		if ( ELASTIC_BLOCK_CORRESPONDENCES == mode )
+		if ( ELASTIC_BLOCK_CORRESPONDENCES == m )
 			new ElasticMontage().exec( patches, fixedPatches );
-		else if (LINEAR_PHASE_CORRELATION == mode) {
+		else if (LINEAR_PHASE_CORRELATION == m) {
 			// Montage all given patches, fixedPatches is ignored!
 			if (!fixedPatches.isEmpty()) Utils.log("Ignoring " + fixedPatches.size() + " fixed patches.");
 			StitchingTEM.montageWithPhaseCorrelation(patches);
 		}
-		else if (LINEAR_SIFT_CORRESPONDENCES == mode)
+		else if (LINEAR_SIFT_CORRESPONDENCES == m)
 		{
 			if ( !Align.paramOptimize.setup( "Montage Selection" ) )
 				return;
@@ -237,7 +241,7 @@ final public class AlignTask
 			alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 		}
 		else
-			Utils.log( "Don't know how to align with mode " + mode );
+			Utils.log( "Don't know how to align with mode " + m );
 	}
 
 	/** Montage each layer independently.
@@ -246,11 +250,12 @@ final public class AlignTask
 	final static public Bureaucrat montageLayersTask(final List<Layer> layers) {
 		if (null == layers || layers.isEmpty()) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montaging layers", true) {
+			@Override
 			public void exec()
 			{
-				int mode = chooseAlignmentMode();
+				final int m = chooseAlignmentMode();
 				
-				if ( ELASTIC_BLOCK_CORRESPONDENCES == mode )
+				if ( ELASTIC_BLOCK_CORRESPONDENCES == m )
 				{
 					final ElasticMontage.Param p = ElasticMontage.setup();
 					if ( p == null )
@@ -258,14 +263,14 @@ final public class AlignTask
 					else
 					{
 						try { montageLayers( p, layers ); }
-						catch ( Exception e ) { e.printStackTrace(); Utils.log( "Exception during montaging layers.  Operation failed." ); }
+						catch ( final Exception e ) { e.printStackTrace(); Utils.log( "Exception during montaging layers.  Operation failed." ); }
 					}
 				}
-				else if (LINEAR_PHASE_CORRELATION == mode)
+				else if (LINEAR_PHASE_CORRELATION == m)
 				{
 					StitchingTEM.montageWithPhaseCorrelation(layers, this);
 				}
-				else if (LINEAR_SIFT_CORRESPONDENCES == mode)
+				else if (LINEAR_SIFT_CORRESPONDENCES == m)
 				{	
 					//final Align.ParamOptimize p = Align.paramOptimize;
 					
@@ -291,22 +296,23 @@ final public class AlignTask
 					montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
 				}
 				else
-					Utils.log( "Don't know how to align with mode " + mode );
+					Utils.log( "Don't know how to align with mode " + m );
 			}
 		}, layers.get(0).getProject());
 	}
 
+	@SuppressWarnings( { "rawtypes", "unchecked" } )
 	final static public void montageLayers(
 			final Align.ParamOptimize p,
 			final List<Layer> layers,
-			final boolean tilesAreInPlace,
-			final boolean largestGraphOnly,
-			final boolean hideDisconnectedTiles,
-			final boolean deleteDisconnectedTiles ) {
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn ) {
 		int i = 0;
 		for (final Layer layer : layers) {
 			if (Thread.currentThread().isInterrupted()) return;
-			Collection<Displayable> patches = layer.getDisplayables(Patch.class, true);
+			final Collection<Displayable> patches = layer.getDisplayables(Patch.class, true);
 			if (patches.isEmpty()) continue;
 			for (final Displayable patch : patches) {
 				if (patch.isLinked() && !patch.isOnlyLinkedTo(Patch.class)) {
@@ -317,7 +323,7 @@ final public class AlignTask
 			Utils.log("====\nMontaging layer " + layer);
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
-			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn );
 			Display.repaint(layer);
 		}
 	}
@@ -331,7 +337,7 @@ final public class AlignTask
 A:		for ( final Layer layer : layers )
 		{
 			if ( Thread.currentThread().isInterrupted() ) return;
-			Collection< Displayable > patches = layer.getDisplayables( Patch.class, true );
+			final Collection< Displayable > patches = layer.getDisplayables( Patch.class, true );
 			if ( patches.isEmpty() ) continue;
 			final ArrayList< Patch > patchesList = new ArrayList< Patch >();
 			for ( final Displayable d : patches )
@@ -350,7 +356,7 @@ A:		for ( final Layer layer : layers )
 			Utils.log("====\nMontaging layer " + layer);
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
-			new ElasticMontage().exec( p, patchesList, new ArrayList< Patch >() );
+			new ElasticMontage().exec( p, patchesList, new HashSet< Patch >() );
 			Display.repaint( layer );
 		}
 	}
@@ -361,41 +367,49 @@ A:		for ( final Layer layer : layers )
 		InverseICT(final mpicbg.models.InvertibleCoordinateTransform ict) {
 			this.ict = ict;
 		}
+		@Override
 		public final float[] apply(final float[] p) {
-			float[] q = p.clone();
+			final float[] q = p.clone();
 			applyInPlace(q);
 			return q;
 		}
+		@Override
 		public final float[] applyInverse(final float[] p) {
-			float[] q = p.clone();
+			final float[] q = p.clone();
 			applyInverseInPlace(q);
 			return q;
 		}
+		@Override
 		public final void applyInPlace(final float[] p) {
 			try {
 				ict.applyInverseInPlace(p);
-			} catch (NoninvertibleModelException e) {
+			} catch (final NoninvertibleModelException e) {
 				Utils.log2("Point outside mesh: " + p[0] + ", " + p[1]);
 			}
 		}
+		@Override
 		public final void applyInverseInPlace(final float[] p) {
 			ict.applyInPlace(p);
 		}
+		@Override
 		public final InvertibleCoordinateTransform createInverse() {
 			return null;
 		}
 	}
 
+	@SuppressWarnings( { "rawtypes", "unchecked" } )
 	final static public void transformPatchesAndVectorData(final Layer layer, final AffineTransform a) {
 		AlignTask.transformPatchesAndVectorData((Collection<Patch>)(Collection)layer.getDisplayables(Patch.class),
-			new Runnable() { public void run() {
+			new Runnable() { @Override
+			public void run() {
 				layer.apply( Patch.class, a );
 			}});
 	}
 
 	final static public void transformPatchesAndVectorData(final Collection<Patch> patches, final AffineTransform a) {
 		AlignTask.transformPatchesAndVectorData(patches,
-			new Runnable() { public void run() {
+			new Runnable() { @Override
+			public void run() {
 				for (final Patch p : patches) {
 					p.getAffineTransform().preConcatenate(a);
 				}
@@ -459,7 +473,7 @@ A:		for ( final Layer layer : layers )
 		final Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying;
 		/** A list of the Layer ids form which at least one Patch was used to determine a transform of part of a VectorData instance. I.e. the visited layers. */
 		final Set<Long> src_layer_lids_used;
-		ReferenceData(final Map<Long,Patch.TransformProperties> tp, Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying, Set<Long> src_layer_lids_used) {
+		ReferenceData(final Map<Long,Patch.TransformProperties> tp, final Map<Displayable,Map<Long,TreeMap<Integer,Long>>> underlying, final Set<Long> src_layer_lids_used) {
 			this.tp = tp;
 			this.underlying = underlying;
 			this.src_layer_lids_used = src_layer_lids_used;
@@ -502,6 +516,8 @@ A:		for ( final Layer layer : layers )
 				}
 
 				dtasks.add(exec.submit(new Runnable() {
+					@SuppressWarnings( { "unchecked", "rawtypes" } )
+					@Override
 					public void run() {
 						final Map<Long,TreeMap<Integer,Long>> under = new HashMap<Long,TreeMap<Integer,Long>>();
 						synchronized (underlying) {
@@ -537,6 +553,7 @@ A:		for ( final Layer layer : layers )
 
 								try {
 									ltasks.add(exec.submit(new Runnable() {
+										@Override
 										public void run() {
 											if (current.isInterrupted()) return;
 											synchronized (patch) {
@@ -568,7 +585,7 @@ A:		for ( final Layer layer : layers )
 											}
 										}
 									}));
-								} catch (Throwable t) {
+								} catch (final Throwable t) {
 									IJError.print(t);
 									return;
 								}
@@ -580,7 +597,7 @@ A:		for ( final Layer layer : layers )
 			Utils.wait(dtasks);
 			Utils.wait(ltasks);
 
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			IJError.print(t);
 		} finally {
 			exec.shutdownNow();
@@ -630,7 +647,7 @@ A:		for ( final Layer layer : layers )
 
 			final HashMap<Long,Layer> lidm = new HashMap<Long,Layer>();
 			for (final Long lid : rd.src_layer_lids_used) {
-				Layer la = target_layerset.getLayer(lid.longValue());
+				final Layer la = target_layerset.getLayer(lid.longValue());
 				if (null == la) {
 					Utils.log("ERROR layer with id " + lid + " NOT FOUND in target layerset!");
 					continue;
@@ -641,7 +658,9 @@ A:		for ( final Layer layer : layers )
 			for (final Map.Entry<Displayable,Map<Long,TreeMap<Integer,Long>>> ed : rd.underlying.entrySet()) {
 				final Displayable d = ed.getKey(); // The VectorData instance to transform
 				// Process Displayables concurrently:
-				fus.add(exec.submit(new Runnable() { public void run() {
+				fus.add(exec.submit(new Runnable() { @SuppressWarnings( { "rawtypes", "unchecked" } )
+				@Override
+				public void run() {
 					for (final Map.Entry<Long,TreeMap<Integer,Long>> el : ed.getValue().entrySet()) {
 						// The entry has the id of the layer and the stack-index-ordered list of Patch that intersect VectorData d in that Layer
 						final Layer layer = lidm.get(el.getKey());
@@ -693,7 +712,7 @@ A:		for ( final Layer layer : layers )
 							final mpicbg.models.AffineModel2D aff_inv = new mpicbg.models.AffineModel2D();
 							try {
 								aff_inv.set(props.at.createInverse());
-							} catch (NoninvertibleTransformException nite) {
+							} catch (final NoninvertibleTransformException nite) {
 								Utils.log("ERROR: could not invert the affine transform for Patch " + patch);
 								IJError.print(nite);
 								continue;
@@ -704,7 +723,7 @@ A:		for ( final Layer layer : layers )
 							if (null != props.ct) {
 								// The props.ct is a CoordinateTransform, not necessarily an InvertibleCoordinateTransform
 								// So the mesh is necessary to ensure the invertibility
-								mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, props.meshResolution, props.o_width, props.o_height);
+								final mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(props.ct, props.meshResolution, props.o_width, props.o_height);
 								/* // Apparently not needed; the inverse affine in step 1 took care of it.
 								 * // (the affine of step 1 includes the mesh translation)
 							Rectangle box = mesh.getBoundingBox();
@@ -719,10 +738,10 @@ A:		for ( final Layer layer : layers )
 							final mpicbg.trakem2.transform.CoordinateTransform ct = patch.getCoordinateTransform();
 							if (null != ct) {
 								tlist.add(ct);
-								mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, patch.getMeshResolution(), patch.getOWidth(), patch.getOHeight());
+								final mpicbg.trakem2.transform.TransformMesh mesh = new mpicbg.trakem2.transform.TransformMesh(ct, patch.getMeshResolution(), patch.getOWidth(), patch.getOHeight());
 								// correct for mesh bounds -- Necessary because it comes from the other side, and the removal of the translation here is re-added by the affine in step 4!
-								Rectangle box = mesh.getBoundingBox();
-								AffineModel2D aff = new AffineModel2D();
+								final Rectangle box = mesh.getBoundingBox();
+								final AffineModel2D aff = new AffineModel2D();
 								aff.set(new AffineTransform(1, 0, 0, 1, -box.x, -box.y));
 								tlist.add(aff);
 							}
@@ -762,7 +781,7 @@ A:		for ( final Layer layer : layers )
 						// Apply the map of area vs tlist for the data section of d within the layer:
 						try {
 							((VectorData)d).apply(vdt);
-						} catch (Exception t) {
+						} catch (final Exception t) {
 							Utils.log("ERROR transformation failed for " + d + " at layer " + layer);
 							IJError.print(t);
 						}
@@ -781,19 +800,20 @@ A:		for ( final Layer layer : layers )
 	final static public void alignPatches(
 			final Align.ParamOptimize p,
 			final List< Patch > patches,
-			final List< Patch > fixedPatches,
-			final boolean tilesAreInPlace,
-			final boolean largestGraphOnly,
-			final boolean hideDisconnectedTiles,
-			final boolean deleteDisconnectedTiles )
+			final Collection< Patch > fixedPatches,
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn )
 	{
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
 
 		transformPatchesAndVectorData(patches, new Runnable() {
+			@Override
 			public void run() {
-				alignTiles( p, tiles, fixedTiles, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+				alignTiles( p, tiles, fixedTiles, tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn );
 				Display.repaint();
 			}
 		});
@@ -803,13 +823,13 @@ A:		for ( final Layer layer : layers )
 			final Align.ParamOptimize p,
 			final List< AbstractAffineTile2D< ? > > tiles,
 			final List< AbstractAffineTile2D< ? > > fixedTiles,
-			final boolean tilesAreInPlace,
-			final boolean largestGraphOnly,
-			final boolean hideDisconnectedTiles,
-			final boolean deleteDisconnectedTiles )
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn )
 	{
 		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
-		if ( tilesAreInPlace )
+		if ( tilesAreInPlaceIn )
 			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
 		else
 			AbstractAffineTile2D.pairTiles( tiles, tilePairs );
@@ -818,28 +838,28 @@ A:		for ( final Layer layer : layers )
 		
 		if ( Thread.currentThread().isInterrupted() ) return;
 		
-		List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( tiles );
+		final List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( tiles );
 		
 		final List< AbstractAffineTile2D< ? > > interestingTiles;
-		if ( largestGraphOnly )
+		if ( largestGraphOnlyIn )
 		{
 			/* find largest graph. */
 			
 			Set< Tile< ? > > largestGraph = null;
-			for ( Set< Tile< ? > > graph : graphs )
+			for ( final Set< Tile< ? > > graph : graphs )
 				if ( largestGraph == null || largestGraph.size() < graph.size() )
 					largestGraph = graph;
 			
 			interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-			for ( Tile< ? > t : largestGraph )
+			for ( final Tile< ? > t : largestGraph )
 				interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
 			
-			if ( hideDisconnectedTiles )
-				for ( AbstractAffineTile2D< ? > t : tiles )
+			if ( hideDisconnectedTilesIn )
+				for ( final AbstractAffineTile2D< ? > t : tiles )
 					if ( !interestingTiles.contains( t ) )
 						t.getPatch().setVisible( false );
-			if ( deleteDisconnectedTiles )
-				for ( AbstractAffineTile2D< ? > t : tiles )
+			if ( deleteDisconnectedTilesIn )
+				for ( final AbstractAffineTile2D< ? > t : tiles )
 					if ( !interestingTiles.contains( t ) )
 						t.getPatch().remove( false );
 		}
@@ -850,7 +870,7 @@ A:		for ( final Layer layer : layers )
 		
 		Align.optimizeTileConfiguration( p, interestingTiles, fixedTiles );
 		
-		for ( AbstractAffineTile2D< ? > t : interestingTiles )
+		for ( final AbstractAffineTile2D< ? > t : interestingTiles )
 			t.getPatch().getAffineTransform().setTransform( t.getModel().createAffine() );
 		
 		Utils.log( "Montage done." );
@@ -863,13 +883,14 @@ A:		for ( final Layer layer : layers )
 	
 	final static public Bureaucrat alignMultiLayerMosaicTask( final Layer l, final Patch nail )
 	{
-		Worker worker = new Worker( "Aligning multi-layer mosaic", false, true )
+		final Worker worker = new Worker( "Aligning multi-layer mosaic", false, true )
 		{
+			@Override
 			public void run()
 			{
 				startedWorking();
 				try { alignMultiLayerMosaic( l, nail ); }
-				catch ( Throwable e ) { IJError.print( e ); }
+				catch ( final Throwable e ) { IJError.print( e ); }
 				finally { finishedWorking(); }
 			}
 		};
@@ -923,8 +944,8 @@ A:		for ( final Layer layer : layers )
 		if ( !Align.paramOptimize.setup( "Align Multi-Layer Mosaic : Intra-Layer" ) )
 			return;
 		
-		Align.ParamOptimize p = Align.paramOptimize.clone();
-		Align.ParamOptimize pcp = p.clone();
+		final Align.ParamOptimize p = Align.paramOptimize.clone();
+		final Align.ParamOptimize pcp = p.clone();
 		
 		
 		/* cross-layer parameters */
@@ -932,7 +953,7 @@ A:		for ( final Layer layer : layers )
 		if ( !Align.param.setup( "Align Multi-Layer Mosaic : Cross-Layer" ) )
 			return;
 		
-		Align.Param cp = Align.param.clone();
+		final Align.Param cp = Align.param.clone();
 		pcp.desiredModelIndex = cp.desiredModelIndex;
 
 		final List< Layer > layerRange = new ArrayList< Layer >();
@@ -1048,7 +1069,7 @@ A:		for ( final Layer layer : layers )
 				}
 				while ( again );
 			}
-			catch ( NotEnoughDataPointsException e )
+			catch ( final NotEnoughDataPointsException e )
 			{
 				modelFound = false;
 			}
@@ -1063,7 +1084,7 @@ A:		for ( final Layer layer : layers )
 				b.scale( scale, scale );
 				b.translate( -graph1Box.x, -graph1Box.y);
 				
-				for ( Displayable d : selection1.getSelected( Patch.class ) )
+				for ( final Displayable d : selection1.getSelected( Patch.class ) )
 					d.getAffineTransform().preConcatenate( b );
 				
 				/* assign patch affine transformation to the tile model */
@@ -1080,17 +1101,18 @@ A:		for ( final Layer layer : layers )
 	}
 
 
+	@SuppressWarnings( { "unchecked", "rawtypes" } )
 	public static final void alignMultiLayerMosaicTask(
 			final List< Layer > layerRange,
 			final Patch nail,
 			final Align.Param cp,
 			final Align.ParamOptimize p,
 			final Align.ParamOptimize pcp,
-			final boolean tilesAreInPlace,
-			final boolean largestGraphOnly,
-			final boolean hideDisconnectedTiles,
-			final boolean deleteDisconnectedTiles,
-			final boolean deform )
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn,
+			final boolean deformIn )
 	{
 
 		/* register */
@@ -1100,7 +1122,7 @@ A:		for ( final Layer layer : layers )
 		final List< AbstractAffineTile2D< ? > > previousLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final HashMap< Patch, PointMatch > tileCenterPoints = new HashMap< Patch, PointMatch >();
 		
-		Collection< Patch > fixedPatches = new HashSet< Patch >();
+		final Collection< Patch > fixedPatches = new HashSet< Patch >();
 		if ( null != nail )
 			fixedPatches.add( nail );
 		
@@ -1111,13 +1133,13 @@ A:		for ( final Layer layer : layers )
 			/* align all tiles in the layer */
 			
 			final List< Patch > patches = new ArrayList< Patch >();
-			for ( Displayable a : layer.getDisplayables( Patch.class, true ) ) // ignore hidden tiles
+			for ( final Displayable a : layer.getDisplayables( Patch.class, true ) ) // ignore hidden tiles
 				if ( a instanceof Patch ) patches.add( ( Patch )a );
 			final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 			final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 			Align.tilesFromPatches( p, patches, fixedPatches, currentLayerTiles, fixedTiles );
 			
-			alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlace, false, false, false ); // Will consider graphs and hide/delete tiles when all cross-layer graphs are found.
+			alignTiles( p, currentLayerTiles, fixedTiles, tilesAreInPlaceIn, false, false, false ); // Will consider graphs and hide/delete tiles when all cross-layer graphs are found.
 			if (Thread.currentThread().isInterrupted()) return;
 			
 			/* connect to the previous layer */
@@ -1142,7 +1164,7 @@ A:		for ( final Layer layer : layers )
 			{
 				final AbstractAffineTile2D< ? > csLayerTile = tileTiles.get( t );
 				csLayerTile.addMatches( t.getMatches() );
-				for ( Tile< ? > ct : t.getConnectedTiles() )
+				for ( final Tile< ? > ct : t.getConnectedTiles() )
 					csLayerTile.addConnectedTile( tileTiles.get( ct ) );
 			}
 			
@@ -1258,38 +1280,38 @@ A:		for ( final Layer layer : layers )
 			Align.optimizeTileConfiguration( pcp, allTiles, allFixedTiles );
 			if (Thread.currentThread().isInterrupted()) return;
 			
-			for ( AbstractAffineTile2D< ? > t : allTiles )
+			for ( final AbstractAffineTile2D< ? > t : allTiles )
 				t.getPatch().setAffineTransform( t.getModel().createAffine() );
 			
 			previousLayer = layer;
 		}
 		
-		List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( allTiles );
+		final List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( allTiles );
 		
 		final List< AbstractAffineTile2D< ? > > interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		
-		if ( largestGraphOnly && ( hideDisconnectedTiles || deleteDisconnectedTiles ) )
+		if ( largestGraphOnlyIn && ( hideDisconnectedTilesIn || deleteDisconnectedTilesIn ) )
 		{
 			if ( Thread.currentThread().isInterrupted() ) return;
 			
 			/* find largest graph. */
 			
 			Set< Tile< ? > > largestGraph = null;
-			for ( Set< Tile< ? > > graph : graphs )
+			for ( final Set< Tile< ? > > graph : graphs )
 				if ( largestGraph == null || largestGraph.size() < graph.size() )
 					largestGraph = graph;
 			
 			final Set<AbstractAffineTile2D<?>> tiles_to_keep = new HashSet<AbstractAffineTile2D<?>>();
 			
-			for ( Tile< ? > t : largestGraph )
+			for ( final Tile< ? > t : largestGraph )
 				tiles_to_keep.add( ( AbstractAffineTile2D< ? > )t );
 			
-			if ( hideDisconnectedTiles )
-				for ( AbstractAffineTile2D< ? > t : allTiles )
+			if ( hideDisconnectedTilesIn )
+				for ( final AbstractAffineTile2D< ? > t : allTiles )
 					if ( !tiles_to_keep.contains( t ) )
 						t.getPatch().setVisible( false );
-			if ( deleteDisconnectedTiles )
-				for ( AbstractAffineTile2D< ? > t : allTiles )
+			if ( deleteDisconnectedTilesIn )
+				for ( final AbstractAffineTile2D< ? > t : allTiles )
 					if ( !tiles_to_keep.contains( t ) )
 						t.getPatch().remove( false );
 			
@@ -1299,7 +1321,7 @@ A:		for ( final Layer layer : layers )
 			interestingTiles.addAll( allTiles );
 
 
-		if ( deform )
+		if ( deformIn )
 		{
 			/* ############################################ */
 			/* experimental: use the center points of all tiles to define a MLS deformation from the pure intra-layer registration to the globally optimal */
@@ -1323,8 +1345,8 @@ A:		for ( final Layer layer : layers )
 
 				/* again, align all tiles in the layer */
 				
-				List< Patch > patches = new ArrayList< Patch >();
-				for ( Displayable a : layer.getDisplayables( Patch.class ) )
+				final List< Patch > patches = new ArrayList< Patch >();
+				for ( final Displayable a : layer.getDisplayables( Patch.class ) )
 					if ( a instanceof Patch ) patches.add( ( Patch )a );
 				final List< AbstractAffineTile2D< ? > > currentLayerTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 				final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
@@ -1382,7 +1404,7 @@ A:		for ( final Layer layer : layers )
 							
 							patch.getProject().getLoader().regenerateMipMaps( patch );
 						}
-						catch ( Exception e )
+						catch ( final Exception e )
 						{
 							e.printStackTrace();
 						}
@@ -1404,11 +1426,12 @@ A:		for ( final Layer layer : layers )
 	/** Find the most overlapping image to @param patch in the same layer where @param patch sits, and snap @param patch and all its linked Displayable objects.
 	 *  If a null @param p_snap is given, it will use the AlignTask.p_snap.
 	 *  If @param setup is true, it will show a dialog to adjust parameters. */
-	static public final Bureaucrat snap(final Patch patch, final Align.ParamOptimize p_snap, final boolean setup) {
+	static public final Bureaucrat snap(final Patch patch, final Align.ParamOptimize p_snapIn, final boolean setup) {
 		return Bureaucrat.createAndStart(new Worker.Task("Snapping", true) {
+			@Override
 			public void exec() {
 
-		final Align.ParamOptimize p = null == p_snap ? AlignTask.p_snap : p_snap;
+		final Align.ParamOptimize p = null == p_snapIn ? AlignTask.p_snap : p_snapIn;
 		if (setup) p.setup("Snap");
 
 		// Collect Patch linked to active
@@ -1417,6 +1440,7 @@ A:		for ( final Layer layer : layers )
 			if (d.getClass() == Patch.class && d != patch) linked_images.add(d);
 		}
 		// Find overlapping images
+		@SuppressWarnings( { "rawtypes", "unchecked" } )
 		final List<Patch> overlapping = new ArrayList<Patch>( (Collection<Patch>) (Collection) patch.getLayer().getIntersecting(patch, Patch.class));
 		overlapping.remove(patch);
 		if (0 == overlapping.size()) return; // nothing overlaps
@@ -1433,7 +1457,7 @@ A:		for ( final Layer layer : layers )
 		linked_images.clear();
 
 		// Find the image that overlaps the most
-		Rectangle box = patch.getBoundingBox(null);
+		final Rectangle box = patch.getBoundingBox(null);
 		Patch most = null;
 		Rectangle most_inter = null;
 		for (final Patch other : overlapping) {
@@ -1442,7 +1466,7 @@ A:		for ( final Layer layer : layers )
 				most_inter = other.getBoundingBox();
 				continue;
 			}
-			Rectangle inter = other.getBoundingBox().intersection(box);
+			final Rectangle inter = other.getBoundingBox().intersection(box);
 			if (inter.width * inter.height > most_inter.width * most_inter.height) {
 				most = other;
 				most_inter = inter;
@@ -1461,8 +1485,8 @@ A:		for ( final Layer layer : layers )
 		fixedPatches.add(most);
 
 		// Patch as Tile
-		List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
-		List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( p, patches, fixedPatches, tiles, fixedTiles );
 
 		// Pair and connect overlapping tiles
@@ -1474,13 +1498,13 @@ A:		for ( final Layer layer : layers )
 
 		Align.optimizeTileConfiguration( p, tiles, fixedTiles );
 
-		for ( AbstractAffineTile2D< ? > t : tiles ) {
+		for ( final AbstractAffineTile2D< ? > t : tiles ) {
 			if (t.getPatch() == patch) {
-				AffineTransform at = t.getModel().createAffine();
+				final AffineTransform at = t.getModel().createAffine();
 				try {
 					at.concatenate(patch.getAffineTransform().createInverse());
 					patch.transform(at);
-				} catch (NoninvertibleTransformException nite) {
+				} catch (final NoninvertibleTransformException nite) {
 					IJError.print(nite);
 				}
 				break;
@@ -1494,10 +1518,11 @@ A:		for ( final Layer layer : layers )
 
 	static public final Bureaucrat registerStackSlices(final Patch slice) {
 		return Bureaucrat.createAndStart(new Worker.Task("Registering slices", true) {
+			@Override
 			public void exec() {
 
 		// build the list
-		ArrayList<Patch> slices = slice.getStackPatches();
+		final ArrayList<Patch> slices = slice.getStackPatches();
 		if (slices.size() < 2) {
 			Utils.log2("Not a stack!");
 			return;
@@ -1515,7 +1540,7 @@ A:		for ( final Layer layer : layers )
 		final Align.ParamOptimize p = Align.paramOptimize.clone();
 		p.setup("Register stack slices");
 
-		List<Patch> fixedSlices = new ArrayList<Patch>();
+		final List<Patch> fixedSlices = new ArrayList<Patch>();
 		fixedSlices.add(slice);
 
 		alignPatches( p, slices, fixedSlices, false, false, false, false );

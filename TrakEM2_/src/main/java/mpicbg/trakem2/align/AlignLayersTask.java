@@ -81,7 +81,8 @@ final public class AlignLayersTask
 		"bUnwarpJ (non-linear cubic B-Splines)",
 		"elastic (non-linear block correspondences)" };
 	
-	static protected boolean propagateTransform = false;
+	static protected boolean propagateTransformBefore = false;
+	static protected boolean propagateTransformAfter = false;
 	static protected bunwarpj.Param elasticParam = new bunwarpj.Param();
 	
 	private AlignLayersTask(){}
@@ -92,12 +93,13 @@ final public class AlignLayersTask
 	
 	final static public Bureaucrat alignLayersTask ( final Layer l, final Rectangle fov )
 	{
-		Worker worker = new Worker("Aligning layers", false, true) {
+		final Worker worker = new Worker("Aligning layers", false, true) {
+			@Override
 			public void run() {
 				startedWorking();
 				try {
 					alignLayers(l, fov);
-				} catch (Throwable e) {
+				} catch (final Throwable e) {
 					IJError.print(e);
 				} finally {
 					finishedWorking();
@@ -138,32 +140,53 @@ final public class AlignLayersTask
 		gd.addChoice( "last :", layerTitles, layerTitles[ sel ] );
 		gd.addStringField("Use only images whose title matches:", "", 30);
 		gd.addCheckbox("Use visible images only", true);
+		gd.addCheckbox( "propagate transform to first layer", propagateTransformBefore );
+		gd.addCheckbox( "propagate transform to last layer", propagateTransformAfter );
 		final Vector<?> v = gd.getChoices();
 		final Choice cstart = (Choice) v.get(v.size() -3);
 		final Choice cref = (Choice) v.get(v.size() -2);
 		final Choice cend = (Choice) v.get(v.size() -1);
-		cstart.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = cstart.getSelectedIndex();
-				if (cref.getSelectedIndex() > 0 && index >= cref.getSelectedIndex()) cref.select(index + 1);
-				if (index > cend.getSelectedIndex()) cend.select(index);
-			}
-		});
-		cref.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = cref.getSelectedIndex();
-				if (index > 0)
-				{
-					if (index <= cstart.getSelectedIndex()) cstart.select(index - 1);
-					if (index > cend.getSelectedIndex()) cend.select(index - 1);
+		final ItemListener startEndListener = new ItemListener() {
+			@Override
+			public void itemStateChanged(final ItemEvent ie) {
+				final int startIndex = cstart.getSelectedIndex();
+				final int endIndex = cend.getSelectedIndex();
+				final int refIndex = cref.getSelectedIndex();
+				
+				final int min = Math.min(startIndex, endIndex);
+				final int max = Math.max(startIndex, endIndex);
+				
+				if (cref.getSelectedIndex() > 0) {
+					cref.select( Math.min( max + 1, Math.max( min + 1, refIndex ) ) );
 				}
 			}
-		});
-		cend.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = cend.getSelectedIndex();
-				if (index < cstart.getSelectedIndex()) cstart.select(index);
-				if (cref.getSelectedIndex() > 0 && cref.getSelectedIndex() >= index) cref.select(index + 1);
+		};
+		cstart.addItemListener(startEndListener);
+		cend.addItemListener(startEndListener);
+		cref.addItemListener(new ItemListener() {
+			@Override
+			public void itemStateChanged(final ItemEvent ie) {
+				final int startIndex = cstart.getSelectedIndex();
+				final int endIndex = cend.getSelectedIndex();
+				final int refIndex = cref.getSelectedIndex() - 1;
+				
+				final int min = Math.min(startIndex, endIndex);
+				final int max = Math.max(startIndex, endIndex);
+				
+				if (refIndex >= 0) {
+					if (refIndex < min) {
+						if ( startIndex <= endIndex )
+							cstart.select(refIndex);
+						else
+							cend.select(refIndex);
+					}
+					else if (refIndex > max) {
+						if ( startIndex <= endIndex )
+							cend.select(refIndex);
+						else
+							cstart.select(refIndex);
+					}
+				}
 			}
 		});
 		
@@ -180,6 +203,9 @@ final public class AlignLayersTask
 		final String toMatch2 = 0 == toMatch1.length() ? null : ".*" + toMatch1 + ".*";
 		final boolean visibleOnly = gd.getNextBoolean();
 		
+		propagateTransformBefore = gd.getNextBoolean();
+		propagateTransformAfter = gd.getNextBoolean();
+		
 		final Filter<Patch> filter = new Filter<Patch>() {
 			@Override
 			public final boolean accept(final Patch patch) {
@@ -190,24 +216,19 @@ final public class AlignLayersTask
 		};
 
 		if ( mode == ELASTIC )
-			new ElasticLayerAlignment().exec( l.getParent(), first, last, propagateTransform, fov, filter );
+			new ElasticLayerAlignment().exec( l.getParent(), first, last, ref, propagateTransformBefore, propagateTransformAfter, fov, filter );
 		else if ( mode == LINEAR )
-			new RegularizedAffineLayerAlignment().exec( l.getParent(), first, last, ref, propagateTransform, fov, filter );
+			new RegularizedAffineLayerAlignment().exec( l.getParent(), first, last, ref, propagateTransformBefore, propagateTransformAfter, fov, filter );
 		else
 		{
 			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
 		
 			Align.param.addFields( gd2 );
 			
-			gd2.addMessage( "Miscellaneous:" );
-			gd2.addCheckbox( "propagate after last transform", propagateTransform );
-			
 			gd2.showDialog();
 			if ( gd2.wasCanceled() ) return;
 			
 			Align.param.readFields( gd2 );
-			
-			propagateTransform = gd2.getNextBoolean();
 			
 			if ( mode == BUNWARPJ && !elasticParam.showDialog() ) return;
 
@@ -215,17 +236,17 @@ final public class AlignLayersTask
 			if (ref - first > 0)
 			{
 				if ( mode == BUNWARPJ )
-					alignLayersNonLinearlyJob(l.getParent(), ref, first, propagateTransform, fov, filter);
+					alignLayersNonLinearlyJob(l.getParent(), ref, first, propagateTransformBefore, fov, filter);
 				else
-					alignLayersLinearlyJob(l.getParent(), ref, first, propagateTransform, fov, filter);
+					alignLayersLinearlyJob(l.getParent(), ref, first, propagateTransformBefore, fov, filter);
 			}
 			// From ref to last:
 			if (last - ref > 0)
 			{
 				if ( mode == BUNWARPJ )
-					alignLayersNonLinearlyJob(l.getParent(), ref, last, propagateTransform, fov, filter);
+					alignLayersNonLinearlyJob(l.getParent(), ref, last, propagateTransformAfter, fov, filter);
 				else
-					alignLayersLinearlyJob(l.getParent(), ref, last, propagateTransform, fov, filter);
+					alignLayersLinearlyJob(l.getParent(), ref, last, propagateTransformAfter, fov, filter);
 			}
 		}
 	}
@@ -239,8 +260,8 @@ final public class AlignLayersTask
 		final Align.Param p = Align.param.clone();
 		// find the first non-empty layer, and remove all empty layers
 		Rectangle box = fov;
-		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
-			Layer la = it.next();
+		for (final Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
+			final Layer la = it.next();
 			if (!la.contains(Patch.class, true)) {
 				it.remove();
 				continue;
@@ -271,8 +292,8 @@ final public class AlignLayersTask
 		Rectangle box2 = fov;
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
-		List< PointMatch > candidates = new ArrayList< PointMatch >();
-		List< PointMatch > inliers = new ArrayList< PointMatch >();
+		final List< PointMatch > candidates = new ArrayList< PointMatch >();
+		final List< PointMatch > inliers = new ArrayList< PointMatch >();
 		
 		final AffineTransform a = new AffineTransform();
 		
@@ -393,11 +414,11 @@ final public class AlignLayersTask
 					if ( modelFound )
 						desiredModel.fit( inliers );
 				}
-				catch ( NotEnoughDataPointsException e )
+				catch ( final NotEnoughDataPointsException e )
 				{
 					modelFound = false;
 				}
-				catch ( IllDefinedDataPointsException e )
+				catch ( final IllDefinedDataPointsException e )
 				{
 					modelFound = false;
 				}
@@ -452,7 +473,7 @@ final public class AlignLayersTask
 		final Align.Param p = Align.param.clone();
 
 		// Remove all empty layers
-		for (Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
+		for (final Iterator<Layer> it = layerRange.iterator(); it.hasNext(); ) {
 			if (!it.next().contains(Patch.class, true)) {
 				it.remove();
 			}
@@ -473,7 +494,8 @@ final public class AlignLayersTask
 			}
 		}
 
-		AlignTask.transformPatchesAndVectorData(all, new Runnable() { public void run() {
+		AlignTask.transformPatchesAndVectorData(all, new Runnable() { @Override
+		public void run() {
 
 			/////
 
@@ -532,6 +554,7 @@ final public class AlignLayersTask
 			}
 			
 			final Future<ImageProcessor> fu1 = exec.submit(new Callable<ImageProcessor>() {
+				@Override
 				public ImageProcessor call() {
 					final ImageProcessor ip1 = loader.getFlatImage( layer1, box1, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches1, true ).getProcessor();
 					ijSIFT1.extractFeatures(
@@ -541,6 +564,7 @@ final public class AlignLayersTask
 					return ip1;
 				}});
 			final Future<ImageProcessor> fu2 = exec.submit(new Callable<ImageProcessor>() {
+				@Override
 				public ImageProcessor call() {
 					final ImageProcessor ip2 = loader.getFlatImage( layer2, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches2, true ).getProcessor();
 					ijSIFT2.extractFeatures(
@@ -554,7 +578,7 @@ final public class AlignLayersTask
 			try {
 				ip1 = fu1.get();
 				ip2 = fu2.get();
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 				return;
 			}
@@ -620,7 +644,7 @@ final public class AlignLayersTask
 					}
 					while ( again );
 				}
-				catch ( NotEnoughDataPointsException e )
+				catch ( final NotEnoughDataPointsException e )
 				{
 					modelFound = false;
 				}
@@ -646,7 +670,7 @@ final public class AlignLayersTask
 					final ImageProcessor mask2 = ip2.duplicate();
 					mask2.threshold(1);
 					
-					Transformation warp = bUnwarpJ_.computeTransformationBatch(imp2, imp1, mask2, mask1, elasticParam);
+					final Transformation warp = bUnwarpJ_.computeTransformationBatch(imp2, imp1, mask2, mask1, elasticParam);
 					
 					final CubicBSplineTransform transf = new CubicBSplineTransform();
 					transf.set(warp.getIntervals(), warp.getDirectDeformationCoefficientsX(), warp.getDirectDeformationCoefficientsY(),
@@ -687,7 +711,7 @@ final public class AlignLayersTask
 							offset.translate( box1.x - box2.x , box1.y - box2.y );
 							offset.concatenate( at );
 							patch.setAffineTransform( offset );
-						} catch ( Exception e ) {
+						} catch ( final Exception e ) {
 							e.printStackTrace();
 						}
 					}
