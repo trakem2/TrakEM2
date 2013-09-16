@@ -113,6 +113,7 @@ public class ElasticMontage
 		public float maxStretchSpringMesh = 2000.0f;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
+		public boolean useLegacyOptimizer = true;
 		
 		/**
 		 * Visualize spring mesh optimization
@@ -182,6 +183,8 @@ public class ElasticMontage
 			gdSpringMesh.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
 			gdSpringMesh.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
 			gdSpringMesh.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
+			gdSpringMesh.addCheckbox( "use_legacy_optimizer :", useLegacyOptimizer );
+			
 			
 			gdSpringMesh.showDialog();
 			
@@ -193,6 +196,7 @@ public class ElasticMontage
 			maxStretchSpringMesh = ( float )gdSpringMesh.getNextNumber();
 			maxIterationsSpringMesh = ( int )gdSpringMesh.getNextNumber();
 			maxPlateauwidthSpringMesh = ( int )gdSpringMesh.getNextNumber();
+			useLegacyOptimizer = gdSpringMesh.getNextBoolean();
 			
 			if ( isAligned )
 				po.desiredModelIndex = 3;
@@ -239,6 +243,7 @@ public class ElasticMontage
 			clone.maxStretchSpringMesh = maxStretchSpringMesh;
 			clone.maxIterationsSpringMesh = maxIterationsSpringMesh;
 			clone.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
+			clone.useLegacyOptimizer = useLegacyOptimizer;
 			
 			clone.visualize = visualize;
 			
@@ -381,6 +386,7 @@ public class ElasticMontage
 	}
 	
 
+	@SuppressWarnings( "deprecation" )
 	final public void exec(
 			final Param param,
 			final List< Patch > patches,
@@ -655,13 +661,25 @@ public class ElasticMontage
 			final long t0 = System.currentTimeMillis();
 			IJ.log( "Optimizing spring meshes..." );
 			
-			SpringMesh.optimizeMeshes(
-					meshes,
-					param.po.maxEpsilon,
-					param.maxIterationsSpringMesh,
-					param.maxPlateauwidthSpringMesh,
-					param.visualize );
-
+			if ( param.useLegacyOptimizer )
+			{
+				Utils.log( "  ...using legacy optimizer...");
+				SpringMesh.optimizeMeshes2(
+						meshes,
+						param.po.maxEpsilon,
+						param.maxIterationsSpringMesh,
+						param.maxPlateauwidthSpringMesh,
+						param.visualize );
+			}
+			else
+			{
+				SpringMesh.optimizeMeshes(
+						meshes,
+						param.po.maxEpsilon,
+						param.maxIterationsSpringMesh,
+						param.maxPlateauwidthSpringMesh,
+						param.visualize );
+			}
 			IJ.log( "Done optimizing spring meshes. Took " + ( System.currentTimeMillis() - t0 ) + " ms" );
 			
 		}

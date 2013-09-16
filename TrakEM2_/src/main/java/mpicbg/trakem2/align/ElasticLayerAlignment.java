@@ -69,7 +69,7 @@ public class ElasticLayerAlignment
 {
 	final static public class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
-		private static final long serialVersionUID = 398966126705836033L;
+		private static final long serialVersionUID = 3366971916160734613L;
 
 		public boolean isAligned = false;
 		
@@ -92,6 +92,7 @@ public class ElasticLayerAlignment
 		public float maxStretchSpringMesh = 2000.0f;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
+		public boolean useLegacyOptimizer = true;
 		
 		public boolean setup( final Rectangle box )
 		{
@@ -192,6 +193,7 @@ public class ElasticLayerAlignment
 			gdOptimize.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
 			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
+			gdOptimize.addCheckbox( "use_legacy_optimizer :", useLegacyOptimizer );
 			
 			gdOptimize.showDialog();
 			
@@ -206,6 +208,7 @@ public class ElasticLayerAlignment
 			maxStretchSpringMesh = ( float )gdOptimize.getNextNumber();
 			maxIterationsSpringMesh = ( int )gdOptimize.getNextNumber();
 			maxPlateauwidthSpringMesh = ( int )gdOptimize.getNextNumber();
+			useLegacyOptimizer = gdOptimize.getNextBoolean();
 			
 			return true;
 		}
@@ -250,6 +253,7 @@ public class ElasticLayerAlignment
 				final float maxLocalEpsilon,
 				final float maxLocalTrust,
 				final int maxPlateauwidthSpringMesh,
+				final boolean useLegacyOptimizer,
 				final float maxStretchSpringMesh,
 				final float minR,
 				final int resolutionSpringMesh,
@@ -294,6 +298,7 @@ public class ElasticLayerAlignment
 			this.maxLocalEpsilon = maxLocalEpsilon;
 			this.maxLocalTrust = maxLocalTrust;
 			this.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
+			this.useLegacyOptimizer = useLegacyOptimizer;
 			this.maxStretchSpringMesh = maxStretchSpringMesh;
 			this.minR = minR;
 			this.resolutionSpringMesh = resolutionSpringMesh;
@@ -344,6 +349,7 @@ public class ElasticLayerAlignment
 					maxLocalEpsilon,
 					maxLocalTrust,
 					maxPlateauwidthSpringMesh,
+					useLegacyOptimizer,
 					maxStretchSpringMesh,
 					minR,
 					resolutionSpringMesh,
@@ -381,6 +387,7 @@ public class ElasticLayerAlignment
 	 * @param filter
 	 * @throws Exception
 	 */
+	@SuppressWarnings( "deprecation" )
 	final public void exec(
 			final Param param,
 			final Project project,
@@ -912,14 +919,27 @@ J:				for ( int j = i + 1; j < range; )
 		try
 		{
 			final long t0 = System.currentTimeMillis();
-			Utils.log("Optimizing spring meshes...");
+			Utils.log( "Optimizing spring meshes..." );
 			
-			SpringMesh.optimizeMeshes(
-					meshes,
-					param.maxEpsilon * param.layerScale,
-					param.maxIterationsSpringMesh,
-					param.maxPlateauwidthSpringMesh,
-					param.visualize );
+			if ( param.useLegacyOptimizer )
+			{
+				Utils.log( "  ...using legacy optimizer...");
+				SpringMesh.optimizeMeshes2(
+						meshes,
+						param.maxEpsilon * param.layerScale,
+						param.maxIterationsSpringMesh,
+						param.maxPlateauwidthSpringMesh,
+						param.visualize );
+			}
+			else
+			{
+				SpringMesh.optimizeMeshes(
+						meshes,
+						param.maxEpsilon * param.layerScale,
+						param.maxIterationsSpringMesh,
+						param.maxPlateauwidthSpringMesh,
+						param.visualize );
+			}
 
 			Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
 			
