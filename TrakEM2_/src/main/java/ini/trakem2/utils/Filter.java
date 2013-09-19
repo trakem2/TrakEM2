@@ -1,5 +1,8 @@
 package ini.trakem2.utils;
 
-public interface Filter<T> {
+import java.io.Serializable;
+
+public interface Filter<T> extends Serializable
+{
 	public boolean accept(T t);
 }

@@ -200,10 +200,16 @@ public class ControlWindow {
 
 		final Runnable[] other = new Runnable[2];
 
+        if (!gui_enabled)
+        {
+            return;
+        }
+
 		final Runnable gui_thread = new Runnable() {
 			public void run() {
 
 		synchronized (LOCK) {
+
 			getInstance(); // init
 			if (null == frame) {
 				if (!hooked) {
