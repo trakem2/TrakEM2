@@ -22,6 +22,7 @@ import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
+import ini.trakem2.parallel.ExecutorProvider;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
 
@@ -123,79 +124,106 @@ final public class AlignmentUtils
 			final boolean clearCache,
 			final int numThreads ) throws ExecutionException, InterruptedException
 	{
-		final ExecutorService exec = Executors.newFixedThreadPool( numThreads );
+        final long sTime = System.currentTimeMillis();
+		final ExecutorService exec = ExecutorProvider.getExecutorService(1.0f / (float)numThreads);
 		
 		/* extract features for all slices and store them to disk */
 		final AtomicInteger counter = new AtomicInteger( 0 );
 		final ArrayList< Future< ArrayList< Feature > > > siftTasks = new ArrayList< Future< ArrayList< Feature > > >();
-		
-		for ( int i = 0; i < layerRange.size(); ++i )
-		{
-			final int layerIndex = i;
-			final Rectangle finalBox = box;
-			siftTasks.add(
-					exec.submit( new Callable< ArrayList< Feature > >()
-					{
-						@Override
-						public ArrayList< Feature > call()
-						{
-							final Layer layer = layerRange.get( layerIndex );
-							
-							final String layerName = layerName( layer );
-							
-							IJ.showProgress( counter.getAndIncrement(), layerRange.size() - 1 );
-							
-							final List< Patch > patches = filterPatches( layer, filter );
-							
-							ArrayList< Feature > fs = null;
-							if ( !clearCache )
-								fs = mpicbg.trakem2.align.Util.deserializeFeatures( layer.getProject(), siftParam, "layer", layer.getId() );
-							
-							if ( null == fs )
-							{
-								/* free memory */
-								layer.getProject().getLoader().releaseAll();
-								
-								final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
-								final SIFT ijSIFT = new SIFT( sift );
-								fs = new ArrayList< Feature >();
-								final ImageProcessor ip = layer.getProject().getLoader().getFlatImage( layer, finalBox, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
-								ijSIFT.extractFeatures( ip, fs );
-								Utils.log( fs.size() + " features extracted for " + layerName );
-								
-								if ( !mpicbg.trakem2.align.Util.serializeFeatures( layer.getProject(), siftParam, "layer", layer.getId(), fs ) )
-									Utils.log( "FAILED to store serialized features for " + layerName );
-							}
-							else
-								Utils.log( fs.size() + " features loaded for " + layerName );
-							
-							return fs;
-						}
-					} ) );
-		}
-		
+
+        for (final Layer layer : layerRange)
+        {
+            siftTasks.add(exec.submit(
+                    new LayerFeatureCallable(layer, box, scale, filter,
+                            siftParam, clearCache)));
+        }
+
 		/* join */
 		try
 		{
 			for ( final Future< ArrayList< Feature > > fu : siftTasks )
+            {
+                IJ.showProgress( counter.getAndIncrement(), layerRange.size() - 1 );
 				fu.get();
+            }
 		}
 		catch ( final InterruptedException e )
 		{
 			Utils.log( "Feature extraction interrupted." );
 			siftTasks.clear();
-			exec.shutdownNow();
+			//exec.shutdownNow();
 			throw e;
 		}
 		catch ( final ExecutionException e )
 		{
 			Utils.log( "Execution exception during feature extraction." );
 			siftTasks.clear();
-			exec.shutdownNow();
+			//exec.shutdownNow();
 			throw e;
 		}
 		
 		siftTasks.clear();
-		exec.shutdown();
+        IJ.log("Extracted features in " + (System.currentTimeMillis() - sTime) + "ms");
+		//exec.shutdown();
 	}
+
+    private static class LayerFeatureCallable implements Callable<ArrayList<Feature>>, Serializable
+    {
+
+        private final Layer layer;
+        private final Filter<Patch> filter;
+        private final boolean clearCache;
+        private final Rectangle finalBox;
+        final FloatArray2DSIFT.Param siftParam;
+        final double scale;
+
+        public LayerFeatureCallable(final Layer layer,
+                                    final Rectangle finalBox,
+                                    final double scale,
+                                    final Filter<Patch> filter,
+                                    final FloatArray2DSIFT.Param siftParam,
+                                    final boolean clearCache)
+        {
+            this.layer = layer;
+            this.filter = filter;
+            this.clearCache = clearCache;
+            this.finalBox = finalBox;
+            this.siftParam = siftParam;
+            this.scale = scale;
+        }
+
+        @Override
+        public ArrayList<Feature> call() throws Exception
+        {
+            final String layerName = layerName( layer );
+
+            //IJ.showProgress( counter.getAndIncrement(), layerRange.size() - 1 );
+
+            final List< Patch > patches = filterPatches( layer, filter );
+
+            ArrayList< Feature > fs = null;
+            if ( !clearCache )
+                fs = mpicbg.trakem2.align.Util.deserializeFeatures( layer.getProject(), siftParam, "layer", layer.getId() );
+
+            if ( null == fs )
+            {
+                /* free memory */
+                layer.getProject().getLoader().releaseAll();
+
+                final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
+                final SIFT ijSIFT = new SIFT( sift );
+                fs = new ArrayList< Feature >();
+                final ImageProcessor ip = layer.getProject().getLoader().getFlatImage( layer, finalBox, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
+                ijSIFT.extractFeatures( ip, fs );
+                //Utils.log( fs.size() + " features extracted for " + layerName );
+
+                if ( !mpicbg.trakem2.align.Util.serializeFeatures( layer.getProject(), siftParam, "layer", layer.getId(), fs ) )
+                    Utils.log( "FAILED to store serialized features for " + layerName );
+            }
+            else
+                Utils.log( fs.size() + " features loaded for " + layerName );
+
+            return fs;
+        }
+    }
 }
