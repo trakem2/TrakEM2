@@ -47,7 +47,7 @@ import mpicbg.imagefeatures.FloatArray2DSIFT;
  */
 final public class AlignmentUtils
 {
-	final static protected class ParamPointMatch implements Serializable
+	final static public class ParamPointMatch implements Serializable
 	{
 		private static final long serialVersionUID = 7526084042028501775L;
 
