@@ -75,15 +75,13 @@ import java.awt.image.BufferedImage;
 import java.awt.image.DirectColorModel;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
-import java.io.DataOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.io.RandomAccessFile;
 import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -1610,25 +1608,25 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	private synchronized final boolean writeAlphaMask(final ByteProcessor bp, final long amID) {
-		DataOutputStream out = null;
+		RandomAccessFile ra = null;
 		try {
 			final File f = new File(createAlphaMaskFilePath(amID));
 			Utils.ensure(f);
-			//new FileSaver(new ImagePlus("mask", fp)).saveAsZip(path); -- doesn't sync!
-			final FileOutputStream fos = new FileOutputStream(f);
-			final ZipOutputStream zos = new ZipOutputStream(fos);
-			out = new DataOutputStream(new BufferedOutputStream(zos, 32768));
+			ra = new RandomAccessFile(f, "rw");
+			
+			final ByteArrayOutputStream ba = new ByteArrayOutputStream(bp.getWidth() * bp.getHeight());
+			final ZipOutputStream zos = new ZipOutputStream(ba);
 			final ImagePlus imp = new ImagePlus("mask.tif", bp); // ImageJ looks for ".tif" extension in the ZipEntry
 			zos.putNextEntry(new ZipEntry(imp.getTitle()));
 			final TiffEncoder te = new TiffEncoder(imp.getFileInfo());
-			te.write(out);
-			out.flush();
-			fos.getFD().sync();
+			te.write(ba);
+			
+			ra.write((byte[])ImageSaver.Bbuf.get(ba), 0, ba.size());
 			return true;
 		} catch (final Throwable e) {
 			IJError.print(e);
 		} finally {
-			try { if (null != out) out.close(); } catch (final Throwable t) { IJError.print(t); }
+			try { if (null != ra) ra.close(); } catch (final Throwable t) { IJError.print(t); }
 		}
 		return false;
 	}
@@ -2345,16 +2343,15 @@ public final class Patch extends Displayable implements ImageData {
 	 *  @param ctID The id
 	 *  @see #setNewCoordinateTransform(CoordinateTransform) */
 	synchronized private boolean writeNewCoordinateTransform(final CoordinateTransform ct, final long ctID) throws Exception {
-		PrintWriter pw = null;
+		RandomAccessFile ra = null;
 		try {
 			final File f = new File(createCTFilePath(ctID));
 			Utils.ensure(f);
-			pw = new PrintWriter(new BufferedOutputStream(new FileOutputStream(f)));
-			pw.write(ct.toXML("\t\t\t\t")); // so that "Save" will generate a pretty, formatted XML.
-			pw.flush();
+			ra = new RandomAccessFile(f, "rw");
+			ra.write(ct.toXML("\t\t\t\t").getBytes());
 			return true;
 		} finally {
-			if (null != pw) try { pw.close(); } catch (final Exception e) { IJError.print(e); }
+			if (null != ra) try { ra.close(); } catch (final Exception e) { IJError.print(e); }
 		}
 	}
 
