@@ -3,6 +3,18 @@
  */
 package lenscorrection;
 
+import ij.IJ;
+import ij.gui.GenericDialog;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Selection;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
+
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
@@ -20,18 +32,6 @@ import mpicbg.models.Tile;
 import mpicbg.trakem2.align.AbstractAffineTile2D;
 import mpicbg.trakem2.align.Align;
 import mpicbg.trakem2.transform.CoordinateTransform;
-
-import ij.IJ;
-import ij.gui.GenericDialog;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Patch;
-import ini.trakem2.display.Selection;
-import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
 
 /**
  * Methods collection to be called from the GUI for alignment tasks.
@@ -163,7 +163,7 @@ final public class DistortionCorrectionTask
 			for ( final Thread thread : threads )
 				thread.join();
 		}
-		catch ( InterruptedException e )
+		catch ( final InterruptedException e )
 		{
 			Utils.log( "Setting CoordinateTransform failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
 		}
@@ -222,7 +222,7 @@ final public class DistortionCorrectionTask
 			for ( final Thread thread : threads )
 				thread.join();
 		}
-		catch ( InterruptedException e )
+		catch ( final InterruptedException e )
 		{
 			Utils.log( "Appending CoordinateTransform failed.\n" + e.getMessage() + "\n" + e.getStackTrace() );
 		}
@@ -232,18 +232,20 @@ final public class DistortionCorrectionTask
 	
 	final static public Bureaucrat correctDistortionFromSelectionTask ( final Selection selection )
 	{
-		Worker worker = new Worker("Distortion Correction", false, true) {
+		final Worker worker = new Worker("Distortion Correction", false, true) {
+			@Override
 			public void run() {
 				startedWorking();
 				try {
 					correctDistortionFromSelection( selection );
 					Display.repaint(selection.getLayer());
-				} catch (Throwable e) {
+				} catch (final Throwable e) {
 					IJError.print(e);
 				} finally {
 					finishedWorking();
 				}
 			}
+			@Override
 			public void cleanup() {
 				if (!selection.isEmpty())
 					selection.getLayer().getParent().undoOneStep();
@@ -255,7 +257,7 @@ final public class DistortionCorrectionTask
 	final static public Bureaucrat correctDistortionFromSelection( final Selection selection )
 	{
 		final List< Patch > patches = new ArrayList< Patch >();
-		for ( Displayable d : Display.getFront().getSelection().getSelected() )
+		for ( final Displayable d : Display.getFront().getSelection().getSelected() )
 			if ( d instanceof Patch ) patches.add( ( Patch )d );
 		
 		if ( patches.size() < 2 )
@@ -266,6 +268,7 @@ final public class DistortionCorrectionTask
 		
 		final Worker worker = new Worker( "Lens correction" )
 		{
+			@Override
 			final public void run()
 			{
 				try
@@ -471,7 +474,7 @@ final public class DistortionCorrectionTask
 					
 					Display.repaint();
 				}
-				catch ( Exception e ) { IJError.print( e ); }
+				catch ( final Exception e ) { IJError.print( e ); }
 				finally { finishedWorking(); }
 			}
 		};
