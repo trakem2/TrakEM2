@@ -254,6 +254,210 @@ final public class DistortionCorrectionTask
 		return Bureaucrat.createAndStart( worker, selection.getProject() );
 	}
 	
+	
+	final static void run( final CorrectDistortionFromSelectionParam p, final List< Patch > patches, final Displayable active, final Layer layer, final Worker worker )
+	{
+		final Align.ParamOptimize ap = Align.paramOptimize.clone();
+		ap.sift.set( p.sift );
+		ap.desiredModelIndex = ap.expectedModelIndex = p.expectedModelIndex;
+		ap.maxEpsilon = p.maxEpsilon;
+		ap.minInlierRatio = p.minInlierRatio;
+		ap.rod = p.rod;
+		
+		/** Get all patches that will be affected. */
+		final List< Patch > allPatches = new ArrayList< Patch >();
+		for ( final Layer l : layer.getParent().getLayers().subList( p.firstLayerIndex, p.lastLayerIndex + 1 ) )
+			for ( final Displayable d : l.getDisplayables( Patch.class ) )
+				allPatches.add( ( Patch )d );
+		
+		/** Unset the coordinate transforms of all patches if desired. */
+		if ( p.clearTransform )
+		{
+			if ( worker != null )
+				worker.setTaskName( "Clearing present transforms" );
+			
+			setCoordinateTransform( allPatches, null, Runtime.getRuntime().availableProcessors() );
+			Display.repaint();
+		}
+		
+		if ( worker != null )
+			worker.setTaskName( "Establishing SIFT correspondences" );
+		
+		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
+		final List< Patch > fixedPatches = new ArrayList< Patch >();
+		if ( active != null && active instanceof Patch )
+			fixedPatches.add( ( Patch )active );
+		Align.tilesFromPatches( ap, patches, fixedPatches, tiles, fixedTiles );
+		
+		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
+		
+		if ( p.tilesAreInPlace )
+			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+		else
+			AbstractAffineTile2D.pairTiles( tiles, tilePairs );
+		
+		final AbstractAffineTile2D< ? > fixedTile = fixedTiles.iterator().next();
+		
+		Align.connectTilePairs( ap, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
+		
+		
+		/** Shift all local coordinates into the original image frame */
+		for ( final AbstractAffineTile2D< ? > tile : tiles )
+		{
+			final Rectangle box = tile.getPatch().getCoordinateTransformBoundingBox();
+			for ( final PointMatch m : tile.getMatches() )
+			{
+				final float[] l = m.getP1().getL();
+				final float[] w = m.getP1().getW();
+				l[ 0 ] += box.x;
+				l[ 1 ] += box.y;
+				w[ 0 ] = l[ 0 ];
+				w[ 1 ] = l[ 1 ];
+			}
+		}
+		
+		if ( Thread.currentThread().isInterrupted() ) return;
+		
+		final List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( tiles );
+		if ( graphs.size() > 1 )
+			Utils.log( "Could not interconnect all images with correspondences.  " );
+		
+		final List< AbstractAffineTile2D< ? > > interestingTiles;
+		
+		/** Find largest graph. */
+		Set< Tile< ? > > largestGraph = null;
+		for ( final Set< Tile< ? > > graph : graphs )
+			if ( largestGraph == null || largestGraph.size() < graph.size() )
+				largestGraph = graph;
+		
+		interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
+		for ( final Tile< ? > t : largestGraph )
+			interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
+		
+		if ( Thread.currentThread().isInterrupted() ) return;
+		
+		Utils.log( "Estimating lens model:" );
+		
+		/* initialize with pure affine */
+		Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
+		
+		/* measure the current error */
+		double e = 0;
+		int n = 0;
+		for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+			for ( final PointMatch pm : t.getMatches() )
+			{
+				e += pm.getDistance();
+				++n;
+			}
+		e /= n;
+		
+		double dEpsilon_i = 0;
+		double epsilon_i = e;
+		double dEpsilon_0 = 0;
+		NonLinearTransform lensModel = null;
+		
+		Utils.log( "0: epsilon = " + e );
+		
+		/* Store original point locations */
+		final HashMap< Point, Point > originalPoints = new HashMap< Point, Point >();
+		for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+			for ( final PointMatch pm : t.getMatches() )
+				originalPoints.put( pm.getP1(), pm.getP1().clone() );
+		
+		/* ad hoc conditions to terminate iteration:
+		 * small improvement ( 1/1000) relative to first iteration
+		 * less than 20 iterations
+		 * at least 2 iterations */
+		for ( int i = 1; i < 20 && ( i < 2 || dEpsilon_i <= dEpsilon_0 / 1000 ); ++i )
+		{
+			if ( Thread.currentThread().isInterrupted() ) return;
+			
+			/* Some data shuffling for the lens correction interface */
+			final List< PointMatchCollectionAndAffine > matches = new ArrayList< PointMatchCollectionAndAffine >();
+			for ( final AbstractAffineTile2D< ? >[] tilePair : tilePairs )
+			{
+				final AffineTransform a = tilePair[ 0 ].createAffine();
+				a.preConcatenate( tilePair[ 1 ].getModel().createInverseAffine() );
+				final Collection< PointMatch > commonMatches = new ArrayList< PointMatch >();
+				tilePair[ 0 ].commonPointMatches( tilePair[ 1 ], commonMatches );
+				final Collection< PointMatch > originalCommonMatches = new ArrayList< PointMatch >();
+				for ( final PointMatch pm : commonMatches )
+					originalCommonMatches.add( new PointMatch(
+							originalPoints.get( pm.getP1() ),
+							originalPoints.get( pm.getP2() ) ) );
+				matches.add( new PointMatchCollectionAndAffine( a, originalCommonMatches ) );
+			}
+			
+			if ( worker != null )
+				worker.setTaskName( "Estimating lens distortion correction" );
+			
+			lensModel = Distortion_Correction.createInverseDistortionModel(
+		    		matches,
+		    		p.dimension,
+		    		p.lambda,
+		    		( int )fixedTile.getWidth(),
+		    		( int )fixedTile.getHeight() );
+			
+			/* update local points */
+			for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+				for ( final PointMatch pm : t.getMatches() )
+				{
+					final Point currentPoint = pm.getP1();
+					final Point originalPoint = originalPoints.get( currentPoint );
+					final float[] l = currentPoint.getL();
+					final float[] lo = originalPoint.getL();
+					l[ 0 ] = lo[ 0 ];
+					l[ 1 ] = lo[ 1 ];
+					lensModel.applyInPlace( l );
+				}
+			
+			/* re-optimize */
+			Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
+			
+			/* measure the current error */
+			e = 0;
+			n = 0;
+			for ( final AbstractAffineTile2D< ? > t : interestingTiles )
+				for ( final PointMatch pm : t.getMatches() )
+				{
+					e += pm.getDistance();
+					++n;
+				}
+			e /= n;
+			
+			dEpsilon_i = e - epsilon_i;
+			epsilon_i = e;
+			if ( i == 1 ) dEpsilon_0 = dEpsilon_i;
+			
+			Utils.log( i + ": epsilon = " + e );
+			Utils.log( i + ": delta epsilon = " + dEpsilon_i );
+		}
+		
+		if ( lensModel != null )
+		{
+			if ( p.visualize )
+			{
+				if ( Thread.currentThread().isInterrupted() ) return;
+				
+				if ( worker != null )
+					worker.setTaskName( "Visualizing lens distortion correction" );
+				
+				lensModel.visualizeSmall( p.lambda );
+			}
+			
+			if ( worker != null )
+				worker.setTaskName( "Applying lens distortion correction" );
+			
+			appendCoordinateTransform( allPatches, lensModel, Runtime.getRuntime().availableProcessors() );
+			
+			Utils.log( "Done." );
+		}
+		else
+			Utils.log( "No lens model found." );
+	}
+	
 	final static public Bureaucrat correctDistortionFromSelection( final Selection selection )
 	{
 		final List< Patch > patches = new ArrayList< Patch >();
@@ -277,200 +481,7 @@ final public class DistortionCorrectionTask
 					
 					if ( !correctDistortionFromSelectionParam.setup( selection ) ) return;
 					
-					final CorrectDistortionFromSelectionParam p = correctDistortionFromSelectionParam.clone();
-					final Align.ParamOptimize ap = Align.paramOptimize.clone();
-					ap.sift.set( p.sift );
-					ap.desiredModelIndex = ap.expectedModelIndex = p.expectedModelIndex;
-					ap.maxEpsilon = p.maxEpsilon;
-					ap.minInlierRatio = p.minInlierRatio;
-					ap.rod = p.rod;
-					
-					/** Get all patches that will be affected. */
-					final List< Patch > allPatches = new ArrayList< Patch >();
-					for ( final Layer l : selection.getLayer().getParent().getLayers().subList( p.firstLayerIndex, p.lastLayerIndex + 1 ) )
-						for ( Displayable d : l.getDisplayables( Patch.class ) )
-							allPatches.add( ( Patch )d );
-					
-					/** Unset the coordinate transforms of all patches if desired. */
-					if ( p.clearTransform )
-					{
-						setTaskName( "Clearing present transforms" );
-						setCoordinateTransform( allPatches, null, Runtime.getRuntime().availableProcessors() );
-						Display.repaint();
-					}
-					
-					setTaskName( "Establishing SIFT correspondences" );
-					
-					List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
-					List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
-					List< Patch > fixedPatches = new ArrayList< Patch >();
-					final Displayable active = selection.getActive();
-					if ( active != null && active instanceof Patch )
-						fixedPatches.add( ( Patch )active );
-					Align.tilesFromPatches( ap, patches, fixedPatches, tiles, fixedTiles );
-					
-					final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
-					
-					if ( p.tilesAreInPlace )
-						AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
-					else
-						AbstractAffineTile2D.pairTiles( tiles, tilePairs );
-					
-					final AbstractAffineTile2D< ? > fixedTile = fixedTiles.iterator().next();
-					
-					Align.connectTilePairs( ap, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
-					
-					
-					/** Shift all local coordinates into the original image frame */
-					for ( final AbstractAffineTile2D< ? > tile : tiles )
-					{
-						final Rectangle box = tile.getPatch().getCoordinateTransformBoundingBox();
-						for ( final PointMatch m : tile.getMatches() )
-						{
-							final float[] l = m.getP1().getL();
-							final float[] w = m.getP1().getW();
-							l[ 0 ] += box.x;
-							l[ 1 ] += box.y;
-							w[ 0 ] = l[ 0 ];
-							w[ 1 ] = l[ 1 ];
-						}
-					}
-					
-					if ( Thread.currentThread().isInterrupted() ) return;
-					
-					List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( tiles );
-					if ( graphs.size() > 1 )
-						Utils.log( "Could not interconnect all images with correspondences.  " );
-					
-					final List< AbstractAffineTile2D< ? > > interestingTiles;
-					
-					/** Find largest graph. */
-					Set< Tile< ? > > largestGraph = null;
-					for ( Set< Tile< ? > > graph : graphs )
-						if ( largestGraph == null || largestGraph.size() < graph.size() )
-							largestGraph = graph;
-					
-					interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-					for ( Tile< ? > t : largestGraph )
-						interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
-					
-					if ( Thread.currentThread().isInterrupted() ) return;
-					
-					Utils.log( "Estimating lens model:" );
-					
-					/* initialize with pure affine */
-					Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
-					
-					/* measure the current error */
-					double e = 0;
-					int n = 0;
-					for ( final AbstractAffineTile2D< ? > t : interestingTiles )
-						for ( final PointMatch pm : t.getMatches() )
-						{
-							e += pm.getDistance();
-							++n;
-						}
-					e /= n;
-					
-					double dEpsilon_i = 0;
-					double epsilon_i = e;
-					double dEpsilon_0 = 0;
-					NonLinearTransform lensModel = null;
-					
-					Utils.log( "0: epsilon = " + e );
-					
-					/* Store original point locations */
-					final HashMap< Point, Point > originalPoints = new HashMap< Point, Point >();
-					for ( final AbstractAffineTile2D< ? > t : interestingTiles )
-						for ( final PointMatch pm : t.getMatches() )
-							originalPoints.put( pm.getP1(), pm.getP1().clone() );
-					
-					/* ad hoc conditions to terminate iteration:
-					 * small improvement ( 1/1000) relative to first iteration
-					 * less than 20 iterations
-					 * at least 2 iterations */
-					for ( int i = 1; i < 20 && ( i < 2 || dEpsilon_i <= dEpsilon_0 / 1000 ); ++i )
-					{
-						if ( Thread.currentThread().isInterrupted() ) return;
-						
-						/* Some data shuffling for the lens correction interface */
-						final List< PointMatchCollectionAndAffine > matches = new ArrayList< PointMatchCollectionAndAffine >();
-						for ( AbstractAffineTile2D< ? >[] tilePair : tilePairs )
-						{
-							final AffineTransform a = tilePair[ 0 ].createAffine();
-							a.preConcatenate( tilePair[ 1 ].getModel().createInverseAffine() );
-							final Collection< PointMatch > commonMatches = new ArrayList< PointMatch >();
-							tilePair[ 0 ].commonPointMatches( tilePair[ 1 ], commonMatches );
-							final Collection< PointMatch > originalCommonMatches = new ArrayList< PointMatch >();
-							for ( final PointMatch pm : commonMatches )
-								originalCommonMatches.add( new PointMatch(
-										originalPoints.get( pm.getP1() ),
-										originalPoints.get( pm.getP2() ) ) );
-							matches.add( new PointMatchCollectionAndAffine( a, originalCommonMatches ) );
-						}
-						
-						setTaskName( "Estimating lens distortion correction" );
-						
-						lensModel = Distortion_Correction.createInverseDistortionModel(
-					    		matches,
-					    		p.dimension,
-					    		p.lambda,
-					    		( int )fixedTile.getWidth(),
-					    		( int )fixedTile.getHeight() );
-						
-						/* update local points */
-						for ( final AbstractAffineTile2D< ? > t : interestingTiles )
-							for ( final PointMatch pm : t.getMatches() )
-							{
-								final Point currentPoint = pm.getP1();
-								final Point originalPoint = originalPoints.get( currentPoint );
-								final float[] l = currentPoint.getL();
-								final float[] lo = originalPoint.getL();
-								l[ 0 ] = lo[ 0 ];
-								l[ 1 ] = lo[ 1 ];
-								lensModel.applyInPlace( l );
-							}
-						
-						/* re-optimize */
-						Align.optimizeTileConfiguration( ap, interestingTiles, fixedTiles );
-						
-						/* measure the current error */
-						e = 0;
-						n = 0;
-						for ( final AbstractAffineTile2D< ? > t : interestingTiles )
-							for ( final PointMatch pm : t.getMatches() )
-							{
-								e += pm.getDistance();
-								++n;
-							}
-						e /= n;
-						
-						dEpsilon_i = e - epsilon_i;
-						epsilon_i = e;
-						if ( i == 1 ) dEpsilon_0 = dEpsilon_i;
-						
-						Utils.log( i + ": epsilon = " + e );
-						Utils.log( i + ": epsilon = " + dEpsilon_i );
-					}
-					
-					if ( lensModel != null )
-					{
-						if ( p.visualize )
-						{
-							if ( Thread.currentThread().isInterrupted() ) return;
-							
-							setTaskName( "Visualizing lens distortion correction" );
-							lensModel.visualizeSmall( p.lambda );
-						}
-						
-						setTaskName( "Applying lens distortion correction" );
-						
-						appendCoordinateTransform( allPatches, lensModel, Runtime.getRuntime().availableProcessors() );
-						
-						Utils.log( "Done." );
-					}
-					else
-						Utils.log( "No lens model found." );
+					DistortionCorrectionTask.run( correctDistortionFromSelectionParam.clone(), patches, selection.getActive(), selection.getLayer(), null );
 					
 					Display.repaint();
 				}
