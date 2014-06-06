@@ -1619,7 +1619,10 @@ public final class Patch extends Displayable implements ImageData {
 			final ImagePlus imp = new ImagePlus("mask.tif", bp); // ImageJ looks for ".tif" extension in the ZipEntry
 			zos.putNextEntry(new ZipEntry(imp.getTitle()));
 			final TiffEncoder te = new TiffEncoder(imp.getFileInfo());
-			te.write(ba);
+			te.write(zos);
+			zos.flush();
+			zos.closeEntry();
+			zos.close();
 			
 			ra.write((byte[])ImageSaver.Bbuf.get(ba), 0, ba.size());
 			return true;
