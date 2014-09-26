@@ -20,7 +20,11 @@ package mpicbg.trakem2.align;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
+import ij.gui.Roi;
+import ij.process.Blitter;
+import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
@@ -33,13 +37,27 @@ import java.awt.Image;
 import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import net.imglib2.Cursor;
+import net.imglib2.IterableInterval;
+import net.imglib2.RealPoint;
+import net.imglib2.collection.KDTree;
+import net.imglib2.collection.RealPointSampleList;
+import net.imglib2.exception.ImgLibException;
+import net.imglib2.img.imageplus.ImagePlusImg;
+import net.imglib2.img.imageplus.ImagePlusImgFactory;
+import net.imglib2.neighborsearch.NearestNeighborSearch;
+import net.imglib2.neighborsearch.NearestNeighborSearchOnKDTree;
+import net.imglib2.type.Type;
+import net.imglib2.type.numeric.ARGBType;
 import mpicbg.ij.blockmatching.BlockMatching;
+import mpicbg.ij.util.Util;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractModel;
@@ -60,7 +78,10 @@ import mpicbg.models.Transforms;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.util.Downsampler;
 import mpicbg.trakem2.util.Triple;
+import mpicbg.util.ColorStream;
+import mpicbg.util.Timer;
 
 /**
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
@@ -72,6 +93,7 @@ public class ElasticLayerAlignment
 		private static final long serialVersionUID = 3366971916160734613L;
 
 		public boolean isAligned = false;
+		public boolean isTestParams = false; 
 		
 		public float layerScale = 0.1f;
 		public float minR = 0.6f;
@@ -93,7 +115,7 @@ public class ElasticLayerAlignment
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
 		public boolean useLegacyOptimizer = true;
-		
+				
 		public boolean setup( final Rectangle box )
 		{
 			/* Block Matching */
@@ -126,6 +148,7 @@ public class ElasticLayerAlignment
 			gdBlockMatching.addMessage( "Miscellaneous:" );
 			gdBlockMatching.addCheckbox( "layers_are_pre-aligned", isAligned );
 			gdBlockMatching.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
+			gdBlockMatching.addCheckbox( "Test_parameters", isTestParams );
 			
 			gdBlockMatching.showDialog();
 			
@@ -146,69 +169,72 @@ public class ElasticLayerAlignment
 			maxLocalTrust = ( float )gdBlockMatching.getNextNumber();
 			isAligned = gdBlockMatching.getNextBoolean();
 			maxNumNeighbors = ( int )gdBlockMatching.getNextNumber();
+			isTestParams = gdBlockMatching.getNextBoolean();
+			
+			if (!isTestParams){
+				if ( !isAligned )
+				{
+					if ( !setupSIFT( "Elastically align layers: " ) )
+						return false;
+					
+					/* Geometric filters */
+					
+					final GenericDialog gd = new GenericDialog( "Elastically align layers: Geometric filters" );
+					
+					gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
+					gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
+					gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
+					gd.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
+					gd.addCheckbox( "ignore constant background", rejectIdentity );
+					gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
+					gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
+					
+					gd.showDialog();
+					
+					if ( gd.wasCanceled() )
+						return false;
+					
+					maxEpsilon = ( float )gd.getNextNumber();
+					minInlierRatio = ( float )gd.getNextNumber();
+					minNumInliers = ( int )gd.getNextNumber();
+					expectedModelIndex = gd.getNextChoiceIndex();
+					rejectIdentity = gd.getNextBoolean();
+					identityTolerance = ( float )gd.getNextNumber();
+					maxNumFailures = ( int )gd.getNextNumber();
+				}
 			
 			
-			if ( !isAligned )
-			{
-				if ( !setupSIFT( "Elastically align layers: " ) )
+				/* Optimization */
+			
+				final GenericDialog gdOptimize = new GenericDialog( "Elastically align layers: Optimization" );
+				
+				gdOptimize.addMessage( "Approximate Optimizer:" );
+				gdOptimize.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ desiredModelIndex ] );
+				gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
+				gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
+				
+				gdOptimize.addMessage( "Spring Mesh:" );
+				gdOptimize.addNumericField( "stiffness :", stiffnessSpringMesh, 2 );
+				gdOptimize.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
+				gdOptimize.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
+				gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
+				gdOptimize.addCheckbox( "use_legacy_optimizer :", useLegacyOptimizer );
+				
+				gdOptimize.showDialog();
+				
+				if ( gdOptimize.wasCanceled() )
 					return false;
 				
-				/* Geometric filters */
+				desiredModelIndex = gdOptimize.getNextChoiceIndex();
+				maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
+				maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
 				
-				final GenericDialog gd = new GenericDialog( "Elastically align layers: Geometric filters" );
-				
-				gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
-				gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
-				gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
-				gd.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
-				gd.addCheckbox( "ignore constant background", rejectIdentity );
-				gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
-				gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
-				
-				gd.showDialog();
-				
-				if ( gd.wasCanceled() )
-					return false;
-				
-				maxEpsilon = ( float )gd.getNextNumber();
-				minInlierRatio = ( float )gd.getNextNumber();
-				minNumInliers = ( int )gd.getNextNumber();
-				expectedModelIndex = gd.getNextChoiceIndex();
-				rejectIdentity = gd.getNextBoolean();
-				identityTolerance = ( float )gd.getNextNumber();
-				maxNumFailures = ( int )gd.getNextNumber();
+				stiffnessSpringMesh = ( float )gdOptimize.getNextNumber();
+				maxStretchSpringMesh = ( float )gdOptimize.getNextNumber();
+				maxIterationsSpringMesh = ( int )gdOptimize.getNextNumber();
+				maxPlateauwidthSpringMesh = ( int )gdOptimize.getNextNumber();
+				useLegacyOptimizer = gdOptimize.getNextBoolean();
 			}
-			
-			
-			/* Optimization */
-			final GenericDialog gdOptimize = new GenericDialog( "Elastically align layers: Optimization" );
-			
-			gdOptimize.addMessage( "Approximate Optimizer:" );
-			gdOptimize.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ desiredModelIndex ] );
-			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
-			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
-			
-			gdOptimize.addMessage( "Spring Mesh:" );
-			gdOptimize.addNumericField( "stiffness :", stiffnessSpringMesh, 2 );
-			gdOptimize.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
-			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
-			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
-			gdOptimize.addCheckbox( "use_legacy_optimizer :", useLegacyOptimizer );
-			
-			gdOptimize.showDialog();
-			
-			if ( gdOptimize.wasCanceled() )
-				return false;
-			
-			desiredModelIndex = gdOptimize.getNextChoiceIndex();
-			maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
-			maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
-			
-			stiffnessSpringMesh = ( float )gdOptimize.getNextNumber();
-			maxStretchSpringMesh = ( float )gdOptimize.getNextNumber();
-			maxIterationsSpringMesh = ( int )gdOptimize.getNextNumber();
-			maxPlateauwidthSpringMesh = ( int )gdOptimize.getNextNumber();
-			useLegacyOptimizer = gdOptimize.getNextBoolean();
 			
 			return true;
 		}
@@ -231,6 +257,7 @@ public class ElasticLayerAlignment
 				final int expectedModelIndex,
 				final float identityTolerance,
 				final boolean isAligned,
+				final boolean isTestParams,
 				final float maxEpsilon,
 				final int maxIterationsOptimize,
 				final int maxNumFailures,
@@ -288,6 +315,7 @@ public class ElasticLayerAlignment
 					visualize );
 			
 			this.isAligned = isAligned;
+			this.isTestParams = isTestParams;
 			this.blockRadius = blockRadius;
 			this.dampSpringMesh = dampSpringMesh;
 			this.layerScale = layerScale;
@@ -327,6 +355,7 @@ public class ElasticLayerAlignment
 					expectedModelIndex,
 					identityTolerance,
 					isAligned,
+					isTestParams,
 					maxEpsilon,
 					maxIterationsOptimize,
 					maxNumFailures,
@@ -361,6 +390,7 @@ public class ElasticLayerAlignment
 	}
 	
 	final static Param p = new Param();
+	protected final static int minGridSize = 8; // for test parameters
 
 	
 	final static private String layerName( final Layer layer )
@@ -682,8 +712,10 @@ J:				for ( int j = i + 1; j < range; )
 		final float localRegionSigma = param.layerScale * param.localRegionSigma;
 		final float maxLocalEpsilon = param.layerScale * param.maxLocalEpsilon;
 		
-		final AbstractModel< ? > localSmoothnessFilterModel = Util.createModel( param.localModelIndex );
+		final AbstractModel< ? > localSmoothnessFilterModel = mpicbg.trakem2.align.Util.createModel( param.localModelIndex );
 		
+		ImagePlus impTable = null; // for test parameters
+		ColorProcessor ipTable = null; // for test parameters
 		
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
 		{
@@ -743,7 +775,7 @@ J:				for ( int j = i + 1; j < range; )
 				mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
 				mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
 				
-				final float springConstant  = 1.0f / ( pair.b - pair.a );
+				final float springConstant = 1.0f / ( pair.b - pair.a );
 				
 				if ( layer1Fixed )
 					initMeshes.fixTile( t1 );
@@ -904,145 +936,315 @@ J:				for ( int j = i + 1; j < range; )
 				}
 				
 				Utils.log( pair.a + " <> " + pair.b + " spring constant = " + springConstant );
-			}
-		}
+				
+				
+				
+				
+				/* If testing parameters is true, display*/
+				if (param.isTestParams){
+					Utils.log("Test parameters");
+					
+					int w = box.width;
+					int h = box.height;
+					while ( w > param.resolutionSpringMesh * minGridSize )
+					{
+						w /= 2;
+						h /= 2;
+					}
+					
+					// create the table 
+					if (ipTable == null){
+						ipTable = initTestParamTable(layerRange.size(), w, h);
+						impTable = new ImagePlus( "Block Matching Results", ipTable );
+						impTable.show();
+					}
+					
+					// copy the original images in the table
+					if (pair.a == 0 && pair.b == 1) { // put 0th image in
+						copyLayers2Table( ipTable, (int) pair.a, (ColorProcessor) ip1.convertToRGB(), w, h);
+					}
+					if (pair.a == 0) { // a remains 0 and b loops from 1 to range
+						copyLayers2Table( ipTable, (int) pair.b, (ColorProcessor) ip2.convertToRGB(), w, h);
+					}
+					
+					// fill the space
+					final SpringMesh mesh = new SpringMesh( param.resolutionSpringMesh, img1.getWidth(null), img1.getHeight(null), 1, 1000, 0.9f );
+					final Collection< Vertex > vertices = mesh.getVertices();
+					final RealPointSampleList< ARGBType > maskSamples = new RealPointSampleList< ARGBType >( 2 );
+					for ( final Vertex vertex : vertices )
+						maskSamples.add( new RealPoint( vertex.getL() ), new ARGBType( 0xffffffff ) );
+//						maskSamples.add( new RealPoint( vertex.getL() ), new ARGBType( ColorStream.next() ) );
+					/* translate relative to bounding box */
+					
+					// show results for the pair
+					display( img1, param, pm12, maskSamples, impTable, ipTable, w, h, pair.a, pair.b );
+					display( img1, param, pm21, maskSamples, impTable, ipTable, w, h, pair.b, pair.a );
+					
+				}
+			} // if not fixed layers
+		} // for
 		
-		/* pre-align by optimizing a piecewise linear model */ 
-		initMeshes.optimize(
-				param.maxEpsilon * param.layerScale,
-				param.maxIterationsSpringMesh,
-				param.maxPlateauwidthSpringMesh );
-		for ( int i = 0; i < layerRange.size(); ++i )
-			meshes.get( i ).init( tiles.get( i ).getModel() );
-
-		/* optimize the meshes */
-		try
-		{
-			final long t0 = System.currentTimeMillis();
-			Utils.log( "Optimizing spring meshes..." );
-			
-			if ( param.useLegacyOptimizer )
+		/* If not testing parameters, apply transform */
+		if (!param.isTestParams) {
+			/* pre-align by optimizing a piecewise linear model */ 
+			initMeshes.optimize(
+					param.maxEpsilon * param.layerScale,
+					param.maxIterationsSpringMesh,
+					param.maxPlateauwidthSpringMesh );
+			for ( int i = 0; i < layerRange.size(); ++i )
+				meshes.get( i ).init( tiles.get( i ).getModel() );
+	
+			/* optimize the meshes */
+			try
 			{
-				Utils.log( "  ...using legacy optimizer...");
-				SpringMesh.optimizeMeshes2(
-						meshes,
-						param.maxEpsilon * param.layerScale,
-						param.maxIterationsSpringMesh,
-						param.maxPlateauwidthSpringMesh,
-						param.visualize );
+				final long t0 = System.currentTimeMillis();
+				Utils.log( "Optimizing spring meshes..." );
+				
+				if ( param.useLegacyOptimizer )
+				{
+					Utils.log( "  ...using legacy optimizer...");
+					SpringMesh.optimizeMeshes2(
+							meshes,
+							param.maxEpsilon * param.layerScale,
+							param.maxIterationsSpringMesh,
+							param.maxPlateauwidthSpringMesh,
+							param.visualize );
+				}
+				else
+				{
+					SpringMesh.optimizeMeshes(
+							meshes,
+							param.maxEpsilon * param.layerScale,
+							param.maxIterationsSpringMesh,
+							param.maxPlateauwidthSpringMesh,
+							param.visualize );
+				}
+	
+				Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
+				
 			}
+			catch ( final NotEnoughDataPointsException e )
+			{
+				Utils.log( "There were not enough data points to get the spring mesh optimizing." );
+				e.printStackTrace();
+				return;
+			}
+			
+			/* translate relative to bounding box */
+			for ( final SpringMesh mesh : meshes )
+			{
+				for ( final PointMatch pm : mesh.getVA().keySet() )
+				{
+					final Point p1 = pm.getP1();
+					final Point p2 = pm.getP2();
+					final float[] l = p1.getL();
+					final float[] w = p2.getW();
+					l[ 0 ] = l[ 0 ] / param.layerScale + box.x;
+					l[ 1 ] = l[ 1 ] / param.layerScale + box.y;
+					w[ 0 ] = w[ 0 ] / param.layerScale + box.x;
+					w[ 1 ] = w[ 1 ] / param.layerScale + box.y;
+				}
+			}
+			
+			/* free memory */
+			project.getLoader().releaseAll();
+			
+			final Layer first = layerRange.get( 0 );
+			final List< Layer > layers = first.getParent().getLayers();
+			
+			/* transfer layer transform into patch transforms and append to patches */
+			if ( propagateTransformBefore || propagateTransformAfter )
+			{
+				if ( propagateTransformBefore )
+				{
+					final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( 0 ).getVA().keySet() );
+					final int firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
+					for ( int i = 0; i < firstLayerIndex; ++i )
+						applyTransformToLayer( layers.get( i ), mlt, filter );
+				}
+				if ( propagateTransformAfter )
+				{
+					final Layer last = layerRange.get( layerRange.size() - 1 );
+					final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( meshes.size() - 1 ).getVA().keySet() );
+					final int lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
+					for ( int i = lastLayerIndex + 1; i < layers.size(); ++i )
+						applyTransformToLayer( layers.get( i ), mlt, filter );
+				}
+			}
+			for ( int l = 0; l < layerRange.size(); ++l )
+			{
+				IJ.showStatus( "Applying transformation to patches ..." );
+				IJ.showProgress( 0, layerRange.size() );
+				
+				final Layer layer = layerRange.get( l );
+				
+				final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
+				mlt.setModel( AffineModel2D.class );
+				mlt.setAlpha( 2.0f );
+				mlt.setMatches( meshes.get( l ).getVA().keySet() );
+				
+				applyTransformToLayer( layer, mlt, filter );
+						
+				if ( Thread.interrupted() )
+				{
+					Utils.log( "Interrupted during applying transformations to patches.  No all patches have been updated.  Re-generate mipmaps manually." );
+				}
+				
+				IJ.showProgress( l + 1, layerRange.size() );
+			}
+			
+			/* update patch mipmaps */
+			final int firstLayerIndex;
+			final int lastLayerIndex;
+			
+			if ( propagateTransformBefore )
+				firstLayerIndex = 0;
 			else
 			{
-				SpringMesh.optimizeMeshes(
-						meshes,
-						param.maxEpsilon * param.layerScale,
-						param.maxIterationsSpringMesh,
-						param.maxPlateauwidthSpringMesh,
-						param.visualize );
-			}
-
-			Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
-			
-		}
-		catch ( final NotEnoughDataPointsException e )
-		{
-			Utils.log( "There were not enough data points to get the spring mesh optimizing." );
-			e.printStackTrace();
-			return;
-		}
-		
-		/* translate relative to bounding box */
-		for ( final SpringMesh mesh : meshes )
-		{
-			for ( final PointMatch pm : mesh.getVA().keySet() )
-			{
-				final Point p1 = pm.getP1();
-				final Point p2 = pm.getP2();
-				final float[] l = p1.getL();
-				final float[] w = p2.getW();
-				l[ 0 ] = l[ 0 ] / param.layerScale + box.x;
-				l[ 1 ] = l[ 1 ] / param.layerScale + box.y;
-				w[ 0 ] = w[ 0 ] / param.layerScale + box.x;
-				w[ 1 ] = w[ 1 ] / param.layerScale + box.y;
-			}
-		}
-		
-		/* free memory */
-		project.getLoader().releaseAll();
-		
-		final Layer first = layerRange.get( 0 );
-		final List< Layer > layers = first.getParent().getLayers();
-		
-		/* transfer layer transform into patch transforms and append to patches */
-		if ( propagateTransformBefore || propagateTransformAfter )
-		{
-			if ( propagateTransformBefore )
-			{
-				final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( 0 ).getVA().keySet() );
-				final int firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
-				for ( int i = 0; i < firstLayerIndex; ++i )
-					applyTransformToLayer( layers.get( i ), mlt, filter );
+				firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
 			}
 			if ( propagateTransformAfter )
+				 lastLayerIndex = layers.size() - 1;
+			else
 			{
 				final Layer last = layerRange.get( layerRange.size() - 1 );
-				final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( meshes.size() - 1 ).getVA().keySet() );
-				final int lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
-				for ( int i = lastLayerIndex + 1; i < layers.size(); ++i )
-					applyTransformToLayer( layers.get( i ), mlt, filter );
+				lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
 			}
-		}
-		for ( int l = 0; l < layerRange.size(); ++l )
-		{
-			IJ.showStatus( "Applying transformation to patches ..." );
-			IJ.showProgress( 0, layerRange.size() );
 			
-			final Layer layer = layerRange.get( l );
-			
-			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
-			mlt.setModel( AffineModel2D.class );
-			mlt.setAlpha( 2.0f );
-			mlt.setMatches( meshes.get( l ).getVA().keySet() );
-			
-			applyTransformToLayer( layer, mlt, filter );
-					
-			if ( Thread.interrupted() )
+			for ( int i = firstLayerIndex; i <= lastLayerIndex; ++i )
 			{
-				Utils.log( "Interrupted during applying transformations to patches.  No all patches have been updated.  Re-generate mipmaps manually." );
+				final Layer layer = layers.get( i );
+				if ( !( emptyLayers.contains( layer ) || fixedLayers.contains( layer ) ) )
+				{
+					for ( final Patch patch : AlignmentUtils.filterPatches( layer, filter ) )
+						patch.updateMipMaps();
+				}
 			}
+		}
 			
-			IJ.showProgress( l + 1, layerRange.size() );
-		}
-		
-		/* update patch mipmaps */
-		final int firstLayerIndex;
-		final int lastLayerIndex;
-		
-		if ( propagateTransformBefore )
-			firstLayerIndex = 0;
-		else
-		{
-			firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
-		}
-		if ( propagateTransformAfter )
-			 lastLayerIndex = layers.size() - 1;
-		else
-		{
-			final Layer last = layerRange.get( layerRange.size() - 1 );
-			lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
-		}
-		
-		for ( int i = firstLayerIndex; i <= lastLayerIndex; ++i )
-		{
-			final Layer layer = layers.get( i );
-			if ( !( emptyLayers.contains( layer ) || fixedLayers.contains( layer ) ) )
-			{
-				for ( final Patch patch : AlignmentUtils.filterPatches( layer, filter ) )
-					patch.updateMipMaps();
-			}
-		}
 		
 		Utils.log( "Done." );
+	}
+	
+	// from TestParameters.run()
+	protected ColorProcessor initTestParamTable(int nLayers, int w, int h){
+		
+		// final ImagePlus impTable;
+		final ColorProcessor ipTable;
+		
+		ipTable = new ColorProcessor( w * nLayers + w, h * nLayers + h );
+		
+		final ColorProcessor ipScale = new ColorProcessor( w, h );
+		final Color c = IJ.getInstance().getForeground();
+		ipScale.setColor( Color.WHITE );
+		ipScale.fill();
+		ipScale.setColor( c );
+		mpicbg.ij.util.Util.colorCircle( ipScale );
+		
+		ipTable.copyBits( ipScale, 0, 0, Blitter.COPY );
+		
+		//impTable.show();
+		
+		return ipTable;
+	}
+	
+	protected void copyLayers2Table(ColorProcessor ipTable, int i, ColorProcessor ip, int w, int h) {
+		ip = (ColorProcessor)mpicbg.ij.util.Filter.createDownsampled(ip, (float) w / ip.getWidth(), 0.5f, 0.5f);
+		ipTable.copyBits( ip, i * w + w, 0, Blitter.COPY );
+		ipTable.copyBits( ip, 0, i * h + h, Blitter.COPY );
+	}
+	
+	
+	protected void display(
+			final Image img1,
+			final Param param,
+			final ArrayList< PointMatch > pm12,
+			final RealPointSampleList< ARGBType > maskSamples,
+			final ImagePlus impTable,
+			final ColorProcessor ipTable, final int w, final int h, final int i, final int j )
+	{
+		
+		if ( pm12.size() > 0 )
+		{
+			final ImagePlusImgFactory< ARGBType > factory = new ImagePlusImgFactory< ARGBType >();
+			
+			final KDTree< ARGBType > kdtreeMatches = new KDTree< ARGBType >( matches2ColorSamples( pm12, param ) );
+			final KDTree< ARGBType > kdtreeMask = new KDTree< ARGBType >( maskSamples );
+			
+			/* nearest neighbor */
+			final ImagePlusImg< ARGBType, ? > img = factory.create( new long[]{ img1.getWidth(null), img1.getHeight(null) }, new ARGBType() );
+			drawNearestNeighbor(
+					img,
+					new NearestNeighborSearchOnKDTree< ARGBType >( kdtreeMatches ),
+					new NearestNeighborSearchOnKDTree< ARGBType >( kdtreeMask ) );
+			
+			final ImagePlus impVis;
+			ColorProcessor ipVis;
+			try
+			{
+				impVis = img.getImagePlus();
+				ipVis = ( ColorProcessor )impVis.getProcessor();
+				ipVis = (ColorProcessor)mpicbg.ij.util.Filter.createDownsampled(ipVis, (float)w / img.getWidth(), 0.5f, 0.5f);
+				ipTable.copyBits( ipVis, i * w + w, j * h + h, Blitter.COPY );
+				impTable.updateAndDraw();
+			}
+			catch ( final ImgLibException e )
+			{
+				IJ.log( "ImgLib2 Exception, vectors could not be painted." );
+				e.printStackTrace();
+			}
+		}
+		else
+		{
+			final Roi roi = new Roi( i * w + w, j * h + h, w, h );
+			final Color c = IJ.getInstance().getForeground();
+			ipTable.setColor( Color.WHITE );
+			ipTable.fill( roi );
+			ipTable.setColor( c );
+		}
+	}
+	
+	
+	
+	// a copy from the AbstractBlockMatching
+	final static protected RealPointSampleList< ARGBType > matches2ColorSamples(
+			final Iterable< PointMatch > matches,
+			final Param param)
+	{
+		final RealPointSampleList< ARGBType > samples = new RealPointSampleList< ARGBType >( 2 );
+		for ( final PointMatch match : matches )
+		{
+			final float[] p = match.getP1().getL();
+			final float[] q = match.getP2().getW();
+			final float dx = ( q[ 0 ] - p[ 0 ] ) / param.searchRadius;
+			final float dy = ( q[ 1 ] - p[ 1 ] ) / param.searchRadius;
+			
+			final int rgb = Util.colorVector( dx, dy );
+			
+			samples.add( new RealPoint( p ), new ARGBType( rgb ) );
+		}
+		return samples;
+	}
+	// a copy from the AbstractBlockMatching
+	final static protected < T extends Type< T > > long drawNearestNeighbor(
+			final IterableInterval< T > target,
+			final NearestNeighborSearch< T > nnSearchSamples,
+			final NearestNeighborSearch< T > nnSearchMask )
+	{
+		final Timer timer = new Timer();
+		timer.start();
+		final Cursor< T > c = target.localizingCursor();
+		while ( c.hasNext() )
+		{
+			c.fwd();
+			nnSearchSamples.search( c );
+			nnSearchMask.search( c );
+			if ( nnSearchSamples.getSquareDistance() <= nnSearchMask.getSquareDistance() )
+				c.get().set( nnSearchSamples.getSampler().get() );
+			else
+				c.get().set( nnSearchMask.getSampler().get() );
+		}
+		return timer.stop();
 	}
 	
 	final static protected MovingLeastSquaresTransform2 makeMLST2( final Set< PointMatch > matches ) throws Exception
