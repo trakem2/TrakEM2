@@ -13,22 +13,30 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
+ *
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
 package mpicbg.trakem2.align;
 
 import ij.process.ByteProcessor;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import mpicbg.models.Affine2D;
 import mpicbg.models.Model;
@@ -257,7 +265,7 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 	/**
 	 * Search a {@link List} of {@link AbstractAffineTile2D Tiles} for
 	 * overlapping pairs.  Adds the pairs into tilePairs.
-	 * 
+	 *
 	 * @param tiles
 	 * @param tilePairs
 	 */
@@ -265,17 +273,75 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 			final List< AAT > tiles,
 			final List< AbstractAffineTile2D< ? >[] > tilePairs )
 	{
+		final HashSet< Patch > visited = new HashSet< Patch >();
+
+		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairCandidates = new ArrayList< AbstractAffineTile2D< ? >[] >();
+
+		/* LUT for tiles */
+		final Hashtable< Patch, AAT > lut = new Hashtable< Patch, AAT >();
+		for ( final AAT tile : tiles )
+			lut.put( tile.patch, tile );
+
 		for ( int a = 0; a < tiles.size(); ++a )
 		{
-			for ( int b = a + 1; b < tiles.size(); ++b )
+			final AbstractAffineTile2D< ? > ta = tiles.get( a );
+			final Patch pa = ta.patch;
+			visited.add( pa );
+			final Layer la = pa.getLayer();
+			for ( final Displayable d : la.getDisplayables( Patch.class, pa.getBoundingBox() ) )
 			{
-				final AbstractAffineTile2D< ? > ta = tiles.get( a );
-				final AbstractAffineTile2D< ? > tb = tiles.get( b );
-				if ( ta.intersects( tb ) )
-					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
+				final Patch pb = ( Patch )d;
+				if ( visited.contains( pb ) )
+					continue;
+
+				final AAT tb = lut.get( pb );
+				if ( tb == null )
+					continue;
+
+				tilePairCandidates.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
 			}
 		}
-		
+
+		// TODO Fix this and use what the user wants to provide
+		final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+		final ArrayList< Future< ? > > futures = new ArrayList< Future< ? > >();
+
+		for ( final AbstractAffineTile2D< ? >[] tatb : tilePairCandidates )
+		{
+			futures.add( exec.submit(
+					new Runnable()
+					{
+						@Override
+						public void run()
+						{
+							if ( tatb[ 0 ].intersects( tatb[ 1 ] ) )
+								synchronized ( tilePairs )
+								{
+									tilePairs.add( tatb );
+								}
+						}
+					} ) );
+		}
+
+		try
+		{
+			for ( final Future< ? > f : futures )
+				f.get();
+		}
+		catch ( final InterruptedException e )
+		{
+			e.printStackTrace();
+		}
+		catch ( final ExecutionException e )
+		{
+			e.printStackTrace();
+		}
+		finally
+		{
+			exec.shutdown();
+		}
+
+
 //		// 1. Precompute the Area of each tile's Patch
 //		final HashMap< Patch, Pair< AAT, Area > > m = new HashMap< Patch, Pair< AAT, Area > >();
 //		// A lazy collection of pairs, computed in parallel ahead of consumption
