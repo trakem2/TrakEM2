@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package mpicbg.trakem2.align;
 
@@ -47,15 +47,15 @@ import mpicbg.trakem2.transform.TranslationModel2D;
 
 /**
  * A collection of methods regarding SIFT-based alignment
- * 
+ *
  * TODO Bring the methods and tasks into a class for each method and clean up this mess.
- * 
+ *
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  */
 public class Align
 {
 	static public class Param implements Serializable
-	{	
+	{
 		private static final long serialVersionUID = -6469820142091971052L;
 
 		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
@@ -64,60 +64,61 @@ public class Align
 		 * Closest/next closest neighbour distance ratio
 		 */
 		public float rod = 0.92f;
-		
+
 		/**
 		 * Maximal allowed alignment error in px
 		 */
 		public float maxEpsilon = 100.0f;
-		
+
 		/**
 		 * Inlier/candidates ratio
 		 */
 		public float minInlierRatio = 0.2f;
-		
+
 		/**
 		 * Minimal absolute number of inliers
 		 */
 		public int minNumInliers = 7;
-		
+
 		/**
 		 * Implemeted transformation models for choice
 		 */
+//		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine", "Homography" };
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
 		public int expectedModelIndex = 1;
 		public int desiredModelIndex = 1;
 		public int regularizerModelIndex = 1;
-		
+
 		/**
 		 * Use a regularized model instead of a pure one.
 		 */
 		public boolean regularize = false;
-		
+
 		/**
 		 * Regularization weight.
 		 */
 		public double lambda = 0.1;
-		
+
 		public float correspondenceWeight = 1;
-		
+
 		/**
 		 * Ignore identity transform up to a given tolerance
 		 */
 		public boolean rejectIdentity = false;
 		public float identityTolerance = 0.5f;
-		
+
 		public Param()
 		{
 			sift.maxOctaveSize = 600;
 			sift.fdSize = 8;
 		}
-		
+
 		public void addSIFTFields( final GenericDialog gd )
 		{
-			SIFT.addFields( gd, sift );			
+			SIFT.addFields( gd, sift );
 			gd.addNumericField( "closest/next_closest_ratio :", rod, 2 );
 		}
-		
+
 		public void addGeometricConsensusFilterFields( final GenericDialog gd )
 		{
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
@@ -127,73 +128,73 @@ public class Align
 			gd.addCheckbox( "ignore constant background", rejectIdentity );
 			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 		}
-		
+
 		public void addAlignmentFields( final GenericDialog gd )
 		{
 			gd.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
 			gd.addNumericField( "correspondence weight :", correspondenceWeight, 2 );
 			gd.addCheckbox( "regularize", regularize );
 		}
-		
+
 		public void addRegularizationFields( final GenericDialog gd )
 		{
 			gd.addChoice( "regularizer :", modelStrings, modelStrings[ regularizerModelIndex ] );
 			gd.addNumericField( "lambda :", lambda, 2 );
 		}
-		
-		
+
+
 		public void addFields( final GenericDialog gd )
 		{
 			addSIFTFields( gd );
-			
+
 			gd.addMessage( "Geometric Consensus Filter:" );
-			
+
 			addGeometricConsensusFilterFields( gd );
-			
+
 			gd.addMessage( "Alignment:" );
-			
+
 			addAlignmentFields( gd );
 			addRegularizationFields( gd );
 		}
-		
+
 		public boolean readSIFTFields( final GenericDialog gd )
 		{
 			SIFT.readFields( gd, sift );
 			rod = ( float )gd.getNextNumber();
-			
+
 			return !gd.invalidNumber();
 		}
-		
+
 		public boolean readGeometricConsensusFilterFields( final GenericDialog gd )
-		{	
+		{
 			maxEpsilon = ( float )gd.getNextNumber();
 			minInlierRatio = ( float )gd.getNextNumber();
 			minNumInliers = ( int )gd.getNextNumber();
 			expectedModelIndex = gd.getNextChoiceIndex();
-			
+
 			rejectIdentity = gd.getNextBoolean();
 			identityTolerance = ( float )gd.getNextNumber();
-			
+
 			return !gd.invalidNumber();
 		}
-		
+
 		public boolean readAlignmentFields( final GenericDialog gd )
 		{
 			desiredModelIndex = gd.getNextChoiceIndex();
 			correspondenceWeight = ( float )gd.getNextNumber();
 			regularize = gd.getNextBoolean();
-			
+
 			return !gd.invalidNumber();
 		}
-		
+
 		public boolean readRegularizationFields( final GenericDialog gd )
 		{
 			regularizerModelIndex = gd.getNextChoiceIndex();
 			lambda = gd.getNextNumber();
-			
+
 			return !gd.invalidNumber();
 		}
-		
+
 		public boolean readFields( final GenericDialog gd )
 		{
 			boolean b = readSIFTFields( gd );
@@ -202,7 +203,7 @@ public class Align
 			b &= readRegularizationFields( gd );
 			return b;
 		}
-	
+
 		final public boolean setup( final String title )
 		{
 			/* SIFT */
@@ -212,9 +213,9 @@ public class Align
 			{
 				gdSIFT.showDialog();
 				if ( gdSIFT.wasCanceled() ) return false;
-			}			
+			}
 			while ( !readSIFTFields( gdSIFT ) );
-			
+
 			/* Geometric consensus */
 			final GenericDialog gdGeometricConsensusFilter = new GenericDialog( title + ": Geometric Consensus Filter" );
 			addGeometricConsensusFilterFields( gdGeometricConsensusFilter );
@@ -222,9 +223,9 @@ public class Align
 			{
 				gdGeometricConsensusFilter.showDialog();
 				if ( gdGeometricConsensusFilter.wasCanceled() ) return false;
-			}			
+			}
 			while ( !readGeometricConsensusFilterFields( gdGeometricConsensusFilter ) );
-			
+
 			/* Alignment */
 			final GenericDialog gdAlignment = new GenericDialog( title + ": Alignment parameters" );
 			addAlignmentFields( gdAlignment );
@@ -232,9 +233,9 @@ public class Align
 			{
 				gdAlignment.showDialog();
 				if ( gdAlignment.wasCanceled() ) return false;
-			}			
+			}
 			while ( !readAlignmentFields( gdAlignment ) );
-			
+
 			/* Regularization */
 			if ( regularize )
 			{
@@ -244,25 +245,25 @@ public class Align
 				{
 					gdRegularization.showDialog();
 					if ( gdRegularization.wasCanceled() ) return false;
-				}			
+				}
 				while ( !readRegularizationFields( gdRegularization ) );
 			}
-			
+
 			return true;
 		}
-		
+
 		@Override
 		public Param clone()
 		{
 			final Param p = new Param();
-			
+
 			p.sift.initialSigma = this.sift.initialSigma;
 			p.sift.steps = this.sift.steps;
 			p.sift.minOctaveSize = this.sift.minOctaveSize;
 			p.sift.maxOctaveSize = this.sift.maxOctaveSize;
 			p.sift.fdSize = this.sift.fdSize;
 			p.sift.fdBins = this.sift.fdBins;
-					
+
 			p.rod = rod;
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
@@ -270,25 +271,25 @@ public class Align
 			p.expectedModelIndex = expectedModelIndex;
 			p.rejectIdentity = rejectIdentity;
 			p.identityTolerance = identityTolerance;
-			
+
 			p.desiredModelIndex = desiredModelIndex;
 			p.correspondenceWeight = correspondenceWeight;
 			p.regularize = regularize;
 			p.regularizerModelIndex = regularizerModelIndex;
 			p.lambda = lambda;
-			
+
 			return p;
 		}
-		
+
 		/**
 		 * Check if two parameter sets are equal.  So far, this method ignores
 		 * the parameter {@link #desiredModelIndex} which defines the
 		 * transformation class to be used for {@link Tile} alignment.  This
 		 * makes sense for the current use in {@link PointMatch} serialization
 		 * but might be misleading for other applications.
-		 * 
+		 *
 		 * TODO Think about this.
-		 * 
+		 *
 		 * @param p
 		 * @return
 		 */
@@ -306,9 +307,9 @@ public class Align
 //			&& ( desiredModelIndex == p.desiredModelIndex );
 		}
 	}
-	
+
 	final static public Param param = new Param();
-	
+
 	static public class ParamOptimize extends Param
 	{
 		private static final long serialVersionUID = 2173278806083343006L;
@@ -317,83 +318,83 @@ public class Align
 		 * Maximal number of iteration allowed for the optimizer.
 		 */
 		public int maxIterations = 2000;
-		
+
 		/**
 		 * Maximal number of iterations allowed to not change the parameter to
 		 * be optimized.
 		 */
 		public int maxPlateauwidth = 200;
-		
+
 		/**
 		 * Filter outliers
 		 */
 		public boolean filterOutliers = false;
 		public float meanFactor = 3.0f;
-		
+
 		@Override
 		public void addAlignmentFields( final GenericDialog gd )
 		{
 			super.addAlignmentFields( gd );
-			
+
 			gd.addMessage( "Optimization:" );
-			
+
 			gd.addNumericField( "maximal_iterations :", maxIterations, 0 );
 			gd.addNumericField( "maximal_plateauwidth :", maxPlateauwidth, 0 );
 			gd.addCheckbox( "filter outliers", filterOutliers );
 			gd.addNumericField( "mean_factor :", meanFactor, 2 );
 		}
-		
+
 		@Override
 		public boolean readAlignmentFields( final GenericDialog gd )
 		{
 			super.readAlignmentFields( gd );
-			
+
 			maxIterations = ( int )gd.getNextNumber();
 			maxPlateauwidth = ( int )gd.getNextNumber();
 			filterOutliers = gd.getNextBoolean();
 			meanFactor = ( float )gd.getNextNumber();
-			
+
 			return !gd.invalidNumber();
 		}
-		
+
 		@Override
 		public void addFields( final GenericDialog gd )
 		{
 			super.addFields( gd );
-			
+
 			gd.addNumericField( "maximal_iterations :", maxIterations, 0 );
 			gd.addNumericField( "maximal_plateauwidth :", maxPlateauwidth, 0 );
 			gd.addCheckbox( "filter outliers", filterOutliers );
 			gd.addNumericField( "mean_factor :", meanFactor, 2 );
 		}
-		
+
 		@Override
 		public boolean readFields( final GenericDialog gd )
 		{
 			super.readFields( gd );
-			
+
 			maxIterations = ( int )gd.getNextNumber();
 			maxPlateauwidth = ( int )gd.getNextNumber();
 			filterOutliers = gd.getNextBoolean();
 			meanFactor = ( float )gd.getNextNumber();
-			
+
 			return !gd.invalidNumber();
 		}
-		
-		
-		
+
+
+
 		@Override
 		final public ParamOptimize clone()
 		{
 			final ParamOptimize p = new ParamOptimize();
-			
+
 			p.sift.initialSigma = this.sift.initialSigma;
 			p.sift.steps = this.sift.steps;
 			p.sift.minOctaveSize = this.sift.minOctaveSize;
 			p.sift.maxOctaveSize = this.sift.maxOctaveSize;
 			p.sift.fdSize = this.sift.fdSize;
 			p.sift.fdBins = this.sift.fdBins;
-					
+
 			p.rod = rod;
 			p.maxEpsilon = maxEpsilon;
 			p.minInlierRatio = minInlierRatio;
@@ -401,7 +402,7 @@ public class Align
 			p.expectedModelIndex = expectedModelIndex;
 			p.rejectIdentity = rejectIdentity;
 			p.identityTolerance = identityTolerance;
-			
+
 			p.desiredModelIndex = desiredModelIndex;
 			p.regularize = regularize;
 			p.regularizerModelIndex = regularizerModelIndex;
@@ -410,10 +411,10 @@ public class Align
 			p.maxPlateauwidth = maxPlateauwidth;
 			p.filterOutliers = filterOutliers;
 			p.meanFactor = meanFactor;
-			
+
 			return p;
 		}
-		
+
 		public boolean equals( final ParamOptimize p )
 		{
 			return
@@ -424,13 +425,13 @@ public class Align
 				( meanFactor == p.meanFactor );
 		}
 	}
-	
+
 	final static public ParamOptimize paramOptimize = new ParamOptimize();
-	
+
 	final static private class Features implements Serializable
 	{
 		private static final long serialVersionUID = 2689219384710526198L;
-		
+
 		FloatArray2DSIFT.Param p;
 		ArrayList< Feature > features;
 		Features( final FloatArray2DSIFT.Param p, final ArrayList< Feature > features )
@@ -439,11 +440,11 @@ public class Align
 			this.features = features;
 		}
 	}
-	
+
 	final static private class PointMatches implements Serializable
 	{
 		private static final long serialVersionUID = -2564147268101223484L;
-		
+
 		Param p;
 		ArrayList< PointMatch > pointMatches;
 		PointMatches( final Param p, final ArrayList< PointMatch > pointMatches )
@@ -452,7 +453,7 @@ public class Align
 			this.pointMatches = pointMatches;
 		}
 	}
-	
+
 	/**
 	 * Extracts {@link Feature SIFT-features} from a {@link List} of
 	 * {@link AbstractAffineTile2D Tiles} and saves them to disk.
@@ -465,7 +466,7 @@ public class Align
 		final protected AtomicInteger ai;
 		final protected AtomicInteger ap;
 		final protected int steps;
-		
+
 		public ExtractFeaturesThread(
 				final Param p,
 				final List< AbstractAffineTile2D< ? > > tiles,
@@ -480,7 +481,7 @@ public class Align
 			this.ap = ap;
 			this.steps = steps;
 		}
-		
+
 		@Override
 		final public void run()
 		{
@@ -521,12 +522,12 @@ public class Align
 				{
 					Utils.log( features.size() + " features loaded for tile " + i + " \"" + tile.getPatch().getTitle() + "\"." );
 				}
-				IJ.showProgress( ap.getAndIncrement(), steps );				
+				IJ.showProgress( ap.getAndIncrement(), steps );
 			}
 		}
 	}
-		
-	
+
+
 	final static protected class MatchFeaturesAndFindModelThread extends Thread
 	{
 		final protected Param p;
@@ -536,7 +537,7 @@ public class Align
 		final protected AtomicInteger ai;
 		final protected AtomicInteger ap;
 		final protected int steps;
-		
+
 		public MatchFeaturesAndFindModelThread(
 				final Param p,
 				final List< AbstractAffineTile2D< ? > > tiles,
@@ -552,32 +553,32 @@ public class Align
 			this.ap = ap;
 			this.steps = steps;
 		}
-		
+
 		@Override
 		final public void run()
 		{
 			final List< PointMatch > candidates = new ArrayList< PointMatch >();
-				
+
 			for ( int i = ai.getAndIncrement(); i < tilePairs.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				if (isInterrupted()) return;
 				candidates.clear();
 				final AbstractAffineTile2D< ? >[] tilePair = tilePairs.get( i );
-				
+
 				Collection< PointMatch > inliers = deserializePointMatches( p, tilePair[ 0 ], tilePair[ 1 ] );
-				
+
 				if ( inliers == null )
 				{
 					inliers = new ArrayList< PointMatch >();
-					
+
 					final long s = System.currentTimeMillis();
-					
+
 					FeatureTransform.matchFeatures(
 						fetchFeatures( p, tilePair[ 0 ] ),
 						fetchFeatures( p, tilePair[ 1 ] ),
 						candidates,
 						p.rod );
-					
+
 					/* find the model */
 					final AbstractAffineModel2D< ? > model;
 					switch ( p.expectedModelIndex )
@@ -597,7 +598,7 @@ public class Align
 					default:
 						return;
 					}
-		
+
 					final boolean modelFound = findModel(
 							model,
 							candidates,
@@ -607,25 +608,25 @@ public class Align
 							p.minNumInliers,
 							p.rejectIdentity,
 							p.identityTolerance );
-					
+
 					if ( modelFound )
 						Utils.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 					else
 						Utils.log( "No model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
-					
+
 					if ( !serializePointMatches( p, tilePair[ 0 ], tilePair[ 1 ], inliers ) )
 						Utils.log( "Saving point matches failed for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\"" );
-					
+
 				}
 				else
 					Utils.log( "Point matches for tiles \"" + tilePair[ 0 ].getPatch().getTitle() + "\" and \"" + tilePair[ 1 ].getPatch().getTitle() + "\" fetched from disk cache" );
-				
+
 				if ( inliers != null && inliers.size() > 0 )
 				{
 					/* weight the inliers */
 					for ( final PointMatch pm : inliers )
 						pm.setWeights( new float[]{ p.correspondenceWeight } );
-					
+
 					synchronized ( tilePair[ 0 ] )
 					{
 						synchronized ( tilePair[ 1 ] ) { tilePair[ 0 ].connect( tilePair[ 1 ], inliers ); }
@@ -633,13 +634,13 @@ public class Align
 					}
 					synchronized ( tilePair[ 1 ] ) { tilePair[ 1 ].clearVirtualMatches(); }
 				}
-				
+
 				IJ.showProgress( ap.getAndIncrement(), steps );
 			}
 		}
 	}
-	
-	
+
+
 	final static public boolean findModel(
 			final Model< ? > model,
 			final List< PointMatch > candidates,
@@ -684,11 +685,11 @@ public class Align
 		{
 			modelFound = false;
 		}
-		
+
 		return modelFound;
 	}
-	
-	
+
+
 	final static protected boolean serializeFeatures( final Param p, final AbstractAffineTile2D< ? > t, final Collection< Feature > f )
 	{
 		final ArrayList< Feature > list = new ArrayList< Feature >();
@@ -727,8 +728,8 @@ public class Align
 		}
 		return null;
 	}
-	
-	
+
+
 	final static protected Collection< Feature > fetchFeatures(
 			final Param p,
 			final AbstractAffineTile2D< ? > t )
@@ -747,13 +748,13 @@ public class Align
 		}
 		return features;
 	}
-	
+
 
 	/**
 	 * Save a {@link Collection} of {@link PointMatch PointMatches} two-sided.
 	 * Creates two serialization files which is desperately required to clean
 	 * up properly invalid serializations on change of a {@link Patch}.
-	 * 
+	 *
 	 * @param p
 	 * @param t1
 	 * @param t2
@@ -781,8 +782,8 @@ public class Align
 				new PointMatches( p, tsil ),
 				new StringBuilder( loader.getUNUIdFolder() ).append( "pointmatches.ser/" ).append( FSLoader.createIdPath( Long.toString( p2.getId() ) + "_" + Long.toString( p1.getId() ), "pointmatches", ".ser" ) ).toString() );
 	}
-	
-	
+
+
 	final static protected Collection< PointMatch > deserializePointMatches(
 			final Param p,
 			final AbstractAffineTile2D< ? > t1,
@@ -791,10 +792,10 @@ public class Align
 		final Patch p1 = t1.getPatch();
 		final Patch p2 = t2.getPatch();
 		final Loader loader = p1.getProject().getLoader();
-		
+
 		final Object ob = loader.deserialize( new StringBuilder( loader.getUNUIdFolder() ).append( "pointmatches.ser/" )
 				.append( FSLoader.createIdPath( Long.toString( p1.getId() ) + "_" + Long.toString( p2.getId() ), "pointmatches", ".ser" ) ).toString() );
-		
+
 		if ( null != ob )
 		{
 			try
@@ -812,13 +813,13 @@ public class Align
 		}
 		return null;
 	}
-	
-	
+
+
 	/**
 	 * Fetch a {@link Collection} of corresponding
 	 * {@link Feature SIFT-features}.  Both {@link Feature SIFT-features} and
 	 * {@linkplain PointMatch corresponding points} are cached to disk.
-	 * 
+	 *
 	 * @param p
 	 * @param t1
 	 * @param t2
@@ -842,7 +843,7 @@ public class Align
 		{
 			final List< PointMatch > candidates = new ArrayList< PointMatch >();
 			final List< PointMatch > inliers = new ArrayList< PointMatch >();
-				
+
 			final long s = System.currentTimeMillis();
 			FeatureTransform.matchFeatures(
 					fetchFeatures( p, t1 ),
@@ -868,7 +869,7 @@ public class Align
 			default:
 				return null;
 			}
-	
+
 			final boolean modelFound = findModel(
 					model,
 					candidates,
@@ -878,23 +879,23 @@ public class Align
 					p.minNumInliers,
 					p.rejectIdentity,
 					p.identityTolerance );
-			
+
 			if ( modelFound )
 				Utils.log( "Model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			else
 				Utils.log( "No model found for tiles \"" + t1.getPatch() + "\" and \"" + t2.getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
-			
+
 			if ( !serializePointMatches( p, t1, t2, pointMatches ) )
 				Utils.log( "Saving point matches failed for tile \"" + t1.getPatch() + "\" and tile \"" + t2.getPatch() + "\"" );
 		}
 		return pointMatches;
 	}
-	
-	
+
+
 	/**
 	 * Align a set of {@link AbstractAffineTile2D tiles} using
 	 * the following procedure:
-	 * 
+	 *
 	 * <ol>
 	 * <li>Extract {@link Feature SIFT-features} from all
 	 * {@link AbstractAffineTile2D tiles}.</li>
@@ -903,13 +904,13 @@ public class Align
 	 * optionally inspect only those that are already overlapping.</li>
 	 * <li>Globally align the tile configuration.</li>
 	 * </ol>
-	 * 
+	 *
 	 * Both
 	 * {@link SIFT#extractFeatures(ij.process.ImageProcessor, Collection) feature extraction}
 	 * and {@link FeatureTransform#matchFeatures(Collection, Collection, List, float) matching}
 	 * are executed in multiple {@link Thread Threads}, with the number of
 	 * {@link Thread Threads} being a parameter of the method.
-	 * 
+	 *
 	 * @param p
 	 * @param tiles
 	 * @param fixedTiles
@@ -932,11 +933,11 @@ public class Align
 		optimizeTileConfiguration( p, tiles, fixedTiles );
 	}
 
-		
+
 	/**
 	 * Align a set of overlapping {@link AbstractAffineTile2D tiles} using
 	 * the following procedure:
-	 * 
+	 *
 	 * <ol>
 	 * <li>Extract {@link Feature SIFT-features} from all
 	 * {@link AbstractAffineTile2D tiles}.</li>
@@ -945,13 +946,13 @@ public class Align
 	 * tiles.</li>
 	 * <li>Globally align the tile configuration.</li>
 	 * </ol>
-	 * 
+	 *
 	 * Both
 	 * {@link SIFT#extractFeatures(ij.process.ImageProcessor, Collection) feature extraction}
 	 * and {@link FeatureTransform#matchFeatures(Collection, Collection, List, float) matching}
 	 * are executed in multiple {@link Thread Threads}, with the number of
 	 * {@link Thread Threads} being a parameter of the method.
-	 * 
+	 *
 	 * @param p
 	 * @param tiles
 	 * @param numThreads
@@ -964,9 +965,9 @@ public class Align
 	{
 		alignTiles( p, tiles, fixedTiles, true, numThreads );
 	}
-	
-	
-	
+
+
+
 	/**
 	 * Align a set of {@link AbstractAffineTile2D tiles} that are
 	 * interconnected by {@link PointMatch point-correspondences}.
@@ -980,7 +981,7 @@ public class Align
 		for ( final AbstractAffineTile2D< ? > t : tiles )
 			if ( t.getConnectedTiles().size() > 0 )
 				tc.addTile( t );
-		
+
 //		ArrayList< Set< Tile< ? > > > graphs = Tile.identifyConnectedGraphs( tiles );
 //		for ( Set< Tile< ? > > graph : graphs )
 //		{
@@ -997,7 +998,7 @@ public class Align
 //		}
 		for ( final Tile< ? > t : fixedTiles )
 			tc.fixTile( t );
-		
+
 		try
 		{
 			if ( p.filterOutliers )
@@ -1007,8 +1008,8 @@ public class Align
 		}
 		catch ( final Exception e ) { IJ.error( e.getMessage() + " " + e.getStackTrace() ); }
 	}
-	
-	
+
+
 	final static protected void pairwiseAlign(
 			final AbstractAffineTile2D< ? > tile,
 			final Set< AbstractAffineTile2D< ? > > visited )
@@ -1021,19 +1022,19 @@ public class Align
 			// TODO Actually do it ...
 		}
 	}
-	
-		
+
+
 	final static public void pairwiseAlignTileConfiguration(
 			final List< AbstractAffineTile2D< ? > > tiles )
 	{
 		// TODO Implement it
 	}
-	
-	
+
+
 	/**
 	 * Connect a {@link List} of {@link AbstractAffineTile2D Tiles} by
 	 * geometrically consistent {@link Feature SIFT-feature} correspondences.
-	 * 
+	 *
 	 * @param p
 	 * @param tiles
 	 * @param numThreads
@@ -1049,7 +1050,7 @@ public class Align
 		final int steps = tiles.size() + tilePairs.size();
 		final List< ExtractFeaturesThread > extractFeaturesThreads = new ArrayList< ExtractFeaturesThread >();
 		final List< MatchFeaturesAndFindModelThread > matchFeaturesAndFindModelThreads = new ArrayList< MatchFeaturesAndFindModelThread >();
-		
+
 		/** Extract and save Features */
 		for ( int i = 0; i < numThreads; ++i )
 		{
@@ -1057,7 +1058,7 @@ public class Align
 			extractFeaturesThreads.add( thread );
 			thread.start();
 		}
-		
+
 		try
 		{
 			for ( final ExtractFeaturesThread thread : extractFeaturesThreads )
@@ -1078,7 +1079,7 @@ public class Align
 			IJ.showProgress( 1.0 );
 			return;
 		}
-		
+
 		/** Establish correspondences */
 		ai.set( 0 );
 		for ( int i = 0; i < numThreads; ++i )
@@ -1107,14 +1108,14 @@ public class Align
 			IJ.showProgress( 1.0 );
 		}
 	}
-	
-	
+
+
 	/**
 	 * If a Patch is locked or in fixedPatches, its corresponding Tile is added to fixedTiles.
-	 * 
-	 * @param p 
+	 *
+	 * @param p
 	 * @param patches
-	 * @param fixedPatches 
+	 * @param fixedPatches
 	 * @param tiles will contain the generated
 	 *   {@link AbstractAffineTile2D Tiles}
 	 * @param fixedTiles will contain the {@link AbstractAffineTile2D Tiles}
@@ -1136,14 +1137,14 @@ public class Align
 				/* can only be affine per convention */
 				final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( p.desiredModelIndex );
 				final AbstractAffineModel2D< ? > r = ( AbstractAffineModel2D< ? > )Util.createModel( p.regularizerModelIndex );
-				
+
 				/* for type safety one would test both models as for the simple
 				 * case below but here I will go for the easy route and let
 				 * Java cast it to what is required and ignore the warning.
 				 */
 				@SuppressWarnings( { } )
 				final InterpolatedAffineModel2D< ?, ? > interpolatedModel = new InterpolatedAffineModel2D( m, r, ( float )p.lambda );
-				
+
 				t = new GenericAffineTile2D( interpolatedModel, patch );
 			}
 			else
@@ -1171,11 +1172,11 @@ public class Align
 				fixedTiles.add( t );
 		}
 	}
-	
-	
+
+
 	/**
 	 * Align a selection of {@link Patch patches} in a Layer.
-	 * 
+	 *
 	 * @param layer
 	 */
 	final static public void alignSelectedPatches( final Selection selection, final int numThreads )
@@ -1183,11 +1184,11 @@ public class Align
 		final List< Patch > patches = new ArrayList< Patch >();
 		for ( final Displayable d : selection.getSelected() )
 			if ( d instanceof Patch ) patches.add(  ( Patch )d );
-		
+
 		if ( patches.size() < 2 ) return;
-		
+
 		if ( !paramOptimize.setup( "Align selected patches" ) ) return;
-		
+
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< Patch > fixedPatches = new ArrayList< Patch >();
@@ -1195,23 +1196,23 @@ public class Align
 		if ( active != null && active instanceof Patch )
 			fixedPatches.add( ( Patch )active );
 		tilesFromPatches( paramOptimize, patches, fixedPatches, tiles, fixedTiles );
-		
+
 		alignTiles( paramOptimize, tiles, fixedTiles, numThreads );
-		
+
 		for ( final AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
-	
-	
+
+
 	/**
 	 * Align all {@link Patch patches} in a Layer.
-	 * 
+	 *
 	 * @param layer
 	 */
 	final static public void alignLayer( final Layer layer, final int numThreads )
 	{
 		if ( !paramOptimize.setup( "Align patches in layer" ) ) return;
-		
+
 		final List< Displayable > displayables = layer.getDisplayables( Patch.class );
 		final List< Patch > patches = new ArrayList< Patch >();
 		for ( final Displayable d : displayables )
@@ -1219,16 +1220,16 @@ public class Align
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		tilesFromPatches( paramOptimize, patches, null, tiles, fixedTiles );
-		
+
 		alignTiles( paramOptimize, tiles, fixedTiles, numThreads );
-		
+
 		for ( final AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 	}
 
 	/**
 	 * Align a range of layers by accumulating pairwise alignments of contiguous layers.
-	 * 
+	 *
 	 * @param layers The range of layers to align pairwise.
 	 * @param numThreads The number of threads to use.
 	 */
@@ -1239,7 +1240,7 @@ public class Align
 
 	/**
 	 * Align a range of layers by accumulating pairwise alignments of contiguous layers.
-	 * 
+	 *
 	 * @param layers The range of layers to align pairwise.
 	 * @param numThreads The number of threads to use.
 	 * @param filter The {@link Filter} to decide which {@link Patch} instances to use in each {@param Layer}. Can be null.
@@ -1247,60 +1248,60 @@ public class Align
 	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads, final Filter<Patch> filter )
 	{
 		param.sift.maxOctaveSize = 1600;
-		
+
 		if ( !param.setup( "Align layers linearly" ) ) return;
-		
+
 		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
 		final float scale = Math.min(  1.0f, Math.min( ( float )param.sift.maxOctaveSize / ( float )box.width, ( float )param.sift.maxOctaveSize / ( float )box.height ) );
 		final Param p = param.clone();
 		p.maxEpsilon *= scale;
-		
+
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 		final SIFT ijSIFT = new SIFT( sift );
-		
+
 		Rectangle box1 = null;
 		Rectangle box2 = null;
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
 		final List< PointMatch > candidates = new ArrayList< PointMatch >();
 		final List< PointMatch > inliers = new ArrayList< PointMatch >();
-		
+
 		final AffineTransform a = new AffineTransform();
-		
+
 		int i = 0;
 		for ( final Layer l : layers )
 		{
 			long s = System.currentTimeMillis();
-			
+
 			features1.clear();
 			features1.addAll( features2 );
 			features2.clear();
-			
+
 			final Rectangle box3 = l.getMinimalBoundingBox( Patch.class );
-			
+
 			if ( box3 == null ) continue;
-			
+
 			box1 = box2;
 			box2 = box3;
-			
+
 			final List<Patch> patches = l.getAll(Patch.class);
 			if (null != filter) {
 				for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
 					if (!filter.accept(it.next())) it.remove();
 				}
 			}
-			
+
 			ijSIFT.extractFeatures(
 					l.getProject().getLoader().getFlatImage( l, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor(),
 					features2 );
 			Utils.log( features2.size() + " features extracted in layer \"" + l.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
-			
+
 			if ( features1.size() > 0 )
 			{
 				s = System.currentTimeMillis();
-				
+
 				candidates.clear();
-				
+
 				FeatureTransform.matchFeatures(
 					features2,
 					features1,
@@ -1325,7 +1326,7 @@ public class Align
 				default:
 					return;
 				}
-	
+
 				boolean modelFound;
 				boolean again = false;
 				try
@@ -1360,7 +1361,7 @@ public class Align
 				{
 					modelFound = false;
 				}
-				
+
 				if ( modelFound )
 				{
 					Utils.log( "Model found for layer \"" + l.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
@@ -1370,7 +1371,7 @@ public class Align
 					b.concatenate( model.createAffine() );
 					b.scale( scale, scale );
 					b.translate( -box2.x, -box2.y);
-					
+
 					a.concatenate( b );
 					l.apply( Displayable.class, a );
 					Display.repaint( l );
@@ -1384,9 +1385,9 @@ public class Align
 			IJ.showProgress( ++i, layers.size() );
 		}
 	}
-	
+
 	/**
-	 * Temporary helper method that creates 
+	 * Temporary helper method that creates
 	 * @param matches
 	 * @param alpha
 	 * @return
@@ -1410,13 +1411,13 @@ public class Align
 		}
 		mlst.setModel( c );
 		mlst.setMatches( matches );
-		
+
 		return mlst;
 	}
-	
-	
+
+
 	/**
-	 * Align two collections of tiles 
+	 * Align two collections of tiles
 	 * @param p
 	 * @param a
 	 * @param b
@@ -1429,10 +1430,10 @@ public class Align
 			pa.add( t.getPatch() );
 		for ( final AbstractAffineTile2D< ? > t : b )
 			pb.add( t.getPatch() );
-		
+
 		final Layer la = pa.iterator().next().getLayer();
 		final Layer lb = pb.iterator().next().getLayer();
-		
+
 		final Rectangle boxA = Displayable.getBoundingBox( pa, null );
 		final Rectangle boxB = Displayable.getBoundingBox( pb, null );
 
@@ -1445,28 +1446,28 @@ public class Align
 					Math.min(
 							( float )p.sift.maxOctaveSize / ( float )boxB.width,
 							( float )p.sift.maxOctaveSize / ( float )boxB.height ) ) );
-		
+
 		final Param pp = p.clone();
 		pp.maxEpsilon *= scale;
-		
+
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( pp.sift );
 		final SIFT ijSIFT = new SIFT( sift );
-		
+
 		final Collection< Feature > featuresA = new ArrayList< Feature >();
 		final Collection< Feature > featuresB = new ArrayList< Feature >();
 		final List< PointMatch > candidates = new ArrayList< PointMatch >();
 		final List< PointMatch > inliers = new ArrayList< PointMatch >();
-		
+
 		long s = System.currentTimeMillis();
 		ijSIFT.extractFeatures(
 				la.getProject().getLoader().getFlatImage( la, boxA, scale, 0xffffffff, ImagePlus.GRAY8, null, pa, true, Color.GRAY ).getProcessor(), featuresA );
 		Utils.log( featuresA.size() + " features extracted in graph A in layer \"" + la.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
-		
+
 		s = System.currentTimeMillis();
 		ijSIFT.extractFeatures(
 				lb.getProject().getLoader().getFlatImage( lb, boxB, scale, 0xffffffff, ImagePlus.GRAY8, null, pb, true, Color.GRAY ).getProcessor(), featuresB );
 		Utils.log( featuresB.size() + " features extracted in graph B in layer \"" + lb.getTitle() + "\" (took " + ( System.currentTimeMillis() - s ) + " ms)." );
-		
+
 		if ( featuresA.size() > 0 && featuresB.size() > 0 )
 		{
 			s = System.currentTimeMillis();
@@ -1529,7 +1530,7 @@ public class Align
 			{
 				modelFound = false;
 			}
-			
+
 			if ( modelFound )
 			{
 				Utils.log( "Model found for graph A and B in layers \"" + la.getTitle() + "\" and \"" + lb.getTitle() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
@@ -1539,7 +1540,7 @@ public class Align
 				at.concatenate( model.createAffine() );
 				at.scale( scale, scale );
 				at.translate( -boxB.x, -boxB.y);
-				
+
 				for ( final Patch t : pa )
 					t.preTransform( at, false );
 				Display.repaint( la );
