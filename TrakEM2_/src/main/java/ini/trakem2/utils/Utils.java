@@ -1718,7 +1718,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 	
 	/** Ensure the file can be written to. Will create parent directories if necessary. */
-	static public final boolean ensure(final File f) {
+	static public final synchronized boolean ensure(final File f) {
 		final File parent = f.getParentFile();
 		if (!parent.exists()) {
 			if (!parent.mkdirs()) {
