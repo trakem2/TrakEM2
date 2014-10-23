@@ -27,6 +27,7 @@
 		<module>VectorString</module>
 		<module>T2-NIT</module>
 		<module>T2-TreelineGraph</module>
+		<module>mpicbg-trakem2</module>
 	</modules>
 
 	<scm>
