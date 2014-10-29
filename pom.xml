@@ -38,6 +38,23 @@
 		</dependencies>
 	</dependencyManagement>
 
+	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<configuration>
+						<rules>
+							<requireReleaseDeps>
+								<onlyWhenRelease>true</onlyWhenRelease>
+							</requireReleaseDeps>
+						</rules>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
+
 	<modules>
 		<module>TrakEM2_</module>
 		<module>VectorString</module>
@@ -52,18 +69,11 @@
 		<url>http://repo.or.cz/w/trakem2.git</url>
 	</scm>
 
-	<!-- NB: for project parent -->
+	<!-- NB: for project parent  & Java3D -->
 	<repositories>
-		<repository>
-			<id>imagej.releases</id>
-			<url>http://maven.imagej.net/content/repositories/releases</url>
-		</repository>
-		<repository>
-			<id>imagej.snapshots</id>
-			<url>http://maven.imagej.net/content/repositories/snapshots</url>
-		</repository>
+                <repository>
+                        <id>imagej.public</id>
+                        <url>http://maven.imagej.net/content/groups/public</url>
+                </repository>
 	</repositories>
-
 </project>
-
-
