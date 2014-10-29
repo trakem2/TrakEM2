@@ -21,12 +21,10 @@
 		<dependency>
 			<groupId>gov.nist.math</groupId>
 			<artifactId>jama</artifactId>
-			<version>${jama.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jfree</groupId>
 			<artifactId>jfreechart</artifactId>
-			<version>1.0.14</version>
 		</dependency>
 		<dependency>
 			<groupId>postgresql</groupId>
@@ -51,13 +49,11 @@
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>j3d-core-utils</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>vecmath</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -68,17 +64,14 @@
 		<dependency>
 			<groupId>net.imagej</groupId>
 			<artifactId>ij</artifactId>
-			<version>${imagej1.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>mpicbg</groupId>
 			<artifactId>mpicbg</artifactId>
-			<version>${mpicbg.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>mpicbg</groupId>
 			<artifactId>mpicbg_</artifactId>
-			<version>${mpicbg.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -88,52 +81,42 @@
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>Simple_Neurite_Tracer</artifactId>
-			<version>2.0.2-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>legacy-imglib1</artifactId>
-			<version>${fiji.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>3D_Viewer</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>VIB-lib</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>VIB_</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>Lasso_and_Blow_Tool</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>fiji-lib</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>Fiji_Plugins</artifactId>
-			<version>2.0.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>level_sets</artifactId>
-			<version>1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>bUnwarpJ_</artifactId>
-			<version>2.6</version>
 		</dependency>
 	</dependencies>
 
