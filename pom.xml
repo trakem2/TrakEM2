@@ -19,8 +19,18 @@
 	<description></description>
 
 	<properties>
-		<trakem2.version>1.0b-SNAPSHOT</trakem2.version>
+		<TrakEM2.version>1.0b-SNAPSHOT</TrakEM2.version>
 	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>sc.fiji</groupId>
+				<artifactId>TrakEM2_</artifactId>
+				<version>${TrakEM2.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<modules>
 		<module>TrakEM2_</module>
