@@ -20,6 +20,7 @@
 
 	<properties>
 		<TrakEM2.version>1.0b-SNAPSHOT</TrakEM2.version>
+		<VectorString.version>1.0-SNAPSHOT</VectorString.version>
 	</properties>
 
 	<dependencyManagement>
@@ -28,6 +29,11 @@
 				<groupId>sc.fiji</groupId>
 				<artifactId>TrakEM2_</artifactId>
 				<version>${TrakEM2.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>sc.fiji</groupId>
+				<artifactId>VectorString</artifactId>
+				<version>${VectorString.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
