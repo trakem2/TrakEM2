@@ -34,6 +34,7 @@
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>j3d-core</artifactId>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>java3d</groupId>
