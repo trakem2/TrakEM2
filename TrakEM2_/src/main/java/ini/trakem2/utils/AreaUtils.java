@@ -5,6 +5,7 @@ import ij.gui.Roi;
 import ij.measure.Calibration;
 import ij.plugin.filter.ThresholdToSelection;
 import ij.process.ImageProcessor;
+import ij3d.AreaListVolume;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
@@ -15,6 +16,7 @@ import ini.trakem2.vector.VectorString2D;
 
 import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.Path2D;
@@ -142,7 +144,8 @@ public final class AreaUtils {
 			//Utils.log2("Using imglib Shape List Image Container");
 
 			// Now marching cubes
-			final List<Point3f> list = new MCTriangulator().getTriangles(shapeListImage, 1, new float[3]); // origins at 0,0,0: uncalibrated
+			final AreaListVolume volume = makeAreaListVolume(shapeListImage);
+			final List<Point3f> list = new MCTriangulator().getTriangles(volume);
 
 
 			// The list of triangles has coordinates:
@@ -248,7 +251,7 @@ public final class AreaUtils {
 				Utils.log2("Unprocessed/unused points: " + (list.size() - output.size()));
 				for (int i=0; i<verts.length; i++) {
 					if (null == verts[i]) {
-						Point3f p = (Point3f) list.get(i);
+						Point3f p = list.get(i);
 						Utils.log2("verts[" + i + "] = " + p.x + ", " + p.y + ", " + p.z + "  p.z as int: " + ((int)(p.z + 0.05f)));
 					}
 				}
@@ -261,6 +264,16 @@ public final class AreaUtils {
 			e.printStackTrace();
 		}
 		return null;
+	}
+
+	private static AreaListVolume makeAreaListVolume(
+		final Image<ByteType> shapeListImage)
+	{
+		final ShapeList<ByteType> sli = (ShapeList<ByteType>) shapeListImage.getContainer();
+		final ArrayList<ArrayList<Shape>> shapeLists = sli.getShapeLists();
+		@SuppressWarnings("unchecked")
+		final List<List<Area>> list =(List<List<Area>>) (List<?>) shapeLists;
+		return new AreaListVolume(list, 1, 0, 0, 0);
 	}
 
 	/**
