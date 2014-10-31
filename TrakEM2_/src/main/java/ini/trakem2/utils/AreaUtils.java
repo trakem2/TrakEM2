@@ -31,7 +31,6 @@ import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 
-import marchingcubes.MCTriangulator;
 //import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D; // using ini.trakem2.imaging.BinaryInterpolation2D until imglib's algorithms jar is released
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
