@@ -3,9 +3,9 @@
  */
 package mpicbg.trakem2.align;
 
-import java.awt.geom.AffineTransform;
-
 import ini.trakem2.display.Patch;
+
+import java.awt.geom.AffineTransform;
 
 import mpicbg.models.SimilarityModel2D;
 

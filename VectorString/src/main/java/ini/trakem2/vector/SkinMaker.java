@@ -24,6 +24,7 @@ package ini.trakem2.vector;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.vecmath.Point3f;
 
 public class SkinMaker {

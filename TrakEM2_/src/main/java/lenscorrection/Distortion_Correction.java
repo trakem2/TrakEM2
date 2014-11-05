@@ -39,36 +39,47 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 package lenscorrection;
 
+import Jama.Matrix;
 import ij.IJ;
+import ij.ImagePlus;
 import ij.gui.GenericDialog;
+import ij.io.DirectoryChooser;
+import ij.io.FileSaver;
+import ij.io.Opener;
 import ij.plugin.PlugIn;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
-import ij.ImagePlus;
-import ij.io.DirectoryChooser;
-import ij.io.Opener;
-import ij.io.FileSaver;
 
-import mpi.fruitfly.general.MultiThreading;
-import mpicbg.models.*;
-import mpicbg.ij.SIFT;
-import mpicbg.imagefeatures.*;
-
+import java.awt.Color;
+import java.awt.geom.AffineTransform;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.FilenameFilter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.awt.Color;
-import java.awt.geom.AffineTransform;
-import java.io.*;
 
-import org.jfree.chart.*;
+import mpi.fruitfly.general.MultiThreading;
+import mpicbg.ij.SIFT;
+import mpicbg.imagefeatures.Feature;
+import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.NoninvertibleModelException;
+import mpicbg.models.NotEnoughDataPointsException;
+import mpicbg.models.PointMatch;
+import mpicbg.models.RigidModel2D;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.TranslationModel2D;
+
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.category.DefaultCategoryDataset;
-
-import Jama.Matrix;
 
 
 public class Distortion_Correction implements PlugIn{

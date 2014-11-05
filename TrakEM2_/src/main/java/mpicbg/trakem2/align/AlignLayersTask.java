@@ -16,6 +16,9 @@
  */
 package mpicbg.trakem2.align;
 
+import bunwarpj.Transformation;
+import bunwarpj.bUnwarpJ_;
+import bunwarpj.trakem2.transform.CubicBSplineTransform;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
@@ -62,9 +65,6 @@ import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
-import bunwarpj.Transformation;
-import bunwarpj.bUnwarpJ_;
-import bunwarpj.trakem2.transform.CubicBSplineTransform;
 
 /**
  * Register a range of layers using linear or non-linear transformations.

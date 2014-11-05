@@ -6,9 +6,9 @@ import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferInt;
 import java.lang.ref.SoftReference;
+import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.lang.reflect.Array;
 
 public class CachingThread extends Thread
 {

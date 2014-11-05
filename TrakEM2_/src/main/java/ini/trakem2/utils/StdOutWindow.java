@@ -1,11 +1,5 @@
 package ini.trakem2.utils;
 
-import javax.swing.JSplitPane;
-import javax.swing.JScrollPane;
-import javax.swing.JFrame;
-import javax.swing.JTextArea;
-import javax.swing.BorderFactory;
-import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -13,6 +7,13 @@ import java.awt.Rectangle;
 import java.awt.Toolkit;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+
+import javax.swing.BorderFactory;
+import javax.swing.JFrame;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTextArea;
+import javax.swing.SwingUtilities;
 
 /** Captures the last 10000 chars of StdOut and StdErr into two TextArea. */
 public class StdOutWindow {

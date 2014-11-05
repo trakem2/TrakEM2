@@ -1,9 +1,9 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.plugin.ContrastEnhancer;
 import ij.process.ImageProcessor;
+
+import java.util.Map;
 
 public class EqualizeHistogram implements IFilter
 {

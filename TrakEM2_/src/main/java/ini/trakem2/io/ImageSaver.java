@@ -22,6 +22,10 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.io;
 
+import com.sun.media.jai.codec.ImageCodec;
+import com.sun.media.jai.codec.TIFFDecodeParam;
+import com.sun.media.jai.codec.TIFFEncodeParam;
+
 import ij.ImageJ;
 import ij.ImagePlus;
 import ij.io.FileInfo;
@@ -71,10 +75,6 @@ import javax.imageio.ImageWriteParam;
 import javax.imageio.ImageWriter;
 import javax.imageio.stream.ImageOutputStream;
 import javax.media.jai.PlanarImage;
-
-import com.sun.media.jai.codec.ImageCodec;
-import com.sun.media.jai.codec.TIFFDecodeParam;
-import com.sun.media.jai.codec.TIFFEncodeParam;
 
 /** Provides the necessary thread-safe image file saver utilities. */
 public class ImageSaver {

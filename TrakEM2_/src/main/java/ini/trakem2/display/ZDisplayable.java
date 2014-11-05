@@ -23,19 +23,18 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
-import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
-
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Search;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 
 /** For Pipes and other objects that must be shown in all Layers of a LayerSet. */
 

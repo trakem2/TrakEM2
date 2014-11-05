@@ -4,7 +4,6 @@
 package mpicbg.trakem2.align;
 
 import ini.trakem2.display.Patch;
-
 import mpicbg.models.AffineModel2D;
 
 public class AffineTile2D extends AbstractAffineTile2D< AffineModel2D >

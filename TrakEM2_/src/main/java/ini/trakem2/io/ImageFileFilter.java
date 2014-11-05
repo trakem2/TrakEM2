@@ -26,7 +26,7 @@ import ini.trakem2.utils.IJError;
 
 import java.io.File;
 import java.io.FilenameFilter;
-import java.util.regex.*;
+import java.util.regex.Pattern;
 
 /** Filters out non-accepted image formats.
  *

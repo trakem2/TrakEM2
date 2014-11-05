@@ -23,9 +23,12 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 
-import java.awt.datatransfer.*;
-import javax.swing.tree.*;
-import java.util.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.util.Arrays;
+
+import javax.swing.tree.DefaultMutableTreeNode;
 
 /** Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0 */
 public class TransferableNode implements Transferable {

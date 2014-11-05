@@ -1,10 +1,10 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.plugin.filter.BackgroundSubtracter;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
+
+import java.util.Map;
 
 /** Subtract background with the rolling-ball algorithm. */
 public class SubtractBackground implements IFilter

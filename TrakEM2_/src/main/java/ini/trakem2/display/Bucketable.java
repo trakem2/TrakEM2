@@ -1,9 +1,10 @@
 package ini.trakem2.display;
 
+import ini.trakem2.Project;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import ini.trakem2.Project;
 
 public interface Bucketable {
 	public ArrayList<? extends Displayable> getDisplayableList();

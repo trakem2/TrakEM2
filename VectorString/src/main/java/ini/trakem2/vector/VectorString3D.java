@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
+import Jama.Matrix;
 import ij.measure.Calibration;
 
 import java.util.ArrayList;
@@ -31,8 +32,6 @@ import java.util.Random;
 import javax.media.j3d.Transform3D;
 import javax.vecmath.Point3d;
 import javax.vecmath.Vector3d;
-
-import Jama.Matrix;
 
 
 public class VectorString3D implements VectorString {

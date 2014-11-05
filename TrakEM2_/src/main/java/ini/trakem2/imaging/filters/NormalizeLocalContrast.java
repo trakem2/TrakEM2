@@ -1,7 +1,6 @@
 package ini.trakem2.imaging.filters;
 
 import ij.process.ImageProcessor;
-import ini.trakem2.utils.Utils;
 
 import java.util.Map;
 

@@ -1,7 +1,5 @@
 package ini.trakem2.display;
 
-import ini.trakem2.utils.Utils;
-
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;

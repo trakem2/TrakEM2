@@ -21,8 +21,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 **/
 package ini.trakem2.io;
 
-import java.io.FilenameFilter;
 import java.io.File;
+import java.io.FilenameFilter;
 
 /** Accepts .dtd and/or .xml extensions. */
 public class XMLFileFilter implements FilenameFilter {

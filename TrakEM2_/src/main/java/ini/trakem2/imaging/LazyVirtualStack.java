@@ -2,11 +2,12 @@ package ini.trakem2.imaging;
 
 import ij.VirtualStack;
 import ij.process.ImageProcessor;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.concurrent.Callable;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
 
 
 public class LazyVirtualStack extends VirtualStack {

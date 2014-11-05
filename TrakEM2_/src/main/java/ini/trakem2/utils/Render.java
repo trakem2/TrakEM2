@@ -41,8 +41,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.HashMap;
+import java.util.HashSet;
 
 /** For now, generates a .shapes file that I can load into Blender with the CurveMorphing CPython module by means of the load_shapes_v1.4.3.py script. 
  *

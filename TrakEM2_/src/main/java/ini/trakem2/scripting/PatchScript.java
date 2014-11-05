@@ -1,12 +1,13 @@
 package ini.trakem2.scripting;
 
-import ini.trakem2.display.Patch;
-import ini.trakem2.utils.IJError;
 import ij.IJ;
 import ij.ImagePlus;
+import ini.trakem2.display.Patch;
+import ini.trakem2.utils.IJError;
+
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
-import java.lang.reflect.Method;
 
 public class PatchScript {
 

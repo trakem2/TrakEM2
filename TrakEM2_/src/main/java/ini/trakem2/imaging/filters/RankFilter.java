@@ -1,9 +1,9 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.plugin.filter.RankFilters;
 import ij.process.ImageProcessor;
+
+import java.util.Map;
 
 public class RankFilter implements IFilter
 {

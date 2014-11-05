@@ -1,12 +1,13 @@
 package ini.trakem2.display;
 
 import ini.trakem2.utils.History;
+
+import java.awt.geom.AffineTransform;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.ArrayList;
-import java.awt.geom.AffineTransform;
 
 public class TransformationStep implements History.Step<Displayable> {
 	final HashMap<Displayable,AffineTransform> ht;

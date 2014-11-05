@@ -1,5 +1,6 @@
 package ini.trakem2.display;
 
+import customnode.CustomTriangleMesh;
 import fiji.geom.AreaCalculations;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
@@ -42,8 +43,6 @@ import java.util.concurrent.Future;
 
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
-
-import customnode.CustomTriangleMesh;
 
 public class AreaTree extends Tree<Area> implements AreaContainer {
 

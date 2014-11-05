@@ -23,28 +23,29 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 //import java.awt.Canvas;
-import javax.swing.JPanel;
+import ini.trakem2.utils.IJError;
+
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Graphics;
-import java.awt.image.BufferedImage;
-import java.awt.image.VolatileImage;
 import java.awt.Graphics2D;
-import java.awt.BasicStroke;
+import java.awt.GraphicsConfiguration;
 import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
-import java.awt.event.MouseEvent;
-import java.util.Collections;
-import java.util.Iterator;
+import java.awt.image.BufferedImage;
+import java.awt.image.VolatileImage;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import ini.trakem2.utils.*;
-import java.awt.GraphicsConfiguration;
+import javax.swing.JPanel;
 
 public final class DisplayNavigator extends JPanel implements MouseListener, MouseMotionListener {
 

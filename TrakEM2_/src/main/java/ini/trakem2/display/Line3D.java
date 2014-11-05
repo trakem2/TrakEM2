@@ -24,6 +24,7 @@ package ini.trakem2.display;
 
 import ini.trakem2.Project;
 import ini.trakem2.vector.VectorString3D;
+
 import java.awt.Color;
 import java.util.List;
 

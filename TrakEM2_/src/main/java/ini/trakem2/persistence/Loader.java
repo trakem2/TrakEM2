@@ -22,10 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.persistence;
 
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Worker;
-
+import amira.AmiraMeshDecoder;
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
@@ -37,16 +34,16 @@ import ij.gui.YesNoCancelDialog;
 import ij.io.DirectoryChooser;
 import ij.io.FileInfo;
 import ij.io.FileSaver;
-import ij.io.Opener;
 import ij.io.OpenDialog;
+import ij.io.Opener;
 import ij.io.TiffEncoder;
+import ij.measure.Calibration;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
-import ij.process.StackStatistics;
 import ij.process.ImageStatistics;
-import ij.measure.Calibration;
-
+import ij.process.StackStatistics;
+import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.AreaList;
 import ini.trakem2.display.DLabel;
@@ -63,67 +60,63 @@ import ini.trakem2.display.Selection;
 import ini.trakem2.display.Stack;
 import ini.trakem2.display.YesNoDialog;
 import ini.trakem2.display.ZDisplayable;
-import ini.trakem2.tree.*;
-import ini.trakem2.utils.*;
-import ini.trakem2.io.*;
-import ini.trakem2.imaging.*;
+import ini.trakem2.imaging.ContrastEnhancerWrapper;
+import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.imaging.LazyVirtualStack;
+import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.imaging.StitchingTEM;
 import ini.trakem2.imaging.filters.IFilter;
-import ini.trakem2.ControlWindow;
+import ini.trakem2.io.AmiraImporter;
+import ini.trakem2.io.ImageFileFilter;
+import ini.trakem2.io.ImageFileHeader;
+import ini.trakem2.tree.DTDParser;
+import ini.trakem2.tree.TemplateThing;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.CachingThread;
+import ini.trakem2.utils.Dispatcher;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Montage;
+import ini.trakem2.utils.Saver;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
+import java.awt.Checkbox;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Checkbox;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.awt.image.IndexColorModel;
-import java.awt.geom.Area;
-import java.awt.geom.AffineTransform;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.util.HashMap;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.Vector;
-import java.util.zip.GZIPOutputStream;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
-import java.util.zip.ZipOutputStream;
-
-import javax.swing.JMenu;
-
-import amira.AmiraMeshDecoder;
-
-import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.general.MultiThreading;
-import mpicbg.trakem2.transform.ExportUnsignedShort;
-import mpicbg.trakem2.util.Triple;
-
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -131,10 +124,23 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+import java.util.zip.ZipOutputStream;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
 
 import loci.formats.ChannelSeparator;
 import loci.formats.FormatException;
 import loci.formats.IFormatReader;
+import mpi.fruitfly.general.MultiThreading;
+import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.registration.ImageFilter;
+import mpicbg.trakem2.transform.ExportUnsignedShort;
+import mpicbg.trakem2.util.Triple;
 
 /** Handle all data-related issues with a virtualization engine, including load/unload and saving, saving as and overwriting. */
 abstract public class Loader {

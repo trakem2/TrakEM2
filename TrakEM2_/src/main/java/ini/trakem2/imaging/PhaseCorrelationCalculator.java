@@ -3,8 +3,8 @@ package ini.trakem2.imaging;
 import ij.ImagePlus;
 import mpicbg.imglib.algorithm.fft.PhaseCorrelation;
 import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
-import mpicbg.imglib.image.ImagePlusAdapter;
 import mpicbg.imglib.image.Image;
+import mpicbg.imglib.image.ImagePlusAdapter;
 import mpicbg.imglib.type.numeric.RealType;
 
 public class PhaseCorrelationCalculator

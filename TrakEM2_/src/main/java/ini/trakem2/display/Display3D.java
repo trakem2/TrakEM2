@@ -1,5 +1,9 @@
 package ini.trakem2.display;
 
+import customnode.CustomLineMesh;
+import customnode.CustomMesh;
+import customnode.CustomMultiMesh;
+import customnode.CustomTriangleMesh;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.measure.Calibration;
@@ -45,11 +49,6 @@ import javax.media.j3d.Transform3D;
 import javax.media.j3d.View;
 import javax.vecmath.Color3f;
 import javax.vecmath.Point3f;
-
-import customnode.CustomLineMesh;
-import customnode.CustomMesh;
-import customnode.CustomMultiMesh;
-import customnode.CustomTriangleMesh;
 
 
 /** One Display3D instance for each LayerSet (maximum). */

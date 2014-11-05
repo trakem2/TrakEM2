@@ -22,26 +22,24 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import java.util.Arrays;
-import java.util.TreeMap;
-import java.util.Collection;
-import java.util.Map;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.Utils;
+
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.Stroke;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-
-import java.awt.Rectangle;
-import java.awt.geom.Area;
-
-import java.awt.Graphics2D;
-import java.awt.Color;
-import java.awt.Stroke;
-import java.awt.BasicStroke;
-import java.awt.geom.AffineTransform;
-
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.M;
+import java.util.Map;
+import java.util.TreeMap;
 
 
 /** 

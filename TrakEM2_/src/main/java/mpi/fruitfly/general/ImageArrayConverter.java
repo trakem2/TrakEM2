@@ -13,13 +13,21 @@ package mpi.fruitfly.general;
  * @version 1.0
  */
 
-import ij.process.*;
-import ij.*;
+import static mpi.fruitfly.math.General.max;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 
-import mpi.fruitfly.math.datastructures.*;
 import java.awt.Point;
 
-import static mpi.fruitfly.math.General.*;
+import mpi.fruitfly.math.datastructures.FloatArray;
+import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.math.datastructures.FloatArray3D;
+import mpi.fruitfly.math.datastructures.FloatArray4D;
 
 
 public class ImageArrayConverter

@@ -1,35 +1,34 @@
 package ini.trakem2.utils;
 
-import javax.vecmath.Tuple3d;
-import javax.vecmath.Vector3d;
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
-
-import java.awt.geom.Area;
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.geom.NoninvertibleTransformException;
-import java.awt.geom.PathIterator;
-import java.awt.geom.GeneralPath;
-import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-import java.awt.Polygon;
-import java.awt.Rectangle;
-import java.awt.Shape;
-import java.awt.Color;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Collection;
-
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.vector.VectorString2D;
-import ini.trakem2.display.VectorDataTransform;
-
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.gui.ShapeRoi;
 import ij.process.FloatPolygon;
+import ini.trakem2.display.VectorDataTransform;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.vector.VectorString2D;
+
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.Polygon;
+import java.awt.Rectangle;
+import java.awt.Shape;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.GeneralPath;
+import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.PathIterator;
+import java.awt.geom.Point2D;
+import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import javax.vecmath.Point3f;
+import javax.vecmath.Tuple3d;
+import javax.vecmath.Vector3d;
+import javax.vecmath.Vector3f;
 
 /** TrakEM2's mathematician. */
 public final class M {

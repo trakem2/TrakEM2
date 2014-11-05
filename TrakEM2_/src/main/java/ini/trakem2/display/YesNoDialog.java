@@ -21,11 +21,22 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 **/
 package ini.trakem2.display;
 import ij.IJ;
-import ij.gui.*;
+import ij.gui.GUI;
+import ij.gui.MultiLineLabel;
 import ini.trakem2.utils.IJError;
 
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.BorderLayout;
+import java.awt.Button;
+import java.awt.Dialog;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.Panel;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
 
 /** A modal dialog box with a one line message and
 	"Yes" and "No" buttons.

@@ -22,7 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2;
 
 import ij.plugin.PlugIn;
-import ini.trakem2.Project;
 
 public class New_DB_Project implements PlugIn {
 

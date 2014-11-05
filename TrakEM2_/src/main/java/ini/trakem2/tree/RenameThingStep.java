@@ -1,7 +1,7 @@
 package ini.trakem2.tree;
 
-import ini.trakem2.display.DoStep;
 import ini.trakem2.display.Displayable;
+import ini.trakem2.display.DoStep;
 
 public class RenameThingStep implements DoStep {
 	TitledThing thing;

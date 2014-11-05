@@ -1,10 +1,11 @@
 package ini.trakem2.imaging.filters;
 
+import ij.ImagePlus;
+import ij.process.ImageProcessor;
+
 import java.util.Map;
 
 import mpicbg.ij.clahe.Flat;
-import ij.ImagePlus;
-import ij.process.ImageProcessor;
 
 public class CLAHE implements IFilter
 {

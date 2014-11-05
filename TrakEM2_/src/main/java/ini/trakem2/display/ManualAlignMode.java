@@ -22,52 +22,51 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import java.awt.Rectangle;
-import java.awt.Graphics2D;
-import java.awt.Color;
-import java.awt.Font;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Collection;
-import java.util.TreeMap;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.Comparator;
-import java.util.List;
-import java.util.ArrayList;
-import java.awt.event.MouseEvent;
-import java.awt.Component;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Point2D;
-import java.awt.Stroke;
-import java.awt.BasicStroke;
-
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.IJError;
+import ij.gui.GenericDialog;
 import ini.trakem2.display.graphics.GraphicsSource;
-import ini.trakem2.display.Display;
 import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 
-import mpicbg.models.TranslationModel2D;
-import mpicbg.models.RigidModel2D;
-import mpicbg.models.SimilarityModel2D;
-import mpicbg.models.AffineModel2D;
-import mpicbg.models.AbstractAffineModel2D;
-import mpicbg.models.Point;
-import mpicbg.models.PointMatch;
-
-import mpicbg.trakem2.align.Align;
-import mpicbg.trakem2.align.AlignTask;
-import ij.gui.GenericDialog;
-
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.Rectangle;
+import java.awt.Stroke;
+import java.awt.event.MouseEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Point2D;
 import java.io.File;
 import java.io.InputStream;
-import org.xml.sax.helpers.DefaultHandler;
-import org.xml.sax.InputSource;
-import org.xml.sax.Attributes;
-import javax.xml.parsers.SAXParserFactory;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
 import javax.xml.parsers.SAXParser;
+import javax.xml.parsers.SAXParserFactory;
+
+import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AffineModel2D;
+import mpicbg.models.Point;
+import mpicbg.models.PointMatch;
+import mpicbg.models.RigidModel2D;
+import mpicbg.models.SimilarityModel2D;
+import mpicbg.models.TranslationModel2D;
+import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AlignTask;
+
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.helpers.DefaultHandler;
 
 public class ManualAlignMode implements Mode {
 

@@ -6,6 +6,16 @@ import ini.trakem2.Project;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.utils.Filter;
+
+import java.awt.Color;
+import java.awt.Image;
+import java.awt.Rectangle;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.Callable;
+
 import mpicbg.ij.blockmatching.BlockMatching;
 import mpicbg.models.AbstractModel;
 import mpicbg.models.ErrorStatistic;
@@ -16,15 +26,6 @@ import mpicbg.trakem2.align.AlignmentUtils;
 import mpicbg.trakem2.align.ElasticLayerAlignment;
 import mpicbg.trakem2.align.Util;
 import mpicbg.trakem2.util.Triple;
-
-import java.awt.Rectangle;
-import java.awt.Image;
-import java.awt.Color;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.concurrent.Callable;
 
 /**
  *

@@ -1,11 +1,12 @@
 package ini.trakem2.imaging;
 
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-import ij.process.ColorProcessor;
-import ij.process.ByteProcessor;
-import java.awt.image.ColorModel;
 import ini.trakem2.utils.Utils;
+
+import java.awt.image.ColorModel;
 import java.lang.reflect.Field;
 
 public class FloatProcessorT2 extends FloatProcessor {

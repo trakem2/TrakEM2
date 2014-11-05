@@ -23,9 +23,9 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 
-import ini.trakem2.utils.Utils;
-import ini.trakem2.persistence.DBObject;
 import ini.trakem2.Project;
+import ini.trakem2.persistence.DBObject;
+import ini.trakem2.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.HashMap;

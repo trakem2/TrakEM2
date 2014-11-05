@@ -22,46 +22,42 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.imaging;
 
-import ij.gui.Roi;
-import ij.process.ImageProcessor;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
-
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.display.Patch;
+import ij.gui.Roi;
+import ij.process.ImageProcessor;
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
-import ini.trakem2.utils.Worker;
-import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import mpi.fruitfly.registration.CrossCorrelation2D;
-import mpi.fruitfly.registration.ImageFilter;
-import mpi.fruitfly.math.datastructures.FloatArray2D;
-
-import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
-import mpicbg.models.ErrorStatistic;
-import mpicbg.models.Tile;
-import mpicbg.models.TranslationModel2D;
-import mpicbg.models.Point;
-import mpicbg.models.PointMatch;
-import mpicbg.trakem2.align.Align;
-import mpicbg.trakem2.align.AbstractAffineTile2D;
-import mpicbg.trakem2.align.TranslationTile2D;
-import mpicbg.trakem2.align.AlignTask;
-
-import java.awt.Rectangle;
 import java.awt.Image;
-
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Set;
-import java.awt.geom.AffineTransform;
+
+import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.registration.CrossCorrelation2D;
+import mpi.fruitfly.registration.ImageFilter;
+import mpicbg.imglib.algorithm.fft.PhaseCorrelationPeak;
+import mpicbg.models.ErrorStatistic;
+import mpicbg.models.Point;
+import mpicbg.models.PointMatch;
+import mpicbg.models.Tile;
+import mpicbg.models.TranslationModel2D;
+import mpicbg.trakem2.align.AbstractAffineTile2D;
+import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.AlignTask;
+import mpicbg.trakem2.align.TranslationTile2D;
 
 
 /** Given:

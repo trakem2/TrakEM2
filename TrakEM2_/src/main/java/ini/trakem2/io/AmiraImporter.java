@@ -22,6 +22,8 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.io;
 
+import amira.AmiraMeshDecoder;
+import amira.AmiraParameters;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
@@ -44,8 +46,6 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import mpi.fruitfly.general.MultiThreading;
-import amira.AmiraMeshDecoder;
-import amira.AmiraParameters;
 
 /** Parses an amira labelfield and imports the labels as AreaList instances into the project tree.*/
 public class AmiraImporter {

@@ -1,8 +1,5 @@
 package ini.trakem2.utils;
 
-import java.util.List;
-import java.util.ArrayList;
-import javax.vecmath.Point3f;
 import ij.IJ;
 import ij3d.Volume;
 
@@ -11,7 +8,12 @@ import java.awt.Rectangle;
 import java.awt.Shape;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
+
+import javax.vecmath.Point3f;
+
 import mpicbg.imglib.container.shapelist.ShapeList;
 
 public final class MCCube {

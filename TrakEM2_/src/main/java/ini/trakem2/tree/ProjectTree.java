@@ -24,46 +24,63 @@ package ini.trakem2.tree;
 
 
 import ij.gui.GenericDialog;
-import ini.trakem2.persistence.DBObject;
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.display.*;
+import ini.trakem2.display.AreaList;
+import ini.trakem2.display.AreaTree;
+import ini.trakem2.display.Ball;
+import ini.trakem2.display.Connector;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.Polyline;
+import ini.trakem2.display.Profile;
+import ini.trakem2.display.Tree;
+import ini.trakem2.display.Treeline;
+import ini.trakem2.display.VectorData;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.persistence.DBObject;
+import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.Worker;
-import mpicbg.trakem2.align.AlignTask;
 
+import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Event;
-import java.awt.event.KeyEvent;
-import java.awt.event.ItemListener;
-import java.awt.event.ItemEvent;
-import java.awt.Choice;
-import javax.swing.KeyStroke;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JMenu;
-import javax.swing.JLabel;
-import javax.swing.JTree;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import javax.swing.tree.*;
-
-import java.util.HashSet;
-import java.util.HashMap;
-import java.util.Iterator;
+import java.awt.event.ItemEvent;
+import java.awt.event.ItemListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collection;
-import java.util.Enumeration;
-import java.util.Set;
 import java.util.Collections;
-import java.util.Vector;
 import java.util.Comparator;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.Vector;
+
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
+
+import mpicbg.trakem2.align.AlignTask;
 
 /** A class to hold a tree of Thing nodes */
 public final class ProjectTree extends DNDTree implements MouseListener, ActionListener {
