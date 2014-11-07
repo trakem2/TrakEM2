@@ -64,8 +64,8 @@ import javax.vecmath.Point3f;
 import javax.vecmath.Vector3d;
 
 import tracing.Path;
-import tracing.SearchProgressCallback;
 import tracing.SearchInterface;
+import tracing.SearchProgressCallback;
 import tracing.TracerThread;
 
 

@@ -1,8 +1,8 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.process.ImageProcessor;
+
+import java.util.Map;
 
 /** Smooth with a Gaussian. */
 public class GaussianBlur implements IFilter

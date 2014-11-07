@@ -24,20 +24,38 @@ package ini.trakem2.tree;
 
 
 import ini.trakem2.Project;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
-import javax.swing.JTree;
-import java.util.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Insets;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.dnd.DnDConstants;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
-import javax.swing.*;
-import javax.swing.tree.*;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.Map;
+
+import javax.swing.JLabel;
+import javax.swing.JScrollPane;
+import javax.swing.JTree;
+import javax.swing.KeyStroke;
+import javax.swing.SwingUtilities;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
-import java.awt.dnd.*;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeModel;
+import javax.swing.tree.TreePath;
+import javax.swing.tree.TreeSelectionModel;
 
 /** A JTree which has a built-in drag and drop feature.
  *

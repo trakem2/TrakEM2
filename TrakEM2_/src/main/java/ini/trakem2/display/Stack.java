@@ -22,8 +22,8 @@ import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
 import java.awt.Composite;
@@ -36,8 +36,8 @@ import java.awt.geom.Area;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 

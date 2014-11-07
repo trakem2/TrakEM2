@@ -28,9 +28,15 @@ package mpi.fruitfly.registration;
  * @version 1.0
  */
 
-import mpi.fruitfly.math.datastructures.*;
-import static mpi.fruitfly.math.General.*;
+import static mpi.fruitfly.math.General.computeTurkeyBiMedian;
+import static mpi.fruitfly.math.General.flipInRange;
+import static mpi.fruitfly.math.General.max;
+
 import java.util.Random;
+
+import mpi.fruitfly.math.datastructures.FloatArray;
+import mpi.fruitfly.math.datastructures.FloatArray2D;
+import mpi.fruitfly.math.datastructures.FloatArray3D;
 
 public class ImageFilter
 {

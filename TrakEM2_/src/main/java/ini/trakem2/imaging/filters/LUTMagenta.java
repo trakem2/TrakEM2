@@ -1,11 +1,11 @@
 package ini.trakem2.imaging.filters;
 
-import java.awt.image.IndexColorModel;
-import java.util.Map;
-
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.utils.Utils;
+
+import java.awt.image.IndexColorModel;
+import java.util.Map;
 
 public class LUTMagenta implements IFilter
 {

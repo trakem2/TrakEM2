@@ -3,22 +3,20 @@ package ini.trakem2.display;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Paintable;
 import ini.trakem2.display.graphics.GraphicsSource;
 import ini.trakem2.utils.IJError;
+
+import java.awt.Composite;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.TreeMap;
-import java.awt.Image;
-import java.awt.Composite;
-import java.awt.Rectangle;
-import java.awt.Graphics2D;
-import java.awt.geom.AffineTransform;
-import java.awt.image.BufferedImage;
 
 public abstract class GroupingMode implements Mode {
 	

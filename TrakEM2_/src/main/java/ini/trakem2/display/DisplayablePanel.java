@@ -24,27 +24,27 @@ package ini.trakem2.display;
 
 import ini.trakem2.utils.Utils;
 
-import javax.swing.JPanel;
-import javax.swing.JCheckBox;
-import javax.swing.ImageIcon;
-import javax.swing.BorderFactory;
-import javax.swing.JLabel;
-import javax.swing.SwingUtilities;
-
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.MouseAdapter;
 import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Event;
 import java.awt.Font;
 import java.awt.Graphics;
-import java.awt.Event;
-import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Rectangle;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.util.Collection;
-import java.util.Set;
 import java.util.HashSet;
+import java.util.Set;
+
+import javax.swing.BorderFactory;
+import javax.swing.ImageIcon;
+import javax.swing.JCheckBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
 
 
 public final class DisplayablePanel extends JPanel implements MouseListener {

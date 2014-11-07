@@ -1,10 +1,10 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+
+import java.util.Map;
 
 public class Normalize implements IFilter
 {

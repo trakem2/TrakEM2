@@ -1,11 +1,12 @@
 package treeline;
 
-import ini.trakem2.plugin.TPlugIn;
 import ini.trakem2.display.Treeline;
-import java.lang.reflect.Method;
+import ini.trakem2.plugin.TPlugIn;
+import ini.trakem2.utils.IJError;
+
 import java.io.InputStreamReader;
 import java.io.Reader;
-import ini.trakem2.utils.IJError;
+import java.lang.reflect.Method;
 
 public class TreelineGraphEditor implements TPlugIn {
 	public TreelineGraphEditor() {}

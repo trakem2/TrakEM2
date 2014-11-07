@@ -1,10 +1,12 @@
 package ini.trakem2.imaging;
 
-import ij.process.*;
-import ij.*;
+import ij.ImagePlus;
+import ij.ImageStack;
 import ij.measure.Calibration;
-
-import ini.trakem2.display.*;
+import ij.process.ImageProcessor;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Utils;
 

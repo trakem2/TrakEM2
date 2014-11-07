@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
+import amira.AmiraMeshEncoder;
 import fiji.geom.AreaCalculations;
 import ij.IJ;
 import ij.ImagePlus;
@@ -81,8 +82,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
-
-import amira.AmiraMeshEncoder;
 
 /** A list of brush painted areas similar to a set of labelfields in Amira.
  * 

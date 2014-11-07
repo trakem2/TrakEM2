@@ -23,7 +23,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 import ij.gui.GenericDialog;
-
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
@@ -32,28 +31,28 @@ import ini.trakem2.display.Layer;
 import ini.trakem2.display.LayerSet;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
 
-import java.awt.Component;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
+import javax.swing.JLabel;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
-import javax.swing.JLabel;
-import javax.swing.JTree;
 
 public final class LayerTree extends DNDTree implements MouseListener, ActionListener {
 

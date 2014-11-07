@@ -16,16 +16,16 @@
  */
 package bunwarpj.trakem2.transform;
 
-import java.util.Collection;
-import java.util.Stack;
-
 import bunwarpj.BSplineModel;
 import bunwarpj.Param;
 import bunwarpj.Transformation;
 import bunwarpj.bUnwarpJ_;
+
+import java.util.Collection;
+import java.util.Stack;
+
 import mpicbg.models.AbstractModel;
 import mpicbg.models.IllDefinedDataPointsException;
-import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.PointMatch;
 import mpicbg.trakem2.transform.CoordinateTransform;

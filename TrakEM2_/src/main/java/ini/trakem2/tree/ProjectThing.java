@@ -23,41 +23,41 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 import ij.measure.ResultsTable;
-
 import ini.trakem2.Project;
 import ini.trakem2.display.AreaContainer;
 import ini.trakem2.display.Display;
+import ini.trakem2.display.Display3D;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.DisplayablePanel;
 import ini.trakem2.display.Layer;
-import ini.trakem2.display.ZDisplayable;
 import ini.trakem2.display.Profile;
-import ini.trakem2.display.Display3D;
 import ini.trakem2.display.Tree;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.persistence.DBLoader;
 import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.XMLOptions;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.persistence.*;
 
+import java.awt.Event;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
-import java.awt.Event;
-import javax.swing.KeyStroke;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Collection;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
 
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
-import java.util.concurrent.Callable;
+import javax.swing.KeyStroke;
 
 
 public final class ProjectThing extends DBObject implements TitledThing {

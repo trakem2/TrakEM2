@@ -1,7 +1,7 @@
 package ini.trakem2.display;
 
-import java.awt.Color;
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.util.Set;
 
 public interface Taggable {

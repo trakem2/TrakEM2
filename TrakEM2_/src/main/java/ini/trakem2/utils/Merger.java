@@ -1,5 +1,20 @@
 package ini.trakem2.utils;
 
+import ini.trakem2.Project;
+import ini.trakem2.display.AreaTree;
+import ini.trakem2.display.Connector;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Display3D;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Node;
+import ini.trakem2.display.Tag;
+import ini.trakem2.display.Tree;
+import ini.trakem2.display.Treeline;
+import ini.trakem2.display.ZDisplayable;
+import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.FSLoader;
+
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -31,21 +46,6 @@ import javax.swing.ListSelectionModel;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-
-import ini.trakem2.Project;
-import ini.trakem2.display.AreaTree;
-import ini.trakem2.display.Connector;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Display3D;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.LayerSet;
-import ini.trakem2.display.Node;
-import ini.trakem2.display.Tag;
-import ini.trakem2.display.Tree;
-import ini.trakem2.display.Treeline;
-import ini.trakem2.display.ZDisplayable;
-import ini.trakem2.parallel.TaskFactory;
-import ini.trakem2.persistence.FSLoader;
 
 public class Merger {
 	/** Take two projects and find out what is different among them,

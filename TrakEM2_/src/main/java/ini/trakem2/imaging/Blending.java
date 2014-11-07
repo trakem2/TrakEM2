@@ -3,35 +3,34 @@
  */
 package ini.trakem2.imaging;
 
+import ij.process.ByteProcessor;
+import ini.trakem2.display.Display;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
-import ini.trakem2.display.Display;
-import ini.trakem2.utils.Filter;
-import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.Worker;
+import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.IJError;
-import mpicbg.trakem2.transform.TransformMesh;
-import mpicbg.models.NoninvertibleModelException;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
-import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.NoninvertibleTransformException;
 import java.awt.geom.Point2D;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.ArrayList;
-
-import ij.process.ByteProcessor;
-
-import java.util.concurrent.Future;
-import java.util.concurrent.Executors;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import mpicbg.models.NoninvertibleModelException;
+import mpicbg.trakem2.transform.TransformMesh;
 
 /** Utility functions for blending images together, to remove contrast seams.
  *  Inspired and guided by Stephan Preibisch's blending functions in his Stitching plugins. */

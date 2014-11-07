@@ -22,10 +22,10 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.IJError;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** To be used in combination with the AbstractRepaintThread, as a thread to create graphics offscreen.*/
 public abstract class AbstractOffscreenThread extends CachingThread {

@@ -1,43 +1,37 @@
 package ini.trakem2.persistence;
 
-import java.io.File;
-import java.util.Hashtable;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Vector;
-import java.util.Collection;
-
-import java.awt.Color;
-import java.awt.Dimension;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-
-import javax.swing.BoxLayout;
-import javax.swing.table.AbstractTableModel;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.border.LineBorder;
-import javax.swing.JScrollPane;
-import javax.swing.JTable;
-import javax.swing.SwingUtilities;
-
 import ij.IJ;
-import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.io.OpenDialog;
-
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
 import ini.trakem2.display.Displayable;
 import ini.trakem2.display.Patch;
 import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+
+import java.awt.Dimension;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.File;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Hashtable;
+import java.util.Set;
+import java.util.Vector;
+
+import javax.swing.BoxLayout;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import javax.swing.table.AbstractTableModel;
 
 /** A class to manage "file not found" problems. */
 public class FilePathRepair {

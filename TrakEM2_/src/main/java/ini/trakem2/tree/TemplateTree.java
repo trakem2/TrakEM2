@@ -22,25 +22,30 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.tree;
 
-import ini.trakem2.Project;
+import ij.gui.GenericDialog;
+import ij.gui.YesNoCancelDialog;
 import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Color;
-import java.awt.Component;
-import java.awt.Event;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.util.*;
-import javax.swing.tree.*;
-import javax.swing.JPopupMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JMenu;
-import ij.gui.GenericDialog;
-import ij.gui.YesNoCancelDialog;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.regex.Pattern;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.JPopupMenu;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
 
 
 public final class TemplateTree extends DNDTree implements MouseListener, ActionListener {

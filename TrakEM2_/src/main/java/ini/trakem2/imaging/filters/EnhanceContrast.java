@@ -1,11 +1,11 @@
 package ini.trakem2.imaging.filters;
 
-import java.util.Map;
-
 import ij.measure.Measurements;
 import ij.plugin.ContrastEnhancer;
 import ij.process.ImageProcessor;
 import ij.process.ImageStatistics;
+
+import java.util.Map;
 
 /** Uses the @{link {@link ContrastEnhancer#stretchHistogram(ImageProcessor, double, ImageStatistics)} function. */
 public class EnhanceContrast implements IFilter

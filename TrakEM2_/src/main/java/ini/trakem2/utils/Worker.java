@@ -22,8 +22,9 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ini.trakem2.ControlWindow;
 import ij.IJ;
+import ini.trakem2.ControlWindow;
+
 import java.util.HashMap;
 
 

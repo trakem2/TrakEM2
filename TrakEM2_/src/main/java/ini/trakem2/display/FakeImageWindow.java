@@ -22,8 +22,11 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.gui.*;
-import ij.*;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.WindowManager;
+import ij.gui.ImageCanvas;
+import ij.gui.ImageWindow;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Graphics;

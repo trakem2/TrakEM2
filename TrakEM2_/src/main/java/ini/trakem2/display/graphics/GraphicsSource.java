@@ -2,6 +2,7 @@ package ini.trakem2.display.graphics;
 
 import ini.trakem2.display.Display;
 import ini.trakem2.display.Paintable;
+
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.util.List;

@@ -23,14 +23,17 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 import ini.trakem2.Project;
+import ini.trakem2.display.Display;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.display.Display;
 
-import java.awt.*;
-import javax.swing.tree.*;
-import java.awt.dnd.*;
+import java.awt.Point;
+import java.awt.dnd.DnDConstants;
 import java.util.ArrayList;
+
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
  
 /** Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0 */
 public class DefaultTreeTransferHandler extends AbstractTreeTransferHandler {

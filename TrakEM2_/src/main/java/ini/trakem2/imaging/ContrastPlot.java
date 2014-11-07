@@ -1,11 +1,12 @@
 package ini.trakem2.imaging;
 
-import java.awt.Canvas;
-import java.awt.Image;
-import java.awt.Color;
-import java.awt.Graphics;
-import java.awt.Dimension;
 import ij.process.ImageStatistics;
+
+import java.awt.Canvas;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Image;
 
 /** Copied and modified from Wayne Rasband's ImageJ ContrastPlot inner class in
  *  ij.plugin.frame.ContrastAdjuster class, in ImageJ 1.43h. */

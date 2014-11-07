@@ -28,7 +28,6 @@ import ij.gui.ShapeRoi;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Color;

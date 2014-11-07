@@ -17,6 +17,7 @@
 package mpicbg.trakem2.transform;
 
 import ij.process.ImageProcessor;
+
 import java.awt.Rectangle;
 
 /**

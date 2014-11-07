@@ -6,9 +6,10 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<artifactId>pom-fiji</artifactId>
-		<version>2.0.0-beta-1-SNAPSHOT</version>
 		<groupId>sc.fiji</groupId>
+		<artifactId>pom-fiji</artifactId>
+		<version>2.0.0-beta-0</version>
+		<relativePath />
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>
@@ -17,6 +18,38 @@
 
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
 	<description></description>
+
+	<properties>
+		<legacy-imglib1.version>2.0.0-SNAPSHOT</legacy-imglib1.version>
+		<TrakEM2.version>1.0b-SNAPSHOT</TrakEM2.version>
+		<VectorString.version>1.0-SNAPSHOT</VectorString.version>
+		<mpicbg-trakem2.version>1.0b-SNAPSHOT</mpicbg-trakem2.version>
+	</properties>
+
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>sc.fiji</groupId>
+				<artifactId>TrakEM2_</artifactId>
+				<version>${TrakEM2.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>sc.fiji</groupId>
+				<artifactId>VectorString</artifactId>
+				<version>${VectorString.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>mpicbg-trakem2</groupId>
+				<artifactId>mpicbg-trakem2</artifactId>
+				<version>${mpicbg-trakem2.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>sc.fiji</groupId>
+				<artifactId>legacy-imglib1</artifactId>
+				<version>${legacy-imglib1.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<modules>
 		<module>TrakEM2_</module>

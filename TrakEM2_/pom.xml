@@ -19,14 +19,12 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>jama</groupId>
+			<groupId>gov.nist.math</groupId>
 			<artifactId>jama</artifactId>
-			<version>1.0.2</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jfree</groupId>
 			<artifactId>jfreechart</artifactId>
-			<version>1.0.14</version>
 		</dependency>
 		<dependency>
 			<groupId>postgresql</groupId>
@@ -36,28 +34,16 @@
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>j3d-core</artifactId>
-			<version>1.5.2</version>
+			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>j3d-core-utils</artifactId>
-			<version>1.5.2</version>
-		</dependency>
-		<dependency>
-			<groupId>java3d</groupId>
-			<artifactId>vecmath</artifactId>
-			<version>1.5.2</version>
-		</dependency>
-		<dependency>
-			<groupId>java3d</groupId>
-			<artifactId>j3d-core-utils</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>vecmath</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
@@ -85,12 +71,10 @@
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>VectorString</artifactId>
-			<version>1.0-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>Simple_Neurite_Tracer</artifactId>
-			<version>2.0.2-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -123,7 +107,6 @@
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>level_sets</artifactId>
-			<version>1.0</version>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -132,7 +115,6 @@
 		<dependency>
 			<groupId>mpicbg-trakem2</groupId>
 			<artifactId>mpicbg-trakem2</artifactId>
-			<version>1.0b-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 

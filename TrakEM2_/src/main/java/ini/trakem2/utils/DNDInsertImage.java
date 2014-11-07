@@ -22,24 +22,31 @@
 
 package ini.trakem2.utils;
 
+import ij.IJ;
+import ij.ImagePlus;
+import ij.VirtualStack; // only after 1.38q
+import ij.gui.GenericDialog;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Layer;
+import ini.trakem2.io.ImageFileFilter;
+
 import java.awt.Point;
-import java.awt.dnd.*;
-import java.awt.datatransfer.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.StringReader;
-import java.io.BufferedReader;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
 import javax.swing.SwingUtilities;
-
-import ij.gui.GenericDialog;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.VirtualStack; // only after 1.38q
-import ini.trakem2.display.*;
-import ini.trakem2.io.ImageFileFilter;
 
 
 public class DNDInsertImage implements DropTargetListener {

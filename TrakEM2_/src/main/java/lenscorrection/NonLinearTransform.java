@@ -34,6 +34,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 package lenscorrection;
 
+import Jama.Matrix;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.io.FileSaver;
@@ -51,8 +52,6 @@ import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-
-import Jama.Matrix;
 
 
 public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTransform{

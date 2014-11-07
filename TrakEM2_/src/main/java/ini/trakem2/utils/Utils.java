@@ -83,6 +83,7 @@ import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.PrintStream;
 import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -126,24 +127,26 @@ public class Utils implements ij.plugin.PlugIn {
 	static public boolean debug_clip = false; //clip for repainting
 	static public boolean debug_thing = false;
 
+    static private PrintStream printer = System.out;
+
 	/** The error to use in floating-point or double floating point literal comparisons. */
 	static public final double FL_ERROR = 0.0000001;
 
-	static public void debug(String msg) {
+	static public void debug(final String msg) {
 		if (debug) IJ.log(msg);
 	}
 
-	static public void debugMouse(String msg) {
+	static public void debugMouse(final String msg) {
 		if (debug_mouse) IJ.log(msg);
 	}
 
 	/** Avoid waiting on the AWT thread repainting ImageJ's log window. */
 	static private final class LogDispatcher extends Thread {
 		private final StringBuilder cache = new StringBuilder();
-		public LogDispatcher(ThreadGroup tg) {
+		public LogDispatcher(final ThreadGroup tg) {
 			super(tg, "T2-Log-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
-			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
+			try { setDaemon(true); } catch (final Exception e) { e.printStackTrace(); }
 			start();
 		}
 		public final void quit() {
@@ -156,10 +159,11 @@ public class Utils implements ij.plugin.PlugIn {
 					cache.append(msg).append('\n');
 					cache.notify();
 				}
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				e.printStackTrace();
 			}
 		}
+		@Override
 		public void run() {
 			final StringBuilder sb = new StringBuilder();
 			while (!isInterrupted()) {
@@ -173,7 +177,7 @@ public class Utils implements ij.plugin.PlugIn {
 								cache.setLength(0);
 							}
 						}
-						try { Thread.sleep(100); } catch (InterruptedException ie) { return; }
+						try { Thread.sleep(100); } catch (final InterruptedException ie) { return; }
 					} while (System.currentTimeMillis() - start < 1000); 
 
 					// ... then, if any, update the log window:
@@ -183,10 +187,10 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 					synchronized (cache) {
 						if (0 == cache.length()) {
-							try { cache.wait(); } catch (InterruptedException ie) {}
+							try { cache.wait(); } catch (final InterruptedException ie) {}
 						}
 					}
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					e.printStackTrace();
 				}
 			}
@@ -198,10 +202,10 @@ public class Utils implements ij.plugin.PlugIn {
 	static private final class StatusDispatcher extends Thread {
 		private volatile String msg = null;
 		private volatile double progress = -1;
-		public StatusDispatcher(ThreadGroup tg) {
+		public StatusDispatcher(final ThreadGroup tg) {
 			super(tg, "T2-Status-Dispatcher");
 			setPriority(Thread.NORM_PRIORITY);
-			try { setDaemon(true); } catch (Exception e) { e.printStackTrace(); }
+			try { setDaemon(true); } catch (final Exception e) { e.printStackTrace(); }
 			start();
 		}
 		public final void quit() {
@@ -214,7 +218,7 @@ public class Utils implements ij.plugin.PlugIn {
 					this.msg = msg;
 					notify();
 				}
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				e.printStackTrace();
 			}
 		}
@@ -224,10 +228,11 @@ public class Utils implements ij.plugin.PlugIn {
 					this.progress = progress;
 					notify();
 				}
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				e.printStackTrace();
 			}
 		}
+		@Override
 		public void run() {
 			while (!isInterrupted()) {
 				try {
@@ -256,12 +261,12 @@ public class Utils implements ij.plugin.PlugIn {
 					Thread.sleep(100);
 					synchronized (this) {
 						if (null == this.msg && -1 == this.progress) {
-							try { wait(); } catch (InterruptedException ie) {}
+							try { wait(); } catch (final InterruptedException ie) {}
 						}
 					}
-				} catch (InterruptedException ie) {
+				} catch (final InterruptedException ie) {
 					// pass
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					e.printStackTrace();
 				}
 			}
@@ -272,7 +277,8 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Initialize house keeping threads. */
 	static public final void setup(final ControlWindow master) { // the ControlWindow acts as a switch: nobody can controls this because the CW constructor is private
-		SwingUtilities.invokeLater(new Runnable() { public void run() {
+		SwingUtilities.invokeLater(new Runnable() { @Override
+		public void run() {
 			if (null != status) status.quit();
 			if (null != logger) logger.quit();
 			logger = new LogDispatcher(Thread.currentThread().getThreadGroup());
@@ -285,6 +291,16 @@ public class Utils implements ij.plugin.PlugIn {
 		if (null != status) { status.quit(); status = null; }
 		if (null != logger) { logger.quit(); logger = null; }
 	}
+
+    static public synchronized void setLogStream(final PrintStream ps)
+    {
+        printer = ps;
+    }
+
+    static public PrintStream getLogStream()
+    {
+        return printer;
+    }
 
 	/** Intended for the user to see. */
 	static public final void log(final String msg) {
@@ -379,7 +395,7 @@ public class Utils implements ij.plugin.PlugIn {
 			for (int i=0; i<s.length; i++) sb.append(Utils.toString(s[i])).append(", ");
 		} else if (ob instanceof Iterable<?>) {
 			final Iterable<?> s = (Iterable<?>)ob;
-			for (Iterator<?> it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
+			for (final Iterator<?> it = s.iterator(); it.hasNext(); ) sb.append(Utils.toString(it.next())).append(", ");
 		} else if (ob instanceof Map<?,?>) {
 			sb.setCharAt(0, '{');
 			closing = '}';
@@ -406,21 +422,21 @@ public class Utils implements ij.plugin.PlugIn {
 		return sb.toString();
 	}
 
-	static public void setDebug(boolean debug) {
+	static public void setDebug(final boolean debug) {
 		Utils.debug = debug;
 	}
 
-	static public void setDebugMouse(boolean debug_mouse) {
+	static public void setDebugMouse(final boolean debug_mouse) {
 		Utils.debug_mouse = debug_mouse;
 	}
 
-	static public void setDebugSQL(boolean debug_sql) {
+	static public void setDebugSQL(final boolean debug_sql) {
 		Utils.debug_sql = debug_sql;
 	}
 
 	/** Find out which method from which class called the method where the printCaller is used; for debugging purposes.*/
-	static public final void printCaller(Object called_object) {
-		StackTraceElement[] elems = new Exception().getStackTrace();
+	static public final void printCaller(final Object called_object) {
+		final StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
 			log2("Stack trace too short! No useful info");
 		} else {
@@ -429,8 +445,8 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public final void printCaller(Object called_object, int lines) {
-		StackTraceElement[] elems = new Exception().getStackTrace();
+	static public final void printCaller(final Object called_object, final int lines) {
+		final StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
 			log2("Stack trace too short! No useful info");
 		} else {
@@ -443,8 +459,8 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** Returns a String representation of the class of the object one step before in the stack trace. */
-	static public final String caller(Object called) {
-		StackTraceElement[] elems = new Exception().getStackTrace();
+	static public final String caller(final Object called) {
+		final StackTraceElement[] elems = new Exception().getStackTrace();
 		if (elems.length < 3) {
 			log2("Stack trace too short! No useful info");
 			return null;
@@ -455,10 +471,10 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/**Restore ImageJ's MenuBar*/
 	static public final void restoreMenuBar() {
-		MenuBar menu_bar = Menus.getMenuBar();
+		final MenuBar menu_bar = Menus.getMenuBar();
 		final int n_menus = menu_bar.getMenuCount();
 		for (int i=0; i<n_menus;i++) {
-			Menu menu = menu_bar.getMenu(i);
+			final Menu menu = menu_bar.getMenu(i);
 			restoreMenu(menu);
 		}
 		//make sure there isn't a null menu bar
@@ -468,7 +484,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static private void restoreMenu(final Menu menu) {
 		final int n_menuitems = menu.getItemCount();
 		for (int i=0; i<n_menuitems; i++) {
-			MenuItem menu_item = menu.getItem(i);
+			final MenuItem menu_item = menu.getItem(i);
 			if (menu_item instanceof Menu) {
 				restoreMenu((Menu)menu_item);
 			}
@@ -476,11 +492,11 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 	}
 
-	static public final void showMessage(String msg) {
+	static public final void showMessage(final String msg) {
 		if (!ControlWindow.isGUIEnabled()) System.out.println(msg);
 		else IJ.showMessage(msg);
 	}
-	static public final void showMessage(String title, String msg) {
+	static public final void showMessage(final String title, final String msg) {
 		if (!ControlWindow.isGUIEnabled()) System.out.println(title + "\n" + msg);
 		else IJ.showMessage(title, msg);
 	}
@@ -488,6 +504,7 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Runs the showMessage in a separate Thread. */
 	static public final void showMessageT(final String msg) {
 		new Thread() {
+			@Override
 			public void run() {
 				setPriority(Thread.NORM_PRIORITY);
 				Utils.showMessage(msg);
@@ -522,7 +539,7 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 			// don't show intervals smaller than 1%:
 			if (last_progress + 0.01 > p ) {
-				int percent = (int)(p * 100);
+				final int percent = (int)(p * 100);
 				if (last_percent != percent) {
 					System.out.println(percent + " %");
 					last_percent = percent;
@@ -537,7 +554,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static public void debugDialog() {
 		// note: all this could nicely be done using reflection, so adding another boolean variable would be automatically added here (filtering by the prefix "debug").
-		GenericDialog gd = new GenericDialog("Debug:");
+		final GenericDialog gd = new GenericDialog("Debug:");
 		gd.addCheckbox("debug", debug);
 		gd.addCheckbox("debug mouse", debug_mouse);
 		gd.addCheckbox("debug sql", debug_sql);
@@ -559,14 +576,14 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Scan the WindowManager for open stacks.*/
 	static public ImagePlus[] findOpenStacks() {
-		ImagePlus[] imp = scanWindowManager("stacks");
+		final ImagePlus[] imp = scanWindowManager("stacks");
 		if (null == imp) return null;
 		return imp;
 	}
 
 	/** Scan the WindowManager for non-stack images*/
 	static public ImagePlus[] findOpenImages() {
-		ImagePlus[] imp = scanWindowManager("images");
+		final ImagePlus[] imp = scanWindowManager("images");
 		if (null == imp) return null;
 		return imp;
 	}
@@ -576,14 +593,14 @@ public class Utils implements ij.plugin.PlugIn {
 		return scanWindowManager("all");
 	}
 
-	static private ImagePlus[] scanWindowManager(String type) {
+	static private ImagePlus[] scanWindowManager(final String type) {
 		// check if any stacks are opened within ImageJ
-		int[] all_ids = WindowManager.getIDList();
+		final int[] all_ids = WindowManager.getIDList();
 		if (null == all_ids) return null;
 		ImagePlus[] imp = new ImagePlus[all_ids.length];
 		int next = 0;
 		for (int i=0; i < all_ids.length; i++) {
-			ImagePlus image = WindowManager.getImage(all_ids[i]);
+			final ImagePlus image = WindowManager.getImage(all_ids[i]);
 			if (type.equals("stacks")) {
 				if (image.getStackSize() <= 1) {
 					continue;
@@ -599,7 +616,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		// resize the array if necessary
 		if (next != all_ids.length) {
-			ImagePlus[] imp2 = new ImagePlus[next];
+			final ImagePlus[] imp2 = new ImagePlus[next];
 			System.arraycopy(imp, 0, imp2, 0, next);
 			imp = imp2;
 		}
@@ -613,14 +630,14 @@ public class Utils implements ij.plugin.PlugIn {
 	/**The path of the last opened file.*/
 	static public String last_file = null;
 
-	static public String cutNumber(double d, int n_decimals) {
+	static public String cutNumber(final double d, final int n_decimals) {
 		return cutNumber(d, n_decimals, false);
 	}
 
 	/** remove_trailing_zeros will leave at least one zero after the comma if appropriate. */
 	static public final String cutNumber(final double d, final int n_decimals, final boolean remove_trailing_zeros) {
 		final String num = new Double(d).toString();
-		int i_e = num.indexOf("E-");
+		final int i_e = num.indexOf("E-");
 		if (-1 != i_e) {
 			final int exp = Integer.parseInt(num.substring(i_e+2));
 			if (n_decimals < exp) {
@@ -678,29 +695,31 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final boolean check(final String msg) {
-		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
-		YesNoCancelDialog dialog = new YesNoCancelDialog(IJ.getInstance(), "Execute?", msg);
+		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { @Override
+		public Boolean call() {
+		final YesNoCancelDialog dialog = new YesNoCancelDialog(IJ.getInstance(), "Execute?", msg);
 		if (dialog.yesPressed()) {
 			return true;
 		}
 		return false;
-		}}).get(); } catch (Throwable t) { IJError.print(t); return false; }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); return false; }
 	}
 
 	static public final boolean checkYN(final String msg) {
-		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
-		YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Execute?", msg);
+		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { @Override
+		public Boolean call() {
+		final YesNoDialog yn = new YesNoDialog(IJ.getInstance(), "Execute?", msg);
 		if (yn.yesPressed()) return true;
 		return false;
-		}}).get(); } catch (Throwable t) { IJError.print(t); return false; }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); return false; }
 	}
 
-	static public final String d2s(double d, int n_decimals) {
+	static public final String d2s(final double d, final int n_decimals) {
 		return IJ.d2s(d, n_decimals);
 	}
 
-	static public final String[] getHexRGBColor(Color color) {
-		int c = color.getRGB();
+	static public final String[] getHexRGBColor(final Color color) {
+		final int c = color.getRGB();
 		String r = Integer.toHexString(((c&0x00FF0000)>>16));
 		if (1 == r.length()) r = "0" + r;
 		String g = Integer.toHexString(((c&0x0000FF00)>>8));
@@ -717,13 +736,13 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 	static public final void asHexRGBColor(final StringBuilder sb, final Color color) {
 		final int c = color.getRGB();
-		String r = Integer.toHexString(((c&0x00FF0000)>>16));
+		final String r = Integer.toHexString(((c&0x00FF0000)>>16));
 		if (1 == r.length()) sb.append('0');
 		sb.append(r);
-		String g = Integer.toHexString(((c&0x0000FF00)>>8));
+		final String g = Integer.toHexString(((c&0x0000FF00)>>8));
 		if (1 == g.length()) sb.append('0');
 		sb.append(g);
-		String b = Integer.toHexString((c&0x000000FF));
+		final String b = Integer.toHexString((c&0x000000FF));
 		if (1 == b.length()) sb.append('0');
 		sb.append(b);
 	}
@@ -742,8 +761,10 @@ public class Utils implements ij.plugin.PlugIn {
 				   hex&0x000000FF      };
 	}
 
-	public void run(String arg) {
-		try { new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
+	@Override
+	public void run(final String arg) {
+		try { new TaskOnEDT<Boolean>(new Callable<Boolean>() { @Override
+		public Boolean call() {
 		IJ.showMessage("TrakEM2",
 				new StringBuilder("TrakEM2 ").append(Utils.version)
 				.append("\nCopyright Albert Cardona & Rodney Douglas\n")
@@ -753,16 +774,17 @@ public class Utils implements ij.plugin.PlugIn {
 				.append("\nSome parts copyright Ignacio Arganda, INI Univ/ETH Zurich.")
 				.toString());
 		return true;
-		}}).get(); } catch (Throwable t) { IJError.print(t); }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); }
 	}
 
-	static public final File chooseFile(String name, String extension) {
+	static public final File chooseFile(final String name, final String extension) {
 		return Utils.chooseFile(null, name, extension);
 	}
 
 	/** Select a file from the file system, for saving purposes. Prompts for overwritting if the file exists, unless the ControlWindow.isGUIEnabled() returns false (i.e. there is no GUI). */
 	static public final File chooseFile(final String default_dir, final String name, final String extension) {
-		try { return new TaskOnEDT<File>(new Callable<File>() { public File call() {
+		try { return new TaskOnEDT<File>(new Callable<File>() { @Override
+		public File call() {
 		// using ImageJ's JFileChooser or internal FileDialog, according to user preferences.
 		String name2 = null;
 		if (null != name && null != extension) name2 = name + extension;
@@ -771,19 +793,19 @@ public class Utils implements ij.plugin.PlugIn {
 		if (null != default_dir) {
 			OpenDialog.setDefaultDirectory(default_dir);
 		}
-		SaveDialog sd = new SaveDialog("Save",
+		final SaveDialog sd = new SaveDialog("Save",
 						OpenDialog.getDefaultDirectory(),
 						name2,
 						extension);
 
-		String filename = sd.getFileName();
+		final String filename = sd.getFileName();
 		if (null == filename || filename.toLowerCase().startsWith("null")) return null;
 		String dir = sd.getDirectory();
 		if (IJ.isWindows()) dir = dir.replace('\\', '/');
 		if (!dir.endsWith("/")) dir += "/";
-		File f = new File(dir + filename);
+		final File f = new File(dir + filename);
 		if (f.exists() && ControlWindow.isGUIEnabled()) {
-			YesNoCancelDialog d = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "File " + filename + " exists! Overwrite?");
+			final YesNoCancelDialog d = new YesNoCancelDialog(IJ.getInstance(), "Overwrite?", "File " + filename + " exists! Overwrite?");
 			if (d.cancelPressed()) {
 				return null;
 			} else if (!d.yesPressed()) {
@@ -792,14 +814,15 @@ public class Utils implements ij.plugin.PlugIn {
 			// else if yes pressed, overwrite.
 		}
 		return f;
-		}}).get(); } catch (Throwable t) { IJError.print(t); return null; }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); return null; }
 	}
 
 	/** Returns null or the selected directory and file. */
-	static public final String[] selectFile(String title_msg) {
-		try { return new TaskOnEDT<String[]>(new Callable<String[]>() { public String[] call() {
-		OpenDialog od = new OpenDialog("Select file", OpenDialog.getDefaultDirectory(), null);
-		String file = od.getFileName();
+	static public final String[] selectFile(final String title_msg) {
+		try { return new TaskOnEDT<String[]>(new Callable<String[]>() { @Override
+		public String[] call() {
+		final OpenDialog od = new OpenDialog("Select file", OpenDialog.getDefaultDirectory(), null);
+		final String file = od.getFileName();
 		if (null == file || file.toLowerCase().startsWith("null")) return null;
 		String dir = od.getDirectory();
 		File f = null;
@@ -813,12 +836,13 @@ public class Utils implements ij.plugin.PlugIn {
 			return null;
 		}
 		return new String[]{dir, file};
-		}}).get(); } catch (Throwable t) { IJError.print(t); return null; }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); return null; }
 	}
 
 	static public final boolean saveToFile(final File f, final String contents) {
 		if (null == f) return false;
-		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { public Boolean call() {
+		try { return new TaskOnEDT<Boolean>(new Callable<Boolean>() { @Override
+		public Boolean call() {
 		OutputStreamWriter dos = null;
 		try {
 			dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f), contents.length()), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
@@ -826,25 +850,25 @@ public class Utils implements ij.plugin.PlugIn {
 			dos.write(contents, 0, contents.length());
 			dos.flush();
 			dos.close();
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			Utils.showMessage("ERROR: Most likely did NOT save your file.");
 			try {
 				if (null != dos) dos.close();
-			} catch (Exception ee) { IJError.print(ee); }
+			} catch (final Exception ee) { IJError.print(ee); }
 			return false;
 		}
 		return true;
-		}}).get(); } catch (Throwable t) { IJError.print(t); return false; }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); return false; }
 	}
 
-	static public final boolean saveToFile(String name, String extension, String contents) {
+	static public final boolean saveToFile(final String name, final String extension, final String contents) {
 		if (null == contents) {
 			Utils.log2("Utils.saveToFile: contents is null");
 			return false;
 		}
 		// save the file
-		File f = Utils.chooseFile(name, extension);
+		final File f = Utils.chooseFile(name, extension);
 		return Utils.saveToFile(f, contents);
 	}
 
@@ -864,13 +888,13 @@ public class Utils implements ij.plugin.PlugIn {
 		try {
 			r = new BufferedReader(new FileReader(path));
 			while (true) {
-				String s = r.readLine();
+				final String s = r.readLine();
 				if (null == s) break;
 				sb.append(s).append('\n'); // I am sure the reading can be done better
         		}
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
-			if (null != r) try { r.close(); } catch (IOException ioe) { ioe.printStackTrace(); }
+			if (null != r) try { r.close(); } catch (final IOException ioe) { ioe.printStackTrace(); }
 			return null;
 		}
 		return sb.toString();
@@ -881,14 +905,14 @@ public class Utils implements ij.plugin.PlugIn {
 		if (null == path || !new File(path).exists()) return null;
 		final ArrayList<String> al = new ArrayList<String>();
 		try {
-			BufferedReader r = new BufferedReader(new FileReader(path));
+			final BufferedReader r = new BufferedReader(new FileReader(path));
 			while (true) {
-				String s = r.readLine();
+				final String s = r.readLine();
 				if (null == s) break;
 				al.add(s);
         	}
 			r.close();
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			return null;
 		}
@@ -905,10 +929,10 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		final char[] src = new char[(int)f.length()]; // assumes file is small enough to fit in integer range!
 		try {
-			BufferedReader r = new BufferedReader(new FileReader(path));
+			final BufferedReader r = new BufferedReader(new FileReader(path));
 			r.read(src, 0, src.length);
 			r.close();
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			return null;
 		}
@@ -929,7 +953,8 @@ public class Utils implements ij.plugin.PlugIn {
 	/** A helper for GenericDialog checkboxes to control other the enabled state of other GUI elements in the same dialog. */
 	static public final void addEnablerListener(final Checkbox master, final Component[] enable, final Component[] disable) {
 		master.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
+			@Override
+			public void itemStateChanged(final ItemEvent ie) {
 				if (ie.getStateChange() == ItemEvent.SELECTED) {
 					process(enable, true);
 					process(disable, false);
@@ -946,7 +971,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final boolean wrongImageJVersion() {
-		boolean b = IJ.versionLessThan("1.37g");
+		final boolean b = IJ.versionLessThan("1.37g");
 		if (b) Utils.showMessage("TrakEM2 requires ImageJ 1.37g or above.");
 		return b;
 	}
@@ -956,7 +981,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static private final boolean isJava3DInstalled() {
 		try {
 			Class.forName("javax.vecmath.Point3f");
-		} catch (ClassNotFoundException cnfe) {
+		} catch (final ClassNotFoundException cnfe) {
 			return false;
 		}
 		return true;
@@ -983,14 +1008,16 @@ public class Utils implements ij.plugin.PlugIn {
 		gd.addChoice("End: ", layers, layers[i_last]);
 		final Choice cend = (Choice)v.get(v.size()-1);
 		cstart.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = al_layer_titles.indexOf(ie.getItem());
+			@Override
+			public void itemStateChanged(final ItemEvent ie) {
+				final int index = al_layer_titles.indexOf(ie.getItem());
 				if (index > cend.getSelectedIndex()) cend.select(index);
 			}
 		});
 		cend.addItemListener(new ItemListener() {
-			public void itemStateChanged(ItemEvent ie) {
-				int index = al_layer_titles.indexOf(ie.getItem());
+			@Override
+			public void itemStateChanged(final ItemEvent ie) {
+				final int index = al_layer_titles.indexOf(ie.getItem());
 				if (index < cstart.getSelectedIndex()) cstart.select(index);
 			}
 		});
@@ -1028,7 +1055,7 @@ public class Utils implements ij.plugin.PlugIn {
 			case ImagePlus.COLOR_RGB:
 				return ip.convertToRGB();
 			case ImagePlus.COLOR_256:
-				ImagePlus imp = new ImagePlus("", ip.convertToRGB());
+				final ImagePlus imp = new ImagePlus("", ip.convertToRGB());
 				new ImageConverter(imp).convertRGBtoIndexedColor(256);
 				return imp.getProcessor();
 			default:
@@ -1068,7 +1095,7 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Reverse in place an array of doubles. */
 	static public final void reverse(final double[] a) {
 		for (int left=0, right=a.length-1; left<right; left++, right--) {
-			double tmp = a[left];
+			final double tmp = a[left];
 			a[left] = a[right];
 			a[right] = tmp;
 		}
@@ -1076,7 +1103,7 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Reverse in place an array of longs. */
 	static public final void reverse(final long[] a) {
 		for (int left=0, right=a.length-1; left<right; left++, right--) {
-			long tmp = a[left];
+			final long tmp = a[left];
 			a[left] = a[right];
 			a[right] = tmp;
 		}
@@ -1106,6 +1133,7 @@ public class Utils implements ij.plugin.PlugIn {
 		//c.validate();
 		// ALL that was needed: to put it into the swing repaint queue ... couldn't they JUST SAY SO
 		Utils.invokeLater(new Runnable() {
+			@Override
 			public void run() {
 				c.repaint();
 			}
@@ -1114,6 +1142,7 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Like calling pack() on a Frame but on a Component. */
 	static public final void revalidateComponent(final Component c) {
 		Utils.invokeLater(new Runnable() {
+			@Override
 			public void run() {
 				c.invalidate();
 				c.validate();
@@ -1139,11 +1168,11 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	static public final void sleep(final long miliseconds) {
-		try { Thread.sleep(miliseconds); } catch (Exception e) { e.printStackTrace(); }
+		try { Thread.sleep(miliseconds); } catch (final Exception e) { e.printStackTrace(); }
 	}
 
 	/** Mix colors visually: red + green = yellow, etc.*/
-	static public final Color mix(Color c1, Color c2) {
+	static public final Color mix(final Color c1, final Color c2) {
 		final float[] b = Color.RGBtoHSB(c1.getRed(), c1.getGreen(), c1.getBlue(), new float[3]);
 		final float[] c = Color.RGBtoHSB(c2.getRed(), c2.getGreen(), c2.getBlue(), new float[3]);
 		final float[] a = new float[3];
@@ -1152,12 +1181,12 @@ public class Utils implements ij.plugin.PlugIn {
 		float h1 = b[0];
 		float h2 = c[0];
 		if (h1 < h2) {
-			float tmp = h1;
+			final float tmp = h1;
 			h1 = h2;
 			h2 = tmp;
 		}
-		float d1 = h2 - h1;
-		float d2 = 1 + h1 - h2;
+		final float d1 = h2 - h1;
+		final float d2 = 1 + h1 - h2;
 		if (d1 < d2) {
 			a[0] = h1 + d1 / 2;
 		} else {
@@ -1172,8 +1201,8 @@ public class Utils implements ij.plugin.PlugIn {
 	/** 1 A, 2 B, 3 C  ---  26 - z, 27 AA, 28 AB, 29 AC  --- 26*27 AAA */
 	static public final String getCharacter(int i) {
 		i--;
-		int k = i / 26;
-		char c = (char)((i % 26) + 65); // 65 is 'A'
+		final int k = i / 26;
+		final char c = (char)((i % 26) + 65); // 65 is 'A'
 		if (0 == k) return Character.toString(c);
 		return new StringBuilder().append(getCharacter(k)).append(c).toString();
 	}
@@ -1186,20 +1215,20 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Get by reflection a private or protected field in the given object. */
 	static public final Object getField(final Object ob, final Class<?> c, final String field_name) {
 		try {
-			Field f = c.getDeclaredField(field_name);
+			final Field f = c.getDeclaredField(field_name);
 			f.setAccessible(true);
 			return f.get(ob);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		return null;
 	}
 	static public final void setField(final Object ob, final Class<?> c, final String field_name, final Object value) {
 		try {
-			Field f = c.getDeclaredField(field_name);
+			final Field f = c.getDeclaredField(field_name);
 			f.setAccessible(true);
 			f.set(ob, value);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 	}
@@ -1239,20 +1268,21 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Creates a new ResultsTable with the given window title and column titles, and 2 decimals of precision, or if one exists for the given window title, returns it. */
 	static public final ResultsTable createResultsTable(final String title, final String[] columns) {
-		try { return new TaskOnEDT<ResultsTable>(new Callable<ResultsTable>() { public ResultsTable call() {
-		TextWindow tw = (TextWindow)WindowManager.getFrame(title);
+		try { return new TaskOnEDT<ResultsTable>(new Callable<ResultsTable>() { @Override
+		public ResultsTable call() {
+		final TextWindow tw = (TextWindow)WindowManager.getFrame(title);
 		if (null != tw) {
 			// hacking again ... missing a getResultsTable() method in TextWindow
-			ResultsTable rt = (ResultsTable)Utils.getField(tw.getTextPanel(), "rt");
+			final ResultsTable rt = (ResultsTable)Utils.getField(tw.getTextPanel(), "rt");
 			if (null != rt) return rt; // assumes columns will be identical
 		}
 		// else create a new one
-		ResultsTable rt = new ResultsTable();
+		final ResultsTable rt = new ResultsTable();
 		rt.setPrecision(2);
 		for (int i=0; i<columns.length; i++) rt.setHeading(i, columns[i]);
 		//
 		return rt;
-		}}).get(); } catch (Throwable t) { IJError.print(t); return null; }
+		}}).get(); } catch (final Throwable t) { IJError.print(t); return null; }
 	}
 
 	static public final ImageProcessor createProcessor(final int type, final int width, final int height) {
@@ -1267,17 +1297,17 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Paints an approximation of the pipe into the set of slices. */
 	static public void paint(final Pipe pipe, final Map<Layer,ImageProcessor> slices, final int value, final float scale) {
-		VectorString3D vs = pipe.asVectorString3D();
+		final VectorString3D vs = pipe.asVectorString3D();
 		vs.resample(1); // one pixel
-		double[] px = vs.getPoints(0);
-		double[] py = vs.getPoints(1);
-		double[] pz = vs.getPoints(2);
-		double[] pr = vs.getDependent(0);
+		final double[] px = vs.getPoints(0);
+		final double[] py = vs.getPoints(1);
+		final double[] pz = vs.getPoints(2);
+		final double[] pr = vs.getDependent(0);
 		// For each point
 		for (int i=0; i<px.length-1; i++) {
-			ImageProcessor ip = slices.get(pipe.getLayerSet().getNearestLayer(pz[i]));
+			final ImageProcessor ip = slices.get(pipe.getLayerSet().getNearestLayer(pz[i]));
 			if (null == ip) continue;
-			OvalRoi ov = new OvalRoi((int)((px[i] - pr[i]) * scale),
+			final OvalRoi ov = new OvalRoi((int)((px[i] - pr[i]) * scale),
 					         (int)((py[i] - pr[i]) * scale),
 						 (int)(pr[i]*2*scale), (int)(pr[i]*2*scale));
 			ip.setRoi(ov);
@@ -1355,14 +1385,14 @@ public class Utils implements ij.plugin.PlugIn {
 			dirs.add(f);
 			// Non-recursive version ... I hate java
 			do {
-				int i = dirs.size() -1;
+				final int i = dirs.size() -1;
 				final File fdir = dirs.get(i);
 				Utils.log2("Examining folder for deletion: " + fdir.getName());
 				boolean remove = true;
-				File[] files = fdir.listFiles();
+				final File[] files = fdir.listFiles();
 				if (null != files) { // can be null if the directory doesn't contain any files. Why not just return an empty array!?
 					for (final File file : files) {
-						String name = file.getName();
+						final String name = file.getName();
 						if (name.equals(".") || name.equals("..")) continue;
 						if (file.isDirectory()) {
 							remove = false;
@@ -1397,7 +1427,7 @@ public class Utils implements ij.plugin.PlugIn {
 			
 			return true;
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		return false;
@@ -1430,7 +1460,8 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 
 			final File[] list = parent.listFiles(new FilenameFilter() {
-				public boolean accept(File dir, String name) {
+				@Override
+				public boolean accept(final File dir, final String name) {
 					if (name.startsWith(prefix)) return true;
 					return false;
 				}
@@ -1452,7 +1483,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 			return success;
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		return false;
@@ -1480,7 +1511,7 @@ public class Utils implements ij.plugin.PlugIn {
 		g.drawRect(x, y, 4, 4);
 	}
 
-	static public final String trim(CharSequence sb) {
+	static public final String trim(final CharSequence sb) {
 		char c;
 		int start = 0;
 		do {
@@ -1500,7 +1531,7 @@ public class Utils implements ij.plugin.PlugIn {
 		for (final Future<?> fu : fus) {
 			if (null != fu) try {
 				fu.get(); // wait until done
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 				if (Thread.currentThread().isInterrupted()) return;
 			}
@@ -1512,7 +1543,7 @@ public class Utils implements ij.plugin.PlugIn {
 			if (Thread.currentThread().isInterrupted()) return;
 			if (null != fu) try {
 				fu.get(); // wait until done
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				if (throwException) IJError.print(e);
 			}
 		}
@@ -1540,6 +1571,7 @@ public class Utils implements ij.plugin.PlugIn {
 		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
 		final AtomicInteger ai = new AtomicInteger(0);
 		exec.setThreadFactory(new ThreadFactory() {
+			@Override
 			public Thread newThread(final Runnable r) {
 				final ThreadGroup tg = Thread.currentThread().getThreadGroup();
 				final Thread t = new CachingThread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
@@ -1576,7 +1608,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Returns false if none to add. */
 	static public final boolean addPlugIns(final JPopupMenu popup, final String menu, final Project project, final Callable<Displayable> active) {
-		JMenu m = addPlugIns(menu, project, active);
+		final JMenu m = addPlugIns(menu, project, active);
 		if (null == m) return false;
 		popup.add(m);
 		return true;
@@ -1589,7 +1621,7 @@ public class Utils implements ij.plugin.PlugIn {
 		Displayable d = null;
 		try {
 			d = active.call();
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		final JMenu m = new JMenu("Plugins");
@@ -1598,12 +1630,14 @@ public class Utils implements ij.plugin.PlugIn {
 		for (final Map.Entry<String,TPlugIn> e : plugins.entrySet()) {
 			item = new JMenuItem(e.getKey());
 			item.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
+				@Override
+				public void actionPerformed(final ActionEvent ae) {
 					Bureaucrat.createAndStart(new Worker.Task(e.getKey()) {
+						@Override
 						public void exec() {
 							try {
 								e.getValue().invoke(active.call());
-							} catch (Exception e) {
+							} catch (final Exception e) {
 								IJError.print(e);
 							}
 						}
@@ -1623,12 +1657,14 @@ public class Utils implements ij.plugin.PlugIn {
 		for (final Map.Entry<String,TPlugIn> e : plugins.entrySet()) {
 			item = new JMenuItem("Setup " + e.getKey());
 			item.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
+				@Override
+				public void actionPerformed(final ActionEvent ae) {
 					Bureaucrat.createAndStart(new Worker.Task(e.getKey()) {
+						@Override
 						public void exec() {
 							try {
 								e.getValue().setup(active.call());
-							} catch (Exception e) {
+							} catch (final Exception e) {
 								IJError.print(e);
 							}
 						}
@@ -1648,7 +1684,7 @@ public class Utils implements ij.plugin.PlugIn {
 			if (0 == (ke.getModifiers() ^ Utils.getControlModifier())) {
 				final TreeMap<String,TPlugIn> plugins = project.getPlugins("Display");
 				if (plugins.size() > 0) {
-					int index = ke.getKeyCode() - KeyEvent.VK_1;
+					final int index = ke.getKeyCode() - KeyEvent.VK_1;
 					if (index < plugins.size()) {
 						int count = 0;
 						for (final Map.Entry<String,TPlugIn> e : plugins.entrySet()) {
@@ -1657,6 +1693,7 @@ public class Utils implements ij.plugin.PlugIn {
 								continue;
 							}
 							return Bureaucrat.createAndStart(new Worker.Task(e.getKey()) {
+								@Override
 								public void exec() {
 									e.getValue().invoke(active);
 								}
@@ -1665,7 +1702,7 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 				}
 			}
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			IJError.print(t);
 		}
 		return null;
@@ -1676,11 +1713,11 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Get the width and height of single-line text. */
 	static public final Dimension getDimensions(final String text, final Font font) {
 		if (null == frame) { frame = new java.awt.Frame(); frame.pack(); frame.setBackground(Color.white); } // emulating the ImageProcessor class
-		FontMetrics fm = frame.getFontMetrics(font);
-		int[] w = fm.getWidths(); // the advance widths of the first 256 chars
+		final FontMetrics fm = frame.getFontMetrics(font);
+		final int[] w = fm.getWidths(); // the advance widths of the first 256 chars
 		int width = 0;
 		for (int i = text.length() -1; i>-1; i--) {
-			int c = (int)text.charAt(i);
+			final int c = (int)text.charAt(i);
 			if (c < 256) width += w[c];
 		}
 		return new Dimension(width, fm.getHeight());
@@ -1718,7 +1755,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 	
 	/** Ensure the file can be written to. Will create parent directories if necessary. */
-	static public final boolean ensure(final File f) {
+	static public final synchronized boolean ensure(final File f) {
 		final File parent = f.getParentFile();
 		if (!parent.exists()) {
 			if (!parent.mkdirs()) {
@@ -1733,7 +1770,7 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/** 0.3 * R + 0.6 * G + 0.1 * B */
-	public static final int luminance(Color c) {
+	public static final int luminance(final Color c) {
 		return (int)(c.getRed() * 0.3f + c.getGreen() * 0.6f + c.getBlue() * 0.1f + 0.5f);
 	}
 
@@ -1743,14 +1780,14 @@ public class Utils implements ij.plugin.PlugIn {
 		else SwingUtilities.invokeLater(r);
 	}
 
-	public static final void showAllTables(HashMap<Class<?>, ResultsTable> ht) {
-		for (Map.Entry<Class<?>,ResultsTable> entry : ht.entrySet()) {
+	public static final void showAllTables(final HashMap<Class<?>, ResultsTable> ht) {
+		for (final Map.Entry<Class<?>,ResultsTable> entry : ht.entrySet()) {
 			final Class<?> c = entry.getKey();
 			String title;
 			if (Profile_List.class == c) title = "Profile List";
 			else {
 				title = c.getName();
-				int idot = title.lastIndexOf('.');
+				final int idot = title.lastIndexOf('.');
 				if (-1 != idot) title = title.substring(idot+1);
 			}
 			entry.getValue().show(title + " results");
@@ -1759,7 +1796,7 @@ public class Utils implements ij.plugin.PlugIn {
 	
 	/** Returns a byte[3][256] containing the colors of the fire LUT. */
 	public static final IndexColorModel fireLUT() {
-		ImagePlus imp = new ImagePlus("fire", new ByteProcessor(1, 1));
+		final ImagePlus imp = new ImagePlus("fire", new ByteProcessor(1, 1));
 		IJ.run(imp, "Fire", "");
 		return (IndexColorModel) imp.getProcessor().getColorModel();
 	}
@@ -1798,4 +1835,25 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return true;
 	}
+
+    static public final <A, B> ArrayList<B> castCollection(
+            final Collection<A> classAs, final Class<B> type, final boolean doThrow)
+    {
+        ArrayList<B> classBs = new ArrayList<B>(classAs.size());
+        for (final A a : classAs)
+        {
+            try
+            {
+                classBs.add((B)a);
+            }
+            catch (final ClassCastException cce)
+            {
+                if (doThrow)
+                {
+                    throw cce;
+                }
+            }
+        }
+        return classBs;
+    }
 }

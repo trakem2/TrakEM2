@@ -1,8 +1,9 @@
 package ini.trakem2.display;
 
 import ini.trakem2.display.graphics.GraphicsSource;
-import java.awt.event.MouseEvent;
+
 import java.awt.Rectangle;
+import java.awt.event.MouseEvent;
 
 public interface Mode {
 

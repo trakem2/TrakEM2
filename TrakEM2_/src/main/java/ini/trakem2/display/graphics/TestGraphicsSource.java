@@ -4,11 +4,12 @@ import ini.trakem2.display.Display;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Paintable;
 import ini.trakem2.display.Patch;
-import java.util.ArrayList;
-import java.util.List;
+
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TestGraphicsSource implements GraphicsSource {
 

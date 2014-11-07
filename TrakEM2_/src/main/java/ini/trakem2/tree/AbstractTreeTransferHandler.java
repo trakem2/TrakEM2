@@ -23,12 +23,32 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.tree;
 
 
-import java.awt.*;
-import javax.swing.*;
-import javax.swing.tree.*;
-import java.awt.dnd.*;
-import java.awt.datatransfer.*;
-import java.awt.image.*;
+import java.awt.AlphaComposite;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DragGestureEvent;
+import java.awt.dnd.DragGestureListener;
+import java.awt.dnd.DragGestureRecognizer;
+import java.awt.dnd.DragSource;
+import java.awt.dnd.DragSourceDragEvent;
+import java.awt.dnd.DragSourceDropEvent;
+import java.awt.dnd.DragSourceEvent;
+import java.awt.dnd.DragSourceListener;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
+import java.awt.image.BufferedImage;
+
+import javax.swing.JComponent;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
  
 /** Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0 */
 public abstract class AbstractTreeTransferHandler implements DragGestureListener, DragSourceListener, DropTargetListener {
@@ -44,20 +64,37 @@ public abstract class AbstractTreeTransferHandler implements DragGestureListener
         private DragGestureRecognizer dgr;
  
         protected AbstractTreeTransferHandler(DNDTree tree, int action, boolean drawIcon) {
-                this.tree = tree;
-                drawImage = drawIcon;
+            this.tree = tree;
+            drawImage = drawIcon;
+
+            if (!GraphicsEnvironment.getLocalGraphicsEnvironment().isHeadlessInstance())
+            {
                 dragSource = new DragSource();
                 dgr = dragSource.createDefaultDragGestureRecognizer(tree, action, this);
                 dropTarget = new DropTarget(tree, action, this);
+            }
+            else
+            {
+                dragSource = null;
+                dgr = null;
+                dropTarget = null;
+            }
         }
 
         protected void destroy() {
-        	dgr.removeDragGestureListener(this);
-        	dgr = null;
+            if (dgr != null)
+            {
+                dgr.removeDragGestureListener(this);
+                dgr = null;
+            }
         	tree = null; // friggin' memory leak
         	dragSource = null;
-        	dropTarget.removeDropTargetListener(this);
-        	dropTarget = null;
+            if (dropTarget != null)
+            {
+        	    dropTarget.removeDropTargetListener(this);
+                dropTarget = null;
+            }
+
         	draggedNode = null;
         	draggedNodeParent = null;
         	image = null;

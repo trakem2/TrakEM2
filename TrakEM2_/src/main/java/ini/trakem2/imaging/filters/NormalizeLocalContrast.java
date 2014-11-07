@@ -1,18 +1,17 @@
 package ini.trakem2.imaging.filters;
 
 import ij.process.ImageProcessor;
-import ini.trakem2.utils.Utils;
 
 import java.util.Map;
 
 public class NormalizeLocalContrast implements IFilter
 {
-	protected int brx = 40, bry = 40;
+	protected int brx = 500, bry = 500;
 	protected float stds = 3;
 	protected boolean cent = true, stret = true;
-	
+
 	public NormalizeLocalContrast() {}
-	
+
 	public NormalizeLocalContrast(
 			final int blockRadiusX,
 			final int blockRadiusY,
@@ -21,7 +20,7 @@ public class NormalizeLocalContrast implements IFilter
 			final boolean stretch) {
 		set(blockRadiusX, blockRadiusY, stdDevs, center, stretch);
 	}
-	
+
 	private final void set(final int blockRadiusX,
 			final int blockRadiusY,
 			final float stdDevs,
@@ -33,7 +32,7 @@ public class NormalizeLocalContrast implements IFilter
 		this.cent = center;
 		this.stret = stretch;
 	}
-	
+
 	public NormalizeLocalContrast(final Map<String,String> params) {
 		try {
 			set(Integer.parseInt(params.get("brx")),
@@ -41,24 +40,24 @@ public class NormalizeLocalContrast implements IFilter
 			    Float.parseFloat(params.get("stds")),
 			    Boolean.parseBoolean(params.get("stret")),
 			    Boolean.parseBoolean(params.get("cent")));
-		} catch (NumberFormatException nfe) {
+		} catch (final NumberFormatException nfe) {
 			throw new IllegalArgumentException("Could not create LocalContrast filter!", nfe);
 		}
 	}
-	
-	
+
+
 	@Override
 	public ImageProcessor process(final ImageProcessor ip) {
-		try {	
+		try {
 			mpicbg.ij.plugin.NormalizeLocalContrast.run(ip, brx, bry, stds, cent, stret);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 		return ip;
 	}
 
 	@Override
-	public String toXML(String indent) {
+	public String toXML(final String indent) {
 		return new StringBuilder(indent)
 		.append("<t2_filter class=\"").append(getClass().getName())
 		.append("\" brx=\"").append(brx)
@@ -68,7 +67,7 @@ public class NormalizeLocalContrast implements IFilter
 		.append("\" stret=\"").append(stret)
 		.append("\" />\n").toString();
 	}
-	
+
 	@Override
 	public boolean equals(final Object o) {
 		if (null == o) return false;

@@ -23,18 +23,19 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.image.BufferedImage;
-import java.awt.Color;
-import java.awt.Dimension;
-import javax.swing.JPanel;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-
 import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
+
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.image.BufferedImage;
+
+import javax.swing.JPanel;
 
 public class SnapshotPanel extends JPanel implements MouseListener {
 

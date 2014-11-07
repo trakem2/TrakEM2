@@ -170,6 +170,16 @@ final public class Downsampler
 		return b;
 	}
 	
+	
+	final static public ByteProcessor downsampleByteProcessor( ByteProcessor a, final int level )
+	{
+		for ( int i = 0; i < level; ++i )
+			a = downsampleByteProcessor( a );
+		
+		return a;
+	}
+	
+	
 	final static public ShortProcessor downsampleShortProcessor( final ShortProcessor a )
 	{
 		final int wa = a.getWidth();
@@ -286,6 +296,22 @@ final public class Downsampler
 			return downsampleColorProcessor( ( ColorProcessor )a );
 		else
 			return null;
+	}
+	
+	/**
+	 * Convenience call for abstract {@link ImageProcessor}.  Do not use if you
+	 * know the type of the processor to save the time for type checking.
+	 * 
+	 * @param a
+	 * @param level pyramid level in a power of 2 scale pyramid
+	 * @return
+	 */
+	final static public ImageProcessor downsampleImageProcessor(ImageProcessor a, final int level )
+	{
+		for ( int i = 0; i < level; ++i )
+			a = downsampleImageProcessor( a );
+		
+		return a;
 	}
 	
 	

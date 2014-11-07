@@ -1,12 +1,12 @@
 package ini.trakem2.persistence;
 
-import java.util.HashMap;
-
-import mpicbg.trakem2.transform.CoordinateTransform;
-
 import ini.trakem2.display.Patch;
 import ini.trakem2.tree.ProjectTree;
 import ini.trakem2.tree.Thing;
+
+import java.util.HashMap;
+
+import mpicbg.trakem2.transform.CoordinateTransform;
 
 public class XMLOptions
 {

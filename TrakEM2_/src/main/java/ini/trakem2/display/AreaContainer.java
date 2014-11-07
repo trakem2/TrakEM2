@@ -2,8 +2,8 @@ package ini.trakem2.display;
 
 import ij.measure.ResultsTable;
 
-import java.awt.geom.Area;
 import java.awt.Rectangle;
+import java.awt.geom.Area;
 import java.util.List;
 
 public interface AreaContainer {

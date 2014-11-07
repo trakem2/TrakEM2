@@ -24,7 +24,7 @@ package ini.trakem2.utils;
 
 import ini.trakem2.ControlWindow;
 import ini.trakem2.Project;
-import ini.trakem2.utils.Utils;
+
 import java.util.ArrayList;
 
 /** Sets a Worker thread to work, and waits until it finishes, blocking all user interface input until then, except for zoom and pan, for all given projects. */

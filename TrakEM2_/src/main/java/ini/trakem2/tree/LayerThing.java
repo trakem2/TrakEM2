@@ -25,15 +25,17 @@ package ini.trakem2.tree;
 
 import ini.trakem2.Project;
 import ini.trakem2.display.Display;
-import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
 import ini.trakem2.persistence.DBObject;
 import ini.trakem2.utils.Utils;
 
-import java.util.*;
-import javax.swing.JMenuItem;
-import javax.swing.JMenu;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
+import java.util.Iterator;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 
 public final class LayerThing extends DBObject implements TitledThing {
 

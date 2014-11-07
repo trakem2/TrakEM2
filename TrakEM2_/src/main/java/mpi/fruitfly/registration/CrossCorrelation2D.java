@@ -27,19 +27,20 @@ package mpi.fruitfly.registration;
  * @author Stephan Preibisch
  * @version 1.0
  */
-import ij.io.Opener;
+import static mpi.fruitfly.general.ImageArrayConverter.DRAWTYPE_OVERLAP;
+import static mpi.fruitfly.general.ImageArrayConverter.FloatArrayToImagePlus;
+import static mpi.fruitfly.general.ImageArrayConverter.ImageToFloatArray2D;
+import static mpi.fruitfly.general.ImageArrayConverter.drawTranslatedImages;
+import static mpi.fruitfly.math.General.min;
 import ij.ImagePlus;
-import ij.process.*;
-
-import mpi.fruitfly.math.datastructures.FloatArray2D;
-import mpi.fruitfly.general.MultiThreading;
-
-import static mpi.fruitfly.general.ImageArrayConverter.*;
-import static mpi.fruitfly.math.General.*;
+import ij.io.Opener;
+import ij.process.ImageProcessor;
 
 import java.awt.Point;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.lang.annotation.Annotation;
+
+import mpi.fruitfly.general.MultiThreading;
+import mpi.fruitfly.math.datastructures.FloatArray2D;
 
 public class CrossCorrelation2D
 {

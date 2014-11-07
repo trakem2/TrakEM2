@@ -22,19 +22,18 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.utils;
 
-import ij.ImageJ;
 import ij.IJ;
+import ij.ImageJ;
 import ij.gui.Toolbar;
 import ij.plugin.MacroInstaller;
+import ini.trakem2.display.Display;
 
-import java.awt.event.MouseListener;
-import java.awt.event.MouseEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.io.File;
 
 import javax.swing.SwingUtilities;
-
-import ini.trakem2.display.Display;
 
 public class ProjectToolbar implements MouseListener {
 

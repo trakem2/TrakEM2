@@ -2,10 +2,20 @@
 package ini.trakem2.tree;
 
 import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.utils.*;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Utils;
 
-import java.io.*;
-import java.util.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.zip.GZIPInputStream;
 
 /** Reads either a DOCTYPE chunk from an xml file or a .dtd file directly. */

@@ -17,6 +17,7 @@ import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
+import java.awt.geom.Path2D;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +31,6 @@ import java.util.concurrent.Future;
 
 import javax.vecmath.Point3f;
 
-import marchingcubes.MCTriangulator;
 //import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D; // using ini.trakem2.imaging.BinaryInterpolation2D until imglib's algorithms jar is released
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
@@ -366,6 +366,18 @@ public final class AreaUtils {
 
 		return map;
 	}
+
+    static public Area infiniteArea()
+    {
+        final Path2D.Double path = new Path2D.Double();
+        path.moveTo(Double.MAX_VALUE, Double.MAX_VALUE);
+        path.lineTo(-Double.MAX_VALUE, Double.MAX_VALUE);
+        path.lineTo(-Double.MAX_VALUE, -Double.MAX_VALUE);
+        path.lineTo(Double.MAX_VALUE, -Double.MAX_VALUE);
+        path.lineTo(Double.MAX_VALUE, Double.MAX_VALUE);
+
+        return new Area(path);
+    }
 
 	/** Extract the Area of the image for the given pixel value.
 	 *  ThresholdToSelection is way faster than this, just use it.

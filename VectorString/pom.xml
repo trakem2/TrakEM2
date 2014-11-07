@@ -19,9 +19,8 @@
 
 	<dependencies>
 		<dependency>
-			<groupId>jama</groupId>
+			<groupId>gov.nist.math</groupId>
 			<artifactId>jama</artifactId>
-			<version>1.0.2</version>
 		</dependency>
 		<dependency>
 			<groupId>net.imagej</groupId>
@@ -30,19 +29,16 @@
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>j3d-core</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>j3d-core-utils</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>java3d</groupId>
 			<artifactId>vecmath</artifactId>
-			<version>1.5.2</version>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>

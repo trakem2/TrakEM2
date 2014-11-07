@@ -22,13 +22,11 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
-import java.awt.Polygon;
-import java.awt.Rectangle;
-
 import ij.gui.PolygonRoi;
 import ij.io.RoiDecoder;
 import ij.measure.Calibration;
-import ij.process.FloatPolygon;
+
+import java.awt.Polygon;
 
 /** String of vectors. */
 public class VectorString2D implements VectorString {
