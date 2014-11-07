@@ -112,6 +112,11 @@
 			<groupId>sc.fiji</groupId>
 			<artifactId>bUnwarpJ_</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>jython-shaded</artifactId>
+			<version>2.5.3</version>
+		</dependency>
 	</dependencies>
 
 	<!-- NB: for project parent -->
