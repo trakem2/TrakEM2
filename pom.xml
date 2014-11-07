@@ -19,11 +19,33 @@
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
 	<description></description>
 
+	<modules>
+		<module>TrakEM2_</module>
+		<module>VectorString</module>
+		<module>T2-NIT</module>
+		<module>T2-TreelineGraph</module>
+	</modules>
+
+	<scm>
+		<connection>scm:git:git://repo.or.cz/trakem2.git</connection>
+		<developerConnection>scm:git:repo.or.cz:/srv/git/trakem2.git</developerConnection>
+		<tag>HEAD</tag>
+		<url>http://repo.or.cz/w/trakem2.git</url>
+	</scm>
+
 	<properties>
 		<legacy-imglib1.version>2.0.0-SNAPSHOT</legacy-imglib1.version>
 		<TrakEM2.version>1.0b-SNAPSHOT</TrakEM2.version>
 		<VectorString.version>1.0-SNAPSHOT</VectorString.version>
 	</properties>
+
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
 
 	<dependencyManagement>
 		<dependencies>
@@ -45,28 +67,4 @@
 		</dependencies>
 	</dependencyManagement>
 
-	<modules>
-		<module>TrakEM2_</module>
-		<module>VectorString</module>
-		<module>T2-NIT</module>
-		<module>T2-TreelineGraph</module>
-	</modules>
-
-	<scm>
-		<connection>scm:git:git://repo.or.cz/trakem2.git</connection>
-		<developerConnection>scm:git:repo.or.cz:/srv/git/trakem2.git</developerConnection>
-		<tag>HEAD</tag>
-		<url>http://repo.or.cz/w/trakem2.git</url>
-	</scm>
-
-	<repositories>
-		<!-- NB: for project parent -->
-		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
-		</repository>
-	</repositories>
-
 </project>
-
-

@@ -17,6 +17,14 @@
 	<name>plugins/TrakEM2_.jar</name>
 	<description></description>
 
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
+
 	<dependencies>
 		<dependency>
 			<groupId>gov.nist.math</groupId>
@@ -118,13 +126,5 @@
 			<version>2.5.3</version>
 		</dependency>
 	</dependencies>
-
-	<repositories>
-		<!-- NB: for project parent -->
-		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
-		</repository>
-	</repositories>
 
 </project>

@@ -17,6 +17,14 @@
 	<name>jars/VectorString.jar</name>
 	<description></description>
 
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
+
 	<dependencies>
 		<dependency>
 			<groupId>gov.nist.math</groupId>
@@ -42,13 +50,5 @@
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>
-
-	<repositories>
-		<!-- NB: for project parent -->
-		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
-		</repository>
-	</repositories>
 
 </project>

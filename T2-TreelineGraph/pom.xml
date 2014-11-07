@@ -17,6 +17,14 @@
 	<name>jars/T2-TreelineGraph.jar</name>
 	<description></description>
 
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
+
 	<dependencies>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -27,13 +35,5 @@
 			<artifactId>ij</artifactId>
 		</dependency>
 	</dependencies>
-
-	<repositories>
-		<!-- NB: for project parent -->
-		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
-		</repository>
-	</repositories>
 
 </project>

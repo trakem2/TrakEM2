@@ -16,6 +16,14 @@
 	<name>jars/T2-NIT.jar</name>
 	<description></description>
 
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
+
 	<dependencies>
 		<dependency>
 			<groupId>nz.ac.waikato.cms.weka</groupId>
@@ -30,13 +38,5 @@
 			<artifactId>ij</artifactId>
 		</dependency>
 	</dependencies>
-
-	<repositories>
-		<!-- NB: for project parent -->
-		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
-		</repository>
-	</repositories>
 
 </project>
