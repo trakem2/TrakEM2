@@ -1,8 +1,8 @@
 TrakEM2
 -------
 
-Copyright 2005-2010 Albert Cardona and Rodney Douglas.
-Copyright 2007-2010 Stephan Saalfeld, Stephan Preibisch, Ignacio Arganda, Verena Kaynig
+Copyright 2005-2014 Albert Cardona and Rodney Douglas.
+Copyright 2007-2014 Stephan Saalfeld, Stephan Preibisch, Ignacio Arganda, Verena Kaynig
 
 Released under the General Public License in its latest version.
 
@@ -10,9 +10,6 @@ Contact: acardona at ini phys ethz ch
 
 To compile the source, follow this tutorial:
   http://pacific.mpi-cbg.de/wiki/index.php/Downloading_and_Building_Fiji_From_Source
-
-You can get the latest source code from the git repository at:
-  http://repo.or.cz/w/trakem2.git
 
 It is strongly recommended to use Java 1.6.0 whenever possible, since repainting speed is much higher.
 
