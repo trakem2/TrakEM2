@@ -8,9 +8,8 @@ Released under the General Public License in its latest version.
 
 Contact: acardona at ini phys ethz ch
 
-To compile the source, follow this tutorial:
-  http://pacific.mpi-cbg.de/wiki/index.php/Downloading_and_Building_Fiji_From_Source
+To compile the source, call mvn (Maven http://maven.apache.org/) in the root source directory (builds everything) or in one of the subprojects (build just the subproject).
 
-It is strongly recommended to use Java 1.6.0 whenever possible, since repainting speed is much higher.
+It is strongly recommended to use Java 1.6.0 or higher whenever possible, since repainting speed is much higher.
 
 Have fun! Beer and comments to acardona at ini phys ethz ch
