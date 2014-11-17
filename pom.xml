@@ -34,7 +34,7 @@
 	</scm>
 
 	<properties>
-		<legacy-imglib1.version>2.0.0-SNAPSHOT</legacy-imglib1.version>
+		<legacy-imglib1.version>1.0.0-DEPRECATED</legacy-imglib1.version>
 		<TrakEM2.version>1.0b-SNAPSHOT</TrakEM2.version>
 		<VectorString.version>1.0-SNAPSHOT</VectorString.version>
 	</properties>
