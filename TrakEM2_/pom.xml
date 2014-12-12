@@ -8,14 +8,22 @@
 	<parent>
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-trakem2</artifactId>
-		<version>1.0-SNAPSHOT</version>
+		<version>1.1.0-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>TrakEM2_</artifactId>
-	<version>1.0b-SNAPSHOT</version>
+	<version>1.0c-SNAPSHOT</version>
 
 	<name>plugins/TrakEM2_.jar</name>
 	<description></description>
+
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
 
 	<dependencies>
 		<dependency>
@@ -113,25 +121,14 @@
 			<artifactId>bUnwarpJ_</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>mpicbg-trakem2</groupId>
+			<groupId>sc.fiji</groupId>
 			<artifactId>mpicbg-trakem2</artifactId>
 		</dependency>
+		<dependency>
+			<groupId>org.scijava</groupId>
+			<artifactId>jython-shaded</artifactId>
+			<version>2.5.3</version>
+		</dependency>
 	</dependencies>
-
-	<!-- NB: for project parent -->
-	<repositories>
-		<repository>
-			<id>imagej.releases</id>
-			<url>http://maven.imagej.net/content/repositories/releases</url>
-		</repository>
-		<repository>
-			<id>imagej.snapshots</id>
-			<url>http://maven.imagej.net/content/repositories/snapshots</url>
-		</repository>
-		<repository>
-			<id>JBoss 3rdparty</id>
-			<url>https://repository.jboss.org/nexus/content/repositories/thirdparty-releases</url>
-		</repository>
-	</repositories>
 
 </project>

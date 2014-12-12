@@ -6,9 +6,8 @@
 		<artifactId>pom-trakem2</artifactId>
 		<version>1.0-SNAPSHOT</version>
 	</parent>
-	<groupId>mpicbg-trakem2</groupId>
 	<artifactId>mpicbg-trakem2</artifactId>
-	<version>1.0b-SNAPSHOT</version>
+	<version>1.0.1-SNAPSHOT</version>
 	<dependencies>
 		<dependency>
 			<groupId>net.imagej</groupId>
