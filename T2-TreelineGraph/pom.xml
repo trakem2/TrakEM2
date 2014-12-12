@@ -8,11 +8,11 @@
 	<parent>
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-trakem2</artifactId>
-		<version>1.1.0</version>
+		<version>1.1.1-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>T2-TreelineGraph</artifactId>
-	<version>1.0.1</version>
+	<version>1.0.2-SNAPSHOT</version>
 
 	<name>jars/T2-TreelineGraph.jar</name>
 	<description></description>
