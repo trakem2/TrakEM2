@@ -52,7 +52,7 @@ public class FilterEditor {
 					EnhanceContrast.class, ResetMinAndMax.class, DefaultMinAndMax.class,
 					GaussianBlur.class, Invert.class, Normalize.class,
 		            RankFilter.class, RobustNormalizeLocalContrast.class,
-		            SubtractBackground.class,
+		            ValueToNoise.class, SubtractBackground.class,
 		            CorrectBackground.class,
 		            LUTRed.class, LUTGreen.class, LUTBlue.class,
 		            LUTMagenta.class, LUTCyan.class, LUTYellow.class,
