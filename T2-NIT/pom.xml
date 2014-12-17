@@ -8,11 +8,11 @@
 	<parent>
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-trakem2</artifactId>
-		<version>1.1.1</version>
+		<version>1.1.2-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>T2-NIT</artifactId>
-	<version>1.0.2</version>
+	<version>1.0.3-SNAPSHOT</version>
 
 	<name>jars/T2-NIT.jar</name>
 	<description></description>
