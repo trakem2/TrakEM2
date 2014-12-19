@@ -13,29 +13,27 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  **/
 
 /* ****************************************************************  *
- * Representation of a non linear transform by explicit polynomial	 
- * kernel expansion.												
- * 																	
- * TODO:														
+ * Representation of a non linear transform by explicit polynomial
+ * kernel expansion.
+ *
+ * TODO:
  * 	- make different kernels available
  * 	- inverse transform for visualization
- *  - improve image interpolation 				
+ *  - improve image interpolation
  *  - apply and applyInPlace should use precalculated transform?
  *    (What about out of image range pixels?)
- *  																
- *  Author: Verena Kaynig						
- *  Kontakt: verena.kaynig@inf.ethz.ch	
- *  
+ *
+ *  Author: Verena Kaynig
+ *  Kontakt: verena.kaynig@inf.ethz.ch
+ *
  * ****************************************************************  */
 
 package lenscorrection;
 
-import Jama.Matrix;
-import ij.IJ;
 import ij.ImagePlus;
 import ij.io.FileSaver;
 import ij.process.ByteProcessor;
@@ -53,24 +51,20 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 
+import mpicbg.trakem2.transform.NonLinearCoordinateTransform;
+import Jama.Matrix;
 
-public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTransform{
 
-	private double[][] beta = null;
-	private double[] normMean = null;
-	private double[] normVar = null;
+public class NonLinearTransform extends NonLinearCoordinateTransform {
+
 	private double[][][] transField = null;
-	private int dimension = 0;
-	private int length = 0;
-	private int width = 0;
-	private int height = 0;
 
 	public int getDimension(){ return dimension; }
 	/** Deletes all dimension dependent properties */
 	public void setDimension( final int dimension )
 	{
 		this.dimension = dimension;
-		length = (dimension + 1)*(dimension + 2)/2;	
+		length = (dimension + 1)*(dimension + 2)/2;
 
 		beta = new double[length][2];
 		normMean = new double[length];
@@ -176,9 +170,9 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 			S2 = S2.plus( YT.plus( XC ) );
 		}
 		final Matrix regularize = Matrix.identity( S1.getRowDimension(), S1.getColumnDimension() );
-		final Matrix beta = new Matrix( S1.plus( regularize.times( 0.001 ) ).inverse().times( S2 ).getColumnPackedCopy(), s );
+		final Matrix newBeta = new Matrix( S1.plus( regularize.times( 0.001 ) ).inverse().times( S2 ).getColumnPackedCopy(), s );
 
-		setBeta( beta.getArray() );
+		setBeta( newBeta.getArray() );
 	}
 
 	public NonLinearTransform(final double[][] b, final double[] nm, final double[] nv, final int d, final int w, final int h){
@@ -186,14 +180,14 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 		normMean = nm;
 		normVar = nv;
 		dimension = d;
-		length = (dimension + 1)*(dimension + 2)/2;	
+		length = (dimension + 1)*(dimension + 2)/2;
 		width = w;
 		height = h;
 	}
 
 	public NonLinearTransform(final int d, final int w, final int h){
 		dimension = d;
-		length = (dimension + 1)*(dimension + 2)/2;	
+		length = (dimension + 1)*(dimension + 2)/2;
 
 		beta = new double[length][2];
 		normMean = new double[length];
@@ -231,106 +225,6 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 		}
 	}
 
-
-	//implements mpicbg.trakem2
-	@Override
-	public void init( final String data ) throws NumberFormatException{
-		final String[] fields = data.split( " " );
-		int c = 0;
-
-		dimension = Integer.parseInt(fields[c]); c++;
-		length = Integer.parseInt(fields[c]); c++;
-
-		beta = new double[length][2];
-		normMean = new double[length];
-		normVar = new double[length];
-
-		if ( fields.length == 4 + 4*length )
-		{
-			for (int i=0; i < length; i++){
-				beta[i][0] = Double.parseDouble(fields[c]); c++;
-				beta[i][1] = Double.parseDouble(fields[c]); c++;
-			}
-
-			//System.out.println("c: " + c); 
-
-			for (int i=0; i < length; i++){
-				normMean[i] = Double.parseDouble(fields[c]); c++;
-			}
-
-			//System.out.println("c: " + c); 
-
-			for (int i=0; i < length; i++){
-				normVar[i] = Double.parseDouble(fields[c]); c++;
-			}
-
-			width = Integer.parseInt(fields[c]); c++;				
-			height = Integer.parseInt(fields[c]); c++;
-			//System.out.println("c: " + c); 
-
-		}
-		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
-	}
-
-
-
-	@Override
-	public String toXML(final String indent){
-		return new StringBuilder(indent).append("<ict_transform class=\"").append(this.getClass().getCanonicalName()).append("\" data=\"").append(toDataString()).append("\"/>").toString();
-	}
-
-	@Override
-	public String toDataString(){
-		String data = "";
-		data += Integer.toString(dimension) + " ";
-		data += Integer.toString(length) + " ";
-
-		for (int i=0; i < length; i++){
-			data += Double.toString(beta[i][0]) + " ";
-			data += Double.toString(beta[i][1]) + " ";
-		}
-
-		for (int i=0; i < length; i++){
-			data += Double.toString(normMean[i]) + " ";
-		}
-
-		for (int i=0; i < length; i++){
-			data += Double.toString(normVar[i]) + " ";
-		}
-		data += Integer.toString(width) + " ";
-		data += Integer.toString(height) + " ";
-
-		return data;
-
-	}
-
-	//@Override
-	@Override
-	public String toString(){ return toDataString(); }
-
-	@Override
-	public float[] apply( final float[] location ){
-
-		final double[] position = {(double) location[0], (double) location[1]};
-		final double[] featureVector = kernelExpand(position);
-		final double[] newPosition = multiply(beta, featureVector);
-
-		final float[] newLocation = new float[2];
-		newLocation[0] = (float) newPosition[0];
-		newLocation[1] = (float) newPosition[1];
-
-		return newLocation;
-	}
-
-	@Override
-	public void applyInPlace( final float[] location ){
-		final double[] position = {(double) location[0], (double) location[1]};
-		final double[] featureVector = kernelExpand(position);
-		final double[] newPosition = multiply(beta, featureVector);
-
-		location[0] = (float) newPosition[0];
-		location[1] = (float) newPosition[1];
-	}
 
 	void precalculateTransfom(){
 		transField = new double[width][height][2];
@@ -417,7 +311,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 			final BufferedWriter out = new BufferedWriter(
 					new OutputStreamWriter(
 							new FileOutputStream( filename) ) );
-			try{	
+			try{
 				out.write("Kerneldimension");
 				out.newLine();
 				out.write(Integer.toString(dimension));
@@ -435,7 +329,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 					s += "    ";
 					s += Double.toString(beta[i][1]);
 					out.write(s);
-					out.newLine();		
+					out.newLine();
 				}
 				out.newLine();
 				out.write("normMean:");
@@ -465,23 +359,23 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 	public void load(final String filename){
 		try{
 			final BufferedReader in = new BufferedReader(new FileReader(filename));
-			try{	
+			try{
 				String line = in.readLine(); //comment;
-				dimension = Integer.parseInt(in.readLine()); 
+				dimension = Integer.parseInt(in.readLine());
 				line = in.readLine(); //comment;
 				line = in.readLine(); //comment;
 				length = Integer.parseInt(in.readLine());
 				line = in.readLine(); //comment;
 				line = in.readLine(); //comment;
 
-				beta = new double[length][2]; 
+				beta = new double[length][2];
 
 				for (int i=0; i < length; i++){
 					line = in.readLine();
 					final int ind = line.indexOf(" ");
 					beta[i][0] = Double.parseDouble(line.substring(0, ind));
 					beta[i][1] = Double.parseDouble(line.substring(ind+4));
-				}	
+				}
 
 				line = in.readLine(); //comment;
 				line = in.readLine(); //comment;
@@ -520,7 +414,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 			this.precalculateTransfom();
 
 		final ImageProcessor newIp = ip.createProcessor(ip.getWidth(), ip.getHeight());
-		if (ip instanceof ColorProcessor) ip.max(0); 
+		if (ip instanceof ColorProcessor) ip.max(0);
 		final ImageProcessor maskIp = new ByteProcessor(ip.getWidth(),ip.getHeight());
 
 		for (int x=0; x < width; x++){
@@ -534,45 +428,6 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 		}
 		return new ImageProcessor[]{newIp, maskIp};
 	}
-
-	private double[] multiply(final double beta[][], final double featureVector[]){
-		final double[] result = {0.0,0.0};
-
-		if (beta.length != featureVector.length){
-			IJ.log("Dimension of TransformMatrix and featureVector do not match!");
-			return new double[2];
-		}
-
-		for (int i=0; i<featureVector.length; i++){
-			result[0] = result[0] + featureVector[i] * beta[i][0];
-			result[1] = result[1] + featureVector[i] * beta[i][1];
-		}
-
-		return result;
-	}
-
-	public double[] kernelExpand(final double position[]){
-		final double expanded[] = new double[length];
-
-		int counter = 0;
-		for (int i=1; i<=dimension; i++){
-			for (double j=i; j>=0; j--){
-				final double val = Math.pow(position[0],j) * Math.pow(position[1],i-j);
-				expanded[counter] = val;
-				++counter;
-			}
-		}
-
-		for (int i=0; i<length-1; i++){
-			expanded[i] = expanded[i] - normMean[i];
-			expanded[i] = expanded[i] / normVar[i];
-		}
-
-		expanded[length-1] = 100;
-
-		return expanded;
-	}
-
 
 	public double[][] kernelExpandMatrixNormalize(final double positions[][]){
 		normMean = new double[length];
@@ -629,7 +484,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 
 	public void inverseTransform(final double range[][]){
 		Matrix expanded = new Matrix(kernelExpandMatrix(range));
-		final Matrix b = new Matrix(beta);	
+		final Matrix b = new Matrix(beta);
 
 		final Matrix transformed = expanded.times(b);
 		expanded = new Matrix(kernelExpandMatrixNormalize(transformed.getArray()));
@@ -639,7 +494,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 		setBeta(invBeta.getArray());
 	}
 
-	//FIXME this takes way too much memory 
+	//FIXME this takes way too much memory
 	public void visualize(){
 
 		final int density = Math.max(width,height)/32;
@@ -650,7 +505,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 		final double[][] gridOrigVert = new double[width*height][2];
 		final double[][] gridTransVert = new double[width*height][2];
 		final double[][] gridOrigHor = new double[width*height][2];
-		final double[][] gridTransHor = new double[width*height][2];	
+		final double[][] gridTransHor = new double[width*height][2];
 
 		final FloatProcessor magnitude = new FloatProcessor(width, height);
 		final FloatProcessor angle = new FloatProcessor(width, height);
@@ -682,7 +537,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 				m += (position[1] - newPosition[1]) * (position[1] - newPosition[1]);
 				m = Math.sqrt(m);
 				magnitude.setf(i,j, (float) m);
-				minM = Math.min(minM, (float) m); 
+				minM = Math.min(minM, (float) m);
 				maxM = Math.max(maxM, (float) m);
 
 				final double a = Math.atan2(position[0] - newPosition[0], position[1] - newPosition[1]);
@@ -706,7 +561,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 					gridTransHor[countHor*width+i][1] = newPosition[1] + border;
 					countHor++;
 					countHorWhole++;
-				}	
+				}
 			}
 		}
 
@@ -781,7 +636,7 @@ public class NonLinearTransform implements mpicbg.trakem2.transform.CoordinateTr
 				m += (position[1] - newPosition[1]) * (position[1] - newPosition[1]);
 				m = Math.sqrt(m);
 				magnitude.setf(i,j, (float) m);
-				minM = Math.min(minM, (float) m); 
+				minM = Math.min(minM, (float) m);
 				maxM = Math.max(maxM, (float) m);
 
 				if (i%density == 0 && j%density == 0)
