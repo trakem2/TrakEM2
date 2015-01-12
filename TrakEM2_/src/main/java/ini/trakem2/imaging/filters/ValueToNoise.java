@@ -118,7 +118,7 @@ public class ValueToNoise implements IFilter
 		.append("<t2_filter class=\"").append(getClass().getName())
 		.append("\" value=\"").append(value)
 		.append("\" min=\"").append(min)
-		.append("\" max=\"").append(min)
+		.append("\" max=\"").append(max)
 		.append("\" />\n").toString();
 	}
 
