@@ -21,6 +21,7 @@ import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -43,7 +44,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final public ImageProcessor ip;
 		public ByteProcessor outside = null;
 		public ImageProcessor mask = null;
-		
+
 		public ImageProcessorWithMasks( final ImageProcessor ip, final ImageProcessor mask, final ByteProcessor outside )
 		{
 			this.ip = ip;
@@ -60,13 +61,13 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					this.mask = mask;
 				else
 					System.err.println( "ImageProcessorWithMasks: ip and mask differ in size, setting mask = null" );
-			}		
+			}
 		}
-		
+
 		final public int getWidth(){ return ip.getWidth(); }
 		final public int getHeight(){ return ip.getHeight(); }
 	}
-	
+
 	final static private class MapTriangleThread extends Thread
 	{
 		final private AtomicInteger i;
@@ -86,7 +87,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			this.source = source;
 			this.target = target;
 		}
-		
+
 		@Override
 		final public void run()
 		{
@@ -101,7 +102,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
+
 	final static private class MapTriangleInterpolatedThread extends Thread
 	{
 		final private AtomicInteger i;
@@ -121,7 +122,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			this.source = source;
 			this.target = target;
 		}
-		
+
 		@Override
 		final public void run()
 		{
@@ -136,7 +137,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
+
 	final static private class MapShortAlphaTriangleThread extends Thread
 	{
 		final private AtomicInteger i;
@@ -159,7 +160,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			this.alpha = alpha;
 			this.target = target;
 		}
-		
+
 		@Override
 		final public void run()
 		{
@@ -171,14 +172,14 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
+
 	public TransformMeshMappingWithMasks( final T t )
 	{
 		super( t );
 	}
-	
+
 	final static protected void mapTriangle(
-			final TransformMesh m, 
+			final TransformMesh m,
 			final AffineModel2D ai,
 			final ImageProcessor source,
 			final ImageProcessor target,
@@ -190,12 +191,12 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
-		
+
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
 		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
-		
+
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
 		final float ay = a[ 1 ];
@@ -229,9 +230,9 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
+
 	final static protected void mapTriangleInterpolated(
-			final TransformMesh m, 
+			final TransformMesh m,
 			final AffineModel2D ai,
 			final ImageProcessor source,
 			final ImageProcessor target,
@@ -243,12 +244,12 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
-		
+
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
 		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
-		
+
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
 		final float ay = a[ 1 ];
@@ -282,10 +283,10 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
-	
+
+
 	final static protected void mapTriangle(
-			final TransformMesh m, 
+			final TransformMesh m,
 			final AffineModel2D ai,
 			final ImageProcessor source,
 			final ImageProcessor sourceMask,
@@ -299,12 +300,12 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
-		
+
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
 		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
-		
+
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
 		final float ay = a[ 1 ];
@@ -339,9 +340,9 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
+
 	final static protected void mapTriangleInterpolated(
-			final TransformMesh m, 
+			final TransformMesh m,
 			final AffineModel2D ai,
 			final ImageProcessor source,
 			final ImageProcessor sourceMask,
@@ -355,12 +356,12 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
-		
+
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
 		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
-		
+
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
 		final float ay = a[ 1 ];
@@ -395,8 +396,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
-	
+
+
 	final static protected void mapShortAlphaTriangle(
 			final TransformMesh m,
 			final AffineModel2D ai,
@@ -410,12 +411,12 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final float[] min = new float[ 2 ];
 		final float[] max = new float[ 2 ];
 		calculateBoundingBox( pm, min, max );
-		
+
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
 		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
-		
+
 		final float[] a = pm.get( 0 ).getP2().getW();
 		final float ax = a[ 0 ];
 		final float ay = a[ 1 ];
@@ -452,85 +453,115 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-	
-	
-	final public void map(
-			final ImageProcessorWithMasks source,
-			final ImageProcessorWithMasks target,
-			final int numThreads )
+
+
+	final public void map( final ImageProcessorWithMasks source, final ImageProcessorWithMasks target, final int numThreads )
 	{
 		target.outside = new ByteProcessor( target.getWidth(), target.getHeight() );
-		
-		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
-		l.addAll( transform.getAV().keySet() );
-		final AtomicInteger i = new AtomicInteger( 0 );
-		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
-		for ( int k = 0; k < numThreads; ++k )
+		final HashMap< AffineModel2D, ArrayList< PointMatch >> av = transform.getAV();
+		if ( numThreads > 1 )
 		{
-			final Thread mtt = new MapTriangleThread( i, l, transform, source, target );
-			threads.add( mtt );
-			mtt.start();
-		}
-		for ( final Thread mtt : threads )
-		{
-			try
+			final ArrayList< AffineModel2D > triangles = new ArrayList< AffineModel2D >( av.keySet() );
+			final AtomicInteger i = new AtomicInteger( 0 );
+			final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+			for ( int k = 0; k < numThreads; ++k )
 			{
-				mtt.join();
+				final Thread mtt = new MapTriangleThread( i, triangles, transform, source, target );
+				threads.add( mtt );
+				mtt.start();
 			}
-			catch ( final InterruptedException e ) {}
+			for ( final Thread mtt : threads )
+			{
+				try
+				{
+					mtt.join();
+				}
+				catch ( final InterruptedException e )
+				{}
+			}
+		}
+		else if ( source.mask == null )
+		{
+			for ( final AffineModel2D triangle : av.keySet() )
+			{
+				mapTriangle( transform, triangle, source.ip, target.ip, target.outside );
+			}
+		}
+		else
+		{
+			for ( final AffineModel2D triangle : av.keySet() )
+			{
+				mapTriangle( transform, triangle, source.ip, source.mask, target.ip, target.mask, target.outside );
+			}
 		}
 	}
-	
-	final public void mapInterpolated(
-			final ImageProcessorWithMasks source,
-			final ImageProcessorWithMasks target,
-			final int numThreads )
+
+	final public void mapInterpolated( final ImageProcessorWithMasks source, final ImageProcessorWithMasks target, final int numThreads )
 	{
 		target.outside = new ByteProcessor( target.getWidth(), target.getHeight() );
 		source.ip.setInterpolationMethod( ImageProcessor.BILINEAR );
 		if ( source.mask != null )
+		{
 			source.mask.setInterpolationMethod( ImageProcessor.BILINEAR );
-		
-		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
-		l.addAll( transform.getAV().keySet() );
-		final AtomicInteger i = new AtomicInteger( 0 );
-		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
-		for ( int k = 0; k < numThreads; ++k )
-		{
-			final Thread mtt = new MapTriangleInterpolatedThread( i, l, transform, source, target );
-			threads.add( mtt );
-			mtt.start();
 		}
-		for ( final Thread mtt : threads )
+		final HashMap< AffineModel2D, ArrayList< PointMatch >> av = transform.getAV();
+		if ( numThreads > 1 )
 		{
-			try
+			final ArrayList< AffineModel2D > triangles = new ArrayList< AffineModel2D >( av.keySet() );
+			final AtomicInteger i = new AtomicInteger( 0 );
+			final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+			for ( int k = 0; k < numThreads; ++k )
 			{
-				mtt.join();
+				final Thread mtt = new MapTriangleInterpolatedThread( i, triangles, transform, source, target );
+				threads.add( mtt );
+				mtt.start();
 			}
-			catch ( final InterruptedException e ) {}
+			for ( final Thread mtt : threads )
+			{
+				try
+				{
+					mtt.join();
+				}
+				catch ( final InterruptedException e )
+				{}
+			}
+		}
+		else if ( source.mask == null )
+		{
+			for ( final AffineModel2D triangle : av.keySet() )
+			{
+				mapTriangleInterpolated( transform, triangle, source.ip, target.ip, target.outside );
+			}
+		}
+		else
+		{
+			for ( final AffineModel2D triangle : av.keySet() )
+			{
+				mapTriangleInterpolated( transform, triangle, source.ip, source.mask, target.ip, target.mask, target.outside );
+			}
 		}
 	}
-	
+
 	final public void map(
 			final ImageProcessorWithMasks source,
 			final ImageProcessorWithMasks target )
 	{
 		map( source, target, Runtime.getRuntime().availableProcessors() );
 	}
-	
+
 	final public void mapInterpolated(
 			final ImageProcessorWithMasks source,
 			final ImageProcessorWithMasks target )
 	{
 		mapInterpolated( source, target, Runtime.getRuntime().availableProcessors() );
 	}
-	
-	
+
+
 	/**
 	 * Render source into target using alpha composition.
 	 * Interpolation is specified by the interpolation methods
 	 * set in source and alpha.
-	 * 
+	 *
 	 * @param source
 	 * @param alpha
 	 * @param target
@@ -561,13 +592,13 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			catch ( final InterruptedException e ) {}
 		}
 	}
-	
-	
+
+
 	/**
 	 * Render source into master using alpha composition.
 	 * Interpolation is specified by the interpolation methods
 	 * set in source and alpha.
-	 * 
+	 *
 	 * @param source
 	 * @param alpha
 	 * @param target
