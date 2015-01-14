@@ -13,7 +13,7 @@
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>
-	<version>1.2.0</version>
+	<version>1.2.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
@@ -61,7 +61,6 @@
 		</developer>
 	</developers>
 
-	<!--
 	<modules>
 		<module>TrakEM2_</module>
 		<module>VectorString</module>
@@ -69,7 +68,6 @@
 		<module>T2-TreelineGraph</module>
 		<module>mpicbg-trakem2</module>
 	</modules>
-	-->
 
 	<scm>
 		<connection>scm:git:git://github.com/trakem2/TrakEM2</connection>
@@ -100,27 +98,27 @@
 			<dependency>
 				<groupId>sc.fiji</groupId>
 				<artifactId>mpicbg-trakem2</artifactId>
-				<version>1.0.3</version>
+				<version>1.0.4-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>sc.fiji</groupId>
 				<artifactId>T2-NIT</artifactId>
-				<version>1.0.2</version>
+				<version>1.0.3-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>sc.fiji</groupId>
 				<artifactId>T2-TreelineGraph</artifactId>
-				<version>1.0.2</version>
+				<version>1.0.3-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>sc.fiji</groupId>
 				<artifactId>TrakEM2_</artifactId>
-				<version>1.0d</version>
+				<version>1.0e-SNAPSHOT</version>
 			</dependency>
 			<dependency>
 				<groupId>sc.fiji</groupId>
 				<artifactId>VectorString</artifactId>
-				<version>1.0.2</version>
+				<version>1.0.3-SNAPSHOT</version>
 			</dependency>
 
 			<!-- Other TrakEM2-based projects -->
