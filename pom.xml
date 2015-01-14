@@ -79,27 +79,27 @@
 
 	<build>
 		<pluginManagement>
-		<plugins>
-			<plugin>
-				<artifactId>maven-enforcer-plugin</artifactId>
-				<configuration>
-					<rules>
-						<requireReleaseDeps>
-							<!-- HACK: See https://jira.codehaus.org/browse/MENFORCER-185 -->
-							<failWhenParentIsSnapshot>false</failWhenParentIsSnapshot>
-							<excludes>
-								<exclude>sc.fiji:T2-NIT</exclude>
-								<exclude>sc.fiji:T2-TreelineGraph</exclude>
-								<exclude>sc.fiji:TrakEM2_</exclude>
-								<exclude>sc.fiji:VectorString</exclude>
-								<exclude>sc.fiji:mpicbg-trakem2</exclude>
-								<exclude>sc.fiji:pom-trakem2</exclude>
-							</excludes>
-						</requireReleaseDeps>
-					</rules>
-				</configuration>
-			</plugin>
-		</plugins>
+			<plugins>
+				<plugin>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<configuration>
+						<rules>
+							<requireReleaseDeps>
+								<!-- HACK: See https://jira.codehaus.org/browse/MENFORCER-185 -->
+								<failWhenParentIsSnapshot>false</failWhenParentIsSnapshot>
+								<excludes>
+									<exclude>sc.fiji:T2-NIT</exclude>
+									<exclude>sc.fiji:T2-TreelineGraph</exclude>
+									<exclude>sc.fiji:TrakEM2_</exclude>
+									<exclude>sc.fiji:VectorString</exclude>
+									<exclude>sc.fiji:mpicbg-trakem2</exclude>
+									<exclude>sc.fiji:pom-trakem2</exclude>
+								</excludes>
+							</requireReleaseDeps>
+						</rules>
+					</configuration>
+				</plugin>
+			</plugins>
 		</pluginManagement>
 	</build>
 
