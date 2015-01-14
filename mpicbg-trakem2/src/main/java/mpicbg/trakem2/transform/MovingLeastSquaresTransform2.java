@@ -30,6 +30,18 @@ import mpicbg.models.TranslationModel2D;
  */
 public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquaresTransform2 implements CoordinateTransform
 {
+    public float[][] getP() {
+        return p;
+    }
+    
+    public float[][] getQ() {
+        return q;
+    }
+    
+    public float[] getWeight() {
+        return w;
+    }
+    
 	@Override
 	final public void init( final String data ) throws NumberFormatException
 	{
@@ -90,7 +102,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		// Interpret model by the last letter of the name
 		final char modelLastChar = s.charAt(i - 1);
 		// Determine dimension 2 or 3
-		final int n = ((int)s.charAt(i + 1)) - 48;
+		final int n = (s.charAt(i + 1)) - 48;
 		
 		switch (n) {
 			case 3:
@@ -257,7 +269,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 					sign = 1;
 					break;
 				default:
-					numI += (((int)c) -48) * pos; // digit zero is char with int value 48
+					numI += ((c) -48) * pos; // digit zero is char with int value 48
 					pos *= 10;
 					break;
 			}
