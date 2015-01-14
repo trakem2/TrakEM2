@@ -18,6 +18,7 @@
 
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
 	<description></description>
+	<url>http://fiji.sc/TrakEM2</url>
 
 	<developers>
 		<developer>
