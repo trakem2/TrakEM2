@@ -70,10 +70,10 @@
 	</modules>
 
 	<scm>
-		<connection>scm:git:git://repo.or.cz/trakem2.git</connection>
-		<developerConnection>scm:git:repo.or.cz:/srv/git/trakem2.git</developerConnection>
+		<connection>scm:git:git://github.com/trakem2/TrakEM2</connection>
+		<developerConnection>scm:git:git@github.com:trakem2/TrakEM2</developerConnection>
 		<tag>HEAD</tag>
-		<url>http://repo.or.cz/w/trakem2.git</url>
+		<url>https://github.com/trakem2/TrakEM2</url>
 	</scm>
 
 	<repositories>
