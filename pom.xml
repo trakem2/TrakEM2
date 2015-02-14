@@ -13,11 +13,53 @@
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>
-	<version>1.2.0</version>
+	<version>1.3.0</version>
 	<packaging>pom</packaging>
 
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
 	<description></description>
+	<url>http://fiji.sc/TrakEM2</url>
+
+	<developers>
+		<developer>
+			<id>acardona</id>
+			<name>Albert Cardona</name>
+			<email>sapristi@gmail.com</email>
+			<url>http://www.janelia.org/lab/cardona-lab</url>
+			<organization>HHMI Janelia Research Campus</organization>
+			<organizationUrl>http://www.janelia.org/</organizationUrl>
+			<roles>
+				<role>architect</role>
+				<role>developer</role>
+			</roles>
+			<timezone>-5</timezone>
+		</developer>
+		<developer>
+			<id>axtimwalde</id>
+			<name>Stephan Saalfeld</name>
+			<email>saalfelds@janelia.hhmi.org</email>
+			<url>http://www.janelia.org/lab/saalfeld-lab</url>
+			<organization>HHMI Janelia Research Campus</organization>
+			<organizationUrl>http://www.janelia.org/</organizationUrl>
+			<roles>
+				<role>maintainer</role>
+				<role>developer</role>
+			</roles>
+			<timezone>-5</timezone>
+		</developer>
+		<developer>
+			<id>ctrueden</id>
+			<name>Curtis Rueden</name>
+			<email>ctrueden@wisc.edu</email>
+			<url>http://loci.wisc.edu/people/curtis-rueden</url>
+			<organization>UW-Madison LOCI</organization>
+			<organizationUrl>http://loci.wisc.edu/</organizationUrl>
+			<roles>
+				<role>maintainer</role>
+			</roles>
+			<timezone>-6</timezone>
+		</developer>
+	</developers>
 
 	<modules>
 		<module>TrakEM2_</module>
@@ -28,11 +70,19 @@
 	</modules>
 
 	<scm>
-		<connection>scm:git:git://repo.or.cz/trakem2.git</connection>
-		<developerConnection>scm:git:repo.or.cz:/srv/git/trakem2.git</developerConnection>
+		<connection>scm:git:git://github.com/trakem2/TrakEM2</connection>
+		<developerConnection>scm:git:git@github.com:trakem2/TrakEM2</developerConnection>
 		<tag>HEAD</tag>
-		<url>http://repo.or.cz/w/trakem2.git</url>
+		<url>https://github.com/trakem2/TrakEM2</url>
 	</scm>
+	<issueManagement>
+		<system>GitHub Issues</system>
+		<url>https://github.com/trakem2/TrakEM2/issues</url>
+	</issueManagement>
+	<ciManagement>
+		<system>Jenkins</system>
+		<url>http://jenkins.imagej.net/job/TrakEM2/</url>
+	</ciManagement>
 
 	<repositories>
 		<!-- NB: for project parent -->
@@ -44,11 +94,7 @@
 
 	<dependencyManagement>
 		<dependencies>
-			<dependency>
-				<groupId>sc.fiji</groupId>
-				<artifactId>legacy-imglib1</artifactId>
-				<version>1.1.0-DEPRECATED</version>
-			</dependency>
+			<!-- Core TrakEM2 modules -->
 			<dependency>
 				<groupId>sc.fiji</groupId>
 				<artifactId>mpicbg-trakem2</artifactId>
@@ -79,27 +125,27 @@
 
 	<build>
 		<pluginManagement>
-		<plugins>
-			<plugin>
-				<artifactId>maven-enforcer-plugin</artifactId>
-				<configuration>
-					<rules>
-						<requireReleaseDeps>
-							<!-- HACK: See https://jira.codehaus.org/browse/MENFORCER-185 -->
-							<failWhenParentIsSnapshot>false</failWhenParentIsSnapshot>
-							<excludes>
-								<exclude>sc.fiji:T2-NIT</exclude>
-								<exclude>sc.fiji:T2-TreelineGraph</exclude>
-								<exclude>sc.fiji:TrakEM2_</exclude>
-								<exclude>sc.fiji:VectorString</exclude>
-								<exclude>sc.fiji:mpicbg-trakem2</exclude>
-								<exclude>sc.fiji:pom-trakem2</exclude>
-							</excludes>
-						</requireReleaseDeps>
-					</rules>
-				</configuration>
-			</plugin>
-		</plugins>
+			<plugins>
+				<plugin>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<configuration>
+						<rules>
+							<requireReleaseDeps>
+								<!-- HACK: See https://jira.codehaus.org/browse/MENFORCER-185 -->
+								<failWhenParentIsSnapshot>false</failWhenParentIsSnapshot>
+								<excludes>
+									<exclude>sc.fiji:T2-NIT</exclude>
+									<exclude>sc.fiji:T2-TreelineGraph</exclude>
+									<exclude>sc.fiji:TrakEM2_</exclude>
+									<exclude>sc.fiji:VectorString</exclude>
+									<exclude>sc.fiji:mpicbg-trakem2</exclude>
+									<exclude>sc.fiji:pom-trakem2</exclude>
+								</excludes>
+							</requireReleaseDeps>
+						</rules>
+					</configuration>
+				</plugin>
+			</plugins>
 		</pluginManagement>
 	</build>
 
