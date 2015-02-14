@@ -46,14 +46,11 @@ import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.models.TileConfiguration;
 
-import org.python.google.common.collect.Lists;
-
-/**
- * @version 0.1b
- */
 abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A > > extends mpicbg.models.Tile< A >
 {
-	final protected Patch patch;
+    private static final long serialVersionUID = -2229469138975635535L;
+
+    final protected Patch patch;
 	final public Patch getPatch(){ return patch; }
 	final public double getWidth(){ return patch.getWidth(); }
 	final public double getHeight(){ return patch.getHeight(); }
@@ -200,10 +197,10 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 		final Area b = new Area( t.patch.getPerimeter() );
 		a.intersect( b );
 
-		final float[] fa = new float[ 2 ];
+		final double[] fa = new double[ 2 ];
 		int i = 0;
 
-		final float[] coords = new float[ 6 ];
+		final double[] coords = new double[ 6 ];
 
 		final PathIterator p = a.getPathIterator( null );
 		while ( !p.isDone() )
@@ -220,7 +217,7 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 			fa[ 0 ] /= i;
 			fa[ 1 ] /= i;
 
-			final float[] fb = fa. clone();
+			final double[] fb = fa. clone();
 			try
 			{
 				model.applyInverseInPlace( fa );

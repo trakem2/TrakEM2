@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -107,7 +107,7 @@ public class Compare {
 	static private int[] findFirstXYZAxes(final String[] preset, final ArrayList<ZDisplayable> pipes, final String[] pipe_names) {
 		final int[] s = new int[]{-1, -1, -1};
 		int next = 0;
-		for (ZDisplayable zd : pipes) {
+		for (final ZDisplayable zd : pipes) {
 			pipe_names[next] = zd.getProject().getShortMeaningfulTitle(zd);
 			if (-1 != s[0] && -1 != s[1] && -1 != s[2]) {
 				 // Already all found, just filling names
@@ -155,11 +155,11 @@ public class Compare {
 	 *
 	 *   @return normalized vectors for transform_type == Compare.TRANS_ROT, otherwise NOT normalized.
 	 */
-	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type) {
+	static public Vector3d[] createOrigin(final VectorString3D x, final VectorString3D y, final VectorString3D z, final int transform_type) {
 		Utils.log2("WARNING TODO shouldn't be using this method ever");
 		return createOrigin(x, y, z, transform_type, null);
 	}
-	static public Vector3d[] createOrigin(VectorString3D x, VectorString3D y, VectorString3D z, final int transform_type, final Vector3d[] o_ref) {
+	static public Vector3d[] createOrigin(final VectorString3D x, final VectorString3D y, final VectorString3D z, final int transform_type, final Vector3d[] o_ref) {
 		// Aproximate an origin of coordinates
 		final VectorString3D[] vs = new VectorString3D[]{z, y, x};
 		final ArrayList<Point3d> ps = new ArrayList<Point3d>();
@@ -171,7 +171,7 @@ public class Compare {
 				int ia=0, ib=0;
 				for (int a=0; a<vs[i].length(); a++) {
 					for (int b=0; b<vs[k].length(); b++) {
-						double d = VectorString3D.distance(vs[i], a, vs[k], b);
+						final double d = VectorString3D.distance(vs[i], a, vs[k], b);
 						if (d < min_dist) {
 							min_dist = d;
 							ia = a;
@@ -191,17 +191,17 @@ public class Compare {
 
 		final Vector3d origin = new Vector3d();
 		final int len = ps.size();
-		for (Point3d p : ps) {
+		for (final Point3d p : ps) {
 			p.x /= len;
 			p.y /= len;
 			p.z /= len;
 		}
-		for (Point3d p : ps) origin.add(p);
+		for (final Point3d p : ps) origin.add(p);
 
 		// aproximate a vector for each axis
-		Vector3d vz = z.sumVector();
-		Vector3d vy = y.sumVector();
-		Vector3d vx = x.sumVector();
+		final Vector3d vz = z.sumVector();
+		final Vector3d vy = y.sumVector();
+		final Vector3d vx = x.sumVector();
 
 		// adjust orientation, so vectors point away from the origin towards the other end of the vectorstring
 		vz.scale(dir[0]);
@@ -215,8 +215,8 @@ public class Compare {
 		*/
 
 		Vector3d v1 = vx,
-			 v2 = vy,
-			 v3 = vz;
+			 v2 = vy;
+        final Vector3d v3 = vz;
 
 
 		// TRANS_ROT:
@@ -240,7 +240,7 @@ public class Compare {
 
 		if (Compare.TRANS_ROT == transform_type || Compare.TRANS_ROT_SCALE == transform_type) {
 			// 1 - compute MEDIAL vector: perpendicular to the plane made by peduncle and dorsal lobe
-			Vector3d vc_medial = new Vector3d();
+			final Vector3d vc_medial = new Vector3d();
 			vc_medial.cross(vz, vy);
 			/* // OLD WAY
 			// check orientation:
@@ -257,10 +257,10 @@ public class Compare {
 			*/
 
 			// 2 - compute DORSAL vector: perpedicular to the plane made by v1 and vc_medial
-			Vector3d vc_dorsal = new Vector3d();
+			final Vector3d vc_dorsal = new Vector3d();
 			vc_dorsal.cross(vz, vc_medial);
 			// check orientation
-			Vector3d vc_dor = new Vector3d(vc_dorsal);
+			final Vector3d vc_dor = new Vector3d(vc_dorsal);
 			vc_dor.add(vy);
 			// if the sum is smaller, invert
 			if (vc_dor.length() < vy.length()) {
@@ -287,7 +287,7 @@ public class Compare {
 				v2.normalize();		v2.scale(o_ref[1].length());
 				v3.normalize();		v3.scale(o_ref[2].length());
 			}
-		
+
 		}
 		// else if (Compare.TRANS_ROT_SCALE_SHEAR == transform_type)
 			// use AS THEY ARE
@@ -300,11 +300,11 @@ public class Compare {
 		};
 	}
 
-	static private VectorString3D makeVSFromP(Vector3d p, Vector3d origin) throws Exception {
-		double[] x1 = new double[20];
-		double[] y1 = new double[20];
-		double[] z1 = new double[20];
-		double K = 10;
+	static private VectorString3D makeVSFromP(final Vector3d p, final Vector3d origin) throws Exception {
+		final double[] x1 = new double[20];
+		final double[] y1 = new double[20];
+		final double[] z1 = new double[20];
+		final double K = 10;
 		x1[0] = p.x * K;
 		y1[0] = p.y * K;
 		z1[0] = p.z * K;
@@ -321,15 +321,15 @@ public class Compare {
 		return new VectorString3D(x1, y1, z1, false);
 	}
 
-	static public void testCreateOrigin(LayerSet ls, VectorString3D vs1, VectorString3D vs2, VectorString3D vs3) {
+	static public void testCreateOrigin(final LayerSet ls, final VectorString3D vs1, final VectorString3D vs2, final VectorString3D vs3) {
 		try {
 			// create vectors
-			double delta = (vs1.getAverageDelta() + vs2.getAverageDelta() + vs3.getAverageDelta()) / 3;
+			final double delta = (vs1.getAverageDelta() + vs2.getAverageDelta() + vs3.getAverageDelta()) / 3;
 			vs1.resample(delta);
 			vs2.resample(delta);
 			vs3.resample(delta);
 			//
-			Vector3d[] o = createOrigin(vs1, vs2, vs3, Compare.TRANS_ROT);
+			final Vector3d[] o = createOrigin(vs1, vs2, vs3, Compare.TRANS_ROT);
 			Display3D.addMesh(ls, makeVSFromP(o[0], o[3]), "v1", Color.green);
 			Display3D.addMesh(ls, makeVSFromP(o[1], o[3]), "v2", Color.orange);
 			Display3D.addMesh(ls, makeVSFromP(o[2], o[3]), "v3", Color.red);
@@ -338,12 +338,12 @@ public class Compare {
 			System.out.println("v3:" + o[2]);
 
 			// create matrix:
-			Matrix3d rotm = new Matrix3d(
+			final Matrix3d rotm = new Matrix3d(
 					o[0].x, o[1].x, o[2].x,
 					o[0].y, o[1].y, o[2].y,
 					o[0].z, o[1].z, o[2].z
 			);
-			Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
+			final Transform3D rot = new Transform3D(rotm, new Vector3d(), 1.0);
 			rot.invert();
 			// DOESN'T WORK // Transform3D trans =  new Transform3D(new Matrix3d(1, 0, 0, 0, 1, 0, 0, 0, 1), new Vector3d(-o[3].x, -o[3].y, -o[3].z), 1.0);
 
@@ -368,7 +368,7 @@ public class Compare {
 
 
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 	}
@@ -394,7 +394,7 @@ public class Compare {
 		return createPipeChains(root_pt, ls, null);
 	}
 
-	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt, final LayerSet ls, String regex_exclude) throws Exception {
+	static public ArrayList<Chain> createPipeChains(final ProjectThing root_pt, final LayerSet ls, final String regex_exclude) throws Exception {
 		final ArrayList<Chain> chains = new ArrayList<Chain>();
 		Pattern exclude = null;
 		if (null != regex_exclude) {
@@ -426,7 +426,7 @@ public class Compare {
 			hs_c_done.add(child);
 
 			if (child.getObject() instanceof Line3D) {
-				Line3D pipe = (Line3D)child.getObject();
+				final Line3D pipe = (Line3D)child.getObject();
 				if (!pipe.getLayerSet().equals(ls) || pipe.length() < 2) continue; // not from the same LayerSet, maybe from a nested one.
 				if (null == chain) {
 					chain = new Chain(pipe);
@@ -440,7 +440,7 @@ public class Compare {
 				for (final ProjectThing c : children) {
 					if (hs_c_done.contains(c)) continue; // already visited
 					// c is at the same tree level as child (which contains a pipe directly)
-					ArrayList<Line3D> child_pipes = c.findChildrenOfType(Line3D.class);
+					final ArrayList<Line3D> child_pipes = c.findChildrenOfType(Line3D.class);
 					if (child_pipes.size() > 0) {
 						Chain ca;
 						if (first) {
@@ -475,38 +475,39 @@ public class Compare {
 		public VectorString3D vs; // the complete path of chained pipes
 		public String title = null;
 		private Chain() {}
-		public Chain(Line3D root) {
+		public Chain(final Line3D root) {
 			this.pipes.add(root);
 			this.vs = root.asVectorString3D();
 		}
-		final public void append(Line3D p) throws Exception {
+		final public void append(final Line3D p) throws Exception {
 			//if (pipes.contains(p)) throw new Exception("Already contains pipe #" + p.getId());
 			pipes.add(p);
 			vs = vs.chain(p.asVectorString3D());
 		}
 		public final Chain duplicate() {
-			Chain chain = new Chain();
+			final Chain chain = new Chain();
 			chain.pipes.addAll(this.pipes);
 			chain.vs = (VectorString3D)this.vs.clone();
 			return chain;
 		}
-		public String toString() {
-			StringBuffer sb = new StringBuffer("len: ");
+		@Override
+        public String toString() {
+			final StringBuffer sb = new StringBuffer("len: ");
 			sb.append(pipes.size()).append("   ");
-			for (Line3D p : pipes) sb.append('#').append(p.getId()).append(' ');
+			for (final Line3D p : pipes) sb.append('#').append(p.getId()).append(' ');
 			return sb.toString();
 		}
 		final public String getTitle() {
 			if (null != title) return title;
 			final StringBuffer sb = new StringBuffer(pipes.get(0).getProject().getTitle());
 			sb.append(' ');
-			for (Line3D p : pipes) sb.append(' ').append('#').append(p.getId());
+			for (final Line3D p : pipes) sb.append(' ').append('#').append(p.getId());
 			return sb.toString();
 		}
 		final public String getCellTitle() {
 			if (null != title) return title;
-			Line3D root = pipes.get(0);
-			String mt = root.getProject().getShortMeaningfulTitle((ZDisplayable)root);
+			final Line3D root = pipes.get(0);
+			final String mt = root.getProject().getShortMeaningfulTitle((ZDisplayable)root);
 			if (1 == pipes.size()) return mt;
 			//else, chain the ids of the rest
 			final StringBuffer sb = new StringBuffer(mt);
@@ -516,7 +517,7 @@ public class Compare {
 		/** Returns max 10 chars, solely the name of the parent's parent node of the root pipe (aka the [lineage] containing the [branch]) or the id if too long. Intended for the 10-digit limitation in the problem in .dis files for Phylip. */
 		final public String getShortCellTitle() {
 			if (null != title) return title;
-			Line3D root = pipes.get(0);
+			final Line3D root = pipes.get(0);
 			ProjectThing pt = root.getProject().findProjectThing((ZDisplayable)root);
 			String short_title = null;
 			// investigate the [branch] title
@@ -551,11 +552,11 @@ public class Compare {
 			return pipes.get(0);
 		}
 		/** Show centered, set visible and select. */
-		final public void showCentered2D(boolean shift_down) {
+		final public void showCentered2D(final boolean shift_down) {
 			Rectangle b = null;
-			Display display = Display.getFront();
-			for (Line3D line3d : pipes) {
-				ZDisplayable p = (ZDisplayable)line3d;
+			final Display display = Display.getFront();
+			for (final Line3D line3d : pipes) {
+				final ZDisplayable p = (ZDisplayable)line3d;
 				if (null == b) b = p.getBoundingBox();
 				else b.add(p.getBoundingBox());
 				p.setVisible(true);
@@ -576,7 +577,7 @@ public class Compare {
 		// -1  - If combined score indices, ok:
 		if (COMBINED_SCORE_INDICES == distance_type_1) {
 			// Compute indices for each parameter
-			
+
 
 			final int[] params = new int[]{LEVENSHTEIN, AVG_PHYS_DIST, CUM_PHYST_DIST, STD_DEV, PROXIMITY}; // DISSIMILARITY distorts all badly
 
@@ -589,13 +590,13 @@ public class Compare {
 
 			for (int i = 0; i<params.length; i++) {
 				// copy list
-				ArrayList<ChainMatch> li = new ArrayList<ChainMatch>(list);
+				final ArrayList<ChainMatch> li = new ArrayList<ChainMatch>(list);
 				// sort
 				Collections.sort(li, new ChainMatchComparator(params[i]));
 				// Assign index to each
 				for (int k=0; k<indices.length;  k++) {
-					ChainMatch cm = list.get(k);
-					int index = li.indexOf(cm);
+					final ChainMatch cm = list.get(k);
+					final int index = li.indexOf(cm);
 					indices[k] += index;
 
 					// debug:
@@ -610,7 +611,7 @@ public class Compare {
 				}
 			}
 
-			ChainMatch[] cm = list.toArray(new ChainMatch[0]);
+			final ChainMatch[] cm = list.toArray(new ChainMatch[0]);
 			M.quicksort(indices, cm);
 
 			list.clear();
@@ -638,11 +639,11 @@ public class Compare {
 		}
 
 		// 1 - take top score and scale it to set a roof
-		double roof = list.get(0).phys_dist * 1.5;
+		final double roof = list.get(0).phys_dist * 1.5;
 		// 3 - Filter all values up to the roof, allowing for at least min_number entries to be left in the list:
 		int count = 0;
-		for (Iterator<ChainMatch> it = list.iterator(); it.hasNext(); ) {
-			ChainMatch cm = it.next();
+		for (final Iterator<ChainMatch> it = list.iterator(); it.hasNext(); ) {
+			final ChainMatch cm = it.next();
 			count++;
 			if (cm.phys_dist > roof && count > min_number) {
 				it.remove();
@@ -696,7 +697,8 @@ public class Compare {
 		ChainMatchComparator(final int distance_type) {
 			this.distance_type = distance_type;
 		}
-		public int compare(final ChainMatch cm1, final ChainMatch cm2) {
+		@Override
+        public int compare(final ChainMatch cm1, final ChainMatch cm2) {
 			// select for smallest physical distance of the center of mass
 			// double val = cm1.phys_dist - cm2.phys_dist;
 			/*
@@ -746,7 +748,7 @@ public class Compare {
 		}
 	}
 
-	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk) {
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk) {
 		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, false, false);
 	}
 
@@ -770,17 +772,17 @@ public class Compare {
 	 * Uses 1.1 weights for costs of insertion and deletion, as proven better by the parameter exploration.
 	 * Uses weight of 1 for cost of mutation.
 	 * */
-	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
+	static protected final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching) {
 		return findBestMatch(vs1, vs2, delta, skip_ends, max_mut, min_chunk, COMBINED, direct, substring_matching, 1.1, 1.1, 1);
 	}
 
-	static public final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching, final double wi, final double wd, final double wm) {
+	static public final Object[] findBestMatch(final VectorString3D vs1, final VectorString3D vs2, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final int distance_type, final boolean direct, final boolean substring_matching, final double wi, final double wd, final double wm) {
 
 		if (substring_matching) {
 			// identify shorter chain
 			final VectorString3D shorter = vs1.length() < vs2.length() ? vs1 : vs2;
 			final VectorString3D longer  = vs1 == shorter ? vs2 : vs1;
-			
+
 			// iterate matching of shorter string inside longer string:
 			// (so that the match is always between two equally long strings)
 			// aaaaaaaa   : 8 elements
@@ -804,8 +806,8 @@ public class Compare {
 						    : matchFwdRev(shorter, longer_sub, delta, skip_ends, max_mut, min_chunk, distance_type, wi, wd, wm);
 				if (null == best) best = ob;
 				else {
-					double dob = ((Double)ob[1]).doubleValue();     // values generated in getScore
-					double dbest = ((Double)best[1]).doubleValue();
+					final double dob = ((Double)ob[1]).doubleValue();     // values generated in getScore
+					final double dbest = ((Double)best[1]).doubleValue();
 					// Includes DISSIMILARITY, since getScore does (1 - similarity)
 					// and also COMBINED, since getScore does 1 / score
 					if (dob < dbest) best = ob;
@@ -847,7 +849,7 @@ public class Compare {
 	}
 
 	/** Zero is best; gets bad towards positive infinite -- including for DISSIMILARITY (1 - similarity) and COMBINED (1 / score). */
-	static private final double getScore(Editions ed, boolean skip_ends, int max_mut, float min_chunk, int distance_type) {
+	static private final double getScore(final Editions ed, final boolean skip_ends, final int max_mut, final float min_chunk, final int distance_type) {
 		switch (distance_type) {
 			case LEVENSHTEIN: // Levenshtein
 				return ed.getDistance();
@@ -875,20 +877,20 @@ public class Compare {
 		return Double.NaN;
 	}
 
-	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type, final double wi, final double wd, final double wm) {
+	static private final Object[] matchDirect(final VectorString3D vs1, final VectorString3D vs2, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final int distance_type, final double wi, final double wd, final double wm) {
 		// Levenshtein is unfortunately not commutative: must try both
 		// (Levenshtein is commutative, but the resampling I'm using makes it not be so)
 		final Editions ed1 = new Editions(vs1, vs2, delta, false, wi, wd, wm);
-		double score1 = getScore(ed1, skip_ends, max_mut, min_chunk, distance_type);
+		final double score1 = getScore(ed1, skip_ends, max_mut, min_chunk, distance_type);
 		final Editions ed2 = new Editions(vs2, vs1, delta, false, wi, wd, wm);
-		double score2 = getScore(ed2, skip_ends, max_mut, min_chunk, distance_type);
+		final double score2 = getScore(ed2, skip_ends, max_mut, min_chunk, distance_type);
 		return score1 < score2 ?
 			new Object[]{ed1, score1}
 		      : new Object[]{ed2, score2};
 	}
 
 	// Match in all possible ways
-	static private final Object[] matchFwdRev(final VectorString3D vs1, final VectorString3D vs2, double delta, boolean skip_ends, int max_mut, float min_chunk, int distance_type, final double wi, final double wd, final double wm) {
+	static private final Object[] matchFwdRev(final VectorString3D vs1, final VectorString3D vs2, final double delta, final boolean skip_ends, final int max_mut, final float min_chunk, final int distance_type, final double wi, final double wd, final double wm) {
 
 		final VectorString3D vs1rev = vs1.makeReversedCopy();
 		final VectorString3D vs2rev = vs2.makeReversedCopy();
@@ -909,7 +911,7 @@ public class Compare {
 
 		Editions best_ed = null;
 		for (int i=0; i<ed.length; i++) {
-			double score = getScore(ed[i], skip_ends, max_mut, min_chunk, distance_type);
+			final double score = getScore(ed[i], skip_ends, max_mut, min_chunk, distance_type);
 			if (score < best_score) {
 				best_ed = ed[i];
 				best_score = score;
@@ -920,16 +922,16 @@ public class Compare {
 
 		// now test also starting from the middle of the longest mutation chunk of the best matching
 		try {
-			Editions ed_center = best_ed.recreateFromCenter(max_mut);
+			final Editions ed_center = best_ed.recreateFromCenter(max_mut);
 			// is null if no chunks were found
 			if (null != ed_center) {
-				double score_center = getScore(ed_center, skip_ends, max_mut, min_chunk, distance_type);
+				final double score_center = getScore(ed_center, skip_ends, max_mut, min_chunk, distance_type);
 				if (score_center < best_score) {
 					best_ed = ed_center;
 					best_score = score_center;
 				}
 			}
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 
@@ -1074,8 +1076,8 @@ public class Compare {
 	static public final Object[] gatherChains(final Project[] p, final CATAParameters cp, final String[] ignore) throws Exception {
 		String regex_exclude = null;
 		if (null != ignore) {
-			StringBuilder sb = new StringBuilder();
-			for (String ig : ignore) {
+			final StringBuilder sb = new StringBuilder();
+			for (final String ig : ignore) {
 				sb.append("(.*").append(ig).append(".*)|");
 			}
 			sb.setLength(sb.length() -1);
@@ -1093,7 +1095,7 @@ public class Compare {
 				p_chains[i] = createPipeChains(p[i].getRootProjectThing(), p[i].getRootLayerSet(), regex_exclude);
 			} else {
 				// Search (shallow) for cp.regex matches
-				for (ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, regex_exclude, true)) {
+				for (final ProjectThing pt : p[i].getRootProjectThing().findChildren(cp.regex, regex_exclude, true)) {
 					final ArrayList<Chain> ac = createPipeChains(pt, p[i].getRootLayerSet(), regex_exclude);
 					if (null == p_chains[i]) p_chains[i] = ac;
 					else p_chains[i].addAll(ac);
@@ -1103,7 +1105,7 @@ public class Compare {
 			chains.addAll(p_chains[i]);
 			// calibrate
 			final Calibration cal = p[i].getRootLayerSet().getCalibrationCopy();
-			for (Chain chain : (ArrayList<Chain>)p_chains[i]) chain.vs.calibrate(cal);
+			for (final Chain chain : (ArrayList<Chain>)p_chains[i]) chain.vs.calibrate(cal);
 		}
 		final int n_chains = chains.size();
 
@@ -1112,13 +1114,13 @@ public class Compare {
 			// '4' means relative
 			// compute global average delta
 			if (0 == cp.delta) {
-				for (Chain chain : chains) {
+				for (final Chain chain : chains) {
 					cp.delta += ( chain.vs.getAverageDelta() / n_chains );
 				}
 			}
 			Utils.log2("Using delta: " + cp.delta);
 
-			for (Chain chain : chains) {
+			for (final Chain chain : chains) {
 				chain.vs.resample(cp.delta, cp.with_source); // BEFORE making it relative
 				chain.vs.relative();
 			}
@@ -1127,9 +1129,9 @@ public class Compare {
 				// '3' means moving least squares computed from 3D landmarks
 				Utils.log2("Moving Least Squares Registration based on common fiducial points");
 				// Find fiducial points, if any
-				HashMap<Project,Map<String,Tuple3d>> fiducials = new HashMap<Project,Map<String,Tuple3d>>();
-				for (Project pr : p) {
-					Set<ProjectThing> fids = pr.getRootProjectThing().findChildrenOfTypeR("fiducial_points");
+				final HashMap<Project,Map<String,Tuple3d>> fiducials = new HashMap<Project,Map<String,Tuple3d>>();
+				for (final Project pr : p) {
+					final Set<ProjectThing> fids = pr.getRootProjectThing().findChildrenOfTypeR("fiducial_points");
 					if (null == fids || 0 == fids.size()) {
 						Utils.log("No fiducial points found in project: " + pr);
 					} else {
@@ -1140,8 +1142,8 @@ public class Compare {
 					// Register all VectorString3D relative to the first project:
 					final List<VectorString3D> lvs = new ArrayList<VectorString3D>();
 					final Calibration cal2 = p[0].getRootLayerSet().getCalibrationCopy();
-					for (Chain chain : chains) {
-						Project pr = chain.pipes.get(0).getProject();
+					for (final Chain chain : chains) {
+						final Project pr = chain.pipes.get(0).getProject();
 						if (pr == p[0]) continue; // first project is reference, no need to transform.
 						lvs.clear();
 						lvs.add(chain.vs);
@@ -1156,12 +1158,12 @@ public class Compare {
 				Vector3d[][] o = new Vector3d[p.length][];
 				for (int i=0; i<p.length; i++) {
 					// 1 - find pipes to work as axes for each project
-					ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Line3D.class, true);
-					String[] pipe_names = new String[pipes.size()];
+					final ArrayList<ZDisplayable> pipes = p[i].getRootLayerSet().getZDisplayables(Line3D.class, true);
+					final String[] pipe_names = new String[pipes.size()];
 					for (int k=0; k<pipes.size(); k++) {
 						pipe_names[k] = p[i].getMeaningfulTitle(pipes.get(k));
 					}
-					int[] s = findFirstXYZAxes(cp.preset, pipes, pipe_names);
+					final int[] s = findFirstXYZAxes(cp.preset, pipes, pipe_names);
 
 					// if axes are -1, forget it: not found
 					if (-1 == s[0] || -1 == s[1] || -1 == s[2]) {
@@ -1171,7 +1173,7 @@ public class Compare {
 					}
 
 					// obtain axes and origin
-					Object[] pack = obtainOrigin(new Line3D[]{(Line3D)pipes.get(s[0]),
+					final Object[] pack = obtainOrigin(new Line3D[]{(Line3D)pipes.get(s[0]),
 									     (Line3D)pipes.get(s[1]),
 									     (Line3D)pipes.get(s[2])},
 									     cp.transform_type,
@@ -1188,12 +1190,12 @@ public class Compare {
 				// transform all except the first (which acts as reference)
 				final Transform3D M_ref = Compare.createTransform(o[0]);
 				for (int i=1; i<p.length; i++) {
-					Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
+					final Vector3d trans = new Vector3d(-o[i][3].x, -o[i][3].y, -o[i][3].z);
 					final Transform3D M_query = Compare.createTransform(o[i]);
 					// The transfer T transform: from query space to reference space.
 					final Transform3D T = new Transform3D(M_ref);
 					T.mulInverse(M_query);
-					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+					for (final Chain chain : (ArrayList<Chain>)p_chains[i]) {
 						chain.vs.transform(T); // in place
 					}
 				}
@@ -1202,14 +1204,14 @@ public class Compare {
 
 			// compute global average delta, after correcting calibration and transformation
 			if (0 == cp.delta) {
-				for (Chain chain : chains) {
+				for (final Chain chain : chains) {
 					cp.delta += ( chain.vs.getAverageDelta() / n_chains );
 				}
 			}
 			Utils.log2("Using delta: " + cp.delta);
 
 			// After calibration and transformation, resample all to the same delta
-			for (Chain chain : chains) chain.vs.resample(cp.delta, cp.with_source);
+			for (final Chain chain : chains) chain.vs.resample(cp.delta, cp.with_source);
 		}
 
 		return new Object[]{chains, p_chains};
@@ -1239,7 +1241,8 @@ public class Compare {
 			                             : projects;
 
 		final Worker worker = new Worker("Comparing all to all") {
-			public void run() {
+			@Override
+            public void run() {
 				startedWorking();
 				try {
 
@@ -1254,7 +1257,7 @@ public class Compare {
 		       dir = null;
 
 		if (to_file) {
-			SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
+			final SaveDialog sd = new SaveDialog("Save matrix", OpenDialog.getDefaultDirectory(), null, ".csv");
 			filename = sd.getFileName();
 			if (null == filename) {
 				finishedWorking();
@@ -1279,7 +1282,7 @@ public class Compare {
 		if (crop) {
 			for (final Chain chain : chains) {
 				if (from_end) {
-					int start = chain.vs.length() - max_n_elements;
+					final int start = chain.vs.length() - max_n_elements;
 					if (start > 0) {
 						chain.vs = chain.vs.substring(start, chain.vs.length());
 						chain.vs.resample(cp.delta, cp.with_source); // BEFORE making it relative
@@ -1312,7 +1315,7 @@ public class Compare {
 			return;
 		}
 
-		File f = new File(dir + filename);
+		final File f = new File(dir + filename);
 		final OutputStreamWriter dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
 
 		// Normalize matrix to largest value of 1.0
@@ -1334,12 +1337,12 @@ public class Compare {
 		if (cp.format.equals(cp.formats[0])) {
 			// as csv:
 			try {
-				StringBuffer[] titles = new StringBuffer[n_chains];
+				final StringBuffer[] titles = new StringBuffer[n_chains];
 				int next = 0;
 				for (int i=0; i<p.length; i++) {
-					String prefix = Utils.getCharacter(i+1);
+					final String prefix = Utils.getCharacter(i+1);
 					dos.write("\"\""); //empty upper left corner
-					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+					for (final Chain chain : (ArrayList<Chain>)p_chains[i]) {
 						dos.write(",");
 						titles[next] = new StringBuffer().append('\"').append(prefix).append(' ').append(chain.getCellTitle()).append('\"');
 						dos.write(titles[next].toString());
@@ -1348,20 +1351,20 @@ public class Compare {
 				}
 				dos.write("\n");
 				for (int i=0; i<n_chains; i++) {
-					StringBuffer line = new StringBuffer();
+					final StringBuffer line = new StringBuffer();
 					line.append(titles[i]);
 					for (int j=0; j<n_chains; j++) line.append(',').append(scores[i][j]);
 					line.append('\n');
 					dos.write(line.toString());
 				}
 				dos.flush();
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				e.printStackTrace();
 			}
 		} else if (cp.format.equals(cp.formats[1])) {
 			// as XML:
 			try {
-				StringBuffer sb = new StringBuffer("<?xml version=\"1.0\"?>\n<!DOCTYPE ggobidata SYSTEM \"ggobi.dtd\">\n");
+				final StringBuffer sb = new StringBuffer("<?xml version=\"1.0\"?>\n<!DOCTYPE ggobidata SYSTEM \"ggobi.dtd\">\n");
 				sb.append("<ggobidata count=\"2\">\n");
 
 				sb.append("<data name=\"Pipe Chains\">\n");
@@ -1370,9 +1373,9 @@ public class Compare {
 				sb.append("<records count=\"").append(chains.size()).append("\" glyph=\"fr 1\" color=\"3\">\n");
 				int next = 0;
 				for (int i=0; i<p.length; i++) {
-					String prefix = Utils.getCharacter(i+1);
-					String color = new StringBuffer("color=\"").append(i+1).append('\"').toString();
-					for (Chain chain : (ArrayList<Chain>)p_chains[i]) {
+					final String prefix = Utils.getCharacter(i+1);
+					final String color = new StringBuffer("color=\"").append(i+1).append('\"').toString();
+					for (final Chain chain : (ArrayList<Chain>)p_chains[i]) {
 						sb.append("<record id=\"").append(next+1).append("\" label=\"").append(prefix).append(' ').append(chain.getCellTitle()).append("\" ").append(color).append("></record>\n");
 						next++;
 					}
@@ -1396,7 +1399,7 @@ public class Compare {
 				dos.write(sb.toString());
 				dos.flush();
 
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				e.printStackTrace();
 			}
 		} else if (cp.format.equals(cp.formats[2])) {
@@ -1404,8 +1407,8 @@ public class Compare {
 			try {
 				// collect different projects
 				final ArrayList<Project> projects = new ArrayList<Project>();
-				for (Chain chain : chains) {
-					Project p = chain.getRoot().getProject();
+				for (final Chain chain : chains) {
+					final Project p = chain.getRoot().getProject();
 					if (!projects.contains(p)) projects.add(p);
 				}
 				final HashSet names = new HashSet();
@@ -1415,22 +1418,22 @@ public class Compare {
 
 				// unique ids, since phylip cannot handle long names
 				final AtomicInteger ids = new AtomicInteger(0);
-				File ftags = new File(dir + filename + ".tags");
+				final File ftags = new File(dir + filename + ".tags");
 				final OutputStreamWriter dostags = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(ftags)), "8859_1"); // encoding in Latin 1 (for macosx not to mess around
 
 
 				for (int i=0; i<scores.length; i++) {
 					sb.setLength(0);
 					//String title = chains.get(i).getShortCellTitle().replace(' ', '_').replace('\t', '_').replace('[', '-').replace(']', '-');
-					int id = ids.incrementAndGet();
-					String sid = Utils.getCharacter(id);
+					final int id = ids.incrementAndGet();
+					final String sid = Utils.getCharacter(id);
 					String name = chains.get(i).getShortCellTitle();
 					// If sid.length() > 10 chars, trouble!
 					if (sid.length() > 10) {
 						Utils.log2("Ignoring " + name + " : id longer than 10 chars: " + id);
 						continue;
 					}
-					int k = 1;
+					final int k = 1;
 					// Prepend a project char identifier to the name
 					String project_name = "";
 					if (projects.size() > 1) {
@@ -1465,7 +1468,7 @@ public class Compare {
 				dos.flush();
 				dostags.flush();
 				dostags.close();
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				e.printStackTrace();
 			}
 		}
@@ -1473,7 +1476,7 @@ public class Compare {
 		dos.close();
 
 
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					e.printStackTrace();
 				} finally {
 					finishedWorking();
@@ -1493,7 +1496,8 @@ public class Compare {
 
 		final Thread[] threads = MultiThreading.newThreads();
 		for (int ithread=0; ithread<threads.length; ithread++) {
-			threads[ithread] = new Thread() { public void run() {
+			threads[ithread] = new Thread() { @Override
+            public void run() {
 				////
 
 		for (int i=ai.getAndIncrement(); i<vs.length; i=ai.getAndIncrement()) {
@@ -1598,7 +1602,8 @@ public class Compare {
 		}
 
 		final Worker worker = new Worker("Comparing all to all") {
-			public void run() {
+			@Override
+            public void run() {
 				startedWorking();
 				try {
 
@@ -1623,7 +1628,7 @@ public class Compare {
 		if (generate_plots && !show_plots) {
 			// Save plots
 			if (null == plot_dir) {
-				DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
+				final DirectoryChooser dc = new DirectoryChooser("Choose plots directory");
 				plot_dir = dc.getDirectory();
 				if (null == plot_dir) {
 					finishedWorking();
@@ -1648,11 +1653,11 @@ public class Compare {
 
 		Utils.log2("Collecting bundles...");
 
-		HashMap<Project,HashMap<String,VectorString3D>> axes = new HashMap<Project,HashMap<String,VectorString3D>>();
+		final HashMap<Project,HashMap<String,VectorString3D>> axes = new HashMap<Project,HashMap<String,VectorString3D>>();
 
 		// Sort out into groups by unique names of lineage bundles
 		final HashMap<String,ArrayList<Chain>> bundles = new HashMap<String,ArrayList<Chain>>();
-		for (Chain chain : chains) {
+		for (final Chain chain : chains) {
 			String title = chain.getCellTitle();
 			final String t = title.toLowerCase();
 			/* // Commented out non-general code
@@ -1696,18 +1701,18 @@ public class Compare {
 
 		if (null != cp.regex && show_axes_3D && axes.size() < 3) {
 			// Must find the Mushroom Body lobes separately
-			String cp_regex = cp.regex;
+			final String cp_regex = cp.regex;
 			cp.regex = "mb";
-			Object[] o = gatherChains(p, cp, ignore);
-			ArrayList<Chain> lobes = (ArrayList<Chain>)o[0];
+			final Object[] o = gatherChains(p, cp, ignore);
+			final ArrayList<Chain> lobes = (ArrayList<Chain>)o[0];
 			Utils.logAll("Found " + lobes.size() + " chains for lobes");
-			for (Chain chain : lobes) {
-				String t = chain.getCellTitle().toLowerCase();
+			for (final Chain chain : lobes) {
+				final String t = chain.getCellTitle().toLowerCase();
 				if (-1 != t.indexOf("peduncle")
 				 || -1 != t.indexOf("medial lobe")
 				 || -1 != t.indexOf("dorsal lobe")) {
 					Utils.logAll("adding " + t);
-					Project pr = chain.pipes.get(0).getProject();
+					final Project pr = chain.pipes.get(0).getProject();
 					HashMap<String,VectorString3D> m = axes.get(pr);
 					if (null == m) {
 						m = new HashMap<String,VectorString3D>();
@@ -1727,15 +1732,15 @@ public class Compare {
 		Utils.log2("Condensing each bundle...");
 
 		// Condense each into a single VectorString3D
-		for (Map.Entry<String,ArrayList<Chain>> entry : bundles.entrySet()) {
-			ArrayList<Chain> bc = entry.getValue();
+		for (final Map.Entry<String,ArrayList<Chain>> entry : bundles.entrySet()) {
+			final ArrayList<Chain> bc = entry.getValue();
 			if (bc.size() < 2) {
 				Utils.log2("Skipping single: " + entry.getKey());
 				continue;
 			}
-			VectorString3D[] vs = new VectorString3D[bc.size()];
+			final VectorString3D[] vs = new VectorString3D[bc.size()];
 			for (int i=0; i<vs.length; i++) vs[i] = bc.get(i).vs;
-			VectorString3D c = condense(cp, vs, this);
+			final VectorString3D c = condense(cp, vs, this);
 			c.setCalibration(p[0].getRootLayerSet().getCalibrationCopy());
 			condensed.put(entry.getKey(), c);
 			if (this.hasQuitted()) return;
@@ -1752,7 +1757,7 @@ public class Compare {
 			// Gather source for each, compute stdDev at each point and make a plot with it
 			//  X axis: from first to last point
 			//  Y axis: the stdDev at each point, computed from the group of points that contribute to each
-			for (Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
+			for (final Map.Entry<String,VectorString3D> e : condensed.entrySet()) {
 				final String name = e.getKey();
 				final VectorString3D c = e.getValue();
 				final Plot plot = makePlot(cp, name, c);
@@ -1763,49 +1768,49 @@ public class Compare {
 		}
 
 		if (show_3D) {
-			HashMap<String,Color> heat_table = new HashMap<String,Color>();
+			final HashMap<String,Color> heat_table = new HashMap<String,Color>();
 
 			if (heat_map || show_envelope_3D) {
 				// Create a Fire LUT
-				ImagePlus lutimp = new ImagePlus("lut", new ByteProcessor(4,4));
+				final ImagePlus lutimp = new ImagePlus("lut", new ByteProcessor(4,4));
 				IJ.run(lutimp, "Fire", "");
-				IndexColorModel icm = (IndexColorModel) lutimp.getProcessor().getColorModel();
-				byte[] reds = new byte[256];
-				byte[] greens = new byte[256];
-				byte[] blues = new byte[256];
+				final IndexColorModel icm = (IndexColorModel) lutimp.getProcessor().getColorModel();
+				final byte[] reds = new byte[256];
+				final byte[] greens = new byte[256];
+				final byte[] blues = new byte[256];
 				icm.getReds(reds);
 				icm.getGreens(greens);
 				icm.getBlues(blues);
 
-				List<String> names = new ArrayList<String>(bundles.keySet());
+				final List<String> names = new ArrayList<String>(bundles.keySet());
 				Collections.sort(names);
 
 				// find max stdDev
 				double max = 0;
-				HashMap<String,Double> heats = new HashMap<String,Double>();
-				for (String name : names) {
-					VectorString3D vs_merged = condensed.get(name);
+				final HashMap<String,Double> heats = new HashMap<String,Double>();
+				for (final String name : names) {
+					final VectorString3D vs_merged = condensed.get(name);
 					if (null == vs_merged) {
 						Utils.logAll("WARNING could not find a condensed pipe for " + name);
 						continue;
 					}
-					double[] stdDev = vs_merged.getStdDevAtEachPoint();
+					final double[] stdDev = vs_merged.getStdDevAtEachPoint();
 					//double avg = 0;
 					//for (int i=0; i<stdDev.length; i++) avg += stdDev[i];
 					//avg = avg/stdDev.length;
 					Arrays.sort(stdDev);
-					double median = stdDev[stdDev.length/2]; // median is more representative than average
+					final double median = stdDev[stdDev.length/2]; // median is more representative than average
 					if (max < median) max = median;
 					heats.put(name, median);
 				}
 
-				for (Map.Entry<String,Double> e : heats.entrySet()) {
-					String name = e.getKey();
-					double median = e.getValue();
+				for (final Map.Entry<String,Double> e : heats.entrySet()) {
+					final String name = e.getKey();
+					final double median = e.getValue();
 					// scale between 0 and max to get a Fire LUT color:
 					int index = (int)((median / max) * 255);
 					if (index > 255) index = 255;
-					Color color = new Color(0xff & reds[index], 0xff & greens[index], 0xff & blues[index]);
+					final Color color = new Color(0xff & reds[index], 0xff & greens[index], 0xff & blues[index]);
 
 					Utils.log2(new StringBuilder(name).append('\t').append(median)
 									  .append('\t').append(reds[index])
@@ -1816,7 +1821,7 @@ public class Compare {
 				}
 			}
 
-			LayerSet common_ls = new LayerSet(p[0], -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
+			final LayerSet common_ls = new LayerSet(p[0], -1, "Common", 10, 10, 0, 0, 0, 512, 512, false, 2, new AffineTransform());
 			final Display3D d3d = Display3D.get(common_ls);
 
 			float env_alpha = envelope_alpha;
@@ -1825,9 +1830,9 @@ public class Compare {
 				env_alpha = 0.4f;
 			} else if (env_alpha > 1) env_alpha = 1.0f;
 
-			for (String name : bundles.keySet()) {
-				ArrayList<Chain> bc = bundles.get(name);
-				VectorString3D vs_merged = condensed.get(name);
+			for (final String name : bundles.keySet()) {
+				final ArrayList<Chain> bc = bundles.get(name);
+				final VectorString3D vs_merged = condensed.get(name);
 				if (null == vs_merged) {
 					Utils.logAll("WARNING: could not find a condensed vs for " + name);
 					continue;
@@ -1835,7 +1840,7 @@ public class Compare {
 				if (show_sources_3D) {
 					if (null != sources_color_table) {
 						final HashSet<String> titles = new HashSet<String>();
-						for (Chain chain : bc) {
+						for (final Chain chain : bc) {
 							final Color c = sources_color_table.get(chain.getRoot().getProject());
 							final String title = chain.getCellTitle();
 							String t = title;
@@ -1848,7 +1853,7 @@ public class Compare {
 							Display3D.addMesh(common_ls, chain.vs, t, null != c ? c : Color.gray);
 						}
 					} else {
-						for (Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
+						for (final Chain chain : bc) Display3D.addMesh(common_ls, chain.vs, chain.getCellTitle(), Color.gray);
 					}
 				}
 				if (show_condensed_3D) {
@@ -1864,29 +1869,29 @@ public class Compare {
 					Display3D.addMesh(common_ls, vs_merged, name + "-envelope", heat_map ? heat_table.get(name) : Color.red, widths, env_alpha);
 				} else if (heat_map) {
 					// Show spheres in place of envelopes, at the starting tip (neuropile entry point)
-					double x = vs_merged.getPoints(0)[0];
-					double y = vs_merged.getPoints(1)[0];
-					double z = vs_merged.getPoints(2)[0];
-					double r = 10;
+					final double x = vs_merged.getPoints(0)[0];
+					final double y = vs_merged.getPoints(1)[0];
+					final double z = vs_merged.getPoints(2)[0];
+					final double r = 10;
 
-					Color color = heat_table.get(name);
+					final Color color = heat_table.get(name);
 					if (null == color) {
 						Utils.logAll("WARNING: heat table does not have a color for " + name);
 						continue;
 					}
 
-					Content sphere = d3d.getUniverse().addMesh(ij3d.Mesh_Maker.createSphere(x, y, z, r), new Color3f(heat_table.get(name)), name + "-sphere", 1);
+					final Content sphere = d3d.getUniverse().addMesh(ij3d.Mesh_Maker.createSphere(x, y, z, r), new Color3f(heat_table.get(name)), name + "-sphere", 1);
 				}
 			}
 
 			if (show_axes_3D) {
 				for (int i=0; i<p.length; i++) {
-					Map<String,VectorString3D> m = axes.get(p[i]);
+					final Map<String,VectorString3D> m = axes.get(p[i]);
 					if (null == m) {
 						Utils.log2("No axes found for project " + p[i]);
 						continue;
 					}
-					for (Map.Entry<String,VectorString3D> e : m.entrySet()) {
+					for (final Map.Entry<String,VectorString3D> e : m.entrySet()) {
 						Display3D.addMesh(common_ls, e.getValue(), e.getKey() + "-" + i, Color.gray);
 					}
 				}
@@ -1899,7 +1904,7 @@ public class Compare {
 		this.result = results;
 		Utils.log2("Done.");
 
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					IJError.print(e);
 				} finally {
 					finishedWorking();
@@ -1920,7 +1925,7 @@ public class Compare {
 		Utils.log2("stdDev is " + stdDev);
 		Utils.log2("c.getCalibrationCopy() is " + c.getCalibrationCopy());
 		Utils.log2("c.getDelta() is " + c.getDelta());
-		Calibration cal = c.getCalibrationCopy();
+		final Calibration cal = c.getCalibrationCopy();
 		if (null == cal) Utils.log2("WARNING null calibration!");
 		final Plot plot = new Plot(name, name + " -- Point index (delta: " + Utils.cutNumber(c.getDelta(), 2) + " " + (null == cal ? "pixels" : cal.getUnits()) + ")", "Std Dev", index, stdDev);
 		plot.setLimits(0, cp.plot_max_x, 0, cp.plot_max_y);
@@ -1953,18 +1958,18 @@ public class Compare {
 		} else if (3 == cp.envelope_type) {
 			// average distance from condensed to all sources
 			int i=0;
-			for (ArrayList<Point3d> ap : c.getSource()) {
+			for (final ArrayList<Point3d> ap : c.getSource()) {
 				double sum = 0;
-				for (Point3d p : ap) sum += c.distance(i, p);
+				for (final Point3d p : ap) sum += c.distance(i, p);
 				width[i] = sum / ap.size();
 				i++;
 			}
 		} else if (4 == cp.envelope_type) {
 			// max distance from condensed to all sources
 			int i=0;
-			for (ArrayList<Point3d> ap : c.getSource()) {
+			for (final ArrayList<Point3d> ap : c.getSource()) {
 				double max = 0;
-				for (Point3d p : ap) max = Math.max(max, c.distance(i, p));
+				for (final Point3d p : ap) max = Math.max(max, c.distance(i, p));
 				width[i] = max;
 				i++;
 			}
@@ -2005,7 +2010,7 @@ public class Compare {
 		// Trivial case 2:
 		try {
 			if (2 == vs.length) VectorString3D.createInterpolatedPoints(new Editions(vs[0], vs[1], cp.delta, false), 0.5f);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			return null;
 		}
@@ -2021,7 +2026,7 @@ public class Compare {
 		}
 
 		final HashSet<VectorString3D> remaining = new HashSet<VectorString3D>();
-		for (VectorString3D v : vs) remaining.add(v);
+		for (final VectorString3D v : vs) remaining.add(v);
 
 		while (table.size() > 0) {
 			if (null != worker && worker.hasQuitted()) {
@@ -2030,7 +2035,7 @@ public class Compare {
 			// find smallest value
 			float min = Float.MAX_VALUE;
 			Cell<VectorString3D> cell = null;
-			for (Map.Entry<Cell<VectorString3D>,Float> e : table.entrySet()) {
+			for (final Map.Entry<Cell<VectorString3D>,Float> e : table.entrySet()) {
 				final float f = e.getValue();
 				if (f < min) {
 					min = f;
@@ -2039,7 +2044,7 @@ public class Compare {
 			}
 			// pop cells from table
 			// done below//table.remove(cell);
-			for (Iterator<Cell<VectorString3D>> it =  table.keySet().iterator(); it.hasNext(); ) {
+			for (final Iterator<Cell<VectorString3D>> it =  table.keySet().iterator(); it.hasNext(); ) {
 				final Cell<VectorString3D> c = it.next();
 				if (c.t1 == cell.t1 || c.t2 == cell.t2
 				 || c.t2 == cell.t1 || c.t1 == cell.t2) {
@@ -2087,10 +2092,10 @@ public class Compare {
 			vs_merged.resample(cp.delta, true);
 
 			// add a new cell for each possible comparison with all other unique vs
-			for (VectorString3D v : remaining) {
-				Object[] ob = findBestMatch(vs_merged, v, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
-				Editions ed = (Editions)ob[0];
-				float score = (float)getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
+			for (final VectorString3D v : remaining) {
+				final Object[] ob = findBestMatch(vs_merged, v, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching);
+				final Editions ed = (Editions)ob[0];
+				final float score = (float)getScore(ed, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type);
 				table.put(new Cell<VectorString3D>(vs_merged, v), score);
 			}
 
@@ -2122,31 +2127,31 @@ public class Compare {
 
 		// 1 - Create the MovingLeastSquaresTransform from the point matches
 
-		ArrayList<PointMatch> pm = new ArrayList<PointMatch>();
+		final ArrayList<PointMatch> pm = new ArrayList<PointMatch>();
 		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
-			Tuple3d sp = si.next();
-			Tuple3d tp = ti.next();
-			pm.add(new PointMatch(new mpicbg.models.Point(new float[]{(float)sp.x, (float)sp.y, (float)sp.z}), new mpicbg.models.Point(new float[]{(float)tp.x, (float)tp.y, (float)tp.z}), 1));
+			final Tuple3d sp = si.next();
+			final Tuple3d tp = ti.next();
+			pm.add(new PointMatch(new mpicbg.models.Point(new double[]{sp.x, sp.y, sp.z}), new mpicbg.models.Point(new double[]{tp.x, tp.y, tp.z}), 1));
 		}
 
-		MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
+		final MovingLeastSquaresTransform mls = new MovingLeastSquaresTransform();
 		mls.setModel(model_class);
 		mls.setMatches(pm);
 
-		final float[] point = new float[3];
+		final double[] point = new double[3];
 
 		// 1.1 - Test: transfer source points
 		/*
 		for (final Iterator<Tuple3d> si = source.iterator(), ti = target.iterator(); si.hasNext(); ) {
 			Tuple3d sp = si.next();
-			point[0] = (float) sp.x;
-			point[1] = (float) sp.y;
-			point[2] = (float) sp.z;
+			point[0] = (double) sp.x;
+			point[1] = (double) sp.y;
+			point[2] = (double) sp.z;
 			mls.applyInPlace(point);
 
 			Tuple3d tp = ti.next();
-			Utils.log2("== target: " + (float)tp.x + ", " + (float)tp.y + ", " + (float)tp.z +
-				   "\n o source: " + (float)sp.x + ", " + (float)sp.y + ", " + (float)sp.z +
+			Utils.log2("== target: " + (double)tp.x + ", " + (double)tp.y + ", " + (double)tp.z +
+				   "\n o source: " + (double)sp.x + ", " + (double)sp.y + ", " + (double)sp.z +
 
 				   "\n   source: " + point[0] + ", " + point[1] + ", " + point[2]);
 		}
@@ -2165,9 +2170,9 @@ public class Compare {
 			final double[] tz = new double[x.length];
 			// Transfer point by point:
 			for (int i=0; i<x.length; i++) {
-				point[0] = (float)x[i];
-				point[1] = (float)y[i];
-				point[2] = (float)z[i];
+				point[0] = x[i];
+				point[1] = y[i];
+				point[2] = z[i];
 				mls.applyInPlace(point);
 				tx[i] = point[0];
 				ty[i] = point[1];
@@ -2175,7 +2180,7 @@ public class Compare {
 			}
 			try {
 				vt.add(new VectorString3D(tx, ty, tz, vi.isClosed()));
-			} catch (Exception e) {}
+			} catch (final Exception e) {}
 		}
 
 		return vt;
@@ -2201,7 +2206,7 @@ public class Compare {
 		return true;
 	}
 
-	/** Transfer vs via a moving least squares transform by matching source named points into equally named target named points. 
+	/** Transfer vs via a moving least squares transform by matching source named points into equally named target named points.
 	 *  If no points in common, returns null. */
 	static public List<VectorString3D> transferVectorStrings(final List<VectorString3D> vs, final Map<String,Tuple3d> source, final Map<String,Tuple3d> target) throws Exception {
 		if (null == source || null == target) return null;
@@ -2233,7 +2238,7 @@ public class Compare {
 			Utils.log("Can only extract points from 'fiducial_points' type.");
 			return null;
 		}
-		ArrayList<ProjectThing> fiducials = fiducial.getChildren();
+		final ArrayList<ProjectThing> fiducials = fiducial.getChildren();
 		if (null == fiducials || 0 == fiducials.size()) {
 			Utils.log("No fiducial points can be extracted from " + fiducial);
 			return null;
@@ -2248,7 +2253,7 @@ public class Compare {
 				title = ball.getTitle();
 			} else {
 				// Method 2: use the ball's parent type as the fiducial type
-				ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
+				final ArrayList<ProjectThing> balls = child.findChildrenOfType("ball");
 				if (null == balls || 0 == balls.size()) {
 					Utils.log2("Ignoring empty fiducial " + child);
 					continue;
@@ -2290,7 +2295,8 @@ public class Compare {
 		final Project[] p = Project.getProjects().toArray(new Project[0]);
 
 		final Worker worker = new Worker("Reliability by name") {
-			public void run() {
+			@Override
+            public void run() {
 				startedWorking();
 				try {
 
@@ -2362,7 +2368,7 @@ public class Compare {
 		if (weka_classify) {
 			try {
 				classify_ = Class.forName("lineage.LineageClassifier").getDeclaredMethod("classify", new Class[]{double[].class});
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 		}
@@ -2384,15 +2390,15 @@ public class Compare {
 				final String[] titles_j = new String[p_chains[j].size()];
 				int next = 0;
 				for (final Chain cj : (ArrayList<Chain>) p_chains[j]) {
-					String t = cj.getCellTitle();
+					final String t = cj.getCellTitle();
 					titles_j[next++] = t.substring(0, t.indexOf(' '));
 				}
 
 				// families:
-				TreeSet<String> ts_families = new TreeSet<String>();
+				final TreeSet<String> ts_families = new TreeSet<String>();
 				for (int f=0; f<titles_j.length; f++) {
 					// extract family name from title: read the first continuous string of capital letters
-					String title = titles_j[f];
+					final String title = titles_j[f];
 					int u = 0;
 					for (; u<title.length(); u++) {
 						if (!Character.isUpperCase(title.charAt(u))) break;
@@ -2402,7 +2408,8 @@ public class Compare {
 				final ArrayList<String> families = new ArrayList<String>(ts_families);
 
 
-				fus.add(exec.submit(new Callable() { public Object call() {
+				fus.add(exec.submit(new Callable() { @Override
+                public Object call() {
 
 				// All chains of one project to all chains of the other:
 				for (final Chain chain : (ArrayList<Chain>) p_chains[i]) {
@@ -2431,7 +2438,7 @@ public class Compare {
 					}
 
 
-					ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
+					final ArrayList<ChainMatch> list = new ArrayList<ChainMatch>();
 
 					// extract family name from title: read the first continuous string of capital letters
 					int u = 0;
@@ -2449,8 +2456,8 @@ public class Compare {
 						final VectorString3D vs2 = cj.vs;
 						final Object[] ob = findBestMatch(vs1, vs2, cp.delta, cp.skip_ends, cp.max_mut, cp.min_chunk, cp.distance_type, cp.direct, cp.substring_matching, wi, wd, wm);
 						final Editions ed = (Editions)ob[0];
-						double[] stats = ed.getStatistics(cp.skip_ends, cp.max_mut, cp.min_chunk, cp.score_mut_only);
-						ChainMatch cm = new ChainMatch(cj, null, ed, stats, score(ed.getSimilarity(), ed.getDistance(), stats[3], Compare.W));
+						final double[] stats = ed.getStatistics(cp.skip_ends, cp.max_mut, cp.min_chunk, cp.score_mut_only);
+						final ChainMatch cm = new ChainMatch(cj, null, ed, stats, score(ed.getSimilarity(), ed.getDistance(), stats[3], Compare.W));
 						cm.title = titles_j[g];
 						list.add(cm);
 						g++;
@@ -2473,7 +2480,7 @@ public class Compare {
 						if (weka_classify) {
 
 							// from decision tree: is it good?
-							double[] param = new double[11];
+							final double[] param = new double[11];
 							for (int p=0; p<stats.length; p++) param[p] = stats[p];
 							try {
 								if (((Boolean)classify.invoke(null, param)).booleanValue()) {
@@ -2497,7 +2504,7 @@ public class Compare {
 										obs_well_classified_bad_ones.incrementAndGet();
 									}
 								}
-							} catch (Exception ee) {
+							} catch (final Exception ee) {
 								IJError.print(ee);
 							}
 						}
@@ -2509,8 +2516,8 @@ public class Compare {
 					if (output_arff) {
 						// Take top 8 and put them into training set for WEKA in arff format
 						for (int h=0; h<8; h++) {
-							ChainMatch cm = list.get(h);
-							StringBuilder sb = new StringBuilder();
+							final ChainMatch cm = list.get(h);
+							final StringBuilder sb = new StringBuilder();
 							sb.append(cm.phys_dist).append(',')
 							  .append(cm.cum_phys_dist).append(',')
 							  .append(cm.stdDev).append(',')
@@ -2536,7 +2543,7 @@ public class Compare {
 					boolean found_family = false;
 
 
-					for (ChainMatch cm : list) {
+					for (final ChainMatch cm : list) {
 						// Exact match: for each individual lineage
 						if (!found_specific && title.equals(cm.title)) {
 							synchronized (indices) {
@@ -2579,8 +2586,8 @@ public class Compare {
 			}
 		}
 
-		for (Future fu : fus) {
-			try { fu.get(); } catch (Exception e) { IJError.print(e); }
+		for (final Future fu : fus) {
+			try { fu.get(); } catch (final Exception e) { IJError.print(e); }
 		}
 		exec.shutdownNow();
 
@@ -2588,7 +2595,7 @@ public class Compare {
 			// so stateful ... it's a sin.
 			try {
 				Class.forName("lineage.LineageClassifier").getDeclaredMethod("flush", new Class[]{}).invoke(null, new Object[]{});
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 		}
@@ -2601,13 +2608,13 @@ public class Compare {
 
 		// Show the results from indices map
 
-		StringBuilder sb = new StringBuilder();
+		final StringBuilder sb = new StringBuilder();
 
-		TreeMap<Integer,Integer> sum = new TreeMap<Integer,Integer>(); // scoring index vs count of occurrences
+		final TreeMap<Integer,Integer> sum = new TreeMap<Integer,Integer>(); // scoring index vs count of occurrences
 
-		TreeMap<Integer,Integer> sum_f = new TreeMap<Integer,Integer>(); // best scoring index of best family member vs count of ocurrences
+		final TreeMap<Integer,Integer> sum_f = new TreeMap<Integer,Integer>(); // best scoring index of best family member vs count of ocurrences
 
-		TreeMap<String,TreeMap<Integer,Integer>> sum_fw = new TreeMap<String,TreeMap<Integer,Integer>>(); // scoring index vs count of ocurrences, within each family
+		final TreeMap<String,TreeMap<Integer,Integer>> sum_fw = new TreeMap<String,TreeMap<Integer,Integer>>(); // scoring index vs count of ocurrences, within each family
 
 		// From collected data, several kinds of results:
 		// - a list of how well each chain scores: its index position in the sorted list of scores of one to many.
@@ -2620,7 +2627,7 @@ public class Compare {
 			// count occurrences of each scoring index
 			int last = 0; // lowest possible index
 			int count = 1;
-			for (int i : ci.list) {
+			for (final int i : ci.list) {
 				if (last == i) count++;
 				else {
 					sb.append(ci.title).append(' ').append(last+1).append(' ').append(count).append('\n');
@@ -2662,7 +2669,7 @@ public class Compare {
 			// count occurrences of each scoring index
 			int last = 0; // lowest possible index
 			int count = 1;
-			for (int i : ci.list) {
+			for (final int i : ci.list) {
 				if (last == i) count++;
 				else {
 					// reset
@@ -2685,7 +2692,7 @@ public class Compare {
 			int total = 0;
 			int top2 = 0;
 			int top5 = 0;
-			for (Map.Entry<Integer,Integer> e : sum.entrySet()) {
+			for (final Map.Entry<Integer,Integer> e : sum.entrySet()) {
 				sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
 				total += e.getValue();
 				if (e.getKey() < 2) top2 += e.getValue();
@@ -2700,10 +2707,10 @@ public class Compare {
 		}
 
 		sb.append("Family-wise count of index ocurrences:\n");
-		for (Map.Entry<String,TreeMap<Integer,Integer>> fe : sum_fw.entrySet()) {
+		for (final Map.Entry<String,TreeMap<Integer,Integer>> fe : sum_fw.entrySet()) {
 			int total = 0;
 			int top5 = 0;
-			for (Map.Entry<Integer,Integer> e : fe.getValue().entrySet()) {
+			for (final Map.Entry<Integer,Integer> e : fe.getValue().entrySet()) {
 				sb.append(fe.getKey()).append(' ').append(e.getKey()).append(' ').append(e.getValue()).append('\n');
 				total += e.getValue();
 				if (e.getKey() < 5) top5 += e.getValue();
@@ -2719,9 +2726,9 @@ public class Compare {
 		double first = 0;
 		double first_5 = 0;
 		double all = 0;
-		for (Map.Entry<Integer,Integer> e : sum.entrySet()) {
-			int k = e.getKey();
-			int a = e.getValue();
+		for (final Map.Entry<Integer,Integer> e : sum.entrySet()) {
+			final int k = e.getKey();
+			final int a = e.getValue();
 
 			all += a;
 
@@ -2737,7 +2744,7 @@ public class Compare {
 		};
 
 		sb.append("Global count of index occurrences family-wise:\n");
-		for (Map.Entry<Integer,Integer> e : sum_f.entrySet()) {
+		for (final Map.Entry<Integer,Integer> e : sum_f.entrySet()) {
 			sb.append(e.getKey()).append(' ').append(e.getValue()).append('\n');
 		}
 		sb.append("===============================\n");
@@ -2750,8 +2757,8 @@ public class Compare {
 			// For 5 brains:  5! / (5-2)! = 5 * 4 = 20   --- 5 elements taken in groups of 2, where order matters
 			// For 4 brains:  4! / (4-2)! = 4 * 3 = 12
 			// For 3 brains:  3! / (3-2)! = 3 * 2 = 6;
-		
-		TreeMap<Integer,ArrayList<String>> hsc = new TreeMap<Integer,ArrayList<String>>();
+
+		final TreeMap<Integer,ArrayList<String>> hsc = new TreeMap<Integer,ArrayList<String>>();
 
 		for (final CITuple ci : cin) {
 			final int size = ci.list.size();
@@ -2762,33 +2769,33 @@ public class Compare {
 			}
 			// Count the number of 0s -- top scoring
 			int count = 0;
-			for (Integer i : ci.list) {
+			for (final Integer i : ci.list) {
 				if (0 == i) count++;
 				else break;
 			}
 			al.add(new StringBuffer(ci.title).append(" =").append(count).append('/').append(ci.list.size()).append('\n').toString());
 		}
 		// Then just print:
-		for (Map.Entry<Integer,ArrayList<String>> e : hsc.entrySet()) {
+		for (final Map.Entry<Integer,ArrayList<String>> e : hsc.entrySet()) {
 			sb.append("For ").append(e.getKey()).append(" matches:\n");
-			for (String s : e.getValue()) sb.append(s);
+			for (final String s : e.getValue()) sb.append(s);
 		}
 
 		sb.append("=========================\n");
 
 		// Family-wise, count the number of zeros per family:
 		sb.append("Number of top scoring per family:\n");
-		TreeMap<String,String> family_scores = new TreeMap<String,String>();
+		final TreeMap<String,String> family_scores = new TreeMap<String,String>();
 		for (final CITuple ci : cin_f) {
 			int count = 0;
-			for (Integer i : ci.list) {
+			for (final Integer i : ci.list) {
 				if (0 == i) count++;
 				else break; // ci.list is sorted
 			}
 			family_scores.put(ci.title, new StringBuilder().append(ci.title).append(" =").append(count).append('/').append(ci.list.size()).append('\n').toString());
 		}
 		// Now print sorted by family name:
-		for (String s : family_scores.values()) {
+		for (final String s : family_scores.values()) {
 			sb.append(s);
 		}
 
@@ -2820,7 +2827,7 @@ public class Compare {
 		}
 
 
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					e.printStackTrace();
 				} finally {
 					finishedWorking();
@@ -2834,7 +2841,7 @@ public class Compare {
 		String title;
 		Chain chain;
 		ArrayList<Integer> list;
-		CITuple(String t, Chain c, ArrayList<Integer> l) {
+		CITuple(final String t, final Chain c, final ArrayList<Integer> l) {
 			title = t;
 			chain = c;
 			list = l;
@@ -2859,23 +2866,24 @@ public class Compare {
 		final double MAX_WEIGHT = 2;
 		final double INC_WEIGHT = 0.1;
 
-		return Bureaucrat.createAndStart(new Worker.Task("Space Exploration") { public void exec() {
+		return Bureaucrat.createAndStart(new Worker.Task("Space Exploration") { @Override
+        public void exec() {
 
-		File f = new File(System.getProperty("user.dir") + "/lineage_space_exploration.data");
+		final File f = new File(System.getProperty("user.dir") + "/lineage_space_exploration.data");
 		OutputStreamWriter dos = null;
-		
+
 		try {
 			dos = new OutputStreamWriter(new BufferedOutputStream(new FileOutputStream(f)), "8859_1"); // encoding in Latin1
 
 			for (double delta = MIN_DELTA; delta <= (MAX_DELTA + INC_DELTA/2); delta += INC_DELTA) {
 				for (double weight = MIN_WEIGHT; weight <= (MAX_WEIGHT + INC_WEIGHT/2); weight += INC_WEIGHT) {
 
-					Bureaucrat b = Compare.reliabilityAnalysis(ignore, false, false, false, delta, weight, weight, 1); // WM = 1
+					final Bureaucrat b = Compare.reliabilityAnalysis(ignore, false, false, false, delta, weight, weight, 1); // WM = 1
 					b.join();
 
-					double[] result = (double[]) b.getWorker().getResult();
+					final double[] result = (double[]) b.getWorker().getResult();
 
-					StringBuilder sb = new StringBuilder();
+					final StringBuilder sb = new StringBuilder();
 					sb.append(delta).append('\t')
 					  .append(weight).append('\t')
 					  .append(result[0]).append('\t')
@@ -2895,8 +2903,8 @@ public class Compare {
 
 			dos.flush();
 			dos.close();
-		} catch (Exception e) {
-			try { dos.close(); } catch (Exception ee) { ee.printStackTrace(); }
+		} catch (final Exception e) {
+			try { dos.close(); } catch (final Exception ee) { ee.printStackTrace(); }
 		}
 
 		}}, Project.getProjects().toArray(new Project[0]));

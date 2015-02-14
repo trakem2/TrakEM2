@@ -41,13 +41,13 @@ public class BlockMatchPairCallable implements
         public final boolean layer1Fixed, layer2Fixed;
         public final Triple<Integer, Integer, AbstractModel<?>> pair;
 
-        public BlockMatchResults(Collection<? extends Point> v1,
-                                 Collection<? extends Point> v2,
-                                 Collection<PointMatch> pm12,
-                                 Collection<PointMatch> pm21,
-                                 boolean layer1Fixed,
-                                 boolean layer2Fixed,
-                                 Triple<Integer, Integer, AbstractModel<?>> pair)
+        public BlockMatchResults(final Collection<? extends Point> v1,
+                                 final Collection<? extends Point> v2,
+                                 final Collection<PointMatch> pm12,
+                                 final Collection<PointMatch> pm21,
+                                 final boolean layer1Fixed,
+                                 final boolean layer2Fixed,
+                                 final Triple<Integer, Integer, AbstractModel<?>> pair)
         {
             this.v1 = v1;
             this.v2 = v2;
@@ -59,7 +59,7 @@ public class BlockMatchPairCallable implements
         }
     }
 
-    private Layer layer1, layer2;
+    private final Layer layer1, layer2;
     private final boolean layer1Fixed, layer2Fixed;
     private final Filter<Patch> filter;
     private final ElasticLayerAlignment.Param param;
@@ -136,9 +136,9 @@ public class BlockMatchPairCallable implements
                 Math.max( 16, mpicbg.util.Util.roundPos( param.layerScale * param.blockRadius ) );
 
         /* scale pixel distances */
-        final int searchRadius = Math.round( param.layerScale * param.searchRadius );
-        final float localRegionSigma = param.layerScale * param.localRegionSigma;
-        final float maxLocalEpsilon = param.layerScale * param.maxLocalEpsilon;
+        final int searchRadius = ( int )Math.round( param.layerScale * param.searchRadius );
+        final double localRegionSigma = param.layerScale * param.localRegionSigma;
+        final double maxLocalEpsilon = param.layerScale * param.maxLocalEpsilon;
 
         mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
         mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
@@ -152,7 +152,7 @@ public class BlockMatchPairCallable implements
                     ip2,
                     ip1Mask,
                     ip2Mask,
-                    1.0f,
+                    1.0,
                     ((InvertibleCoordinateTransform) pair.c).createInverse(),
                     blockRadius,
                     blockRadius,

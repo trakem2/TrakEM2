@@ -25,23 +25,25 @@ import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
 
 /**
- * 
+ *
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  */
 public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquaresTransform2 implements CoordinateTransform
 {
-    public float[][] getP() {
+	private static final long serialVersionUID = 4878940232249133983L;
+
+	public float[][] getP() {
         return p;
     }
-    
+
     public float[][] getQ() {
         return q;
     }
-    
+
     public float[] getWeight() {
         return w;
     }
-    
+
 	@Override
 	final public void init( final String data ) throws NumberFormatException
 	{
@@ -49,11 +51,11 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		if ( fields.length > 3 )
 		{
 			final int n = Integer.parseInt( fields[ 1 ] );
-			
+
 			if ( ( fields.length - 3 ) % ( 2 * n + 1 ) == 0 )
 			{
 				final int l = ( fields.length - 3 ) / ( 2 * n + 1 );
-				
+
 				if ( n == 2 )
 				{
 					if ( fields[ 0 ].equals( "translation" ) ) model = new TranslationModel2D();
@@ -68,13 +70,13 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 					else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 				}
 				else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
-				
+
 				alpha = Float.parseFloat( fields[ 2 ] );
-				
+
 				p = new float[ n ][ l ];
 				q = new float[ n ][ l ];
 				w = new float[ l ];
-				
+
 				int i = 2, j = 0;
 				while ( i < fields.length - 1 )
 				{
@@ -91,8 +93,8 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 
 	}
-	
-	
+
+
 	public void init2( final String s ) throws Exception {
 		// WARNING: assumes all whitespace is single
 		final int len = s.length();
@@ -103,7 +105,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		final char modelLastChar = s.charAt(i - 1);
 		// Determine dimension 2 or 3
 		final int n = (s.charAt(i + 1)) - 48;
-		
+
 		switch (n) {
 			case 3:
 				model = new AffineModel3D();
@@ -197,11 +199,11 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 			}
 		}
 	}
-	
+
 	/**
 	 * Suprinsingly faster than {@link #parse1(String, int, int, float[], int)} despite the creation of new {@link String}
 	 * via the {@link String#substring(int, int)} method (which doesn't duplicate the internal {@code char[]}).
-	 * 
+	 *
 	 * @param s The {@link String} with all the data.
 	 * @param cut One less than the lowest index to look into, must correspond to one char before whitespace in {@param s}.
 	 * @param i The index, larger than {@param cut}, where to start back-parsing the number from, and which should NOT be a whitespace.
@@ -221,16 +223,16 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		// Signal error
 		return Integer.MIN_VALUE;
 	}
-	
+
 	/**
 	 * Admittedly convoluted and potentially non-compliant way of parsing a float, but works even for {@link Float#MIN_VALUE},
 	 * {@link Float#MIN_VALUE} +1, {@link Float#MAX_VALUE} and {@link Float#MAX_VALUE} -1, and
 	 * is about 4-7 times faster than {@link Float#parseFloat(String)} by, in the first place, not creating
 	 * any temporary {@link String} instances and parsing the {@code char[]} array directly.
-	 * 
+	 *
 	 * The same could be done by reading 1234.5678 as 1.2345678E3 and then using {@link Float#intBitsToFloat(int)}
 	 * to properly create a {@code float} number from sign, mantissa and exponent, all bit-shifted into an int.
-	 * 
+	 *
 	 * @param s The {@link String} with all the data.
 	 * @param cut One less than the lowest index to look into, must correspond to one char before whitespace in {@param s}.
 	 * @param i The index, larger than {@param cut}, where to start back-parsing the number from, and which should NOT be a whitespace.
@@ -328,7 +330,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		toDataString( xml );
 		return xml.append( "\"/>" ).toString();
 	}
-	
+
 	@Override
 	final public MovingLeastSquaresTransform2 copy()
 	{
@@ -358,7 +360,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 		//
 		for (int i=0; i<this.w.length; ++i)
 			t.w[i] = this.w[i];
-		
+
 		return t;
 	}
 
@@ -366,15 +368,15 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 	 * Multi-threading safe version of the original applyInPlace method.
 	 */
 	@Override
-	public void applyInPlace( final float[] location )
+	public void applyInPlace( final double[] location )
 	{
 		final float[] ww = new float[ w.length ];
 		for ( int i = 0; i < w.length; ++i )
 		{
-			float s = 0;
+			double s = 0;
 			for ( int d = 0; d < location.length; ++d )
 			{
-				final float dx = p[ d ][ i ] - location[ d ];
+				final double dx = p[ d ][ i ] - location[ d ];
 				s += dx * dx;
 			}
 			if ( s <= 0 )
@@ -383,9 +385,9 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 					location[ d ] = q[ d ][ i ];
 				return;
 			}
-			ww[ i ] = w[ i ] * ( float )weigh( s );
+			ww[ i ] = ( float )( w[ i ] * weigh( s ) );
 		}
-		
+
 		try
 		{
 			synchronized ( model )
@@ -394,7 +396,7 @@ public class MovingLeastSquaresTransform2 extends mpicbg.models.MovingLeastSquar
 				model.applyInPlace( location );
 			}
 		}
-		catch ( IllDefinedDataPointsException e ){}
-		catch ( NotEnoughDataPointsException e ){}
+		catch ( final IllDefinedDataPointsException e ){}
+		catch ( final NotEnoughDataPointsException e ){}
 	}
 }

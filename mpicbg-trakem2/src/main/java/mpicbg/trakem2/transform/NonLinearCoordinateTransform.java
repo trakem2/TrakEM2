@@ -114,27 +114,21 @@ public class NonLinearCoordinateTransform implements mpicbg.trakem2.transform.Co
 	public String toString(){ return toDataString(); }
 
     @Override
-    public float[] apply(final float[] location) {
+    public double[] apply(final double[] location) {
 
         final double[] position = { (double) location[0], (double) location[1] };
         final double[] featureVector = kernelExpand(position);
-        final double[] newPosition = multiply(beta, featureVector);
-
-        final float[] newLocation = new float[2];
-        newLocation[0] = (float) newPosition[0];
-        newLocation[1] = (float) newPosition[1];
-
-        return newLocation;
+        return multiply(beta, featureVector);
     }
 
     @Override
-    public void applyInPlace(final float[] location) {
+    public void applyInPlace(final double[] location) {
         final double[] position = { (double) location[0], (double) location[1] };
         final double[] featureVector = kernelExpand(position);
         final double[] newPosition = multiply(beta, featureVector);
 
-        location[0] = (float) newPosition[0];
-        location[1] = (float) newPosition[1];
+        location[0] = newPosition[0];
+        location[1] = newPosition[1];
     }
 
 

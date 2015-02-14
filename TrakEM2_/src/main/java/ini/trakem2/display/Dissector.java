@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -77,7 +77,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 		/** The dimensions of each box. */
 		int radius;
 
-		public Object clone() {
+		@Override
+        public Object clone() {
 			final Item copy = new Item();
 			copy.tag = this.tag;
 			copy.radius = radius;
@@ -92,7 +93,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 		boolean intersects(final Area area, final double z_first, final double z_last) {
 			for (int i=0; i<n_points; i++) {
-				Layer la = layer_set.getLayer(p_layer[i]);
+				final Layer la = layer_set.getLayer(p_layer[i]);
 				if (la.getZ() >= z_first && la.getZ() <= z_last) {
 					for (int k=0; k<n_points; k++) {
 						if (area.contains(p[0][k], p[1][k])) return true;
@@ -104,19 +105,19 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 		private Item() {}
 
-		private Item(int tag, int radius) {
+		private Item(final int tag, final int radius) {
 			this.tag = tag;
 			this.radius = radius;
 			p = new double[2][2];
 			p_layer = new long[2];
 		}
 
-		Item(int tag, int radius, double x, double y, Layer layer) {
+		Item(final int tag, final int radius, final double x, final double y, final Layer layer) {
 			this(tag, radius);
 			add(x, y, layer);
 		}
 
-		Item(int tag, int radius, String data) {
+		Item(final int tag, final int radius, String data) {
 			this(tag, radius);
 			// parse
 			data = data.trim().replace('\n', ' ');
@@ -124,8 +125,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 			final String[] si = data.split("] *\\["); // this is SLOW but easy
 			for (int i=0;i <si.length; i++) {
 				if (n_points == p[0].length) enlargeArrays();
-				int isp1 =  si[i].indexOf(' ');
-				int isp2 =  si[i].lastIndexOf(' ');
+				final int isp1 =  si[i].indexOf(' ');
+				final int isp2 =  si[i].lastIndexOf(' ');
 				p[0][n_points] = Double.parseDouble(si[i].substring(0, isp1));
 				p[1][n_points] = Double.parseDouble(si[i].substring(isp1+1, isp2));
 				p_layer[n_points] = Long.parseLong(si[i].substring(isp2+1).trim()); // Double.parseDouble trims on its own, but Long.parseLong doesn't - buh!
@@ -141,7 +142,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		 * Otherwise returns -1
 		 *
 		 */
-		final int add(double x, double y, final Layer layer) {
+		final int add(final double x, final double y, final Layer layer) {
 			final long lid = layer.getId();
 			// trivial case
 			if (0 == n_points) {
@@ -213,8 +214,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 
 		final private void enlargeArrays() {
-			double[][] p2 = new double[2][n_points + 5];
-			long[] l2 = new long[n_points + 5];
+			final double[][] p2 = new double[2][n_points + 5];
+			final long[] l2 = new long[n_points + 5];
 			System.arraycopy(p[0], 0, p2[0], 0, n_points);
 			System.arraycopy(p[1], 0, p2[1], 0, n_points);
 			System.arraycopy(p_layer, 0, l2, 0, n_points);
@@ -264,7 +265,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 		final void addResults(final ResultsTable rt, final Calibration cal, final double nameid) {
 			for (int i=0; i<n_points; i++) {
-				Layer la = layer_set.getLayer(p_layer[i]); 
+				final Layer la = layer_set.getLayer(p_layer[i]);
 				if (null == layer) {
 					Utils.log("Dissector.addResults: could not find layer with id " + p_layer[i]);
 					continue;
@@ -293,7 +294,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			final double[][] po = transformPoints(p);
 			boolean must_lock = false;
 			for (int i=0; i<n_points; i++) {
-				Layer la = layer_set.getLayer(p_layer[0]);
+				final Layer la = layer_set.getLayer(p_layer[0]);
 				for (final Displayable d : la.getDisplayables(Patch.class)) {
 					d.getBoundingBox(r);
 					if (r.contains((int)po[0][i], (int)po[1][i])) {
@@ -307,8 +308,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 		/** Check whether the given point x,y falls within radius of any of the points in this Item.
 		 *  Returns -1 if not found, or its index if found. */
-		final int find(final long lid, double x, double y, double mag) {
-			int radius = (int)(this.radius / mag);
+		final int find(final long lid, final double x, final double y, final double mag) {
+			final int radius = (int)(this.radius / mag);
 			for (int i=0; i<n_points; i++) {
 				if (lid == p_layer[i]
 				    && p[0][i] + radius > x && p[0][i] - radius < x
@@ -319,12 +320,12 @@ public class Dissector extends ZDisplayable implements VectorData {
 			return -1;
 		}
 
-		final void translate(int index, int dx, int dy) {
+		final void translate(final int index, final int dx, final int dy) {
 			p[0][index] += dx;
 			p[1][index] += dy;
 		}
 
-		final void remove(int index) {
+		final void remove(final int index) {
 			for (int i=index; i<n_points-1; i++) {
 				p[0][i] = p[0][i+1];
 				p[1][i] = p[1][i+1];
@@ -333,7 +334,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			n_points--;
 		}
 
-		final void layerRemoved(long lid) {
+		final void layerRemoved(final long lid) {
 			for (int i=0; i<n_points; i++) {
 				if (lid == p_layer[i]) {
 					remove(i);
@@ -354,7 +355,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			}
 			return new Rectangle(x1 -radius, y1 -radius, x2-x1 + radius+radius, y2-y1 + radius+radius);
 		}
-		final void translateAll(int dx, int dy) {
+		final void translateAll(final int dx, final int dy) {
 			for (int i=0; i<n_points; i++) {
 				p[0][i] += dx;
 				p[1][i] += dy;
@@ -381,18 +382,18 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public Dissector(Project project, String title, double x, double y) {
+	public Dissector(final Project project, final String title, final double x, final double y) {
 		super(project, title, x, y);
 	}
 
-	public Dissector(Project project, long id, String title,  float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Dissector(final Project project, final long id, final String title,  final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
 		this.color = color;
 	}
 	/** Reconstruct from XML. */
-	public Dissector(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
+	public Dissector(final Project project, final long id, final HashMap<String,String> ht, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// individual items will be added as soon as parsed
 	}
@@ -412,7 +413,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			aff.concatenate(this.at);
 		}
 
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			item.paint(g, aff, active_layer);
 		}
 
@@ -425,8 +426,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 	public Layer getFirstLayer() {
 		double min_z = Double.MAX_VALUE;
 		Layer min_la = this.layer; // so a null pointer is not returned
-		for (Item item : al_items) {
-			Layer la = item.getFirstLayer();
+		for (final Item item : al_items) {
+			final Layer la = item.getFirstLayer();
 			if (null != la && la.getZ() < min_z) {
 				min_z = la.getZ();
 				min_la = la;
@@ -440,7 +441,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		if (0 == al_items.size()) return false;
 		unlinkAll(Patch.class);
 		boolean must_lock = false;
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			must_lock = item.linkPatches() || must_lock;
 		}
 		if (must_lock) {
@@ -451,12 +452,12 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public boolean contains(Layer layer, double x, double y) {
+	public boolean contains(final Layer layer, double x, double y) {
 		final long lid = layer.getId();
-		Point2D.Double po = inverseTransformPoint(x, y);
+		final Point2D.Double po = inverseTransformPoint(x, y);
 		x = po.x;
 		y = po.y;
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			if (-1 != item.find(lid, x, y, 1)) return true;
 		}
 		return false;
@@ -467,7 +468,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Dissector copy = new Dissector(pr, nid, this.title, this.width, this.height, this.alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
-		for (Item item : this.al_items) {
+		for (final Item item : this.al_items) {
 			copy.al_items.add((Item)item.clone());
 		}
 		copy.addToDatabase();
@@ -488,7 +489,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	private Rectangle bbox = null;
 
 	@Override
-	public void mousePressed(MouseEvent me, Layer la, int x_p, int y_p, double mag) {
+	public void mousePressed(final MouseEvent me, final Layer la, int x_p, int y_p, final double mag) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
@@ -502,7 +503,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		}
 
 		// find if the click is within radius of an existing point for the current layer
-		for (Item tmp : al_items) {
+		for (final Item tmp : al_items) {
 			index = tmp.find(lid, x_p, y_p, mag);
 			if (-1 != index) {
 				this.item = tmp;
@@ -533,7 +534,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		// Find an item in the previous or the next layer,
 		//     which falls within radius of the clicked point
 		try {
-			for (Item tmp : al_items) {
+			for (final Item tmp : al_items) {
 				index = tmp.add(x_p, y_p, la);
 				if (-1 != index) {
 					this.item = tmp;
@@ -542,7 +543,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 			}
 			// could not be added to an existing item, so creating a new item with a new point in it
 			int max_tag = 0;
-			for (Item tmp : al_items) {
+			for (final Item tmp : al_items) {
 				if (tmp.tag > max_tag) max_tag = tmp.tag;
 			}
 			int radius = 8; //default
@@ -559,7 +560,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(final MouseEvent me, final Layer la, final int x_p, final int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		final int tool = ProjectToolbar.getToolId();
 		if (ProjectToolbar.PEN != tool) return;
 
@@ -585,7 +586,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 				item.translate(index, x_d - x_d_old, y_d - y_d_old);
 			}
 			Rectangle repaint_bbox = bbox;
-			Rectangle current_bbox = this.at.createTransformedShape(item.getBoundingBox()).getBounds();
+			final Rectangle current_bbox = this.at.createTransformedShape(item.getBoundingBox()).getBounds();
 			if (null == bbox) repaint_bbox = current_bbox;
 			else {
 				repaint_bbox = (Rectangle)bbox.clone();
@@ -597,12 +598,12 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		this.item = null;
 		this.index = -1;
 		calculateBoundingBox(la, bbox);
 	}
-	
+
 	@Override
 	protected boolean calculateBoundingBox(final Layer la) {
 		return calculateBoundingBox(la, null);
@@ -610,7 +611,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	/** Make points as local as possible, and set the width and height. */
 	private boolean calculateBoundingBox(final Layer la, Rectangle box) {
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			if (null == box) box = item.getBoundingBox();
 			else box.add(item.getBoundingBox());
 		}
@@ -627,7 +628,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 		this.height = box.height;
 		// apply new x,y position to all items
 		if (0 != box.x || 0 != box.y) {
-			for (Item item : al_items) item.translateAll(-box.x, -box.y);
+			for (final Item item : al_items) item.translateAll(-box.x, -box.y);
 		}
 		updateBucket(la);
 		return true;
@@ -662,7 +663,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	/** For reconstruction purposes from XML. */
-	public void addItem(int tag, int radius, String data) {
+	public void addItem(final int tag, final int radius, final String data) {
 		al_items.add(new Item(tag, radius, data));
 	}
 
@@ -691,11 +692,11 @@ public class Dissector extends ZDisplayable implements VectorData {
 		Area ai;
 		try {
 			ai = area.createTransformedArea(this.at.createInverse());
-		} catch (NoninvertibleTransformException nite) {
+		} catch (final NoninvertibleTransformException nite) {
 			nite.printStackTrace();
 			return false;
 		}
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			if (item.intersects(ai, z_first, z_last)) return true;
 		}
 		return false;
@@ -705,7 +706,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 	public ResultsTable measure(ResultsTable rt) {
 		if (0 == al_items.size()) return rt;
 		if (null == rt) rt = Utils.createResultsTable("Dissector results", new String[]{"id", "tag", "x", "y", "z", "radius", "nameid"});
-		for (Item item : al_items) item.addResults(rt, layer_set.getCalibration(), getNameId());
+		for (final Item item : al_items) item.addResults(rt, layer_set.getCalibration(), getNameId());
 		return rt;
 	}
 
@@ -729,7 +730,8 @@ public class Dissector extends ZDisplayable implements VectorData {
 				items.add((Item)item.clone());
 			}
 		}
-		final boolean to2(final Displayable d) {
+		@Override
+        final boolean to2(final Displayable d) {
 			super.to1(d);
 			final Dissector dissector = (Dissector) d;
 			final ArrayList<Item> m = new ArrayList<Item>();
@@ -743,12 +745,12 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	/** Retain the data within the layer range, and through out all the rest. */
 	@Override
-	synchronized public boolean crop(List<Layer> range) {
-		HashSet<Long> lids = new HashSet<Long>();
-		for (Layer l : range) {
+	synchronized public boolean crop(final List<Layer> range) {
+		final HashSet<Long> lids = new HashSet<Long>();
+		for (final Layer l : range) {
 			lids.add(l.getId());
 		}
-		for (Item item : al_items) {
+		for (final Item item : al_items) {
 			for (int i=0; i<item.n_points; i++) {
 				if (!lids.contains(item.p_layer[i])) {
 					item.remove(i);
@@ -761,21 +763,21 @@ public class Dissector extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	protected boolean layerRemoved(Layer la) {
+	protected boolean layerRemoved(final Layer la) {
 		super.layerRemoved(la);
-		for (Item item : al_items) item.layerRemoved(la.getId());
+		for (final Item item : al_items) item.layerRemoved(la.getId());
 		return true;
 	}
 
 	@Override
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
-		float[] fp = null;
+		double[] fp = null;
 		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
 		for (final Item item : al_items) {
-			long[] p_layer = item.p_layer;
-			double[][] p = item.p;
+			final long[] p_layer = item.p_layer;
+			final double[][] p = item.p;
 			for (int i=0; i<item.n_points; i++) {
 				if (p_layer[i] == la.getId()) {
 					if (null == localroi) {
@@ -785,7 +787,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 					if (localroi.contains(p[0][i], p[1][i])) {
 						if (null == chain) {
 							chain = M.wrap(this.at, ict, inverse);
-							fp = new float[2];
+							fp = new double[2];
 						}
 						// Transform the point
 						M.apply(chain, p, i, fp);
@@ -799,7 +801,7 @@ public class Dissector extends ZDisplayable implements VectorData {
 
 	@Override
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
-		final float[] fp = new float[2];
+		final double[] fp = new double[2];
 		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
 		for (final Item item : al_items) {
 			for (int i=0; i<item.n_points; i++) {

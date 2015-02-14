@@ -34,64 +34,64 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 {
 	final protected Rectangle boundingBox;
 	final public Rectangle getBoundingBox(){ return boundingBox; }
-	
+
 	public TransformMesh(
 			final CoordinateTransform t,
 			final int numX,
-			final float width,
-			final float height )
+			final double width,
+			final double height )
 	{
 		super( numX, numY( numX, width, height ), width, height );
-		
-		float xMin = Float.MAX_VALUE;
-		float yMin = Float.MAX_VALUE;
-		
-		float xMax = -Float.MAX_VALUE;
-		float yMax = -Float.MAX_VALUE;
-		
+
+		double xMin = Double.MAX_VALUE;
+		double yMin = Double.MAX_VALUE;
+
+		double xMax = -Double.MAX_VALUE;
+		double yMax = -Double.MAX_VALUE;
+
 		final Set< PointMatch > vertices = va.keySet();
 		for ( final PointMatch vertex : vertices )
 		{
-			final float[] w = vertex.getP2().getW();
-			
+			final double[] w = vertex.getP2().getW();
+
 			t.applyInPlace( w );
-			
+
 			if ( w[ 0 ] < xMin ) xMin = w[ 0 ];
 			if ( w[ 0 ] > xMax ) xMax = w[ 0 ];
 			if ( w[ 1 ] < yMin ) yMin = w[ 1 ];
 			if ( w[ 1 ] > yMax ) yMax = w[ 1 ];
 		}
-		
+
 		for ( final PointMatch vertex : vertices )
 		{
 			final int tx = ( int )xMin;
 			final int ty = ( int )yMin;
-			final float[] w = vertex.getP2().getW();
+			final double[] w = vertex.getP2().getW();
 			w[ 0 ] -= tx;
 			w[ 1 ] -= ty;
 		}
-		
+
 		updateAffines();
-		
-		final float fw = xMax - xMin;
-		final float fh = yMax - yMin;
-		
+
+		final double fw = xMax - xMin;
+		final double fh = yMax - yMin;
+
 		final int w = ( int )fw;
 		final int h = ( int )fh;
-		
+
 		boundingBox = new Rectangle( ( int )xMin, ( int )yMin, ( w == fw ? w : w + 1 ), ( h == fh ? h : h + 1 ) );
 	}
-	
-//	@Override
+
 	/**
 	 * Catch non-invertible locations outside of the meshes boundaries and
 	 * transfer them with the affine defined by the `closest' affine (the affine
-	 * whose summed up control points distances to location are smallest). 
+	 * whose summed up control points distances to location are smallest).
 	 */
-	public void applyInverseInPlace( final float[] location ) throws NoninvertibleModelException
+	@Override
+	public void applyInverseInPlace( final double[] location ) throws NoninvertibleModelException
 	{
 		assert location.length == 2 : "2d transform meshs can be applied to 2d points only.";
-		
+
 		final Set< AffineModel2D > s = av.keySet();
 		for ( final AffineModel2D ai : s )
 		{
@@ -102,21 +102,21 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 				return;
 			}
 		}
-		
+
 		/* not in the mesh, find the closest affine */
-		float dMin = Float.MAX_VALUE;
+		double dMin = Double.MAX_VALUE;
 		AffineModel2D closestAffine = new AffineModel2D();
-		final float x = location[ 0 ];
-		final float y = location[ 1 ];
+		final double x = location[ 0 ];
+		final double y = location[ 1 ];
 		for ( final AffineModel2D ai : s )
 		{
 			final ArrayList< PointMatch > pm = av.get( ai );
-			float d = 0;
+			double d = 0;
 			for ( final PointMatch p : pm )
 			{
-				final float[] w = p.getP2().getW();
-				final float dx = w[ 0 ] - x;
-				final float dy = w[ 1 ] - y;
+				final double[] w = p.getP2().getW();
+				final double dx = w[ 0 ] - x;
+				final double dy = w[ 1 ] - y;
 				d += Math.sqrt( dx * dx + dy * dy );
 			}
 			if ( d < dMin )
@@ -126,21 +126,21 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 			}
 		}
 		closestAffine.applyInverseInPlace( location );
-		
+
 		throw new NoninvertibleModelException( "Mesh external location ( " + x + ", " + y + " ) transferred to ( " + location[ 0 ] + ", " + location[ 1 ] + " ) by closest affine." );
 	}
-	
+
 	/**
 	 * Return the {@link AffineModel2D} used by the triangle enclosing or
 	 * closest to the passed target location.
-	 * 
+	 *
 	 * @param location
 	 * @return
 	 */
-	public AffineModel2D closestSourceAffine( final float[] location )
+	public AffineModel2D closestSourceAffine( final double[] location )
 	{
 		assert location.length == 2 : "2d transform meshs can be applied to 2d points only.";
-		
+
 		final Set< AffineModel2D > s = av.keySet();
 		for ( final AffineModel2D ai : s )
 		{
@@ -148,21 +148,21 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 			if ( isInSourcePolygon( pm, location ) )
 				return ai;
 		}
-		
+
 		/* not in the mesh, find the closest affine */
-		float dMin = Float.MAX_VALUE;
+		double dMin = Double.MAX_VALUE;
 		AffineModel2D closestAffine = new AffineModel2D();
-		final float x = location[ 0 ];
-		final float y = location[ 1 ];
+		final double x = location[ 0 ];
+		final double y = location[ 1 ];
 		for ( final AffineModel2D ai : s )
 		{
 			final ArrayList< PointMatch > pm = av.get( ai );
-			float d = 0;
+			double d = 0;
 			for ( final PointMatch p : pm )
 			{
-				final float[] l = p.getP1().getL();
-				final float dx = l[ 0 ] - x;
-				final float dy = l[ 1 ] - y;
+				final double[] l = p.getP1().getL();
+				final double dx = l[ 0 ] - x;
+				final double dy = l[ 1 ] - y;
 				d += Math.sqrt( dx * dx + dy * dy );
 			}
 			if ( d < dMin )
@@ -171,22 +171,22 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 				closestAffine = ai;
 			}
 		}
-		
+
 		return closestAffine;
 	}
-	
-	
+
+
 	/**
 	 * Return the {@link AffineModel2D} used by the triangle enclosing or
 	 * closest to the passed target location.
-	 * 
+	 *
 	 * @param location
 	 * @return
 	 */
-	public AffineModel2D closestTargetAffine( final float[] location )
+	public AffineModel2D closestTargetAffine( final double[] location )
 	{
 		assert location.length == 2 : "2d transform meshs can be applied to 2d points only.";
-		
+
 		final Set< AffineModel2D > s = av.keySet();
 		for ( final AffineModel2D ai : s )
 		{
@@ -194,21 +194,21 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 			if ( isInConvexTargetPolygon( pm, location ) )
 				return ai;
 		}
-		
+
 		/* not in the mesh, find the closest affine */
-		float dMin = Float.MAX_VALUE;
+		double dMin = Double.MAX_VALUE;
 		AffineModel2D closestAffine = new AffineModel2D();
-		final float x = location[ 0 ];
-		final float y = location[ 1 ];
+		final double x = location[ 0 ];
+		final double y = location[ 1 ];
 		for ( final AffineModel2D ai : s )
 		{
 			final ArrayList< PointMatch > pm = av.get( ai );
-			float d = 0;
+			double d = 0;
 			for ( final PointMatch p : pm )
 			{
-				final float[] w = p.getP2().getW();
-				final float dx = w[ 0 ] - x;
-				final float dy = w[ 1 ] - y;
+				final double[] w = p.getP2().getW();
+				final double dx = w[ 0 ] - x;
+				final double dy = w[ 1 ] - y;
 				d += Math.sqrt( dx * dx + dy * dy );
 			}
 			if ( d < dMin )
@@ -217,7 +217,7 @@ public class TransformMesh extends mpicbg.models.TransformMesh
 				closestAffine = ai;
 			}
 		}
-		
+
 		return closestAffine;
 	}
 }

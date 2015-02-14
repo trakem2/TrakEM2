@@ -39,7 +39,8 @@ public final class Blending {
 	static public final Bureaucrat blend(final List<Layer> layers, final boolean respect_current_mask, final Filter<Patch> filter) {
 		return Bureaucrat.createAndStart(
 				new Worker.Task("Blending layer-wise") {
-					public void exec() {
+					@Override
+                    public void exec() {
 						blendLayerWise(layers, respect_current_mask, filter);
 					}
 				}, layers.get(0).getProject());
@@ -60,7 +61,7 @@ public final class Blending {
 			blendPatches(s, respect_current_mask);
 		}
 	}
-	
+
 	/** For each file, find the weight for the alpha mask according to
 	 *  wether the pixel overlaps with other images (weighted alpha
 	 *  dependent on the distante to the image border and of that on
@@ -72,19 +73,20 @@ public final class Blending {
 
 		return Bureaucrat.createAndStart(
 			new Worker.Task("Blending images") {
-				public void exec() {
+				@Override
+                public void exec() {
 					blendPatches(patches, respect_current_mask);
 				}
 			}, patches.iterator().next().getProject());
 	}
-	
+
 	static public final void blendPatches(final Set<Patch> patches, final boolean respect_current_mask) {
 		ExecutorService exe = null;
 		try {
 			if (null == patches || patches.size() < 2) return;
 
 			final Layer layer = patches.iterator().next().getLayer();
-			
+
 			for (final Patch p : patches) {
 				if (null != p.getCoordinateTransform()) {
 					Utils.log("CANNOT blend: at least one image has a coordinate transform.\nBlending of coordinate-transformed images will be enabled in the near future.");
@@ -119,7 +121,8 @@ public final class Blending {
 
 			for (final Patch p : patches) {
 				if (Thread.currentThread().isInterrupted()) break;
-				futures.add(exe.submit(new Runnable() { public void run() {
+				futures.add(exe.submit(new Runnable() { @Override
+                public void run() {
 					final int pLayerIndex = indices.get(p);
 					final Set<Patch> overlapping = new HashSet<Patch>();
 					for (final Patch op : patches) {
@@ -135,7 +138,7 @@ public final class Blending {
 			Utils.waitIfAlive(futures, false);
 			Utils.waitIfAlive(futures2, false);
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		} finally {
 			if (null != exe) exe.shutdown();
@@ -147,7 +150,7 @@ public final class Blending {
 	static private boolean setBlendingMask(final Patch p, Set<Patch> overlapping, final Map<Patch,TransformMesh> meshes, final boolean respect_current_mask) {
 
 		Utils.log2("Blending " + p);
-	
+
 		if (overlapping.contains(p)) {
 			overlapping = new HashSet<Patch>(overlapping);
 			overlapping.remove(p);
@@ -169,13 +172,13 @@ public final class Blending {
 		final byte[] pix = (byte[]) mask.getPixels();
 
 		final Point2D.Double po = new Point2D.Double();
-		final float[] fo = new float[2];
+		final double[] fo = new double[2];
 
 		final int p_o_width = p.getOWidth();
 		final int p_o_height = p.getOHeight();
 
 		int next = 0;
-		final float[] weights = new float[overlapping.size() + 1]; // the self as well
+		final double[] weights = new double[overlapping.size() + 1]; // the self as well
 		int masked = 0;
 
 		for (int y=0; y<p_o_height; y++) {
@@ -198,8 +201,8 @@ public final class Blending {
 
 				at.transform(po, po);
 
-				fo[0] = (float) po.x;
-				fo[1] = (float) po.y;
+				fo[0] = po.x;
+				fo[1] = po.y;
 
 				// debug:
 				if (0 == x && 0 == y) {
@@ -209,7 +212,7 @@ public final class Blending {
 				// check if it intersects any Patch
 				next = 0;
 				for (final Patch other : overlapping) {
-					float weight = intersects(fo, other, meshes.get(other));
+					final double weight = intersects(fo, other, meshes.get(other));
 					if (weight > 0) weights[next++] = weight;
 				}
 
@@ -219,7 +222,7 @@ public final class Blending {
 					// Don't compute if no overlap or if current mask value is zero
 					if (next > 0 && pix[i] != 0) {
 						weights[next++] = computeWeight(x, y, p_o_width, p_o_height); // the weight of Patch p, added last
-						float sum = 0;
+						double sum = 0;
 						for (int f=0; f<next; f++) sum += weights[f];
 						pix[i] = (byte)((int)(255 * (weights[next-1] / sum) * ((pix[i]&0xff) / 255.0f) ));
 						masked++;
@@ -228,7 +231,7 @@ public final class Blending {
 				} else if (next > 0) {
 					// Overwritting current mask
 					weights[next++] = computeWeight(x, y, p_o_width, p_o_height); // the weight of Patch p, added last
-					float sum = 0;
+					double sum = 0;
 					for (int f=0; f<next; f++) sum += weights[f];
 					pix[i] = (byte)((int)(255 * (weights[next-1] / sum)));
 					masked++;
@@ -245,14 +248,14 @@ public final class Blending {
 
 			return true;
 		}
-		
+
 
 		Utils.log("Nothing to blend in image " + p);
 
 		return false;
 	}
 
-	static private final float computeWeight(final float x, final float y, final int width, final int height) {
+	static private final double computeWeight(final double x, final double y, final int width, final int height) {
 		//return Math.min(Math.min(x, width - x),
 		//		Math.min(y, height - y));
 		// Normalized, as suggested by Stephan Preibisch:
@@ -260,7 +263,7 @@ public final class Blending {
 	}
 
 	/** Returns true if fo[0,1] x,y world coords intersect the affine and potentially coordinate transformed pixels of the other Patch. */
-	static private float intersects(final float[] fo, final Patch other, final TransformMesh mesh) {
+	static private double intersects(final double[] fo, final Patch other, final TransformMesh mesh) {
 		// First inverse affine transform
 		final AffineTransform at = other.getAffineTransform();
 		final Point2D.Double po = new Point2D.Double(fo[0], fo[1]);
@@ -268,24 +271,24 @@ public final class Blending {
 		final int o_height = other.getOHeight();
 		try {
 			at.inverseTransform(po, po);
-		} catch (NoninvertibleTransformException nite) {
+		} catch (final NoninvertibleTransformException nite) {
 			return -1;
 		}
 		if (null == mesh) {
 			if (po.x >= 0 && po.x < o_width
 			 && po.y >= 0 && po.y < o_height) {
-				return computeWeight((float)po.x, (float)po.y, o_width, o_height);
+				return computeWeight(po.x, po.y, o_width, o_height);
 			 } else {
 				 return -1;
 			 }
 		}
 		// Then inverse the coordinate transform
 		try {
-			fo[0] = (float) po.x;
-			fo[1] = (float) po.y;
+			fo[0] = po.x;
+			fo[1] = po.y;
 			mesh.applyInverseInPlace(fo);
 			return computeWeight(fo[0], fo[1], o_width, o_height);
-		} catch (NoninvertibleModelException nime) {
+		} catch (final NoninvertibleModelException nime) {
 			// outside boundaries
 			return -1;
 		}

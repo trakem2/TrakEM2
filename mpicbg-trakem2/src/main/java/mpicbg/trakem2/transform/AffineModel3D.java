@@ -13,7 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
+ *
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
@@ -21,28 +21,29 @@ package mpicbg.trakem2.transform;
 
 public class AffineModel3D extends mpicbg.models.AffineModel3D implements InvertibleCoordinateTransform
 {
+	private static final long serialVersionUID = 4661684107044575726L;
 
-	//@Override
+	@Override
 	final public void init( final String data )
 	{
 		final String[] fields = data.split( "\\s+" );
 		if ( fields.length == 12 )
 		{
-			final float m00 = Float.parseFloat( fields[ 0 ] );
-			final float m01 = Float.parseFloat( fields[ 1 ] );
-			final float m02 = Float.parseFloat( fields[ 2 ] );
-			final float m03 = Float.parseFloat( fields[ 3 ] );
-			
-			final float m10 = Float.parseFloat( fields[ 4 ] );
-			final float m11 = Float.parseFloat( fields[ 5 ] );
-			final float m12 = Float.parseFloat( fields[ 6 ] );
-			final float m13 = Float.parseFloat( fields[ 7 ] );
-			
-			final float m20 = Float.parseFloat( fields[ 8 ] );
-			final float m21 = Float.parseFloat( fields[ 9 ] );
-			final float m22 = Float.parseFloat( fields[ 10 ] );
-			final float m23 = Float.parseFloat( fields[ 11 ] );
-			
+			final double m00 = Double.parseDouble( fields[ 0 ] );
+			final double m01 = Double.parseDouble( fields[ 1 ] );
+			final double m02 = Double.parseDouble( fields[ 2 ] );
+			final double m03 = Double.parseDouble( fields[ 3 ] );
+
+			final double m10 = Double.parseDouble( fields[ 4 ] );
+			final double m11 = Double.parseDouble( fields[ 5 ] );
+			final double m12 = Double.parseDouble( fields[ 6 ] );
+			final double m13 = Double.parseDouble( fields[ 7 ] );
+
+			final double m20 = Double.parseDouble( fields[ 8 ] );
+			final double m21 = Double.parseDouble( fields[ 9 ] );
+			final double m22 = Double.parseDouble( fields[ 10 ] );
+			final double m23 = Double.parseDouble( fields[ 11 ] );
+
 			set(
 					m00, m01, m02, m03,
 					m10, m11, m12, m13,
@@ -52,12 +53,14 @@ public class AffineModel3D extends mpicbg.models.AffineModel3D implements Invert
 	}
 
 	//@Override
+	@Override
 	final public String toXML( final String indent )
 	{
 		return indent + "<iict_transform class=\"" + this.getClass().getCanonicalName() + "\" data=\"" + toDataString() + "\" />";
 	}
-	
+
 	//@Override
+	@Override
 	final public String toDataString()
 	{
 		return
@@ -65,11 +68,11 @@ public class AffineModel3D extends mpicbg.models.AffineModel3D implements Invert
 				m10 + " " + m11 + " " + m12 + " " + m13 + " " +
 				m20 + " " + m21 + " " + m22 + " " + m23;
 	}
-	
+
 	@Override
 	public AffineModel3D copy()
 	{
-		AffineModel3D m = new AffineModel3D();
+		final AffineModel3D m = new AffineModel3D();
 		m.m00 = m00;
 		m.m10 = m10;
 		m.m20 = m20;
@@ -82,19 +85,19 @@ public class AffineModel3D extends mpicbg.models.AffineModel3D implements Invert
 		m.m03 = m03;
 		m.m13 = m13;
 		m.m23 = m23;
-		
+
 		m.cost = cost;
-		
+
 		m.invert();
 
 		return m;
 	}
-	
+
 	@Override
 	public AffineModel3D createInverse()
 	{
 		final AffineModel3D ict = new AffineModel3D();
-		
+
 		ict.m00 = i00;
 		ict.m10 = i10;
 		ict.m20 = i20;
@@ -107,7 +110,7 @@ public class AffineModel3D extends mpicbg.models.AffineModel3D implements Invert
 		ict.m03 = i03;
 		ict.m13 = i13;
 		ict.m23 = i23;
-		
+
 		ict.i00 = m00;
 		ict.i10 = m10;
 		ict.i20 = m20;
@@ -120,9 +123,9 @@ public class AffineModel3D extends mpicbg.models.AffineModel3D implements Invert
 		ict.i03 = m03;
 		ict.i13 = m13;
 		ict.i23 = m23;
-		
+
 		ict.cost = cost;
-		
+
 		return ict;
 	}
 }

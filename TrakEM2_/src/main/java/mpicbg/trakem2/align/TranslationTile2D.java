@@ -1,5 +1,5 @@
 /**
- * 
+ *
  */
 package mpicbg.trakem2.align;
 
@@ -15,12 +15,12 @@ public class TranslationTile2D extends AbstractAffineTile2D< mpicbg.models.Trans
 	{
 		super( model, patch );
 	}
-	
+
 	public TranslationTile2D( final Patch patch )
 	{
 		this( new TranslationModel2D(), patch );
 	}
-	
+
 	/**
 	 * Initialize the model with the parameters of the {@link AffineTransform}
 	 * of the {@link Patch}.  The {@link AffineTransform} should be a
@@ -35,7 +35,7 @@ public class TranslationTile2D extends AbstractAffineTile2D< mpicbg.models.Trans
 	protected void initModel()
 	{
 		final AffineTransform a = patch.getAffineTransform();
-		model.set( ( float )a.getTranslateX(), ( float )a.getTranslateY() );
+		model.set( a.getTranslateX(), a.getTranslateY() );
 	}
 
 }

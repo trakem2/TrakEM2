@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -76,7 +76,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	/** Every new Pipe will have, for its first point, the last user-adjusted radius value. */
 	static private double last_radius = -1;
 
-	public Pipe(Project project, String title, double x, double y) {
+	public Pipe(final Project project, final String title, final double x, final double y) {
 		super(project, title, x, y);
 		n_points = 0;
 		p = new double[2][5];
@@ -88,7 +88,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct an unloaded Pipe from the database. Points will be loaded later, when needed. */
-	public Pipe(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+	public Pipe(final Project project, final long id, final String title, final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
 		super(project, id, title, locked, at, width, height);
 		this.visible = visible;
 		this.alpha = alpha;
@@ -98,16 +98,16 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Construct a Pipe from an XML entry. */
-	public Pipe(Project project, long id, HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
+	public Pipe(final Project project, final long id, final HashMap<String,String> ht, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// parse specific data
 		String data;
 		if (null != (data = ht.get("d"))) {
 				// parse the points
 				// parse the SVG points data
-				ArrayList<String> al_p = new ArrayList<String>();
-				ArrayList<String> al_p_r = new ArrayList<String>();
-				ArrayList<String> al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
+				final ArrayList<String> al_p = new ArrayList<String>();
+				final ArrayList<String> al_p_r = new ArrayList<String>();
+				final ArrayList<String> al_p_l = new ArrayList<String>();// needs shifting, inserting one point at the beginning if not closed.
 				// sequence is: M p[0],p[1] C p_r[0],p_r[1] p_l[0],p_l[1] and repeat without the M, and finishes with the last p[0],p[1]. If closed, appended at the end is p_r[0],p_r[1] p_l[0],p_l[1]
 				// first point:
 				int i_start = data.indexOf('M');
@@ -131,7 +131,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					txt = txt.replaceAll(" ,", ",");
 					txt = txt.replaceAll(", ", ",");
 					// cut by spaces
-					String[] points = txt.split(" ");
+					final String[] points = txt.split(" ");
 					if (3 == points.length) {
 						al_p_r.add(points[0]);
 						al_p_l.add(points[1]);
@@ -203,13 +203,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	/**Increase the size of the arrays by 5.*/
 	synchronized private void enlargeArrays() {
 		//catch length
-		int length = p[0].length;
+		final int length = p[0].length;
 		//make copies
-		double[][] p_copy = new double[2][length + 5];
-		double[][] p_l_copy = new double[2][length + 5];
-		double[][] p_r_copy = new double[2][length + 5];
-		long[] p_layer_copy = new long[length + 5];
-		double[] p_width_copy = new double[length + 5];
+		final double[][] p_copy = new double[2][length + 5];
+		final double[][] p_l_copy = new double[2][length + 5];
+		final double[][] p_r_copy = new double[2][length + 5];
+		final long[] p_layer_copy = new long[length + 5];
+		final double[] p_width_copy = new double[length + 5];
 		//copy values
 		System.arraycopy(p[0], 0, p_copy[0], 0, length);
 		System.arraycopy(p[1], 0, p_copy[1], 0, length);
@@ -228,15 +228,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Find a point in an array, with a precision dependent on the magnification. Only points in the current layer are found, the rest are ignored. Returns -1 if none found. */
-	synchronized protected int findPoint(double[][] a, long[] p_layer, int x_p, int y_p, long lid, double magnification) {
+	synchronized protected int findPoint(final double[][] a, final long[] p_layer, final int x_p, final int y_p, final long lid, final double magnification) {
 		int index = -1;
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
-		long i_layer = Display.getFrontLayer(this.project).getId();
+		final long i_layer = Display.getFrontLayer(this.project).getId();
 		for (int i=0; i<n_points; i++) {
 			if (p_layer[i] != lid) continue;
-			double dist = Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i]);
+			final double dist = Math.abs(x_p - a[0][i]) + Math.abs(y_p - a[1][i]);
 			if (i_layer == p_layer[i] && dist <= d && dist <= min_dist) {
 				min_dist = dist;
 				index = i;
@@ -246,7 +246,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Remove a point from the bezier backbone and its two associated control points.*/
-	synchronized protected void removePoint(int index) {
+	synchronized protected void removePoint(final int index) {
 		// check preconditions:
 		if (index < 0) {
 			return;
@@ -280,7 +280,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Move backbone point by the given deltas.*/
-	protected void dragPoint(int index, int dx, int dy) {
+	protected void dragPoint(final int index, final int dx, final int dy) {
 		p[0][index] += dx;
 		p[1][index] += dy;
 		p_l[0][index] += dx;
@@ -290,14 +290,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Set the control points to the same value as the backbone point which they control.*/
-	protected void resetControlPoints(int index) {
+	protected void resetControlPoints(final int index) {
 		p_l[0][index] = p[0][index];
 		p_l[1][index] = p[1][index];
 		p_r[0][index] = p[0][index];
 		p_r[1][index] = p[1][index];
 	}
 	/**Drag a control point and adjust the other, dependent one, in a symmetric way or not.*/
-	protected void dragControlPoint(int index, int x_d, int y_d, double[][] p_dragged, double[][] p_adjusted, boolean symmetric) {
+	protected void dragControlPoint(final int index, final int x_d, final int y_d, final double[][] p_dragged, final double[][] p_adjusted, final boolean symmetric) {
 		//measure hypothenusa: from p to p control
 		double hypothenusa;
 		if (symmetric) {
@@ -308,7 +308,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			hypothenusa = distance(p[0][index], p[1][index], p_adjusted[0][index], p_adjusted[1][index]);
 		}
 		//measure angle: use the point being dragged
-		double angle = Math.atan2(p_dragged[0][index] - p[0][index], p_dragged[1][index] - p[1][index]) + Math.PI;
+		final double angle = Math.atan2(p_dragged[0][index] - p[0][index], p_dragged[1][index] - p[1][index]) + Math.PI;
 		//apply
 		p_dragged[0][index] = x_d;
 		p_dragged[1][index] = y_d;
@@ -323,7 +323,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Add a point either at the end or between two existing points, with accuracy depending on magnification. The width of the new point is that of the closest point after which it is inserted.*/
-	synchronized protected int addPoint(int x_p, int y_p, double magnification, double bezier_finess, long layer_id) {
+	synchronized protected int addPoint(final int x_p, final int y_p, final double magnification, final double bezier_finess, final long layer_id) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		//lookup closest interpolated point and then get the closest clicked point to it
 		int index = findClosestPoint(x_p, y_p, magnification, bezier_finess);
@@ -346,10 +346,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			final double lz = layer_set.getLayer(layer_id).getZ();
 			final double p0z =layer_set.getLayer(p_layer[0]).getZ();
 			final double pNz =layer_set.getLayer(p_layer[n_points -1]).getZ();
-			double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
+			final double sqdist0 =   (p[0][0] - x_p) * (p[0][0] - x_p) * cal.pixelWidth * cal.pixelWidth
 				         + (p[1][0] - y_p) * (p[1][0] - y_p) * cal.pixelHeight * cal.pixelHeight
 					 + (lz - p0z) * (lz - p0z) * cal.pixelWidth * cal.pixelWidth;
-			double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
+			final double sqdistN =   (p[0][n_points-1] - x_p) * (p[0][n_points-1] - x_p) * cal.pixelWidth * cal.pixelWidth
 				         + (p[1][n_points-1] - y_p) * (p[1][n_points-1] - y_p) * cal.pixelHeight * cal.pixelHeight
 					 + (lz - pNz) * (lz - pNz) * cal.pixelWidth * cal.pixelWidth;
 			if (sqdistN < sqdist0) {
@@ -389,12 +389,12 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			*/
 			index++; //so it is added after the closest point;
 			// 1 - copy second half of array
-			int sh_length = n_points -index;
-			double[][] p_copy = new double[2][sh_length];
-			double[][] p_l_copy = new double[2][sh_length];
-			double[][] p_r_copy = new double[2][sh_length];
-			long[] p_layer_copy = new long[sh_length];
-			double[] p_width_copy = new double[sh_length];
+			final int sh_length = n_points -index;
+			final double[][] p_copy = new double[2][sh_length];
+			final double[][] p_l_copy = new double[2][sh_length];
+			final double[][] p_r_copy = new double[2][sh_length];
+			final long[] p_layer_copy = new long[sh_length];
+			final double[] p_width_copy = new double[sh_length];
 			System.arraycopy(p[0], index, p_copy[0], 0, sh_length);
 			System.arraycopy(p[1], index, p_copy[1], 0, sh_length);
 			System.arraycopy(p_l[0], index, p_l_copy[0], 0, sh_length);
@@ -425,7 +425,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return index;
 	}
 	/**Find the closest point to an interpolated point with precision depending upon magnification.*/
-	synchronized protected int findClosestPoint(int x_p, int y_p, double magnification, double bezier_finess) {
+	synchronized protected int findClosestPoint(final int x_p, final int y_p, final double magnification, final double bezier_finess) {
 		int index = -1;
 		double distance_sq = Double.MAX_VALUE;
 		double distance_sq_i;
@@ -451,12 +451,12 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 		return index;
 	}
-	synchronized protected void generateInterpolatedPoints(double bezier_finess) {
+	synchronized protected void generateInterpolatedPoints(final double bezier_finess) {
 		if (0 == n_points) {
 			return;
 		}
 
-		int n = n_points;
+		final int n = n_points;
 
 		// case there's only one point
 		if (1 == n_points) {
@@ -484,8 +484,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 				next++;
 				//enlarge if needed (when bezier_finess is not 0.05, it's difficult to predict because of int loss of precision.
 				if (p_i[0].length == next) {
-					double[][] p_i_copy = new double[2][p_i[0].length + 5];
-					double[] p_width_i_copy = new double[p_width_i.length + 5];
+					final double[][] p_i_copy = new double[2][p_i[0].length + 5];
+					final double[] p_width_i_copy = new double[p_width_i.length + 5];
 					System.arraycopy(p_i[0], 0, p_i_copy[0], 0, p_i[0].length);
 					System.arraycopy(p_i[1], 0, p_i_copy[1], 0, p_i[1].length);
 					System.arraycopy(p_width_i, 0, p_width_i_copy, 0, p_width_i.length);
@@ -496,8 +496,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 		// add the last point
 		if (p_i[0].length == next) {
-			double[][] p_i_copy = new double[2][p_i[0].length + 1];
-			double[] p_width_i_copy = new double[p_width_i.length + 1];
+			final double[][] p_i_copy = new double[2][p_i[0].length + 1];
+			final double[] p_width_i_copy = new double[p_width_i.length + 1];
 			System.arraycopy(p_i[0], 0, p_i_copy[0], 0, p_i[0].length);
 			System.arraycopy(p_i[1], 0, p_i_copy[1], 0, p_i[1].length);
 			System.arraycopy(p_width_i, 0, p_width_i_copy, 0, p_width_i.length);
@@ -511,8 +511,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 		if (p_i[0].length != next) { // 'next' works as a length here
 			//resize back
-			double[][] p_i_copy = new double[2][next];
-			double[] p_width_i_copy = new double[next];
+			final double[][] p_i_copy = new double[2][next];
+			final double[] p_width_i_copy = new double[next];
 			System.arraycopy(p_i[0], 0, p_i_copy[0], 0, next);
 			System.arraycopy(p_i[1], 0, p_i_copy[1], 0, next);
 			System.arraycopy(p_width_i, 0, p_width_i_copy, 0, next);
@@ -585,7 +585,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 				// label the first point distinctively:
 				if (0 == j) {
-					Composite comp = g.getComposite();
+					final Composite comp = g.getComposite();
 					g.setColor(Color.white);
 					g.setXORMode(Color.green);
 					g.drawString("1", (int)(p[0][0] + (4.0 / magnification)), (int)p[1][0]); // displaced 4 screen pixels to the right
@@ -597,7 +597,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (n_points > 1 && p_i[0].length > 1) { // need the second check for repaints that happen before generating the interpolated points.
 			double angle = 0;
 			//double a0 = Math.toRadians(0);
-			double a90 = Math.toRadians(90);
+			final double a90 = Math.toRadians(90);
 			//double a180 = Math.toRadians(180);
 			//double a270 = Math.toRadians(270);
 			final int n = p_i[0].length;
@@ -605,7 +605,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			final double[] r_side_y = new double[n];
 			final double[] l_side_x = new double[n];
 			final double[] l_side_y = new double[n];
-			int m = n-1;
+			final int m = n-1;
 
 			for (int i=0; i<n-1; i++) {
 				angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
@@ -637,8 +637,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					} else {
 						// else if crossed the current layer, paint segment as well
 						if (0 == j) continue;
-						double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
-						double z2 = layer_set.getLayer(p_layer[j]).getZ();
+						final double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
+						final double z2 = layer_set.getLayer(p_layer[j]).getZ();
 						if ( (z1 < z_current && z_current < z2)
 						  || (z2 < z_current && z_current < z1) ) {
 							// paint normally, in this pipe's color
@@ -647,7 +647,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 						}
 					}
 				} else {
-					double z = layer_set.getLayer(p_layer[j]).getZ();
+					final double z = layer_set.getLayer(p_layer[j]).getZ();
 					if (z < z_current) g.setColor(below);
 					else if (z == z_current) g.setColor(this.color);
 					else g.setColor(above);
@@ -667,11 +667,11 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					g.drawLine((int)l_side_x[k], (int)l_side_y[k], (int)l_side_x[k+1], (int)l_side_y[k+1]);
 				}
 
-				} catch (Exception ee) {
+				} catch (final Exception ee) {
 					Utils.log2("Pipe paint failed with: fi=" + fi + " la=" + la + " n_points=" + n_points + " r_side_x.length=" + r_side_x.length);
 					// WARNING still something is wrong with the synchronization over the arrays ... despite this error being patched with the line above:
 					// if (la >= r_side_x.length) r_side_x.length-2; // quick fix
-					// 
+					//
 					// ADDING the synchronized keyword to many methods involving n_points did not fix it; neither to crop arrays and get the new n_points from the getTransformedData() returned p array.
 				}
 			}
@@ -683,7 +683,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 	}
 
-	public void keyPressed(KeyEvent ke) {
+	@Override
+    public void keyPressed(final KeyEvent ke) {
 		//Utils.log2("Pipe.keyPressed not implemented.");
 	}
 
@@ -691,7 +692,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	static private int index, index_l, index_r;
 	static private boolean is_new_point = false;
 
-	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {
+	@Override
+    public void mousePressed(final MouseEvent me, final Layer layer, int x_p, int y_p, final double mag) {
 		// transform the x_p, y_p to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x_p, y_p);
@@ -717,7 +719,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 					repaint(false, layer);
 					return;
 				}
-				// Make the radius for newly added point that of the last added 
+				// Make the radius for newly added point that of the last added
 				last_radius = p_width[index];
 				//
 				if (me.isAltDown()) {
@@ -758,7 +760,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 	}
 
-	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	@Override
+    public void mouseDragged(final MouseEvent me, final Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
 		// transform to the local coordinates
 		if (!this.at.isIdentity()) {
 			final Point2D.Double p = inverseTransformPoint(x_p, y_p);
@@ -809,7 +812,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	@Override
+    public void mouseReleased(final MouseEvent me, final Layer layer, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 
 		final int tool = ProjectToolbar.getToolId();
 
@@ -847,7 +851,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		is_new_point = false;
 		index = index_r = index_l = -1;
 	}
-	
+
 	@Override
 	protected boolean calculateBoundingBox(final Layer la) {
 		return calculateBoundingBox(true, la);
@@ -909,7 +913,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Release all memory resources taken by this object.*/
-	synchronized public void destroy() {
+	@Override
+    synchronized public void destroy() {
 		super.destroy();
 		p = null;
 		p_l = null;
@@ -932,9 +937,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
-	public void repaint(boolean repaint_navigator, Layer la) {
+	public void repaint(final boolean repaint_navigator, final Layer la) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
-		Rectangle box = getBoundingBox(null);
+		final Rectangle box = getBoundingBox(null);
 		calculateBoundingBox(true, la);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 5, repaint_navigator);
@@ -944,17 +949,17 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	synchronized private void setupForDisplay() {
 		// load points
 		if (null == p || null == p_l || null == p_r) {
-			ArrayList<?> al = project.getLoader().fetchPipePoints(id);
+			final ArrayList<?> al = project.getLoader().fetchPipePoints(id);
 			n_points = al.size();
 			p = new double[2][n_points];
 			p_l = new double[2][n_points];
 			p_r = new double[2][n_points];
 			p_layer = new long[n_points];
 			p_width = new double[n_points];
-			Iterator<?> it = al.iterator();
+			final Iterator<?> it = al.iterator();
 			int i = 0;
 			while (it.hasNext()) {
-				Object[] ob = (Object[])it.next();
+				final Object[] ob = (Object[])it.next();
 				p[0][i] = ((Double)ob[0]).doubleValue();
 				p[1][i] = ((Double)ob[1]).doubleValue();
 				p_r[0][i] = ((Double)ob[2]).doubleValue();
@@ -978,11 +983,11 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		final double a90 = Math.toRadians(90);
 		//final double a180 = Math.toRadians(180);
 		//final double a270 = Math.toRadians(270);
-		double[] r_side_x = new double[n];
-		double[] r_side_y = new double[n];
-		double[] l_side_x = new double[n];
-		double[] l_side_y = new double[n];
-		int m = n-1;
+		final double[] r_side_x = new double[n];
+		final double[] r_side_y = new double[n];
+		final double[] l_side_x = new double[n];
+		final double[] l_side_y = new double[n];
+		final int m = n-1;
 
 		for (int i=0; i<n-1; i++) {
 			angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
@@ -1001,8 +1006,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		l_side_x[m] = p_i[0][m] + Math.sin(angle-a90) * p_width_i[m];
 		l_side_y[m] = p_i[1][m] + Math.cos(angle-a90) * p_width_i[m];
 
-		int[] pol_x = new int[n * 2];
-		int[] pol_y = new int[n * 2];
+		final int[] pol_x = new int[n * 2];
+		final int[] pol_y = new int[n * 2];
 		for (int j=0; j<n; j++) {
 			pol_x[j] = (int)r_side_x[j];
 			pol_y[j] = (int)r_side_y[j];
@@ -1013,7 +1018,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** The exact perimeter of this pipe, in integer precision. */
-	synchronized public Polygon getPerimeter() {
+	@Override
+    synchronized public Polygon getPerimeter() {
 		if (null == p_i || p_i[0].length < 2) return new Polygon();  // meaning: if there aren't any interpolated points
 
 		// local pointers, since they may be transformed
@@ -1038,7 +1044,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Writes the data of this object as a Pipe object in the .shapes file represented by the 'data' StringBuffer. */
-	synchronized public void toShapesFile(StringBuffer data, String group, String color, double z_scale) {
+	synchronized public void toShapesFile(final StringBuffer data, final String group, final String color, final double z_scale) {
 		if (-1 == n_points) setupForDisplay(); // reload
 		final char l = '\n';
 		// local pointers, since they may be transformed
@@ -1077,9 +1083,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 	/** Return the list of query statements needed to insert all the points in the database. */
 	synchronized public String[] getPointsForSQL() {
-		String[] sql = new String[n_points];
+		final String[] sql = new String[n_points];
 		for (int i=0; i<n_points; i++) {
-			StringBuffer sb = new StringBuffer("INSERT INTO ab_pipe_points (pipe_id, index, x, y, x_r, y_r, x_l, y_l, width, layer_id) VALUES (");
+			final StringBuffer sb = new StringBuffer("INSERT INTO ab_pipe_points (pipe_id, index, x, y, x_r, y_r, x_l, y_l, width, layer_id) VALUES (");
 			sb.append(this.id).append(",")
 			  .append(i).append(",")
 			  .append(p[0][i]).append(",")
@@ -1097,10 +1103,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return sql;
 	}
 
-	synchronized public String getUpdatePointForSQL(int index) {
+	synchronized public String getUpdatePointForSQL(final int index) {
 		if (index < 0 || index > n_points-1) return null;
 
-		StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
+		final StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
 		sb.append("x=").append(p[0][index])
 		  .append(", y=").append(p[1][index])
 		  .append(", x_r=").append(p_r[0][index])
@@ -1115,10 +1121,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return sb.toString();
 	}
 
-	String getUpdateLeftControlPointForSQL(int index) {
+	String getUpdateLeftControlPointForSQL(final int index) {
 		if (index < 0 || index > n_points-1) return null;
 
-		StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
+		final StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
 		sb.append("x_l=").append(p_l[0][index])
 		  .append(", y_l=").append(p_l[1][index])
 		  .append(" WHERE pipe_id=").append(this.id)
@@ -1127,10 +1133,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return sb.toString();
 	}
 
-	String getUpdateRightControlPointForSQL(int index) {
+	String getUpdateRightControlPointForSQL(final int index) {
 		if (index < 0 || index > n_points-1) return null;
 
-		StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
+		final StringBuffer sb = new StringBuffer("UPDATE ab_pipe_points SET ");
 		sb.append("x_r=").append(p_r[0][index])
 		  .append(", y_r=").append(p_r[1][index])
 		  .append(" WHERE pipe_id=").append(this.id)
@@ -1139,12 +1145,14 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return sb.toString();
 	}
 
-	public boolean isDeletable() {
+	@Override
+    public boolean isDeletable() {
 		return 0 == n_points;
 	}
 
 	/** The number of clicked, backbone points in this pipe. */
-	public int length() {
+	@Override
+    public int length() {
 		if (-1 == n_points) setupForDisplay();
 		return n_points;
 	}
@@ -1166,15 +1174,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 		double angle = 0;
 		//double a0 = Math.toRadians(0);
-		double a90 = Math.toRadians(90);
+		final double a90 = Math.toRadians(90);
 		//double a180 = Math.toRadians(180);
 		//double a270 = Math.toRadians(270);
-		int n = p_i[0].length; // the number of interpolated points
+		final int n = p_i[0].length; // the number of interpolated points
 		final double[] r_side_x = new double[n];
 		final double[] r_side_y = new double[n];
 		final double[] l_side_x = new double[n];
 		final double[] l_side_y = new double[n];
-		int m = n-1;
+		final int m = n-1;
 
 		for (int i=0; i<n-1; i++) {
 			angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
@@ -1220,7 +1228,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 				first = j -1;
 				final double z1 = layer_set.getLayer(p_layer[j-1]).getZ();
 				final double z2 = layer_set.getLayer(p_layer[j]).getZ();
-				
+
 				// 20 points is the length of interpolated points between any two backbone bezier 'j' points.
 				// 10 points is half that.
 				//
@@ -1316,15 +1324,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 		double angle = 0;
 		//double a0 = Math.toRadians(0);
-		double a90 = Math.toRadians(90);
+		final double a90 = Math.toRadians(90);
 		//double a180 = Math.toRadians(180);
 		//double a270 = Math.toRadians(270);
-		int n = p_i[0].length; // the number of interpolated points
-		double[] r_side_x = new double[n];
-		double[] r_side_y = new double[n];
-		double[] l_side_x = new double[n];
-		double[] l_side_y = new double[n];
-		int m = n-1;
+		final int n = p_i[0].length; // the number of interpolated points
+		final double[] r_side_x = new double[n];
+		final double[] r_side_y = new double[n];
+		final double[] l_side_x = new double[n];
+		final double[] l_side_y = new double[n];
+		final int m = n-1;
 
 		for (int i=0; i<n-1; i++) {
 			angle = Math.atan2(p_i[0][i+1] - p_i[0][i], p_i[1][i+1] - p_i[1][i]);
@@ -1370,10 +1378,10 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 				int la = last * 20 -1;
 				if (0 != first) fi = (first * 20) - 10; // 10 is half a segment
 				if (n_points -1 != last) la += 10; // same //= last * 20 + 9;
-				int length = la - fi + 1; // +1 because fi and la are indexes
+				final int length = la - fi + 1; // +1 because fi and la are indexes
 
-				int [] pol_x = new int[length * 2];
-				int [] pol_y = new int[length * 2];
+				final int [] pol_x = new int[length * 2];
+				final int [] pol_y = new int[length * 2];
 				for (int k=0, g=fi; g<=la; g++, k++) {
 					pol_x[k] = (int)r_side_x[g];
 					pol_y[k] = (int)r_side_y[g];
@@ -1395,21 +1403,22 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Scan the Display and link Patch objects that lay under this Pipe's bounding box. */
-	public boolean linkPatches() {
+	@Override
+    public boolean linkPatches() {
 		// SHOULD check on every layer where there is a subperimeter. This method below will work only while the Display is not switching layer before deselecting this pipe (which calls linkPatches)
 
 		// find the patches that don't lay under other profiles of this profile's linking group, and make sure they are unlinked. This will unlink any Patch objects under this Pipe:
 		unlinkAll(Patch.class);
 
-		HashSet<Long> hs = new HashSet<Long>();
+		final HashSet<Long> hs = new HashSet<Long>();
 		boolean must_lock = false;
 		for (int l=0; l<n_points; l++) {
 			// avoid repeating the ones that have been done
-			Long lo = new Long(p_layer[l]); // in blankets ...
+			final Long lo = new Long(p_layer[l]); // in blankets ...
 			if (hs.contains(lo)) continue;
 			else hs.add(lo);
 
-			Layer layer = layer_set.getLayer(p_layer[l]);
+			final Layer layer = layer_set.getLayer(p_layer[l]);
 			if (null == layer) {
 				Utils.log2("Pipe.linkPatches: ignoring null layer for id " + p_layer[l]);
 				continue;
@@ -1444,23 +1453,25 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Returns the layer of lowest Z coordinate where this ZDisplayable has a point in, or the creation layer if no points yet. */
-	public Layer getFirstLayer() {
+	@Override
+    public Layer getFirstLayer() {
 		if (0 == n_points) return this.layer;
 		if (-1 == n_points) setupForDisplay(); //reload
 		Layer la = this.layer;
-		double z = Double.MAX_VALUE;
+		final double z = Double.MAX_VALUE;
 		for (int i=0; i<n_points; i++) {
-			Layer layer = layer_set.getLayer(p_layer[i]);
+			final Layer layer = layer_set.getLayer(p_layer[i]);
 			if (layer.getZ() < z) la = layer;
 		}
 		return la;
 	}
 
-	synchronized public void exportSVG(StringBuffer data, double z_scale, String indent) {
-		String in = indent + "\t";
+	@Override
+    synchronized public void exportSVG(final StringBuffer data, final double z_scale, final String indent) {
+		final String in = indent + "\t";
 		if (-1 == n_points) setupForDisplay(); // reload
 		if (0 == n_points) return;
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		final double[] a = new double[6];
 		at.getMatrix(a);
 		data.append(indent).append("<path\n")
@@ -1497,7 +1508,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		    .append(in).append("links=\"");
 		if (null != hs_linked && 0 != hs_linked.size()) {
 			int ii = 0;
-			int len = hs_linked.size();
+			final int len = hs_linked.size();
 			for (final Displayable d : hs_linked) {
 				data.append(d.getId());
 				if (ii != len-1) data.append(",");
@@ -1510,16 +1521,16 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	/** Returns a [p_i[0].length][4] array, with x,y,z,radius on the second part. Not translated to x,y but local!*/
 	public double[][] getBackbone() {
 		if (-1 == n_points) setupForDisplay(); // reload
-		double[][] b = new double[p_i[0].length][4];
-		int ni = 20; //  1/0.05;
+		final double[][] b = new double[p_i[0].length][4];
+		final int ni = 20; //  1/0.05;
 		int start = 0;
 		for (int j=0; j<n_points -1; j++) {
-			double z1 = layer_set.getLayer(p_layer[j]).getZ();
-			double z2 = layer_set.getLayer(p_layer[j+1]).getZ();
-			double depth = z2 - z1;
-			double radius1 = p_width[j];
-			double radius2 = p_width[j+1];
-			double dif = radius2 - radius1;
+			final double z1 = layer_set.getLayer(p_layer[j]).getZ();
+			final double z2 = layer_set.getLayer(p_layer[j+1]).getZ();
+			final double depth = z2 - z1;
+			final double radius1 = p_width[j];
+			final double radius2 = p_width[j+1];
+			final double dif = radius2 - radius1;
 			for (int i=start, k=0; i<start + ni; i++, k++) {
 				b[i][0] = p_i[0][i];
 				b[i][1] = p_i[1][i];
@@ -1538,7 +1549,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** x,y is the cursor position in offscreen coordinates. */
-	public void snapTo(int cx, int cy, int x_p, int y_p) { // WARNING: DisplayCanvas is locking at mouseDragged when the cursor is outside the DisplayCanvas Component, so this is useless or even harmful at the moment. 
+	@Override
+    public void snapTo(final int cx, final int cy, final int x_p, final int y_p) { // WARNING: DisplayCanvas is locking at mouseDragged when the cursor is outside the DisplayCanvas Component, so this is useless or even harmful at the moment.
 		if (-1 != index) {
 			// #$#@$%#$%!!! TODO this doesn't work, although it *should*. The index_l and index_r work, and the mouseEntered coordinates are fine too. Plus it messes up the x,y position or something, for then on reload the pipe is streched or displaced (not clear).
 			/*
@@ -1567,7 +1579,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Exports data, the tag is not opened nor closed. */
-	synchronized public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
+	@Override
+    synchronized public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_pipe\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, options);
@@ -1615,7 +1628,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	// TODO
-	synchronized public double[][][] generateMesh(double scale) {
+	synchronized public double[][][] generateMesh(final double scale) {
 		if (-1 == n_points) setupForDisplay(); //reload
 		if (0 == n_points) return null;
 		// at any given segment (bezier curve defined by 4 points):
@@ -1624,14 +1637,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		//   - for each point:
 		//       - add the section as 12 points, by rotating a perpendicular vector around the direction vector
 		//       - if the point is the first one in the segment, use a direction vector averaged with the previous and the first in the segment (if it's not point 0, that is)
-		
+
 		Utils.log2("Pipe.generateMesh is not implemented yet.");
 		// debug:
 		return null;
 	}
 
 	/** Performs a deep copy of this object, without the links. */
-	synchronized public Displayable clone(final Project pr, final boolean copy_id) {
+	@Override
+    synchronized public Displayable clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
 		final Pipe copy = new Pipe(pr, nid, null != title ? title.toString() : null, width, height, alpha, this.visible, new Color(color.getRed(), color.getGreen(), color.getBlue()), this.locked, (AffineTransform)this.at.clone());
 		// The data:
@@ -1650,20 +1664,21 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Calibrated. */
-	synchronized public List<Point3f> generateTriangles(double scale, int parallels, int resample) {
+	@Override
+    synchronized public List<Point3f> generateTriangles(final double scale, int parallels, final int resample) {
 		if (n_points < 2) return null;
 		// check minimum requirements.
 		if (parallels < 3) parallels = 3;
 		//
-		double[][][] all_points = generateJoints(parallels, resample, layer_set.getCalibrationCopy());
+		final double[][][] all_points = generateJoints(parallels, resample, layer_set.getCalibrationCopy());
 		return Pipe.generateTriangles(all_points, scale);
 	}
 
 	/** Accepts an arrays as that returned from methods generateJoints and makeTube: first dimension is the list of points, second dimension is the number of vertices defining the circular cross section of the tube, and third dimension is the x,y,z of each vertex. */
 	static public List<Point3f> generateTriangles(final double[][][] all_points, final double scale) {
-		int n = all_points.length;
+		final int n = all_points.length;
 		final int parallels = all_points[0].length -1;
-		List<Point3f> list = new ArrayList<Point3f>();
+		final List<Point3f> list = new ArrayList<Point3f>();
 		for (int i=0; i<n-1; i++) { //minus one since last is made with previous
 			for (int j=0; j<parallels; j++) { //there are 12+12 triangles for each joint //it's up to 12+1 because first point is repeated at the end
 				// first triangle in the quad
@@ -1683,7 +1698,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	/** From my former program, A_3D_Editing.java and Pipe.java  */
 	private double[][][] generateJoints(final int parallels, final int resample, final Calibration cal) {
 		if (-1 == n_points) setupForDisplay();
-		
+
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
 		double[][] p = this.p;
@@ -1703,7 +1718,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			p_width_i = (double[])ob[5];
 		}
 
-		int n = p_i[0].length;
+		final int n = p_i[0].length;
 		final int mm = n_points;
 		final double[] z_values = new double[n];
 		final int interval_points = n / (mm-1);
@@ -1738,7 +1753,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 
 		// Resampling to get a smoother pipe
 		try {
-			VectorString3D vs = new VectorString3D(px, py, pz, false);
+			final VectorString3D vs = new VectorString3D(px, py, pz, false);
 			if (null != cal) {
 				vs.calibrate(cal);
 				for (int i=0; i<p_width_i.length; i++)
@@ -1746,8 +1761,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			}
 			vs.addDependent(p_width_i);
 			// Resample to the largest of the two:
-			double avg_delta = vs.getAverageDelta(); // calibrated
-			double delta = Math.max(avg_delta, 1); // can't use resample, pipes would look very segmented
+			final double avg_delta = vs.getAverageDelta(); // calibrated
+			final double delta = Math.max(avg_delta, 1); // can't use resample, pipes would look very segmented
 			vs.resample(delta);
 			//vs.resample(vs.getAverageDelta() * resample);
 
@@ -1757,13 +1772,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			p_width_i = vs.getDependent(0);
 			//Utils.log("lengths:  " + px.length + ", " + py.length + ", " + pz.length + ", " + p_width_i.length);
 			n = vs.length();
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 
 
-		double[][][] all_points = new double[n+2][parallels+1][3];
-		int extra = 1; // this was zero when not doing capping
+		final double[][][] all_points = new double[n+2][parallels+1][3];
+		final int extra = 1; // this was zero when not doing capping
 		for (int cap=0; cap<parallels+1; cap++) {
 			all_points[0][cap][0] = px[0];//p_i[0][0]; //x
 			all_points[0][cap][1] = py[0]; //p_i[1][0]; //y
@@ -1772,13 +1787,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			all_points[all_points.length-1][cap][1] = py[n-1]; //p_i[1][p_i[0].length-1];
 			all_points[all_points.length-1][cap][2] = pz[n-1]; //z_values[z_values.length-1];
 		}
-		double angle = 2*Math.PI/parallels; //Math.toRadians(30);
+		final double angle = 2*Math.PI/parallels; //Math.toRadians(30);
 
 		Vector3 v3_P12;
 		Vector3 v3_PR;
-		Vector3[] circle = new Vector3[parallels+1];
+		final Vector3[] circle = new Vector3[parallels+1];
 		double sinn, coss;
-		int half_parallels = parallels/2;
+		final int half_parallels = parallels/2;
 		for (int i=0; i<n-1; i++) {
 			//Utils.log2(i + " : " + px[i] + ", " + py[i] + ", " + pz[i]);
 			//First vector: from one realpoint to the next
@@ -1796,15 +1811,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 				w1 w2 w3	P12[0]+1 P12[1] P12[2]		P12[0]+1 P12[1]+1 P12[2]+1	P12[0] P12[1] P12[2]+1
 
 			   cross product: v ^ w = (v2*w3 - w2*v3, v3*w1 - v1*w3, v1*w2 - w1*v2);
-			   
+
 			   cross product of second: v ^ w = (b*(c+1) - c*(b+1), c*(a+1) - a*(c+1) , a*(b+1) - b*(a+1))
 			   				  = ( b - c           , c - a             , a - b            )
-							  
+
 			   cross product of third: v ^ w = (b*(c+1) - b*c, c*a - a*(c+1), a*b - b*a)
 			   				   (b		 ,-a            , 0);
 							   (v3_P12.y	 ,-v3_P12.x     , 0);
-							   
-							   
+
+
 			Reasons why I use the third:
 				-Using the first one modifies the x coord, so it generates a plane the ortogonal of which will be a few degrees different when z != 0 and when z =0,
 				 thus responsible for soft shiftings at joints where z values change
@@ -1915,7 +1930,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Returns a non-calibrated VectorString3D. */
-	synchronized public VectorString3D asVectorString3D() {
+	@Override
+    synchronized public VectorString3D asVectorString3D() {
 		// local pointers, since they may be transformed
 		int n_points = this.n_points;
 		double[][] p = this.p;
@@ -1967,16 +1983,17 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		try {
 			vs = new VectorString3D(px, py, pz, false);
 			vs.addDependent(p_width_i);
-		} catch (Exception e) { IJError.print(e); }
+		} catch (final Exception e) { IJError.print(e); }
 		return vs;
 	}
 
-	public String getInfo() {
+	@Override
+    public String getInfo() {
 		if (-1 == n_points) setupForDisplay(); //reload
 		// measure length
 		double len = 0;
 		if (n_points > 1) {
-			VectorString3D vs = asVectorString3D();
+			final VectorString3D vs = asVectorString3D();
 			vs.calibrate(this.layer_set.getCalibration());
 			len = vs.computeLength(); // no resampling
 		}
@@ -1984,12 +2001,13 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** @param area is expected in world coordinates. */
-	public boolean intersects(final Area area, final double z_first, final double z_last) {
+	@Override
+    public boolean intersects(final Area area, final double z_first, final double z_last) {
 		// find lowest and highest Z
 		double min_z = Double.MAX_VALUE;
 		double max_z = 0;
 		for (int i=0; i<n_points; i++) {
-			double laz =layer_set.getLayer(p_layer[i]).getZ();
+			final double laz =layer_set.getLayer(p_layer[i]).getZ();
 			if (laz < min_z) min_z = laz;
 			if (laz > max_z) max_z = laz;
 		}
@@ -1999,9 +2017,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			final Polygon[] pol = getSubPerimeters(layer_set.getLayer(p_layer[i]));
 			if (null == pol) continue;
 			for (int k=0; k<pol.length; k++) {
-				Area a = new Area(pol[k]); // perimeters already in world coords
+				final Area a = new Area(pol[k]); // perimeters already in world coords
 				a.intersect(area);
-				Rectangle r = a.getBounds();
+				final Rectangle r = a.getBounds();
 				if (0 != r.width && 0 != r.height) return true;
 			}
 		}
@@ -2009,22 +2027,25 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Expects Rectangle in world coords. */
-	public boolean intersects(final Layer layer, final Rectangle r) {
+	@Override
+    public boolean intersects(final Layer layer, final Rectangle r) {
 		final Polygon[] pol = getSubPerimeters(layer); // transformed
 		if (null == pol) return false;
-		for (Polygon p : pol) if (new Area(p).intersects(r.x, r.y, r.width, r.height)) return true;
+		for (final Polygon p : pol) if (new Area(p).intersects(r.x, r.y, r.width, r.height)) return true;
 		return false;
 	}
 	/** Expects Area in world coords. */
-	public boolean intersects(final Layer layer, final Area area) {
+	@Override
+    public boolean intersects(final Layer layer, final Area area) {
 		final Polygon[] pol = getSubPerimeters(layer); // transformed
 		if (null == pol) return false;
-		for (Polygon p : pol) if (M.intersects(new Area(p), area)) return true;
+		for (final Polygon p : pol) if (M.intersects(new Area(p), area)) return true;
 		return false;
 	}
 
 	/** Returns the bounds of this object as it shows in the given layer, set into @param r. */
-	public Rectangle getBounds(final Rectangle r, final Layer layer) {
+	@Override
+    public Rectangle getBounds(final Rectangle r, final Layer layer) {
 		// obtain the already transformed subperimeters
 		final Polygon[] pol = getSubPerimeters(layer);
 		if (null == pol) {
@@ -2036,7 +2057,7 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			return r;
 		}
 		final Area area = new Area();
-		for (Polygon p : pol) {
+		for (final Polygon p : pol) {
 			area.add(new Area(p));
 		}
 		final Rectangle b = area.getBounds();
@@ -2071,9 +2092,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		if (null == rt) rt = Utils.createResultsTable("Pipe results", new String[]{"id", "length", "name-id"});
 		// measure length
 		double len = 0;
-		Calibration cal = layer_set.getCalibration();
+		final Calibration cal = layer_set.getCalibration();
 		if (n_points > 1) {
-			VectorString3D vs = asVectorString3D();
+			final VectorString3D vs = asVectorString3D();
 			vs.calibrate(cal);
 			len = vs.computeLength(); // no resampling
 		}
@@ -2135,15 +2156,15 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 			_swap(p, i, j);
 			_swap(p_l, i, j);
 			_swap(p_r, i, j);
-			long l = p_layer[i];    // we love java and it's lack of primitive abstraction.
+			final long l = p_layer[i];    // we love java and it's lack of primitive abstraction.
 			p_layer[i] = p_layer[j];
 			p_layer[j] = l;
-			double r = p_width[i];
+			final double r = p_width[i];
 			p_width[i] = p_width[j];
 			p_width[j] = r;
 		}
 		// what was left is now right:
-		double[][] a = p_l;
+		final double[][] a = p_l;
 		p_l = p_r;
 		p_r = a;
 		// Nothing should change, but let's see it:
@@ -2153,17 +2174,18 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 	/** Helper function to swap both X and Y from index i to j. */
 	static private final void _swap(final double[][] a, final int i, final int j) {
 		for (int k=0; k<2; k++) {
-			double tmp = a[k][i];
+			final double tmp = a[k][i];
 			a[k][i] = a[k][j];
 			a[k][j] = tmp;
 		}
 	}
 
 	/** Retain the data within the layer range, and through out all the rest. */
-	synchronized public boolean crop(List<Layer> range) {
+	@Override
+    synchronized public boolean crop(final List<Layer> range) {
 		if (-1 == n_points) setupForDisplay();
-		HashSet<Long> lids = new HashSet<Long>();
-		for (Layer l : range) {
+		final HashSet<Long> lids = new HashSet<Long>();
+		for (final Layer l : range) {
 			lids.add(l.getId());
 		}
 		for (int i=0; i<n_points; i++) {
@@ -2177,7 +2199,8 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return true;
 	}
 
-	synchronized protected boolean layerRemoved(Layer la) {
+	@Override
+    synchronized protected boolean layerRemoved(final Layer la) {
 		super.layerRemoved(la);
 		for (int i=0; i<p_layer.length; i++) {
 			if (la.getId() == p_layer[i]) {
@@ -2188,8 +2211,9 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return true;
 	}
 
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
-		float[] fp = new float[2];
+	@Override
+    synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+		double[] fp = new double[2];
 		mpicbg.models.CoordinateTransform chain = null;
 		Area localroi = null;
 		AffineTransform inverse = null;
@@ -2202,16 +2226,16 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 				if (localroi.contains(p[0][i], p[1][i])) {
 					if (null == chain) {
 						chain = M.wrap(this.at, ict, inverse);
-						fp = new float[2];
+						fp = new double[2];
 					}
 					// Keep point copy
-					double ox = p[0][i],
+					final double ox = p[0][i],
 					       oy = p[1][i];
 					// Transform the point
 					M.apply(chain, p, i, fp);
 					// For radius, assume it's a point to the right of the center point
-					fp[0] = (float)(ox + p_width[i]);
-					fp[1] = (float)oy;
+					fp[0] = ox + p_width[i];
+					fp[1] = oy;
 					chain.applyInPlace(fp);
 					p_width[i] = Math.abs(fp[0] - p[0][i]);
 					// The two associated control points:
@@ -2227,21 +2251,22 @@ public class Pipe extends ZDisplayable implements Line3D, VectorData {
 		return true;
 	}
 
-	public boolean apply(final VectorDataTransform vdt) throws Exception {
-		final float[] fp = new float[2];
+	@Override
+    public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final double[] fp = new double[2];
 		final VectorDataTransform vlocal = vdt.makeLocalTo(this);
 		for (int i=0; i<n_points; i++) {
 			if (vdt.layer.getId() == p_layer[i]) {
 				for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
 					if (rt.roi.contains(p[0][i], p[1][i])) {
 						// Keep point copy
-						double ox = p[0][i],
+						final double ox = p[0][i],
 						       oy = p[1][i];
 						// Transform the point
 						M.apply(rt.ct, p, i, fp);
 						// For radius, assume it's a point to the right of the center point
-						fp[0] = (float)(ox + p_width[i]);
-						fp[1] = (float)oy;
+						fp[0] = ox + p_width[i];
+						fp[1] = oy;
 						rt.ct.applyInPlace(fp);
 						p_width[i] = Math.abs(fp[0] - p[0][i]);
 						// The two associated control points:

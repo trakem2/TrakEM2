@@ -28,7 +28,7 @@ public class ExportUnsignedShort
 	{
 		final public Patch patch;
 		final public double a, min, max;
-		
+
 		PatchIntensityRange( final Patch patch )
 		{
 			this.patch = patch;
@@ -40,19 +40,19 @@ public class ExportUnsignedShort
 			ip.setMinAndMax( patch.getMin(), patch.getMax() );
 		}
 	}
-	
+
 	static protected class PatchTransform
 	{
 		final PatchIntensityRange pir;
 		final CoordinateTransform ct;
-		
+
 		PatchTransform( final PatchIntensityRange pir )
 		{
 			this.pir = pir;
 			ct = pir.patch.getFullCoordinateTransform();
 		}
 	}
-	
+
 	final static protected ShortProcessor mapIntensities( final PatchIntensityRange pir, final double min, final double max )
 	{
 		final double a = 65535.0 / ( max - min );
@@ -66,20 +66,20 @@ public class ExportUnsignedShort
 		target.setMinAndMax( -min * a, ( 1.0 - min ) * a );
 		return target;
 	}
-	
+
 	final static protected void map( final PatchTransform pt, final double x, final double y, final ShortProcessor mappedIntensities, final ShortProcessor target )
 	{
 		final TranslationModel2D t = new TranslationModel2D();
-		t.set( ( float )-x, ( float )-y );
-		
+		t.set( -x, -y );
+
 		final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 		ctl.add( pt.ct );
 		ctl.add( t );
-		
+
 		final CoordinateTransformMesh mesh = new CoordinateTransformMesh( ctl, pt.pir.patch.getMeshResolution(), pt.pir.patch.getOWidth(), pt.pir.patch.getOHeight() );
-		
+
 		final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
-		
+
 		mappedIntensities.setInterpolationMethod( ImageProcessor.BILINEAR );
 		if ( pt.pir.patch.hasAlphaMask() )
 		{
@@ -92,7 +92,7 @@ public class ExportUnsignedShort
 			mapping.mapInterpolated( mappedIntensities, target );
 		}
 	}
-	
+
 	final static public void exportTEST( final Layer layer, final int tileWidth, final int tileHeight )
 	{
 		/* calculate intensity transfer */
@@ -110,17 +110,17 @@ public class ExportUnsignedShort
 				max = pir.max;
 			patchIntensityRanges.add( pir );
 		}
-		
+
 		/* render tiles */
 		/* TODO Do not render them into a stack but save them as files */
-		
+
 		final ImageStack stack = new ImageStack( tileWidth, tileHeight );
 		ImagePlus imp = null;
 		final double minI = -min * 65535.0 / ( max - min );
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
-		
+
 		//ij.IJ.log("min, max: " + min + ", " + max + ",    minI, maxI: " + minI + ", " + maxI);
-		
+
 		final int nc = ( int )Math.ceil( layer.getLayerWidth() / tileWidth );
 		final int nr = ( int )Math.ceil( layer.getLayerHeight() / tileHeight );
 		for ( int r = 0; r < nr; ++r )
@@ -153,11 +153,11 @@ public class ExportUnsignedShort
 			new ImagePlus( "tiles", stack ).show(); // single-slice, non-StackWindow
 		}
 	}
-	
+
 	/** Create constant size tiles that carpet the areas of the {@param layer} where there are images;
 	 * these tiles are returned in a lazy sequence of {@link Callable} objects that create a tripled
 	 * consisting of the {@link ShortProcessor} and the X and Y pixel coordinates of that tile.
-	 * 
+	 *
 	 * @param layer The layer to export images for
 	 * @param tileWidth The width of the tiles to export
 	 * @param tileHeight
@@ -192,7 +192,7 @@ public class ExportUnsignedShort
 		final double max = max_;
 
 		/* Create lazy sequence that creates Callable instances. */
-		
+
 		final Rectangle box = layer.getMinimalBoundingBox( Patch.class, visible_only )
 		                      .intersection( layer.getParent().get2DBounds() );
 		final int nCols = ( int )Math.ceil( box.width / (double)tileWidth );
@@ -213,7 +213,7 @@ public class ExportUnsignedShort
 					            x0 = box.x,
 					            y0 = box.y;
 					private final ArrayList< PatchIntensityRange > ps = new ArrayList< PatchIntensityRange >();
-					
+
 					{
 						// Constructor body. Prepare to be able to answer "hasNext()"
 						findNext();
@@ -240,14 +240,14 @@ public class ExportUnsignedShort
 									ps.add( pir );
 								}
 							}
-							
+
 							// Prepare next iteration
 							col += 1;
 							if (nCols == col) {
 								col = 0;
 								row += 1;
 							}
-			
+
 							if ( ps.size() > 0 )
 							{
 								// Ready for next iteration
@@ -280,12 +280,12 @@ public class ExportUnsignedShort
 									throws Exception {
 								final ShortProcessor sp = new ShortProcessor( tileWidth, tileHeight );
 								sp.setMinAndMax( minI, maxI );
-								
+
 								for ( final PatchIntensityRange pir : pirs )
 								{
 									map( new PatchTransform( pir ), x, y, mapIntensities( pir, min, max ), sp );
 								}
-								
+
 								return new ExportedTile( sp, x, y, minI, maxI );
 							}
 						};
@@ -302,7 +302,7 @@ public class ExportUnsignedShort
 	}
 
 	/** Create a flat image into which Patch instances are transferred considering their min and max values.
-	 * 
+	 *
 	 * @param patches
 	 * @param roi
 	 * @return
@@ -310,7 +310,7 @@ public class ExportUnsignedShort
 	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi) {
 		return makeFlatImage(patches, roi, 0);
 	}
-	
+
 	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue) {
 		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
 		double min = Double.MAX_VALUE;
@@ -325,10 +325,10 @@ public class ExportUnsignedShort
 				max = pir.max;
 			patchIntensityRanges.add( pir );
 		}
-		
+
 		final double minI = -min * 65535.0 / ( max - min );
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
-		
+
 		final ShortProcessor sp = new ShortProcessor( roi.width, roi.height );
 		sp.setMinAndMax( minI, maxI );
 		if (0 != backgroundValue) {
@@ -336,12 +336,12 @@ public class ExportUnsignedShort
 			sp.setRoi(0, 0, roi.width, roi.height);
 			sp.fill();
 		}
-		
+
 		for ( final PatchIntensityRange pir : patchIntensityRanges )
 		{
 			map( new PatchTransform( pir ), roi.x, roi.y, mapIntensities( pir, min, max ), sp );
 		}
-		
+
 		return sp;
 	}
 

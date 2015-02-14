@@ -56,9 +56,9 @@ public class Align
 {
 	static public class Param implements Serializable
 	{
-		private static final long serialVersionUID = -6469820142091971052L;
+        private static final long serialVersionUID = -6469820142091971052L;
 
-		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
+        final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
 
 		/**
 		 * Closest/next closest neighbour distance ratio
@@ -625,7 +625,7 @@ public class Align
 				{
 					/* weight the inliers */
 					for ( final PointMatch pm : inliers )
-						pm.setWeights( new float[]{ p.correspondenceWeight } );
+						pm.setWeights( new double[]{ p.correspondenceWeight } );
 
 					synchronized ( tilePair[ 0 ] )
 					{
@@ -1143,7 +1143,7 @@ public class Align
 				 * Java cast it to what is required and ignore the warning.
 				 */
 				@SuppressWarnings( { } )
-				final InterpolatedAffineModel2D< ?, ? > interpolatedModel = new InterpolatedAffineModel2D( m, r, ( float )p.lambda );
+				final InterpolatedAffineModel2D< ?, ? > interpolatedModel = new InterpolatedAffineModel2D( m, r, p.lambda );
 
 				t = new GenericAffineTile2D( interpolatedModel, patch );
 			}
@@ -1252,7 +1252,7 @@ public class Align
 		if ( !param.setup( "Align layers linearly" ) ) return;
 
 		final Rectangle box = layers.get( 0 ).getParent().getMinimalBoundingBox( Patch.class );
-		final float scale = Math.min(  1.0f, Math.min( ( float )param.sift.maxOctaveSize / ( float )box.width, ( float )param.sift.maxOctaveSize / ( float )box.height ) );
+		final double scale = Math.min(  1.0, Math.min( ( double )param.sift.maxOctaveSize / box.width, ( double )param.sift.maxOctaveSize / box.height ) );
 		final Param p = param.clone();
 		p.maxEpsilon *= scale;
 
@@ -1393,7 +1393,7 @@ public class Align
 	 * @return
 	 * @throws Exception
 	 */
-	final static public MovingLeastSquaresTransform2 createMLST( final Collection< PointMatch > matches, final float alpha ) throws Exception
+	final static public MovingLeastSquaresTransform2 createMLST( final Collection< PointMatch > matches, final double alpha ) throws Exception
 	{
 		final MovingLeastSquaresTransform2 mlst = new MovingLeastSquaresTransform2();
 		mlst.setAlpha( alpha );
@@ -1437,15 +1437,15 @@ public class Align
 		final Rectangle boxA = Displayable.getBoundingBox( pa, null );
 		final Rectangle boxB = Displayable.getBoundingBox( pb, null );
 
-		final float scale = Math.min(
-				1.0f,
+		final double scale = Math.min(
+				1.0,
 				Math.min(
 					Math.min(
-							( float )p.sift.maxOctaveSize / ( float )boxA.width,
-							( float )p.sift.maxOctaveSize / ( float )boxA.height ),
+							( double )p.sift.maxOctaveSize / boxA.width,
+							( double )p.sift.maxOctaveSize / boxA.height ),
 					Math.min(
-							( float )p.sift.maxOctaveSize / ( float )boxB.width,
-							( float )p.sift.maxOctaveSize / ( float )boxB.height ) ) );
+							( double )p.sift.maxOctaveSize / boxB.width,
+							( double )p.sift.maxOctaveSize / boxB.height ) ) );
 
 		final Param pp = p.clone();
 		pp.maxEpsilon *= scale;

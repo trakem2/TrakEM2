@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -67,7 +67,7 @@ import mpicbg.trakem2.align.TranslationTile2D;
  *
  *  This class will attempt to find the optimal montage,
  *  by applying phase-correlation, and/or cross-correlation, and/or SIFT-based correlation) between neighboring images.
- *  
+ *
  *  The method is oriented to images acquired with Transmission Electron Microscopy,
  *  where the acquisition of each image elastically deforms the sample, and thus
  *  earlier images are regarded as better than later ones.
@@ -87,7 +87,7 @@ public class StitchingTEM {
 	static public final int LEFT_RIGHT = 5;
 
 	static public final float DEFAULT_MIN_R = 0.4f;
-		
+
 
 	/** Returns the same Patch instances with their coordinates modified; the top-left image is assumed to be the first one, and thus serves as reference; so, after the first image, coordinates are ignored for each specific Patch.
 	 *
@@ -102,7 +102,7 @@ public class StitchingTEM {
 	 *
 	 * Rotation of the images is NOT considered by the TOP_LEFT_RULE (phase- and cross-correlation),
 	 * but it can be for the FREE_RULE (SIFT).
-	 * 
+	 *
 	 * @return A new Runnable task, or null if the initialization didn't pass the tests (all tiles have to have the same dimensions, for example).
 	 */
 	static public Runnable stitch(
@@ -128,9 +128,9 @@ public class StitchingTEM {
 		}
 
 		// compare Patch dimensions: later code needs all to be equal
-		Rectangle b0 = patch[0].getBoundingBox(null);
+		final Rectangle b0 = patch[0].getBoundingBox(null);
 		for (int i=1; i<patch.length; i++) {
-			Rectangle bi = patch[i].getBoundingBox(null);
+			final Rectangle bi = patch[i].getBoundingBox(null);
 			if (bi.width != b0.width || bi.height != b0.height) {
 				Utils.log2("Stitching: dimensions' missmatch.\n\tAll images MUST have the same dimensions."); // i.e. all Patches, actually (meaning, all Patch objects must have the same width and the same height).
 				return null;
@@ -144,7 +144,7 @@ public class StitchingTEM {
 	}
 	/**
 	 * Stitch array of patches with upper left rule
-	 * 
+	 *
 	 * @param patch
 	 * @param grid_width
 	 * @param default_bottom_top_overlap
@@ -153,17 +153,18 @@ public class StitchingTEM {
 	 * @return
 	 */
 	static private Runnable stitchTopLeft(
-			final Patch[] patch, 
-			final int grid_width, 
-			final double default_bottom_top_overlap, 
-			final double default_left_right_overlap,  
+			final Patch[] patch,
+			final int grid_width,
+			final double default_bottom_top_overlap,
+			final double default_left_right_overlap,
 			final boolean optimize,
 			final PhaseCorrelationParam param)
 	{
 		return new Runnable()
 		{
-			public void run() {
-				
+			@Override
+            public void run() {
+
 				try {
 					final int LEFT = 0, TOP = 1;
 
@@ -175,9 +176,9 @@ public class StitchingTEM {
 
 
 					// for minimization:
-					ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+					final ArrayList<AbstractAffineTile2D<?>> al_tiles = new ArrayList<AbstractAffineTile2D<?>>();
 					// first patch-tile:
-					TranslationModel2D first_tile_model = new TranslationModel2D();
+					final TranslationModel2D first_tile_model = new TranslationModel2D();
 					//first_tile_model.getAffine().setTransform( patch[ 0 ].getAffineTransform() );
 					first_tile_model.set( (float) patch[0].getAffineTransform().getTranslateX(),
 							(float) patch[0].getAffineTransform().getTranslateY());
@@ -195,11 +196,11 @@ public class StitchingTEM {
 						// for minimization:
 						AbstractAffineTile2D<?> tile_left = null;
 						AbstractAffineTile2D<?> tile_top = null;
-						TranslationModel2D tile_model = new TranslationModel2D();
+						final TranslationModel2D tile_model = new TranslationModel2D();
 						//tile_model.getAffine().setTransform( patch[ i ].getAffineTransform() );
 						tile_model.set( (float) patch[i].getAffineTransform().getTranslateX(),
 								(float) patch[i].getAffineTransform().getTranslateY());
-						AbstractAffineTile2D<?> tile = new TranslationTile2D(tile_model, patch[i]);
+						final AbstractAffineTile2D<?> tile = new TranslationTile2D(tile_model, patch[i]);
 						al_tiles.add(tile);
 
 						// stitch with the one above if starting row
@@ -230,7 +231,7 @@ public class StitchingTEM {
 						}
 
 						// boundary limits: don't move by more than the small dimension of the stripe
-						int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
+						final int max_abs_delta; // TODO: only the dx for left (and the dy for top) should be compared and found to be smaller or equal; the other dimension should be unbounded -for example, for manually acquired, grossly out-of-grid tiles.
 
 						final Rectangle box = new Rectangle();
 						final Rectangle box2 = new Rectangle();
@@ -319,7 +320,7 @@ public class StitchingTEM {
 
 					if (optimize) {
 
-						ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
+						final ArrayList<AbstractAffineTile2D<?>> al_fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
 						// Add locked tiles as fixed tiles, if any:
                                                 for (int i=0; i<patch.length; i++) {
                                                         if (patch[i].isLocked2()) al_fixed_tiles.add(al_tiles.get(i));
@@ -333,45 +334,45 @@ public class StitchingTEM {
 						optimizeTileConfiguration(al_tiles, al_fixed_tiles, param);
 
 
-						for ( AbstractAffineTile2D< ? > t : al_tiles )
+						for ( final AbstractAffineTile2D< ? > t : al_tiles )
 							t.getPatch().setAffineTransform( t.getModel().createAffine() );
 
 					}
-					
+
 					// Remove or hide disconnected tiles
 					if(param.hide_disconnected || param.remove_disconnected)
 					{
-						List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( al_tiles );
+						final List< Set< Tile< ? > > > graphs = AbstractAffineTile2D.identifyConnectedGraphs( al_tiles );
 						final List< AbstractAffineTile2D< ? > > interestingTiles;
-						
+
 						// find largest graph
-						
+
 						Set< Tile< ? > > largestGraph = null;
-						for ( Set< Tile< ? > > graph : graphs )
+						for ( final Set< Tile< ? > > graph : graphs )
 							if ( largestGraph == null || largestGraph.size() < graph.size() )
 								largestGraph = graph;
-						
+
 						Utils.log("Size of largest stitching graph = " + largestGraph.size());
-						
+
 						interestingTiles = new ArrayList< AbstractAffineTile2D< ? > >();
-						for ( Tile< ? > t : largestGraph )
+						for ( final Tile< ? > t : largestGraph )
 							interestingTiles.add( ( AbstractAffineTile2D< ? > )t );
-						
+
 						if ( param.hide_disconnected )
-							for ( AbstractAffineTile2D< ? > t : al_tiles )
+							for ( final AbstractAffineTile2D< ? > t : al_tiles )
 								if ( !interestingTiles.contains( t ) )
 									t.getPatch().setVisible( false );
 						if ( param.remove_disconnected )
-							for ( AbstractAffineTile2D< ? > t : al_tiles )
+							for ( final AbstractAffineTile2D< ? > t : al_tiles )
 								if ( !interestingTiles.contains( t ) )
 									t.getPatch().remove( false );
 					}
-					
-					
+
+
 					Display.repaint(patch[0].getLayer(), null, 0, true); // all
 
 					//
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					IJError.print(e);
 				}
 			}
@@ -379,43 +380,43 @@ public class StitchingTEM {
 	}
 
 	/** dx, dy is the position of t2 relative to the 0,0 of t1. */
-	static private final void addMatches(AbstractAffineTile2D<?> t1, AbstractAffineTile2D<?> t2, double dx, double dy) {
-		Point p1 = new Point(new float[]{0f, 0f});
-		Point p2 = new Point(new float[]{(float)dx, (float)dy});
+	static private final void addMatches(final AbstractAffineTile2D<?> t1, final AbstractAffineTile2D<?> t2, final double dx, final double dy) {
+		final Point p1 = new Point(new double[]{0, 0});
+		final Point p2 = new Point(new double[]{dx, dy});
 		t1.addMatch(new PointMatch(p2, p1, 1.0f));
 		t2.addMatch(new PointMatch(p1, p2, 1.0f));
 		t1.addConnectedTile(t2);
 		t2.addConnectedTile(t1);
-	}	
-	
+	}
 
-	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale) {
+
+	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final double scale) {
 		return makeStripe(p, roi, scale, false);
 	}
 
-//	static public ImageProcessor makeStripe(final Patch p, final float scale, final boolean ignore_patch_transform) {
+//	static public ImageProcessor makeStripe(final Patch p, final double scale, final boolean ignore_patch_transform) {
 //		return makeStripe(p, null, scale, ignore_patch_transform);
 //	}
 
 	/** @return FloatProcessor.
-	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */ 
+	 * @param ignore_patch_transform will prevent resizing of the ImageProcessor in the event of the Patch having a transform different than identity. */
 	// TODO 2: there is a combination of options that ends up resulting in the actual ImageProcessor of the Patch being returned as is, which is DANGEROUS because it can potentially result in changes in the data.
-	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final float scale, boolean ignore_patch_transform) {
-		
-		
+	static public ImageProcessor makeStripe(final Patch p, final Roi roi, final double scale, final boolean ignore_patch_transform) {
+
+
 		ImagePlus imp = null;
 		ImageProcessor ip = null;
-		Loader loader =  p.getProject().getLoader();
+		final Loader loader =  p.getProject().getLoader();
 		// check if using mipmaps and if there is a file for it. If there isn't, most likely this method is being called in an import sequence as grid procedure.
-		if (loader.isMipMapsRegenerationEnabled() && loader.checkMipMapFileExists(p, scale)) 
+		if (loader.isMipMapsRegenerationEnabled() && loader.checkMipMapFileExists(p, scale))
 		{
-			
+
 			// Read the transform image from the patch (this way we avoid the JPEG artifacts)
 			final Patch.PatchImage pai = p.createTransformedImage();
 			pai.target.setMinAndMax( p.getMin(), p.getMax() );
-			
+
 			Image image = pai.target.createImage(); //p.getProject().getLoader().fetchImage(p, scale);
-			
+
 			// check that dimensions are correct. If anything, they'll be larger
 			//Utils.log2("patch w,h " + p.getWidth() + ", " + p.getHeight() + " fetched image w,h: " + image.getWidth(null) + ", " + image.getHeight(null));
 			if (Math.abs(p.getWidth() * scale - image.getWidth(null)) > 0.001 || Math.abs(p.getHeight() * scale - image.getHeight(null)) > 0.001) {
@@ -426,14 +427,14 @@ public class StitchingTEM {
 				imp = new ImagePlus("s", image);
 				ip = imp.getProcessor();
 				//imp.show();
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 			// cut
 			if (null != roi) {
 				// scale ROI!
 				Rectangle rb = roi.getBounds();
-				Roi roi2 = new Roi((int)(rb.x * scale), (int)(rb.y * scale), (int)(rb.width * scale), (int)(rb.height * scale));
+				final Roi roi2 = new Roi((int)(rb.x * scale), (int)(rb.y * scale), (int)(rb.width * scale), (int)(rb.height * scale));
 				rb = roi2.getBounds();
 				if (ip.getWidth() != rb.width || ip.getHeight() != rb.height) {
 					ip.setRoi(roi2);
@@ -442,15 +443,15 @@ public class StitchingTEM {
 			}
 			//Utils.log2("scale: " + scale + "  ip w,h: " + ip.getWidth() + ", " + ip.getHeight());
 		} else {
-			
-			
+
+
 			final Patch.PatchImage pai = p.createTransformedImage();
 			pai.target.setMinAndMax( p.getMin(), p.getMax() );
-			
+
 			ip = pai.target;
 			imp = new ImagePlus("", ip);
-			
-			
+
+
 			// compare and adjust
 			if (!ignore_patch_transform && p.getAffineTransform().getType() != AffineTransform.TYPE_TRANSLATION) { // if it's not only a translation:
 				final Rectangle b = p.getBoundingBox();
@@ -470,7 +471,7 @@ public class StitchingTEM {
 			if (scale < 1) {
 				p.getProject().getLoader().releaseToFit((long)(ip.getWidth() * ip.getHeight() * 4 * 1.2)); // floats have 4 bytes, plus some java peripherals correction factor
 				ip = ip.convertToFloat();
-				ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), (float)Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
+				ip.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip.getPixels(), ip.getWidth(), ip.getHeight()), Math.sqrt(0.25 / scale / scale - 0.25)).data); // scaling with area averaging is the same as a gaussian of sigma 0.5/scale and then resize with nearest neightbor So this line does the gaussian, and line below does the neares-neighbor scaling
 				ip = ip.resize((int)(ip.getWidth() * scale)); // scale maintaining aspect ratio
 			}
 		}
@@ -483,9 +484,9 @@ public class StitchingTEM {
 		return ip;
 	}
 
-	
-	
-	
+
+
+
 	 /** @param scale For optimizing the speed of phase- and cross-correlation.<br />
 	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.<br />
 	 * @return a double[4] array containing:<br />
@@ -494,9 +495,9 @@ public class StitchingTEM {
 	 * 	- flag: ERROR or SUCCESS<br />
 	 * 	- R: cross-correlation coefficient<br />
 	 */
-	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final float scale, final int direction, final double default_dx, final double default_dy, final float min_R) {
+	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final double scale, final int direction, final double default_dx, final double default_dy, final double min_R) {
 		//PhaseCorrelation2D pc = null;
-		double R = -2;
+		final double R = -2;
 		//final int limit = 5; // number of peaks to check in the PhaseCorrelation results
 		//final float min_R = 0.40f; // minimum R for phase-correlation to be considered good
 					// half this min_R will be considered good for cross-correlation
@@ -533,28 +534,28 @@ public class StitchingTEM {
 			ip2 = makeStripe(moving, roi2, scale);
 			//new ImagePlus("roi1", ip1).show();
 			//new ImagePlus("roi2", ip2).show();
-			ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1f).data);
-			ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1f).data);
+			ip1.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip1.getPixels(), ip1.getWidth(), ip1.getHeight()), 1.0).data);
+			ip2.setPixels(ImageFilter.computeGaussianFastMirror(new FloatArray2D((float[])ip2.getPixels(), ip2.getWidth(), ip2.getHeight()), 1.0).data);
 			//
-			
+
 			final ImagePlus imp1 = new ImagePlus( "", ip1 );
 			final ImagePlus imp2 = new ImagePlus( "", ip2 );
 
-			PhaseCorrelationCalculator t = new PhaseCorrelationCalculator(imp1, imp2);
-			PhaseCorrelationPeak peak = t.getPeak();
-			
+			final PhaseCorrelationCalculator t = new PhaseCorrelationCalculator(imp1, imp2);
+			final PhaseCorrelationPeak peak = t.getPeak();
+
 			final double resultR = peak.getCrossCorrelationPeak();
 			final int[] peackPostion = peak.getPosition();
 			final java.awt.Point shift = new java.awt.Point(peackPostion[0], peackPostion[1]);
-			
+
 			//pc = new PhaseCorrelation2D(ip1, ip2, limit, true, false, false); // with windowing
 			//final java.awt.Point shift = pc.computePhaseCorrelation();
 			//final PhaseCorrelation2D.CrossCorrelationResult result = pc.getResult();
-			
+
 			//Utils.log2("overlap: " + overlap + " R: " + resultR + " shift: " + shift + " dx,dy: " + dx + ", " + dy);
 			if (resultR >= min_R) {
 				// success
-				int success = SUCCESS;
+				final int success = SUCCESS;
 				switch(direction) {
 					case TOP_BOTTOM:
 						// boundary checks:
@@ -593,7 +594,7 @@ public class StitchingTEM {
 				break;
 		}
 		// use one third of the size used for phase-correlation though! Otherwise, it may take FOREVER
-		float scale_cc = (float)(scale / 3f);
+		final double scale_cc = scale / 3.0f;
 		ip1 = makeStripe(base, roi1, scale_cc);
 		ip2 = makeStripe(moving, roi2, scale_cc);
 
@@ -616,7 +617,7 @@ public class StitchingTEM {
 		}
 		if (cc_result[2] > min_R/2) { //accepting if R is above half the R accepted for Phase Correlation
 			// success
-			int success = SUCCESS;
+			final int success = SUCCESS;
 			switch(direction) {
 				case TOP_BOTTOM:
 					// boundary checks:
@@ -643,12 +644,12 @@ public class StitchingTEM {
 
 		/// ABOVE: boundary checks don't work if default_dx,dy are zero! And may actually be harmful in anycase
 	}
-	
+
 	/** Figure out from which direction is the dragged object approaching the object being overlapped. 0=left, 1=top, 2=right, 3=bottom. This method by Stephan Nufer. */
-	static private int getClosestOverlapLocation(Patch dragging_ob, Patch overlapping_ob) {
-		Rectangle x_rect = dragging_ob.getBoundingBox();
-		Rectangle y_rect = overlapping_ob.getBoundingBox();
-		Rectangle overlap = x_rect.intersection(y_rect);
+	static private int getClosestOverlapLocation(final Patch dragging_ob, final Patch overlapping_ob) {
+		final Rectangle x_rect = dragging_ob.getBoundingBox();
+		final Rectangle y_rect = overlapping_ob.getBoundingBox();
+		final Rectangle overlap = x_rect.intersection(y_rect);
 		if (overlap.width / (double)overlap.height > 1) {
 			// horizontal stitch
 			if (y_rect.y < x_rect.y) return 3;
@@ -660,25 +661,27 @@ public class StitchingTEM {
 		}
 	}
 
-	/** 
+	/**
 	 * For each Patch, find who overlaps with it and perform a phase correlation or cross-correlation with it;
 	 *  then consider all successful correlations as links and run the optimizer on it all.
 	 *  ASSUMES the patches have only TRANSLATION in their affine transforms--will warn you about it.*/
 	static public Bureaucrat montageWithPhaseCorrelationTask(final Collection<Patch> col) {
 		if (null == col || col.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage with phase-correlation") {
-			public void exec() {
+			@Override
+            public void exec() {
 				montageWithPhaseCorrelation(col);
 			}
 		}, col.iterator().next().getProject());
 	}
-	
+
 	static public void montageWithPhaseCorrelation(final Collection<Patch> col) {
 		final PhaseCorrelationParam param = new PhaseCorrelationParam();
 		if (!param.setup(col.iterator().next())) {
 			return;
 		}
-		AlignTask.transformPatchesAndVectorData(col, new Runnable() { public void run() {
+		AlignTask.transformPatchesAndVectorData(col, new Runnable() { @Override
+        public void run() {
 			montageWithPhaseCorrelation(col, param);
 		}});
 	}
@@ -686,14 +689,15 @@ public class StitchingTEM {
 	static public Bureaucrat montageWithPhaseCorrelationTask(final List<Layer> layers) {
 		if (null == layers || layers.size() < 1) return null;
 		return Bureaucrat.createAndStart(new Worker.Task("Montage layer 1/" + layers.size()) {
-			public void exec() {
+			@Override
+            public void exec() {
 				montageWithPhaseCorrelation(layers, this);
 			}
 		}, layers.get(0).getProject());
 	}
-	
+
 	/**
-	 * 
+	 *
 	 * @param layers
 	 * @param worker Optional, the {@link Worker} running this task.
 	 */
@@ -703,12 +707,13 @@ public class StitchingTEM {
 		if (!param.setup(col.size() > 0 ? (Patch)col.iterator().next() : null)) {
 			return;
 		}
-		int i = 1;
-		for (Layer la : layers) {
+		final int i = 1;
+		for (final Layer la : layers) {
 			if (Thread.currentThread().isInterrupted() || (null != worker && worker.hasQuitted())) return;
 			if (null != worker) worker.setTaskName("Montage layer " + i + "/" + layers.size());
 			final Collection<Patch> patches = (Collection<Patch>) (Collection) la.getDisplayables(Patch.class);
-			AlignTask.transformPatchesAndVectorData(patches, new Runnable() { public void run() {
+			AlignTask.transformPatchesAndVectorData(patches, new Runnable() { @Override
+            public void run() {
 				montageWithPhaseCorrelation(patches, param);
 			}});
 		}
@@ -716,24 +721,24 @@ public class StitchingTEM {
 
 	/**
 	 * Phase correlation parameters class
-	 * 
+	 *
 	 */
-	static public class PhaseCorrelationParam 
+	static public class PhaseCorrelationParam
 	{
-		public float cc_scale = 0.25f;
+		public double cc_scale = 0.25;
 		public float overlap = 0.1f;
 		public boolean hide_disconnected = false;
 		public boolean remove_disconnected = false;
-		public float mean_factor = 2.5f;
-		public float min_R = 0.3f;
+		public double mean_factor = 2.5;
+		public double min_R = 0.3;
 
 		public PhaseCorrelationParam(
-				float cc_scale,
-				float overlap,
-				boolean hide_disconnected,
-				boolean remove_disconnected,
-				float mean_factor,
-				float min_R)
+				final double cc_scale,
+				final float overlap,
+				final boolean hide_disconnected,
+				final boolean remove_disconnected,
+				final double mean_factor,
+				final double min_R)
 		{
 			this.cc_scale = cc_scale;
 			this.overlap = overlap;
@@ -742,36 +747,36 @@ public class StitchingTEM {
 			this.mean_factor = mean_factor;
 			this.min_R = min_R;
 		}
-		
-		/** 
+
+		/**
 		 * Empty constructor
 		 */
 		public PhaseCorrelationParam() {}
 
 		/** Run setup on a Patch of the layer, if any. */
-		public boolean setup(Layer layer) {
-			Collection<Displayable> p = layer.getDisplayables(Patch.class);
-			Patch patch = p.isEmpty() ? null : (Patch)p.iterator().next();
+		public boolean setup(final Layer layer) {
+			final Collection<Displayable> p = layer.getDisplayables(Patch.class);
+			final Patch patch = p.isEmpty() ? null : (Patch)p.iterator().next();
 			// !@#$%%^^
 			return setup(patch);
 		}
 
-		/** 
+		/**
 		 * Returns false when canceled.
-		 * @param ref is an optional Patch from which to estimate an appropriate image scale 
-		 * 			at which to perform the phase correlation, for performance reasons. 
+		 * @param ref is an optional Patch from which to estimate an appropriate image scale
+		 * 			at which to perform the phase correlation, for performance reasons.
 		 * */
-		public boolean setup(Patch ref) 
+		public boolean setup(final Patch ref)
 		{
-			GenericDialog gd = new GenericDialog("Montage with phase correlation");
+			final GenericDialog gd = new GenericDialog("Montage with phase correlation");
 			if (overlap < 0) overlap = 0.1f;
 			else if (overlap > 1) overlap = 1;
 			gd.addSlider("tile_overlap (%): ", 1, 100, overlap * 100);
 			int sc = (int)cc_scale * 100;
 			if (null != ref) {
 				// Estimate scale from ref Patch dimensions
-				int w = ref.getOWidth();
-				int h = ref.getOHeight();
+				final int w = ref.getOWidth();
+				final int h = ref.getOHeight();
 				sc = (int)((512.0 / (w > h ? w : h)) * 100); // guess a scale so that image is 512x512 aprox
 			}
 			if (sc <= 0) sc = 25;
@@ -783,11 +788,11 @@ public class StitchingTEM {
 			gd.addCheckbox("remove disconnected", false);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
-			
+
 			overlap = (float)gd.getNextNumber() / 100f;
-			cc_scale = (float)gd.getNextNumber() / 100f;
-			mean_factor = ( float )gd.getNextNumber(); 
-			min_R = (float) gd.getNextNumber();
+			cc_scale = gd.getNextNumber() / 100.0;
+			mean_factor = gd.getNextNumber();
+			min_R = gd.getNextNumber();
 			hide_disconnected = gd.getNextBoolean();
 			remove_disconnected = gd.getNextBoolean();
 
@@ -800,13 +805,13 @@ public class StitchingTEM {
 	 * @param col collection of patches
 	 * @param param phase correlation parameters
 	 */
-	static public void montageWithPhaseCorrelation(final Collection<Patch> col, final PhaseCorrelationParam param) 
+	static public void montageWithPhaseCorrelation(final Collection<Patch> col, final PhaseCorrelationParam param)
 	{
 		if (null == col || col.size() < 1) return;
 		final ArrayList<Patch> al = new ArrayList<Patch>(col);
 		final ArrayList<AbstractAffineTile2D<?>> tiles = new ArrayList<AbstractAffineTile2D<?>>();
 		final ArrayList<AbstractAffineTile2D<?>> fixed_tiles = new ArrayList<AbstractAffineTile2D<?>>();
-		
+
 		for (final Patch p : al) {
 			// Pre-check: just a warning
 			final int aff_type = p.getAffineTransform().getType();
@@ -820,7 +825,7 @@ public class StitchingTEM {
 					break;
 			}
 			// create tiles
-			TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
+			final TranslationTile2D tile = new TranslationTile2D(new TranslationModel2D(), p);
 			tiles.add(tile);
 			if (p.isLocked2()) {
 				Utils.log("Added fixed (locked) tile " + p);
@@ -828,7 +833,7 @@ public class StitchingTEM {
 			}
 		}
 		// Get acceptable values
-		float cc_scale = param.cc_scale;
+		double cc_scale = param.cc_scale;
 		if (cc_scale < 0 || cc_scale > 1) {
 			Utils.log("Unacceptable cc_scale of " + param.cc_scale + ". Using 1 instead.");
 			cc_scale = 1;
@@ -839,7 +844,7 @@ public class StitchingTEM {
 			overlap = 1;
 		}
 
-		
+
 
 		for (int i=0; i<al.size(); i++) {
 			final Patch p1 = al.get(i);
@@ -903,8 +908,8 @@ public class StitchingTEM {
 		}
 
 		if (param.remove_disconnected || param.hide_disconnected) {
-			for (Iterator<AbstractAffineTile2D<?>> it = tiles.iterator(); it.hasNext(); ) {
-				AbstractAffineTile2D<?> t = it.next();
+			for (final Iterator<AbstractAffineTile2D<?>> it = tiles.iterator(); it.hasNext(); ) {
+				final AbstractAffineTile2D<?> t = it.next();
 				if (null != t.getMatches() && t.getMatches().isEmpty()) {
 					if (param.hide_disconnected) t.getPatch().setVisible(false);
 					else if (param.remove_disconnected) t.getPatch().remove(false);
@@ -916,23 +921,23 @@ public class StitchingTEM {
 		// Optimize tile configuration by removing bad matches
 		optimizeTileConfiguration(tiles, fixed_tiles, param);
 
-		for ( AbstractAffineTile2D< ? > t : tiles )
+		for ( final AbstractAffineTile2D< ? > t : tiles )
 			t.getPatch().setAffineTransform( t.getModel().createAffine() );
 
-		try { Display.repaint(al.get(0).getLayer()); } catch (Exception e) {}
+		try { Display.repaint(al.get(0).getLayer()); } catch (final Exception e) {}
 	}
-	
+
 	/**
 	 * Optimize tile configuration by removing bad matches
-	 * 
+	 *
 	 * @param tiles complete list of tiles
 	 * @param fixed_tiles list of fixed tiles
 	 * @param param phase correlation parameters
 	 */
 	public static void optimizeTileConfiguration(
-			ArrayList<AbstractAffineTile2D<?>> tiles,
-			ArrayList<AbstractAffineTile2D<?>> fixed_tiles,
-			PhaseCorrelationParam param)
+			final ArrayList<AbstractAffineTile2D<?>> tiles,
+			final ArrayList<AbstractAffineTile2D<?>> fixed_tiles,
+			final PhaseCorrelationParam param)
 	{
 		// Run optimization
 		if (fixed_tiles.isEmpty()) fixed_tiles.add(tiles.get(0));
@@ -941,13 +946,13 @@ public class StitchingTEM {
 		while ( proceed )
 		{
 			Align.optimizeTileConfiguration( new Align.ParamOptimize(), tiles, fixed_tiles );
-			
+
 			/* get all transfer errors */
 			final ErrorStatistic e = new ErrorStatistic( tiles.size() + 1 );
-			
+
 			for ( final AbstractAffineTile2D< ? > t : tiles )
 				t.update();
-			
+
 			for ( final AbstractAffineTile2D< ? > t : tiles )
 			{
 				for ( final PointMatch p : t.getMatches() )
@@ -955,7 +960,7 @@ public class StitchingTEM {
 					e.add( p.getDistance() );
 				}
 			}
-			
+
 			/* remove the worst if there is one */
 			if ( e.max > param.mean_factor * e.mean )
 			{
@@ -974,9 +979,9 @@ A:				for ( final AbstractAffineTile2D< ? > t : tiles )
 					}
 				}
 			}
-			else	
+			else
 				proceed = false;
 		}
 	}
-	
+
 }

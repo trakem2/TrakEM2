@@ -13,7 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
+ *
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
@@ -21,33 +21,38 @@ package mpicbg.trakem2.transform;
 
 public class CoordinateTransformList< E extends CoordinateTransform > extends mpicbg.models.CoordinateTransformList< E > implements CoordinateTransform
 {
+	private static final long serialVersionUID = 8134060157022268181L;
+
 	//@Override
+	@Override
 	public void init( final String data )
 	{
 		throw new NumberFormatException( "There is no parameter based initialisation for " + this.getClass().getCanonicalName() );
 	}
 
 	//@Override
+	@Override
 	public String toXML( final String indent )
 	{
 		final StringBuilder xml = new StringBuilder( 160000 );
 		xml.append(indent).append("<ict_transform_list>");
-		for ( mpicbg.models.CoordinateTransform t : transforms )
+		for ( final mpicbg.models.CoordinateTransform t : transforms )
 			xml.append('\n').append( ( ( CoordinateTransform )t ).toXML( indent + "\t" ) );
 		return xml.append('\n').append(indent).append("</ict_transform_list>").toString();
 	}
-	
+
 	//@Override
+	@Override
 	public String toDataString()
 	{
 		return "";
 	}
-	
+
 	@Override
 	public CoordinateTransformList< E > copy()
 	{
 		final CoordinateTransformList< E > ctl = new CoordinateTransformList< E >();
-		for ( E ct : transforms )
+		for ( final E ct : transforms )
 			ctl.add( ( E )ct.copy() );
 		return ctl;
 	}

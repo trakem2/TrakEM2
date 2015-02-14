@@ -70,31 +70,31 @@ public class ElasticLayerAlignment
 {
 	final static public class Param extends mpicbg.trakem2.align.AbstractLayerAlignmentParam implements Serializable
 	{
-		private static final long serialVersionUID = 3366971916160734613L;
+        private static final long serialVersionUID = 208742614581106404L;
 
-		public boolean isAligned = false;
-		
-		public float layerScale = 0.1f;
+        public boolean isAligned = false;
+
+		public double layerScale = 0.1;
 		public float minR = 0.6f;
 		public float maxCurvatureR = 10f;
 		public float rodR = 0.9f;
 		public int searchRadius = 200;
 		public int blockRadius = -1;
-		
+
 		public boolean useLocalSmoothnessFilter = true;
 		public int localModelIndex = 1;
 		public float localRegionSigma = searchRadius;
 		public float maxLocalEpsilon = searchRadius / 2;
 		public float maxLocalTrust = 3;
-		
+
 		public int resolutionSpringMesh = 16;
-		public float stiffnessSpringMesh = 0.1f;
-		public float dampSpringMesh = 0.9f;
-		public float maxStretchSpringMesh = 2000.0f;
+		public double stiffnessSpringMesh = 0.1;
+		public double dampSpringMesh = 0.9;
+		public double maxStretchSpringMesh = 2000.0;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
 		public boolean useLegacyOptimizer = true;
-		
+
 		public boolean setup( final Rectangle box )
 		{
 			/* Block Matching */
@@ -103,7 +103,7 @@ public class ElasticLayerAlignment
 				blockRadius = box.width / resolutionSpringMesh / 2;
 			}
 			final GenericDialog gdBlockMatching = new GenericDialog( "Elastically align layers: Block Matching parameters" );
-			
+
 			gdBlockMatching.addMessage( "Block Matching:" );
 			/* TODO suggest isotropic resolution for this parameter */
 			gdBlockMatching.addNumericField( "layer_scale :", layerScale, 2 );
@@ -111,29 +111,29 @@ public class ElasticLayerAlignment
 			gdBlockMatching.addNumericField( "block_radius :", blockRadius, 0, 6, "px" );
 			/* TODO suggest a resolution that matches searchRadius */
 			gdBlockMatching.addNumericField( "resolution :", resolutionSpringMesh, 0 );
-			
+
 			gdBlockMatching.addMessage( "Correlation Filters:" );
 			gdBlockMatching.addNumericField( "minimal_PMCC_r :", minR, 2 );
 			gdBlockMatching.addNumericField( "maximal_curvature_ratio :", maxCurvatureR, 2 );
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", rodR, 2 );
-			
+
 			gdBlockMatching.addMessage( "Local Smoothness Filter:" );
 			gdBlockMatching.addCheckbox( "use_local_smoothness_filter", useLocalSmoothnessFilter );
 			gdBlockMatching.addChoice( "approximate_local_transformation :", Param.modelStrings, Param.modelStrings[ localModelIndex ] );
 			gdBlockMatching.addNumericField( "local_region_sigma:", localRegionSigma, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", maxLocalEpsilon, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (relative):", maxLocalTrust, 2 );
-			
+
 			gdBlockMatching.addMessage( "Miscellaneous:" );
 			gdBlockMatching.addCheckbox( "layers_are_pre-aligned", isAligned );
 			gdBlockMatching.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
-			
+
 			gdBlockMatching.showDialog();
-			
+
 			if ( gdBlockMatching.wasCanceled() )
 				return false;
-			
-			layerScale = ( float )gdBlockMatching.getNextNumber();
+
+			layerScale = gdBlockMatching.getNextNumber();
 			searchRadius = ( int )gdBlockMatching.getNextNumber();
 			blockRadius = ( int )gdBlockMatching.getNextNumber();
 			resolutionSpringMesh = ( int )gdBlockMatching.getNextNumber();
@@ -147,17 +147,17 @@ public class ElasticLayerAlignment
 			maxLocalTrust = ( float )gdBlockMatching.getNextNumber();
 			isAligned = gdBlockMatching.getNextBoolean();
 			maxNumNeighbors = ( int )gdBlockMatching.getNextNumber();
-			
-			
+
+
 			if ( !isAligned )
 			{
 				if ( !setupSIFT( "Elastically align layers: " ) )
 					return false;
-				
+
 				/* Geometric filters */
-				
+
 				final GenericDialog gd = new GenericDialog( "Elastically align layers: Geometric filters" );
-				
+
 				gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
 				gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
 				gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
@@ -165,12 +165,12 @@ public class ElasticLayerAlignment
 				gd.addCheckbox( "ignore constant background", rejectIdentity );
 				gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 				gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
-				
+
 				gd.showDialog();
-				
+
 				if ( gd.wasCanceled() )
 					return false;
-				
+
 				maxEpsilon = ( float )gd.getNextNumber();
 				minInlierRatio = ( float )gd.getNextNumber();
 				minNumInliers = ( int )gd.getNextNumber();
@@ -179,43 +179,43 @@ public class ElasticLayerAlignment
 				identityTolerance = ( float )gd.getNextNumber();
 				maxNumFailures = ( int )gd.getNextNumber();
 			}
-			
-			
+
+
 			/* Optimization */
 			final GenericDialog gdOptimize = new GenericDialog( "Elastically align layers: Optimization" );
-			
+
 			gdOptimize.addMessage( "Approximate Optimizer:" );
 			gdOptimize.addChoice( "approximate_transformation :", Param.modelStrings, Param.modelStrings[ desiredModelIndex ] );
 			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
-			
+
 			gdOptimize.addMessage( "Spring Mesh:" );
 			gdOptimize.addNumericField( "stiffness :", stiffnessSpringMesh, 2 );
 			gdOptimize.addNumericField( "maximal_stretch :", maxStretchSpringMesh, 2, 6, "px" );
 			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
 			gdOptimize.addCheckbox("use_legacy_optimizer :", useLegacyOptimizer);
-			
+
 			gdOptimize.showDialog();
-			
+
 			if ( gdOptimize.wasCanceled() )
 				return false;
-			
+
 			desiredModelIndex = gdOptimize.getNextChoiceIndex();
 			maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
 			maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
-			
-			stiffnessSpringMesh = ( float )gdOptimize.getNextNumber();
-			maxStretchSpringMesh = ( float )gdOptimize.getNextNumber();
+
+			stiffnessSpringMesh = gdOptimize.getNextNumber();
+			maxStretchSpringMesh = gdOptimize.getNextNumber();
 			maxIterationsSpringMesh = ( int )gdOptimize.getNextNumber();
 			maxPlateauwidthSpringMesh = ( int )gdOptimize.getNextNumber();
 			useLegacyOptimizer = gdOptimize.getNextBoolean();
-			
+
 			return true;
 		}
-		
+
 		public Param() {}
-		
+
 		public Param(
 				final int SIFTfdBins,
 				final int SIFTfdSize,
@@ -223,11 +223,11 @@ public class ElasticLayerAlignment
 				final int SIFTmaxOctaveSize,
 				final int SIFTminOctaveSize,
 				final int SIFTsteps,
-				
+
 				final boolean clearCache,
 				final int maxNumThreadsSift,
 				final float rod,
-				
+
 				final int desiredModelIndex,
 				final int expectedModelIndex,
 				final float identityTolerance,
@@ -243,10 +243,10 @@ public class ElasticLayerAlignment
 				final boolean multipleHypotheses,
 				final boolean rejectIdentity,
 				final boolean visualize,
-				
+
 				final int blockRadius,
-				final float dampSpringMesh,
-				final float layerScale,
+				final double dampSpringMesh,
+				final double layerScale,
 				final int localModelIndex,
 				final float localRegionSigma,
 				final float maxCurvatureR,
@@ -255,12 +255,12 @@ public class ElasticLayerAlignment
 				final float maxLocalTrust,
 				final int maxPlateauwidthSpringMesh,
 				final boolean useLegacyOptimizer,
-				final float maxStretchSpringMesh,
+				final double maxStretchSpringMesh,
 				final float minR,
 				final int resolutionSpringMesh,
 				final float rodR,
 				final int searchRadius,
-				final float stiffnessSpringMesh,
+				final double stiffnessSpringMesh,
 				final boolean useLocalSmoothnessFilter )
 		{
 			super(
@@ -287,7 +287,7 @@ public class ElasticLayerAlignment
 					multipleHypotheses,
 					rejectIdentity,
 					visualize );
-			
+
 			this.isAligned = isAligned;
 			this.blockRadius = blockRadius;
 			this.dampSpringMesh = dampSpringMesh;
@@ -308,7 +308,7 @@ public class ElasticLayerAlignment
 			this.stiffnessSpringMesh = stiffnessSpringMesh;
 			this.useLocalSmoothnessFilter = useLocalSmoothnessFilter;
 		}
-		
+
 		@Override
 		public Param clone()
 		{
@@ -319,11 +319,11 @@ public class ElasticLayerAlignment
 					ppm.sift.maxOctaveSize,
 					ppm.sift.minOctaveSize,
 					ppm.sift.steps,
-					
+
 					ppm.clearCache,
 					ppm.maxNumThreadsSift,
 					ppm.rod,
-					
+
 					desiredModelIndex,
 					expectedModelIndex,
 					identityTolerance,
@@ -339,7 +339,7 @@ public class ElasticLayerAlignment
 					multipleHypotheses,
 					rejectIdentity,
 					visualize,
-					
+
 					blockRadius,
 					dampSpringMesh,
 					layerScale,
@@ -360,10 +360,10 @@ public class ElasticLayerAlignment
 					useLocalSmoothnessFilter );
 		}
 	}
-	
+
 	final static Param p = new Param();
 
-	
+
 	final static private String layerName( final Layer layer )
 	{
 		return new StringBuffer( "layer z=" )
@@ -372,12 +372,12 @@ public class ElasticLayerAlignment
 			.append( layer.getTitle() )
 			.append( "'" )
 			.toString();
-		
+
 	}
-	
-	
+
+
 	/**
-	 * 
+	 *
 	 * @param param
 	 * @param layerRange
 	 * @param fixedLayers
@@ -398,9 +398,9 @@ public class ElasticLayerAlignment
 			final boolean propagateTransformAfter,
 			final Filter< Patch > filter ) throws Exception
 	{
-        ExecutorService service = ExecutorProvider.getExecutorService(1.0f);
-		
-		
+        final ExecutorService service = ExecutorProvider.getExecutorService(1.0f);
+
+
 		/* create tiles and models for all layers */
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
 		for ( int i = 0; i < layerRange.size(); ++i )
@@ -426,12 +426,12 @@ public class ElasticLayerAlignment
 				return;
 			}
 		}
-		
+
 		/* collect all pairs of slices for which a model could be found */
 		final ArrayList< Triple< Integer, Integer, AbstractModel< ? > > > pairs =
                 new ArrayList< Triple< Integer, Integer, AbstractModel< ? > > >();
-		
-		
+
+
 		if ( !param.isAligned )
 		{
 		    preAlignStack(param, project, layerRange, box, filter, pairs);
@@ -441,7 +441,7 @@ public class ElasticLayerAlignment
 			for ( int i = 0; i < layerRange.size(); ++i )
 			{
 				final int range = Math.min( layerRange.size(), i + param.maxNumNeighbors + 1 );
-				
+
 				for ( int j = i + 1; j < range; ++j )
 				{
 					pairs.add(new Triple< Integer, Integer, AbstractModel< ? > >(
@@ -449,15 +449,15 @@ public class ElasticLayerAlignment
 				}
 			}
 		}
-		
+
 		/* Elastic alignment */
-		
+
 		/* Initialization */
 		final TileConfiguration initMeshes = new TileConfiguration();
-		
+
 		final int meshWidth = ( int )Math.ceil( box.width * param.layerScale );
 		final int meshHeight = ( int )Math.ceil( box.height * param.layerScale );
-		
+
 		final ArrayList< SpringMesh > meshes = new ArrayList< SpringMesh >( layerRange.size() );
 		for ( int i = 0; i < layerRange.size(); ++i )
         {
@@ -470,21 +470,21 @@ public class ElasticLayerAlignment
 							param.maxStretchSpringMesh * param.layerScale,
 							param.dampSpringMesh ) );
         }
-		
+
 		//final int blockRadius = Math.max( 32, meshWidth / p.resolutionSpringMesh / 2 );
 		final int blockRadius = Math.max( 16, mpicbg.util.Util.roundPos( param.layerScale * param.blockRadius ) );
-		
+
 		Utils.log( "effective block radius = " + blockRadius );
 
         final ArrayList<Future<BlockMatchPairCallable.BlockMatchResults>> futures =
                 new ArrayList<Future<BlockMatchPairCallable.BlockMatchResults>>(pairs.size());
 
-		
+
 		for ( final Triple< Integer, Integer, AbstractModel< ? > > pair : pairs )
 		{
 			/* free memory */
 			project.getLoader().releaseAll();
-			
+
 			final SpringMesh m1 = meshes.get( pair.a );
 			final SpringMesh m2 = meshes.get( pair.b );
 
@@ -501,7 +501,7 @@ public class ElasticLayerAlignment
 
 			if ( !( layer1Fixed && layer2Fixed ) )
 			{
-                BlockMatchPairCallable bmpc = new BlockMatchPairCallable(
+                final BlockMatchPairCallable bmpc = new BlockMatchPairCallable(
                         pair,
                         layerRange,
                         layer1Fixed, layer2Fixed,
@@ -522,7 +522,7 @@ public class ElasticLayerAlignment
             final Tile< ? > t2 = tiles.get( pair.b );
             final SpringMesh m1 = meshes.get( pair.a );
             final SpringMesh m2 = meshes.get( pair.b );
-            final float springConstant  = 1.0f / ( pair.b - pair.a );
+            final double springConstant  = 1.0 / ( pair.b - pair.a );
             final boolean layer1Fixed = results.layer1Fixed;
             final boolean layer2Fixed = results.layer2Fixed;
 
@@ -618,7 +618,7 @@ public class ElasticLayerAlignment
 		{
 			final long t0 = System.currentTimeMillis();
 			Utils.log( "Optimizing spring meshes..." );
-			
+
 			if ( param.useLegacyOptimizer )
 			{
 				Utils.log( "  ...using legacy optimizer...");
@@ -640,7 +640,7 @@ public class ElasticLayerAlignment
 			}
 
 			Utils.log("Done optimizing spring meshes. Took " + (System.currentTimeMillis() - t0) + " ms");
-			
+
 		}
 		catch ( final NotEnoughDataPointsException e )
 		{
@@ -648,7 +648,7 @@ public class ElasticLayerAlignment
 			e.printStackTrace();
 			return;
 		}
-		
+
 		/* translate relative to bounding box */
 		for ( final SpringMesh mesh : meshes )
 		{
@@ -656,23 +656,23 @@ public class ElasticLayerAlignment
 			{
 				final Point p1 = pm.getP1();
 				final Point p2 = pm.getP2();
-				final float[] l = p1.getL();
-				final float[] w = p2.getW();
+				final double[] l = p1.getL();
+				final double[] w = p2.getW();
 				l[ 0 ] = l[ 0 ] / param.layerScale + box.x;
 				l[ 1 ] = l[ 1 ] / param.layerScale + box.y;
 				w[ 0 ] = w[ 0 ] / param.layerScale + box.x;
 				w[ 1 ] = w[ 1 ] / param.layerScale + box.y;
 			}
 		}
-		
+
 		/* free memory */
 		project.getLoader().releaseAll();
-		
+
 		final Layer first = layerRange.get( 0 );
 		final List< Layer > layers = first.getParent().getLayers();
 
         final LayerSet ls = first.getParent();
-        Area infArea = AreaUtils.infiniteArea();
+        final Area infArea = AreaUtils.infiniteArea();
         final List<VectorData> vectorData = new ArrayList<VectorData>();
         for (final Layer layer : ls.getLayers()) {
             vectorData.addAll(
@@ -718,33 +718,33 @@ public class ElasticLayerAlignment
 		{
 			IJ.showStatus( "Applying transformation to patches ..." );
 			IJ.showProgress( 0, layerRange.size() );
-			
+
 			final Layer layer = layerRange.get( l );
-			
+
 			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
 			mlt.setModel( AffineModel2D.class );
 			mlt.setAlpha( 2.0f );
 			mlt.setMatches( meshes.get( l ).getVA().keySet() );
-			
+
 			applyTransformToLayer( layer, mlt, filter );
 
             for (final VectorData vd : vectorData)
             {
                 vd.apply(layer, infArea, mlt);
             }
-					
+
 			if ( Thread.interrupted() )
 			{
 				Utils.log( "Interrupted during applying transformations to patches.  No all patches have been updated.  Re-generate mipmaps manually." );
 			}
-			
+
 			IJ.showProgress( l + 1, layerRange.size() );
 		}
-		
+
 		/* update patch mipmaps */
 		final int firstLayerIndex;
 		final int lastLayerIndex;
-		
+
 		if ( propagateTransformBefore )
 			firstLayerIndex = 0;
 		else
@@ -758,7 +758,7 @@ public class ElasticLayerAlignment
 			final Layer last = layerRange.get( layerRange.size() - 1 );
 			lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
 		}
-		
+
 		for ( int i = firstLayerIndex; i <= lastLayerIndex; ++i )
 		{
 			final Layer layer = layers.get( i );
@@ -768,10 +768,10 @@ public class ElasticLayerAlignment
 					patch.updateMipMaps();
 			}
 		}
-		
+
 		Utils.log( "Done." );
 	}
-	
+
 	final static protected MovingLeastSquaresTransform2 makeMLST2( final Set< PointMatch > matches ) throws Exception
 	{
 		final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
@@ -780,18 +780,18 @@ public class ElasticLayerAlignment
 		mlt.setMatches( matches );
 		return mlt;
 	}
-	
+
 	final static protected void applyTransformToLayer( final Layer layer, final MovingLeastSquaresTransform2 mlt, final Filter< Patch > filter ) throws InterruptedException
 	{
 		/*
 		 * Setting a transformation to a patch can take some time because
 		 * the new bounding box needs to be estimated which requires the
 		 * TransformMesh to be generated and all vertices iterated.
-		 * 
+		 *
 		 * Therefore multithreading.
 		 */
 		final List< Patch > patches = AlignmentUtils.filterPatches( layer, filter );
-		
+
 		final ArrayList< Thread > applyThreads = new ArrayList< Thread >( p.maxNumThreads );
 		final AtomicInteger ai = new AtomicInteger( 0 );
 		for ( int t = 0; t < p.maxNumThreads; ++t )
@@ -816,12 +816,12 @@ public class ElasticLayerAlignment
 			applyThreads.add( thread );
 			thread.start();
 		}
-		
+
 		for ( final Thread thread : applyThreads )
 			thread.join();
 	}
-	
-	
+
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
 	 *
@@ -841,7 +841,7 @@ public class ElasticLayerAlignment
 			final boolean propagateTransformAfter,
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
-	{	
+	{
 		Rectangle box = null;
 		final HashSet< Layer > emptyLayers = new HashSet< Layer >();
 		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
@@ -862,25 +862,25 @@ public class ElasticLayerAlignment
 					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
 			}
 		}
-		
+
 		if ( box == null )
 			box = new Rectangle();
-		
+
 		if ( fov != null )
 			box = box.intersection( fov );
-		
+
 		if ( box.width <= 0 || box.height <= 0 )
 		{
 			Utils.log( "Bounding box empty." );
 			return;
 		}
-		
+
 		if ( layerRange.size() == emptyLayers.size() )
 		{
 			Utils.log( "All layers in range are empty!" );
 			return;
 		}
-		
+
 		/* do not work if there is only one layer selected */
 		if ( layerRange.size() - emptyLayers.size() < 2 )
 		{
@@ -889,7 +889,7 @@ public class ElasticLayerAlignment
 		}
 
 		if ( !p.setup( box ) ) return;
-		
+
 		exec( p.clone(), project, layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, filter );
 	}
 
@@ -969,10 +969,10 @@ J:            {
                                 {
                                     final Point p1 = pm.getP1();
                                     final Point p2 = pm.getP2();
-                                    final float[] l1 = p1.getL();
-                                    final float[] w1 = p1.getW();
-                                    final float[] l2 = p2.getL();
-                                    final float[] w2 = p2.getW();
+                                    final double[] l1 = p1.getL();
+                                    final double[] w1 = p1.getW();
+                                    final double[] l2 = p2.getL();
+                                    final double[] w2 = p2.getW();
 
                                     l1[ 0 ] *= pointMatchScale;
                                     l1[ 1 ] *= pointMatchScale;
@@ -1111,7 +1111,7 @@ J:            {
 
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
-	 * 
+	 *
 	 * @param layerSet
 	 * @param firstIn
 	 * @param lastIn
@@ -1132,23 +1132,23 @@ J:            {
 	{
 		final int first = Math.min( firstIn, lastIn );
 		final int last = Math.max( firstIn, lastIn );
-		
+
 		/* always first index first despite the method would return inverse order if last > first */
 		final List< Layer > layerRange = layerSet.getLayers( first, last );
 		final HashSet< Layer > fixedLayers = new HashSet< Layer >();
-		
+
 		if ( ref - firstIn >= 0 )
 			fixedLayers.add( layerRange.get( ref - firstIn ) );
-		
+
 		Utils.log( layerRange.size() + "" );
-		
+
 		exec( layerSet.getProject(), layerRange, fixedLayers, propagateTransformBefore, propagateTransformAfter, fov, filter );
 	}
-	
-	
+
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
-	 * 
+	 *
 	 * @param layerSet
 	 * @param firstIn
 	 * @param lastIn
@@ -1171,10 +1171,10 @@ J:            {
 		else
 			exec( layerSet, firstIn, lastIn, ref, propagateTransform, false, fov, filter );
 	}
-	
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
-	 * 
+	 *
 	 * @param layerSet
 	 * @param firstIn
 	 * @param lastIn
@@ -1197,18 +1197,18 @@ J:            {
 	{
 		final int first = Math.min( firstIn, lastIn );
 		final int last = Math.max( firstIn, lastIn );
-		
+
 		/* always first index first despite the method would return inverse order if last > first */
 		final List< Layer > layerRange = layerSet.getLayers( first, last );
 		final HashSet< Layer > fixedLayers = new HashSet< Layer >();
-		
+
 		if ( ref1 - first >= 0 )
 			fixedLayers.add( layerRange.get( ref1 - first ) );
 		if ( ref2 - first >= 0 )
 			fixedLayers.add( layerRange.get( ref2 - first ) );
-		
+
 		Utils.log( layerRange.size() + "" );
-		
+
 		exec( layerSet.getProject(), layerRange, fixedLayers, propagateTransformBefore, propagateTransformAfter, fov, filter );
 	}
 }

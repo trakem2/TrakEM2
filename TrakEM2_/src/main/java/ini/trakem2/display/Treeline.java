@@ -46,7 +46,7 @@ public class Treeline extends Tree<Float> {
 
 	static protected float last_radius = -1;
 
-	public Treeline(Project project, String title) {
+	public Treeline(final Project project, final String title) {
 		super(project, title);
 		addToDatabase();
 	}
@@ -67,19 +67,19 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public Node<Float> newNode(float lx, float ly, Layer la, Node<?> modelNode) {
+	public Node<Float> newNode(final float lx, final float ly, final Layer la, final Node<?> modelNode) {
 		return new RadiusNode(lx, ly, la, null == modelNode ? 0 : ((RadiusNode)modelNode).r);
 	}
 
 	@Override
-	public Node<Float> newNode(HashMap<String,String> ht_attr) {
+	public Node<Float> newNode(final HashMap<String,String> ht_attr) {
 		return new RadiusNode(ht_attr);
 	}
 
 	@Override
 	public Treeline clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		Treeline tline =  new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at);
+		final Treeline tline =  new Treeline(pr, nid, title, width, height, alpha, visible, color, locked, at);
 		tline.root = null == this.root ? null : this.root.clone(pr);
 		tline.addToDatabase();
 		if (null != tline.root) tline.cacheSubtree(tline.root.getSubtreeNodes());
@@ -87,7 +87,7 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public void mousePressed(MouseEvent me, Layer la, int x_p, int y_p, double mag) {
+	public void mousePressed(final MouseEvent me, final Layer la, final int x_p, final int y_p, final double mag) {
 		if (-1 == last_radius) {
 			last_radius = 10 / (float)mag;
 		}
@@ -95,7 +95,7 @@ public class Treeline extends Tree<Float> {
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
 			final Display front = Display.getFront(this.project);
 			final Layer layer = front.getLayer();
-			Node<Float> nd = findNodeNear(x_p, y_p, layer, front.getCanvas());
+			final Node<Float> nd = findNodeNear(x_p, y_p, layer, front.getCanvas());
 			if (null == nd) {
 				Utils.log("Can't adjust radius: found more than 1 node within visible area!");
 				return;
@@ -127,7 +127,7 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 		if (null == getActive()) return;
 
 		if (requireAltDownToEditRadius() && !me.isAltDown()) {
@@ -143,8 +143,8 @@ public class Treeline extends Tree<Float> {
 				xd = (float)po.x;
 				yd = (float)po.y;
 			}
-			Node<Float> nd = getActive();
-			float r = (float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2));
+			final Node<Float> nd = getActive();
+			final float r = (float)Math.sqrt(Math.pow(xd - nd.x, 2) + Math.pow(yd - nd.y, 2));
 			nd.setData(r);
 			last_radius = r;
 			repaint(true, la);
@@ -155,7 +155,7 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		if (null == getActive()) return;
 
 		if (me.isShiftDown() && me.isAltDown() && !Utils.isControlDown(me)) {
@@ -166,20 +166,20 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public void mouseWheelMoved(MouseWheelEvent mwe) {
+	public void mouseWheelMoved(final MouseWheelEvent mwe) {
 		final int modifiers = mwe.getModifiers();
 		if (0 == ( (MouseWheelEvent.SHIFT_MASK | MouseWheelEvent.ALT_MASK) ^ modifiers)) {
-			Object source = mwe.getSource();
+			final Object source = mwe.getSource();
 			if (! (source instanceof DisplayCanvas)) return;
-			DisplayCanvas dc = (DisplayCanvas)source;
-			Layer la = dc.getDisplay().getLayer();
+			final DisplayCanvas dc = (DisplayCanvas)source;
+			final Layer la = dc.getDisplay().getLayer();
 			final int rotation = mwe.getWheelRotation();
 			final float magnification = (float)dc.getMagnification();
 			final Rectangle srcRect = dc.getSrcRect();
 			final float x = ((mwe.getX() / magnification) + srcRect.x);
 			final float y = ((mwe.getY() / magnification) + srcRect.y);
 
-			float inc = (rotation > 0 ? 1 : -1) * (1/magnification);
+			final float inc = (rotation > 0 ? 1 : -1) * (1/magnification);
 			if (null != adjustNodeRadius(inc, x, y, la, dc)) {
 				Display.repaint(this);
 				mwe.consume();
@@ -189,8 +189,8 @@ public class Treeline extends Tree<Float> {
 		super.mouseWheelMoved(mwe);
 	}
 
-	protected Node<Float> adjustNodeRadius(float inc, float x, float y, Layer layer, DisplayCanvas dc) {
-		Node<Float> nearest = findNodeNear(x, y, layer, dc);
+	protected Node<Float> adjustNodeRadius(final float inc, final float x, final float y, final Layer layer, final DisplayCanvas dc) {
+		final Node<Float> nearest = findNodeNear(x, y, layer, dc);
 		if (null == nearest) {
 			Utils.log("Can't adjust radius: found more than 1 node within visible area!");
 			return null;
@@ -216,18 +216,22 @@ public class Treeline extends Tree<Float> {
 			this.r = null == sr ? 0 : Float.parseFloat(sr);
 		}
 
-		public Node<Float> newInstance(final float lx, final float ly, final Layer layer) {
+		@Override
+        public Node<Float> newInstance(final float lx, final float ly, final Layer layer) {
 			return new RadiusNode(lx, ly, layer, 0);
 		}
 
 		/** Set the radius to a positive value. When zero or negative, it's set to zero. */
-		public final boolean setData(final Float radius) {
+		@Override
+        public final boolean setData(final Float radius) {
 			this.r = radius > 0 ? radius : 0;
 			return true;
 		}
-		public final Float getData() { return this.r; }
+		@Override
+        public final Float getData() { return this.r; }
 
-		public final Float getDataCopy() { return this.r; }
+		@Override
+        public final Float getDataCopy() { return this.r; }
 
 		@Override
 		public boolean isRoughlyInside(final Rectangle localbox) {
@@ -254,7 +258,7 @@ public class Treeline extends Tree<Float> {
 			final RadiusNode parent = (RadiusNode) this.parent;
 			float vx = parent.x - this.x;
 			float vy = parent.y - this.y;
-			float len = (float) Math.sqrt(vx*vx + vy*vy);
+			final float len = (float) Math.sqrt(vx*vx + vy*vy);
 			if (0 == len) {
 				// Points are on top of each other
 				return new Polygon(new int[]{(int)this.x, (int)Math.ceil(parent.x)},
@@ -359,15 +363,15 @@ public class Treeline extends Tree<Float> {
 		@Override
 		public void apply(final mpicbg.models.CoordinateTransform ct, final Area roi) {
 			// store the point
-			float ox = x,
+			final double ox = x,
 			      oy = y;
 			// transform the point itself
 			super.apply(ct, roi);
 			// transform the radius: assume it's a point to its right
 			if (0 != r) {
-				float[] fp = new float[]{ox + r, oy};
+				final double[] fp = new double[]{ox + r, oy};
 				ct.applyInPlace(fp);
-				r = Math.abs(fp[0] - this.x);
+				r = ( float )Math.abs(fp[0] - this.x);
 			}
 		}
 		@Override
@@ -376,25 +380,25 @@ public class Treeline extends Tree<Float> {
 				// Apply only the first one that contains the point
 				if (rt.roi.contains(x, y)) {
 					// Store point
-					float ox = x,
+					final double ox = x,
 					      oy = y;
 					// Transform point
-					float[] fp = new float[]{x, y};
+					final double[] fp = new double[]{x, y};
 					rt.ct.applyInPlace(fp);
-					x = fp[0];
-					y = fp[1];
+					x = ( float )fp[0];
+					y = ( float )fp[1];
 					// Transform the radius: assume it's a point to the right of the untransformed point
 					if (0 != r) {
 						fp[0] = ox + r;
 						fp[1] = oy;
 						rt.ct.applyInPlace(fp);
-						r = Math.abs(fp[0] - this.x);
+						r = ( float )Math.abs(fp[0] - this.x);
 					}
 					break;
 				}
 			}
 		}
-		
+
 		@Override
 		protected void transformData(final AffineTransform aff) {
 			switch (aff.getType()) {
@@ -404,7 +408,7 @@ public class Treeline extends Tree<Float> {
 					return;
 				default:
 					// Scale the radius as appropriate
-					final float[] fp = new float[]{x, y, x + r, y};
+					final double[] fp = new double[]{x, y, x + r, y};
 					aff.transform(fp, 0, fp, 0, 2);
 					r = (float)Math.sqrt(Math.pow(fp[2] - fp[0], 2) + Math.pow(fp[3] - fp[1], 2));
 			}
@@ -426,7 +430,7 @@ public class Treeline extends Tree<Float> {
 		if (node.getData() > 0) sb.append(" r=\"").append(node.getData()).append('\"');
 		return true;
 	}
-	
+
 	@Override
 	protected boolean exportXMLNodeData(final StringBuilder indent, final StringBuilder sb, final Node<Float> node) {
 		return false;
@@ -497,7 +501,7 @@ public class Treeline extends Tree<Float> {
 			todo.add(root);
 			list.clear();
 			final float[] fps = new float[2];
-			
+
 			boolean go = true;
 			while (go) {
 				final Node node = todo.removeFirst();
@@ -603,7 +607,7 @@ public class Treeline extends Tree<Float> {
 	*/
 
 	/** Returns a list of two lists: the List<Point3f> and the corresponding List<Color3f>. */
-	public MeshData generateMesh(double scale_, int parallels) {
+	public MeshData generateMesh(final double scale_, int parallels) {
 		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
 		//
 		// TODO:
@@ -652,15 +656,15 @@ public class Treeline extends Tree<Float> {
 				final float z = (float)nd.la.getZ() * pixelWidthScaled * sign;
 				final float r = ((RadiusNode)nd).r * pixelWidthScaled; // TODO r is not transformed by the AffineTransform
 				for (final Point3f vert : ico) {
-					Point3f v = new Point3f(vert);
+					final Point3f v = new Point3f(vert);
 					v.x = v.x * r + x;
 					v.y = v.y * r + y;
 					v.z = v.z * r + z;
 					ps.add(v);
 				}
-				
+
 				int n_verts = ico.size();
-				
+
 				// Tube from parent to child
 				// Check if a 3D volume representation is necessary for this segment
 				if (null != nd.parent && (0 != nd.parent.getData() || 0 != nd.getData())) {
@@ -668,7 +672,7 @@ public class Treeline extends Tree<Float> {
 					po = null;
 
 					// parent:
-					Point2D.Double pp = transformPoint(nd.parent.x, nd.parent.y);
+					final Point2D.Double pp = transformPoint(nd.parent.x, nd.parent.y);
 					final float parx = (float)pp.x * pixelWidthScaled;
 					final float pary = (float)pp.y * pixelWidthScaled;
 					final float parz = (float)nd.parent.la.getZ() * pixelWidthScaled * sign;
@@ -676,12 +680,12 @@ public class Treeline extends Tree<Float> {
 
 					// the vector perpendicular to the plane is 0,0,1
 					// the vector from parent to child is:
-					Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
-					
+					final Vector3f vpc = new Vector3f(x - parx, y - pary, z - parz);
+
 					if (x == parx && y == pary) {
 						aa.set(0, 0, 1, 0);
 					} else {
-						Vector3f cross = new Vector3f();
+						final Vector3f cross = new Vector3f();
 						cross.cross(vpc, vplane);
 						cross.normalize(); // not needed?
 						aa.set(cross.x, cross.y, cross.z, -vplane.angle(vpc));
@@ -718,7 +722,7 @@ public class Treeline extends Tree<Float> {
 				}
 			}
 		}
-		
+
 		//Utils.log2("Treeline MeshData lists of same length: " + (ps.size() == colors.size()));
 
 		return new MeshData(ps, colors);
@@ -750,7 +754,7 @@ public class Treeline extends Tree<Float> {
 	}
 
 	@Override
-	public void keyPressed(KeyEvent ke) {
+	public void keyPressed(final KeyEvent ke) {
 		if (isTagging()) {
 			super.keyPressed(ke);
 			return;
@@ -758,13 +762,13 @@ public class Treeline extends Tree<Float> {
 		final int tool = ProjectToolbar.getToolId();
 		try {
 			if (ProjectToolbar.PEN == tool) {
-				Object origin = ke.getSource();
+				final Object origin = ke.getSource();
 				if (! (origin instanceof DisplayCanvas)) {
 					ke.consume();
 					return;
 				}
-				DisplayCanvas dc = (DisplayCanvas)origin;
-				Layer layer = dc.getDisplay().getLayer();
+				final DisplayCanvas dc = (DisplayCanvas)origin;
+				final Layer layer = dc.getDisplay().getLayer();
 				final Point p = dc.getCursorLoc(); // as offscreen coords
 
 				switch (ke.getKeyCode()) {
@@ -788,26 +792,27 @@ public class Treeline extends Tree<Float> {
 
 		RadiusNode nd = (RadiusNode) findClosestNodeW(nodes, x, y, magnification);
 		if (null == nd) {
-			Node<Float> last = getLastVisited();
+			final Node<Float> last = getLastVisited();
 			if (last.getLayer() == layer) nd = (RadiusNode)last;
 		}
 		if (null == nd) return false;
 
 		return askAdjustRadius(nd);
 	}
-	
+
 	protected boolean askAdjustRadius(final Node<Float> nd) {
 
-		GenericDialog gd = new GenericDialog("Adjust radius");
+		final GenericDialog gd = new GenericDialog("Adjust radius");
 		final Calibration cal = layer_set.getCalibration();
-		String unit = cal.getUnit(); 
+		String unit = cal.getUnit();
 		if (!unit.toLowerCase().startsWith("pixel")) {
 			final String[] units = new String[]{"pixels", unit};
 			gd.addChoice("Units:", units, units[1]);
 			gd.addNumericField("Radius:", nd.getData() * cal.pixelWidth, 2);
 			final TextField tfr = (TextField) gd.getNumericFields().get(0);
 			((Choice)gd.getChoices().get(0)).addItemListener(new ItemListener() {
-				public void itemStateChanged(ItemEvent ie) {
+				@Override
+                public void itemStateChanged(final ItemEvent ie) {
 					final double val = Double.parseDouble(tfr.getText());
 					if (Double.isNaN(val)) return;
 					tfr.setText(Double.toString(units[0] == ie.getItem() ?
@@ -835,7 +840,7 @@ public class Treeline extends Tree<Float> {
 		final float r = (float)radius;
 		final Node.Operation<Float> op = new Node.Operation<Float>() {
 			@Override
-			public void apply(Node<Float> node) throws Exception {
+			public void apply(final Node<Float> node) throws Exception {
 				node.setData(r);
 			}
 		};
@@ -859,7 +864,7 @@ public class Treeline extends Tree<Float> {
 					return false;
 			}
 			layer_set.addDataEditStep(this);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			layer_set.undoOneStep();
 		}
@@ -885,10 +890,10 @@ public class Treeline extends Tree<Float> {
 		}
 		return box;
 	}
-	
+
 	private class RadiusMeasurementPair extends Tree<Float>.MeasurementPair
 	{
-		public RadiusMeasurementPair(Tree<Float>.NodePath np) {
+		public RadiusMeasurementPair(final Tree<Float>.NodePath np) {
 			super(np);
 		}
 		/** A list of calibrated radii, one per node in the path.*/
@@ -900,7 +905,7 @@ public class Treeline extends Tree<Float> {
 			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
 			final float[] fp = new float[4];
 			for (final Node<Float> nd : super.path) {
-				Float r = nd.getData();
+				final Float r = nd.getData();
 				if (null == r) data.add(null);
 				fp[0] = nd.x;
 				fp[1] = nd.y;
@@ -916,7 +921,7 @@ public class Treeline extends Tree<Float> {
 			return "Treeline tagged pairs";
 		}
 		@Override
-		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
+		public ResultsTable toResultsTable(ResultsTable rt, final int index, final double scale, final int resample) {
 			if (null == rt) {
 				final String unit = layer_set.getCalibration().getUnit();
 				rt = Utils.createResultsTable(getResultsTableTitle(),
@@ -969,16 +974,16 @@ public class Treeline extends Tree<Float> {
 		}
 		@Override
 		public MeshData createMesh(final double scale, final int parallels) {
-			Treeline sub = new Treeline(project, -1, title, width, height, alpha, visible, color, locked, new AffineTransform(Treeline.this.at));
+			final Treeline sub = new Treeline(project, -1, title, width, height, alpha, visible, color, locked, new AffineTransform(Treeline.this.at));
 			sub.layer_set = Treeline.this.layer_set;
 			sub.root = path.get(0);
 			sub.cacheSubtree(path);
 			return sub.generateMesh(scale, parallels);
 		}
 	}
-	
+
 	@Override
-	protected MeasurementPair createMeasurementPair(NodePath np) {
+	protected MeasurementPair createMeasurementPair(final NodePath np) {
 		return new RadiusMeasurementPair(np);
 	}
 }

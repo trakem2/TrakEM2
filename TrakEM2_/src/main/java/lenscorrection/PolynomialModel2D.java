@@ -36,22 +36,22 @@ public class PolynomialModel2D extends AbstractModel< PolynomialModel2D >
 	private NonLinearTransform nlt = new NonLinearTransform();
 	private AbstractAffineModel2D< ? > affine = null;
 	private float lambda = 0f;
-	
-	
+
+
 	public AbstractAffineModel2D< ? > getAffine(){ return affine; }
 	public void setAffine( final AbstractAffineModel2D< ? > affine ){ this.affine = affine; }
 	public void setAffine( final Class< ? extends AbstractAffineModel2D< ? > > affineClass ) throws Exception
 	{
 		affine = affineClass.newInstance();
 	}
-	
+
 	public int getOrder(){ return nlt.getDimension(); }
 	public void setOrder( final int order ){ nlt.setDimension( order ); }
-	
-	public float getLambda(){ return lambda; }
-	public void setLambda( final float lambda ){ this.lambda = lambda; } 
 
-	
+	public float getLambda(){ return lambda; }
+	public void setLambda( final float lambda ){ this.lambda = lambda; }
+
+
 	@Override
 	public PolynomialModel2D copy()
 	{
@@ -63,30 +63,30 @@ public class PolynomialModel2D extends AbstractModel< PolynomialModel2D >
 	}
 
 	@Override
-	public < P extends PointMatch >void fit( Collection< P > pointMatches ) throws NotEnoughDataPointsException, IllDefinedDataPointsException
+	public < P extends PointMatch >void fit( final Collection< P > pointMatches ) throws NotEnoughDataPointsException, IllDefinedDataPointsException
 	{
 		if ( pointMatches.size() < getMinNumMatches() )
 			throw new NotEnoughDataPointsException( pointMatches.size() + " data points are not enough to estimate a 2d polynomial of order " + nlt.getDimension() + ", at least " + getMinNumMatches() + " data points required." );
-		
+
 		affine.fit( pointMatches );
-			
+
 		final double h1[][] = new double[ pointMatches.size() ][ 2 ];
 	    final double h2[][] = new double[ pointMatches.size() ][ 2 ];
-	    
+
 	    int i = 0;
 		for ( final P match : pointMatches )
-	    {	
-	    	final float[] tmp1 = match.getP1().getL().clone();
+	    {
+	    	final double[] tmp1 = match.getP1().getL().clone();
 	    	affine.applyInPlace( tmp1 );
-	    	
-	    	final float[] tmp2 = match.getP2().getW();
-	    	
+
+	    	final double[] tmp2 = match.getP2().getW();
+
 	    	h1[ i ] = new double[]{ tmp1[ 0 ], tmp1[ 1 ] };
 			h2[ i ] = new double[]{ tmp2[ 0 ], tmp2[ 1 ] };
-				  
+
 			++i;
 	    }
-		
+
 		nlt.fit( h1, h2, lambda );
 	}
 
@@ -97,7 +97,7 @@ public class PolynomialModel2D extends AbstractModel< PolynomialModel2D >
 	}
 
 	@Override
-	public void set( PolynomialModel2D m )
+	public void set( final PolynomialModel2D m )
 	{
 		nlt.set( m.nlt );
 		affine = m.affine.copy();
@@ -111,15 +111,15 @@ public class PolynomialModel2D extends AbstractModel< PolynomialModel2D >
 	}
 
 	@Override
-	public float[] apply( float[] location )
+	public double[] apply( final double[] location )
 	{
-		final float[] l = location.clone();
+		final double[] l = location.clone();
 		applyInPlace( l );
 		return l;
 	}
 
 	@Override
-	public void applyInPlace( float[] location )
+	public void applyInPlace( final double[] location )
 	{
 		affine.applyInPlace( location );
 		nlt.applyInPlace( location );

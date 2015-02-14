@@ -32,21 +32,23 @@ import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.TranslationModel2D;
 
 /**
- * 
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- * @version 0.2b
+ *
+ * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
  */
 public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquaresTransform implements CoordinateTransform
 {
+	private static final long serialVersionUID = 969438449108820224L;
+
+	@Override
 	final public void init( final String data ) throws NumberFormatException
 	{
 		matches.clear();
-		
+
 		final String[] fields = data.split( "\\s+" );
 		if ( fields.length > 3 )
 		{
 			final int d = Integer.parseInt( fields[ 1 ] );
-			
+
 			if ( ( fields.length - 3 ) % ( 2 * d + 1 ) == 0 )
 			{
 				if ( d == 2 )
@@ -63,19 +65,19 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 					else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 				}
 				else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
-				
-				alpha = Float.parseFloat( fields[ 2 ] );
-				
+
+				alpha = Double.parseDouble( fields[ 2 ] );
+
 				int i = 2;
 				while ( i < fields.length - 1 )
 				{
-					final float[] p1 = new float[ d ];
+					final double[] p1 = new double[ d ];
 					for ( int k = 0; k < d; ++k )
-							p1[ k ] = Float.parseFloat( fields[ ++i ] );
-					final float[] p2 = new float[ d ];
+							p1[ k ] = Double.parseDouble( fields[ ++i ] );
+					final double[] p2 = new double[ d ];
 					for ( int k = 0; k < d; ++k )
-							p2[ k ] = Float.parseFloat( fields[ ++i ] );
-					final float weight = Float.parseFloat( fields[ ++i ] );
+							p2[ k ] = Double.parseDouble( fields[ ++i ] );
+					final double weight = Double.parseDouble( fields[ ++i ] );
 					final PointMatch m = new PointMatch( new Point( p1 ), new Point( p2 ), weight );
 					matches.add( m );
 				}
@@ -86,6 +88,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 
 	}
 
+	@Override
 	public String toDataString()
 	{
 		final StringBuilder data = new StringBuilder();
@@ -96,13 +99,13 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 	static private final Comparator< PointMatch > SORTER = new Comparator< PointMatch >() {
 		@Override
 		public final int compare(final PointMatch o1, final PointMatch o2) {
-			final float[] p1 = o1.getP1().getW();
-			final float[] p2 = o1.getP2().getW();
-			final float dx = p1[0] - p2[0];
+			final double[] p1 = o1.getP1().getW();
+			final double[] p2 = o1.getP2().getW();
+			final double dx = p1[0] - p2[0];
 			if ( dx < 0) return -1;
 			if ( 0 == dx)
 			{
-				final float dy = p1[1] - p2[1];
+				final double dy = p1[1] - p2[1];
 				if ( dy < 0 ) return -1;
 				if ( 0 == dy ) return 0;
 				return 1;
@@ -110,7 +113,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 			return 1;
 		}
 	};
-	
+
 	private final void toDataString( final StringBuilder data )
 	{
 		if ( AffineModel2D.class.isInstance( model ) ) data.append("affine 2");
@@ -119,7 +122,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		else if ( SimilarityModel2D.class.isInstance( model ) ) data.append("similarity 2");
 		else if ( AffineModel3D.class.isInstance( model ) ) data.append("affine 3");
 		else data.append("unknown");
-		
+
 		data.append(' ').append(alpha);
 
 		// Sort matches, so that they are always written the same way
@@ -128,10 +131,10 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		final ArrayList< PointMatch > pms = new ArrayList< PointMatch >( matches );
 		Collections.sort( pms, SORTER );
 
-		for ( PointMatch m : pms )
+		for ( final PointMatch m : pms )
 		{
-			final float[] p1 = m.getP1().getL();
-			final float[] p2 = m.getP2().getW();
+			final double[] p1 = m.getP1().getL();
+			final double[] p2 = m.getP2().getW();
 			for ( int k = 0; k < p1.length; ++k )
 				data.append(' ').append(p1[ k ]);
 			for ( int k = 0; k < p2.length; ++k )
@@ -140,6 +143,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		}
 	}
 
+	@Override
 	final public String toXML( final String indent )
 	{
 		final StringBuilder xml = new StringBuilder( 128 );
@@ -150,7 +154,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		toDataString( xml );
 		return xml.append( "\"/>" ).toString();
 	}
-	
+
 	@Override
 	/**
 	 * TODO Make this more efficient
@@ -161,34 +165,34 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 		t.init( toDataString() );
 		return t;
 	}
-	
+
 	@Override
-	final public void applyInPlace( final float[] location )
+	final public void applyInPlace( final double[] location )
 	{
 		final Collection< PointMatch > weightedMatches = new ArrayList< PointMatch >();
 		for ( final PointMatch m : matches )
 		{
-			final float[] l = m.getP1().getL();
+			final double[] l = m.getP1().getL();
 
-			float s = 0;
+			double s = 0;
 			for ( int i = 0; i < location.length; ++i )
 			{
-				final float dx = l[ i ] - location[ i ];
+				final double dx = l[ i ] - location[ i ];
 				s += dx * dx;
 			}
 			if ( s <= 0 )
 			{
-				final float[] w = m.getP2().getW();
+				final double[] w = m.getP2().getW();
 				for ( int i = 0; i < location.length; ++i )
 					location[ i ] = w[ i ];
 				return;
 			}
-			final float weight = m.getWeight() * ( float )weigh( s );
+			final double weight = m.getWeight() * weigh( s );
 			final PointMatch mw = new PointMatch( m.getP1(), m.getP2(), weight );
 			weightedMatches.add( mw );
 		}
-		
-		try 
+
+		try
 		{
 			synchronized ( model )
 			{
@@ -196,7 +200,7 @@ public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquare
 				model.applyInPlace( location );
 			}
 		}
-		catch ( IllDefinedDataPointsException e ){}
-		catch ( NotEnoughDataPointsException e ){}
+		catch ( final IllDefinedDataPointsException e ){}
+		catch ( final NotEnoughDataPointsException e ){}
 	}
 }

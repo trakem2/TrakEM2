@@ -313,8 +313,8 @@ final public class DistortionCorrectionTask
 			final Rectangle box = tile.getPatch().getCoordinateTransformBoundingBox();
 			for ( final PointMatch m : tile.getMatches() )
 			{
-				final float[] l = m.getP1().getL();
-				final float[] w = m.getP1().getW();
+				final double[] l = m.getP1().getL();
+				final double[] w = m.getP1().getW();
 				l[ 0 ] += box.x;
 				l[ 1 ] += box.y;
 				w[ 0 ] = l[ 0 ];
@@ -411,8 +411,8 @@ final public class DistortionCorrectionTask
 				{
 					final Point currentPoint = pm.getP1();
 					final Point originalPoint = originalPoints.get( currentPoint );
-					final float[] l = currentPoint.getL();
-					final float[] lo = originalPoint.getL();
+					final double[] l = currentPoint.getL();
+					final double[] lo = originalPoint.getL();
 					l[ 0 ] = lo[ 0 ];
 					l[ 1 ] = lo[ 1 ];
 					lensModel.applyInPlace( l );

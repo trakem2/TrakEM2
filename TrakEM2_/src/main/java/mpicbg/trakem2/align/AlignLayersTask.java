@@ -16,9 +16,6 @@
  */
 package mpicbg.trakem2.align;
 
-import bunwarpj.Transformation;
-import bunwarpj.bUnwarpJ_;
-import bunwarpj.trakem2.transform.CubicBSplineTransform;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
@@ -65,6 +62,9 @@ import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
+import bunwarpj.Transformation;
+import bunwarpj.bUnwarpJ_;
+import bunwarpj.trakem2.transform.CubicBSplineTransform;
 
 /**
  * Register a range of layers using linear or non-linear transformations.
@@ -80,17 +80,17 @@ final public class AlignLayersTask
 		"least squares (linear feature correspondences)",
 		"bUnwarpJ (non-linear cubic B-Splines)",
 		"elastic (non-linear block correspondences)" };
-	
+
 	static protected boolean propagateTransformBefore = false;
 	static protected boolean propagateTransformAfter = false;
 	static protected bunwarpj.Param elasticParam = new bunwarpj.Param();
-	
+
 	private AlignLayersTask(){}
 	final static public Bureaucrat alignLayersTask ( final Layer l )
 	{
 		return alignLayersTask( l, null );
 	}
-	
+
 	final static public Bureaucrat alignLayersTask ( final Layer l, final Rectangle fov )
 	{
 		final Worker worker = new Worker("Aligning layers", false, true) {
@@ -108,12 +108,12 @@ final public class AlignLayersTask
 		};
 		return Bureaucrat.createAndStart(worker, l.getProject());
 	}
-	
+
 	final static public void alignLayers( final Layer l ) throws Exception
 	{
 		alignLayers(l, null);
 	}
-	
+
 	final static public void alignLayers( final Layer l, final Rectangle fov ) throws Exception
 	{
 		final List< Layer > layers = l.getParent().getLayers();
@@ -125,14 +125,14 @@ final public class AlignLayersTask
 			layerTitles[ i ] = l.getProject().findLayerThing(layers.get( i )).toString();
 			noneAndLayerTitles[ i + 1 ] = layerTitles[ i ];
 		}
-		
+
 		//Param p = Align.param;
 		//Align.param.sift.maxOctaveSize = 1024;
-		
+
 		final GenericDialog gd = new GenericDialog( "Align Layers" );
-		
+
 		gd.addChoice( "mode :", modeStrings, modeStrings[ LINEAR ] );
-		
+
 		gd.addMessage( "Layer Range:" );
 		final int sel = l.getParent().indexOf(l);
 		gd.addChoice( "first :", layerTitles, layerTitles[ sel ] );
@@ -152,10 +152,10 @@ final public class AlignLayersTask
 				final int startIndex = cstart.getSelectedIndex();
 				final int endIndex = cend.getSelectedIndex();
 				final int refIndex = cref.getSelectedIndex();
-				
+
 				final int min = Math.min(startIndex, endIndex);
 				final int max = Math.max(startIndex, endIndex);
-				
+
 				if (cref.getSelectedIndex() > 0) {
 					cref.select( Math.min( max + 1, Math.max( min + 1, refIndex ) ) );
 				}
@@ -169,10 +169,10 @@ final public class AlignLayersTask
 				final int startIndex = cstart.getSelectedIndex();
 				final int endIndex = cend.getSelectedIndex();
 				final int refIndex = cref.getSelectedIndex() - 1;
-				
+
 				final int min = Math.min(startIndex, endIndex);
 				final int max = Math.max(startIndex, endIndex);
-				
+
 				if (refIndex >= 0) {
 					if (refIndex < min) {
 						if ( startIndex <= endIndex )
@@ -189,23 +189,23 @@ final public class AlignLayersTask
 				}
 			}
 		});
-		
+
 		gd.showDialog();
 		if ( gd.wasCanceled() ) return;
-		
+
 		mode = gd.getNextChoiceIndex();
-		
+
 		final int first = gd.getNextChoiceIndex();
 		final int ref = gd.getNextChoiceIndex() - 1;
 		final int last = gd.getNextChoiceIndex();
-		
+
 		final String toMatch1 = gd.getNextString().trim();
 		final String toMatch2 = 0 == toMatch1.length() ? null : ".*" + toMatch1 + ".*";
 		final boolean visibleOnly = gd.getNextBoolean();
-		
+
 		propagateTransformBefore = gd.getNextBoolean();
 		propagateTransformAfter = gd.getNextBoolean();
-		
+
 		final Filter<Patch> filter = new Filter<Patch>() {
 			@Override
 			public final boolean accept(final Patch patch) {
@@ -222,14 +222,14 @@ final public class AlignLayersTask
 		else
 		{
 			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
-		
+
 			Align.param.addFields( gd2 );
-			
+
 			gd2.showDialog();
 			if ( gd2.wasCanceled() ) return;
-			
+
 			Align.param.readFields( gd2 );
-			
+
 			if ( mode == BUNWARPJ && !elasticParam.showDialog() ) return;
 
 			// From ref to first:
@@ -250,13 +250,13 @@ final public class AlignLayersTask
 			}
 		}
 	}
-	
-	
+
+
 	final static public void alignLayersLinearlyJob( final LayerSet layerSet, final int first, final int last,
 			final boolean propagateTransform, final Rectangle fov, final Filter<Patch> filter )
 	{
 		final List< Layer > layerRange = layerSet.getLayers(first, last); // will reverse order if necessary
-		
+
 		final Align.Param p = Align.param.clone();
 		// find the first non-empty layer, and remove all empty layers
 		Rectangle box = fov;
@@ -279,62 +279,62 @@ final public class AlignLayersTask
 		/* do not work if there is only one layer selected */
 		if ( layerRange.size() < 2 ) return;
 
-		final float scale = Math.min(  1.0f, Math.min( ( float )p.sift.maxOctaveSize / ( float )box.width, ( float )p.sift.maxOctaveSize / ( float )box.height ) );
+		final double scale = Math.min(  1.0, Math.min( ( double )p.sift.maxOctaveSize / ( double )box.width, ( double )p.sift.maxOctaveSize / ( double )box.height ) );
 		p.maxEpsilon *= scale;
 		p.identityTolerance *= scale;
 
 		//Utils.log2("scale: " + scale + "  maxOctaveSize: " + p.sift.maxOctaveSize + "  box: " + box.width + "," + box.height);
-		
+
 		final FloatArray2DSIFT sift = new FloatArray2DSIFT( p.sift );
 		final SIFT ijSIFT = new SIFT( sift );
-		
+
 		Rectangle box1 = fov;
 		Rectangle box2 = fov;
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
 		final List< PointMatch > candidates = new ArrayList< PointMatch >();
 		final List< PointMatch > inliers = new ArrayList< PointMatch >();
-		
+
 		final AffineTransform a = new AffineTransform();
-		
+
 		int s = 0;
 		for ( final Layer layer : layerRange )
 		{
 			if ( Thread.currentThread().isInterrupted() ) return;
-			
+
  			final long t0 = System.currentTimeMillis();
-			
+
 			features1.clear();
 			features1.addAll( features2 );
 			features2.clear();
-			
+
 			final Rectangle box3 = layer.getMinimalBoundingBox( Patch.class, true );
-			
+
 			if ( box3 == null || ( box3.width == 0 && box3.height == 0 ) ) continue; // skipping empty layer
-			
+
 			box1 = null == fov ? box2 : fov;
 			box2 = null == fov ? box3 : fov;
-			
+
 			final List<Patch> patches = layer.getAll(Patch.class);
 			if (null != filter) {
 				for (final Iterator<Patch> it = patches.iterator(); it.hasNext(); ) {
 					if (!filter.accept(it.next())) it.remove();
 				}
 			}
-			
+
 			final ImageProcessor flatImage = layer.getProject().getLoader().getFlatImage( layer, box2, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
 
 			ijSIFT.extractFeatures(
 					flatImage,
 					features2 );
 			IJ.log( features2.size() + " features extracted in layer \"" + layer.getTitle() + "\" (took " + ( System.currentTimeMillis() - t0 ) + " ms)." );
-			
+
 			if ( features1.size() > 0 )
 			{
 				final long t1 = System.currentTimeMillis();
-				
+
 				candidates.clear();
-				
+
 				FeatureTransform.matchFeatures(
 					features2,
 					features1,
@@ -359,7 +359,7 @@ final public class AlignLayersTask
 				default:
 					return;
 				}
-				
+
 				final AbstractAffineModel2D< ? > desiredModel;
 				switch ( p.desiredModelIndex )
 				{
@@ -378,9 +378,9 @@ final public class AlignLayersTask
 				default:
 					return;
 				}
-	
-						
-				
+
+
+
 				boolean modelFound;
 				boolean again = false;
 				try
@@ -410,7 +410,7 @@ final public class AlignLayersTask
 						}
 					}
 					while ( again );
-					
+
 					if ( modelFound )
 						desiredModel.fit( inliers );
 				}
@@ -434,7 +434,7 @@ final public class AlignLayersTask
 					b.concatenate( desiredModel.createAffine() );
 					b.scale( scale, scale );
 					b.translate( -box2.x, -box2.y);
-					
+
 					a.concatenate( b );
 					AlignTask.transformPatchesAndVectorData(patches, a);
 					Display.repaint( layer );
@@ -447,9 +447,9 @@ final public class AlignLayersTask
 			}
 			IJ.showProgress( ++s, layerRange.size() );
 		}
-		
+
 		if ( Thread.currentThread().isInterrupted() ) return;
-		
+
 		if ( propagateTransform )
 		{
 			if ( last > first && last < layerSet.size() - 2 )
@@ -464,7 +464,7 @@ final public class AlignLayersTask
 				}
 		}
 	}
-	
+
 	final static public void alignLayersNonLinearlyJob( final LayerSet layerSet, final int first, final int last,
 			final boolean propagateTransform, final Rectangle fov, final Filter<Patch> filter )
 	{
@@ -482,7 +482,7 @@ final public class AlignLayersTask
 			Utils.log("No layers in range show any images!");
 			return;
 		}
-		
+
 		/* do not work if there is only one layer selected */
 		if ( layerRange.size() < 2 ) return;
 
@@ -503,8 +503,8 @@ final public class AlignLayersTask
 
 		// Not concurrent safe! So two copies, one per layer and Thread:
 		final SIFT ijSIFT1 = new SIFT( new FloatArray2DSIFT( p.sift ) );
-		final SIFT ijSIFT2 = new SIFT( new FloatArray2DSIFT( p.sift ) ); 
-		
+		final SIFT ijSIFT2 = new SIFT( new FloatArray2DSIFT( p.sift ) );
+
 		final Collection< Feature > features1 = new ArrayList< Feature >();
 		final Collection< Feature > features2 = new ArrayList< Feature >();
 		final List< PointMatch > candidates = new ArrayList< PointMatch >();
@@ -514,26 +514,26 @@ final public class AlignLayersTask
 		final ExecutorService exec = Utils.newFixedThreadPool(n_proc, "alignLayersNonLinearly");
 
 		List<Patch> previousPatches = null;
-		
+
 		int s = 0;
 		for ( int i = 1; i < layerRange.size(); ++i )
 		{
 			if ( Thread.currentThread().isInterrupted() ) break;
-			
+
  			final Layer layer1 = layerRange.get( i - 1 );
 			final Layer layer2 = layerRange.get( i );
-			
+
 			final long t0 = System.currentTimeMillis();
-			
+
 			features1.clear();
 			features2.clear();
-			
+
 			final Rectangle box1 = null == fov ? layer1.getMinimalBoundingBox( Patch.class, true ) : fov;
 			final Rectangle box2 = null == fov ? layer2.getMinimalBoundingBox( Patch.class, true ) : fov;
-			
+
 			/* calculate the common scale factor for both flat images */
-			final float scale = Math.min(  1.0f, ( float )p.sift.maxOctaveSize / ( float )Math.max( box1.width, Math.max( box1.height, Math.max( box2.width, box2.height ) ) ) );
-			
+			final double scale = Math.min(  1.0f, ( double )p.sift.maxOctaveSize / ( double )Math.max( box1.width, Math.max( box1.height, Math.max( box2.width, box2.height ) ) ) );
+
 			final List<Patch> patches1;
 			if (null == previousPatches) {
 				patches1 = layer1.getAll(Patch.class);
@@ -545,14 +545,14 @@ final public class AlignLayersTask
 			} else {
 				patches1 = previousPatches;
 			}
-			
+
 			final List<Patch> patches2 = layer2.getAll(Patch.class);
 			if (null != filter) {
 				for (final Iterator<Patch> it = patches2.iterator(); it.hasNext(); ) {
 					if (!filter.accept(it.next())) it.remove();
 				}
 			}
-			
+
 			final Future<ImageProcessor> fu1 = exec.submit(new Callable<ImageProcessor>() {
 				@Override
 				public ImageProcessor call() {
@@ -582,13 +582,13 @@ final public class AlignLayersTask
 				IJError.print(e);
 				return;
 			}
-			
+
 			if ( features1.size() > 0 && features2.size() > 0 )
 			{
 				final long t1 = System.currentTimeMillis();
-				
+
 				candidates.clear();
-				
+
 				FeatureTransform.matchFeatures(
 					features2,
 					features1,
@@ -613,7 +613,7 @@ final public class AlignLayersTask
 				default:
 					return;
 				}
-	
+
 				boolean modelFound;
 				boolean again = false;
 				try
@@ -648,30 +648,30 @@ final public class AlignLayersTask
 				{
 					modelFound = false;
 				}
-				
+
 				if ( modelFound )
 				{
 					IJ.log( "Model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + ( model.getCost() / scale ) + " px\n  took " + ( System.currentTimeMillis() - t1 ) + " ms" );
-					
+
 					final ImagePlus imp1 = new ImagePlus("target", ip1);
-					final ImagePlus imp2 = new ImagePlus("source", ip2);					
-					
+					final ImagePlus imp2 = new ImagePlus("source", ip2);
+
 					final List< Point > sourcePoints = new ArrayList<Point>();
 					final List< Point > targetPoints = new ArrayList<Point>();
-					
+
 					PointMatch.sourcePoints( inliers, sourcePoints );
 					PointMatch.targetPoints( inliers, targetPoints );
-						
+
 					imp2.setRoi( Util.pointsToPointRoi(sourcePoints) );
 					imp1.setRoi( Util.pointsToPointRoi(targetPoints) );
-					
+
 					final ImageProcessor mask1 = ip1.duplicate();
 					mask1.threshold(1);
 					final ImageProcessor mask2 = ip2.duplicate();
 					mask2.threshold(1);
-					
+
 					final Transformation warp = bUnwarpJ_.computeTransformationBatch(imp2, imp1, mask2, mask1, elasticParam);
-					
+
 					final CubicBSplineTransform transf = new CubicBSplineTransform();
 					transf.set(warp.getIntervals(), warp.getDirectDeformationCoefficientsX(), warp.getDirectDeformationCoefficientsY(),
 	                		imp2.getWidth(), imp2.getHeight());
@@ -689,11 +689,11 @@ final public class AlignLayersTask
 							pat.translate( -box2.x, -box2.y );
 							pat.concatenate( at );
 							pat.translate( -pbox.x, -pbox.y );
-							
-							
+
+
 							final mpicbg.trakem2.transform.AffineModel2D toWorld = new mpicbg.trakem2.transform.AffineModel2D();
 							toWorld.set( pat );
-							
+
 							final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 							// move the patch into the global space where bUnwarpJ calculated the transformation
 							ctl.add( toWorld );
@@ -701,11 +701,11 @@ final public class AlignLayersTask
 							ctl.add( transf );
 							// move it back
 							ctl.add( toWorld.createInverse() );
-							
+
 							patch.appendCoordinateTransform( ctl );
-							
+
 							fus.add(patch.updateMipMaps());
-							
+
 							// Compensate for offset between boxes
 							final AffineTransform offset = new AffineTransform();
 							offset.translate( box1.x - box2.x , box1.y - box2.y );
@@ -718,14 +718,14 @@ final public class AlignLayersTask
 
 					// await regeneration of all mipmaps
 					Utils.wait(fus);
-					
+
 					Display.repaint( layer2 );
 				}
 				else
 					IJ.log( "No model found for layer \"" + layer2.getTitle() + "\" and its predecessor:\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 			}
 			IJ.showProgress( ++s, layerRange.size() );
-			
+
 			previousPatches = patches2; // for next iteration
 		}
 

@@ -43,7 +43,7 @@ public abstract class Node<T> implements Taggable {
 	protected float x, y;
 	public float getX() { return x; }
 	public float getY() { return y; }
-	
+
 	protected Color color;
 	public Color getColor() { return this.color; }
 	public void setColor(final Color c) { this.color = c; }
@@ -95,7 +95,8 @@ public abstract class Node<T> implements Taggable {
 		return (byte)0;
 	}
 
-	public String toString() {
+	@Override
+    public String toString() {
 		return new StringBuilder("{:x ").append(x).append(" :y ").append(y).append(" :layer ").append(la.getId()).append('}').toString();
 	}
 
@@ -192,7 +193,7 @@ public abstract class Node<T> implements Taggable {
 			final boolean with_confidence_boxes, final boolean with_data,
 			Color above, Color below) {
 		// The fact that this method is called indicates that this node is to be painted and by definition is inside the Set to_paint.
-		
+
 		final double actZ = active_layer.getZ();
 		final double thisZ = this.la.getZ();
 		final Color node_color;
@@ -244,7 +245,8 @@ public abstract class Node<T> implements Taggable {
 		final Runnable tagsTask;
 		if (with_tags && null != tags) {
 			tagsTask = new Runnable() {
-				public void run() {
+				@Override
+                public void run() {
 					paintTags(g, x, y, local_edge_color);
 				}
 			};
@@ -354,8 +356,8 @@ public abstract class Node<T> implements Taggable {
 				g.drawString(s, xc+1, yc+dim.height+1);
 			}
 		}
-		return tagsTask; 
-	}	
+		return tagsTask;
+	}
 
 	static private final Color receiver_color = Color.green.brighter();
 
@@ -420,10 +422,10 @@ public abstract class Node<T> implements Taggable {
 
 		return nodes;
 		*/
-		
+
 		return new NodeCollection<T>(this, BreadthFirstSubtreeIterator.class);
 	}
-	
+
 	/** Returns a lazy read-only Collection of the nodes from this node up to the next branch node or end node, inclusive. */
 	public final Collection<Node<T>> getSlabNodes() {
 		return new NodeCollection<T>(this, SlabIterator.class);
@@ -461,7 +463,7 @@ public abstract class Node<T> implements Taggable {
 		if (null != this.children) {
 			todo.add(new Object[]{root, this.children});
 		}
-		
+
 		final HashMap<Long,Layer> ml;
 		if (pr != la.getProject()) {
 			// Layers must be replaced by their corresponding clones
@@ -575,7 +577,7 @@ public abstract class Node<T> implements Taggable {
 			}
 			// rotate lists:
 			current_level.clear();
-			ArrayList<Node<T>> tmp = current_level;
+			final ArrayList<Node<T>> tmp = current_level;
 			current_level = next_level;
 			next_level = tmp;
 			degree++;
@@ -658,7 +660,7 @@ public abstract class Node<T> implements Taggable {
 	}
 	/** Adjust the confidence value of this node with its parent. */
 	final public boolean adjustConfidence(final int inc) {
-		byte conf = (byte)((confidence&0xff) + inc);
+		final byte conf = (byte)((confidence&0xff) + inc);
 		if (conf < 0 || conf > MAX_EDGE_CONFIDENCE) return false;
 		confidence = conf;
 		return true;
@@ -734,7 +736,7 @@ public abstract class Node<T> implements Taggable {
 		float x = this.x,
 		      y = this.y;
 		if (null != to_world && !to_world.isIdentity()) {
-			float[] fp = new float[]{x, y};
+			final float[] fp = new float[]{x, y};
 			to_world.transform(fp, 0, fp, 0, 1);
 			x = fp[0];
 			y = fp[1];
@@ -755,7 +757,8 @@ public abstract class Node<T> implements Taggable {
 	Object tags = null; // private to the package
 
 	/** @return true if the tag wasn't there already. */
-	synchronized public boolean addTag(final Tag tag) {
+	@Override
+    synchronized public boolean addTag(final Tag tag) {
 		if (null == this.tags) {
 			// Currently no tags
 			this.tags = tag;
@@ -787,7 +790,8 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** @return true if the tag was there. */
-	synchronized public boolean removeTag(final Tag tag) {
+	@Override
+    synchronized public boolean removeTag(final Tag tag) {
 		if (null == tags) return false; // no tags
 		if (tags instanceof Tag[]) {
 			// Currently more than one tag
@@ -842,7 +846,8 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** @return a shallow copy of the tags set, if any, or null. */
-	synchronized public Set<Tag> getTags() {
+	@Override
+    synchronized public Set<Tag> getTags() {
 		if (null == tags) return null;
 		final TreeSet<Tag> ts = new TreeSet<Tag>();
 		if (tags instanceof Tag[]) {
@@ -854,7 +859,8 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	/** @return the tags, if any, or null. */
-	synchronized public Set<Tag> removeAllTags() {
+	@Override
+    synchronized public Set<Tag> removeAllTags() {
 		final Set<Tag> tags = getTags();
 		this.tags = null;
 		return tags;
@@ -869,7 +875,7 @@ public abstract class Node<T> implements Taggable {
 		else background_color = Taggable.TAG_BACKGROUND;
 		// so the Color indicated in the parameter background_color is used only as a flag
 
-		Stroke stroke = g.getStroke();
+		final Stroke stroke = g.getStroke();
 		g.setStroke(Taggable.DASHED_STROKE);
 		g.setColor(background_color);
 		g.drawLine(x, y, ox, oy);
@@ -878,10 +884,10 @@ public abstract class Node<T> implements Taggable {
 		final Tag[] tags = this.tags instanceof Tag[] ? (Tag[])this.tags : new Tag[]{(Tag)this.tags};
 
 		for (final Tag ob : tags) {
-			String tag = ob.toString();
-			Dimension dim = Utils.getDimensions(tag, g.getFont());
+			final String tag = ob.toString();
+			final Dimension dim = Utils.getDimensions(tag, g.getFont());
 			final int arc = (int)(dim.height / 3.0f);
-			RoundRectangle2D rr = new RoundRectangle2D.Float(ox, oy, dim.width+4, dim.height+2, arc, arc);
+			final RoundRectangle2D rr = new RoundRectangle2D.Float(ox, oy, dim.width+4, dim.height+2, arc, arc);
 			g.setColor(background_color);
 			g.fill(rr);
 			g.setColor(fontcolor);
@@ -891,19 +897,19 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	public void apply(final mpicbg.models.CoordinateTransform ct, final Area roi) {
-		final float[] fp = new float[]{x, y};
+		final double[] fp = new double[]{x, y};
 		ct.applyInPlace(fp);
-		this.x = fp[0];
-		this.y = fp[1];
+		this.x = (float)fp[0];
+		this.y = (float)fp[1];
 	}
 	public void apply(final VectorDataTransform vlocal) {
 		for (final VectorDataTransform.ROITransform rt : vlocal.transforms) {
 			// Apply only the first one that contains the point
 			if (rt.roi.contains(x, y)) {
-				final float[] fp = new float[]{x, y};
+				final double[] fp = new double[]{x, y};
 				rt.ct.applyInPlace(fp);
-				x = fp[0];
-				y = fp[1];
+				x = (float)fp[0];
+				y = (float)fp[1];
 				break;
 			}
 		}
@@ -911,14 +917,14 @@ public abstract class Node<T> implements Taggable {
 	public Point3f asPoint() {
 		return new Point3f(x, y, (float)la.getZ());
 	}
-	
+
 	/** Apply @param aff to the data, not to the x,y position. */
 	protected void transformData(final AffineTransform aff) {}
 
 
-	
+
 	// ==================== Node Iterators
-	
+
 	/** Stateful abstract Node iterator. */
 	static public abstract class NodeIterator<I> implements Iterator<Node<I>> {
 		Node<I> next;
@@ -940,7 +946,7 @@ public abstract class Node<T> implements Taggable {
 		@Override
 		public boolean hasNext() { return todo.size() > 0; }
 	}
-	
+
 	/** For a given starting node, iterates over the complete set of children nodes, recursively and breadth-first. */
 	static public class BreadthFirstSubtreeIterator<I> extends SubtreeIterator<I> {
 		public BreadthFirstSubtreeIterator(final Node<I> first) {
@@ -959,14 +965,14 @@ public abstract class Node<T> implements Taggable {
 			return next;
 		}
 	}
-	
+
 	static public abstract class FilteredIterator<I> extends SubtreeIterator<I> {
 		public FilteredIterator(final Node<I> first) {
 			super(first);
 			prepareNext();
 		}
 		public abstract boolean accept(final Node<I> node);
-		
+
 		private final void prepareNext() {
 			while (todo.size() > 0) {
 				final Node<I> nd = todo.removeFirst();
@@ -983,7 +989,7 @@ public abstract class Node<T> implements Taggable {
 
 		@Override
 		public boolean hasNext() { return null != next; }
-			
+
 		@Override
 		public Node<I> next() {
 			try {
@@ -1061,10 +1067,10 @@ public abstract class Node<T> implements Taggable {
 		public Iterator<Node<I>> iterator() {
 			try {
 				return (Iterator<Node<I>>) type.getConstructor(Node.class).newInstance(first);
-			} catch (NoSuchMethodException nsme) { IJError.print(nsme); }
-			  catch (InvocationTargetException ite) { IJError.print(ite); }
-			  catch (IllegalAccessException iae) { IJError.print(iae); }
-			  catch (InstantiationException ie) { IJError.print(ie); }
+			} catch (final NoSuchMethodException nsme) { IJError.print(nsme); }
+			  catch (final InvocationTargetException ite) { IJError.print(ite); }
+			  catch (final IllegalAccessException iae) { IJError.print(iae); }
+			  catch (final InstantiationException ie) { IJError.print(ie); }
 			return null;
 		}
 		/** Override to avoid calling size(). */
@@ -1090,7 +1096,7 @@ public abstract class Node<T> implements Taggable {
 			int next = 0;
 			for (final Iterator<Node<I>> it = iterator(); it.hasNext(); ) {
 				if (a.length == next) {
-					Node[] b = new Node[a.length + 10];
+					final Node[] b = new Node[a.length + 10];
 					System.arraycopy(a, 0, b, 0, a.length);
 					a = b;
 				}
@@ -1099,8 +1105,8 @@ public abstract class Node<T> implements Taggable {
 			return next < a.length ? Arrays.copyOf(a, next) : a;
 		}
 		@Override
-		public<Y> Y[] toArray(Y[] a) {
-			Node<I>[] b = toArray();
+		public<Y> Y[] toArray(final Y[] a) {
+			final Node<I>[] b = toArray();
 			if (a.length < b.length) {
 				return (Y[])b;
 			}
@@ -1111,12 +1117,12 @@ public abstract class Node<T> implements Taggable {
 	}
 
 	// ============= Operations on collections of nodes
-	
+
 	/** An operation to be applied to a specific Node. */
 	static public interface Operation<I> {
 		public void apply(final Node<I> nd) throws Exception;
 	}
-	
+
 	protected final void apply(final Operation<T> op, final Iterator<Node<T>> nodes) throws Exception {
 		while (nodes.hasNext()) op.apply(nodes.next());
 	}
@@ -1142,7 +1148,7 @@ public abstract class Node<T> implements Taggable {
 		});
 		*/
 	}
-	
+
 	/** Apply @param op to this Node and all its subtree nodes until reaching a branch node or end node, inclusive. */
 	public void applyToSlab(final Operation<T> op) throws Exception {
 		apply(op, new SlabIterator<T>(this));

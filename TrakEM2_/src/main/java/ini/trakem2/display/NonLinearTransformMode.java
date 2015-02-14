@@ -37,22 +37,23 @@ import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWith
 
 public class NonLinearTransformMode extends GroupingMode {
 
-	protected void doPainterUpdate( final Rectangle r, final double m )
+	@Override
+    protected void doPainterUpdate( final Rectangle r, final double m )
 	{
 		try
 		{
 			final CoordinateTransform mlst = createCT();
 			final SimilarityModel2D toWorld = new SimilarityModel2D();
-			toWorld.set( 1.0f / ( float )m, 0, r.x - ScreenPatchRange.pad / ( float )m, r.y - ScreenPatchRange.pad / ( float )m );
-			
+			toWorld.set( 1.0 / m, 0, r.x - ScreenPatchRange.pad / m, r.y - ScreenPatchRange.pad / m );
+
 			final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
 			ctl.add( toWorld );
 			ctl.add( mlst );
 			ctl.add( toWorld.createInverse() );
-			
-			final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * ( float )m + 2 * ScreenPatchRange.pad, r.height * ( float )m + 2 * ScreenPatchRange.pad );
+
+			final CoordinateTransformMesh ctm = new CoordinateTransformMesh( ctl, 32, r.width * m + 2 * ScreenPatchRange.pad, r.height * m + 2 * ScreenPatchRange.pad );
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( ctm );
-			
+
 			final HashMap<Paintable, GroupingMode.ScreenPatchRange<?>> screenPatchRanges = this.screenPatchRanges; // keep a pointer to the current list
 			for ( final GroupingMode.ScreenPatchRange spr : screenPatchRanges.values())
 			{
@@ -64,31 +65,33 @@ public class NonLinearTransformMode extends GroupingMode {
 				spr.update( mapping );
 			}
 		}
-		catch ( NotEnoughDataPointsException e ) {}
-		catch ( NoninvertibleModelException e ) {}
-		catch ( IllDefinedDataPointsException e ) {}
-		catch ( Exception e ) { e.printStackTrace(); }
+		catch ( final NotEnoughDataPointsException e ) {}
+		catch ( final NoninvertibleModelException e ) {}
+		catch ( final IllDefinedDataPointsException e ) {}
+		catch ( final Exception e ) { e.printStackTrace(); }
 	}
 
 	private class NonLinearTransformSource extends GroupingMode.GroupedGraphicsSource {
-		public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
-			
+		@Override
+        public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
+
 			final Stroke original_stroke = g.getStroke();
 			final AffineTransform original = g.getTransform();
 			g.setTransform( new AffineTransform() );
 			g.setStroke( new BasicStroke( 1.0f ) );
 			for ( final Point p : points )
 			{
-				final float[] w = p.getW();
-				Utils.drawPoint( g, Math.round( ( float )magnification * ( w[ 0 ] - srcRect.x ) ), Math.round( ( float )magnification * ( w[ 1 ] - srcRect.y ) ) );
+				final double[] w = p.getW();
+				Utils.drawPoint( g, ( int )Math.round( magnification * ( w[ 0 ] - srcRect.x ) ), ( int )Math.round( magnification * ( w[ 1 ] - srcRect.y ) ) );
 			}
-			
+
 			g.setTransform( original );
 			g.setStroke( original_stroke );
 		}
 	}
 
-	protected ScreenPatchRange createScreenPathRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
+	@Override
+    protected ScreenPatchRange createScreenPathRange(final PatchRange range, final Rectangle srcRect, final double magnification) {
 		return new NonLinearTransformMode.ScreenPatchRange(range, srcRect, magnification);
 	}
 
@@ -96,7 +99,8 @@ public class NonLinearTransformMode extends GroupingMode {
 		ScreenPatchRange( final PatchRange range, final Rectangle srcRect, final double magnification ) {
 			super(range, srcRect, magnification);
 		}
-		public void update( final TransformMeshMappingWithMasks< ? > mapping )
+		@Override
+        public void update( final TransformMeshMappingWithMasks< ? > mapping )
 		{
 			ipTransformed.reset();
 			if ( mask == null )
@@ -115,7 +119,8 @@ public class NonLinearTransformMode extends GroupingMode {
 		}
 	}
 
-	protected GroupingMode.GroupedGraphicsSource createGroupedGraphicSource() {
+	@Override
+    protected GroupingMode.GroupedGraphicsSource createGroupedGraphicSource() {
 		return new NonLinearTransformSource();
 	}
 
@@ -129,21 +134,21 @@ public class NonLinearTransformMode extends GroupingMode {
 		this(display, display.getSelection().getSelected());
 	}
 
-	private Collection< Point > points = new ArrayList< Point >();
-	
+	private final Collection< Point > points = new ArrayList< Point >();
+
 	private Point p_clicked = null;
-	
+
 	@Override
-	public void mousePressed( MouseEvent me, int x_p, int y_p, double magnification )
+	public void mousePressed( final MouseEvent me, final int x_p, final int y_p, final double magnification )
 	{
 		/* find if clicked on a point */
 		p_clicked = null;
-		float min = Float.MAX_VALUE;
-		final Point mouse = new Point( new float[]{ x_p, y_p } );
-		final float a = ( float )( 64 / magnification / magnification);
+		double min = Double.MAX_VALUE;
+		final Point mouse = new Point( new double[]{ x_p, y_p } );
+		final double a = 64.0 / magnification / magnification;
 		for ( final Point p : points )
 		{
-			final float sd = Point.squareDistance( p, mouse );
+			final double sd = Point.squareDistance( p, mouse );
 			if ( sd < min && sd < a )
 			{
 				p_clicked = p;
@@ -160,26 +165,26 @@ public class NonLinearTransformMode extends GroupingMode {
 				{
 					if ( points.size() > 0 )
 					{
-						/* 
+						/*
 						 * Create a pseudo-invertible (TransformMesh) for the screen.
 						 */
 						final CoordinateTransform mlst = createCT();
 						final SimilarityModel2D toWorld = new SimilarityModel2D();
-						toWorld.set( 1.0f / ( float )magnification, 0, srcRect.x, srcRect.y );
+						toWorld.set( 1.0 / magnification, 0, srcRect.x, srcRect.y );
 						final SimilarityModel2D toScreen = toWorld.createInverse();
-						
+
 						final mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform > ctl = new mpicbg.models.CoordinateTransformList< mpicbg.models.CoordinateTransform >();
 						ctl.add( toWorld );
 						ctl.add( mlst );
 						ctl.add( toScreen );
-				
+
 						final CoordinateTransformMesh ctm = new CoordinateTransformMesh(
 								ctl,
 								32,
 								( int )Math.ceil( srcRect.width * magnification ),
 								( int )Math.ceil( srcRect.height * magnification ) );
-						
-						final float[] l = mouse.getL();
+
+						final double[] l = mouse.getL();
 						toScreen.applyInPlace( l );
 						ctm.applyInverseInPlace( l );
 						toWorld.applyInPlace( l );
@@ -187,7 +192,7 @@ public class NonLinearTransformMode extends GroupingMode {
 					points.add( mouse );
 					p_clicked = mouse;
 				}
-				catch ( Exception e )
+				catch ( final Exception e )
 				{
 					Utils.log( "Could not add point" );
 					e.printStackTrace();
@@ -203,26 +208,27 @@ public class NonLinearTransformMode extends GroupingMode {
 	}
 
 	@Override
-	public void mouseDragged( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old )
+	public void mouseDragged( final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old )
 	{
 		if ( null != p_clicked )
 		{
-			final float[] w = p_clicked.getW();
+			final double[] w = p_clicked.getW();
 			w[ 0 ] += x_d - x_d_old;
 			w[ 1 ] += y_d - y_d_old;
 			painter.update();
 		}
 	}
-	
+
 	@Override
-	public void mouseReleased( MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r )
+	public void mouseReleased( final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r )
 	{
 		// bring to screen coordinates
 		mouseDragged( me, x_p, y_p, x_r, y_r, x_d, y_d );
 		p_clicked = null; // so isDragging can return the right state
 	}
-	
-	public boolean isDragging()
+
+	@Override
+    public boolean isDragging()
 	{
 		return null != p_clicked;
 	}
@@ -230,29 +236,30 @@ public class NonLinearTransformMode extends GroupingMode {
 	private final void setUndoState() {
 		layer.getParent().addEditStep(new Displayable.DoEdits(new HashSet<Displayable>(originalPatches)).init(new String[]{"data", "at", "width", "height"}));
 	}
-	
+
 	final private Future< Boolean > applyToPatch( final Patch patch ) throws Exception
 	{
 		final Rectangle pbox = patch.getCoordinateTransformBoundingBox();
 		final AffineTransform pat = new AffineTransform();
 		pat.translate( -pbox.x, -pbox.y );
 		pat.preConcatenate( patch.getAffineTransform() );
-		
+
 		final AffineModel2D toWorld = new AffineModel2D();
 		toWorld.set( pat );
-		
+
 		final CoordinateTransform mlst = createCT();
-		
+
 		final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 		ctl.add( toWorld );
 		ctl.add( mlst );
 		ctl.add( toWorld.createInverse() );
-		
+
 		patch.appendCoordinateTransform( ctl );
 		return patch.updateMipMaps();
 	}
-	
-	public boolean apply()
+
+	@Override
+    public boolean apply()
 	{
 		return apply( null );
 	}
@@ -262,10 +269,11 @@ public class NonLinearTransformMode extends GroupingMode {
 
 		/* Set undo step to reflect initial state before any transformations */
 		setUndoState();
-		
+
 		Bureaucrat.createAndStart( new Worker.Task( "Applying transformations" )
 		{
-			public void exec()
+			@Override
+            public void exec()
 			{
 				final ArrayList< Future< Boolean > > futures = new ArrayList< Future< Boolean > >();
 
@@ -280,7 +288,7 @@ public class NonLinearTransformMode extends GroupingMode {
 							{
 								futures.add( applyToPatch( ( Patch )p ) );
 							}
-							catch ( Exception e )
+							catch ( final Exception e )
 							{
 								e.printStackTrace();
 							}
@@ -297,7 +305,7 @@ public class NonLinearTransformMode extends GroupingMode {
 								{
 									futures.add( applyToPatch( ( Patch )p ) );
 								}
-								catch ( Exception e )
+								catch ( final Exception e )
 								{
 									e.printStackTrace();
 								}
@@ -307,18 +315,18 @@ public class NonLinearTransformMode extends GroupingMode {
 				}
 
 				/* Flush images */
-				for ( GroupingMode.ScreenPatchRange<?> spr : new HashSet< GroupingMode.ScreenPatchRange<?> >( screenPatchRanges.values() ) )
+				for ( final GroupingMode.ScreenPatchRange<?> spr : new HashSet< GroupingMode.ScreenPatchRange<?> >( screenPatchRanges.values() ) )
 				{
 					spr.flush();
 				}
 
 				/* Wait until all mipmaps are regenerated */
-				for ( Future<?> fu : futures )
+				for ( final Future<?> fu : futures )
 					try
 					{
 						fu.get();
 					}
-					catch ( Exception ie )
+					catch ( final Exception ie )
 					{}
 
 				// Set undo step to reflect final state after applying transformations
@@ -335,7 +343,7 @@ public class NonLinearTransformMode extends GroupingMode {
 	private CoordinateTransform createCT() throws Exception
 	{
 		final Collection< PointMatch > pm = new ArrayList<PointMatch>();
-		for ( Point p : points )
+		for ( final Point p : points )
 		{
 			pm.add( new PointMatch( new Point( p.getL() ), new Point( p.getW() ) ) );
 		}
@@ -357,7 +365,7 @@ public class NonLinearTransformMode extends GroupingMode {
 		}
 		mlst.setModel( c );
 		mlst.setMatches( pm );
-		
+
 		return mlst;
 	}
 }

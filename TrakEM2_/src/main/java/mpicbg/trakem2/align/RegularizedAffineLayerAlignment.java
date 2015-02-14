@@ -67,24 +67,24 @@ public class RegularizedAffineLayerAlignment
 {
 	final static public class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
-		private static final long serialVersionUID = 9206075439084906961L;
-		
-		/**
+        private static final long serialVersionUID = -8684671473565381197L;
+
+        /**
 		 * Regularization
 		 */
 		public boolean regularize = false;
 		public int regularizerIndex = 1;
-		public float lambda = 0.1f;
-		
+		public double lambda = 0.1;
+
 		public boolean setup( final Rectangle box )
 		{
 			if ( !setupSIFT( "Elastically align layers: " ) )
 				return false;
-			
+
 			/* Geometric filters */
-			
+
 			final GenericDialog gd = new GenericDialog( "Align layers: Geometric filters" );
-			
+
 			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
 			gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
 			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
@@ -95,12 +95,12 @@ public class RegularizedAffineLayerAlignment
 			gd.addMessage( "Layer neighbor range:" );
 			gd.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
 			gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
-			
+
 			gd.showDialog();
-			
+
 			if ( gd.wasCanceled() )
 				return false;
-			
+
 			maxEpsilon = ( float )gd.getNextNumber();
 			minInlierRatio = ( float )gd.getNextNumber();
 			minNumInliers = ( int )gd.getNextNumber();
@@ -110,7 +110,7 @@ public class RegularizedAffineLayerAlignment
 			identityTolerance = ( float )gd.getNextNumber();
 			maxNumNeighbors = ( int )gd.getNextNumber();
 			maxNumFailures = ( int )gd.getNextNumber();
-			
+
 			final GenericDialog gdOptimize = new GenericDialog( "Align layers: Optimization" );
 			gdOptimize.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
 			gdOptimize.addCheckbox( "regularize model", regularize );
@@ -119,38 +119,38 @@ public class RegularizedAffineLayerAlignment
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
 			//gdOptimize.addCheckbox( "filter outliers", filterOutliers );
 			//gdOptimize.addNumericField( "mean_factor :", meanFactor, 2 );
-			
+
 			gdOptimize.showDialog();
-			
+
 			if ( gdOptimize.wasCanceled() )
 				return false;
-			
+
 			desiredModelIndex = gdOptimize.getNextChoiceIndex();
 			regularize = gdOptimize.getNextBoolean();
 			maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
 			maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
-			
+
 			if ( regularize )
 			{
 				final GenericDialog gdRegularize = new GenericDialog( "Align layers: Regularization" );
-				
+
 				gdRegularize.addChoice( "regularizer :", modelStrings, modelStrings[ regularizerIndex ] );
 				gdRegularize.addNumericField( "lambda :", lambda, 2 );
-				
+
 				gdRegularize.showDialog();
-				
+
 				if ( gdRegularize.wasCanceled() )
 					return false;
-				
+
 				regularizerIndex = gdRegularize.getNextChoiceIndex();
-				lambda = ( float )gdRegularize.getNextNumber();
+				lambda = gdRegularize.getNextNumber();
 			}
-			
+
 			return true;
 		}
-		
+
 		public Param() {}
-		
+
 		public Param(
 				final int SIFTfdBins,
 				final int SIFTfdSize,
@@ -158,15 +158,15 @@ public class RegularizedAffineLayerAlignment
 				final int SIFTmaxOctaveSize,
 				final int SIFTminOctaveSize,
 				final int SIFTsteps,
-				
+
 				final boolean clearCache,
 				final int maxNumThreadsSift,
 				final float rod,
-				
+
 				final int desiredModelIndex,
 				final int expectedModelIndex,
 				final float identityTolerance,
-				final float lambda,
+				final double lambda,
 				final float maxEpsilon,
 				final int maxIterationsOptimize,
 				final int maxNumFailures,
@@ -205,12 +205,12 @@ public class RegularizedAffineLayerAlignment
 					multipleHypotheses,
 					rejectIdentity,
 					visualize );
-			
+
 			this.lambda = lambda;
 			this.regularize = regularize;
 			this.regularizerIndex = regularizerIndex;
 		}
-		
+
 		@Override
 		public Param clone()
 		{
@@ -221,11 +221,11 @@ public class RegularizedAffineLayerAlignment
 					ppm.sift.maxOctaveSize,
 					ppm.sift.minOctaveSize,
 					ppm.sift.steps,
-					
+
 					ppm.clearCache,
 					ppm.maxNumThreadsSift,
 					ppm.rod,
-					
+
 					desiredModelIndex,
 					expectedModelIndex,
 					identityTolerance,
@@ -245,12 +245,12 @@ public class RegularizedAffineLayerAlignment
 					visualize );
 		}
 	}
-	
+
 	final static Param p = new Param();
-	
-	
+
+
 	/**
-	 * 
+	 *
 	 * @param param
 	 * @param layerRange
 	 * @param fixedLayers
@@ -279,7 +279,7 @@ public class RegularizedAffineLayerAlignment
 		final ArrayList< Tile< ? > > tiles = new ArrayList< Tile< ? > >();
 		final AbstractAffineModel2D< ? > m = ( AbstractAffineModel2D< ? > )Util.createModel( param.desiredModelIndex );
 		final AbstractAffineModel2D< ? > r = ( AbstractAffineModel2D< ? > )Util.createModel( param.regularizerIndex );
-		
+
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
 			if ( param.regularize )
@@ -287,11 +287,11 @@ public class RegularizedAffineLayerAlignment
 			else
 				tiles.add( new Tile( m.copy() ) );
 		}
-		
+
 		/* collect all pairs of slices for which a model could be found */
 		final ArrayList< Triple< Integer, Integer, Collection< PointMatch> > > pairs = new ArrayList< Triple< Integer, Integer, Collection< PointMatch > > >();
-		
-		
+
+
 		/* extract and save features, overwrite cached files if requested */
 		try
 		{
@@ -301,14 +301,14 @@ public class RegularizedAffineLayerAlignment
 		{
 			return;
 		}
-		
+
 		/* match and filter feature correspondences */
 		int numFailures = 0, lastA = 0;
-		
+
 		final double pointMatchScale = 1.0 / scale;
         final ArrayList<Future<Triple<Integer, Integer, Collection<PointMatch>>>> modelFutures =
                 new ArrayList<Future<Triple<Integer, Integer, Collection<PointMatch>>>>();
-		
+
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
 			final int range = Math.min( layerRange.size(), i + param.maxNumNeighbors + 1 );
@@ -350,7 +350,7 @@ public class RegularizedAffineLayerAlignment
                 }
             }
         }
-        catch (InterruptedException ie)
+        catch (final InterruptedException ie)
         {
             Utils.log( "Establishing feature correspondences interrupted." );
             for (final Future<Triple<Integer, Integer, Collection<PointMatch>>> future :
@@ -383,39 +383,39 @@ public class RegularizedAffineLayerAlignment
 
 		/* Optimization */
 		final TileConfiguration tileConfiguration = new TileConfiguration();
-		
+
 		for ( final Triple< Integer, Integer, Collection< PointMatch > > pair : pairs )
 		{
 			final Tile< ? > t1 = tiles.get( pair.a );
 			final Tile< ? > t2 = tiles.get( pair.b );
-			
+
 			tileConfiguration.addTile( t1 );
 			tileConfiguration.addTile( t2 );
 			t2.connect( t1, pair.c );
 		}
-		
+
 		for ( int i = 0; i < layerRange.size(); ++i )
 		{
 			final Layer layer = layerRange.get( i );
 			if ( fixedLayers.contains( layer ) )
 				tileConfiguration.fixTile( tiles.get( i ) );
 		}
-		
+
 		final List< Tile< ? >  > nonPreAlignedTiles = tileConfiguration.preAlign();
-		
-		
+
+
 		IJ.log( "pre-aligned all but " + nonPreAlignedTiles.size() + " tiles" );
-		
+
 		tileConfiguration.optimize(
 				param.maxEpsilon,
 				param.maxIterationsOptimize,
 				param.maxPlateauwidthOptimize );
-		
+
 		Utils.log( new StringBuffer( "Successfully optimized configuration of " ).append( tiles.size() ).append( " tiles:" ).toString() );
 		Utils.log( "  average displacement: " + String.format( "%.3f", tileConfiguration.getError() ) + "px" );
 		Utils.log( "  minimal displacement: " + String.format( "%.3f", tileConfiguration.getMinError() ) + "px" );
 		Utils.log( "  maximal displacement: " + String.format( "%.3f", tileConfiguration.getMaxError() ) + "px" );
-		
+
 		if ( propagateTransformBefore || propagateTransformAfter )
 		{
 			final Layer first = layerRange.get( 0 );
@@ -441,10 +441,10 @@ public class RegularizedAffineLayerAlignment
 			final AffineTransform b = translateAffine( box, ( ( Affine2D< ? > )tiles.get( i ).getModel() ).createAffine() );
 			applyTransformToLayer( layerRange.get( i ), b, filter );
 		}
-			
+
 		Utils.log( "Done." );
 	}
-	
+
 	final static protected AffineTransform translateAffine( final Rectangle box, final AffineTransform affine )
 	{
 		final AffineTransform b = new AffineTransform();
@@ -453,14 +453,14 @@ public class RegularizedAffineLayerAlignment
 		b.translate( -box.x, -box.y);
 		return b;
 	}
-	
+
 	final static protected void applyTransformToLayer( final Layer layer, final AffineTransform affine, final Filter< Patch > filter )
 	{
 		AlignTask.transformPatchesAndVectorData( AlignmentUtils.filterPatches( layer, filter ), affine );
 		Display.repaint( layer );
 	}
-	
-	
+
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
 	 *
@@ -479,7 +479,7 @@ public class RegularizedAffineLayerAlignment
 			final boolean propagateTransformAfter,
 			final Rectangle fov,
 			final Filter< Patch > filter ) throws Exception
-	{	
+	{
 		Rectangle box = null;
 		final HashSet< Layer > emptyLayers = new HashSet< Layer >();
 		for ( final Iterator< Layer > it = layerRange.iterator(); it.hasNext(); )
@@ -500,25 +500,25 @@ public class RegularizedAffineLayerAlignment
 					box = box.union( la.getMinimalBoundingBox( Patch.class, true ) );
 			}
 		}
-		
+
 		if ( box == null )
 			box = new Rectangle();
-		
+
 		if ( fov != null )
 			box = box.intersection( fov );
-		
+
 		if ( box.width <= 0 || box.height <= 0 )
 		{
 			Utils.log( "Bounding box empty." );
 			return;
 		}
-		
+
 		if ( layerRange.size() == emptyLayers.size() )
 		{
 			Utils.log( "All layers in range are empty!" );
 			return;
 		}
-		
+
 		/* do not work if there is only one layer selected */
 		if ( layerRange.size() - emptyLayers.size() < 2 )
 		{
@@ -527,13 +527,13 @@ public class RegularizedAffineLayerAlignment
 		}
 
 		if ( !p.setup( box ) ) return;
-		
+
 		exec( p.clone(), layerRange, fixedLayers, emptyLayers, box, propagateTransformBefore, propagateTransformAfter, filter );
 	}
-	
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
-	 * 
+	 *
 	 * @param layerSet
 	 * @param firstIn
 	 * @param lastIn
@@ -555,23 +555,23 @@ public class RegularizedAffineLayerAlignment
 	{
 		final int first = Math.min( firstIn, lastIn );
 		final int last = Math.max( firstIn, lastIn );
-		
+
 		/* always first index first despite the method would return inverse order if last > first */
 		final List< Layer > layerRange = layerSet.getLayers( first, last );
 		final HashSet< Layer > fixedLayers = new HashSet< Layer >();
-		
+
 		if ( ref - first >= 0 )
 			fixedLayers.add( layerRange.get( ref - first ) );
-		
+
 		Utils.log( layerRange.size() + "" );
-		
+
 		exec( layerRange, fixedLayers, propagateTransformBefore, propagateTransformAfter, fov, filter );
 	}
-	
-	
+
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
-	 * 
+	 *
 	 * @param layerSet
 	 * @param firstIn
 	 * @param lastIn
@@ -594,11 +594,11 @@ public class RegularizedAffineLayerAlignment
 		else
 			exec( layerSet, firstIn, lastIn, ref, propagateTransform, false, fov, filter );
 	}
-	
-	
+
+
 	/**
 	 * Stateful.  Changing the parameters of this instance.  Do not use in parallel.
-	 * 
+	 *
 	 * @param layerSet
 	 * @param firstIn
 	 * @param lastIn
@@ -621,18 +621,18 @@ public class RegularizedAffineLayerAlignment
 	{
 		final int first = Math.min( firstIn, lastIn );
 		final int last = Math.max( firstIn, lastIn );
-		
+
 		/* always first index first despite the method would return inverse order if last > first */
 		final List< Layer > layerRange = layerSet.getLayers( first, last );
 		final HashSet< Layer > fixedLayers = new HashSet< Layer >();
-		
+
 		if ( ref1 - first >= 0 )
 			fixedLayers.add( layerRange.get( ref1 - first ) );
 		if ( ref2 - first >= 0 )
 			fixedLayers.add( layerRange.get( ref2 - first ) );
-		
+
 		Utils.log( layerRange.size() + "" );
-		
+
 		exec( layerRange, fixedLayers, propagateTransformBefore, propagateTransformAfter, fov, filter );
 	}
 
@@ -685,10 +685,10 @@ public class RegularizedAffineLayerAlignment
                 {
                     final Point p1 = pm.getP1();
                     final Point p2 = pm.getP2();
-                    final float[] l1 = p1.getL();
-                    final float[] w1 = p1.getW();
-                    final float[] l2 = p2.getL();
-                    final float[] w2 = p2.getW();
+                    final double[] l1 = p1.getL();
+                    final double[] w1 = p1.getW();
+                    final double[] l2 = p2.getL();
+                    final double[] w2 = p2.getW();
 
                     l1[ 0 ] *= pointMatchScale;
                     l1[ 1 ] *= pointMatchScale;

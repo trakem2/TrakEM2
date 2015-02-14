@@ -188,8 +188,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int w = target.getWidth() - 1;
 		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
-		final float[] min = new float[ 2 ];
-		final float[] max = new float[ 2 ];
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
 		calculateBoundingBox( pm, min, max );
 
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
@@ -197,16 +197,16 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 
-		final float[] a = pm.get( 0 ).getP2().getW();
-		final float ax = a[ 0 ];
-		final float ay = a[ 1 ];
-		final float[] b = pm.get( 1 ).getP2().getW();
-		final float bx = b[ 0 ];
-		final float by = b[ 1 ];
-		final float[] c = pm.get( 2 ).getP2().getW();
-		final float cx = c[ 0 ];
-		final float cy = c[ 1 ];
-		final float[] t = new float[ 2 ];
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
 		for ( int y = minY; y <= maxY; ++y )
 		{
 			for ( int x = minX; x <= maxX; ++x )
@@ -241,8 +241,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int w = target.getWidth() - 1;
 		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
-		final float[] min = new float[ 2 ];
-		final float[] max = new float[ 2 ];
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
 		calculateBoundingBox( pm, min, max );
 
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
@@ -250,16 +250,16 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 
-		final float[] a = pm.get( 0 ).getP2().getW();
-		final float ax = a[ 0 ];
-		final float ay = a[ 1 ];
-		final float[] b = pm.get( 1 ).getP2().getW();
-		final float bx = b[ 0 ];
-		final float by = b[ 1 ];
-		final float[] c = pm.get( 2 ).getP2().getW();
-		final float cx = c[ 0 ];
-		final float cy = c[ 1 ];
-		final float[] t = new float[ 2 ];
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
 		for ( int y = minY; y <= maxY; ++y )
 		{
 			for ( int x = minX; x <= maxX; ++x )
@@ -297,8 +297,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int w = target.getWidth() - 1;
 		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
-		final float[] min = new float[ 2 ];
-		final float[] max = new float[ 2 ];
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
 		calculateBoundingBox( pm, min, max );
 
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
@@ -306,16 +306,16 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 
-		final float[] a = pm.get( 0 ).getP2().getW();
-		final float ax = a[ 0 ];
-		final float ay = a[ 1 ];
-		final float[] b = pm.get( 1 ).getP2().getW();
-		final float bx = b[ 0 ];
-		final float by = b[ 1 ];
-		final float[] c = pm.get( 2 ).getP2().getW();
-		final float cx = c[ 0 ];
-		final float cy = c[ 1 ];
-		final float[] t = new float[ 2 ];
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
 		for ( int y = minY; y <= maxY; ++y )
 		{
 			for ( int x = minX; x <= maxX; ++x )
@@ -353,8 +353,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int w = target.getWidth() - 1;
 		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
-		final float[] min = new float[ 2 ];
-		final float[] max = new float[ 2 ];
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
 		calculateBoundingBox( pm, min, max );
 
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
@@ -362,16 +362,16 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 
-		final float[] a = pm.get( 0 ).getP2().getW();
-		final float ax = a[ 0 ];
-		final float ay = a[ 1 ];
-		final float[] b = pm.get( 1 ).getP2().getW();
-		final float bx = b[ 0 ];
-		final float by = b[ 1 ];
-		final float[] c = pm.get( 2 ).getP2().getW();
-		final float cx = c[ 0 ];
-		final float cy = c[ 1 ];
-		final float[] t = new float[ 2 ];
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
 		for ( int y = minY; y <= maxY; ++y )
 		{
 			for ( int x = minX; x <= maxX; ++x )
@@ -408,8 +408,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int w = target.getWidth() - 1;
 		final int h = target.getHeight() - 1;
 		final ArrayList< PointMatch > pm = m.getAV().get( ai );
-		final float[] min = new float[ 2 ];
-		final float[] max = new float[ 2 ];
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
 		calculateBoundingBox( pm, min, max );
 
 		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
@@ -417,16 +417,16 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
 		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
 
-		final float[] a = pm.get( 0 ).getP2().getW();
-		final float ax = a[ 0 ];
-		final float ay = a[ 1 ];
-		final float[] b = pm.get( 1 ).getP2().getW();
-		final float bx = b[ 0 ];
-		final float by = b[ 1 ];
-		final float[] c = pm.get( 2 ).getP2().getW();
-		final float cx = c[ 0 ];
-		final float cy = c[ 1 ];
-		final float[] t = new float[ 2 ];
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
 		for ( int y = minY; y <= maxY; ++y )
 		{
 			for ( int x = minX; x <= maxX; ++x )

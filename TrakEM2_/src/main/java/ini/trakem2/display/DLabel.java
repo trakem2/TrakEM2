@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -73,7 +73,7 @@ public class DLabel extends Displayable implements VectorData {
 	private Font font;
 	private JFrame editor = null;
 
-	public DLabel(Project project, String text, double x, double y) {
+	public DLabel(final Project project, final String text, final double x, final double y) {
 		super(project, text, x, y);
 		this.type = TEXT; // default
 		this.width = 1;
@@ -83,7 +83,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** For reconstruction purposes. */
-	public DLabel(Project project, long id, String text, float width, float height, int type, String font_name, int font_style, int font_size, boolean locked, AffineTransform at) {
+	public DLabel(final Project project, final long id, final String text, final float width, final float height, final int type, final String font_name, final int font_style, final int font_size, final boolean locked, final AffineTransform at) {
 		super(project, id, text, locked, at, width, height);
 		this.type = TEXT; // default
 		this.font = new Font(font_name, font_style, font_size);
@@ -94,7 +94,7 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** To reconstruct from an XML entry. */
-	public DLabel(final Project project, final long id, final HashMap<String,String> ht, HashMap<Displayable,String> ht_links) {
+	public DLabel(final Project project, final long id, final HashMap<String,String> ht, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht, ht_links);
 		// default:
 		int font_size = 12;
@@ -105,7 +105,7 @@ public class DLabel extends Displayable implements VectorData {
 		if (null != (data = ht.get("style"))) {
 			final String[] s1 = data.split(";");
 			for (int i=0; i<s1.length; i++) {
-				String[] s2 = s1[i].split(":");
+				final String[] s2 = s1[i].split(":");
 				if (s2[0].equals("font-size")) {
 					font_size = Integer.parseInt(s2[1].trim());
 				} else if (s2[0].equals("font-style")) {
@@ -128,16 +128,17 @@ public class DLabel extends Displayable implements VectorData {
 		this.font = null;
 	}
 
-	public void setTitle(String title) {
+	@Override
+    public void setTitle(final String title) {
 		setText(title, true);
 	}
 
-	public void setText(String title, boolean update) {
+	public void setText(final String title, final boolean update) {
 		super.setTitle(title);
 		if (null == title || 0 == title.length()) return;
-		String text = getShortTitle();
+		final String text = getShortTitle();
 		// measure dimensions of the painted label
-		Dimension dim = Utils.getDimensions(text, font);
+		final Dimension dim = Utils.getDimensions(text, font);
 		this.width = dim.width;
 		this.height = dim.height;
 		Display.updateTransform(this); // need to update the Selection with the actual width and height!
@@ -147,33 +148,35 @@ public class DLabel extends Displayable implements VectorData {
 
 	private void reload() {
 		// reload
-		Object[] ob = project.getLoader().fetchLabel(this);
+		final Object[] ob = project.getLoader().fetchLabel(this);
 		if (null == ob) return;
 		title = (String)ob[0];
 		font = new Font((String)ob[1], ((Integer)ob[2]).intValue(), ((Integer)ob[3]).intValue());
 	}
 
-	public String getShortTitle() {
+	@Override
+    public String getShortTitle() {
 		if (null == title) reload();
 		if (null == title) return "";
 		return title;
 	}
 
-	public String toString() {
+	@Override
+    public String toString() {
 		if (null == this.title || 0 == this.title.length()) {
 			return "<empty label> #" + id;
 		}
 		return getShortTitle() + " #" + id;
 	}
 
-	public void setType(int type) {
+	public void setType(final int type) {
 		if (type < TEXT || type > DOT) return;
 		this.type = type;
 	}
 
 
 	@Override
-	public void paint(Graphics2D g, final Rectangle srcRect, double magnification, boolean active, int channels, Layer active_layer, final List<Layer> layers) {
+	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		//arrange transparency
 		Composite original_composite = null;
 		if (alpha != 1.0f) {
@@ -213,7 +216,8 @@ public class DLabel extends Displayable implements VectorData {
 
 	/** Saves one allocation, returns the same Rectangle, modified (or a new one if null).
 	 * This method is overriden so that the x,y, which underlies the text, is translated upward by the height to generate a box that encloses the text and not just sits under it. */
-	public Rectangle getBoundingBox(Rectangle r) {
+	@Override
+    public Rectangle getBoundingBox(Rectangle r) {
 		if (null == r) r = new Rectangle();
 		if (this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			r.x = (int)this.at.getTranslateX();
@@ -240,7 +244,8 @@ public class DLabel extends Displayable implements VectorData {
 		}
 		return r;
 	}
-	public Polygon getPerimeter() {
+	@Override
+    public Polygon getPerimeter() {
 		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			// return the bounding box as a polygon:
 			final Rectangle r = getBoundingBox();
@@ -258,7 +263,8 @@ public class DLabel extends Displayable implements VectorData {
 	}
 
 	/** Returns the perimeter enlarged in all West, North, East and South directions, in pixels.*/
-	public Polygon getPerimeter(final int w, final int n, final int e, final int s) {
+	@Override
+    public Polygon getPerimeter(final int w, final int n, final int e, final int s) {
 		if (this.at.isIdentity() || this.at.getType() == AffineTransform.TYPE_TRANSLATION) {
 			// return the bounding box as a polygon:
 			final Rectangle r = getBoundingBox();
@@ -275,25 +281,30 @@ public class DLabel extends Displayable implements VectorData {
 				   4);
 	}
 
-	public void mousePressed(MouseEvent me, Layer layer, int x_p, int y_p, double mag) {}
+	@Override
+    public void mousePressed(final MouseEvent me, final Layer layer, final int x_p, final int y_p, final double mag) {}
 
-	public void mouseDragged(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {}
+	@Override
+    public void mouseDragged(final MouseEvent me, final Layer layer, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {}
 
-	public void mouseReleased(MouseEvent me, Layer layer, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	@Override
+    public void mouseReleased(final MouseEvent me, final Layer layer, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		Display.repaint(layer, this); // the DisplayablePanel
 	}
 
-	public boolean isDeletable() {
+	@Override
+    public boolean isDeletable() {
 		return null == title || "" == title;
 	}
 
-	public void keyPressed(KeyEvent ke) {
+	@Override
+    public void keyPressed(final KeyEvent ke) {
 		super.keyPressed(ke);
 		// TODO: screen edition
 		/*
 		if (null == screen_editor) screen_editor = new ScreenEditor(this);
 		if (ke.isConsumed()) {
-			
+
 			return;
 		}
 		// add char at the end, or delete last if it's a 'delete'
@@ -303,13 +314,13 @@ public class DLabel extends Displayable implements VectorData {
 
 	/* // TODO
 	private class ScreenEditor extends TextField {
-		
 
-		
+
+
 		ScreenEditor(DLabel label) {
-			
+
 		}
-		
+
 		public void paint(Graphics g) {
 
 		}
@@ -325,30 +336,31 @@ public class DLabel extends Displayable implements VectorData {
 	private class Editor extends JFrame implements WindowListener {
 
 		private static final long serialVersionUID = 1L;
-		private DLabel label;
-		private JTextArea jta;
+		private final DLabel label;
+		private final JTextArea jta;
 
-		Editor(DLabel l) {
+		Editor(final DLabel l) {
 			super(getShortTitle());
 			label = l;
 			jta = new JTextArea(label.title.equals("  ") ? "" : label.title, 5, 20); // the whole text is the 'title' in the Displayable class.
 			jta.setLineWrap(true);
 			jta.setWrapStyleWord(true);
-			JScrollPane jsp = new JScrollPane(jta);
+			final JScrollPane jsp = new JScrollPane(jta);
 			jta.setPreferredSize(new Dimension(200,200));
 			getContentPane().add(jsp);
 			pack();
 			setVisible(true);
-			Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
-			Rectangle box = this.getBounds();
+			final Dimension screen = Toolkit.getDefaultToolkit().getScreenSize();
+			final Rectangle box = this.getBounds();
 			setLocation((screen.width - box.width) / 2, (screen.height - box.height) / 2);
 			setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 			addWindowListener(this);
 			new ToFront(this);
 		}
 
-		public void windowClosing(WindowEvent we) {
-			String text = jta.getText().trim();
+		@Override
+        public void windowClosing(final WindowEvent we) {
+			final String text = jta.getText().trim();
 			if (null != text && text.length() > 0) {
 				label.setTitle(text);
 			} else {
@@ -360,28 +372,36 @@ public class DLabel extends Displayable implements VectorData {
 			Display.repaint(layer, label, 1);
 			editor = null;
 		}
-		public void windowClosed(WindowEvent we) {}
-		public void windowOpened(WindowEvent we) {}
-		public void windowActivated(WindowEvent we) {}
-		public void windowDeactivated(WindowEvent we) {}
-		public void windowIconified(WindowEvent we) {}
-		public void windowDeiconified(WindowEvent we) {}
+		@Override
+        public void windowClosed(final WindowEvent we) {}
+		@Override
+        public void windowOpened(final WindowEvent we) {}
+		@Override
+        public void windowActivated(final WindowEvent we) {}
+		@Override
+        public void windowDeactivated(final WindowEvent we) {}
+		@Override
+        public void windowIconified(final WindowEvent we) {}
+		@Override
+        public void windowDeiconified(final WindowEvent we) {}
 	}
 
 	private class ToFront extends Thread {
 		private final JFrame frame;
-		ToFront(JFrame frame) {
+		ToFront(final JFrame frame) {
 			this.frame = frame;
 			start();
 		}
-		public void run() {
-			try { Thread.sleep(200); } catch (Exception e) {}
+		@Override
+        public void run() {
+			try { Thread.sleep(200); } catch (final Exception e) {}
 			frame.toFront();
 		}
 	}
 
 	/** */
-	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
+	@Override
+    public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		sb_body.append(indent).append("<t2_label\n");
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, options);
@@ -412,13 +432,13 @@ public class DLabel extends Displayable implements VectorData {
 		final String[] sizes = {"8","9","10","12","14","18","24","28","36","48","60","72"};
 		final String[] styles = {"Plain", "Bold", "Italic", "Bold+Italic"};
 		int i = 0;
-		String family = this.font.getFamily();
+		final String family = this.font.getFamily();
 		for (i = fonts.length -1; i>-1; i--) {
 			if (family.equals(fonts[i])) break;
 		}
 		if (-1 == i) i = 0;
 		gd.addChoice("Font Family: ", fonts, fonts[i]);
-		int size = this.font.getSize();
+		final int size = this.font.getSize();
 		for (i = sizes.length -1; i>-1; i--) {
 			if (Integer.parseInt(sizes[i]) == size) break;
 		}
@@ -439,7 +459,7 @@ public class DLabel extends Displayable implements VectorData {
 		// superclass processing
 		processAdjustPropertiesDialog(gd);
 		// local proccesing
-		String new_font = gd.getNextChoice();
+		final String new_font = gd.getNextChoice();
 		int new_size = Integer.parseInt(gd.getNextChoice());
 		final int new_size_2 = (int)gd.getNextNumber();
 		if (new_size_2 != size) {
@@ -489,16 +509,18 @@ public class DLabel extends Displayable implements VectorData {
 			// no clone method for font.
 			this.font = new Font(label.font.getFamily(), label.font.getStyle(), label.font.getSize());
 		}
-		final boolean to2(final Displayable d) {
+		@Override
+        final boolean to2(final Displayable d) {
 			super.to1(d);
 			((DLabel)d).font = new Font(font.getFamily(), font.getStyle(), font.getSize());
 			return true;
 		}
 	}
 
-	synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
+	@Override
+    synchronized public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		// Considers only the point where this floating text label is.
-		final float[] fp = new float[2]; // point is 0,0
+		final double[] fp = new double[2]; // point is 0,0
 		this.at.transform(fp, 0, fp, 0, 1); // to world
 		if (roi.contains(fp[0], fp[1])) {
 			ict.applyInPlace(fp);
@@ -509,8 +531,9 @@ public class DLabel extends Displayable implements VectorData {
 		}
 		return false;
 	}
-	public boolean apply(final VectorDataTransform vdt) throws Exception {
-		final float[] fp = new float[2]; // point is 0,0
+	@Override
+    public boolean apply(final VectorDataTransform vdt) throws Exception {
+		final double[] fp = new double[2]; // point is 0,0
 		this.at.transform(fp, 0, fp, 0, 1); // to world
 		for (final VectorDataTransform.ROITransform rt : vdt.transforms) {
 			if (rt.roi.contains(fp[0], fp[1])) {

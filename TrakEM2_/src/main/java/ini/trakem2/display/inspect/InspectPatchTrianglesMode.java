@@ -27,7 +27,7 @@ import mpicbg.trakem2.transform.TransformMesh;
 /**
  * A view-only mode that shows, using {@link LayerSet#getOverlay()}, the
  * triangle of the transform mesh in the {@link Patch} under the cursor.
- * 
+ *
  * @author Stephan Saalfeld and Albert Cardona
  */
 public class InspectPatchTrianglesMode implements Mode {
@@ -38,7 +38,7 @@ public class InspectPatchTrianglesMode implements Mode {
 	public InspectPatchTrianglesMode(final Display display) {
 		this.display = display;
 	}
-	
+
 	@Override
 	public GraphicsSource getGraphicsSource() {
 		return gs;
@@ -66,21 +66,21 @@ public class InspectPatchTrianglesMode implements Mode {
 	// Initialize with a Shape that can never be painted
 	protected final ShapeProxy proxy = new ShapeProxy(new Rectangle(-1, -1, 0, 0));
 	protected final Inspector inspector = new Inspector();
-	
+
 	protected class Inspector extends Thread {
 		private boolean quit = false;
 		private double wx, wy;
 		private Layer layer;
-		
+
 		Inspector() {
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
-		
+
 		private void quit() {
 			this.quit = true;
 		}
-		
+
 		private void viewAt(final double wX, final double wY, final Layer l) {
 			synchronized (this) {
 				this.wx = wX;
@@ -89,7 +89,7 @@ public class InspectPatchTrianglesMode implements Mode {
 				notify();
 			}
 		}
-		
+
 		@Override
 		public void run() {
 			double wX = 0, wY = 0;
@@ -103,48 +103,48 @@ public class InspectPatchTrianglesMode implements Mode {
 							wait();
 						}
 					}
-				} catch (InterruptedException ie) {
+				} catch (final InterruptedException ie) {
 					ie.printStackTrace();
 					return;
 				}
 
 				if (quit) return;
-				
+
 				// Acquire local copy
 				synchronized (this) {
 					wX = this.wx;
 					wY = this.wy;
 					l = this.layer;
 				}
-				
+
 				// Find a Patch under wx, wy
 				final Collection<Displayable> ps = l.find(Patch.class, wX, wY, true, false);
 				if (ps.isEmpty()) {
 					continue;
 				}
-	
+
 				final Patch patch = (Patch) ps.iterator().next();
-				
+
 				// Find the triangle, if any
 				if (null != patch.getCoordinateTransform()) { // TODO update this to hasCoordinateTransform
-					float[] f = new float[]{(float)wx, (float)wy};
+					final double[] f = new double[]{wx, wy};
 					final AffineTransform ai = patch.getAffineTransformCopy();
 					final AffineTransform aiInverse = new AffineTransform( ai );
 					try {
 						aiInverse.invert();
-					} catch ( NoninvertibleTransformException x ) {}
+					} catch ( final NoninvertibleTransformException x ) {}
 					aiInverse.transform( f, 0, f, 0, 1 );
 					final TransformMesh mesh = new TransformMesh( patch.getCoordinateTransform(), patch.getMeshResolution(), patch.getOWidth(), patch.getOHeight() );
 					final AffineModel2D triangle = mesh.closestTargetAffine( f );
 					final ArrayList< PointMatch > pm = mesh.getAV().get( triangle );
 					final GeneralPath path = new GeneralPath();
-					final float[] p1 = pm.get( 0 ).getP2().getW();
-					final float[] q = new float[ 2 ];
+					final double[] p1 = pm.get( 0 ).getP2().getW();
+					final double[] q = new double[ 2 ];
 					ai.transform( p1, 0, q, 0, 1 );
 					path.moveTo( q[ 0 ], q[ 1 ] );
 					for ( int i = 1; i < pm.size(); ++i )
 					{
-						final float[] p = pm.get( i ).getP2().getW();
+						final double[] p = pm.get( i ).getP2().getW();
 						ai.transform( p, 0, q, 0, 1 );
 						path.lineTo( q[ 0 ], q[ 1 ] );
 					}
@@ -155,14 +155,14 @@ public class InspectPatchTrianglesMode implements Mode {
 			}
 		}
 	}
-	
+
 	@Override
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
+	public void mousePressed(final MouseEvent me, final int x_p, final int y_p, final double magnification) {
 		display.getLayerSet().getOverlay().add( proxy, Color.YELLOW, new BasicStroke( 1 ) );
 	}
 
 	@Override
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 		synchronized (inspector) {
 			inspector.viewAt(x_d, y_d, display.getLayer());
 			inspector.notifyAll();
@@ -170,15 +170,15 @@ public class InspectPatchTrianglesMode implements Mode {
 	}
 
 	@Override
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		display.getLayerSet().getOverlay().remove(proxy);
 	}
 
 	@Override
-	public void srcRectUpdated(Rectangle srcRect, double magnification) {}
+	public void srcRectUpdated(final Rectangle srcRect, final double magnification) {}
 
 	@Override
-	public void magnificationUpdated(Rectangle srcRect, double magnification) {}
+	public void magnificationUpdated(final Rectangle srcRect, final double magnification) {}
 
 	@Override
 	public boolean apply() {

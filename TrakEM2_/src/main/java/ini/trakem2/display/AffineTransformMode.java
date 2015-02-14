@@ -62,7 +62,8 @@ public class AffineTransformMode implements Mode {
 		}
 	}
 
-	synchronized public void undoOneStep() {
+	@Override
+    synchronized public void undoOneStep() {
 		if (null == history) return;
 		// store the current state if at end:
 		Utils.log2("index at end: " + history.indexAtEnd());
@@ -70,7 +71,7 @@ public class AffineTransformMode implements Mode {
 		Map.Entry<Displayable,AffineTransform> Be = ((TransformationStep)history.getCurrent()).ht.entrySet().iterator().next();
 
 		if (history.indexAtEnd()) {
-			HashMap<Displayable,AffineTransform> m = getTransformationsCopy();
+			final HashMap<Displayable,AffineTransform> m = getTransformationsCopy();
 			history.append(new TransformationStep(m));
 			Be = m.entrySet().iterator().next(); // must set again, for the other one was the last step, not the current state.
 		}
@@ -78,7 +79,7 @@ public class AffineTransformMode implements Mode {
 		// disable application to other layers (too big a headache)
 		accum_affine = null;
 		// undo one step
-		TransformationStep step = (TransformationStep)history.undoOneStep();
+		final TransformationStep step = (TransformationStep)history.undoOneStep();
 		if (null == step) return; // no more steps
 		LayerSet.applyTransforms(step.ht);
 		resetBox();
@@ -89,21 +90,22 @@ public class AffineTransformMode implements Mode {
 			// t0     t1
 			// CA  =  B
 			// C = BA^(-1)
-			AffineTransform A = step.ht.get(Be.getKey()); // the t0
-			AffineTransform C = new AffineTransform(Be.getValue());
+			final AffineTransform A = step.ht.get(Be.getKey()); // the t0
+			final AffineTransform C = new AffineTransform(Be.getValue());
 			C.concatenate(A.createInverse());
 			fixAffinePoints(C);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 	}
 
-	synchronized public void redoOneStep() {
+	@Override
+    synchronized public void redoOneStep() {
 		if (null == history) return;
 
-		Map.Entry<Displayable,AffineTransform> Ae = ((TransformationStep)history.getCurrent()).ht.entrySet().iterator().next();
+		final Map.Entry<Displayable,AffineTransform> Ae = ((TransformationStep)history.getCurrent()).ht.entrySet().iterator().next();
 
-		TransformationStep step = (TransformationStep)history.redoOneStep();
+		final TransformationStep step = (TransformationStep)history.redoOneStep();
 		if (null == step) return; // no more steps
 		LayerSet.applyTransforms(step.ht);
 		resetBox();
@@ -112,35 +114,38 @@ public class AffineTransformMode implements Mode {
 		//  t0   t1
 		//  A  = CB
 		//  AB^(-1) = C
-		AffineTransform B = step.ht.get(Ae.getKey());
-		AffineTransform C = new AffineTransform(Ae.getValue());
+		final AffineTransform B = step.ht.get(Ae.getKey());
+		final AffineTransform C = new AffineTransform(Ae.getValue());
 		try {
 			C.concatenate(B.createInverse());
 			fixAffinePoints(C);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 	}
 
-	public boolean isDragging() {
+	@Override
+    public boolean isDragging() {
 		return dragging;
 	}
 
 	private class ATGS implements GraphicsSource {
-		public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
+		@Override
+        public List<? extends Paintable> asPaintable(final List<? extends Paintable> ds) {
 			return ds;
 		}
 		/** Paints the transformation handles and a bounding box around all selected. */
-		public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
+		@Override
+        public void paintOnTop(final Graphics2D g, final Display display, final Rectangle srcRect, final double magnification) {
 			final Stroke original_stroke = g.getStroke();
-			AffineTransform original = g.getTransform();
+			final AffineTransform original = g.getTransform();
 			g.setTransform(new AffineTransform());
 			if (!rotating) {
 				//Utils.log("box painting: " + box);
 
 				// 30 pixel line, 10 pixel gap, 10 pixel line, 10 pixel gap
 				//float mag = (float)magnification;
-				float[] dashPattern = { 30, 10, 10, 10 };
+				final float[] dashPattern = { 30, 10, 10, 10 };
 				g.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, dashPattern, 0));
 				g.setColor(Color.yellow);
 				// paint box
@@ -168,13 +173,17 @@ public class AffineTransformMode implements Mode {
 		}
 	}
 
-	public GraphicsSource getGraphicsSource() {
+	@Override
+    public GraphicsSource getGraphicsSource() {
 		return atgs;
 	}
 
-	public boolean canChangeLayer() { return false; }
-	public boolean canZoom() { return true; }
-	public boolean canPan() { return true; }
+	@Override
+    public boolean canChangeLayer() { return false; }
+	@Override
+    public boolean canZoom() { return true; }
+	@Override
+    public boolean canPan() { return true; }
 
 
 
@@ -215,19 +224,19 @@ public class AffineTransformMode implements Mode {
 	private abstract class Handle {
 		public int x, y;
 		public final int id;
-		Handle(int x, int y, int id) {
+		Handle(final int x, final int y, final int id) {
 			this.x = x;
 			this.y = y;
 			this.id = id;
 		}
 		abstract public void paint(Graphics2D g, Rectangle srcRect, double mag);
 		/** Radius is the dectection "radius" around the handle x,y. */
-		public boolean contains(int x_p, int y_p, double radius) {
+		public boolean contains(final int x_p, final int y_p, final double radius) {
 			if (x - radius <= x_p && x + radius >= x_p
 			 && y - radius <= y_p && y + radius >= y_p) return true;
 			return false;
 		}
-		public void set(int x, int y) {
+		public void set(final int x, final int y) {
 			this.x = x;
 			this.y = y;
 		}
@@ -235,16 +244,18 @@ public class AffineTransformMode implements Mode {
 	}
 
 	private class BoxHandle extends Handle {
-		BoxHandle(int x, int y, int id) {
+		BoxHandle(final int x, final int y, final int id) {
 			super(x,y,id);
 		}
-		public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
+		@Override
+        public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
 			final int x = (int)((this.x - srcRect.x)*mag);
 			final int y = (int)((this.y - srcRect.y)*mag);
 			DisplayCanvas.drawHandle(g, x, y, 1.0); // ignoring magnification for the sizes, since Selection is painted differently
 		}
-		public void drag(MouseEvent me, int dx, int dy) {
-			Rectangle box_old = (Rectangle)box.clone();
+		@Override
+        public void drag(final MouseEvent me, final int dx, final int dy) {
+			final Rectangle box_old = (Rectangle)box.clone();
 			//Utils.log2("dx,dy: " + dx + "," + dy + " before mod");
 			double res = dx / 2.0;
 			res -= Math.floor(res);
@@ -316,8 +327,8 @@ public class AffineTransformMode implements Mode {
 					break;
 			}
 			// proportion:
-			double px = (double)box.width / (double)box_old.width;
-			double py = (double)box.height / (double)box_old.height;
+			final double px = (double)box.width / (double)box_old.width;
+			final double py = (double)box.height / (double)box_old.height;
 			// displacement: specific of each element of the selection and their links, depending on where they are.
 
 			final AffineTransform at = new AffineTransform();
@@ -337,9 +348,9 @@ public class AffineTransformMode implements Mode {
 		}
 	}
 
-	private final double rotate(MouseEvent me) {
+	private final double rotate(final MouseEvent me) {
 		// center of rotation is the floater
-		double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
+		final double cos = Utils.getCos(x_d_old - floater.x, y_d_old - floater.y, x_d - floater.x, y_d - floater.y);
 		//double sin = Math.sqrt(1 - cos*cos);
 		//double delta = M.getAngle(cos, sin);
 		double delta = Math.acos(cos); // same thing as the two lines above
@@ -368,7 +379,7 @@ public class AffineTransformMode implements Mode {
 			return Double.NaN;
 		}
 
-		double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
+		final double zc = (x_d_old - floater.x) * (y_d - floater.y) - (x_d - floater.x) * (y_d_old - floater.y);
 		// correction:
 		if (zc < 0) {
 			delta = -delta;
@@ -379,17 +390,18 @@ public class AffineTransformMode implements Mode {
 
 	private class RotationHandle extends Handle {
 		final int shift = 50;
-		RotationHandle(int x, int y, int id) {
+		RotationHandle(final int x, final int y, final int id) {
 			super(x, y, id);
 		}
-		public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
+		@Override
+        public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
 			final int x = (int)((this.x - srcRect.x)*mag) + shift;
 			final int y = (int)((this.y - srcRect.y)*mag);
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
 			draw(g, fx, fy, x, y);
 		}
-		private void draw(final Graphics2D g, int fx, int fy, int x, int y) {
+		private void draw(final Graphics2D g, final int fx, final int fy, final int x, final int y) {
 			g.setColor(Color.white);
 			g.drawLine(fx, fy, x, y);
 			g.fillOval(x -4, y -4, 9, 9);
@@ -401,14 +413,15 @@ public class AffineTransformMode implements Mode {
 			final int fx = (int)((floater.x - srcRect.x)*mag);
 			final int fy = (int)((floater.y - srcRect.y)*mag);
 			// vector
-			double vx = (mouse.x - srcRect.x)*mag - fx;
-			double vy = (mouse.y - srcRect.y)*mag - fy;
+			final double vx = (mouse.x - srcRect.x)*mag - fx;
+			final double vy = (mouse.y - srcRect.y)*mag - fy;
 			//double len = Math.sqrt(vx*vx + vy*vy);
 			//vx = (vx / len) * 50;
 			//vy = (vy / len) * 50;
 			draw(g, fx, fy, fx + (int)vx, fy + (int)vy);
 		}
-		public boolean contains(int x_p, int y_p, double radius) {
+		@Override
+        public boolean contains(final int x_p, final int y_p, final double radius) {
 			final double mag = display.getCanvas().getMagnification();
 			final double x = this.x + shift / mag;
 			final double y = this.y;
@@ -416,7 +429,8 @@ public class AffineTransformMode implements Mode {
 			 && y - radius <= y_p && y + radius >= y_p) return true;
 			return false;
 		}
-		public void drag(MouseEvent me, int dx, int dy) {
+		@Override
+        public void drag(final MouseEvent me, final int dx, final int dy) {
 			/// Bad design, I know, I'm ignoring the dx,dy
 			// how:
 			// center is the floater
@@ -426,27 +440,29 @@ public class AffineTransformMode implements Mode {
 	}
 
 	private class Floater extends Handle {
-		Floater(int x, int y, int id) {
+		Floater(final int x, final int y, final int id) {
 			super(x,y, id);
 		}
-		public void paint(Graphics2D g, Rectangle srcRect, double mag) {
-			int x = (int)((this.x - srcRect.x)*mag);
-			int y = (int)((this.y - srcRect.y)*mag);
-			Composite co = g.getComposite();
+		@Override
+        public void paint(final Graphics2D g, final Rectangle srcRect, final double mag) {
+			final int x = (int)((this.x - srcRect.x)*mag);
+			final int y = (int)((this.y - srcRect.y)*mag);
+			final Composite co = g.getComposite();
 			g.setXORMode(Color.white);
 			g.drawOval(x -10, y -10, 21, 21);
 			g.drawRect(x -1, y -15, 3, 31);
 			g.drawRect(x -15, y -1, 31, 3);
 			g.setComposite(co); // undo XOR paint
 		}
-		public Rectangle getBoundingBox(Rectangle b) {
+		public Rectangle getBoundingBox(final Rectangle b) {
 			b.x = this.x - 15;
 			b.y = this.y - 15;
 			b.width = this.x + 31;
 			b.height = this.y + 31;
 			return b;
 		}
-		public void drag(MouseEvent me, int dx, int dy) {
+		@Override
+        public void drag(final MouseEvent me, final int dx, final int dy) {
 			this.x += dx;
 			this.y += dy;
 			RO.x = this.x;
@@ -456,7 +472,8 @@ public class AffineTransformMode implements Mode {
 			this.x = RO.x = box.x + box.width/2;
 			this.y = RO.y = box.y + box.height/2;
 		}
-		public boolean contains(int x_p, int y_p, double radius) {
+		@Override
+        public boolean contains(final int x_p, final int y_p, final double radius) {
 			return super.contains(x_p, y_p, radius*3.5);
 		}
 	}
@@ -466,7 +483,7 @@ public class AffineTransformMode implements Mode {
 	}
 
 	/** No display bounds are checked, the floater can be placed wherever you want. */
-	public void setFloater(int x, int y) {
+	public void setFloater(final int x, final int y) {
 		floater.x = x;
 		floater.y = y;
 	}
@@ -504,7 +521,7 @@ public class AffineTransformMode implements Mode {
 		// Check if there are links across affected layers
 		if (Displayable.areThereLayerCrossLinks(sublist, false)) {
 			if (ControlWindow.isGUIEnabled()) {
-				YesNoDialog yn = ControlWindow.makeYesNoDialog("Warning!", "Some objects are linked!\nThe transformation would alter interrelationships.\nProceed anyway?");
+				final YesNoDialog yn = ControlWindow.makeYesNoDialog("Warning!", "Some objects are linked!\nThe transformation would alter interrelationships.\nProceed anyway?");
 				if ( ! yn.yesPressed()) return;
 			} else {
 				Utils.log("Can't apply: some images may be linked across layers.\n  Unlink them by removing segmentation objects like arealists, pipes, profiles, etc. that cross these layers.");
@@ -535,7 +552,8 @@ public class AffineTransformMode implements Mode {
 		display.getLayer().getParent().addTransformStep(al);
 	}
 
-	public boolean apply() {
+	@Override
+    public boolean apply() {
 		// Notify each Displayable that any set of temporary transformations are over.
 		// The transform is the same, has not changed. This is just sending an event.
 		for (final Displayable d : display.getSelection().getAffected()) {
@@ -544,7 +562,8 @@ public class AffineTransformMode implements Mode {
 		return true;
 	}
 
-	public boolean cancel() {
+	@Override
+    public boolean cancel() {
 		if (null != history) {
 			// apply first
 			LayerSet.applyTransforms(((TransformationStep)history.get(0)).ht);
@@ -554,26 +573,27 @@ public class AffineTransformMode implements Mode {
 
 	private class AffinePoint {
 		int x, y;
-		AffinePoint(int x, int y) {
+		AffinePoint(final int x, final int y) {
 			this.x = x;
 			this.y = y;
 		}
-		public boolean equals(Object ob) {
+		@Override
+        public boolean equals(final Object ob) {
 			//if (!ob.getClass().equals(AffinePoint.class)) return false;
-			AffinePoint ap = (AffinePoint) ob;
-			double mag = display.getCanvas().getMagnification();
-			double dx = mag * ( ap.x - this.x );
-			double dy = mag * ( ap.y - this.y );
-			double d =  dx * dx + dy * dy;
+			final AffinePoint ap = (AffinePoint) ob;
+			final double mag = display.getCanvas().getMagnification();
+			final double dx = mag * ( ap.x - this.x );
+			final double dy = mag * ( ap.y - this.y );
+			final double d =  dx * dx + dy * dy;
 			return  d < 64.0;
 		}
-		void translate(int dx, int dy) {
+		void translate(final int dx, final int dy) {
 			x += dx;
 			y += dy;
 		}
-		private void paint(Graphics2D g) {
-			int x = display.getCanvas().screenX(this.x);
-			int y = display.getCanvas().screenY(this.y);
+		private void paint(final Graphics2D g) {
+			final int x = display.getCanvas().screenX(this.x);
+			final int y = display.getCanvas().screenY(this.y);
 			Utils.drawPoint(g, x, y);
 		}
 	}
@@ -607,7 +627,7 @@ public class AffineTransformMode implements Mode {
 		free_affine = new AffineTransform();
 		initial_affines = getTransformationsCopy();
 
-		int size = affine_handles.size();
+		final int size = affine_handles.size();
 
 		switch (size) {
 			case 0:
@@ -630,23 +650,23 @@ public class AffineTransformMode implements Mode {
 		matches = new ArrayList< mpicbg.models.PointMatch >();
 		int i = 0;
 		for (final AffinePoint ap : affine_handles) {
-			p[i] = new mpicbg.models.Point(new float[]{ap.x, ap.y});
+			p[i] = new mpicbg.models.Point(new double[]{ap.x, ap.y});
 			q[i] = p[i].clone();
 			matches.add(new mpicbg.models.PointMatch(p[i], q[i]));
 			i++;
 		}
 	}
 
-	private void freeAffine(AffinePoint affp) {
+	private void freeAffine(final AffinePoint affp) {
 		// The selected point
-		final float[] w = q[affine_handles.indexOf(affp)].getW();
+		final double[] w = q[affine_handles.indexOf(affp)].getW();
 		w[0] = affp.x;
 		w[1] = affp.y;
 
 		try {
 			model.fit(matches);
-		} catch (Exception e) {}
-		
+		} catch (final Exception e) {}
+
 		final AffineTransform model_affine = model.createAffine();
 		for (final Map.Entry<Displayable,AffineTransform> e : initial_affines.entrySet()) {
 			final AffineTransform at = new AffineTransform(e.getValue());
@@ -658,7 +678,7 @@ public class AffineTransformMode implements Mode {
 
 	private void fixAffinePoints(final AffineTransform at) {
 		if (null != matches) {
-			float[] po = new float[2];
+			final float[] po = new float[2];
 			for (final AffinePoint affp : affine_handles) {
 				po[0] = affp.x;
 				po[1] = affp.y;
@@ -675,7 +695,8 @@ public class AffineTransformMode implements Mode {
 	private AffinePoint affp = null;
 
 
-	public void mousePressed(MouseEvent me, int x_p, int y_p, double magnification) {
+	@Override
+    public void mousePressed(final MouseEvent me, final int x_p, final int y_p, final double magnification) {
 		grabbed = null; // reset
 		if (me.isShiftDown()) {
 			if (Utils.isControlDown(me) && null != affine_handles) {
@@ -698,7 +719,7 @@ public class AffineTransformMode implements Mode {
 			}
 			return;
 		} else if (null != affine_handles) {
-			int index = affine_handles.indexOf(new AffinePoint(x_p, y_p));
+			final int index = affine_handles.indexOf(new AffinePoint(x_p, y_p));
 			if (-1 != index) {
 				affp = affine_handles.get(index);
 				return;
@@ -723,7 +744,8 @@ public class AffineTransformMode implements Mode {
 			dragging = true;
 		}
 	}
-	public void mouseDragged(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	@Override
+    public void mouseDragged(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 		// Store old for rotation handle:
 		this.x_d = x_d;
 		this.y_d = y_d;
@@ -731,15 +753,15 @@ public class AffineTransformMode implements Mode {
 		this.y_d_old = y_d_old;
 
 		// compute translation
-		int dx = x_d - x_d_old;
-		int dy = y_d - y_d_old;
+		final int dx = x_d - x_d_old;
+		final int dy = y_d - y_d_old;
 
 		execDrag(me, dx, dy);
 		display.getCanvas().repaint(true);
 
 		mouse_dragged = true; // after execDrag, so the first undo step is added.
 	}
-	private void execDrag(MouseEvent me, int dx, int dy) {
+	private void execDrag(final MouseEvent me, final int dx, final int dy) {
 		if (0 == dx && 0 == dy) return;
 		if (null != affp) {
 			affp.translate(dx, dy);
@@ -766,7 +788,8 @@ public class AffineTransformMode implements Mode {
 		}
 	}
 
-	public void mouseReleased(MouseEvent me, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	@Override
+    public void mouseReleased(final MouseEvent me, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 
 		// Record current state for selected Displayable set, if there was any change:
 		final int dx = x_r - x_p;
@@ -857,12 +880,15 @@ public class AffineTransformMode implements Mode {
 		resetBox();
 	}
 
-	public Rectangle getRepaintBounds() {
-		Rectangle b = display.getSelection().getLinkedBox();
+	@Override
+    public Rectangle getRepaintBounds() {
+		final Rectangle b = display.getSelection().getLinkedBox();
 		b.add(floater.getBoundingBox(new Rectangle()));
 		return b;
 	}
 
-	public void srcRectUpdated(Rectangle srcRect, double magnification) {}
-	public void magnificationUpdated(Rectangle srcRect, double magnification) {}
+	@Override
+    public void srcRectUpdated(final Rectangle srcRect, final double magnification) {}
+	@Override
+    public void magnificationUpdated(final Rectangle srcRect, final double magnification) {}
 }

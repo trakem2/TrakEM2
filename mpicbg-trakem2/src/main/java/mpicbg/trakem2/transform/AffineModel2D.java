@@ -13,7 +13,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
+ *
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
  *
  */
@@ -21,25 +21,26 @@ package mpicbg.trakem2.transform;
 
 public class AffineModel2D extends mpicbg.models.AffineModel2D implements InvertibleCoordinateTransform
 {
+	private static final long serialVersionUID = 7177056267150312600L;
 
-	//@Override
+	@Override
 	final public void init( final String data )
 	{
 		final String[] fields = data.split( "\\s+" );
 		if ( fields.length == 6 )
 		{
-			final float m00 = Float.parseFloat( fields[ 0 ] );
-			final float m10 = Float.parseFloat( fields[ 1 ] );
-			final float m01 = Float.parseFloat( fields[ 2 ] );
-			final float m11 = Float.parseFloat( fields[ 3 ] );
-			final float m02 = Float.parseFloat( fields[ 4 ] );
-			final float m12 = Float.parseFloat( fields[ 5 ] );
+			final double m00 = Double.parseDouble( fields[ 0 ] );
+			final double m10 = Double.parseDouble( fields[ 1 ] );
+			final double m01 = Double.parseDouble( fields[ 2 ] );
+			final double m11 = Double.parseDouble( fields[ 3 ] );
+			final double m02 = Double.parseDouble( fields[ 4 ] );
+			final double m12 = Double.parseDouble( fields[ 5 ] );
 			set( m00, m10, m01, m11, m02, m12 );
 		}
 		else throw new NumberFormatException( "Inappropriate parameters for " + this.getClass().getCanonicalName() );
 	}
 
-	//@Override
+	@Override
 	final public String toXML( final String indent )
 	{
 		final StringBuilder xml = new StringBuilder( 128 );
@@ -51,7 +52,7 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 		return xml.append( "\" />" ).toString();
 	}
 
-	//@Override
+	@Override
 	final public String toDataString()
 	{
 		final StringBuilder data = new StringBuilder();
@@ -68,7 +69,7 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 		    .append( m02 ).append(' ')
 		    .append( m12 );
 	}
-	
+
 	@Override
 	public AffineModel2D copy()
 	{
@@ -80,38 +81,39 @@ public class AffineModel2D extends mpicbg.models.AffineModel2D implements Invert
 
 		m.m02 = m02;
 		m.m12 = m12;
-		
+
 		m.cost = cost;
-		
+
 		m.invert();
 
 		return m;
 	}
-	
+
 	/**
 	 * TODO Not yet tested
 	 */
 	//@Override
+	@Override
 	public AffineModel2D createInverse()
 	{
 		final AffineModel2D ict = new AffineModel2D();
-		
+
 		ict.m00 = i00;
 		ict.m10 = i10;
 		ict.m01 = i01;
 		ict.m11 = i11;
 		ict.m02 = i02;
 		ict.m12 = i12;
-		
+
 		ict.i00 = m00;
 		ict.i10 = m10;
 		ict.i01 = m01;
 		ict.i11 = m11;
 		ict.i02 = m02;
 		ict.i12 = m12;
-		
+
 		ict.cost = cost;
-		
+
 		return ict;
 	}
 }

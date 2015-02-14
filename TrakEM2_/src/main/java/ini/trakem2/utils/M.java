@@ -183,7 +183,7 @@ public final class M {
 		final Point2D.Double pDst = new Point2D.Double();
 		try {
 			affine.createInverse().transform(pSrc, pDst);
-		} catch (NoninvertibleTransformException nite) {
+		} catch (final NoninvertibleTransformException nite) {
 			IJError.print(nite);
 		}
 		return pDst;
@@ -212,7 +212,7 @@ public final class M {
 
 
 	/*==============  Geometry =============*/
-	
+
 	static public final boolean isEmpty(final Area area) {
 		final Rectangle b = area.getBounds();
 		return 0 == b.width || 0 == b.height;
@@ -233,10 +233,10 @@ public final class M {
 	}
 	static public final Area getArea(final ShapeRoi sroi) {
 		if (null == sroi) return null;
-		AffineTransform at = new AffineTransform();
-		Rectangle bounds = sroi.getBounds();
+		final AffineTransform at = new AffineTransform();
+		final Rectangle bounds = sroi.getBounds();
 		at.translate(bounds.x, bounds.y);
-		Area area = new Area(sroi.getShape());
+		final Area area = new Area(sroi.getShape());
 		area.transform(at);
 		return area;
 	}
@@ -254,7 +254,7 @@ public final class M {
 				Utils.log("Can't measure: area too large, out of scale range for approximation.");
 				return sum;
 			}
-			AffineTransform at = new AffineTransform();
+			final AffineTransform at = new AffineTransform();
 			at.translate(-bounds.x, -bounds.y);
 			at.scale(scale, scale);
 			area = area.createTransformedArea(at);
@@ -264,8 +264,8 @@ public final class M {
 				return sum;
 			}
 			if (null != loader) loader.releaseToFit(bounds.width * bounds.height * 3);
-			BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
-			Graphics2D g = bi.createGraphics();
+			final BufferedImage bi = new BufferedImage(bounds.width, bounds.height, BufferedImage.TYPE_BYTE_INDEXED);
+			final Graphics2D g = bi.createGraphics();
 			g.setColor(Color.white);
 			g.fill(area);
 			final byte[] pixels = ((DataBufferByte)bi.getRaster().getDataBuffer()).getData(); // buffer.getData();
@@ -276,7 +276,7 @@ public final class M {
 			bi.flush();
 			g.dispose();
 			if (1 != scale) sum = sum / (scale * scale);
-		} catch (Throwable e) {
+		} catch (final Throwable e) {
 			IJError.print(e);
 		}
 		return sum;
@@ -304,13 +304,13 @@ public final class M {
 	}
 
 	@SuppressWarnings("null")
-	static public final Collection<Polygon> getPolygons(Area area) {
+	static public final Collection<Polygon> getPolygons(final Area area) {
 		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
 		Polygon pol = null;
 
 		final float[] coords = new float[6];
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			int seg_type = pit.currentSegment(coords);
+		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			final int seg_type = pit.currentSegment(coords);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
 					pol = new Polygon();
@@ -330,7 +330,7 @@ public final class M {
 				break;
 			}
 		}
-		
+
 		return pols;
 	}
 	static public final Collection<Polygon> getPolygonsByRounding(final Area area) {
@@ -338,8 +338,8 @@ public final class M {
 		Polygon pol = new Polygon();
 
 		final float[] coords = new float[6];
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			int seg_type = pit.currentSegment(coords);
+		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			final int seg_type = pit.currentSegment(coords);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
 				case PathIterator.SEG_LINETO:
@@ -366,7 +366,7 @@ public final class M {
 	static public final Area transform(final mpicbg.models.CoordinateTransform ict, final Area a) {
 		final GeneralPath path = new GeneralPath();
 		final float[] coords = new float[6];
-		final float[] fp = new float[2];
+		final double[] fp = new double[2];
 
 		for (final PathIterator pit = a.getPathIterator(null); !pit.isDone(); ) {
 			final int seg_type = pit.currentSegment(coords);
@@ -432,9 +432,9 @@ public final class M {
 	/** Detect if a point is not in the area, but lays inside one of its path, which is returned as a Polygon. Otherwise returns null. The given x,y must be already in the Area's coordinate system. */
 	static public final Polygon findPath(final Area area, final int x, final int y) {
 		Polygon pol = new Polygon();
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			float[] coords = new float[6];
-			int seg_type = pit.currentSegment(coords);
+		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			final float[] coords = new float[6];
+			final int seg_type = pit.currentSegment(coords);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
 				case PathIterator.SEG_LINETO:
@@ -477,7 +477,7 @@ public final class M {
 
 	/* ================================================= */
 
-	public static void quicksort(float[] data, Object[] sortAlso) throws IllegalArgumentException {
+	public static void quicksort(final float[] data, final Object[] sortAlso) throws IllegalArgumentException {
 		if (data.length != sortAlso.length) {
 			throw new IllegalArgumentException("data and sortAlso arrays don't have the same length.");
 		}
@@ -489,16 +489,16 @@ public final class M {
 			             final int left, final int right) {
 		if (data.length < 2) return;
 		int i = left, j = right;
-		float x = data[(left + right) / 2];
+		final float x = data[(left + right) / 2];
 		do {
 			while (data[i] < x) i++;
 			while (x < data[j]) j--;
 			if (i <= j) {
-				float temp = data[i];
+				final float temp = data[i];
 				data[i] = data[j];
 				data[j] = temp;
 
-				Object temp2 = sortAlso[i];
+				final Object temp2 = sortAlso[i];
 				sortAlso[i] = sortAlso[j];
 				sortAlso[j] = temp2;
 
@@ -560,7 +560,7 @@ public final class M {
 					{ 11, 7, 5 } };
 
 	/** Returns a "3D Viewer"-ready list mesh, centered at 0,0,0 and with radius as the radius of the enclosing sphere. */
-	static public final List<Point3f> createIcosahedron(int subdivisions, float radius) {
+	static public final List<Point3f> createIcosahedron(int subdivisions, final float radius) {
 		List<Point3f> ps = new ArrayList<Point3f>();
 		for (int i=0; i<icosfaces.length; i++) {
 			for (int k=0; k<3; k++) {
@@ -571,13 +571,13 @@ public final class M {
 			final List<Point3f> sub = new ArrayList<Point3f>();
 			// Take three consecutive points, which define a face, and create 4 faces out of them.
 			for (int i=0; i<ps.size(); i+=3) {
-				Point3f p0 = ps.get(i);
-				Point3f p1 = ps.get(i+1);
-				Point3f p2 = ps.get(i+2);
+				final Point3f p0 = ps.get(i);
+				final Point3f p1 = ps.get(i+1);
+				final Point3f p2 = ps.get(i+2);
 
-				Point3f p01 = new Point3f((p0.x + p1.x)/2, (p0.y + p1.y)/2, (p0.z + p1.z)/2);
-				Point3f p02 = new Point3f((p0.x + p2.x)/2, (p0.y + p2.y)/2, (p0.z + p2.z)/2);
-				Point3f p12 = new Point3f((p1.x + p2.x)/2, (p1.y + p2.y)/2, (p1.z + p2.z)/2);
+				final Point3f p01 = new Point3f((p0.x + p1.x)/2, (p0.y + p1.y)/2, (p0.z + p1.z)/2);
+				final Point3f p02 = new Point3f((p0.x + p2.x)/2, (p0.y + p2.y)/2, (p0.z + p2.z)/2);
+				final Point3f p12 = new Point3f((p1.x + p2.x)/2, (p1.y + p2.y)/2, (p1.z + p2.z)/2);
 				// lower left:
 				sub.add(p0);
 				sub.add(p01);
@@ -611,9 +611,9 @@ public final class M {
 	}
 
 	/** Reuses the @param fp to apply in place. */
-	static public final void apply(final mpicbg.models.CoordinateTransform ict, final double[][] p, final int i, final float[] fp) {
-		fp[0] = (float)p[0][i];
-		fp[1] = (float)p[1][i];
+	static public final void apply(final mpicbg.models.CoordinateTransform ict, final double[][] p, final int i, final double[] fp) {
+		fp[0] = p[0][i];
+		fp[1] = p[1][i];
 		ict.applyInPlace(fp);
 		p[0][i] = fp[0];
 		p[1][i] = fp[1];
@@ -655,34 +655,34 @@ public final class M {
 
 	/** @returns the point of intersection of the two segments a and b, or null if they don't intersect. */
 	public static final float[] computeSegmentsIntersection(
-			float ax0, float ay0, float ax1, float ay1,
-			float bx0, float by0, float bx1, float by1) {
-		float d = (ax0 - ax1)*(by0 - by1) - (ay0 - ay1) * (bx0 - bx1);
+			final float ax0, final float ay0, final float ax1, final float ay1,
+			final float bx0, final float by0, final float bx1, final float by1) {
+		final float d = (ax0 - ax1)*(by0 - by1) - (ay0 - ay1) * (bx0 - bx1);
 		if (0 == d) return null;
-		float xi = ((bx0 - bx1)*(ax0*ay1 - ay0*ax1) - (ax0 - ax1)*(bx0*by1 - by0*bx1)) / d;
-		float yi = ((by0 - by1)*(ax0*ay1 - ay0*ax1) - (ay0 - ay1)*(bx0*by1 - by0*bx1)) / d;
+		final float xi = ((bx0 - bx1)*(ax0*ay1 - ay0*ax1) - (ax0 - ax1)*(bx0*by1 - by0*bx1)) / d;
+		final float yi = ((by0 - by1)*(ax0*ay1 - ay0*ax1) - (ay0 - ay1)*(bx0*by1 - by0*bx1)) / d;
 		if (xi < Math.min(ax0, ax1) || xi > Math.max(ax0, ax1)) return null;
 		if (xi < Math.min(bx0, bx1) || xi > Math.max(bx0, bx1)) return null;
 		if (yi < Math.min(ay0, ay1) || yi > Math.max(ay0, ay1)) return null;
 		if (yi < Math.min(by0, by1) || yi > Math.max(by0, by1)) return null;
 		return new float[]{xi, yi};
 	}
-	
+
 	/** Returns an array of two Area objects, or of 1 if the @param proi doesn't intersect @param a. */
 	public static final Area[] splitArea(final Area a, final PolygonRoi proi, final Rectangle world) {
 		if (!a.getBounds().intersects(proi.getBounds())) return new Area[]{a};
 
-		int[] x = proi.getXCoordinates(),
+		final int[] x = proi.getXCoordinates(),
 			  y = proi.getYCoordinates();
 		final Rectangle rb = proi.getBounds();
 		final int len = proi.getNCoordinates();
-		int x0 = x[0] + rb.x;
-		int y0 = y[0] + rb.y;
-		int xN = x[len -1] + rb.x;
-		int yN = y[len -1] + rb.y;
+		final int x0 = x[0] + rb.x;
+		final int y0 = y[0] + rb.y;
+		final int xN = x[len -1] + rb.x;
+		final int yN = y[len -1] + rb.y;
 
 		// corners, clock-wise:
-		int[][] corners = new int[][]{new int[]{world.x, world.y}, // top left
+		final int[][] corners = new int[][]{new int[]{world.x, world.y}, // top left
 									  new int[]{world.x + world.width, world.y}, // top right
 									  new int[]{world.x + world.width, world.y + world.height}, // bottom right
 									  new int[]{world.x, world.y + world.height}}; // bottom left
@@ -692,7 +692,7 @@ public final class M {
 		int i = 0;
 		double min_distN = Double.MAX_VALUE;
 		int min_iN = 0;
-		for (int[] corner : corners) {
+		for (final int[] corner : corners) {
 			double d = distance(x0, y0, corner[0], corner[1]);
 			if (d < min_dist0) {
 				min_dist0 = d;
@@ -708,8 +708,8 @@ public final class M {
 		// Create new Area 'b' with which to intersect Area 'a':
 		int[] xb, yb;
 		int l,
-		    i1,
-		    i2 = -1;
+		    i1;
+        final int i2 = -1;
 		// 0 1 2 3: when there difference is 2, there is a point in between
 		if (2 != Math.abs(min_iN - min_i0)) {
 			l = len +4;
@@ -759,23 +759,23 @@ public final class M {
 		if (dy < dx) xb[l+i2] = x[0] + rb.x;
 		else yb[l+i2] = y[0] + rb.y;
 
-		Area b = new Area(new Polygon(xb, yb, xb.length));
-		Area c = new Area(world);
+		final Area b = new Area(new Polygon(xb, yb, xb.length));
+		final Area c = new Area(world);
 		c.subtract(b);
 
 		return new Area[]{b, c};
 	}
 
 	public static final VectorString2D asVectorString2D(final Polygon pol, final double z) throws Exception {
-		double[] x = new double[pol.npoints];
-		double[] y = new double[pol.npoints];
+		final double[] x = new double[pol.npoints];
+		final double[] y = new double[pol.npoints];
 		for (int i=0; i<x.length; i++) {
 			x[i] = pol.xpoints[i];
 			y[i] = pol.ypoints[i];
 		}
 		return new VectorString2D(x, y, z, true);
 	}
-	
+
 	public static final double volumeOfTruncatedCone(final double r1, final double r2, final double height) {
 		return Math.PI
 				* (  r1 * r1
@@ -794,7 +794,7 @@ public final class M {
 		return lateralAreaOfTruncatedCone(r1, r2, height)
 			+ Math.PI * (r1 * r1 + r2 * r2);
 	}
-	
+
 	public static final void convolveGaussianSigma1(final float[] in, final float[] out, final CircularSequence seq) {
 		// Weights for sigma = 1 and kernel 5x1, normalized so they add up to 1.
 		final float w2 = 0.05448869f,
@@ -835,7 +835,7 @@ public final class M {
 					 + in[seq.setPosition(i +2)] * w2;
 		}
 	}
-	
+
 	/** Copied from ImageJ's ij.gui.PolygonRoi.getInterpolatedPolygon, by Wayne Rasband and collaborators.
 	 * The reason I copied this method is that creating a new PolygonRoi just to get an interpolated polygon
 	 * processes the float[] arrays of the coordinates, subtracting the minimum x,y. Not only it is an extra
@@ -844,14 +844,14 @@ public final class M {
 			final FloatPolygon p,
 			final double interval,
 			final boolean isLine) {
-		double length = p.getLength(isLine);
-		int npoints2 = (int)((length*1.2)/interval);
-		float[] xpoints2 = new float[npoints2];
-		float[] ypoints2 = new float[npoints2];
+		final double length = p.getLength(isLine);
+		final int npoints2 = (int)((length*1.2)/interval);
+		final float[] xpoints2 = new float[npoints2];
+		final float[] ypoints2 = new float[npoints2];
 		xpoints2[0] = p.xpoints[0];
 		ypoints2[0] = p.ypoints[0];
 		int n=1, n2;
-		double inc = 0.01;
+		final double inc = 0.01;
 		double distance=0.0, distance2=0.0, dx=0.0, dy=0.0, xinc, yinc;
 		double x, y, lastx, lasty, x1, y1, x2=p.xpoints[0], y2=p.ypoints[0];
 		int npoints = p.npoints;

@@ -65,15 +65,14 @@ import mpicbg.util.Util;
 
 /**
  * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- * @version 0.1a
  */
 public class ElasticMontage
 {
 	final static public class Param implements Serializable
-	{	
-		private static final long serialVersionUID = -6399667695920639981L;
+	{
+        private static final long serialVersionUID = 8017492269521223930L;
 
-		public ParamOptimize po = new ParamOptimize();
+        public ParamOptimize po = new ParamOptimize();
 		{
 			po.maxEpsilon = 25.0f;
 			po.minInlierRatio = 0.0f;
@@ -83,48 +82,48 @@ public class ElasticMontage
 			po.rejectIdentity = true;
 			po.identityTolerance = 5.0f;
 		}
-		
+
 		public boolean isAligned = false;
-		
+
 		public boolean tilesAreInPlace = true;
-		
+
 		/**
 		 * Block matching
 		 */
-		public float bmScale = 0.5f;
+		public double bmScale = 0.5f;
 		public float bmMinR = 0.5f;
 		public float bmMaxCurvatureR = 10f;
 		public float bmRodR = 0.9f;
 		public int bmSearchRadius = 25;
 		public int bmBlockRadius = -1;
-		
+
 		public boolean bmUseLocalSmoothnessFilter = false;
 		public int bmLocalModelIndex = 1;
 		public float bmLocalRegionSigma = bmSearchRadius;
 		public float bmMaxLocalEpsilon = bmSearchRadius / 2;
 		public float bmMaxLocalTrust = 3;
-		
+
 		/**
 		 * Spring mesh
 		 */
-		public float springLengthSpringMesh = 100;
-		public float stiffnessSpringMesh = 0.1f;
-		public float dampSpringMesh = 0.9f;
-		public float maxStretchSpringMesh = 2000.0f;
+		public double springLengthSpringMesh = 100;
+		public double stiffnessSpringMesh = 0.1f;
+		public double dampSpringMesh = 0.9f;
+		public double maxStretchSpringMesh = 2000.0f;
 		public int maxIterationsSpringMesh = 1000;
 		public int maxPlateauwidthSpringMesh = 200;
 		public boolean useLegacyOptimizer = true;
-		
+
 		/**
 		 * Visualize spring mesh optimization
 		 */
 		public boolean visualize = false;
-		
+
 		/**
 		 * Change this in case you want to limit the number of parallel threads to a specific number.
 		 */
 		public int maxNumThreads = Runtime.getRuntime().availableProcessors();
-		
+
 		public boolean setup()
 		{
 			/* Block Matching */
@@ -133,50 +132,50 @@ public class ElasticMontage
 				bmBlockRadius = Util.roundPos( springLengthSpringMesh / 2 );
 			}
 			final GenericDialog gdBlockMatching = new GenericDialog( "Elastic montage: Block Matching and Spring Meshes" );
-			
+
 			gdBlockMatching.addMessage( "Block Matching:" );
 			gdBlockMatching.addNumericField( "patch_scale :", bmScale, 2 );
 			gdBlockMatching.addNumericField( "search_radius :", bmSearchRadius, 0, 6, "px" );
 			gdBlockMatching.addNumericField( "block_radius :", bmBlockRadius, 0, 6, "px" );
-			
+
 			gdBlockMatching.addMessage( "Correlation Filters:" );
 			gdBlockMatching.addNumericField( "minimal_PMCC_r :", bmMinR, 2 );
 			gdBlockMatching.addNumericField( "maximal_curvature_ratio :", bmMaxCurvatureR, 2 );
 			gdBlockMatching.addNumericField( "maximal_second_best_r/best_r :", bmRodR, 2 );
-			
+
 			gdBlockMatching.addMessage( "Local Smoothness Filter:" );
 			gdBlockMatching.addCheckbox( "use_local_smoothness_filter", bmUseLocalSmoothnessFilter );
 			gdBlockMatching.addChoice( "approximate_local_transformation :", ParamOptimize.modelStrings, ParamOptimize.modelStrings[ bmLocalModelIndex ] );
 			gdBlockMatching.addNumericField( "local_region_sigma:", bmLocalRegionSigma, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (absolute):", bmMaxLocalEpsilon, 2, 6, "px" );
 			gdBlockMatching.addNumericField( "maximal_local_displacement (relative):", bmMaxLocalTrust, 2 );
-			
+
 			gdBlockMatching.addMessage( "Montage :" );
 			gdBlockMatching.addCheckbox( "tiles_are_pre-montaged", isAligned );
-			
+
 			gdBlockMatching.showDialog();
-			
+
 			if ( gdBlockMatching.wasCanceled() )
 				return false;
-			
-			bmScale = ( float )gdBlockMatching.getNextNumber();
+
+			bmScale = gdBlockMatching.getNextNumber();
 			bmSearchRadius = ( int )gdBlockMatching.getNextNumber();
 			bmBlockRadius = ( int )gdBlockMatching.getNextNumber();
 			bmMinR = ( float )gdBlockMatching.getNextNumber();
 			bmMaxCurvatureR = ( float )gdBlockMatching.getNextNumber();
 			bmRodR = ( float )gdBlockMatching.getNextNumber();
-			
+
 			bmUseLocalSmoothnessFilter = gdBlockMatching.getNextBoolean();
 			bmLocalModelIndex = gdBlockMatching.getNextChoiceIndex();
 			bmLocalRegionSigma = ( float )gdBlockMatching.getNextNumber();
 			bmMaxLocalEpsilon = ( float )gdBlockMatching.getNextNumber();
 			bmMaxLocalTrust = ( float )gdBlockMatching.getNextNumber();
-			
+
 			isAligned = gdBlockMatching.getNextBoolean();
-			
-			
+
+
 			final GenericDialog gdSpringMesh = new GenericDialog( "Elastic montage: Spring Meshes" );
-			
+
 			/* TODO suggest a resolution that matches maxEpsilon */
 			gdSpringMesh.addNumericField( "spring_length :", springLengthSpringMesh, 2, 6, "px" );
 			gdSpringMesh.addNumericField( "stiffness :", stiffnessSpringMesh, 2 );
@@ -184,59 +183,59 @@ public class ElasticMontage
 			gdSpringMesh.addNumericField( "maximal_iterations :", maxIterationsSpringMesh, 0 );
 			gdSpringMesh.addNumericField( "maximal_plateauwidth :", maxPlateauwidthSpringMesh, 0 );
 			gdSpringMesh.addCheckbox( "use_legacy_optimizer :", useLegacyOptimizer );
-			
-			
+
+
 			gdSpringMesh.showDialog();
-			
+
 			if ( gdSpringMesh.wasCanceled() )
 				return false;
-			
-			springLengthSpringMesh = ( float )gdSpringMesh.getNextNumber();
-			stiffnessSpringMesh = ( float )gdSpringMesh.getNextNumber();
-			maxStretchSpringMesh = ( float )gdSpringMesh.getNextNumber();
+
+			springLengthSpringMesh = gdSpringMesh.getNextNumber();
+			stiffnessSpringMesh = gdSpringMesh.getNextNumber();
+			maxStretchSpringMesh = gdSpringMesh.getNextNumber();
 			maxIterationsSpringMesh = ( int )gdSpringMesh.getNextNumber();
 			maxPlateauwidthSpringMesh = ( int )gdSpringMesh.getNextNumber();
 			useLegacyOptimizer = gdSpringMesh.getNextBoolean();
-			
+
 			if ( isAligned )
 				po.desiredModelIndex = 3;
 			else
 			{
 				if ( !po.setup( "Elastic montage : SIFT based pre-montage" ) )
 					return false;
-				
+
 				final GenericDialog gdSIFT = new GenericDialog( "Elastic montage : SIFT based pre-montage: Miscellaneous" );
 				gdSIFT.addCheckbox( "tiles_are_roughly_in_place", tilesAreInPlace );
 				gdSIFT.showDialog();
 				if ( gdSIFT.wasCanceled() )
 					return false;
-				
+
 				tilesAreInPlace = gdSIFT.getNextBoolean();
 			}
-			
+
 			return true;
 		}
-		
+
 		@Override
 		public Param clone()
 		{
 			final Param clone = new Param();
 			clone.po = po.clone();
 			clone.tilesAreInPlace = tilesAreInPlace;
-			
+
 			clone.isAligned = isAligned;
-			
+
 			clone.bmScale = bmScale;
 			clone.bmMinR = bmMinR;
 			clone.bmMaxCurvatureR = bmMaxCurvatureR;
 			clone.bmRodR = bmRodR;
-			
+
 			clone.bmUseLocalSmoothnessFilter = bmUseLocalSmoothnessFilter;
 			clone.bmLocalModelIndex = bmLocalModelIndex;
 			clone.bmLocalRegionSigma = bmLocalRegionSigma;
 			clone.bmMaxLocalEpsilon = bmMaxLocalEpsilon;
 			clone.bmMaxLocalTrust = bmMaxLocalTrust;
-			
+
 			clone.springLengthSpringMesh = springLengthSpringMesh;
 			clone.stiffnessSpringMesh = stiffnessSpringMesh;
 			clone.dampSpringMesh = dampSpringMesh;
@@ -244,23 +243,23 @@ public class ElasticMontage
 			clone.maxIterationsSpringMesh = maxIterationsSpringMesh;
 			clone.maxPlateauwidthSpringMesh = maxPlateauwidthSpringMesh;
 			clone.useLegacyOptimizer = useLegacyOptimizer;
-			
+
 			clone.visualize = visualize;
-			
+
 			clone.maxNumThreads = maxNumThreads;
-			
+
 			return clone;
 		}
 	}
-	
+
 	final static Param p = new Param();
-	
+
 	final static public Param setup()
 	{
 		return p.setup() ? p.clone() : null;
 	}
 
-	
+
 	final static private String patchName( final Patch patch )
 	{
 		return new StringBuffer( "patch `" )
@@ -268,10 +267,10 @@ public class ElasticMontage
 			.append( "'" )
 			.toString();
 	}
-	
+
 	/**
 	 * Extract SIFT features and save them into the project folder.
-	 * 
+	 *
 	 * @param layerSet the layerSet that contains all layers
 	 * @param layerRange the list of layers to be aligned
 	 * @param box a rectangular region of interest that will be used for alignment
@@ -286,11 +285,11 @@ public class ElasticMontage
 			final boolean clearCache ) throws Exception
 	{
 		final ExecutorService exec = Executors.newFixedThreadPool( p.maxNumThreads );
-		
+
 		/* extract features for all slices and store them to disk */
 		final AtomicInteger counter = new AtomicInteger( 0 );
 		final ArrayList< Future< ArrayList< Feature > > > siftTasks = new ArrayList< Future< ArrayList< Feature > > >();
-		
+
 		for ( int i = 0; i < tiles.size(); ++i )
 		{
 			final int tileIndex = i;
@@ -301,15 +300,15 @@ public class ElasticMontage
 						public ArrayList< Feature > call()
 						{
 							final AbstractAffineTile2D< ? > tile = tiles.get( tileIndex );
-							
+
 							final String patchName = patchName( tile.getPatch() );
-							
+
 							IJ.showProgress( counter.getAndIncrement(), tiles.size() - 1 );
-							
+
 							ArrayList< Feature > fs = null;
 							if ( !clearCache )
 								fs = mpicbg.trakem2.align.Util.deserializeFeatures( tile.getPatch().getProject(), siftParam, null, tile.getPatch().getId() );
-							
+
 							if ( null == fs )
 							{
 								final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
@@ -318,26 +317,26 @@ public class ElasticMontage
 								final ByteProcessor ip = tile.createMaskedByteImage();
 								ijSIFT.extractFeatures( ip, fs );
 								Utils.log( fs.size() + " features extracted for " + patchName );
-								
+
 								if ( !mpicbg.trakem2.align.Util.serializeFeatures( tile.getPatch().getProject(), siftParam, null, tile.getPatch().getId(), fs ) )
 									Utils.log( "FAILED to store serialized features for " + patchName );
 							}
 							else
 								Utils.log( fs.size() + " features loaded for " + patchName );
-							
+
 							return fs;
 						}
 					} ) );
 		}
-		
+
 		/* join */
 		for ( final Future< ArrayList< Feature > > fu : siftTasks )
 			fu.get();
-		
+
 		siftTasks.clear();
 		exec.shutdown();
 	}
-	
+
 	final static protected FloatProcessor scaleByte( final ByteProcessor bp )
 	{
 		final FloatProcessor fp = new FloatProcessor( bp.getWidth(), bp.getHeight() );
@@ -345,11 +344,11 @@ public class ElasticMontage
 		final float[] floats = ( float[] )fp.getPixels();
 		for ( int i = 0; i < bytes.length; ++i )
 			floats[ i ] = ( bytes[ i ] & 0xff ) / 255.0f;
-		
+
 		return fp;
 	}
-	
-	
+
+
 	final public void exec(
 			final List< Patch > patches,
 			final Set< Patch > fixedPatches ) throws Exception
@@ -377,14 +376,14 @@ public class ElasticMontage
 				return;
 			}
 		}
-		
+
 		final Param param = setup();
 		if ( param == null )
 			return;
 		else
 			exec( param, patches, fixedPatches );
 	}
-	
+
 
 	@SuppressWarnings( "deprecation" )
 	final public void exec(
@@ -394,45 +393,45 @@ public class ElasticMontage
 	{
 		/* free memory */
 		patches.get( 0 ).getProject().getLoader().releaseAll();
-		
+
 		/* create tiles and models for all patches */
 		final ArrayList< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final ArrayList< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
 		Align.tilesFromPatches( param.po, patches, fixedPatches, tiles, fixedTiles );
-		
+
 		if ( !param.isAligned )
 		{
 			Align.alignTiles( param.po, tiles, fixedTiles, param.tilesAreInPlace, param.maxNumThreads );
-			
+
 			/* Apply the estimated affine transform to patches */
 			for ( final AbstractAffineTile2D< ? > t : tiles )
 				t.getPatch().setAffineTransform( t.createAffine() );
-			
+
 			Display.update();
 		}
-		
+
 		/* generate tile pairs for all by now overlapping tiles */
 		final ArrayList< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D<?>[] >();
 			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
-		
+
 		/* check if there was any pair */
 		if ( tilePairs.size() == 0 )
 		{
 			Utils.log( "Elastic montage could not find any overlapping patches after pre-montaging." );
 			return;
 		}
-		
+
 		Utils.log( tilePairs.size() + " pairs of patches will be block-matched..." );
-		
+
 		/* make pairwise global models local */
 		final ArrayList< Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform > > pairs =
 			new ArrayList< Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform > >();
-		
+
 		/*
 		 * The following casting madness is necessary to get this code compiled
 		 * with Sun/Oracle Java 6 which otherwise generates an inconvertible
 		 * type exception.
-		 * 
+		 *
 		 * TODO Remove as soon as this bug is fixed in Sun/Oracle javac.
 		 */
 		for ( final AbstractAffineTile2D< ? >[] pair : tilePairs )
@@ -465,13 +464,13 @@ public class ElasticMontage
 			}
 			pairs.add( new Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform >( pair[ 0 ], pair[ 1 ], m ) );
 		}
-		
-		
+
+
 		/* Elastic alignment */
-		
+
 		/* Initialization */
-		final float springTriangleHeightTwice = 2 * ( float )Math.sqrt( 0.75f * param.springLengthSpringMesh * param.springLengthSpringMesh );
-		
+		final double springTriangleHeightTwice = 2 * Math.sqrt( 0.75 * param.springLengthSpringMesh * param.springLengthSpringMesh );
+
 		final ArrayList< SpringMesh > meshes = new ArrayList< SpringMesh >( tiles.size() );
 		final HashMap< AbstractAffineTile2D< ? >, SpringMesh > tileMeshMap = new HashMap< AbstractAffineTile2D< ? >, SpringMesh >();
 		for ( final AbstractAffineTile2D< ? > tile : tiles )
@@ -480,9 +479,9 @@ public class ElasticMontage
 			final double h = tile.getHeight();
 			final int numX = Math.max( 2, ( int )Math.ceil( w / param.springLengthSpringMesh ) + 1 );
 			final int numY = Math.max( 2, ( int )Math.ceil( h / springTriangleHeightTwice ) + 1 );
-			final float wMesh = ( numX - 1 ) * param.springLengthSpringMesh;
-			final float hMesh = ( numY - 1 ) * springTriangleHeightTwice;
-			
+			final double wMesh = ( numX - 1 ) * param.springLengthSpringMesh;
+			final double hMesh = ( numY - 1 ) * springTriangleHeightTwice;
+
 			final SpringMesh mesh = new SpringMesh(
 							numX,
 							numY,
@@ -494,16 +493,16 @@ public class ElasticMontage
 			meshes.add( mesh );
 			tileMeshMap.put( tile, mesh );
 		}
-		
+
 //		final int blockRadius = Math.max( 32, Util.roundPos( param.springLengthSpringMesh / 2 ) );
 		final int blockRadius = Math.max( Util.roundPos( 16 / param.bmScale ), param.bmBlockRadius );
-		
+
 		/** TODO set this something more than the largest error by the approximate model */
 		final int searchRadius = param.bmSearchRadius;
-		
+
 		final AbstractModel< ? > localSmoothnessFilterModel = mpicbg.trakem2.align.Util.createModel( param.bmLocalModelIndex );
-	
-		
+
+
 		for ( final Triple< AbstractAffineTile2D< ? >, AbstractAffineTile2D< ? >, InvertibleCoordinateTransform > pair : pairs )
 		{
 			final AbstractAffineTile2D< ? > t1 = pair.a;
@@ -517,10 +516,10 @@ public class ElasticMontage
 
 			final ArrayList< Vertex > v1 = m1.getVertices();
 			final ArrayList< Vertex > v2 = m2.getVertices();
-			
+
 			final String patchName1 = patchName( t1.getPatch() );
 			final String patchName2 = patchName( t2.getPatch() );
-			
+
 			final PatchImage pi1 = t1.getPatch().createTransformedImage();
 			if ( pi1 == null )
 			{
@@ -533,15 +532,15 @@ public class ElasticMontage
 				Utils.log( "Patch `" + patchName2 + "' failed generating a transformed image.  Skipping..." );
 				continue;
 			}
-			
+
 			final FloatProcessor fp1 = ( FloatProcessor )pi1.target.convertToFloat();
 			final ByteProcessor mask1 = pi1.getMask();
 			final FloatProcessor fpMask1 = mask1 == null ? null : scaleByte( mask1 );
-			
+
 			final FloatProcessor fp2 = ( FloatProcessor )pi2.target.convertToFloat();
 			final ByteProcessor mask2 = pi2.getMask();
 			final FloatProcessor fpMask2 = mask2 == null ? null : scaleByte( mask2 );
-			
+
 			if ( !fixedTiles.contains( t1 ) )
 			{
 				BlockMatching.matchByMaximalPMCC(
@@ -561,7 +560,7 @@ public class ElasticMontage
 						v1,
 						pm12,
 						new ErrorStatistic( 1 ) );
-	
+
 				if ( param.bmUseLocalSmoothnessFilter )
 				{
 					Utils.log( "`" + patchName1 + "' > `" + patchName2 + "': found " + pm12.size() + " correspondence candidates." );
@@ -607,7 +606,7 @@ public class ElasticMontage
 						v2,
 						pm21,
 						new ErrorStatistic( 1 ) );
-	
+
 				if ( param.bmUseLocalSmoothnessFilter )
 				{
 					Utils.log( "`" + patchName1 + "' < `" + patchName2 + "': found " + pm21.size() + " correspondence candidates." );
@@ -623,7 +622,7 @@ public class ElasticMontage
 			{
 				Utils.log( "Skipping fixed patch `" + patchName2 + "'." );
 			}
-			
+
 			/* <visualisation> */
 			//			final List< Point > s2 = new ArrayList< Point >();
 			//			PointMatch.sourcePoints( pm21, s2 );
@@ -633,7 +632,7 @@ public class ElasticMontage
 			//			imp2.setRoi( Util.pointsToPointRoi( s2 ) );
 			//			imp2.updateAndDraw();
 			/* </visualisation> */
-			
+
 			for ( final PointMatch pm : pm12 )
 			{
 				final Vertex p1 = ( Vertex )pm.getP1();
@@ -641,7 +640,7 @@ public class ElasticMontage
 				p1.addSpring( p2, new Spring( 0, 1.0f ) );
 				m2.addPassiveVertex( p2 );
 			}
-		
+
 			for ( final PointMatch pm : pm21 )
 			{
 				final Vertex p1 = ( Vertex )pm.getP1();
@@ -650,17 +649,17 @@ public class ElasticMontage
 				m1.addPassiveVertex( p2 );
 			}
 		}
-		
+
 		/* initialize */
 		for ( final Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() )
 			entry.getValue().init( entry.getKey().getModel() );
-		
+
 		/* optimize the meshes */
 		try
 		{
 			final long t0 = System.currentTimeMillis();
 			IJ.log( "Optimizing spring meshes..." );
-			
+
 			if ( param.useLegacyOptimizer )
 			{
 				Utils.log( "  ...using legacy optimizer...");
@@ -681,7 +680,7 @@ public class ElasticMontage
 						param.visualize );
 			}
 			IJ.log( "Done optimizing spring meshes. Took " + ( System.currentTimeMillis() - t0 ) + " ms" );
-			
+
 		}
 		catch ( final NotEnoughDataPointsException e )
 		{
@@ -689,9 +688,9 @@ public class ElasticMontage
 			e.printStackTrace();
 			return;
 		}
-		
+
 		/* apply */
-		for ( final Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() ) 
+		for ( final Map.Entry< AbstractAffineTile2D< ? >, SpringMesh > entry : tileMeshMap.entrySet() )
 		{
 			final AbstractAffineTile2D< ? > tile = entry.getKey();
 			if ( !fixedTiles.contains( tile ) )
@@ -700,32 +699,32 @@ public class ElasticMontage
 				final SpringMesh mesh = entry.getValue();
 				final Set< PointMatch > matches = mesh.getVA().keySet();
 				Rectangle box = patch.getCoordinateTransformBoundingBox();
-				
+
 				/* compensate for existing coordinate transform bounding box */
 				for ( final PointMatch pm : matches )
 				{
 					final Point p1 = pm.getP1();
-					final float[] l = p1.getL();
+					final double[] l = p1.getL();
 					l[ 0 ] += box.x;
 					l[ 1 ] += box.y;
 				}
-				
+
 				final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
 				mlt.setModel( AffineModel2D.class );
 				mlt.setAlpha( 2.0f );
 				mlt.setMatches( matches );
-				
+
 				patch.appendCoordinateTransform( mlt );
 				box = patch.getCoordinateTransformBoundingBox();
-				
+
 				patch.getAffineTransform().setToTranslation( box.x, box.y );
 				patch.updateInDatabase( "transform" );
 				patch.updateBucket();
-				
+
 				patch.updateMipMaps();
 			}
 		}
-		
+
 		Utils.log( "Done." );
 	}
 }
