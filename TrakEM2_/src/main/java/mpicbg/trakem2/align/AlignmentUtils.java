@@ -51,31 +51,31 @@ final public class AlignmentUtils
 		private static final long serialVersionUID = 7526084042028501775L;
 
 		final public FloatArray2DSIFT.Param sift = new FloatArray2DSIFT.Param();
-		
+
 		/**
 		 * Closest/next closest neighbor distance ratio
 		 */
 		public float rod = 0.92f;
-		
+
 		@Override
 		public boolean equals( final Object o )
 		{
 			if ( getClass().isInstance( o ) )
 			{
 				final ParamPointMatch oppm = ( ParamPointMatch )o;
-				return 
+				return
 					oppm.sift.equals( sift ) &
 					oppm.rod == rod;
 			}
 			else
 				return false;
 		}
-		
+
 		public boolean clearCache = true;
-		
+
 		public int maxNumThreadsSift = Runtime.getRuntime().availableProcessors();
 	}
-	
+
 	private AlignmentUtils() {}
 
 	final static public String layerName( final Layer layer )
@@ -86,9 +86,9 @@ final public class AlignmentUtils
 			.append( layer.getTitle() )
 			.append( "'" )
 			.toString();
-		
+
 	}
-	
+
 	final static public List< Patch > filterPatches( final Layer layer, final Filter< Patch > filter )
 	{
 		final List< Patch > patches = layer.getAll( Patch.class );
@@ -102,10 +102,10 @@ final public class AlignmentUtils
 		}
 		return patches;
 	}
-	
+
 	/**
 	 * Extract SIFT features and save them into the project folder.
-	 * 
+	 *
 	 * @param layerSet the layerSet that contains all layers
 	 * @param layerRange the list of layers to be aligned
 	 * @param box a rectangular region of interest that will be used for alignment
@@ -125,7 +125,7 @@ final public class AlignmentUtils
 	{
         final long sTime = System.currentTimeMillis();
 		final ExecutorService exec = ExecutorProvider.getExecutorService(1.0f / (float)numThreads);
-		
+
 		/* extract features for all slices and store them to disk */
 		final AtomicInteger counter = new AtomicInteger( 0 );
 		final ArrayList< Future< ArrayList< Feature > > > siftTasks = new ArrayList< Future< ArrayList< Feature > > >();
@@ -160,7 +160,7 @@ final public class AlignmentUtils
 			//exec.shutdownNow();
 			throw e;
 		}
-		
+
 		siftTasks.clear();
         IJ.log("Extracted features in " + (System.currentTimeMillis() - sTime) + "ms");
 		//exec.shutdown();
@@ -214,7 +214,7 @@ final public class AlignmentUtils
                 fs = new ArrayList< Feature >();
                 final ImageProcessor ip = layer.getProject().getLoader().getFlatImage( layer, finalBox, scale, 0xffffffff, ImagePlus.GRAY8, Patch.class, patches, true ).getProcessor();
                 ijSIFT.extractFeatures( ip, fs );
-                //Utils.log( fs.size() + " features extracted for " + layerName );
+                Utils.log( fs.size() + " features extracted for " + layerName );
 
                 if ( !mpicbg.trakem2.align.Util.serializeFeatures( layer.getProject(), siftParam, "layer", layer.getId(), fs ) )
                     Utils.log( "FAILED to store serialized features for " + layerName );
