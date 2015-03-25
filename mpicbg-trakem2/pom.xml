@@ -28,4 +28,20 @@
 		</dependency>
 	</dependencies>
 
+	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<dependencies>
+						<dependency>
+							<groupId>org.scijava</groupId>
+							<artifactId>scijava-maven-plugin</artifactId>
+							<version>0.5.0</version>
+						</dependency>
+					</dependencies>
+				</plugin>
+			</plugins>
+		</pluginManagement>
+	</build>
 </project>
