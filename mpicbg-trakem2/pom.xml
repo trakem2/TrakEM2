@@ -10,7 +10,7 @@
 	</parent>
 
 	<artifactId>mpicbg-trakem2</artifactId>
-	<version>1.2.2</version>
+	<version>1.2.3-SNAPSHOT</version>
 
 	<dependencies>
 		<dependency>
