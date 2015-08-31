@@ -214,6 +214,16 @@ final public class Downsampler
 		return b;
 	}
 	
+	
+	final static public FloatProcessor downsampleFloatProcessor( FloatProcessor a, final int level )
+	{
+		for ( int i = 0; i < level; ++i )
+			a = downsampleFloatProcessor( a );
+		
+		return a;
+	}
+	
+	
 	final static public FloatProcessor downsampleFloatProcessor( final FloatProcessor a )
 	{
 		final int wa = a.getWidth();
