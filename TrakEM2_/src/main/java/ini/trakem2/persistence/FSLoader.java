@@ -31,6 +31,7 @@ import ij.io.DirectoryChooser;
 import ij.io.FileInfo;
 import ij.io.FileSaver;
 import ij.io.OpenDialog;
+import ij.io.Opener;
 import ij.plugin.filter.GaussianBlur;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
@@ -96,7 +97,13 @@ import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
 
 import mpicbg.trakem2.transform.CoordinateTransform;
+import net.imglib2.img.Img;
+import net.imglib2.img.array.ArrayImgs;
+import net.imglib2.img.imageplus.FloatImagePlus;
+import net.imglib2.img.imageplus.ImagePlusImgs;
+import net.imglib2.type.numeric.real.FloatType;
 
+import org.janelia.intensity.LinearIntensityMap;
 import org.xml.sax.InputSource;
 
 
@@ -3058,5 +3065,63 @@ public final class FSLoader extends Loader {
 				CachingThread.storeForReuse(b);
 			}
 		}
+	}
+	
+	@SuppressWarnings("unchecked")
+	@Override
+	protected boolean mapIntensities(final Patch p, final ImagePlus imp) {
+		
+		final ImagePlus coefficients = new Opener().openImage(
+			getUNUIdFolder() +
+			"trakem2.its/" +
+			createIdPath(Long.toString(p.getId()), "it", ".tif"));
+
+		if (coefficients == null)
+			return false;
+		
+		final ImageProcessor ip = imp.getProcessor();
+		
+		@SuppressWarnings({"rawtypes"})
+		final LinearIntensityMap<FloatType> map =
+				new LinearIntensityMap<FloatType>(
+						(FloatImagePlus)ImagePlusImgs.from(coefficients));
+
+		@SuppressWarnings("rawtypes")
+		Img img;
+
+		final long[] dims = new long[]{imp.getWidth(), imp.getHeight()};
+		switch (p.getType()) {
+		case ImagePlus.GRAY8:
+		case ImagePlus.COLOR_256:		// this only works for continuous color tables
+			img = ArrayImgs.unsignedBytes((byte[])ip.getPixels(), dims);
+			break;
+		case ImagePlus.GRAY16:
+			img = ArrayImgs.unsignedShorts((short[])ip.getPixels(), dims);
+			break;
+		case ImagePlus.COLOR_RGB:
+			img = ArrayImgs.argbs((int[])ip.getPixels(), dims);
+			break;
+		case ImagePlus.GRAY32:
+			img = ArrayImgs.floats((float[])ip.getPixels(), dims);
+			break;
+		default:
+			img = null;
+		}
+		
+		if (img == null)
+			return false;
+
+		map.run(img);
+		
+		return true;
+	}
+	
+	@Override
+	public boolean clearIntensityMap(final Patch p) {
+		final File coefficients = new File(
+				getUNUIdFolder() +
+				"trakem2.its/" +
+				createIdPath(Long.toString(p.getId()), "it", ".tif"));
+		return coefficients.delete();
 	}
 }

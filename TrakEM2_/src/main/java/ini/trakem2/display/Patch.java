@@ -2499,4 +2499,11 @@ public final class Patch extends Displayable implements ImageData {
 			}, project);
 		}
 	}
+	
+	public boolean clearIntensityMap() {
+		final boolean cleared = project.getLoader().clearIntensityMap(this);
+		if (cleared)
+			project.getLoader().decacheImagePlus(getId());
+		return cleared;
+	}
 }

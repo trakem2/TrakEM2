@@ -4,6 +4,7 @@
 package org.janelia.intensity;
 
 import ij.IJ;
+import ij.ImageJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.GenericDialog;
@@ -30,6 +31,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import mpicbg.models.Affine1D;
 import mpicbg.models.AffineModel1D;
@@ -120,7 +122,7 @@ public class MatchIntensities implements TPlugIn
 	@Override
 	public boolean setup( final Object... params )
 	{
-		if ( params != null && params[ 0 ] != null )
+	    if ( params != null && params[ 0 ] != null )
 		{
 			final Object param = params[ 0 ];
 			if ( LayerSet.class.isInstance( param ) )
@@ -173,27 +175,32 @@ public class MatchIntensities implements TPlugIn
 			return null;
 
 		final Layer layer = currentLayer( params );
-		final GenericDialog gd = new GenericDialog( "Match intensities" );
-		Utils.addLayerRangeChoices( layer, gd );
-		gd.addMessage( "Layer neighborhood range :" );
-		gd.addNumericField( "test_maximally :", radius, 0, 6, "layers" );
-		gd.addMessage( "Optimizer :" );
-		gd.addNumericField( "iterations :", iterations, 0, 6, "" );
-		gd.addNumericField( "scale_regularization :", lambda1, 2, 6, "" );
-		gd.addNumericField( "translation_regularization :", lambda2, 2, 6, "" );
-		gd.addNumericField( "smoothness_regularization :", neighborWeight, 2, 6, "" );
-		gd.showDialog();
+        final GenericDialog gd = new GenericDialog( "Match intensities" );
+        Utils.addLayerRangeChoices( layer, gd );
+        gd.addMessage( "Layer range :" );
+        gd.addNumericField( "scale : ", scale > 0 ? scale : suggestScale( layerset.getLayers() ), 3, 6, "" );
+        gd.addNumericField( "coefficient resolution : ", numCoefficients, 0, 6, "" ); 
+        gd.addNumericField( "test_maximally :", radius, 0, 6, "layers" );
+        gd.addMessage( "Optimizer :" );
+        gd.addNumericField( "iterations :", iterations, 0, 6, "" );
+        gd.addNumericField( "scale_regularization :", lambda1, 2, 6, "" );
+        gd.addNumericField( "translation_regularization :", lambda2, 2, 6, "" );
+        gd.addNumericField( "smoothness_regularization :", neighborWeight, 2, 6, "" );
+        gd.showDialog();
 
-		if ( gd.wasCanceled() )
-			return null;
+        if ( gd.wasCanceled() )
+            return null;
 
-		final List< Layer > layers = layerset.getLayers().subList( gd.getNextChoiceIndex(), gd.getNextChoiceIndex() + 1 );
-		radius = ( int ) gd.getNextNumber();
-		iterations = ( int )gd.getNextNumber();
-		lambda1 = gd.getNextNumber();
-		lambda2 = gd.getNextNumber();
-		neighborWeight = gd.getNextNumber();
-		
+        final List< Layer > layers = layerset.getLayers().subList( gd.getNextChoiceIndex(), gd.getNextChoiceIndex() + 1 );
+        System.out.println( layers.size() );
+        scale = gd.getNextNumber();
+        numCoefficients = ( int )gd.getNextNumber();
+        radius = ( int ) gd.getNextNumber();
+        iterations = ( int )gd.getNextNumber();
+        lambda1 = gd.getNextNumber();
+        lambda2 = gd.getNextNumber();
+        neighborWeight = gd.getNextNumber();
+        
 		try
 		{
 			run( layers, radius, scale, numCoefficients, lambda1, lambda2, neighborWeight, getRoi( layerset ) );
@@ -201,6 +208,7 @@ public class MatchIntensities implements TPlugIn
 		catch ( final InterruptedException e )
 		{
 			Utils.log( "Match intensities interrupted." );
+			e.printStackTrace( System.out );
 		}
 		catch ( final ExecutionException e )
 		{
@@ -240,14 +248,21 @@ public class MatchIntensities implements TPlugIn
 			final double neighborWeight,
 			final Rectangle roi ) throws InterruptedException, ExecutionException
 	{
+		final int firstLayerIndex = layerset.getLayerIndex( layers.get( 0 ).getId() );
+		final int lastLayerIndex = layerset.getLayerIndex( layers.get( layers.size() - 1 ).getId() );
+		
 		// final PointMatchFilter filter = new RansacRegressionFilter();
 		final PointMatchFilter filter = new RansacRegressionReduceFilter();
 
 		/* collect patches */
 		final ArrayList< Patch > patches = new ArrayList< Patch >();
 		for ( final Layer layer : layers )
-			patches.addAll( ( ArrayList )layer.getDisplayables( Patch.class, roi ) );
-
+			patches.addAll( ( Collection )layer.getDisplayables( Patch.class, roi ) );
+		
+		/* delete existing intensity coefficients */
+		for ( final Patch p : patches )
+			p.clearIntensityMap();
+		
 		/* generate coefficient tiles for all patches
 		 * TODO consider offering alternative models */
 		final HashMap< Patch, ArrayList< Tile< ? extends M > > > coefficientsTiles =
@@ -258,7 +273,7 @@ public class MatchIntensities implements TPlugIn
 										new AffineModel1D(), new TranslationModel1D(), lambda1 ),
 								new IdentityModel(), lambda2 ),
 						numCoefficients * numCoefficients );
-
+		
 		/* completed patches */
 		final HashSet< Patch > completedPatches = new HashSet< Patch >();
 
@@ -267,18 +282,18 @@ public class MatchIntensities implements TPlugIn
 			completedPatches.add( p1 );
 
 			final Rectangle box1 = p1.getBoundingBox().intersection( roi );
-
+			
 			final ArrayList< Patch > p2s = new ArrayList< Patch >();
 
 			/* across adjacent layers */
 			final int layerIndex = layerset.getLayerIndex( p1.getLayer().getId() );
-			for ( int i = layerIndex - radius; i <= layerIndex + radius; ++i )
+			for ( int i = Math.max( firstLayerIndex, layerIndex - radius ); i <= Math.min( lastLayerIndex, layerIndex + radius ); ++i )
 			{
 				final Layer layer = layerset.getLayer( i );
 				if ( layer != null )
 					p2s.addAll( ( Collection ) layer.getDisplayables( Patch.class, box1 ) );
 			}
-
+			
 			/* get the coefficient tiles */
 			final ArrayList< Tile< ? extends M > > p1CoefficientsTiles = coefficientsTiles.get( p1 );
 
@@ -461,7 +476,28 @@ public class MatchIntensities implements TPlugIn
 			final String itsPath = itsDir + FSLoader.createIdPath( Long.toString( p.getId() ), "it", ".tif" );
 			new File( itsPath ).getParentFile().mkdirs();
 			IJ.saveAs( new ImagePlus( "", coefficientsStack ), "tif", itsPath );
-
 		}
+		
+		/* update mipmaps */
+		for ( final Patch p : patches )
+			p.getProject().getLoader().decacheImagePlus(p.getId());
+		final ArrayList< Future< Boolean > > futures = new ArrayList< Future< Boolean > >();
+		for ( final Patch p : patches )
+			futures.add( p.updateMipMaps() );
+		
+		for ( final Future< Boolean > f : futures )
+			f.get();
+		
+		Utils.log( "Matching intensities done." );
+	}
+	
+	final static public void main( String... args )
+	{
+		new ImageJ();
+		
+		final Project project = Project.openFSProject( "/home/saalfeld/tmp/intensity-corrected/elastic.xml", true );
+		
+		final MatchIntensities matcher = new MatchIntensities();
+		matcher.invoke( project.getRootLayerSet() );
 	}
 }

@@ -4112,6 +4112,22 @@ while (it.hasNext()) {
 			}
 		}
 	}
+	
+	protected boolean mapIntensities(final Patch p, final ImagePlus imp) {
+		Utils.log("Mapping intensities not implemented for this loader (patch " + p.getTitle() + ").");
+		return false;
+	}
+	
+	/**
+	 * Clear the intensity map coefficients for a patch.
+	 * 
+	 * @param p
+	 * @return true if a coefficient map did exist and was successfully deleted
+	 */
+	public boolean clearIntensityMap(final Patch p) {
+		Utils.log("Clearing intensity maps not implemented for this loader (patch " + p.getTitle() + ").");
+		return false;
+	}
 
 	protected final void preProcess(final Patch p, ImagePlus imp, final long image_n_bytes) {
 		if (null == p) return;
@@ -4160,6 +4176,8 @@ while (it.hasNext()) {
 				}
 				update = true;
 			}
+			// Now apply intensity correction if available
+			update |= mapIntensities(p, imp);
 			if (update) {
 				// 1: Tag the ImagePlus as altered (misuses fileFormat field, which is unused in any case)
 				imp.getOriginalFileInfo().fileFormat = Loader.PREPROCESSED;

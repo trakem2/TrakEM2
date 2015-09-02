@@ -116,7 +116,7 @@ public class LinearIntensityMap< T extends RealType< T > >
 			s[ d ] = image.dimension( d ) / dimensions.dimension( d );
 		final Scale scale = new Scale( s );
 
-		System.out.println( "translation-n " + translation.numDimensions() );
+//		System.out.println( "translation-n " + translation.numDimensions() );
 
 		final RandomAccessibleInterval< RealComposite< T > > stretchedCoefficients =
 				Views.offsetInterval(

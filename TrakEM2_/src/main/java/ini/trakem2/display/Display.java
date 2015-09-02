@@ -3235,7 +3235,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Blend (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Blend (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
-		item = new JMenuItem("Match intensities..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Match intensities (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
+		item = new JMenuItem("Remove intensity maps (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
         popup.add(adjust_menu);
 
 		final JMenu script = new JMenu("Script");
@@ -5544,9 +5545,22 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							return patch.getTitle().matches(regex);
 						}
 					});
-		} else if (command.equals("Match intensities...")) {
+		} else if (command.equals("Match intensities (layer-wise)...")) {
 			final MatchIntensities matching = new MatchIntensities();
 			matching.invoke(getActive());
+		} else if (command.equals("Remove intensity maps (layer-wise)...")) {
+			final GenericDialog gd = new GenericDialog("Remove intensity maps");
+			Utils.addLayerRangeChoices(Display.this.layer, gd);
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			for (final Layer layer : getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex())) {
+				for (final Displayable p : layer.getDisplayables(Patch.class)) {
+					final Patch patch = (Patch)p;
+					if (patch.clearIntensityMap()) {
+						patch.updateMipMaps();
+					}
+				}
+			}
 		} else if (command.equals("Montage")) {
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
 			// make an undo step!
