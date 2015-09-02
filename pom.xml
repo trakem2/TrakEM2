@@ -9,7 +9,7 @@
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-fiji</artifactId>
 		<relativePath />
-		<version>8.2.0</version>
+		<version>15.0.0</version>
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>

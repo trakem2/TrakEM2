@@ -174,6 +174,8 @@ import mpicbg.trakem2.transform.AffineModel3D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
 
+import org.janelia.intensity.MatchIntensities;
+
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
 
@@ -3233,7 +3235,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		item = new JMenuItem("Blend (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Blend (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
-		popup.add(adjust_menu);
+		item = new JMenuItem("Match intensities..."); item.addActionListener(this); adjust_menu.add(item);
+        popup.add(adjust_menu);
 
 		final JMenu script = new JMenu("Script");
 		final MenuScriptListener msl = new MenuScriptListener();
@@ -5541,6 +5544,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 							return patch.getTitle().matches(regex);
 						}
 					});
+		} else if (command.equals("Match intensities...")) {
+			final MatchIntensities matching = new MatchIntensities();
+			matching.invoke(getActive());
 		} else if (command.equals("Montage")) {
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
 			// make an undo step!
