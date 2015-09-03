@@ -9,11 +9,11 @@
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-fiji</artifactId>
 		<relativePath />
-		<version>15.0.0</version>
+		<version>15.3.0</version>
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>
-	<version>1.3.4-SNAPSHOT</version>
+	<version>1.4.0</version>
 	<packaging>pom</packaging>
 
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
@@ -63,7 +63,7 @@
 
 
 	<modules>
-<!-- <module>TrakEM2_</module> -->
+		<module>TrakEM2_</module>
 <!-- <module>VectorString</module> -->
 <!-- <module>T2-NIT</module> -->
 <!-- <module>T2-TreelineGraph</module> -->
@@ -96,11 +96,10 @@
 	<properties>
 		<T2-NIT.version>1.1.0</T2-NIT.version>
 		<T2-TreelineGraph.version>1.1.0</T2-TreelineGraph.version>
-		<TrakEM2.version>1.0f</TrakEM2.version>
+		<TrakEM2.version>1.0g</TrakEM2.version>
 		<VectorString.version>1.0.2</VectorString.version>
 		<mpicbg-trakem2.version>1.2.2</mpicbg-trakem2.version>
 		
-		<mpicbg.version>1.0.1</mpicbg.version>
 		<jitk-tps.version>1.1.1</jitk-tps.version>
 		<trakem2_tps.version>1.1.1</trakem2_tps.version>
 	</properties>
