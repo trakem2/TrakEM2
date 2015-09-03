@@ -5546,21 +5546,31 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 						}
 					});
 		} else if (command.equals("Match intensities (layer-wise)...")) {
-			final MatchIntensities matching = new MatchIntensities();
-			matching.invoke(getActive());
+			Bureaucrat.createAndStart(new Worker.Task("Match intensities") {
+				@Override
+	            public void exec() {
+					final MatchIntensities matching = new MatchIntensities();
+					matching.invoke(getActive());
+				}
+			}, project);
 		} else if (command.equals("Remove intensity maps (layer-wise)...")) {
 			final GenericDialog gd = new GenericDialog("Remove intensity maps");
 			Utils.addLayerRangeChoices(Display.this.layer, gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
-			for (final Layer layer : getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex())) {
-				for (final Displayable p : layer.getDisplayables(Patch.class)) {
-					final Patch patch = (Patch)p;
-					if (patch.clearIntensityMap()) {
-						patch.updateMipMaps();
+			Bureaucrat.createAndStart(new Worker.Task("Match intensities") {
+				@Override
+	            public void exec() {		
+					for (final Layer layer : getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex())) {
+						for (final Displayable p : layer.getDisplayables(Patch.class)) {
+							final Patch patch = (Patch)p;
+							if (patch.clearIntensityMap()) {
+								patch.updateMipMaps();
+							}
+						}
 					}
 				}
-			}
+			}, project);
 		} else if (command.equals("Montage")) {
 			final Set<Displayable> affected = new HashSet<Displayable>(selection.getAffected());
 			// make an undo step!
