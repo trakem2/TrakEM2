@@ -31,6 +31,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import mpicbg.models.Affine1D;
@@ -47,6 +49,7 @@ import mpicbg.models.TileConfiguration;
 import mpicbg.models.TranslationModel1D;
 import net.imglib2.img.list.ListImg;
 import net.imglib2.img.list.ListRandomAccess;
+import net.imglib2.util.ValuePair;
 
 /**
  * 
@@ -55,6 +58,138 @@ import net.imglib2.img.list.ListRandomAccess;
  */
 public class MatchIntensities implements TPlugIn
 {
+	final private class Matcher implements Runnable
+	{
+		final private Rectangle roi;
+		final private ValuePair< Patch, Patch > patchPair;
+		final private HashMap< Patch, ArrayList< Tile< ? > > > coefficientsTiles;
+		final private PointMatchFilter filter;
+		final private double scale;
+		final private int numCoefficients;
+		
+		public Matcher(
+				final Rectangle roi,
+				final ValuePair< Patch, Patch > patchPair,
+				final HashMap< Patch, ArrayList< Tile< ? > > > coefficientsTiles,
+				final PointMatchFilter filter,
+				final double scale,
+				final int numCoefficients )
+		{
+			this.roi = roi;
+			this.patchPair = patchPair;
+			this.coefficientsTiles = coefficientsTiles;
+			this.filter = filter;
+			this.scale = scale;
+			this.numCoefficients = numCoefficients;
+		}
+		
+		@Override
+		public void run()
+		{
+			final Patch p1 = patchPair.getA();
+			final Patch p2 = patchPair.getB();
+			
+			final Rectangle box1 = p1.getBoundingBox().intersection( roi );
+			
+			/* get the coefficient tiles */
+			final ArrayList< Tile< ? > > p1CoefficientsTiles = coefficientsTiles.get( p1 );
+
+			/* render intersection */
+			final Rectangle box2 = p2.getBoundingBox();
+			final Rectangle box = box1.intersection( box2 );
+			
+			final int w = ( int ) ( box.width * scale + 0.5 );
+			final int h = ( int ) ( box.height * scale + 0.5 );
+			final int n = w * h;
+
+			final FloatProcessor pixels1 = new FloatProcessor( w, h );
+			final FloatProcessor weights1 = new FloatProcessor( w, h );
+			final ColorProcessor coefficients1 = new ColorProcessor( w, h );
+			final FloatProcessor pixels2 = new FloatProcessor( w, h );
+			final FloatProcessor weights2 = new FloatProcessor( w, h );
+			final ColorProcessor coefficients2 = new ColorProcessor( w, h );
+
+			Render.render( p1, numCoefficients, numCoefficients, pixels1, weights1, coefficients1, box.x, box.y, scale );
+			Render.render( p2, numCoefficients, numCoefficients, pixels2, weights2, coefficients2, box.x, box.y, scale );
+
+			/*
+			 * generate a matrix of all coefficients in p1 to all
+			 * coefficients in p2 to store matches
+			 */
+			final ArrayList< ArrayList< PointMatch > > list = new ArrayList< ArrayList< PointMatch > >();
+			for ( int i = 0; i < numCoefficients * numCoefficients * numCoefficients * numCoefficients; ++i )
+				list.add( new ArrayList< PointMatch >() );
+			final ListImg< ArrayList< PointMatch > > matrix = new ListImg< ArrayList< PointMatch > >( list, numCoefficients * numCoefficients, numCoefficients * numCoefficients );
+			final ListRandomAccess< ArrayList< PointMatch > > ra = matrix.randomAccess();
+
+			/*
+			 * iterate over all pixels and feed matches into the match
+			 * matrix
+			 */
+			for ( int i = 0; i < n; ++i )
+			{
+				final int c1 = coefficients1.get( i );
+				if ( c1 > 0 )
+				{
+					final int c2 = coefficients2.get( i );
+					if ( c2 > 0 )
+					{
+						final double w1 = weights1.getf( i );
+						if ( w1 > 0 )
+						{
+							final double w2 = weights2.getf( i );
+							if ( w2 > 0 )
+							{
+								final double p = pixels1.getf( i );
+								final double q = pixels2.getf( i );
+								final PointMatch pq = new PointMatch( new Point( new double[] { p } ), new Point( new double[] { q } ), w1 * w2 );
+
+								/* first label is 1 */
+								ra.setPosition( c1 - 1, 0 );
+								ra.setPosition( c2 - 1, 1 );
+								ra.get().add( pq );
+							}
+						}
+					}
+				}
+			}
+			
+			/* filter matches */
+			final ArrayList< PointMatch > inliers = new ArrayList< PointMatch >();
+			for ( final ArrayList< PointMatch > candidates : matrix )
+			{
+				inliers.clear();
+				filter.filter( candidates, inliers );
+				candidates.clear();
+				candidates.addAll( inliers );
+			}
+
+			/* get the coefficient tiles of p2 */
+			final ArrayList< Tile< ? > > p2CoefficientsTiles = coefficientsTiles.get( p2 );
+
+			/* connect tiles across patches */
+			for ( int i = 0; i < numCoefficients * numCoefficients; ++i )
+			{
+				final Tile< ? > t1 = p1CoefficientsTiles.get( i );
+				ra.setPosition( i, 0 );
+				for ( int j = 0; j < numCoefficients * numCoefficients; ++j )
+				{
+					ra.setPosition( j, 1 );
+					final ArrayList< PointMatch > matches = ra.get();
+					if ( matches.size() > 0 )
+					{
+						final Tile< ? > t2 = p2CoefficientsTiles.get( j );
+						synchronized ( MatchIntensities.this )
+						{
+							t1.connect( t2, ra.get() );
+							IJ.log( "Connected patch " + p1.getId() + ", coefficient " + i + "  +  patch " + p2.getId() + ", coefficient " + j + " by " + matches.size() + " samples." );
+						}
+					}
+				}
+			}
+		}
+	}
+	
 	protected LayerSet layerset = null;
 
 	static protected int numCoefficients = 8;
@@ -227,8 +362,6 @@ public class MatchIntensities implements TPlugIn
 
 
     /**
-     * TODO Test!  And then desperately multi-thread coefficient collection.
-     * 
      * @param layers
      * @param radius
      * @param scale
@@ -276,6 +409,9 @@ public class MatchIntensities implements TPlugIn
 		
 		/* completed patches */
 		final HashSet< Patch > completedPatches = new HashSet< Patch >();
+		
+		/* collect patch pairs */
+		final ArrayList< ValuePair< Patch, Patch > > patchPairs = new ArrayList< ValuePair< Patch, Patch > >();
 
 		for ( final Patch p1 : patches )
 		{
@@ -294,9 +430,6 @@ public class MatchIntensities implements TPlugIn
 					p2s.addAll( ( Collection ) layer.getDisplayables( Patch.class, box1 ) );
 			}
 			
-			/* get the coefficient tiles */
-			final ArrayList< Tile< ? extends M > > p1CoefficientsTiles = coefficientsTiles.get( p1 );
-
 			for ( final Patch p2 : p2s )
 			{
 				/*
@@ -305,100 +438,35 @@ public class MatchIntensities implements TPlugIn
 				 */
 				if ( completedPatches.contains( p2 ) )
 					continue;
-
-				/* render intersection */
-				final Rectangle box2 = p2.getBoundingBox();
-				final Rectangle box = box1.intersection( box2 );
-
-				final int w = ( int ) ( box.width * scale + 0.5 );
-				final int h = ( int ) ( box.height * scale + 0.5 );
-				final int n = w * h;
-
-				final FloatProcessor pixels1 = new FloatProcessor( w, h );
-				final FloatProcessor weights1 = new FloatProcessor( w, h );
-				final ColorProcessor coefficients1 = new ColorProcessor( w, h );
-				final FloatProcessor pixels2 = new FloatProcessor( w, h );
-				final FloatProcessor weights2 = new FloatProcessor( w, h );
-				final ColorProcessor coefficients2 = new ColorProcessor( w, h );
-
-				Render.render( p1, numCoefficients, numCoefficients, pixels1, weights1, coefficients1, box.x, box.y, scale );
-				Render.render( p2, numCoefficients, numCoefficients, pixels2, weights2, coefficients2, box.x, box.y, scale );
-
-				/*
-				 * generate a matrix of all coefficients in p1 to all
-				 * coefficients in p2 to store matches
-				 */
-				final ArrayList< ArrayList< PointMatch > > list = new ArrayList< ArrayList< PointMatch > >();
-				for ( int i = 0; i < numCoefficients * numCoefficients * numCoefficients * numCoefficients; ++i )
-					list.add( new ArrayList< PointMatch >() );
-				final ListImg< ArrayList< PointMatch > > matrix = new ListImg< ArrayList< PointMatch > >( list, numCoefficients * numCoefficients, numCoefficients * numCoefficients );
-				final ListRandomAccess< ArrayList< PointMatch > > ra = matrix.randomAccess();
-
-				/*
-				 * iterate over all pixels and feed matches into the match
-				 * matrix
-				 */
-				for ( int i = 0; i < n; ++i )
-				{
-					final int c1 = coefficients1.get( i );
-					if ( c1 > 0 )
-					{
-						final int c2 = coefficients2.get( i );
-						if ( c2 > 0 )
-						{
-							final double w1 = weights1.getf( i );
-							if ( w1 > 0 )
-							{
-								final double w2 = weights2.getf( i );
-								if ( w2 > 0 )
-								{
-									final double p = pixels1.getf( i );
-									final double q = pixels2.getf( i );
-									final PointMatch pq = new PointMatch( new Point( new double[] { p } ), new Point( new double[] { q } ), w1 * w2 );
-
-									/* first label is 1 */
-									ra.setPosition( c1 - 1, 0 );
-									ra.setPosition( c2 - 1, 1 );
-									ra.get().add( pq );
-								}
-							}
-						}
-					}
-				}
-
-				/* filter matches */
-				final ArrayList< PointMatch > inliers = new ArrayList< PointMatch >();
-				for ( final ArrayList< PointMatch > candidates : matrix )
-				{
-					inliers.clear();
-					filter.filter( candidates, inliers );
-					candidates.clear();
-					candidates.addAll( inliers );
-				}
-
-				/* get the coefficient tiles of p2 */
-				final ArrayList< Tile< ? extends M > > p2CoefficientsTiles = coefficientsTiles.get( p2 );
-
-				/* connect tiles across patches */
-				for ( int i = 0; i < numCoefficients * numCoefficients; ++i )
-				{
-					final Tile< ? > t1 = p1CoefficientsTiles.get( i );
-					ra.setPosition( i, 0 );
-					for ( int j = 0; j < numCoefficients * numCoefficients; ++j )
-					{
-						ra.setPosition( j, 1 );
-						final ArrayList< PointMatch > matches = ra.get();
-						if ( matches.size() > 0 )
-						{
-							final Tile< ? > t2 = p2CoefficientsTiles.get( j );
-							t1.connect( t2, ra.get() );
-							IJ.log( "Connected patch " + p1.getId() + ", coefficient " + i + "  +  patch " + p2.getId() + ", coefficient " + j + " by " + matches.size() + " samples." );
-						}
-					}
-				}
+				
+				patchPairs.add( new ValuePair< Patch, Patch >( p1, p2 ) );
 			}
+		}
+		
+		final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+		final ArrayList< Future< ? > > futures = new ArrayList< Future< ? > >();
+		for ( final ValuePair< Patch, Patch > patchPair : patchPairs )
+		{
+			futures.add(
+					exec.submit(
+							new Matcher(
+									roi,
+									patchPair,
+									( HashMap )coefficientsTiles,
+									filter,
+									scale,
+									numCoefficients ) ) );
+		}
+		
+		for ( final Future< ? > future : futures )
+			future.get();
 
-			/* connect tiles within patch */
+		/* connect tiles within patches */
+		for ( final Patch p1 : completedPatches )
+		{
+			/* get the coefficient tiles */
+			final ArrayList< Tile< ? extends M > > p1CoefficientsTiles = coefficientsTiles.get( p1 );
+			
 			for ( int y = 1; y < numCoefficients; ++y )
 			{
 				final int yr = numCoefficients * y;
@@ -481,11 +549,11 @@ public class MatchIntensities implements TPlugIn
 		/* update mipmaps */
 		for ( final Patch p : patches )
 			p.getProject().getLoader().decacheImagePlus(p.getId());
-		final ArrayList< Future< Boolean > > futures = new ArrayList< Future< Boolean > >();
+		final ArrayList< Future< Boolean > > mipmapFutures = new ArrayList< Future< Boolean > >();
 		for ( final Patch p : patches )
-			futures.add( p.updateMipMaps() );
+			mipmapFutures.add( p.updateMipMaps() );
 		
-		for ( final Future< Boolean > f : futures )
+		for ( final Future< Boolean > f : mipmapFutures )
 			f.get();
 		
 		Utils.log( "Matching intensities done." );
