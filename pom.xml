@@ -13,7 +13,7 @@
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>
-	<version>1.4.0</version>
+	<version>1.4.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
 	<name>Aggregator project for Albert Cardona's TrakEM2 software suite</name>
@@ -63,7 +63,7 @@
 
 
 	<modules>
-		<module>TrakEM2_</module>
+<!-- <module>TrakEM2_</module> -->
 <!-- <module>VectorString</module> -->
 <!-- <module>T2-NIT</module> -->
 <!-- <module>T2-TreelineGraph</module> -->

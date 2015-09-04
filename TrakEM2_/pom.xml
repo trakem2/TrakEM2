@@ -12,7 +12,7 @@
 	</parent>
 
 	<artifactId>TrakEM2_</artifactId>
-	<version>1.0g</version>
+	<version>1.0g-SNAPSHOT</version>
 
 	<name>plugins/TrakEM2_.jar</name>
 	<description></description>
