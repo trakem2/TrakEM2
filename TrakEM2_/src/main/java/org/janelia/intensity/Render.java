@@ -233,10 +233,10 @@ public class Render
 		final ImageProcessorWithMasks source = new ImageProcessorWithMasks( ipMipmap, bpMaskMipmap, null );
 		final ImageProcessorWithMasks target = new ImageProcessorWithMasks( tp, bpMaskTarget, null );
 		final TransformMeshMappingWithMasks< TransformMesh > mapping = new TransformMeshMappingWithMasks< TransformMesh >( mesh );
-		mapping.mapInterpolated( source, target );
+		mapping.mapInterpolated( source, target, 1 );
 
 		final TransformMeshMapping< TransformMesh > coefficientsMapMapping = new TransformMeshMapping< TransformMesh >( mesh );
-		coefficientsMapMapping.map( cp, targetCoefficients );
+		coefficientsMapMapping.map( cp, targetCoefficients, 1 );
 
 		/* set alpha channel */
 		final byte[] alphaPixels;
