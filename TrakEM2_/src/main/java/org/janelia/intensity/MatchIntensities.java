@@ -52,7 +52,7 @@ import net.imglib2.img.list.ListRandomAccess;
 import net.imglib2.util.ValuePair;
 
 /**
- * 
+ *
  * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
  * @author Philipp Hanslovsky
  */
@@ -66,7 +66,7 @@ public class MatchIntensities implements TPlugIn
 		final private PointMatchFilter filter;
 		final private double scale;
 		final private int numCoefficients;
-		
+
 		public Matcher(
 				final Rectangle roi,
 				final ValuePair< Patch, Patch > patchPair,
@@ -82,22 +82,22 @@ public class MatchIntensities implements TPlugIn
 			this.scale = scale;
 			this.numCoefficients = numCoefficients;
 		}
-		
+
 		@Override
 		public void run()
 		{
 			final Patch p1 = patchPair.getA();
 			final Patch p2 = patchPair.getB();
-			
+
 			final Rectangle box1 = p1.getBoundingBox().intersection( roi );
-			
+
 			/* get the coefficient tiles */
 			final ArrayList< Tile< ? > > p1CoefficientsTiles = coefficientsTiles.get( p1 );
 
 			/* render intersection */
 			final Rectangle box2 = p2.getBoundingBox();
 			final Rectangle box = box1.intersection( box2 );
-			
+
 			final int w = ( int ) ( box.width * scale + 0.5 );
 			final int h = ( int ) ( box.height * scale + 0.5 );
 			final int n = w * h;
@@ -153,7 +153,7 @@ public class MatchIntensities implements TPlugIn
 					}
 				}
 			}
-			
+
 			/* filter matches */
 			final ArrayList< PointMatch > inliers = new ArrayList< PointMatch >();
 			for ( final ArrayList< PointMatch > candidates : matrix )
@@ -189,7 +189,7 @@ public class MatchIntensities implements TPlugIn
 			}
 		}
 	}
-	
+
 	protected LayerSet layerset = null;
 
 	static protected int numCoefficients = 8;
@@ -302,7 +302,7 @@ public class MatchIntensities implements TPlugIn
 		matches.add( new PointMatch( new Point( new double[] { 1 } ), new Point( new double[] { 1 } ) ) );
 		t1.connect( t2, matches );
 	}
-	
+
 	@Override
 	public Object invoke( final Object... params )
 	{
@@ -314,7 +314,7 @@ public class MatchIntensities implements TPlugIn
         Utils.addLayerRangeChoices( layer, gd );
         gd.addMessage( "Layer range :" );
         gd.addNumericField( "scale : ", scale > 0 ? scale : suggestScale( layerset.getLayers() ), 3, 6, "" );
-        gd.addNumericField( "coefficient resolution : ", numCoefficients, 0, 6, "" ); 
+        gd.addNumericField( "coefficient resolution : ", numCoefficients, 0, 6, "" );
         gd.addNumericField( "test_maximally :", radius, 0, 6, "layers" );
         gd.addMessage( "Optimizer :" );
         gd.addNumericField( "iterations :", iterations, 0, 6, "" );
@@ -335,7 +335,7 @@ public class MatchIntensities implements TPlugIn
         lambda1 = gd.getNextNumber();
         lambda2 = gd.getNextNumber();
         neighborWeight = gd.getNextNumber();
-        
+
 		try
 		{
 			run( layers, radius, scale, numCoefficients, lambda1, lambda2, neighborWeight, getRoi( layerset ) );
@@ -353,7 +353,7 @@ public class MatchIntensities implements TPlugIn
 
 		return null;
 	}
-    
+
     @Override
     public boolean applies( final Object ob )
     {
@@ -383,19 +383,21 @@ public class MatchIntensities implements TPlugIn
 	{
 		final int firstLayerIndex = layerset.getLayerIndex( layers.get( 0 ).getId() );
 		final int lastLayerIndex = layerset.getLayerIndex( layers.get( layers.size() - 1 ).getId() );
-		
+
 		// final PointMatchFilter filter = new RansacRegressionFilter();
 		final PointMatchFilter filter = new RansacRegressionReduceFilter();
 
 		/* collect patches */
+		Utils.log( "Collecting patches ... " );
 		final ArrayList< Patch > patches = new ArrayList< Patch >();
 		for ( final Layer layer : layers )
 			patches.addAll( ( Collection )layer.getDisplayables( Patch.class, roi ) );
-		
+
 		/* delete existing intensity coefficients */
+		Utils.log( "Clearing existing intensity maps ... " );
 		for ( final Patch p : patches )
 			p.clearIntensityMap();
-		
+
 		/* generate coefficient tiles for all patches
 		 * TODO consider offering alternative models */
 		final HashMap< Patch, ArrayList< Tile< ? extends M > > > coefficientsTiles =
@@ -406,11 +408,12 @@ public class MatchIntensities implements TPlugIn
 										new AffineModel1D(), new TranslationModel1D(), lambda1 ),
 								new IdentityModel(), lambda2 ),
 						numCoefficients * numCoefficients );
-		
+
 		/* completed patches */
 		final HashSet< Patch > completedPatches = new HashSet< Patch >();
-		
+
 		/* collect patch pairs */
+		Utils.log( "Collecting patch pairs ... " );
 		final ArrayList< ValuePair< Patch, Patch > > patchPairs = new ArrayList< ValuePair< Patch, Patch > >();
 
 		for ( final Patch p1 : patches )
@@ -418,7 +421,7 @@ public class MatchIntensities implements TPlugIn
 			completedPatches.add( p1 );
 
 			final Rectangle box1 = p1.getBoundingBox().intersection( roi );
-			
+
 			final ArrayList< Patch > p2s = new ArrayList< Patch >();
 
 			/* across adjacent layers */
@@ -429,7 +432,7 @@ public class MatchIntensities implements TPlugIn
 				if ( layer != null )
 					p2s.addAll( ( Collection ) layer.getDisplayables( Patch.class, box1 ) );
 			}
-			
+
 			for ( final Patch p2 : p2s )
 			{
 				/*
@@ -438,12 +441,19 @@ public class MatchIntensities implements TPlugIn
 				 */
 				if ( completedPatches.contains( p2 ) )
 					continue;
-				
+
 				patchPairs.add( new ValuePair< Patch, Patch >( p1, p2 ) );
 			}
 		}
-		
-		final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+
+		final int numThreads = Integer.parseInt(
+				layerset.getProperty(
+						"n_mipmap_threads",
+						Integer.toString( Runtime.getRuntime().availableProcessors() ) ) );
+
+		Utils.log( "Matching intensities using " + numThreads + " threads ... " );
+
+		final ExecutorService exec = Executors.newFixedThreadPool( numThreads );
 		final ArrayList< Future< ? > > futures = new ArrayList< Future< ? > >();
 		for ( final ValuePair< Patch, Patch > patchPair : patchPairs )
 		{
@@ -457,16 +467,17 @@ public class MatchIntensities implements TPlugIn
 									scale,
 									numCoefficients ) ) );
 		}
-		
+
 		for ( final Future< ? > future : futures )
 			future.get();
 
 		/* connect tiles within patches */
+		Utils.log( "Connecting coefficient tiles in the same patch  ... " );
 		for ( final Patch p1 : completedPatches )
 		{
 			/* get the coefficient tiles */
 			final ArrayList< Tile< ? extends M > > p1CoefficientsTiles = coefficientsTiles.get( p1 );
-			
+
 			for ( int y = 1; y < numCoefficients; ++y )
 			{
 				final int yr = numCoefficients * y;
@@ -488,6 +499,7 @@ public class MatchIntensities implements TPlugIn
 		}
 
 		/* optimize */
+		Utils.log( "Optimizing ... " );
 		final TileConfiguration tc = new TileConfiguration();
 		for ( final ArrayList< Tile< ? extends M > > coefficients : coefficientsTiles.values() )
 		{
@@ -545,26 +557,26 @@ public class MatchIntensities implements TPlugIn
 			new File( itsPath ).getParentFile().mkdirs();
 			IJ.saveAs( new ImagePlus( "", coefficientsStack ), "tif", itsPath );
 		}
-		
+
 		/* update mipmaps */
 		for ( final Patch p : patches )
 			p.getProject().getLoader().decacheImagePlus(p.getId());
 		final ArrayList< Future< Boolean > > mipmapFutures = new ArrayList< Future< Boolean > >();
 		for ( final Patch p : patches )
 			mipmapFutures.add( p.updateMipMaps() );
-		
+
 		for ( final Future< Boolean > f : mipmapFutures )
 			f.get();
-		
+
 		Utils.log( "Matching intensities done." );
 	}
-	
-	final static public void main( String... args )
+
+	final static public void main( final String... args )
 	{
 		new ImageJ();
-		
+
 		final Project project = Project.openFSProject( "/home/saalfeld/tmp/intensity-corrected/elastic.xml", true );
-		
+
 		final MatchIntensities matcher = new MatchIntensities();
 		matcher.invoke( project.getRootLayerSet() );
 	}
