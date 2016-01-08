@@ -3,6 +3,17 @@
  */
 package mpicbg.trakem2.align;
 
+import java.awt.Color;
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
@@ -15,24 +26,14 @@ import ini.trakem2.persistence.FSLoader;
 import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
-
-import java.awt.Color;
-import java.awt.Rectangle;
-import java.awt.geom.AffineTransform;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
+import mpicbg.models.AbstractModel;
 import mpicbg.models.AffineModel2D;
+import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.InterpolatedAffineModel2D;
 import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
@@ -41,6 +42,7 @@ import mpicbg.models.PointMatch;
 import mpicbg.models.SimilarityModel2D;
 import mpicbg.models.Tile;
 import mpicbg.models.Transforms;
+import mpicbg.trakem2.transform.HomographyModel2D;
 import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
 import mpicbg.trakem2.transform.RigidModel2D;
 import mpicbg.trakem2.transform.TranslationModel2D;
@@ -537,6 +539,25 @@ public class Align
 		final protected AtomicInteger ai;
 		final protected AtomicInteger ap;
 		final protected int steps;
+		final protected boolean multipleHypotheses;
+
+		public MatchFeaturesAndFindModelThread(
+				final Param p,
+				final List< AbstractAffineTile2D< ? > > tiles,
+				final List< AbstractAffineTile2D< ? >[] > tilePairs,
+				final AtomicInteger ai,
+				final AtomicInteger ap,
+				final int steps,
+				final boolean multipleHypotheses )
+		{
+			this.p = p;
+			this.tiles = tiles;
+			this.tilePairs = tilePairs;
+			this.ai = ai;
+			this.ap = ap;
+			this.steps = steps;
+			this.multipleHypotheses = multipleHypotheses;
+		}
 
 		public MatchFeaturesAndFindModelThread(
 				final Param p,
@@ -546,12 +567,7 @@ public class Align
 				final AtomicInteger ap,
 				final int steps )
 		{
-			this.p = p;
-			this.tiles = tiles;
-			this.tilePairs = tilePairs;
-			this.ai = ai;
-			this.ap = ap;
-			this.steps = steps;
+			this( p, tiles, tilePairs, ai, ap, steps, false );
 		}
 
 		@Override
@@ -580,7 +596,7 @@ public class Align
 						p.rod );
 
 					/* find the model */
-					final AbstractAffineModel2D< ? > model;
+					final AbstractModel< ? > model;
 					switch ( p.expectedModelIndex )
 					{
 					case 0:
@@ -594,6 +610,9 @@ public class Align
 						break;
 					case 3:
 						model = new AffineModel2D();
+						break;
+					case 4:
+						model = new HomographyModel2D();
 						break;
 					default:
 						return;
@@ -649,44 +668,87 @@ public class Align
 			final float minInlierRatio,
 			final int minNumInliers,
 			final boolean rejectIdentity,
-			final float identityTolerance )
+			final float identityTolerance,
+			final boolean multipleHypotheses )
 	{
-		boolean modelFound;
 		boolean again = false;
+		int nHypotheses = 0;
 		try
 		{
 			do
 			{
 				again = false;
-				modelFound = model.filterRansac(
-							candidates,
-							inliers,
-							1000,
-							maxEpsilon,
-							minInlierRatio,
-							minNumInliers,
-							3 );
-				if ( modelFound && rejectIdentity )
+				final ArrayList< PointMatch > inliers2 = new ArrayList< PointMatch >();
+				final boolean modelFound = model.filterRansac( candidates, inliers2, 1000, maxEpsilon, minInlierRatio, minNumInliers, 3 );
+				if ( modelFound )
 				{
-					final ArrayList< Point > points = new ArrayList< Point >();
-					PointMatch.sourcePoints( inliers, points );
-					if ( Transforms.isIdentity( model, points, identityTolerance ) )
+					candidates.removeAll( inliers2 );
+
+					if ( rejectIdentity )
 					{
-						Utils.log( "Identity transform for " + inliers.size() + " matches rejected." );
-						candidates.removeAll( inliers );
-						inliers.clear();
-						again = true;
+						final ArrayList< Point > points = new ArrayList< Point >();
+						PointMatch.sourcePoints( inliers2, points );
+						if ( Transforms.isIdentity( model, points, param.identityTolerance ) )
+						{
+							Utils.log( "Identity transform for " + inliers2.size() + " matches rejected." );
+							again = true;
+						}
+						else
+						{
+							++nHypotheses;
+							inliers.addAll( inliers2 );
+							again = multipleHypotheses;
+						}
+					}
+					else
+					{
+						++nHypotheses;
+						inliers.addAll( inliers2 );
+						again = multipleHypotheses;
 					}
 				}
 			}
 			while ( again );
 		}
-		catch ( final NotEnoughDataPointsException e )
+		catch ( final NotEnoughDataPointsException e ) {}
+
+		if ( nHypotheses > 0 && multipleHypotheses )
 		{
-			modelFound = false;
+			try
+			{
+				model.fit( inliers );
+				PointMatch.apply( inliers, model );
+			}
+			catch ( final NotEnoughDataPointsException e ) {}
+			catch ( final IllDefinedDataPointsException e )
+			{
+				nHypotheses = 0;
+			}
 		}
 
-		return modelFound;
+		return nHypotheses > 0;
+	}
+
+	final static public boolean findModel(
+			final Model< ? > model,
+			final List< PointMatch > candidates,
+			final Collection< PointMatch > inliers,
+			final float maxEpsilon,
+			final float minInlierRatio,
+			final int minNumInliers,
+			final boolean rejectIdentity,
+			final float identityTolerance )
+	{
+		return findModel(
+				model,
+				candidates,
+				inliers,
+				maxEpsilon,
+				minInlierRatio,
+				minNumInliers,
+				rejectIdentity,
+				identityTolerance,
+				false );
 	}
 
 
@@ -1037,13 +1099,16 @@ public class Align
 	 *
 	 * @param p
 	 * @param tiles
+	 * @param tilePairs
 	 * @param numThreads
+	 * @param multipleHypotheses
 	 */
 	final static public void connectTilePairs(
 			final Param p,
 			final List< AbstractAffineTile2D< ? > > tiles,
 			final List< AbstractAffineTile2D< ? >[] > tilePairs,
-			final int numThreads )
+			final int numThreads,
+			final boolean multipleHypotheses )
 	{
 		final AtomicInteger ai = new AtomicInteger( 0 );
 		final AtomicInteger ap = new AtomicInteger( 0 );
@@ -1084,7 +1149,7 @@ public class Align
 		ai.set( 0 );
 		for ( int i = 0; i < numThreads; ++i )
 		{
-			final MatchFeaturesAndFindModelThread thread = new MatchFeaturesAndFindModelThread( p.clone(), tiles, tilePairs, ai, ap, steps );
+			final MatchFeaturesAndFindModelThread thread = new MatchFeaturesAndFindModelThread( p.clone(), tiles, tilePairs, ai, ap, steps, multipleHypotheses );
 			matchFeaturesAndFindModelThreads.add( thread );
 			thread.start();
 		}
@@ -1107,6 +1172,25 @@ public class Align
 			Thread.currentThread().interrupt();
 			IJ.showProgress( 1.0 );
 		}
+	}
+
+
+	/**
+	 * Connect a {@link List} of {@link AbstractAffineTile2D Tiles} by
+	 * geometrically consistent {@link Feature SIFT-feature} correspondences.
+	 *
+	 * @param p
+	 * @param tiles
+	 * @param tilePairs
+	 * @param numThreads
+	 */
+	final static public void connectTilePairs(
+			final Param p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs,
+			final int numThreads )
+	{
+		connectTilePairs(p, tiles, tilePairs, numThreads, false);
 	}
 
 
