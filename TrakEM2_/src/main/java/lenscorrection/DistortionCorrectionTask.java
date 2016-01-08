@@ -3,6 +3,15 @@
  */
 package lenscorrection;
 
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import ij.IJ;
 import ij.gui.GenericDialog;
 import ini.trakem2.display.Display;
@@ -14,23 +23,15 @@ import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
-
-import java.awt.Rectangle;
-import java.awt.geom.AffineTransform;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import lenscorrection.Distortion_Correction.BasicParam;
 import lenscorrection.Distortion_Correction.PointMatchCollectionAndAffine;
+import mpicbg.ij.SIFT;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
 import mpicbg.models.Tile;
 import mpicbg.trakem2.align.AbstractAffineTile2D;
 import mpicbg.trakem2.align.Align;
+import mpicbg.trakem2.align.RegularizedAffineLayerAlignment.Param;
 import mpicbg.trakem2.transform.CoordinateTransform;
 
 /**
@@ -47,42 +48,151 @@ final public class DistortionCorrectionTask
 		public boolean visualize = false;
 		public boolean tilesAreInPlace = false;
 
-		public void addFields( final GenericDialog gd, final Selection selection )
+		/**
+		 * Minimal absolute number of inliers
+		 */
+		public int minNumInliers = 12;
+
+		public boolean multipleHypotheses = false;
+
+		/**
+		 * Ignore identity transform up to a given tolerance
+		 */
+		public boolean rejectIdentity = false;
+		public float identityTolerance = 5.0f;
+
+		public int desiredModelIndex = 1;
+		public int maxIterationsOptimize = 1000;
+		public int maxPlateauwidthOptimize = 200;
+
+		public int maxNumThreadsSift = Runtime.getRuntime().availableProcessors();
+
+		/**
+		 * Regularization for approximate alignment
+		 */
+		public boolean regularize = false;
+		public int regularizerIndex = 1;
+		public double lambdaRegularize = 0.1;
+
+		public boolean setupSIFT( final String title )
 		{
-			addFields( gd );
+			/* SIFT */
+			final GenericDialog gdSIFT = new GenericDialog( title + "SIFT parameters" );
 
-			gd.addMessage( "Miscellaneous:" );
-			gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+			SIFT.addFields( gdSIFT, sift );
 
-			gd.addMessage( "Apply Distortion Correction :" );
+			gdSIFT.addMessage( "Local Descriptor Matching:" );
+			gdSIFT.addNumericField( "closest/next_closest_ratio :", rod, 2 );
 
-			Utils.addLayerRangeChoices( selection.getLayer(), gd );
-			gd.addCheckbox( "clear_present_transforms", clearTransform );
-			gd.addCheckbox( "visualize_distortion_model", visualize );
+			gdSIFT.addMessage( "Miscellaneous:" );
+			gdSIFT.addNumericField( "feature_extraction_threads :", maxNumThreadsSift, 0 );
+
+			gdSIFT.showDialog();
+
+			if ( gdSIFT.wasCanceled() )
+				return false;
+
+			SIFT.readFields( gdSIFT, sift );
+
+			rod = ( float )gdSIFT.getNextNumber();
+			maxNumThreadsSift = ( int )gdSIFT.getNextNumber();
+
+			return true;
 		}
 
-		@Override
-		public boolean readFields( final GenericDialog gd )
-		{
-			super.readFields( gd );
-			tilesAreInPlace = gd.getNextBoolean();
-			firstLayerIndex = gd.getNextChoiceIndex();
-			lastLayerIndex = gd.getNextChoiceIndex();
-			clearTransform = gd.getNextBoolean();
-			visualize = gd.getNextBoolean();
-			return !gd.invalidNumber();
-		}
 
 		public boolean setup( final Selection selection )
 		{
-			final GenericDialog gd = new GenericDialog( "Distortion Correction" );
-			addFields( gd, selection );
-			do
+			if ( !setupSIFT( "Distortion Correction: " ) )
+				return false;
+
+			/* Geometric filters */
+
+			final GenericDialog gd = new GenericDialog( "Distortion Correction: Geometric filters" );
+
+			gd.addNumericField( "maximal_alignment_error :", maxEpsilon, 2, 6, "px" );
+			gd.addNumericField( "minimal_inlier_ratio :", minInlierRatio, 2 );
+			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
+			gd.addChoice( "expected_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
+			gd.addCheckbox( "test_multiple_hypotheses", multipleHypotheses );
+			gd.addCheckbox( "ignore constant background", rejectIdentity );
+			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
+
+			gd.showDialog();
+
+			if ( gd.wasCanceled() )
+				return false;
+
+			maxEpsilon = ( float )gd.getNextNumber();
+			minInlierRatio = ( float )gd.getNextNumber();
+			minNumInliers = ( int )gd.getNextNumber();
+			expectedModelIndex = gd.getNextChoiceIndex();
+			multipleHypotheses = gd.getNextBoolean();
+			rejectIdentity = gd.getNextBoolean();
+			identityTolerance = ( float )gd.getNextNumber();
+
+			final GenericDialog gdOptimize = new GenericDialog( "Distortion Correction: Montage Optimization" );
+			gdOptimize.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
+			gdOptimize.addCheckbox( "regularize_model", regularize );
+			gdOptimize.addMessage( "Optimization:" );
+			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
+			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
+			//gdOptimize.addCheckbox( "filter outliers", filterOutliers );
+			//gdOptimize.addNumericField( "mean_factor :", meanFactor, 2 );
+
+			gdOptimize.showDialog();
+
+			if ( gdOptimize.wasCanceled() )
+				return false;
+
+			desiredModelIndex = gdOptimize.getNextChoiceIndex();
+			regularize = gdOptimize.getNextBoolean();
+			maxIterationsOptimize = ( int )gdOptimize.getNextNumber();
+			maxPlateauwidthOptimize = ( int )gdOptimize.getNextNumber();
+
+			if ( regularize )
 			{
-				gd.showDialog();
-				if ( gd.wasCanceled() ) return false;
+				final GenericDialog gdRegularize = new GenericDialog( "Distortion Correction: Montage Regularization" );
+
+				gdRegularize.addChoice( "regularizer :", modelStrings, modelStrings[ regularizerIndex ] );
+				gdRegularize.addNumericField( "lambda :", lambdaRegularize, 2 );
+
+				gdRegularize.showDialog();
+
+				if ( gdRegularize.wasCanceled() )
+					return false;
+
+				regularizerIndex = gdRegularize.getNextChoiceIndex();
+				lambdaRegularize = gdRegularize.getNextNumber();
 			}
-			while ( !readFields( gd ) );
+
+			final GenericDialog gdLens = new GenericDialog( "Distortion Correction: Lens Distortion" );
+			addFields( gdLens );
+
+			gdLens.showDialog();
+			if ( gdLens.wasCanceled() )
+				return false;
+
+			readFields( gdLens );
+
+			final GenericDialog gdMisc = new GenericDialog( "Distortion Correction: Miscellaneous" );
+			gdMisc.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
+
+			gdMisc.addMessage( "Apply Distortion Correction :" );
+
+			Utils.addLayerRangeChoices( selection.getLayer(), gdMisc );
+			gdMisc.addCheckbox( "clear_present_transforms", clearTransform );
+			gdMisc.addCheckbox( "visualize_distortion_model", visualize );
+
+			gdMisc.showDialog();
+			if ( gdMisc.wasCanceled() )
+				return false;
+
+			tilesAreInPlace = gdMisc.getNextBoolean();
+			firstLayerIndex = gdMisc.getNextChoiceIndex();
+			lastLayerIndex = gdMisc.getNextChoiceIndex();
+			clearTransform = gdMisc.getNextBoolean();
+			visualize = gdMisc.getNextBoolean();
 
 			return true;
 		}
@@ -103,6 +213,18 @@ final public class DistortionCorrectionTask
 			p.lastLayerIndex = lastLayerIndex;
 			p.clearTransform = clearTransform;
 			p.visualize = visualize;
+
+			p.desiredModelIndex = desiredModelIndex;
+			p.identityTolerance = identityTolerance;
+			p.lambdaRegularize = lambdaRegularize;
+			p.maxIterationsOptimize = maxIterationsOptimize;
+			p.maxNumThreadsSift = maxNumThreadsSift;
+			p.maxPlateauwidthOptimize = maxPlateauwidthOptimize;
+			p.minNumInliers = minNumInliers;
+			p.multipleHypotheses = multipleHypotheses;
+			p.regularize = regularize;
+			p.regularizerIndex = regularizerIndex;
+			p.rejectIdentity = rejectIdentity;
 
 			return p;
 		}
@@ -257,13 +379,22 @@ final public class DistortionCorrectionTask
 
 	final static public void run( final CorrectDistortionFromSelectionParam p, final List< Patch > patches, final Displayable active, final Layer layer, final Worker worker )
 	{
-		/* TODO actually expose the useful parameters of {@link Align.ParamOptimize} to the user. */
+		/* no multiple inheritance, so p cannot be an Align.ParamOptimize, working around legacy by copying data into one ... */
 		final Align.ParamOptimize ap = new Align.ParamOptimize();
 		ap.sift.set( p.sift );
-		ap.desiredModelIndex = ap.expectedModelIndex = p.expectedModelIndex;
+		ap.desiredModelIndex = p.desiredModelIndex;
+		ap.expectedModelIndex = p.expectedModelIndex;
 		ap.maxEpsilon = p.maxEpsilon;
 		ap.minInlierRatio = p.minInlierRatio;
 		ap.rod = p.rod;
+		ap.identityTolerance = p.identityTolerance;
+		ap.lambda = p.lambdaRegularize;
+		ap.maxIterations = p.maxIterationsOptimize;
+		ap.maxPlateauwidth = p.maxPlateauwidthOptimize;
+		ap.minNumInliers = p.minNumInliers;
+		ap.regularize = p.regularize;
+		ap.regularizerModelIndex = p.regularizerIndex;
+		ap.rejectIdentity = p.rejectIdentity;
 
 		/** Get all patches that will be affected. */
 		final List< Patch > allPatches = new ArrayList< Patch >();
@@ -304,7 +435,7 @@ final public class DistortionCorrectionTask
 		else
 			fixedTile = tiles.get(0);
 
-		Align.connectTilePairs( ap, tiles, tilePairs, Runtime.getRuntime().availableProcessors() );
+		Align.connectTilePairs( ap, tiles, tilePairs, p.maxNumThreadsSift, p.multipleHypotheses );
 
 
 		/** Shift all local coordinates into the original image frame */
