@@ -14,36 +14,13 @@
 
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
- Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
  You may contact Albert Cardona at acardona at ini.phys.ethz.ch
  Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
  **/
 
 package ini.trakem2.display;
-
-import ij.IJ;
-import ij.ImagePlus;
-import ij.Prefs;
-import ij.WindowManager;
-import ij.gui.ImageCanvas;
-import ij.gui.Roi;
-import ij.gui.Toolbar;
-import ij.measure.Calibration;
-import ij.process.ByteProcessor;
-import ij.process.ColorProcessor;
-import ini.trakem2.Project;
-import ini.trakem2.display.graphics.GraphicsSource;
-import ini.trakem2.display.inspect.InspectPatchTrianglesMode;
-import ini.trakem2.imaging.Segmentation;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.Lock;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Search;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
 
 import java.awt.AWTException;
 import java.awt.AlphaComposite;
@@ -93,9 +70,32 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import javax.vecmath.Point2f;
-import javax.vecmath.Vector2f;
-import javax.vecmath.Vector3d;
+import org.scijava.vecmath.Point2f;
+import org.scijava.vecmath.Vector2f;
+import org.scijava.vecmath.Vector3d;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.Prefs;
+import ij.WindowManager;
+import ij.gui.ImageCanvas;
+import ij.gui.Roi;
+import ij.gui.Toolbar;
+import ij.measure.Calibration;
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
+import ini.trakem2.Project;
+import ini.trakem2.display.graphics.GraphicsSource;
+import ini.trakem2.display.inspect.InspectPatchTrianglesMode;
+import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.Lock;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
 public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, FocusListener*/, MouseWheelListener {
 
@@ -139,35 +139,35 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	// Private to the display package:
 	static final RenderingHints rhints;
- 
+
 	/** Adapted code from Wayne Meissner, for gstreamer-java org.gstreamer.swing.GstVideoComponent; */
 	static {
 		final Map<RenderingHints.Key, Object> hints = new HashMap<RenderingHints.Key, Object>();
 		try {
-			String openglProperty = System.getProperty("sun.java2d.opengl");
+			final String openglProperty = System.getProperty("sun.java2d.opengl");
 			openglEnabled = openglProperty != null && Boolean.parseBoolean(openglProperty);
-		} catch (Exception ex) { }
+		} catch (final Exception ex) { }
 		try {
-			String quartzProperty = System.getProperty("apple.awt.graphics.UseQuartz");
+			final String quartzProperty = System.getProperty("apple.awt.graphics.UseQuartz");
 			quartzEnabled = Boolean.parseBoolean(quartzProperty);
-		} catch (Exception ex) { }
+		} catch (final Exception ex) { }
 		try {
-			String ddscaleProperty = System.getProperty("sun.java2d.ddscale");
-			String d3dProperty = System.getProperty("sun.java2d.d3d");
+			final String ddscaleProperty = System.getProperty("sun.java2d.ddscale");
+			final String d3dProperty = System.getProperty("sun.java2d.d3d");
 			ddscaleEnabled = Boolean.parseBoolean(ddscaleProperty) && Boolean.parseBoolean(d3dProperty);
-		} catch (Exception ex) { }
+		} catch (final Exception ex) { }
 
 		if (openglEnabled) {
 			// Bilinear interpolation can be accelerated by the OpenGL pipeline
 			hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 			hints.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-			
+
 		} else if (quartzEnabled) {
 			//hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 			hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 			hints.put(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
 			hints.put(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
-			
+
 		} else if (ddscaleEnabled) {
 			hints.put(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
 		}
@@ -323,7 +323,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/////////////////
 
-	public DisplayCanvas(Display display, int width, int height) {
+	public DisplayCanvas(final Display display, final int width, final int height) {
 		super(new FakeImagePlus(width, height, display));
 		fake_win = new FakeImageWindow(imp, this, display);
 		this.display = display;
@@ -337,12 +337,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	public Display getDisplay() { return display; }
 
 	/** Used to constrain magnification so that only snapshots are used for painting when opening a new, large and filled Display. */
-	protected void setInitialMagnification(double mag) { // calling this method 'setMagnification' would conflict with the super class homonimous method.
+	protected void setInitialMagnification(final double mag) { // calling this method 'setMagnification' would conflict with the super class homonimous method.
 		this.magnification = mag; // don't save in the database. This value is overriden when reopening from the database by calling the setup method.
 	}
 
 	/** Used for restoring properties from the database. */
-	public void setup(double mag, Rectangle srcRect) {
+	public void setup(final double mag, final Rectangle srcRect) {
 		this.magnification = mag;
 		this.srcRect = (Rectangle)srcRect.clone(); // just in case
 		super.setDrawingSize((int)Math.ceil(srcRect.width * mag), (int)Math.ceil(srcRect.height * mag));
@@ -351,7 +351,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Does not repaint. */
-	public void setDimensions(double width, double height) {
+	public void setDimensions(final double width, final double height) {
 		this.imageWidth = (int)Math.ceil(width);
 		this.imageHeight = (int)Math.ceil(height);
 		((FakeImagePlus)imp).setDimensions(imageWidth, imageHeight);
@@ -360,6 +360,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** Overriding to disable it. */
 	public void handlePopupMenu() {}
 
+	@Override
 	public final void update(final Graphics g) {
 		// overriding to avoid default behaviour in java.awt.Canvas which consists in first repainting the entire drawable area with the background color, and then calling method paint.
 		this.paint(g);
@@ -367,6 +368,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Handles repaint event requests and the generation of offscreen threads. */
 	private final AbstractRepaintThread RT = new AbstractRepaintThread(this, "T2-Canvas-Repainter", new OffscreenThread()) {
+		@Override
 		protected void handleUpdateGraphics(final Component target, final Rectangle clipRect) {
 			final Layer active_layer = display.getLayer();
 			this.off.setProperties(new RepaintProperties(clipRect, active_layer, active_layer.getParent().getColorCueLayerRange(active_layer), target.getWidth(), target.getHeight(), srcRect, magnification, display.getActive(), display.getDisplayChannelAlphas(), display.getMode().getGraphicsSource()));
@@ -384,6 +386,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 	*/
 
+	@Override
 	public void setMagnification(double mag) {
 		if (mag < 0.00000001) mag = 0.00000001;
 		// ensure a stroke of thickness 1.0 regardless of magnification
@@ -402,6 +405,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	/** The affine transform representing the srcRect displacement and the magnification. */
 	private final AffineTransform atc = new AffineTransform();
 
+	@Override
 	public void paint(final Graphics g) {
 		if (null == g) return;
 		try {
@@ -439,7 +443,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// debug buckets
 			//if (null != display.getLayer().root) display.getLayer().root.paint(g2d, srcRect, magnification, Color.red);
 			//if (null != display.getLayer().getParent().lbucks.get(display.getLayer()).root) display.getLayer().getParent().lbucks.get(display.getLayer()).root.paint(g2d, srcRect, magnification, Color.blue);
-			
+
 
 			// reset to identity
 			g2d.setTransform(new AffineTransform());
@@ -450,13 +454,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (mouse_in && null != active && AreaContainer.class.isInstance(active)) {
 				switch (ProjectToolbar.getToolId()) {
 					case ProjectToolbar.BRUSH:
-						int brushSize = ProjectToolbar.getBrushSize();
+						final int brushSize = ProjectToolbar.getBrushSize();
 						g.setColor(active.getColor());
 						g.drawOval((int)((xMouse -srcRect.x -brushSize/2)*magnification), (int)((yMouse - srcRect.y -brushSize/2)*magnification), (int)(brushSize * magnification), (int)(brushSize * magnification));
 						break;
 					case ProjectToolbar.PENCIL:
 					case ProjectToolbar.WAND:
-						Composite co = g2d.getComposite();
+						final Composite co = g2d.getComposite();
 						if (IJ.isWindows()) g2d.setColor(Color.yellow);
 						else g2d.setXORMode(Color.yellow); // XOR on yellow for best contrast
 						g2d.drawRect((int)((xMouse -srcRect.x -Segmentation.fmp.width/2)  * magnification),
@@ -481,7 +485,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					noCursor = Toolkit.getDefaultToolkit().createCustomCursor(new BufferedImage(1,1,BufferedImage.TYPE_BYTE_BINARY), new Point(0,0), "noCursor");
 			}
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			Utils.log2("DisplayCanvas.paint(Graphics) Error: " + e);
 			IJError.print(e);
 		} finally {
@@ -538,10 +542,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	static protected BasicStroke DEFAULT_STROKE = new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
 	static protected AffineTransform DEFAULT_AFFINE = new AffineTransform();
 
-	static public void drawHandle(Graphics2D g, double x, double y, Rectangle srcRect, double magnification) {
-		AffineTransform original = g.getTransform();
+	static public void drawHandle(final Graphics2D g, final double x, final double y, final Rectangle srcRect, final double magnification) {
+		final AffineTransform original = g.getTransform();
 		g.setTransform(DEFAULT_AFFINE);
-		Stroke st = g.getStroke();
+		final Stroke st = g.getStroke();
 		g.setStroke(DEFAULT_STROKE);
 
 		g.setColor(Color.black);
@@ -566,12 +570,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	protected Point last_popup = null;
 
 	protected Point consumeLastPopupPoint() {
-		Point p = last_popup;
+		final Point p = last_popup;
 		last_popup = null;
 		return p;
 	}
 
-	public void mousePressed(MouseEvent me) {
+	@Override
+	public void mousePressed(final MouseEvent me) {
 
 		super.flags = me.getModifiers();
 
@@ -641,7 +646,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		switch (tool) {
 		case ProjectToolbar.PENCIL:
 			if (null != active && active.isVisible() && active.getClass() == Profile.class) {
-				Profile prof = (Profile) active;
+				final Profile prof = (Profile) active;
 				this.freehandProfile = new FreeHandProfile(prof);
 				freehandProfile.mousePressed(x_p, y_p);
 				return;
@@ -683,7 +688,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					((DLabel) active).edit();
 				} else {
 					// new
-					DLabel label = new DLabel(display.getProject(), "  ", x_p, y_p);
+					final DLabel label = new DLabel(display.getProject(), "  ", x_p, y_p);
 					display.getLayer().add(label);
 					label.edit();
 				}
@@ -733,7 +738,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	public void mouseDragged(MouseEvent me) {
+	@Override
+	public void mouseDragged(final MouseEvent me) {
 
 		super.flags = me.getModifiers();
 
@@ -761,15 +767,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		this.yMouse = y_d;
 
 		// protection:
-		int me_x = me.getX();
-		int me_y = me.getY();
+		final int me_x = me.getX();
+		final int me_y = me.getY();
 		if (me_x < 0 || me_x > this.getWidth() || me_y < 0 || me_y > this.getHeight()) {
 			x_d = x_d_old;
 			y_d = y_d_old;
 			return;
 		}
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 
 		// pan with middle mouse like in inkscape
@@ -783,7 +789,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		case Toolbar.MAGNIFIER: // TODO : create a zooms-area tool
 			return;
 		case Toolbar.HAND:
-			int srx = srcRect.x,
+			final int srx = srcRect.x,
 			    sry = srcRect.y;
 			scroll(me.getX(), me.getY());
 			if (0 != srx - srcRect.x || 0 != sry - srcRect.y) {
@@ -801,13 +807,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		// Code for Matthias' FreehandProfile (TODO this should be done on mousePressed, not on mouseDragged)
 
-		Displayable active = display.getActive();
+		final Displayable active = display.getActive();
 		if (null != active && active.getClass() == Profile.class) {
 			try {
 				if (r == null) {
 					r = new Robot(this.getGraphicsConfiguration().getDevice());
 				}
-			} catch (AWTException e) {
+			} catch (final AWTException e) {
 				e.printStackTrace();
 			}
 		}
@@ -817,8 +823,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null != active && active.isVisible() && active.getClass() == Profile.class) {
 				if (freehandProfile == null)
 					return; // starting painting out of the DisplayCanvas border
-				double dx = x_d - x_d_old;
-				double dy = y_d - y_d_old;
+				final double dx = x_d - x_d_old;
+				final double dy = y_d - y_d_old;
 				freehandProfile.mouseDragged(me, x_d, y_d, dx, dy);
 				repaint();
 				// Point screenLocation = getLocationOnScreen();
@@ -882,13 +888,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 
-	public void mouseReleased(MouseEvent me) {
-		
+	@Override
+	public void mouseReleased(final MouseEvent me) {
+
 		super.flags = me.getModifiers();
-		
-		boolean dragging2 = dragging;
+
+		final boolean dragging2 = dragging;
 		dragging = false;
-		boolean locked2 = locked;
+		final boolean locked2 = locked;
 		locked = false;
 
 		if (popup) {
@@ -901,7 +908,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}
 
-		int tool = ProjectToolbar.getToolId();
+		final int tool = ProjectToolbar.getToolId();
 
 		// pan with middle mouse like in inkscape
 		/* // works, but can't use it: the alt button then is useless (so no erasing with areas, and so on)
@@ -953,8 +960,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		super.flags &= ~InputEvent.BUTTON2_MASK; // make sure button 2 bit is not set
 		super.flags &= ~InputEvent.BUTTON3_MASK; // make sure button 3 bit is not set
 
-		int x_r = srcRect.x + (int)(me.getX() / magnification);
-		int y_r = srcRect.y + (int)(me.getY() / magnification);
+		final int x_r = srcRect.x + (int)(me.getX() / magnification);
+		final int y_r = srcRect.y + (int)(me.getY() / magnification);
 
 		/*
 		if (beyond_srcRect) {
@@ -967,7 +974,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		this.xMouse = x_r;
 		this.yMouse = y_r;
 
-		Displayable active = display.getActive();
+		final Displayable active = display.getActive();
 
 		switch (tool) {
 			case ProjectToolbar.PENCIL:
@@ -977,7 +984,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					freehandProfile.mouseReleased(me, x_p, y_p, x_d, y_d, x_r, y_r);
 					freehandProfile = null;
 					//repaint(true);
-					Selection selection = display.getSelection();
+					final Selection selection = display.getSelection();
 					selection.updateTransform(display.getActive());
 					Display.repaint(display.getLayer(), selection.getBox(), Selection.PADDING); // repaints the navigator as well
 					return;
@@ -1007,7 +1014,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			if (null != roi) imp.killRoi();
 		} else return; // #SET_ROI
 
-		Selection selection = display.getSelection();
+		final Selection selection = display.getSelection();
 
 		if (snapping) {
 			// finish dragging
@@ -1037,7 +1044,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				Display.repaint(display.getLayer(), Selection.PADDING, box, !isTransforming(), active.isLinked() || active.getClass() == Patch.class); // does not repaint the navigator
 				//if (!active.getClass().equals(AreaList.class)) Display.repaint(display.getLayer(), box, Selection.PADDING); // repaints the navigator as well
 				// TODO: this last repaint call is unnecessary, if the box was properly repainted on mouse drag for Profile etc.
-				//else 
+				//else
 				if (null != old_brush_box) {
 					repaint(old_brush_box, 0, false);
 					old_brush_box = null; // from mouseMoved
@@ -1051,7 +1058,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	private boolean mouse_in = false;
 
-	public void mouseEntered(MouseEvent me) {
+	@Override
+	public void mouseEntered(final MouseEvent me) {
 		mouse_in = true;
 		// try to catch focus if the JFrame is front most
 		if (display.isActiveWindow() && !this.hasFocus()) {
@@ -1072,11 +1080,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		//Utils.log2("mouseEntered x,y: " + offScreenX(me.getX()) + "," + offScreenY(me.getY()));
 	}
 
-	public void mouseExited(MouseEvent me) {
+	@Override
+	public void mouseExited(final MouseEvent me) {
 		mouse_in = false;
 		// paint away the circular brush if any
 		if (ProjectToolbar.getToolId() == ProjectToolbar.BRUSH) {
-			Displayable active = display.getActive();
+			final Displayable active = display.getActive();
 			if (null != active && active.isVisible() && AreaContainer.class.isInstance(active)) {
 				if (null != old_brush_box) {
 					this.repaint(old_brush_box, 0);
@@ -1087,11 +1096,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Sets the cursor based on the current tool and cursor location. */
-	public void setCursor(int sx, int sy, int ox, int oy) {
+	@Override
+	public void setCursor(final int sx, final int sy, final int ox, final int oy) {
 		// copy of ImageCanvas.setCursor without the win==null
 		xMouse = ox;
 		yMouse = oy;
-		Roi roi = imp.getRoi();
+		final Roi roi = imp.getRoi();
 		/*
 		 * ImageWindow win = imp.getWindow(); if (win==null) return;
 		 */
@@ -1125,7 +1135,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 	/** Set the srcRect - used by the DisplayNavigator. */
-	protected void setSrcRect(int x, int y, int width, int height) {
+	protected void setSrcRect(final int x, final int y, int width, int height) {
 		if (width < 1) width = 1;
 		if (height < 1) height = 1;
 		this.srcRect.setRect(x, y, width, height);
@@ -1133,7 +1143,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		display.getMode().srcRectUpdated(srcRect, magnification);
 	}
 
-	public void setDrawingSize(int new_width, int new_height) {
+	@Override
+	public void setDrawingSize(final int new_width, final int new_height) {
 		adjustSrcRect(new_width, new_height);
 		super.setDrawingSize(new_width, new_height);
 	}
@@ -1147,8 +1158,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Adjust srcRect to new dimensions. */
-	public void adjustSrcRect(int new_width, int new_height) {
-		double mag = super.getMagnification();
+	public void adjustSrcRect(final int new_width, final int new_height) {
+		final double mag = super.getMagnification();
 		// This method is very important! Make it fit perfectly.
 		if (srcRect.width * mag < new_width) {
 			// expand
@@ -1189,13 +1200,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// there's no call to the non-existing ImageWindow
 		if (magnification >= 32)
 			return;
-		double newMag = getHigherZoomLevel2(magnification);
+		final double newMag = getHigherZoomLevel2(magnification);
 
 		// zoom at point: correct mag drift
-		int cx = getWidth() / 2;
-		int cy = getHeight() / 2;
-		int dx = (int)(((x - cx) * magnification) / newMag);
-		int dy = (int)(((y - cy) * magnification) / newMag);
+		final int cx = getWidth() / 2;
+		final int cy = getHeight() / 2;
+		final int dx = (int)(((x - cx) * magnification) / newMag);
+		final int dy = (int)(((y - cy) * magnification) / newMag);
 		x -= dx;
 		y -= dy;
 
@@ -1233,13 +1244,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private void zoomOut2(int x, int y) {
 		//if (magnification <= 0.03125)
 		//	return;
-		double newMag = getLowerZoomLevel2(magnification);
+		final double newMag = getLowerZoomLevel2(magnification);
 
 		// zoom at point: correct mag drift
-		int cx = getWidth() / 2;
-		int cy = getHeight() / 2;
-		int dx = (int)(((x - cx) * magnification) / newMag);
-		int dy = (int)(((y - cy) * magnification) / newMag);
+		final int cx = getWidth() / 2;
+		final int cy = getHeight() / 2;
+		final int dx = (int)(((x - cx) * magnification) / newMag);
+		final int dy = (int)(((y - cy) * magnification) / newMag);
 		x -= dx;
 		y -= dy;
 
@@ -1252,7 +1263,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				h++;
 			x = offScreenX(x);
 			y = offScreenY(y);
-			Rectangle r = new Rectangle(x - w / 2, y - h / 2, w, h);
+			final Rectangle r = new Rectangle(x - w / 2, y - h / 2, w, h);
 			if (r.x < 0)
 				r.x = 0;
 			if (r.y < 0)
@@ -1291,7 +1302,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 			return scale;
 		} else {
-			return ImageCanvas.getLowerZoomLevel(currentMag); 
+			return ImageCanvas.getLowerZoomLevel(currentMag);
 		}
 	}
 	protected double getHigherZoomLevel2(final double currentMag) {
@@ -1339,7 +1350,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			setPriority(Thread.NORM_PRIORITY);
 			start();
 		}
-		void dispatch(MouseEvent me) {
+		void dispatch(final MouseEvent me) {
 			//Utils.log2("before");
 			synchronized (this) {
 				//Utils.log2("in");
@@ -1351,11 +1362,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			interrupt();
 			synchronized (this) { notifyAll(); }
 		}
+		@Override
 		public void run() {
 			while (!isInterrupted()) {
 				MouseEvent me = this.me;
 				if (null != me) {
-					try { mouseMoved(me); } catch (Exception e) { IJError.print(e); }
+					try { mouseMoved(me); } catch (final Exception e) { IJError.print(e); }
 				}
 				// Wait only if the event has not changed
 				synchronized (this) {
@@ -1365,14 +1377,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						this.me = null;
 						if (isInterrupted()) return;
 						// Wait until there is a new event
-						try { wait(); } catch (Exception e) {}
+						try { wait(); } catch (final Exception e) {}
 					}
 				}
 			}
 		}
-		private void mouseMoved(MouseEvent me) {
+		private void mouseMoved(final MouseEvent me) {
 			if (null == me) return;
-			
+
 			if (input_disabled || display.getMode().isDragging()) return;
 
 			xMouse = (int)(me.getX() / magnification) + srcRect.x;
@@ -1390,7 +1402,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				Rectangle r = null;
 				if (ProjectToolbar.BRUSH == tool) {
 					// repaint area where the brush circle is
-					int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
+					final int brushSize = ProjectToolbar.getBrushSize() +2; // +2 padding
 					r = new Rectangle( xMouse - brushSize/2,
 							   yMouse - brushSize/2,
 							   brushSize+1,
@@ -1403,7 +1415,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 							   Segmentation.fmp.height + 4 );
 				}
 				if (null != r) {
-					Rectangle copy = (Rectangle)r.clone(); 
+					final Rectangle copy = (Rectangle)r.clone();
 					if (null != old_brush_box) r.add(old_brush_box);
 					old_brush_box = copy;
 					repaint(r, 1); // padding because of painting rounding which would live dirty trails
@@ -1420,7 +1432,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 				final StringBuilder sb = new StringBuilder();
 				final Project pr = layer.getProject();
-				for (Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
+				for (final Displayable d : al) sb.append(pr.getShortMeaningfulTitle(d)).append(", ");
 				sb.setLength(sb.length()-2);
 				Utils.showStatus(sb.toString(), false);
 			} else {
@@ -1448,12 +1460,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 					if (null == offsc) return;
 					try {
-						PixelGrabber pg = new PixelGrabber(offsc, me.getX(), me.getY(), 1, 1, p, 0, offsc.getWidth(null));
+						final PixelGrabber pg = new PixelGrabber(offsc, me.getX(), me.getY(), 1, 1, p, 0, offsc.getWidth(null));
 						pg.grabPixels();
-					} catch (InterruptedException ie) {
+					} catch (final InterruptedException ie) {
 						IJError.print(ie);
 						return;
-					} catch (Throwable t) {
+					} catch (final Throwable t) {
 						// The offscreen might have been flushed. Just ignore; pixel value will be reported next.
 						return;
 					}
@@ -1489,7 +1501,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Return the list of Displayable objects under the mouse,
 	 * sorted by proper stack order. */
-	public List<Displayable> getDisplayablesUnderMouse(MouseEvent me) {
+	public List<Displayable> getDisplayablesUnderMouse(final MouseEvent me) {
 				final Layer layer = display.getLayer();
 				final int x_p = offScreenX(me.getX()),
 				          y_p = offScreenY(me.getY());
@@ -1505,6 +1517,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		return display.getMode().isDragging();
 	}
 
+	@Override
 	public void mouseMoved(final MouseEvent me) {
 		super.flags = me.getModifiers();
 		mouse_moved.dispatch(me);
@@ -1520,7 +1533,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Overriding to repaint the DisplayNavigator as well. */
-	public void zoomIn(int x, int y) {
+	@Override
+	public void zoomIn(final int x, final int y) {
 		update_graphics = true; // update the offscreen images.
 		zoomIn2(x, y);
 	}
@@ -1533,31 +1547,32 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Overriding to repaint the DisplayNavigator as well. */
-	public void zoomOut(int x, int y) {
+	@Override
+	public void zoomOut(final int x, final int y) {
 		update_graphics = true; // update the offscreen images.
 		zoomOut2(x, y);
 	}
 
 	/** Center the srcRect around the given object(s) bounding box, zooming if necessary,
 	 *  so that the given r becomes a rectangle centered in the srcRect and zoomed out by a factor of 2. */
-	public void showCentered(Rectangle r) {
+	public void showCentered(final Rectangle r) {
 		// multiply bounding box dimensions by two
 		r.x -= r.width / 2;
 		r.y -= r.height / 2;
 		r.width += r.width;
 		r.height += r.height;
 		// compute target magnification
-		double magn = getWidth() / (double)(r.width > r.height ? r.width : r.height);
+		final double magn = getWidth() / (double)(r.width > r.height ? r.width : r.height);
 		center(r, magn);
 	}
 
 	/** Show the given r as the srcRect (or as much of it as possible) at the given magnification. */
-	public void center(Rectangle r, double magn) {
+	public void center(final Rectangle r, double magn) {
 		// bring bounds within limits of the layer and the canvas' drawing size
-		double lw = display.getLayer().getLayerWidth();
-		double lh = display.getLayer().getLayerHeight();
-		int cw = (int) (getWidth() / magn); // canvas dimensions in offscreen coords
-		int ch = (int) (getHeight() / magn);
+		final double lw = display.getLayer().getLayerWidth();
+		final double lh = display.getLayer().getLayerHeight();
+		final int cw = (int) (getWidth() / magn); // canvas dimensions in offscreen coords
+		final int ch = (int) (getHeight() / magn);
 
 		// 2nd attempt:
 		// fit to canvas drawing size:
@@ -1582,7 +1597,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		// set magnification and srcRect
 		setup(magn, r);
-		try { Thread.sleep(200); } catch (Exception e) {} // swing ... waiting for the display.pack()
+		try { Thread.sleep(200); } catch (final Exception e) {} // swing ... waiting for the display.pack()
 		update_graphics = true;
 		RT.paint(null, update_graphics);
 		display.updateInDatabase("srcRect");
@@ -1591,7 +1606,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Repaint as much as the bounding box around the given Displayable. If the Displayable is null, the entire canvas is repainted, remaking the offscreen images. */
-	public void repaint(Displayable d) {
+	public void repaint(final Displayable d) {
 		repaint(d, 0);
 	}
 
@@ -1600,12 +1615,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 * extra padding. If the Displayable is null, the entire canvas is
 	 * repainted, remaking the offscreen images.
 	 */
-	public void repaint(Displayable displ, int extra) {
+	public void repaint(final Displayable displ, final int extra) {
 		repaint(displ, extra, update_graphics);
 	}
-	public void repaint(Displayable displ, int extra, boolean update_graphics) {
+	public void repaint(final Displayable displ, final int extra, final boolean update_graphics) {
 		if (null != displ) {
-			Rectangle r = displ.getBoundingBox();
+			final Rectangle r = displ.getBoundingBox();
 			r.x = (int) ((r.x - srcRect.x) * magnification) - extra;
 			r.y = (int) ((r.y - srcRect.y) * magnification) - extra;
 			r.width = (int) Math.ceil(r.width * magnification) + extra + extra;
@@ -1665,7 +1680,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 * @param extra The extra outbound padding to add to the rectangle
 	 * @param update_graphics Whether to recreate the offscreen images or not
 	 */
-	public void repaint(Rectangle box, int extra, boolean update_graphics) {
+	public void repaint(final Rectangle box, final int extra, final boolean update_graphics) {
 		this.update_graphics = update_graphics;
 		repaint(box, extra);
 	}
@@ -1678,6 +1693,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	/** Overridden to multithread. This method is here basically to enable calls to the FakeImagePlus.draw from the HAND and other tools to repaint properly.*/
+	@Override
 	public void repaint() {
 		//Utils.log2("issuing thread");
 		invalidateVolatile();
@@ -1692,12 +1708,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	*/
 
 	/** Overridden to multithread. */
-	public void repaint(int x, int y, int width, int height) {
+	@Override
+	public void repaint(final int x, final int y, final int width, final int height) {
 		invalidateVolatile();
 		RT.paint(new Rectangle(x, y, width, height), update_graphics);
 	}
 
-	public void setUpdateGraphics(boolean b) {
+	public void setUpdateGraphics(final boolean b) {
 		update_graphics = b;
 	}
 
@@ -1718,7 +1735,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		try {
 			synchronized (this) { if (null != animator) animator.shutdownNow(); }
 			cancelAnimations();
-		} catch (Exception e) {}
+		} catch (final Exception e) {}
 		animator = null;
 	}
 
@@ -1729,7 +1746,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	public boolean applyTransform() {
-		boolean b = display.getMode().apply();
+		final boolean b = display.getMode().apply();
 		if (b) {
 			display.setMode(new DefaultMode(display));
 			Display.repaint();
@@ -1752,9 +1769,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private int last_keyCode = KeyEvent.VK_ESCAPE;
 	private boolean tagging = false;
 
-	public void keyPressed(KeyEvent ke) {
+	@Override
+	public void keyPressed(final KeyEvent ke) {
 
-		Displayable active = display.getActive();
+		final Displayable active = display.getActive();
 
 		if (null != freehandProfile
 			&& ProjectToolbar.getToolId() == ProjectToolbar.PENCIL
@@ -1765,7 +1783,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			ke.consume();
 			return;
 		}
-		
+
 		final int keyCode = ke.getKeyCode();
 
 		try {
@@ -1897,7 +1915,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return;
 		}*/
 
-		Layer layer = display.getLayer();
+		final Layer layer = display.getLayer();
 
 		final int mod = ke.getModifiers();
 
@@ -1913,7 +1931,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			case KeyEvent.VK_Z:
 				// UNDO: shift+z or ctrl+z
 				if (0 == (mod ^ Event.SHIFT_MASK) || 0 == (mod ^ Utils.getControlModifier())) {
-					Bureaucrat.createAndStart(new Worker.Task("Undo") { public void exec() {
+					Bureaucrat.createAndStart(new Worker.Task("Undo") { @Override
+					public void exec() {
 						if (isTransforming()) display.getMode().undoOneStep();
 						else display.getLayerSet().undoOneStep();
 						Display.repaint(display.getLayerSet());
@@ -1921,7 +1940,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					ke.consume();
 				// REDO: alt+z or ctrl+shift+z
 				} else if (0 == (mod ^ Event.ALT_MASK) || 0 == (mod ^ (Event.SHIFT_MASK | Utils.getControlModifier())) ) {
-					Bureaucrat.createAndStart(new Worker.Task("Redo") { public void exec() {
+					Bureaucrat.createAndStart(new Worker.Task("Redo") { @Override
+					public void exec() {
 						if (isTransforming()) display.getMode().redoOneStep();
 						else display.getLayerSet().redoOneStep();
 						Display.repaint(display.getLayerSet());
@@ -1951,7 +1971,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				break;
 			case KeyEvent.VK_A:
 				if (0 == (ke.getModifiers() ^ Utils.getControlModifier())) {
-					Roi roi = getFakeImagePlus().getRoi();
+					final Roi roi = getFakeImagePlus().getRoi();
 					if (null != roi) display.getSelection().selectAll(roi, true);
 					else display.getSelection().selectAllVisible();
 					Display.repaint(display.getLayer(), display.getSelection().getBox(), 0);
@@ -1987,7 +2007,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					}
 				} else {
 					// ;)
-					int kem = ke.getModifiers();
+					final int kem = ke.getModifiers();
 					if (0 != (kem & KeyEvent.SHIFT_MASK)
 					 && 0 != (kem & KeyEvent.ALT_MASK)
 					 && 0 != (kem & KeyEvent.CTRL_MASK)) {
@@ -2121,15 +2141,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				if (0 == ke.getModifiers()) {
 					if (null == active || active.getClass() == Patch.class) {
 						// paste a new image
-						ImagePlus clipboard = ImagePlus.getClipboard();
+						final ImagePlus clipboard = ImagePlus.getClipboard();
 						if (null != clipboard) {
-							ImagePlus imp = new ImagePlus(clipboard.getTitle() + "_" + System.currentTimeMillis(), clipboard.getProcessor().crop());
-							Object info = clipboard.getProperty("Info");
+							final ImagePlus imp = new ImagePlus(clipboard.getTitle() + "_" + System.currentTimeMillis(), clipboard.getProcessor().crop());
+							final Object info = clipboard.getProperty("Info");
 							if (null != info) imp.setProperty("Info", (String)info);
-							double x = srcRect.x + srcRect.width/2 - imp.getWidth()/2;
-							double y = srcRect.y + srcRect.height/2 - imp.getHeight()/2;
+							final double x = srcRect.x + srcRect.width/2 - imp.getWidth()/2;
+							final double y = srcRect.y + srcRect.height/2 - imp.getHeight()/2;
 							// save the image somewhere:
-							Patch pa = display.getProject().getLoader().addNewImage(imp, x, y);
+							final Patch pa = display.getProject().getLoader().addNewImage(imp, x, y);
 							display.getLayer().add(pa);
 							ke.consume();
 						} // TODO there isn't much ImageJ integration in the pasting. Can't paste to a selected image, for example.
@@ -2208,13 +2228,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		//Utils.log2("keyCode, keyChar: " + keyCode + ", " + keyChar + " ref: " + KeyEvent.VK_UNDEFINED + ", " + KeyEvent.CHAR_UNDEFINED);
 	}
 
-	public void keyTyped(KeyEvent ke) {}
+	@Override
+	public void keyTyped(final KeyEvent ke) {}
 
-	public void keyReleased(KeyEvent ke) {}
+	@Override
+	public void keyReleased(final KeyEvent ke) {}
 
 	public void zoomToFit() {
-		double magw = (double) getWidth() / imageWidth;
-		double magh = (double) getHeight() / imageHeight;
+		final double magw = (double) getWidth() / imageWidth;
+		final double magh = (double) getHeight() / imageHeight;
 		this.magnification = magw < magh ? magw : magh;
 		this.srcRect.setRect(0, 0, imageWidth, imageHeight);
 		setMagnification(magnification);
@@ -2222,7 +2244,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 
-	public void setReceivesInput(boolean b) {
+	public void setReceivesInput(final boolean b) {
 		this.input_disabled = !b;
 	}
 
@@ -2239,7 +2261,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 * - ij.gui.StackWindow: wheel to scroll slices (in this case Layers)
 	 * - Inkscape: control+wheel to zoom (apple+wheel in macosx, since control+wheel zooms desktop)
 	 */
-	public void mouseWheelMoved(MouseWheelEvent mwe) {
+	@Override
+	public void mouseWheelMoved(final MouseWheelEvent mwe) {
 		if (dragging) return; // prevent unexpected mouse wheel movements
 		final int modifiers = mwe.getModifiers();
 		final int rotation = mwe.getWheelRotation();
@@ -2315,7 +2338,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		} else if (0 == (modifiers ^ InputEvent.SHIFT_MASK) && null != display.getActive() && ProjectToolbar.PEN != tool && AreaContainer.class.isInstance(display.getActive())) {
 			final int sign = rotation > 0 ? 1 : -1;
 			if (ProjectToolbar.BRUSH == tool) {
-				int brushSize_old = ProjectToolbar.getBrushSize();
+				final int brushSize_old = ProjectToolbar.getBrushSize();
 				// resize brush for AreaList/AreaTree painting
 				int brushSize = ProjectToolbar.setBrushSize((int)(5 * sign / magnification)); // the getWheelRotation provides the sign
 				if (brushSize_old > brushSize) brushSize = brushSize_old; // for repainting purposes alone
@@ -2384,6 +2407,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			super("T2-Canvas-Offscreen");
 		}
 
+		@Override
 		public void paint() {
 			final Layer active_layer;
 			final List<Layer> layers;
@@ -2442,7 +2466,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						}
 					}
 				}
-			} catch (Throwable t) {
+			} catch (final Throwable t) {
 				IJError.print(t);
 			}
 
@@ -2574,7 +2598,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			final boolean prepaint, final ArrayList<Displayable> al_top, final boolean preload) {
 
 		final ArrayList<Displayable> al_paint = new ArrayList<Displayable>();
-		int first_non_patch = gatherDisplayables(active_layer, layers, srcRect, active, al_paint, al_top, preload);
+		final int first_non_patch = gatherDisplayables(active_layer, layers, srcRect, active, al_paint, al_top, preload);
 
 		return paintOffscreen(active_layer, layers, al_paint, active, g_width, g_height, c_alphas, loader, hm, blending_list, mode, graphics_source, prepaint, first_non_patch);
 	}
@@ -2596,7 +2620,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			// create new graphics
 			try {
 				display.getProject().getLoader().releaseToFit(g_width * g_height * 10);
-			} catch (Exception e) {} // when closing, asynch state may throw for a null loader.
+			} catch (final Exception e) {} // when closing, asynch state may throw for a null loader.
 
 			final BufferedImage target = getGraphicsConfiguration().createCompatibleImage(g_width, g_height, Transparency.TRANSLUCENT); // creates a BufferedImage.TYPE_INT_ARGB image in my T60p ATI FireGL laptop
 			//Utils.log2("offscreen acceleration priority: " + target.getAccelerationPriority());
@@ -2627,7 +2651,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 			// adjust:
 			first_non_patch = paintables.size() - (al_paint.size() - first_non_patch);
-			
+
 			// Determine painting mode
 			if (Display.REPAINT_SINGLE_LAYER == mode) {
 				if (display.isLiveFilteringEnabled()) {
@@ -2696,12 +2720,12 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					try {
 						g.setComposite(Displayable.getComposite(display.getLayerCompositeMode(lp.layer), lp.getAlpha()));
 						g.drawImage(display.applyFilters(bi), 0, 0, null);
-					} catch (Throwable t) {
+					} catch (final Throwable t) {
 						Utils.log("Could not use composite mode for layer overlays! Your graphics card may not support it.");
 						g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, lp.getAlpha()));
 						g.drawImage(bi, 0, 0, null);
 						IJError.print(t);
-					} 
+					}
 					bi.flush();
 				}
 				// restore
@@ -2734,7 +2758,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					final Graphics2D gb = bi.createGraphics();
 					gb.setTransform(atc);
 					final Layer la = e.getValue();
-					ArrayList<Paintable> list = new ArrayList<Paintable>();
+					final ArrayList<Paintable> list = new ArrayList<Paintable>();
 					if (la == active_layer) {
 						if (Color.green != e.getKey()) continue; // don't paint current layer in two channels
 						list.addAll(paintable_patches);
@@ -2793,15 +2817,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 
 			return target;
-		} catch (OutOfMemoryError oome) {
+		} catch (final OutOfMemoryError oome) {
 			// so OutOfMemoryError won't generate locks
 			IJError.print(oome);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		return null;
 	}
-	
+
 	private final void paintWithFiltering(final Graphics2D g, final ArrayList<Displayable> al_paint,
 										  final Collection<? extends Paintable> paintables,
 										  final int first_non_patch,
@@ -2861,9 +2885,10 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	}
 
 	// added here to prevent flickering, but doesn't help. All it does is avoid a call to imp.redraw()
-	protected void scroll(int sx, int sy) {
-		int ox = xSrcStart + (int)(sx/magnification);  //convert to offscreen coordinates
-		int oy = ySrcStart + (int)(sy/magnification);
+	@Override
+	protected void scroll(final int sx, final int sy) {
+		final int ox = xSrcStart + (int)(sx/magnification);  //convert to offscreen coordinates
+		final int oy = ySrcStart + (int)(sy/magnification);
 		int newx = xSrcStart + (xMouseStart-ox);
 		int newy = ySrcStart + (yMouseStart-oy);
 		if (newx<0) newx = 0;
@@ -2896,7 +2921,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		ke.consume();
 	}
 
-	DisplayCanvas.Screenshot createScreenshot(Layer layer) {
+	DisplayCanvas.Screenshot createScreenshot(final Layer layer) {
 		return new Screenshot(layer);
 	}
 
@@ -2909,7 +2934,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final ArrayList<LayerPanel> blending_list;
 		final HashMap<Color,Layer> hm;
 		final int mode;
-		ScreenshotProperties(Layer layer, Rectangle srcRect, double magnification, int g_width, int g_height, int c_alphas, GraphicsSource graphics_source) {
+		ScreenshotProperties(final Layer layer, final Rectangle srcRect, final double magnification, final int g_width, final int g_height, final int c_alphas, final GraphicsSource graphics_source) {
 			this.srcRect = new Rectangle(srcRect);
 			this.magnification = magnification;
 			this.layer = layer;
@@ -2920,17 +2945,17 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			this.g_height = g_height;
 			this.graphics_source = graphics_source;
 			this.c_alphas = c_alphas;
-			Layer current_layer = display.getLayer();
+			final Layer current_layer = display.getLayer();
 			if (Display.REPAINT_RGB_LAYER == mode) {
-				Layer red = hm.get(Color.red);
-				Layer blue = hm.get(Color.blue);
+				final Layer red = hm.get(Color.red);
+				final Layer blue = hm.get(Color.blue);
 				if (null != red || null != blue) {
-					LayerSet ls = layer.getParent();
-					int i_layer = ls.indexOf(layer);
-					int i_current = ls.indexOf(current_layer);
+					final LayerSet ls = layer.getParent();
+					final int i_layer = ls.indexOf(layer);
+					final int i_current = ls.indexOf(current_layer);
 					if (null != red) {
-						int i_red = ls.indexOf(red);
-						Layer l = red.getParent().getLayer(i_red + i_current - i_layer);
+						final int i_red = ls.indexOf(red);
+						final Layer l = red.getParent().getLayer(i_red + i_current - i_layer);
 						if (null != l) {
 							hm.put(Color.red, l);
 						} else {
@@ -2938,8 +2963,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 						}
 					}
 					if (null != blue) {
-						int i_blue = ls.indexOf(blue);
-						Layer l = blue.getParent().getLayer(i_blue + i_current - i_layer);
+						final int i_blue = ls.indexOf(blue);
+						final Layer l = blue.getParent().getLayer(i_blue + i_current - i_layer);
 						if (null != l) {
 							hm.put(Color.blue, l);
 						} else {
@@ -2949,6 +2974,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 			}
 		}
+		@Override
 		public final boolean equals(final Object o) {
 			final ScreenshotProperties s = (ScreenshotProperties)o;
 			return s.layer == this.layer
@@ -2960,6 +2986,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			  && Utils.equalContent(s.blending_list, this.blending_list)
 			  && Utils.equalContent(s.hm, this.hm);
 		}
+		@Override
 		public int hashCode() { return 0; } //$%^&$#@!
 	}
 
@@ -2970,11 +2997,11 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final ArrayList<Displayable> al_top = new ArrayList<Displayable>();
 		final ScreenshotProperties props;
 
-		Screenshot(Layer layer) {
+		Screenshot(final Layer layer) {
 			this(layer, DisplayCanvas.this.srcRect, DisplayCanvas.this.magnification, DisplayCanvas.this.getWidth(), DisplayCanvas.this.getHeight(), DisplayCanvas.this.display.getDisplayChannelAlphas(), DisplayCanvas.this.display.getMode().getGraphicsSource());
 		}
 
-		Screenshot(Layer layer, Rectangle srcRect, double magnification, int g_width, int g_height, int c_alphas, GraphicsSource graphics_source) {
+		Screenshot(final Layer layer, final Rectangle srcRect, final double magnification, final int g_width, final int g_height, final int c_alphas, final GraphicsSource graphics_source) {
 			this.layer = layer;
 			this.props = new ScreenshotProperties(layer, srcRect, magnification, g_width, g_height, c_alphas, graphics_source);
 		}
@@ -2985,13 +3012,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			return this.sid;
 		}
 		/** Associate @param img to this, with a new sid. */
-		public long assoc(BufferedImage img) {
+		public long assoc(final BufferedImage img) {
 			init();
 			if (null != img) layer.getProject().getLoader().cacheAWT(this.sid, img);
 			return this.sid;
 		}
 		public void createImage() {
-			BufferedImage img = paintOffscreen(layer, layer.getParent().getColorCueLayerRange(layer),  props.g_width, props.g_height, props.srcRect, props.magnification,
+			final BufferedImage img = paintOffscreen(layer, layer.getParent().getColorCueLayerRange(layer),  props.g_width, props.g_height, props.srcRect, props.magnification,
 						  display.getActive(), props.c_alphas, null, layer.getProject().getLoader(),
 						  props.hm, props.blending_list, props.mode, props.graphics_source, false, al_top, false);
 			layer.getProject().getLoader().cacheAWT(sid, img);
@@ -3026,7 +3053,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				}
 				return true;
 			}
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			Utils.log2("Oops: " + e);
 		}
 		return false;
@@ -3046,6 +3073,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		//
 		final ScheduledFuture<?>[] sf = new ScheduledFuture[1];
 		sf[0] = animate(new Runnable() {
+			@Override
 			public void run() {
 				cp.add(v);
 				//Utils.log2("advanced by x,y = " + cp.x + ", " + cp.y);
@@ -3071,7 +3099,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	 * If the given rectangle is larger than the srcRect, it will refuse to work (for now). */
 	public boolean animateBrowsing(final Rectangle target_, final Layer target_layer) {
 		// Crop target to world's 2D dimensions
-		Area a = new Area(target_);
+		final Area a = new Area(target_);
 		a.intersect(new Area(display.getLayerSet().get2DBounds()));
 		final Rectangle target = a.getBounds();
 		if (0 == target.width || 0 == target.height) {
@@ -3093,7 +3121,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		v.normalize();
 		v.scale(20/(float)magnification);
 
-		
+
 		// The layer range
 		final Layer start_layer = display.getLayer();
 		/*
@@ -3101,7 +3129,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		int itarget = display.getLayerSet().indexOf(target_layer);
 		final java.util.List<Layer> layers = display.getLayerSet().getLayers(ithis, itarget);
 		*/
-		Calibration cal = display.getLayerSet().getCalibrationCopy();
+		final Calibration cal = display.getLayerSet().getCalibrationCopy();
 		final double pixelWidth = cal.pixelWidth;
 		final double pixelHeight = cal.pixelHeight;
 
@@ -3113,6 +3141,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 		final ScheduledFuture<?>[] sf = new ScheduledFuture[1];
 		sf[0] = animate(new Runnable() {
+			@Override
 			public void run() {
 				if (DisplayCanvas.this.srcRect.contains(target)) {
 					// reached destination
@@ -3123,15 +3152,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 					setSrcRect(srcRect.x + (int)v.x, srcRect.y + (int)v.y, srcRect.width, srcRect.height);
 					// which layer?
 					if (start_layer != target_layer) {
-						int cx = srcRect.x + srcRect.width/2;
-						int cy = srcRect.y + srcRect.height/2;
-						double dist = Math.sqrt(Math.pow((cx - ox)*pixelWidth, 2) + Math.pow((cy - oy)*pixelHeight, 2)
+						final int cx = srcRect.x + srcRect.width/2;
+						final int cy = srcRect.y + srcRect.height/2;
+						final double dist = Math.sqrt(Math.pow((cx - ox)*pixelWidth, 2) + Math.pow((cy - oy)*pixelHeight, 2)
 									+ Math.pow((display.getLayer().getZ() - start_layer.getZ()) * pixelWidth, 2));
 
-						Vector3d gg = new Vector3d(g);
+						final Vector3d gg = new Vector3d(g);
 						gg.normalize();
 						gg.scale((float)dist);
-						Layer la = display.getLayerSet().getNearestLayer(start_layer.getZ() + gg.z/pixelWidth);
+						final Layer la = display.getLayerSet().getNearestLayer(start_layer.getZ() + gg.z/pixelWidth);
 						if (la != display.getLayer()) {
 							display.toLayer(la);
 						}
@@ -3151,14 +3180,14 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		if (sfs.isEmpty()) return;
 		Vector<ScheduledFuture<?>> sfs;
 		synchronized (this.sfs) { sfs = new Vector<ScheduledFuture<?>>(this.sfs); }
-		for (ScheduledFuture<?> sf : sfs) {
+		for (final ScheduledFuture<?> sf : sfs) {
 			sf.cancel(true);
 		}
 		this.sfs.clear();
 		try {
 			// wait
 			Thread.sleep(150);
-		} catch (InterruptedException ie) {}
+		} catch (final InterruptedException ie) {}
 		// Re-enable input, in case the watcher task is canceled as well:
 		// (It's necessary since there isn't any easy way to tell the scheduler to execute a code block when it cancels its tasks).
 		restoreUserInput();
@@ -3168,13 +3197,13 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		sf.cancel(true);
 		restoreUserInput();
 	}
-	
+
 	private void restoreUserInput() {
 		zoom_and_pan = true;
 		display.getProject().setReceivesInput(true);
 	}
 
-	private ScheduledFuture<?> animate(Runnable run, long initialDelay, long delay, TimeUnit units) {
+	private ScheduledFuture<?> animate(final Runnable run, final long initialDelay, final long delay, final TimeUnit units) {
 		initAnimator();
 		// Cancel any animations currently running
 		cancelAnimations();
@@ -3185,6 +3214,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final ScheduledFuture<?>[] sf = new ScheduledFuture[2];
 		sf[0] = animator.scheduleWithFixedDelay(run, initialDelay, delay, units);
 		sf[1] = animator.scheduleWithFixedDelay(new Runnable() {
+			@Override
 			public void run() {
 				if (sf[0].isCancelled()) {
 					// Enable user input
@@ -3218,7 +3248,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			repaint(target, 5, false);
 			// setup next iteration
 			display.getLayerSet().getOverlay().remove(elf);
-			Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
+			final Ellipse2D.Float elf2 = (Ellipse2D.Float) elf.clone();
 			elf2.x += dec;
 			elf2.y += dec;
 			elf2.width -= (dec+dec);
@@ -3236,7 +3266,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			display.getLayerSet().getOverlay().remove(elf);
 		}
 	}
-	
+
 	private interface Animation extends Runnable {}
 
 	private ScheduledFuture<?> playHighlight(final Rectangle target) {
@@ -3244,6 +3274,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		final Highlighter highlight = new Highlighter(target);
 		final ScheduledFuture<?>[] sf = (ScheduledFuture<?>[])new ScheduledFuture[2];
 		sf[0] = animator.scheduleWithFixedDelay(new Animation() {
+			@Override
 			public void run() {
 				if (!highlight.next()) {
 					cancelAnimation(sf[0]);
@@ -3252,6 +3283,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 			}
 		}, 10, 100, TimeUnit.MILLISECONDS);
 		sf[1] = animator.scheduleWithFixedDelay(new Animation() {
+			@Override
 			public void run() {
 				if (sf[0].isCancelled()) {
 					highlight.cleanup();

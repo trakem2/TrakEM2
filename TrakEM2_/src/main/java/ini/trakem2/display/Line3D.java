@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -22,18 +22,19 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ini.trakem2.Project;
-import ini.trakem2.vector.VectorString3D;
-
 import java.awt.Color;
 import java.util.List;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import ini.trakem2.Project;
+import ini.trakem2.vector.VectorString3D;
 
 /** By definition, only ZDisplayable objects may implement Line3D. */
 public interface Line3D {
 
 	public VectorString3D asVectorString3D();
+	@Override
 	public String toString();
 	public Project getProject();
 	public LayerSet getLayerSet();

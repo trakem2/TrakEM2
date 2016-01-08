@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -22,33 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-
-import amira.AmiraMeshEncoder;
-import fiji.geom.AreaCalculations;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.gui.GenericDialog;
-import ij.gui.PolygonRoi;
-import ij.gui.Roi;
-import ij.gui.ShapeRoi;
-import ij.io.FileSaver;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ij.process.ByteProcessor;
-import ij.process.FloatPolygon;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
-import ini.trakem2.Project;
-import ini.trakem2.display.paint.USHORTPaint;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.AreaUtils;
-import ini.trakem2.utils.CircularSequence;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -81,10 +54,37 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import amira.AmiraMeshEncoder;
+import fiji.geom.AreaCalculations;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.gui.GenericDialog;
+import ij.gui.PolygonRoi;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.io.FileSaver;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ij.process.ByteProcessor;
+import ij.process.FloatPolygon;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ini.trakem2.Project;
+import ini.trakem2.display.paint.USHORTPaint;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.CircularSequence;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 /** A list of brush painted areas similar to a set of labelfields in Amira.
- * 
+ *
  * For each layer where painting has been done, there is an entry in the ht_areas HashMap that contains the layer's id as a Long, and a java.awt.geom.Area object.
  * All Area objects are local to this AreaList's AffineTransform.
  */
@@ -99,26 +99,26 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** Paint as outlines (false) or as solid areas (true; default, with a default alpha of 0.4f).*/
 	private boolean fill_paint = true;
 
-	public AreaList(Project project, String title, double x, double y) {
+	public AreaList(final Project project, final String title, final double x, final double y) {
 		super(project, title, x, y);
 		this.alpha = AreaWrapper.PP.default_alpha;
 		addToDatabase();
 	}
 
 	/** Reconstruct from XML. */
-	public AreaList(final Project project, final long id, HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
+	public AreaList(final Project project, final long id, final HashMap<String,String> ht_attributes, final HashMap<Displayable,String> ht_links) {
 		super(project, id, ht_attributes, ht_links);
 		// read the fill_paint
-		Object ob_data = ht_attributes.get("fill_paint");
+		final Object ob_data = ht_attributes.get("fill_paint");
 		try {
 			if (null != ob_data) this.fill_paint = "true".equals(((String)ob_data).trim().toLowerCase()); // fails: //Boolean.getBoolean((String)ob_data);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			Utils.log("AreaList: could not read fill_paint value from XML:" + e);
 		}
 	}
 
 	/** Reconstruct from the database. */
-	public AreaList(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, ArrayList<Long> al_ul, AffineTransform at) { // al_ul contains Long() wrapping layer ids
+	public AreaList(final Project project, final long id, final String title, final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final ArrayList<Long> al_ul, final AffineTransform at) { // al_ul contains Long() wrapping layer ids
 		super(project, id, title, locked, at, width, height);
 		this.alpha = alpha;
 		this.visible = visible;
@@ -128,6 +128,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 	}
 
+	@Override
 	public void paint(final Graphics2D g, final Rectangle srcRect, final double magnification, final boolean active, final int channels, final Layer active_layer, final List<Layer> layers) {
 		//arrange transparency
 		Composite original_composite = null;
@@ -182,17 +183,19 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 	}
 
-	public void transformPoints(Layer layer, double dx, double dy, double rot, double xo, double yo) {
+	@Override
+	public void transformPoints(final Layer layer, final double dx, final double dy, final double rot, final double xo, final double yo) {
 		Utils.log("AreaList.transformPoints: not implemented yet.");
 	}
 
 	/** Returns the layer of lowest Z coordinate Layer where this ZDisplayable has a point in. */
+	@Override
 	public Layer getFirstLayer() {
 		double min_z = Double.MAX_VALUE;
 		Layer first_layer = null;
 		for (final Long lid : ht_areas.keySet()) {
 			final Layer la = this.layer_set.getLayer(lid.longValue());
-			double z = la.getZ();
+			final double z = la.getZ();
 			if (z < min_z) {
 				min_z = z;
 				first_layer = la;
@@ -206,8 +209,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		double max_z = -Double.MAX_VALUE;
 		Layer last_layer = null;
 		for (final Long lid : ht_areas.keySet()) {
-			Layer la = this.layer_set.getLayer(lid.longValue());
-			double z = la.getZ();
+			final Layer la = this.layer_set.getLayer(lid.longValue());
+			final double z = la.getZ();
 			if (z > max_z) {
 				max_z = z;
 				last_layer = la;
@@ -221,13 +224,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return layer_set.getLayers(getFirstLayer(), getLastLayer());
 	}
 
+	@Override
 	public boolean linkPatches() {
 		unlinkAll(Patch.class);
 		// cheap way: intersection of the patches' bounding box with the area
 		Rectangle r = new Rectangle();
 		boolean must_lock = false;
 		for (final Map.Entry<Long,Area> e : ht_areas.entrySet()) {
-			Layer la = this.layer_set.getLayer(e.getKey());
+			final Layer la = this.layer_set.getLayer(e.getKey());
 			if (null == la) {
 				Utils.log2("AreaList.linkPatches: ignoring null layer for id " + e.getKey());
 				continue;
@@ -265,6 +269,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return area.contains(x, y);
 	}
 
+	@Override
 	public boolean intersects(final Layer layer, final Rectangle r) {
 		Object ob = ht_areas.get(layer.getId());
 		if (null == ob) return false;
@@ -276,6 +281,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return a.intersects(r.x, r.y, r.width, r.height);
 	}
 
+	@Override
 	public boolean intersects(final Layer layer, final Area area) {
 		Object ob = ht_areas.get(layer.getId());
 		if (null == ob) return false;
@@ -290,6 +296,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Returns the bounds of this object as it shows in the given layer. */
+	@Override
 	public Rectangle getBounds(final Rectangle r, final Layer layer) {
 		if (null == layer) return super.getBounds(r, null);
 		final Area area = (Area)ht_areas.get(layer.getId());
@@ -307,6 +314,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return r;
 	}
 
+	@Override
 	public boolean isDeletable() {
 		if (0 == ht_areas.size()) return true;
 		return false;
@@ -340,10 +348,11 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		aw.setSource(this);
 		final Area a = aw.getArea();
 		final Long lid = this.lid;
-		aw.mousePressed(me, la, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { public void run() {
+		aw.mousePressed(me, la, x_p_w, y_p_w, mag, Arrays.asList(new Runnable[]{new Runnable() { @Override
+		public void run() {
 			// To be run on mouse released:
 			// check if empty. If so, remove
-			Rectangle bounds = a.getBounds();
+			final Rectangle bounds = a.getBounds();
 			if (0 == bounds.width && 0 == bounds.height) {
 				ht_areas.remove(lid);
 			}
@@ -352,14 +361,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		aw.setSource(null);
 	}
 	@Override
-	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 		if (null == aw) return;
 		aw.setSource(this);
 		aw.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 		aw.setSource(null);
 	}
 	@Override
-	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		if (null == aw) return;
 		aw.setSource(this);
 		aw.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
@@ -410,6 +419,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				final List<Future<?>> fus = new ArrayList<Future<?>>();
 				for (final Area a : ht_areas.values()) {
 					fus.add(exec.submit(new Runnable() {
+						@Override
 						public void run() {
 							a.transform(atb);
 						}
@@ -453,7 +463,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final String in = indent + "\t";
 		super.exportXML(sb_body, in, options);
 		sb_body.append(in).append("fill_paint=\"").append(fill_paint).append("\"\n");
-		String[] RGB = Utils.getHexRGBColor(color);
+		final String[] RGB = Utils.getHexRGBColor(color);
 		sb_body.append(in).append("style=\"stroke:none;fill-opacity:").append(alpha).append(";fill:#").append(RGB[0]).append(RGB[1]).append(RGB[2]).append(";\"\n");
 		sb_body.append(indent).append(">\n");
 		for (final Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
@@ -507,19 +517,19 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Returns an ArrayList of ArrayList of Point as value with all paths for the Area of the given layer_id. */
-	public ArrayList<ArrayList<Point>> getPaths(long layer_id) {
+	public ArrayList<ArrayList<Point>> getPaths(final long layer_id) {
 		Area ob = ht_areas.get(layer_id);
 		if (null == ob) return null;
 		if (AreaList.UNLOADED == ob) {
 			ob = loadLayer(layer_id);
 			if (null == ob) return null;
 		}
-		Area area = ob;
-		ArrayList<ArrayList<Point>> al_paths = new ArrayList<ArrayList<Point>>();
+		final Area area = ob;
+		final ArrayList<ArrayList<Point>> al_paths = new ArrayList<ArrayList<Point>>();
 		ArrayList<Point> al_points = null;
-		for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			float[] coords = new float[6];
-			int seg_type = pit.currentSegment(coords);
+		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			final float[] coords = new float[6];
+			final int seg_type = pit.currentSegment(coords);
 			switch (seg_type) {
 				case PathIterator.SEG_MOVETO:
 					al_points = new ArrayList<Point>();
@@ -546,7 +556,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 	/** Returns a table of Long layer ids versus the ArrayList that getPaths(long) returns for it.*/
 	public HashMap<Long,ArrayList<ArrayList<Point>>> getAllPaths() {
-		HashMap<Long,ArrayList<ArrayList<Point>>> ht = new HashMap<Long,ArrayList<ArrayList<Point>>>();
+		final HashMap<Long,ArrayList<ArrayList<Point>>> ht = new HashMap<Long,ArrayList<ArrayList<Point>>>();
 		for (final Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
 			ht.put(entry.getKey(), getPaths(entry.getKey()));
 		}
@@ -557,11 +567,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		Object o = ht_areas.get(la.getId());
 		if (UNLOADED == o) o = loadLayer(la.getId());
 		if (null == o) return;
-		Area area = (Area) o;
+		final Area area = (Area) o;
 
 		new AreaWrapper(this, area).fillHoles();
 	}
 
+	@Override
 	public boolean paintsAt(final Layer layer) {
 		if (!super.paintsAt(layer)) return false;
 		return null != ht_areas.get(new Long(layer.getId()));
@@ -569,14 +580,15 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 	/** Dynamic loading from the database. */
 	private Area loadLayer(final long layer_id) {
-		Area area = project.getLoader().fetchArea(this.id, layer_id);
+		final Area area = project.getLoader().fetchArea(this.id, layer_id);
 		if (null == area) return null;
 		ht_areas.put(new Long(layer_id), area);
 		return area;
 	}
 
+	@Override
 	public void adjustProperties() {
-		GenericDialog gd = makeAdjustPropertiesDialog(); // in superclass
+		final GenericDialog gd = makeAdjustPropertiesDialog(); // in superclass
 		gd.addCheckbox("Paint as outlines", !fill_paint);
 		gd.addCheckbox("Apply paint mode to all AreaLists", false);
 		gd.showDialog();
@@ -589,7 +601,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		if (to_all) {
 			for (final ZDisplayable zd : this.layer_set.getZDisplayables()) {
 				if (zd.getClass() == AreaList.class) {
-					AreaList ali = (AreaList)zd;
+					final AreaList ali = (AreaList)zd;
 					ali.fill_paint = fp;
 					ali.updateInDatabase("fill_paint");
 					Display.repaint(this.layer_set, ali, 2);
@@ -604,7 +616,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 
 		// Add current step, with the same modified keys
-		DoEdit current = new DoEdit(this).init(prev);
+		final DoEdit current = new DoEdit(this).init(prev);
 		if (isLinked()) current.add(new Displayable.DoTransforms().addAll(getLinkedGroup(null)));
 		getLayerSet().addEditStep(current);
 	}
@@ -616,7 +628,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		AreaList base = null;
 		final ArrayList<Displayable> list = new ArrayList<Displayable>(al);
 		for (final Iterator<Displayable> it = list.iterator(); it.hasNext(); ) {
-			Object ob = it.next();
+			final Object ob = it.next();
 			if (ob.getClass() != AreaList.class) it.remove();
 			if (null == base) {
 				base = (AreaList)ob;
@@ -627,13 +639,13 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				it.remove();
 			}
 			// check that it belongs to the same layer set as the base
-			AreaList ali = (AreaList)ob;
+			final AreaList ali = (AreaList)ob;
 			if (base.layer_set != ali.layer_set) it.remove();
 		}
 		if (list.size() < 1) return null; // nothing to fuse
 		for (final Iterator<Displayable> it = list.iterator(); it.hasNext(); ) {
 			// add to base
-			AreaList ali = (AreaList)it.next();
+			final AreaList ali = (AreaList)it.next();
 			base.add(ali);
 			// remove from project
 			ali.project.removeProjectThing(ali, false, true, 1); // the node from the Project Tree
@@ -651,14 +663,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	private void add(final AreaList ali) {
 		for (final Map.Entry<Long,Area> entry : ali.ht_areas.entrySet()) {
 			Area ob_area = entry.getValue();
-			long lid = entry.getKey();
+			final long lid = entry.getKey();
 			if (UNLOADED == ob_area) ob_area = ali.loadLayer(lid);
 			Area area = (Area)ob_area;
 			area = area.createTransformedArea(ali.at);
 			// now need to inverse transform it by this.at
 			try {
 				area = area.createTransformedArea(this.at.createInverse());
-			} catch (NoninvertibleTransformException nte) {
+			} catch (final NoninvertibleTransformException nte) {
 				IJError.print(nte);
 				// do what?
 			}
@@ -673,11 +685,11 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** How many layers does this object paint to. */
 	public int getNAreas() { return ht_areas.size(); }
 
-	public Area getArea(Layer la) {
+	public Area getArea(final Layer la) {
 		if (null == la) return null;
 		return getArea(la.getId());
 	}
-	public Area getArea(long layer_id) {
+	public Area getArea(final long layer_id) {
 		Object ob = ht_areas.get(new Long(layer_id));
 		if (null != ob) {
 			if (UNLOADED == ob) ob = loadLayer(layer_id);
@@ -689,6 +701,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 
 	/** Performs a deep copy of this object, without the links. */
+	@Override
 	public Displayable clone(final Project pr, final boolean copy_id) {
 		final ArrayList<Long> al_ul = new ArrayList<Long>();
 		for (final Long lid : ht_areas.keySet()) { // TODO WARNING the layer ids are wrong if the project is different or copy_id is false! Should lookup closest layer by Z ...
@@ -721,7 +734,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** Add a copy of an Area object to the existing, if any, area object at Layer with layer_id as given, or if not existing, just set the copy as it. The area is expected in this AreaList coordinate space. Does not make it local, you should call calculateBoundingBox when done. */
 	public void addArea(final long layer_id, final Area area) {
 		if (null == area) return;
-		Area a = getArea(layer_id);
+		final Area a = getArea(layer_id);
 		if (null == a) ht_areas.put(layer_id, new Area(area));
 		else a.add(area);
 		updateInDatabase("points=" + layer_id);
@@ -730,8 +743,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** Adds the given ROI, which is expected in world/LayerSet coordinates, to the area present at Layer with id layer_id, or set it if none present yet. */
 	public void add(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException{
 		if (null == roi) return;
-		Area a = getArea(layer_id);
-		Area asr = M.getArea(roi).createTransformedArea(this.at.createInverse());
+		final Area a = getArea(layer_id);
+		final Area asr = M.getArea(roi).createTransformedArea(this.at.createInverse());
 		if (null == a) {
 			ht_areas.put(layer_id, asr);
 		} else {
@@ -744,7 +757,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** Subtracts the given ROI, which is expected in world/LayerSet coordinates, to the area present at Layer with id layer_id, or set it if none present yet. */
 	public void subtract(final long layer_id, final ShapeRoi roi) throws NoninvertibleTransformException {
 		if (null == roi) return;
-		Area a = getArea(layer_id);
+		final Area a = getArea(layer_id);
 		if (null == a) return;
 		a.subtract(M.getArea(roi).createTransformedArea(this.at.createInverse()));
 		calculateBoundingBox(null != layer_set ? layer_set.getLayer(layer_id) : null);
@@ -754,12 +767,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** Subtracts the given ROI, and then creates a new AreaList with identical properties and the content of the subtracted part. Returns null if there is no intersection between sroi and the Area for layer_id. */
 	public AreaList part(final long layer_id, final ShapeRoi sroi) throws NoninvertibleTransformException {
 		// The Area to subtract, in world coordinates:
-		Area sub = M.getArea(sroi);
+		final Area sub = M.getArea(sroi);
 		// The area to subtract from:
-		Area a = getArea(layer_id);
+		final Area a = getArea(layer_id);
 		if (null == a || M.isEmpty(a)) return null;
 		// The intersection:
-		Area inter = a.createTransformedArea(this.at);
+		final Area inter = a.createTransformedArea(this.at);
 		inter.intersect(sub);
 		if (M.isEmpty(inter)) return null;
 
@@ -767,7 +780,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		this.subtract(layer_id, sroi);
 
 		// Create new AreaList with the intersection area, and add it to the same LayerSet as this:
-		AreaList ali = new AreaList(this.project, this.title, 0, 0);
+		final AreaList ali = new AreaList(this.project, this.title, 0, 0);
 		ali.color = new Color(color.getRed(), color.getGreen(), color.getBlue());
 		ali.visible = this.visible;
 		ali.alpha = this.alpha;
@@ -778,31 +791,32 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return ali;
 	}
 
-	public void keyPressed(KeyEvent ke) {
-		Object source = ke.getSource();
+	@Override
+	public void keyPressed(final KeyEvent ke) {
+		final Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
-		DisplayCanvas dc = (DisplayCanvas)source;
-		Layer layer = dc.getDisplay().getLayer();
-		int keyCode = ke.getKeyCode();
-		long layer_id = layer.getId();
+		final DisplayCanvas dc = (DisplayCanvas)source;
+		final Layer layer = dc.getDisplay().getLayer();
+		final int keyCode = ke.getKeyCode();
+		final long layer_id = layer.getId();
 
 		if (KeyEvent.VK_K == keyCode) {
-			Roi roi = dc.getFakeImagePlus().getRoi();
+			final Roi roi = dc.getFakeImagePlus().getRoi();
 			if (null == roi) return;
 			if (!M.isAreaROI(roi)) {
 				Utils.log("AreaList only accepts region ROIs, not lines.");
 				return;
 			}
-			ShapeRoi sroi = new ShapeRoi(roi);
+			final ShapeRoi sroi = new ShapeRoi(roi);
 
 			try {
-				AreaList p = part(layer_id, sroi);
+				final AreaList p = part(layer_id, sroi);
 				if (null != p) {
 					project.getProjectTree().addSibling(this, p);
 				}
 				Display.repaint(layer, getBoundingBox(), 5);
 				linkPatches();
-			} catch (NoninvertibleTransformException nite) { IJError.print(nite); }
+			} catch (final NoninvertibleTransformException nite) { IJError.print(nite); }
 			ke.consume();
 		} else {
 			Area a = getArea(layer_id);
@@ -817,11 +831,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	/** Measure the volume (in voxels) of this AreaList,
 	 *  and the surface area, the latter estimated as the number of voxels that
 	 *  make the outline.
-	 *  
+	 *
 	 *  If the width and height of this AreaList cannot be fit in memory, scaled down versions will be used,
 	 *  and thus the results will be approximate.
 	 *
 	 *  */
+	@Override
 	public String getInfo() {
 		if (0 == ht_areas.size()) return "Empty AreaList " + this.toString();
 		final double[] m = measure();
@@ -834,13 +849,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** @param area is expected in world coordinates. */
+	@Override
 	public boolean intersects(final Area area, final double z_first, final double z_last) {
-		for (Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
+		for (final Map.Entry<Long,Area> entry : ht_areas.entrySet()) {
 			final Layer layer = layer_set.getLayer(((Long)entry.getKey()).longValue());
 			if (layer.getZ() >= z_first && layer.getZ() <= z_last) {
-				Area a = ((Area)entry.getValue()).createTransformedArea(this.at);
+				final Area a = ((Area)entry.getValue()).createTransformedArea(this.at);
 				a.intersect(area);
-				Rectangle r = a.getBounds();
+				final Rectangle r = a.getBounds();
 				if (0 != r.width && 0 != r.height) return true;
 			}
 		}
@@ -858,7 +874,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			Utils.log("Improper scale value. Must be 0 < scale <= 1");
 			return;
 		}
-		
+
 		// Select the subset to paint
 		final ArrayList<AreaList> list = new ArrayList<AreaList>();
 		for (final Displayable d : listToPaint) {
@@ -876,22 +892,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				sb.append("    ").append(d.getProject().getShortMeaningfulTitle(d)).append('\n');
 			}
 			Utils.log(sb.toString());
-			ArrayList<AreaList> li = new ArrayList<AreaList>(list);
+			final ArrayList<AreaList> li = new ArrayList<AreaList>(list);
 			list.clear();
 			list.addAll(li.subList(0, 255));
 		}
 
 		String path = null;
 		if (to_file) {
-			String ext = as_amira_labels ? ".am" : ".tif";
-			File f = Utils.chooseFile("labels", ext);
+			final String ext = as_amira_labels ? ".am" : ".tif";
+			final File f = Utils.chooseFile("labels", ext);
 			if (null == f) return;
 			path = f.getAbsolutePath().replace('\\','/');
 		}
 
-		LayerSet layer_set = list.get(0).getLayerSet();
+		final LayerSet layer_set = list.get(0).getLayerSet();
 		if (first_layer > last_layer) {
-			int tmp = first_layer;
+			final int tmp = first_layer;
 			first_layer = last_layer;
 			last_layer = tmp;
 			if (first_layer < 0) first_layer = 0;
@@ -911,9 +927,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		}
 
 		// Compute highest label value, which affects of course the stack image type
-		TreeSet<Integer> label_values = new TreeSet<Integer>();
+		final TreeSet<Integer> label_values = new TreeSet<Integer>();
 		for (final Displayable d : list) {
-			String label = d.getProperty("label");
+			final String label = d.getProperty("label");
 			if (null != label) label_values.add(Integer.parseInt(label));
 		}
 		int lowest=0, highest=0;
@@ -921,8 +937,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			lowest = label_values.first();
 			highest = label_values.last();
 		}
-		int n_non_labeled = list.size() - label_values.size();
-		int max_label_value = highest + n_non_labeled;
+		final int n_non_labeled = list.size() - label_values.size();
+		final int max_label_value = highest + n_non_labeled;
 
 		int type_ = ImagePlus.GRAY8;
 		if (max_label_value > 255) {
@@ -932,10 +948,10 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			}
 		}
 		final int type = type_;
-	
+
 		final ImageStack stack = new ImageStack(width, height);
 
-		Calibration cal = layer_set.getCalibration();
+		final Calibration cal = layer_set.getCalibration();
 
 		String amira_params = null;
 		if (as_amira_labels) {
@@ -960,7 +976,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		// Assign labels
 		final HashMap<AreaList,Integer> labels = new HashMap<AreaList,Integer>();
 		for (final AreaList d : list) {
-			String slabel = d.getProperty("label");
+			final String slabel = d.getProperty("label");
 			int label;
 			if (null != slabel) {
 				label = Integer.parseInt(slabel);
@@ -974,20 +990,21 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		final Map<Integer,ImageProcessor> slices = Collections.synchronizedMap(new TreeMap<Integer,ImageProcessor>());
 		final List<Future<?>> fus = new ArrayList<Future<?>>();
 		final List<Layer> layers = layer_set.getLayers().subList(first_layer, last_layer+1);
-	
+
 		for (int k = 0; k < layers.size(); k++) {
 			final Layer la = layers.get(k);
 			final int slice = k;
 			fus.add(exec.submit(new Runnable() {
+				@Override
 				public void run() {
 					Utils.showProgress(slice / len);
-					
+
 					final ImageProcessor ip;
-					
+
 					if (ImagePlus.GRAY8 == type) {
 						final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
 						final Graphics2D g = bi.createGraphics();
-						
+
 						for (final AreaList ali : list) {
 							final Area area = ali.getArea(la);
 							if (null == area || area.isEmpty()) continue;
@@ -1005,15 +1022,15 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						g.dispose();
 						ip = new ByteProcessor(bi);
 						bi.flush();
-						
+
 					} else if (ImagePlus.GRAY16 == type) {
 						final USHORTPaint paint = new USHORTPaint((short)0);
 						final BufferedImage bi = new BufferedImage(paint.getComponentColorModel(), paint.getComponentColorModel().createCompatibleWritableRaster(width, height), false, null);
 						final Graphics2D g = bi.createGraphics();
 						//final ColorSpace ugray = ColorSpace.getInstance(ColorSpace.CS_GRAY);
-						
+
 						int painted = 0;
-						
+
 						for (final AreaList ali : list) {
 							final Area area = ali.getArea(la);
 							if (null == area || area.isEmpty()) continue;
@@ -1025,22 +1042,22 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 							/* 1 - To world coordinates: */ aff.concatenate(ali.at);
 							// Fill
 							g.setTransform(aff);
-							
+
 							// The color doesn't work: paints in a stretched 8-bit mode
 							//g.setColor(new Color(ugray, new float[]{((float)labels.get(d)) / range}, 1));
-							
+
 							Utils.log2("value: " + labels.get(ali).shortValue());
 							paint.setValue(labels.get(ali).shortValue());
 							g.setPaint(paint);
-							
+
 							g.fill(area); //.createTransformedArea(aff));
-							
+
 							painted += 1;
 						}
 						g.dispose();
 						ip = new ShortProcessor(bi);
 						bi.flush();
-						
+
 						Utils.log2("painted: " + painted);
 
 					} else {
@@ -1049,16 +1066,16 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						//           The PROBLEM: cannot keep the order without complicated gymnastics to remember
 						//           which label in which image has to be merged to the final image, which prevent
 						//           a simple one-pass blitter.
-						// 
+						//
 						// Option 2: paint each arealist, extract the image, use it as a mask for filling:
-			
+
 						final FloatProcessor fp = new FloatProcessor(width, height);
 						final float[] fpix = (float[]) fp.getPixels();
 						ip = fp;
 
 						final BufferedImage bi = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_GRAY);
 						final Graphics2D gbi = bi.createGraphics();
-						
+
 						for (final AreaList ali : list) {
 							final Area area = ali.getArea(la);
 							if (null == area || area.isEmpty()) {
@@ -1100,7 +1117,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						gbi.dispose();
 						bi.flush();
 					}
-	
+
 					slices.put(slice, ip);
 				}
 			}));
@@ -1119,12 +1136,12 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 		Utils.showProgress(1);
 		// Save via file dialog:
-		ImagePlus imp = new ImagePlus("Labels", stack);
+		final ImagePlus imp = new ImagePlus("Labels", stack);
 		if (as_amira_labels) imp.setProperty("Info", amira_params);
 		imp.setCalibration(layer_set.getCalibrationCopy());
 		if (to_file) {
 			if (as_amira_labels) {
-				AmiraMeshEncoder ame = new AmiraMeshEncoder(path);
+				final AmiraMeshEncoder ame = new AmiraMeshEncoder(path);
 				if (!ame.open()) {
 					Utils.log("Could not write to file " + path);
 					return;
@@ -1149,7 +1166,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		rt.incrementCounter();
 		rt.addLabel("units", layer_set.getCalibration().getUnit());
 		rt.addValue(0, this.id);
-		double[] m = measure();
+		final double[] m = measure();
 		rt.addValue(1, m[0]); // aprox. volume
 		rt.addValue(2, m[1]); // lower bound surface
 		rt.addValue(3, m[2]); // upper bound surface smoothed
@@ -1180,11 +1197,11 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		if (0 == ht_areas.size()) return new double[6]; // zeros
 
 		// prepare suitable transform
-		AffineTransform aff = new AffineTransform(this.at);
+		final AffineTransform aff = new AffineTransform(this.at);
 		AffineTransform aff2 = new AffineTransform();
 		// remove translation (for no reason other than historical, and that it may
 		//   help avoid numerical overflows)
-		Rectangle box = getBoundingBox(null);
+		final Rectangle box = getBoundingBox(null);
 		aff2.translate(-box.x, -box.y);
 		aff.preConcatenate(aff2);
 		aff2 = null;
@@ -1199,14 +1216,14 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		double prev_thickness = 0;
 		double all_tops_and_bottoms = 0;  // i.e. surface area that is not part of the side area
 
-		Calibration cal = layer_set.getCalibration();
+		final Calibration cal = layer_set.getCalibration();
 		final double pixelWidth = cal.pixelWidth;
 		final double pixelHeight = cal.pixelHeight;
 
 		// Put areas in order of their layer index:
 		final TreeMap<Integer,Area> ias = new TreeMap<Integer,Area>();
 		for (final Map.Entry<Long,Area> e : ht_areas.entrySet()) {
-			int ilayer = layer_set.indexOf(layer_set.getLayer(e.getKey()));
+			final int ilayer = layer_set.indexOf(layer_set.getLayer(e.getKey()));
 			if (-1 == ilayer) {
 				Utils.log("Could not find a layer with id " + e.getKey());
 				continue;
@@ -1214,27 +1231,27 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			ias.put(ilayer, e.getValue());
 		}
 
-		ArrayList<Layer> layers = layer_set.getLayers();
+		final ArrayList<Layer> layers = layer_set.getLayers();
 
 		int last_layer_index = -1;
 
-		ArrayList<Point3f> points = new ArrayList<Point3f>();
+		final ArrayList<Point3f> points = new ArrayList<Point3f>();
 		final float[] coords = new float[6];
 		final float fpixelWidth = (float) pixelWidth;
 		final float fpixelHeight = (float) pixelHeight;
-		
+
 		final float resampling_delta = project.getProperty("measurement_resampling_delta", 1.0f);
 
 		// for each area, measure its area and its perimeter, to compute volume and surface
 		for (final Map.Entry<Integer,Area> e : ias.entrySet()) {
 
 			// fetch Layer
-			int layer_index = e.getKey();
+			final int layer_index = e.getKey();
 			if (layer_index > layers.size()) {
 				Utils.log("Could not find a layer at index " + layer_index);
 				continue;
 			}
-			
+
 			final Layer la = layers.get(layer_index);
 
 			// fetch Area
@@ -1244,17 +1261,17 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			area = area.createTransformedArea(aff);
 
 			// measure surface
-			double pixel_area = Math.abs(AreaCalculations.area(area.getPathIterator(null)));
-			double surface = pixel_area * pixelWidth * pixelHeight;
+			final double pixel_area = Math.abs(AreaCalculations.area(area.getPathIterator(null)));
+			final double surface = pixel_area * pixelWidth * pixelHeight;
 
 			//Utils.log2(layer_index + " pixel_area: " + pixel_area + "  surface " + surface);
 
 			// measure volume
-			double thickness = la.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
+			final double thickness = la.getThickness() * pixelWidth;// the last one is NOT pixelDepth because layer thickness and Z are in pixels
 			volume += surface * thickness;
 
-			double pix_perimeter = AreaCalculations.circumference(area.getPathIterator(null));
-			double perimeter = pix_perimeter * pixelWidth;
+			final double pix_perimeter = AreaCalculations.circumference(area.getPathIterator(null));
+			final double perimeter = pix_perimeter * pixelWidth;
 
 			double smooth_perimeter = 0;
 
@@ -1262,15 +1279,15 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			{
 				double smooth_pix_perimeter = 0;
 				for (final Polygon pol : M.getPolygons(area)) {
-					
+
 					try {
 						// Should use VectorString2D, but takes for ever -- bug in resample?
 						// And VectorString3D is likely not respecting the 'closed' flag for resampling.
 						// Also, VectorString3D gets stuck in an infinite loop if the sequence is 6 points!
 						//VectorString3D v = new VectorString3D(xp, yp, new double[pol.npoints], true);
-						
-						
-						
+
+
+
 						if (pol.npoints < 5) {
 							// No point in smoothing out such a short polygon:
 							// (Plus can't convolve it with a gaussian that needs 5 points adjacent)
@@ -1324,7 +1341,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 						// TEST:
 						//ij.plugin.frame.RoiManager.getInstance().addRoi(new PolygonRoi(fp, PolygonRoi.POLYGON));
-						
+
 						// TESTING: make a polygon roi and show it
 						// ... just in case to see that resampling works as expected, without weird endings
 						/*
@@ -1346,7 +1363,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 						imp.setRoi(new PolygonRoi(x, y, x.length, PolygonRoi.POLYGON));
 						imp.show();
 						*/
-					} catch (Exception le) { le.printStackTrace(); }
+					} catch (final Exception le) { le.printStackTrace(); }
 				}
 
 				smooth_perimeter = smooth_pix_perimeter * pixelWidth;
@@ -1372,7 +1389,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				upper_bound_surface += prev_surface + prev_perimeter * prev_thickness;
 				upper_bound_surface_smoothed += prev_surface + prev_smooth_perimeter * prev_thickness;
 				all_tops_and_bottoms += prev_surface;
-				
+
 				// ... and start of a new set
 				lower_bound_surface_h += surface;
 				upper_bound_surface += surface;
@@ -1380,7 +1397,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				all_tops_and_bottoms += surface;
 			} else {
 				// Continuation of a set: use this Area and the previous as continuous
-				double diff_surface = Math.abs(prev_surface - surface);
+				final double diff_surface = Math.abs(prev_surface - surface);
 
 				upper_bound_surface += prev_perimeter * (prev_thickness / 2)
 						     + perimeter * (prev_thickness / 2)
@@ -1392,9 +1409,9 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 				// Compute area of the mantle of the truncated cone defined by the radiuses of the circles of same area as the two areas
 				// PI * s * (r1 + r2) where s is the hypothenusa
-				double r1 = Math.sqrt(prev_surface / Math.PI);
-				double r2 = Math.sqrt(surface / Math.PI);
-				double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2)); 
+				final double r1 = Math.sqrt(prev_surface / Math.PI);
+				final double r2 = Math.sqrt(surface / Math.PI);
+				final double hypothenusa = Math.sqrt(Math.pow(Math.abs(r1 - r2), 2) + Math.pow(thickness, 2));
 				lower_bound_surface_h += Math.PI * hypothenusa * (r1 + r2);
 
 				// Adjust volume too:
@@ -1410,7 +1427,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 			// Iterate points:
 			final float z = (float) la.getZ();
-			for (PathIterator pit = area.getPathIterator(null); !pit.isDone(); pit.next()) {
+			for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); pit.next()) {
 				switch (pit.currentSegment(coords)) {
 					case PathIterator.SEG_MOVETO:
 					case PathIterator.SEG_LINETO:
@@ -1441,7 +1458,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				final Point3f p = points.get(i);
 				if (measure_largest_diameter) {
 					for (int j=i; j<lp; j++) {
-						double len = p.distanceSquared(points.get(j));
+						final double len = p.distanceSquared(points.get(j));
 						if (len > max_diameter_sq) max_diameter_sq = len;
 					}
 				}
@@ -1453,7 +1470,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		} else {
 			c = new Point3f(Float.NaN, Float.NaN, Float.NaN);
 		}
-		// Translate the center of mass 
+		// Translate the center of mass
 		c.x = box.x + c.x / lp;
 		c.y = box.y + c.y / lp;
 		c.z /= lp;
@@ -1483,6 +1500,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 				this.ht.put(e.getKey(), new Area(e.getValue()));
 			}
 		}
+		@Override
 		final boolean to2(final Displayable d) {
 			super.to1(d);
 			final AreaList ali = (AreaList)d;
@@ -1495,7 +1513,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 	}
 
 	/** Retain the data within the layer range, and through out all the rest. */
-	synchronized public boolean crop(List<Layer> range) {
+	@Override
+	synchronized public boolean crop(final List<Layer> range) {
 		final Set<Long> lids = new HashSet<Long>();
 		for (final Layer l : range) lids.add(l.getId());
 		for (final Iterator<Long> it = ht_areas.keySet().iterator(); it.hasNext(); ) {
@@ -1507,36 +1526,36 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 	/** Returns a stack of images representing the pixel data of this LayerSet inside this AreaList. */
 	public ImagePlus getStack(final int type, final double scale) {
-		ImageProcessor ref_ip = Utils.createProcessor(type, 2, 2);
+		final ImageProcessor ref_ip = Utils.createProcessor(type, 2, 2);
 		if (null == ref_ip) {
 			Utils.log("AreaList.getStack: Unknown type " + type);
 			return null;
 		}
-		Rectangle b = getBoundingBox();
-		int w = (int)(0.5 + b.width * scale);
-		int h = (int)(0.5 + b.height * scale);
-		ImageStack stack = new ImageStack(w, h);
-		for (Layer la : getLayerRange()) {
-			Area area = getArea(la);
-			double z = layer.getZ();
+		final Rectangle b = getBoundingBox();
+		final int w = (int)(0.5 + b.width * scale);
+		final int h = (int)(0.5 + b.height * scale);
+		final ImageStack stack = new ImageStack(w, h);
+		for (final Layer la : getLayerRange()) {
+			final Area area = getArea(la);
+			final double z = layer.getZ();
 			project.getLoader().releaseToFit(w * h * 10);
-			ImageProcessor ip = ref_ip.createProcessor(w, h);
+			final ImageProcessor ip = ref_ip.createProcessor(w, h);
 			if (null == area) {
 				stack.addSlice(Double.toString(z), ip);
 				continue;
 			}
 			// Create a ROI from the area at Layer la:
-			AffineTransform aff = getAffineTransformCopy();
+			final AffineTransform aff = getAffineTransformCopy();
 			aff.translate(-b.x, -b.y);
 			aff.scale(scale, scale);
-			ShapeRoi roi = new ShapeRoi(area.createTransformedArea(aff));
+			final ShapeRoi roi = new ShapeRoi(area.createTransformedArea(aff));
 			// Create a cropped snapshot of the images at Layer la under the area:
-			ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, la.getAll(Patch.class), Color.black);
+			final ImageProcessor flat = Patch.makeFlatImage(type, la, b, scale, la.getAll(Patch.class), Color.black);
 			flat.setRoi(roi);
-			Rectangle rb = roi.getBounds();
+			final Rectangle rb = roi.getBounds();
 			ip.insert(flat.crop(), rb.x, rb.y);
 			// Clear the outside
-			ImagePlus bimp = new ImagePlus("", ip);
+			final ImagePlus bimp = new ImagePlus("", ip);
 			bimp.setRoi(roi);
 			ip.setValue(0);
 			ip.setBackgroundValue(0);
@@ -1545,25 +1564,28 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			stack.addSlice(Double.toString(z), ip);
 		}
 
-		ImagePlus imp = new ImagePlus("AreaList stack for " + this, stack);
+		final ImagePlus imp = new ImagePlus("AreaList stack for " + this, stack);
 		imp.setCalibration(layer_set.getCalibrationCopy());
 		return imp;
 	}
 
+	@Override
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {
-		Area a = (Area) ht_areas.get(layer.getId());
+		final Area a = (Area) ht_areas.get(layer.getId());
 		if (null == a) return null;
-		ArrayList<Area> l = new ArrayList<Area>();
+		final ArrayList<Area> l = new ArrayList<Area>();
 		l.add(a);
 		return l;
 	}
 
-	protected boolean layerRemoved(Layer la) {
+	@Override
+	protected boolean layerRemoved(final Layer la) {
 		super.layerRemoved(la);
 		ht_areas.remove(la.getId());
 		return true;
 	}
 
+	@Override
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ct) throws Exception {
 		final Area a = getArea(la);
 		if (null == a) return true;
@@ -1575,6 +1597,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		return true;
 	}
 
+	@Override
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
 		final Area a = getArea(vdt.layer);
 		if (null == a) return true;
@@ -1622,7 +1645,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		// But this is 3x faster even than using path iterator:
 		try {
 			return this.at.createInverse().createTransformedShape(box).intersects(a.getBounds());
-		} catch (NoninvertibleTransformException nite) {
+		} catch (final NoninvertibleTransformException nite) {
 			IJError.print(nite);
 			return false;
 		}
@@ -1641,7 +1664,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			sm.put(layer_set.getLayer(e.getKey()), e.getValue());
 		}
 		for (final Map.Entry<Layer,Area> e : sm.entrySet()) {
-			Area area = e.getValue();
+			final Area area = e.getValue();
 			if (area.isEmpty()) continue;
 			rt.incrementCounter();
 			rt.addLabel("units", units);
@@ -1649,8 +1672,8 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			rt.addValue(1, nameId);
 			rt.addValue(2, layer_set.indexOf(e.getKey()) + 1); // 1-based
 			// measure surface
-			double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
-			double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
+			final double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
+			final double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
 			rt.addValue(3, surface);
 		}
 		return rt;
@@ -1658,15 +1681,15 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 
 	/** Interpolate areas between the given first and last layers,
 	 * both of which must contain an area.
-	 * 
-	 * @return false if the interpolation could not be done. 
+	 *
+	 * @return false if the interpolation could not be done.
 	 * @throws Exception */
 	public boolean interpolate(final Layer first, final Layer last, final boolean always_use_distance_map) throws Exception {
 
 		int i1 = layer_set.indexOf(first);
 		int i2 = layer_set.indexOf(last);
 		if (i1 > i2) {
-			int tmp = i1;
+			final int tmp = i1;
 			i1 = i2;
 			i2 = tmp;
 		}
@@ -1707,7 +1730,7 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 			istart = inext;
 		}
 
-		for (Layer la : touched) calculateBoundingBox(la);
+		for (final Layer la : touched) calculateBoundingBox(la);
 
 		return true;
 	}

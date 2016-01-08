@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -22,16 +22,16 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.vector;
 
-import Jama.Matrix;
-import ij.measure.Calibration;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Random;
 
-import javax.media.j3d.Transform3D;
-import javax.vecmath.Point3d;
-import javax.vecmath.Vector3d;
+import org.scijava.java3d.Transform3D;
+import org.scijava.vecmath.Point3d;
+import org.scijava.vecmath.Vector3d;
+
+import Jama.Matrix;
+import ij.measure.Calibration;
 
 
 public class VectorString3D implements VectorString {
@@ -67,7 +67,7 @@ public class VectorString3D implements VectorString {
 	/** The number of VectorString3D that have contributed to this one, via createInterpolated and others. */
 	private int n_sources = 1;
 
-	public VectorString3D(double[] x, double[] y, double[] z, boolean closed) throws Exception {
+	public VectorString3D(final double[] x, final double[] y, final double[] z, final boolean closed) throws Exception {
 		if (!(x.length == y.length && x.length == z.length)) throw new Exception("x,y,z must have the same length.");
 		this.length = x.length;
 		this.x = x;
@@ -84,7 +84,7 @@ public class VectorString3D implements VectorString {
 			dep[0] = a;
 		} else {
 			// resize and append
-			double[][] dep2 = new double[dep.length + 1][];
+			final double[][] dep2 = new double[dep.length + 1][];
 			for (int i=0; i<dep.length; i++) dep2[i] = dep[i];
 			dep2[dep.length] = a;
 			dep = dep2;
@@ -104,10 +104,12 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** If not resampled, the returned delta is zero. */
+	@Override
 	public double getDelta() { return delta; }
 
 
-	public void resample(double delta) {
+	@Override
+	public void resample(final double delta) {
 		resample(delta, false);
 	}
 
@@ -115,7 +117,8 @@ public class VectorString3D implements VectorString {
 	 * If delta is the same as the desired, it WILL RETURN NULL even if with_source is true.
 	 * If with_source, then returns the list of lists of points that contributed to each resampled point.
 	 */
-	public void resample(double delta, boolean with_source) {
+	@Override
+	public void resample(final double delta, final boolean with_source) {
 		if (Math.abs(delta - this.delta) < 0.0000001) {
 			// delta is the same
 			return;
@@ -125,7 +128,9 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** The length of this string, that is, the number of points (and vectors) in it. */
+	@Override
 	public final int length() { return length; }
+	@Override
 	public double[] getPoints(final int dim) {
 		switch (dim) {
 			case 0: return x;
@@ -134,6 +139,7 @@ public class VectorString3D implements VectorString {
 		}
 		return null;
 	}
+	@Override
 	public double[] getVectors(final int dim) {
 		switch (dim) {
 			case 0: return vx;
@@ -142,6 +148,7 @@ public class VectorString3D implements VectorString {
 		}
 		return null;
 	}
+	@Override
 	public double getPoint(final int dim, final int i) {
 		switch (dim) {
 			case 0: return x[i];
@@ -150,6 +157,7 @@ public class VectorString3D implements VectorString {
 		}
 		return 0;
 	}
+	@Override
 	public double getVector(final int dim, final int i) {
 		switch (dim) {
 			case 0: return vx[i];
@@ -167,6 +175,7 @@ public class VectorString3D implements VectorString {
 		return 0;
 	}
 
+	@Override
 	public final boolean isClosed() {
 		return 0 != (tags & CLOSED);
 	}
@@ -234,7 +243,7 @@ public class VectorString3D implements VectorString {
 			this.vz = Util.copy(this.vz, new_length);
 			if (null != dep) {
 				// java doesn't have generators! ARGH
-				double[][] dep2 = new double[dep.length][];
+				final double[][] dep2 = new double[dep.length][];
 				for (int i=0; i<dep.length; i++) dep2[i] = Util.copy(dep[i], new_length);
 				dep = dep2;
 			}
@@ -287,6 +296,7 @@ public class VectorString3D implements VectorString {
 			this.z = v.z;
 			this.length = v.length;
 		}
+		@Override
 		final public Object clone() {
 			return new Vector(this);
 		}
@@ -362,11 +372,11 @@ public class VectorString3D implements VectorString {
 		final void changeRef(final Vector v_delta, final Vector v_i1, final Vector v_new1) { // this vector works like new2
 			// ortogonal system 1: the target
 			// (a1'; a2'; a3')
-			Vector a2 = new Vector(  v_new1   );  // vL
+			final Vector a2 = new Vector(  v_new1   );  // vL
 			a2.normalize();
-			Vector a1 = a2.getCrossProduct(v_i1); // vQ
+			final Vector a1 = a2.getCrossProduct(v_i1); // vQ
 			a1.normalize();
-			Vector a3 = a2.getCrossProduct(a1);
+			final Vector a3 = a2.getCrossProduct(a1);
 			// no need //a3.normalize();
 
 			final double[][] m1 = new double[3][3];
@@ -377,9 +387,9 @@ public class VectorString3D implements VectorString {
 
 			// ortogonal system 2: the current
 			// (a1'; b2'; b3')
-			Vector b2 = new Vector(  v_delta  ); // vA
+			final Vector b2 = new Vector(  v_delta  ); // vA
 			b2.normalize();
-			Vector b3 = a1.getCrossProduct(b2); // vQ2
+			final Vector b3 = a1.getCrossProduct(b2); // vQ2
 
 			final double[][] m2 = new double[3][3];
 			a1.put(m2, 0);
@@ -600,7 +610,7 @@ public class VectorString3D implements VectorString {
 			j += 1;
 		} // end of for loop
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 			System.out.println("Some data: x,y,z .length = " + x.length + "," + y.length + "," + z.length
 				 + "\nj=" + j + ", i=" + i + ", prev_i=" + prev_i
@@ -650,6 +660,7 @@ public class VectorString3D implements VectorString {
 	public int getNSources() { return n_sources; }
 
 	/** Reorder the arrays so that the index zero becomes new_zero -the arrays are circular. */
+	@Override
 	public void reorder(final int new_zero) {
 		int i, j;
 		// copying
@@ -694,6 +705,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** Subtracts vs2 vector j to this vector i and returns its length, without changing any data. */
+	@Override
 	public double getDiffVectorLength(final int i, final int j, final VectorString vsb) {
 		final VectorString3D vs = (VectorString3D)vsb;
 		if (null == rvx || null == rvy || null == rvz) {
@@ -711,6 +723,7 @@ public class VectorString3D implements VectorString {
 		}
 	}
 
+	@Override
 	public Object clone() {
 		try {
 			final VectorString3D vs = new VectorString3D(Util.copy(x, length), Util.copy(y, length), Util.copy(z, length), isClosed());
@@ -724,14 +737,14 @@ public class VectorString3D implements VectorString {
 			if (null != source) {
 				// shallow clone the source points
 				vs.source = new ArrayList<ArrayList<Point3d>>();
-				for (ArrayList<Point3d> ap : this.source) {
+				for (final ArrayList<Point3d> ap : this.source) {
 					vs.source.add(new ArrayList<Point3d>(ap));
 				}
 			}
 			vs.tags = this.tags;
 			vs.cal = null == this.cal ? null : this.cal.copy();
 			return vs;
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 		return null;
@@ -741,7 +754,7 @@ public class VectorString3D implements VectorString {
 		if (null == source) return null;
 		final ArrayList<ArrayList<Point3d>> s = new ArrayList<ArrayList<Point3d>>();
 		int i = 0;
-		for (ArrayList<Point3d> ap : source) { // looping with get(i) would be paint-bucket problem
+		for (final ArrayList<Point3d> ap : source) { // looping with get(i) would be paint-bucket problem
 			if (i < first) continue;
 			if (i > last) break;
 			s.add(new ArrayList<Point3d>(ap));
@@ -763,7 +776,7 @@ public class VectorString3D implements VectorString {
 				}
 			}
 			return vs;
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 		return null;
@@ -829,7 +842,7 @@ public class VectorString3D implements VectorString {
 			vQ.put(m1, 0);
 			vL.put(m1, 1);
 			vQQ.put(m1, 2);
-			Matrix mat1 = new Matrix(m1);
+			final Matrix mat1 = new Matrix(m1);
 
 			// (vQ'; vA'; vQ' x vA')^T            // Johannes wrote vB to mean vA. For me vB is the second vector
 			vQ.put(m2, 0);
@@ -837,13 +850,13 @@ public class VectorString3D implements VectorString {
 			vQ2.setCrossProduct(vQ, vA);
 			//vQ2.normalize(); // no need
 			vQ2.put(m2, 2);
-			Matrix mat2 = new Matrix(m2).transpose();
+			final Matrix mat2 = new Matrix(m2).transpose();
 
 			final Matrix R = mat1.times(mat2);
 			// the difference vector as a one-dimensional matrix
 			final Matrix vB = new Matrix(new double[]{vx[i] - vx[i-1], vy[i] - vy[i-1], vz[i] - vz[i-1]}, 1);
 			final Matrix vB_rot = R.transpose().times(vB.transpose());  //  3x3 times 3x1, hence the transposing of the 1x3 vector so that the inner lengths are the same
-			double[][] arr = vB_rot.getArray();
+			final double[][] arr = vB_rot.getArray();
 			rvx[i] = arr[0][0];
 			rvy[i] = arr[1][0];
 			rvz[i] = arr[2][0];
@@ -867,11 +880,11 @@ public class VectorString3D implements VectorString {
 
 	static public VectorString3D createRandom(final int length, final double delta, final boolean closed) throws Exception {
 		System.out.println("Creating random with length " + length + " and delta " + delta);
-		double[] x = new double[length];
-		double[] y = new double[length];
-		double[] z = new double[length];
-		Random rand = new Random(69997); // fixed seed, so that when length is equal the generated sequence is also equal
-		Vector v = new Vector();
+		final double[] x = new double[length];
+		final double[] y = new double[length];
+		final double[] z = new double[length];
+		final Random rand = new Random(69997); // fixed seed, so that when length is equal the generated sequence is also equal
+		final Vector v = new Vector();
 		for (int i=0; i<length; i++) {
 			v.set(rand.nextDouble()*2 -1, rand.nextDouble()*2 -1, rand.nextDouble()*2 -1); // random values in the range [-1,1]
 			v.setLength(delta);
@@ -918,7 +931,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** Sets but does NOT apply the given calibration. */
-	public void setCalibration(Calibration cal) {
+	public void setCalibration(final Calibration cal) {
 		this.cal = cal;
 	}
 
@@ -930,6 +943,7 @@ public class VectorString3D implements VectorString {
 	}
 
 	/** Invert the order of points. Will clear all vector arrays if any! */
+	@Override
 	public void reverse() {
 		tags ^= REVERSED; // may be re-reversed
 		// reverse point arrays
@@ -952,8 +966,8 @@ public class VectorString3D implements VectorString {
 	}
 
 	static public VectorString3D createInterpolated(final Editions ed, final double alpha) throws Exception {
-		VectorString3D vs1 = (VectorString3D)ed.getVS1();
-		VectorString3D vs2 = (VectorString3D)ed.getVS2();
+		final VectorString3D vs1 = (VectorString3D)ed.getVS1();
+		final VectorString3D vs2 = (VectorString3D)ed.getVS2();
 		return vs1.createInterpolated(vs2, ed, alpha);
 	}
 
@@ -1004,7 +1018,7 @@ public class VectorString3D implements VectorString {
 		pz[0] = (this.z[0] * (1-alpha) + other.z[0] * alpha);
 
 		int start = 0;
-		int end = n_editions;
+		final int end = n_editions;
 		if (Editions.INSERTION == editions[0][0] || Editions.DELETION == editions[0][0]) {
 			start = 1;
 		}
@@ -1033,7 +1047,7 @@ public class VectorString3D implements VectorString {
 			j = editions[e][2];
 			// check for deletions and insertions at the lower-right edges of the matrix:
 			if (isClosed()) {
-				if (i == n) i = 0; // zero, so the starting vector is applied. 
+				if (i == n) i = 0; // zero, so the starting vector is applied.
 				if (j == m) j = 0;
 			} else {
 				if (i == n) i -= 1;
@@ -1086,7 +1100,7 @@ public class VectorString3D implements VectorString {
 					v.changeRef(v_delta, v_i1, v_newref);
 					v.put(d);
 					vs_x = vx1[i-1] + d[0]; // making the difference vector be an absolute vector relative to this (uf!)
-					vs_y = vy1[i-1] + d[1]; 
+					vs_y = vy1[i-1] + d[1];
 					vs_z = vz1[i-1] + d[2];
 				}
 			}
@@ -1102,8 +1116,8 @@ public class VectorString3D implements VectorString {
 			next++;
 		}
 
-		
-		} catch (Exception e) {
+
+		} catch (final Exception e) {
 			e.printStackTrace();
 			System.out.println("next: " + next + " length: " + px.length + " i,j: " + i + ", " + j);
 		}
@@ -1197,12 +1211,13 @@ public class VectorString3D implements VectorString {
 		      + Math.pow(z1 - z2, 2);
 	}
 
-	static public final double distance(final VectorString3D vs1, final int i, final VectorString3D vs2, int j) {
+	static public final double distance(final VectorString3D vs1, final int i, final VectorString3D vs2, final int j) {
 		return distance(vs1.x[i], vs1.y[i], vs1.z[i],
 				vs2.x[j], vs2.y[j], vs2.z[j]);
 	}
 
 	/** Distance from point i in this to point j in vs2. */
+	@Override
 	public double distance(final int i, final VectorString vs, final int j) {
 		final VectorString3D vs2 = (VectorString3D)vs;
 		return distance(x[i], y[i], z[i],
@@ -1231,7 +1246,7 @@ public class VectorString3D implements VectorString {
 		if (null != rvx) transform(t, rvx, rvy, rvz, length, p);
 	}
 
-	static private void transform(final Transform3D t, final double[] x, final double[] y, final double[] z, int length, final Point3d p) {
+	static private void transform(final Transform3D t, final double[] x, final double[] y, final double[] z, final int length, final Point3d p) {
 		for (int i=0; i<length; i++) {
 			p.x = x[i];
 			p.y = y[i];
@@ -1260,17 +1275,18 @@ public class VectorString3D implements VectorString {
 		return v;
 	}
 	/** Create a new VectorString for the given range. If last &lt; first, it will be created as reversed. */
+	@Override
 	public VectorString subVectorString(int first, int last) throws Exception {
 		final boolean reverse = last < first;
 		if (reverse) {
-			int tmp = first;
+			final int tmp = first;
 			first = last;
 			last = tmp;
 		}
 		final int len = last - first + 1;
-		double[] x = new double[len];
-		double[] y = new double[len];
-		double[] z = new double[len];
+		final double[] x = new double[len];
+		final double[] y = new double[len];
+		final double[] z = new double[len];
 		System.arraycopy(this.x, first, x, 0, len);
 		System.arraycopy(this.y, first, y, 0, len);
 		System.arraycopy(this.z, first, z, 0, len);
@@ -1319,9 +1335,9 @@ public class VectorString3D implements VectorString {
 			final VectorString3D vs2 = (VectorString3D)ed.vs2;
 			if (alpha >= 1) return (VectorString3D)vs2.clone();
 			// else make weighted average
-			double[] x = new double[last - first + 1];
-			double[] y = new double[x.length];
-			double[] z = new double[x.length];
+			final double[] x = new double[last - first + 1];
+			final double[] y = new double[x.length];
+			final double[] z = new double[x.length];
 			final int len1 = vs1.length();
 			final int len2 = vs2.length();
 
@@ -1332,7 +1348,7 @@ public class VectorString3D implements VectorString {
 								      : null;
 
 			for (int k=first, next=0; k<=last; k++, next++) {
-				int[] e = ed.editions[k];
+				final int[] e = ed.editions[k];
 				int i = e[1];	if (i >= len1) i = len1 -1; // patching error that I don't understand TODO
 				int j = e[2];	if (j >= len2) j = len2 -1;
 				x[next] = vs1.x[i] * alpha + vs2.x[j] * (1 - alpha);
@@ -1352,7 +1368,7 @@ public class VectorString3D implements VectorString {
 				System.out.println("createInterpolatedPoints: lengths " + ed.editions.length + ", " + the_source.size() + " first,last: " + first + ", " + last);
 			}
 
-			VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
+			final VectorString3D vs = new VectorString3D(x, y, z, ed.vs1.isClosed());
 			vs.source = the_source;
 			vs.n_sources = vs1.n_sources + vs2.n_sources;
 			vs.cal = null == vs1.cal ? null : vs1.cal.copy();
@@ -1360,13 +1376,13 @@ public class VectorString3D implements VectorString {
 
 			return vs;
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 			return null;
 		}
 	}
 
-	/** Returns a new VectorString3D which is the result of the optimal chaining of this and the given VectorString. 
+	/** Returns a new VectorString3D which is the result of the optimal chaining of this and the given VectorString.
 	 *  The ordering of this VectorString3D is preserved; the other is thus appended at the end or prepended at te beginning, reversed as necessary.
 	 * */
 	public VectorString3D chain(final VectorString3D vs) {
@@ -1386,7 +1402,7 @@ public class VectorString3D implements VectorString {
 
 		final double min = Math.min(d1, Math.min(d2, Math.min(d3, d4)));
 		if (d1 == min) {
-			VectorString3D vsr = (VectorString3D)vs.clone();
+			final VectorString3D vsr = (VectorString3D)vs.clone();
 			vsr.reverse();
 			return concat(vsr, this);
 		} else if (d2 == min) {
@@ -1394,7 +1410,7 @@ public class VectorString3D implements VectorString {
 		} else if (d3 == min) {
 			return concat(vs, this);
 		} else { //  if (d4 == min)
-			VectorString3D vsr = (VectorString3D)vs.clone();
+			final VectorString3D vsr = (VectorString3D)vs.clone();
 			vsr.reverse();
 			return concat(this, vsr);
 		}
@@ -1410,7 +1426,7 @@ public class VectorString3D implements VectorString {
 		System.arraycopy(vs2.z, 0, z, vs1.length, vs2.length);
 		try {
 			return new VectorString3D(x, y, z, false);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			return null;
 		}
 	}
@@ -1420,7 +1436,7 @@ public class VectorString3D implements VectorString {
 		if (first < 0 || last > length) return null;
 		final int len = last - first; // no +1 because last is non-inclusive
 		try {
-			VectorString3D vs = new VectorString3D(Util.copy(x, first, len), Util.copy(y, first, len), Util.copy(z, first, len), false);
+			final VectorString3D vs = new VectorString3D(Util.copy(x, first, len), Util.copy(y, first, len), Util.copy(z, first, len), false);
 			vs.delta = delta;
 			if (null != vx) vs.vx = Util.copy(vx, first, len);
 			if (null != vy) vs.vy = Util.copy(vy, first, len);
@@ -1431,19 +1447,20 @@ public class VectorString3D implements VectorString {
 			if (null != source) {
 				// shallow clone the source points
 				vs.source = new ArrayList<ArrayList<Point3d>>();
-				for (ArrayList<Point3d> ap : this.source) {
+				for (final ArrayList<Point3d> ap : this.source) {
 					vs.source.add(new ArrayList<Point3d>(ap));
 				}
 			}
 			vs.tags = this.tags;
 			vs.cal = null == this.cal ? null : this.cal.copy();
 			return vs;
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 			return null;
 		}
 	}
 
+	@Override
 	public int getDimensions() { return 3; }
 
 	static public final double getAverageVectorLength(final int[] i, final VectorString3D[] vs) {
@@ -1461,7 +1478,7 @@ public class VectorString3D implements VectorString {
 		final double sq_radius = radius * radius;
 		for (int k=0; k<this.length; k++) {
 			for (int i=0; i<vs.length; i++) {
-				double sqd = sqDistance(x[k], y[k], z[k], vs.x[i], vs.y[i], vs.z[i]);
+				final double sqd = sqDistance(x[k], y[k], z[k], vs.x[i], vs.y[i], vs.z[i]);
 				//Util.log("radius: " + sq_radius + " sqd: " + sqd);
 				if (sqd <= sq_radius) {
 					System.out.println("Found nearby " + vs + " at " + Math.sqrt(sqd));
@@ -1479,12 +1496,12 @@ public class VectorString3D implements VectorString {
 		final double[] stdDev = new double[length];
 		int i = 0;
 		System.out.println("len x: " + length + "  len source: " + source.size());
-		for (ArrayList<Point3d> ap : source) {
+		for (final ArrayList<Point3d> ap : source) {
 			// 1 - Expected: the current position
 			final Point3d expected = new Point3d(x[i], y[i], z[i]);
 			// 2 - Sum of squares of differences of the distances to the expected position
 			double sd = 0;
-			for (Point3d p : ap) sd += Math.pow(p.distance(expected), 2);
+			for (final Point3d p : ap) sd += Math.pow(p.distance(expected), 2);
 			// 3 - stdDev
 			stdDev[i] = Math.sqrt(sd / ap.size());
 

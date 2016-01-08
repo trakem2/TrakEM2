@@ -1,18 +1,5 @@
 package ini.trakem2.utils;
 
-import ij.ImagePlus;
-import ij.gui.Roi;
-import ij.measure.Calibration;
-import ij.plugin.filter.ThresholdToSelection;
-import ij.process.ImageProcessor;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
-import ini.trakem2.imaging.BinaryInterpolation2D;
-import ini.trakem2.vector.Editions;
-import ini.trakem2.vector.SkinMaker;
-import ini.trakem2.vector.VectorString2D;
-
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
@@ -29,8 +16,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
 
+import ij.ImagePlus;
+import ij.gui.Roi;
+import ij.measure.Calibration;
+import ij.plugin.filter.ThresholdToSelection;
+import ij.process.ImageProcessor;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.imaging.BinaryInterpolation2D;
+import ini.trakem2.vector.Editions;
+import ini.trakem2.vector.SkinMaker;
+import ini.trakem2.vector.VectorString2D;
 //import mpicbg.imglib.algorithm.labeling.BinaryInterpolation2D; // using ini.trakem2.imaging.BinaryInterpolation2D until imglib's algorithms jar is released
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.container.shapelist.ShapeListCached;
@@ -44,7 +43,7 @@ public final class AreaUtils {
 
 	/** Project property key. */
 	static public final String always_interpolate_areas_with_distance_map = "always_interpolate_areas_with_distance_map";
-	
+
 	private AreaUtils() {}
 
 	/** Expects areas in local coordinates to the Displayable @param d.
@@ -145,7 +144,7 @@ public final class AreaUtils {
 
 
 			// The list of triangles has coordinates:
-			// - in x,y: in pixels, scaled by K = (1 / resample) * scale, 
+			// - in x,y: in pixels, scaled by K = (1 / resample) * scale,
 			//			translated by r.x, r.y (the top-left coordinate of this AreaList bounding box)
 			// - in z: in stack slice indices
 
@@ -230,7 +229,7 @@ public final class AreaUtils {
 			try {
 				// Capture from last_section_index to last_section_index+1, inclusive
 				fix3DPoints(list, output, verts, last_layer.getZ() + last_layer.getThickness(), 0, slice_index, dx, dy, rsw, rsh, sz, 2);
-			} catch (Exception ee) {
+			} catch (final Exception ee) {
 				IJError.print(ee);
 			}
 
@@ -247,7 +246,7 @@ public final class AreaUtils {
 				Utils.log2("Unprocessed/unused points: " + (list.size() - output.size()));
 				for (int i=0; i<verts.length; i++) {
 					if (null == verts[i]) {
-						Point3f p = (Point3f) list.get(i);
+						final Point3f p = (Point3f) list.get(i);
 						Utils.log2("verts[" + i + "] = " + p.x + ", " + p.y + ", " + p.z + "  p.z as int: " + ((int)(p.z + 0.05f)));
 					}
 				}
@@ -256,7 +255,7 @@ public final class AreaUtils {
 				return java.util.Arrays.asList(verts);
 			}
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 		return null;
@@ -327,7 +326,7 @@ public final class AreaUtils {
 
 			for (int x=1; x<width; x++) {
 
-				float pix = ip.getPixelValue(x, y);
+				final float pix = ip.getPixelValue(x, y);
 
 				if (pix == prev) {
 					box.width++;
@@ -447,19 +446,19 @@ public final class AreaUtils {
 		if (!a1.isSingular() || !a2.isSingular()) {
 			return null;
 		}
-		VectorString2D vs1 = M.asVectorString2D(M.getPolygons(a1).iterator().next(), 0);
-		VectorString2D vs2 = M.asVectorString2D(M.getPolygons(a2).iterator().next(), 1);
-		
-		Editions ed = new Editions(vs1, vs2, Math.min(vs1.getAverageDelta(), vs2.getAverageDelta()), true);
-		
-		double[][][] d = SkinMaker.getMorphedPerimeters(vs1, vs2, nInterpolates, ed);
-		
-		Area[] a = new Area[d.length];
+		final VectorString2D vs1 = M.asVectorString2D(M.getPolygons(a1).iterator().next(), 0);
+		final VectorString2D vs2 = M.asVectorString2D(M.getPolygons(a2).iterator().next(), 1);
+
+		final Editions ed = new Editions(vs1, vs2, Math.min(vs1.getAverageDelta(), vs2.getAverageDelta()), true);
+
+		final double[][][] d = SkinMaker.getMorphedPerimeters(vs1, vs2, nInterpolates, ed);
+
+		final Area[] a = new Area[d.length];
 		for (int i=0; i<d.length; i++) {
-			double[] x = d[i][0];
-			double[] y = d[i][1];
-			int[] xi = new int[x.length];
-			int[] yi = new int[y.length];
+			final double[] x = d[i][0];
+			final double[] y = d[i][1];
+			final int[] xi = new int[x.length];
+			final int[] yi = new int[y.length];
 			for (int k=0; k<x.length; k++) {
 				xi[k] = (int) x[k];
 				yi[k] = (int) y[k];
@@ -496,10 +495,10 @@ public final class AreaUtils {
 
 		// TODO parallelize, which needs the means to call process() in parallel too--currently it cannot,
 		// the result would get overwritten.
-		
-		ExecutorService exec = Executors.newFixedThreadPool(Math.min(nInterpolates, Runtime.getRuntime().availableProcessors()));
-		ArrayList<Future<Area>> fus = new ArrayList<Future<Area>>();
-		
+
+		final ExecutorService exec = Executors.newFixedThreadPool(Math.min(nInterpolates, Runtime.getRuntime().availableProcessors()));
+		final ArrayList<Future<Area>> fus = new ArrayList<Future<Area>>();
+
 		try {
 
 			for (int i=1; i<=nInterpolates; i++) {
@@ -507,31 +506,31 @@ public final class AreaUtils {
 				fus.add(exec.submit(new Callable<Area>() {
 					@Override
 					public Area call() throws Exception {
-						Image<BitType> imb = interpol.process(weight);
-						ImagePlus imp = ImageJFunctions.copyToImagePlus(imb, ImagePlus.GRAY8);
+						final Image<BitType> imb = interpol.process(weight);
+						final ImagePlus imp = ImageJFunctions.copyToImagePlus(imb, ImagePlus.GRAY8);
 						// BitType gets copied to 0 and 255 in 8-bit ByteProcessor
-						ThresholdToSelection ts = new ThresholdToSelection();
+						final ThresholdToSelection ts = new ThresholdToSelection();
 						ts.setup("", imp);
-						ImageProcessor ip = imp.getProcessor();
+						final ImageProcessor ip = imp.getProcessor();
 						ip.setThreshold(1, 255, ImageProcessor.NO_LUT_UPDATE);
 						ts.run(ip);
-						Roi roi = imp.getRoi();
+						final Roi roi = imp.getRoi();
 						return null == roi ? new Area() : M.getArea(roi).createTransformedArea(back);
 					}
 				}));
 			}
 
 			int i = 0;
-			for (Future<Area> fu : fus) {
+			for (final Future<Area> fu : fus) {
 				as[i++] = fu.get();
 			}
 
-		} catch (Throwable t) {
+		} catch (final Throwable t) {
 			IJError.print(t);
 		} finally {
 			exec.shutdown();
 		}
-		
+
 		return as;
 	}
 }

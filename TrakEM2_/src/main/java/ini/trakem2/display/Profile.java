@@ -22,18 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.vector.SkinMaker;
-import ini.trakem2.vector.VectorString2D;
-
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
@@ -53,7 +41,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.vector.SkinMaker;
+import ini.trakem2.vector.VectorString2D;
 
 
 /** A class to be a user-outlined profile over an image, which is painted with a particular color and also holds an associated text label.

@@ -22,16 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.gui.GenericDialog;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
@@ -54,7 +44,17 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import ij.gui.GenericDialog;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 public class Ball extends ZDisplayable implements VectorData {
 

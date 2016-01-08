@@ -1,8 +1,5 @@
 package ini.trakem2.utils;
 
-import ij.IJ;
-import ij3d.Volume;
-
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.awt.Shape;
@@ -12,8 +9,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
 
+import ij.IJ;
+import ij3d.Volume;
 import mpicbg.imglib.container.shapelist.ShapeList;
 
 public final class MCCube {
@@ -31,17 +30,17 @@ public final class MCCube {
 		for(int i = 0; i < 12; i++)
 			e[i] = new Point3f();
 	}
-	
+
 	/**
 	 * initializes a MCCube object
 	 *        _________           0______x
 	 *       /v0    v1/|         /|
-	 *      /________/ |        / | 
-	 *      |v3    v2| /v5    y/  |z 
+	 *      /________/ |        / |
+	 *      |v3    v2| /v5    y/  |z
 	 *      |________|/
 	 *       v7    v6
 	 */
-	public void init(int x, int y, int z){
+	public void init(final int x, final int y, final int z){
 		v[0].set(x,     y,     z);
 		v[1].set(x + 1, y,     z);
 		v[2].set(x + 1, y + 1, z);
@@ -50,20 +49,20 @@ public final class MCCube {
 		v[5].set(x + 1, y,     z + 1);
 		v[6].set(x + 1, y + 1, z + 1);
 		v[7].set(x,     y + 1, z + 1);
-	} 
-	
+	}
+
 	/**
-	 * computes the interpolated point along a specified whose 
+	 * computes the interpolated point along a specified whose
 	 * intensity equals the reference value
 	 * @param v1 first extremity of the edge
 	 * @param v2 second extremity of the edge
 	 * @param result stores the resulting edge
-	 * return the point on the edge where intensity equals the isovalue; 
+	 * return the point on the edge where intensity equals the isovalue;
 	 * @return false if the interpolated point is beyond edge boundaries
 	 */
-	private boolean computeEdge(Point3f v1, int i1,
-				    Point3f v2, int i2,
-				    Point3f result, final Carrier car) {
+	private boolean computeEdge(final Point3f v1, final int i1,
+				    final Point3f v2, final int i2,
+				    final Point3f result, final Carrier car) {
 
 		// 30 --- 50 --- 70 : t=0.5
 		// 70 --- 50 --- 30 : t=0.5
@@ -72,7 +71,7 @@ public final class MCCube {
 		if(i2 < i1)
 			return computeEdge(v2, i2, v1, i1, result, car);
 
-		float t = (car.threshold - i1) / (float) (i2 - i1);
+		final float t = (car.threshold - i1) / (float) (i2 - i1);
 		if (t >= 0 && t <= 1) {
 			// v1 + t*(v2-v1)
 			result.set(v2);
@@ -86,50 +85,50 @@ public final class MCCube {
 	}
 
 	/**
-	 * computes interpolated values along each edge of the cube 
+	 * computes interpolated values along each edge of the cube
 	 * (null if interpolated value doesn't belong to the edge)
 	 */
 	private void computeEdges(final Carrier car) {
-		int i0 = car.intensity(v[0]);
-		int i1 = car.intensity(v[1]);
-		int i2 = car.intensity(v[2]);
-		int i3 = car.intensity(v[3]);
-		int i4 = car.intensity(v[4]);
-		int i5 = car.intensity(v[5]);
-		int i6 = car.intensity(v[6]);
-		int i7 = car.intensity(v[7]);
+		final int i0 = car.intensity(v[0]);
+		final int i1 = car.intensity(v[1]);
+		final int i2 = car.intensity(v[2]);
+		final int i3 = car.intensity(v[3]);
+		final int i4 = car.intensity(v[4]);
+		final int i5 = car.intensity(v[5]);
+		final int i6 = car.intensity(v[6]);
+		final int i7 = car.intensity(v[7]);
 
 		this.computeEdge(v[0], i0, v[1], i1, e[0], car);
 		this.computeEdge(v[1], i1, v[2], i2, e[1], car);
 		this.computeEdge(v[2], i2, v[3], i3, e[2], car);
 		this.computeEdge(v[3], i3, v[0], i0, e[3], car);
-		
+
 		this.computeEdge(v[4], i4, v[5], i5, e[4], car);
 		this.computeEdge(v[5], i5, v[6], i6, e[5], car);
 		this.computeEdge(v[6], i6, v[7], i7, e[6], car);
 		this.computeEdge(v[7], i7, v[4], i4, e[7], car);
-		
+
 		this.computeEdge(v[0], i0, v[4], i4, e[8], car);
 		this.computeEdge(v[1], i1, v[5], i5, e[9], car);
 		this.computeEdge(v[3], i3, v[7], i7, e[10], car);
 		this.computeEdge(v[2], i2, v[6], i6, e[11], car);
 	}
-	
+
 	/**
 	 * indicates if a number corresponds to an ambigous case
 	 * @param n number of the case to test
 	 * @return true if the case if ambigous
 	 */
-	private static boolean isAmbigous(int n) {
+	private static boolean isAmbigous(final int n) {
 		boolean result = false;
 	        for (int index = 0; index < MCCube.ambigous.length; index++) {
 			result |= MCCube.ambigous[index] == n;
 		}
 		return result;
 	}
-	
-	private void getTriangles(List<Point3f> list, final Carrier car){
-		int cn = caseNumber(car);
+
+	private void getTriangles(final List<Point3f> list, final Carrier car){
+		final int cn = caseNumber(car);
 		boolean directTable = !(isAmbigous(cn));
 		directTable = true;
 
@@ -142,7 +141,7 @@ public final class MCCube {
 				list.add(new Point3f(this.e[faces[offset+0]]));
 				list.add(new Point3f(this.e[faces[offset+1]]));
 				list.add(new Point3f(this.e[faces[offset+2]]));
-			} 
+			}
 			offset += 3;
 		}
 	}
@@ -153,16 +152,16 @@ public final class MCCube {
 	 */
 	private int caseNumber(final Carrier car) {
 		int caseNumber = 0;
-		for (int index = -1; 
-			++index < v.length; 
-			caseNumber += 
-				(car.intensity(v[index]) - car.threshold > 0) 
+		for (int index = -1;
+			++index < v.length;
+			caseNumber +=
+				(car.intensity(v[index]) - car.threshold > 0)
 					? 1 << index
 					: 0);
 		return caseNumber;
 	}
 
-	/** 
+	/**
 	 * An encapsulating class to avoid thread collisions on static fields.
 	 */
 	private static final class Carrier {
@@ -185,8 +184,8 @@ public final class MCCube {
 	 * @param thresh
 	 * @return
 	 */
-	public static final List<Point3f> getTriangles(Volume volume, int thresh){
-		List<Point3f> tri = new ArrayList<Point3f>();
+	public static final List<Point3f> getTriangles(final Volume volume, final int thresh){
+		final List<Point3f> tri = new ArrayList<Point3f>();
 		final Carrier car = new Carrier();
 		car.w = volume.xDim;
 		car.h = volume.yDim;
@@ -197,7 +196,7 @@ public final class MCCube {
 		if (volume instanceof ImgLibVolume && ((ImgLibVolume)volume).getImage().getContainer() instanceof ShapeList) {
 			getShapeListImageTriangles((ImgLibVolume)volume, car, tri);
 		} else {
-			MCCube cube = new MCCube();
+			final MCCube cube = new MCCube();
 			for(int z = -1; z < car.d+1; z+=1){
 				for(int x = -1; x < car.w+1; x+=1){
 					for(int y = -1; y < car.h+1; y+=1){
@@ -212,11 +211,11 @@ public final class MCCube {
 
 		// convert pixel coordinates
 		for(int i = 0; i < tri.size(); i++) {
-			Point3f p = (Point3f)tri.get(i);
+			final Point3f p = (Point3f)tri.get(i);
 			p.x = (float) (p.x * volume.pw + volume.minCoord.x);
 			p.y = (float) (p.y * volume.ph + volume.minCoord.y);
 			p.z = (float) (p.z * volume.pd + volume.minCoord.z);
-		}	
+		}
 		return tri;
 	}
 
@@ -360,7 +359,7 @@ public final class MCCube {
 		210,
 		225,
 		165
-	};        
+	};
 
 	// triangles to be drawn in each case
 	private static final int faces[] =

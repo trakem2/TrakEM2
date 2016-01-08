@@ -22,22 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import features.ComputeCurvatures;
-import ij.ImagePlus;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.imaging.LayerStack;
-import ini.trakem2.imaging.Segmentation;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
-import ini.trakem2.vector.VectorString3D;
-
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
@@ -60,9 +44,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3d;
+import org.scijava.vecmath.Point3f;
+import org.scijava.vecmath.Vector3d;
 
+import features.ComputeCurvatures;
+import ij.ImagePlus;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
+import ini.trakem2.vector.VectorString3D;
 import tracing.Path;
 import tracing.SearchInterface;
 import tracing.SearchProgressCallback;

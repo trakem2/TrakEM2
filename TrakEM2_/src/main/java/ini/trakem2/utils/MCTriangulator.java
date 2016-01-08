@@ -1,5 +1,9 @@
 package ini.trakem2.utils;
 
+import java.util.List;
+
+import org.scijava.vecmath.Point3f;
+
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.measure.Calibration;
@@ -8,19 +12,15 @@ import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij3d.Volume;
 import isosurface.Triangulator;
-
-import java.util.List;
-
-import javax.vecmath.Point3f;
-
 import mpicbg.imglib.image.Image;
 import mpicbg.imglib.type.numeric.RealType;
 import vib.NaiveResampler;
 
 public class MCTriangulator implements Triangulator {
 
-	public List getTriangles(ImagePlus image, int threshold, 
-					boolean[] channels, int resamplingF) {
+	@Override
+	public List getTriangles(ImagePlus image, final int threshold,
+					final boolean[] channels, final int resamplingF) {
 
 		if(resamplingF != 1)
 			image = NaiveResampler.resample(image, resamplingF);
@@ -29,11 +29,11 @@ public class MCTriangulator implements Triangulator {
 		// of zero outside the image.
 		// zeroPad(image);
 		// create Volume
-		Volume volume = new Volume(image, channels);
+		final Volume volume = new Volume(image, channels);
 		volume.setAverage(true);
 
 		// get triangles
-		List l = MCCube.getTriangles(volume, threshold);
+		final List l = MCCube.getTriangles(volume, threshold);
 		return l;
 	}
 
@@ -42,22 +42,22 @@ public class MCTriangulator implements Triangulator {
 	 * @param threshold The cut-off (inclusive) of pixel values considered inside.
 	 * @param origin The translation of the origin, in 3D.
 	 */
-	public<T extends RealType<T>> List<Point3f> getTriangles(Image<T> img, int threshold, float[] origin) throws Exception {
+	public<T extends RealType<T>> List<Point3f> getTriangles(final Image<T> img, final int threshold, final float[] origin) throws Exception {
 		return MCCube.getTriangles(new ImgLibVolume(img, origin), threshold);
 	}
 
 	static public void zeroPad(final ImagePlus imp) {
-		ImageStack stack = imp.getStack();
-		int w = stack.getWidth();
-		int h = stack.getHeight();
-		int d = stack.getSize();
-		int type = imp.getType();
-		// create new stack 
-		ImageStack st = new ImageStack(w+2, h+2);
+		final ImageStack stack = imp.getStack();
+		final int w = stack.getWidth();
+		final int h = stack.getHeight();
+		final int d = stack.getSize();
+		final int type = imp.getType();
+		// create new stack
+		final ImageStack st = new ImageStack(w+2, h+2);
 
 		// retrieve 1st processor
 		ImageProcessor old = stack.getProcessor(1);
-		
+
 		// enlarge it and add it as a first slide.
 		ImageProcessor ne = createProcessor(w+2, h+2, type);
 		st.addSlice("", ne);
@@ -77,7 +77,7 @@ public class MCTriangulator implements Triangulator {
 		imp.setStack(null, st);
 
 		// update the origin
-		Calibration cal = imp.getCalibration();
+		final Calibration cal = imp.getCalibration();
 		cal.xOrigin -= cal.pixelWidth;
 		cal.yOrigin -= cal.pixelHeight;
 		cal.zOrigin -= cal.pixelDepth;
@@ -85,7 +85,7 @@ public class MCTriangulator implements Triangulator {
 	}
 
 	private static final ImageProcessor createProcessor(
-					int w, int h, int type) {
+					final int w, final int h, final int type) {
 		if(type == ImagePlus.COLOR_RGB)
 			return new ColorProcessor(w, h);
 		return new ByteProcessor(w, h);

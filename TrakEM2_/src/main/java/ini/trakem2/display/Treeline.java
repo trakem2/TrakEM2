@@ -1,14 +1,5 @@
 package ini.trakem2.display;
 
-import ij.gui.GenericDialog;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-
 import java.awt.AlphaComposite;
 import java.awt.Choice;
 import java.awt.Color;
@@ -36,11 +27,20 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import javax.media.j3d.Transform3D;
-import javax.vecmath.AxisAngle4f;
-import javax.vecmath.Color3f;
-import javax.vecmath.Point3f;
-import javax.vecmath.Vector3f;
+import org.scijava.java3d.Transform3D;
+import org.scijava.vecmath.AxisAngle4f;
+import org.scijava.vecmath.Color3f;
+import org.scijava.vecmath.Point3f;
+import org.scijava.vecmath.Vector3f;
+
+import ij.gui.GenericDialog;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 public class Treeline extends Tree<Float> {
 

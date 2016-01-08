@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -25,7 +25,7 @@ package ini.trakem2.vector;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
 
 public class SkinMaker {
 
@@ -44,7 +44,7 @@ public class SkinMaker {
 		final int n_editions = ed.length();
 		// the points to create. There is one point for each edition, plus the starting point.
 		double[] x = new double[n_editions]; // +1];
-		double[] y = new double[n_editions]; // +1]; 
+		double[] y = new double[n_editions]; // +1];
 		//starting point: a weighted average between both starting points
 		x[0] = (vs1.getPoint(0, 0) * (1-alpha) + vs2.getPoint(0, 0) * alpha);
 		y[0] = (vs1.getPoint(1, 0) * (1-alpha) + vs2.getPoint(1, 0) * alpha);
@@ -63,7 +63,7 @@ public class SkinMaker {
 			start = 1;
 			end = n_editions; // that is how it works. I need to internalize this to understand it myself. It may be that an extra one is being added when creating the editions, by mistake.
 		}
-		
+
 		// the weighted vectors to generate:
 		double vs_x = 0;
 		double vs_y = 0;
@@ -113,7 +113,7 @@ public class SkinMaker {
 
 
 		// return packed:
-		double[][] d = new double[2][];
+		final double[][] d = new double[2][];
 		d[0] = x;
 		d[1] = y;
 		return d;
@@ -125,9 +125,9 @@ public class SkinMaker {
 		if (n_morphed_perimeters < 0) n_morphed_perimeters = (int)(Math.sqrt(Math.sqrt(ed.getDistance())));
 
 		final double alpha = 1.0 / (n_morphed_perimeters +1); // to have 10 subdivisions we need 11 boxes
-		double[][][] p_list = new double[n_morphed_perimeters][][];
+		final double[][][] p_list = new double[n_morphed_perimeters][][];
 		for (int a=0; a<n_morphed_perimeters; a++) {
-			double aa = alpha * (a+1); // aa 0 would be vs1, aa 1 would be vs2.
+			final double aa = alpha * (a+1); // aa 0 would be vs1, aa 1 would be vs2.
 			p_list[a] = SkinMaker.getMorphedPerimeter(vs1, vs2, aa, ed);
 		}
 
@@ -135,7 +135,7 @@ public class SkinMaker {
 	}
 
 	/** From an array of VectorString2D, return a new array of VectorString2D defining all necessary intermediate, morphed perimeters that describe a skin between each consecutive pair; includes the originals inserted at the proper locations. The 'z' is interpolated. Returns the array of VectorString2D and the array of Editions (which is one item smaller, since it represents matches). */
-	static public ArrayList<SkinMaker.Match> getMorphedPerimeters(final VectorString2D[] vs, int n_morphed_perimeters, double delta_, boolean closed) {
+	static public ArrayList<SkinMaker.Match> getMorphedPerimeters(final VectorString2D[] vs, final int n_morphed_perimeters, final double delta_, final boolean closed) {
 		//check preconditions:
 		if (n_morphed_perimeters < -1 || vs.length <=0) {
 			System.out.println("\nERROR: args are not acceptable at getAllPerimeters:\n\t n_morphed_perimeters " + n_morphed_perimeters + ", n_perimeters " + vs.length);
@@ -163,9 +163,9 @@ public class SkinMaker {
 			for (int i=1; i<vs.length; i++) {
 				Editions ed = new Editions(vs[i-1], vs[i], delta, closed);
 				// correct for reverse order: choose the best scoring
-				VectorString2D rev = ((VectorString2D)vs[i].clone());
+				final VectorString2D rev = ((VectorString2D)vs[i].clone());
 				rev.reverse();
-				Editions ed_rev = new Editions(vs[i-1], rev, delta, closed);
+				final Editions ed_rev = new Editions(vs[i-1], rev, delta, closed);
 				if (ed_rev.getDistance() < ed.getDistance()) {
 					vs[i] = rev;
 					ed = ed_rev;
@@ -176,7 +176,7 @@ public class SkinMaker {
 				final double z_start = vs[i-1].getPoint(2, 0); // z
 				final double z_inc = (vs[i].getPoint(2, 0) - z_start) / (double)( 0 == d.length ? 1 : (d.length + 1)); // if zero, none are added anyway; '1' is a dummy number
 				//System.out.println("vs[i].z: " + vs[i].getPoint(2, 0) + "  z_start: " + z_start + "  z_inc is: " + z_inc);
-				VectorString2D[] p = new VectorString2D[d.length];
+				final VectorString2D[] p = new VectorString2D[d.length];
 				for (int k=0; k<d.length; k++) {
 					p[k] = new VectorString2D(d[k][0], d[k][1], z_start + z_inc*(k+1), vs[0].isClosed()); // takes the closed value from the first one, ignoring the other
 				}
@@ -185,7 +185,7 @@ public class SkinMaker {
 
 			return al_matches;
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 		}
 		return null;
@@ -199,7 +199,7 @@ public class SkinMaker {
 		/** The interpolated curves in between vs1 and vs2.*/
 		private VectorString2D[] p;
 
-		public Match(VectorString2D vs1, VectorString2D vs2, Editions ed, VectorString2D[] p) {
+		public Match(final VectorString2D vs1, final VectorString2D vs2, final Editions ed, final VectorString2D[] p) {
 			this.vs1 = vs1;
 			this.vs2 = vs2;
 			this.ed = ed;
@@ -207,7 +207,7 @@ public class SkinMaker {
 		}
 		/** Generate a list of Point3f points, every three defining a triangle, between vs1 and vs2 using the given sequence of editions. */
 		public List<Point3f> generateTriangles(final boolean closed) {
-			ArrayList<Point3f> triangles = new ArrayList<Point3f>();
+			final ArrayList<Point3f> triangles = new ArrayList<Point3f>();
 			if (null == p || 0 == p.length) {
 				triangles.addAll(makeSkin(vs1, vs2, closed, true, true));
 			} else {
@@ -231,7 +231,7 @@ public class SkinMaker {
 			final ArrayList<Point3f> triangles = new ArrayList<Point3f>();
 			// the sequence of editions defines the edges
 			final int[][] editions = ed.editions;
-			int e_start = 0; // was 1
+			final int e_start = 0; // was 1
 			//if (Editions.MUTATION == editions[0][0]) e_start = 0; // apparently I have fixed old errors elsewhere
 			int i1, j1;
 			int i=0,
@@ -262,7 +262,7 @@ public class SkinMaker {
 						if (closed) j1 = 0;
 						else j1 = blength - 1;
 					}
-					if ( Editions.MUTATION == ei || ( (!ao || !bo) && (Editions.INSERTION == ei || Editions.DELETION == ei) ) ) { 
+					if ( Editions.MUTATION == ei || ( (!ao || !bo) && (Editions.INSERTION == ei || Editions.DELETION == ei) ) ) {
 						// if it's a mutation, or one of the two curves is not original
 						// a quad, split into two triangles:
 						// i1, i, j
@@ -320,7 +320,7 @@ public class SkinMaker {
 	}
 
 	/** From an array of VectorString2D, obtain a list of Point3f which define, every three, a triangle of a skin. */
-	static public List<Point3f> generateTriangles(final VectorString2D[] vs, int n_morphed_perimeters, double delta_, boolean closed) {
+	static public List<Point3f> generateTriangles(final VectorString2D[] vs, final int n_morphed_perimeters, final double delta_, final boolean closed) {
 		final ArrayList<SkinMaker.Match> al_matches = SkinMaker.getMorphedPerimeters(vs, -1, -1, true); // automatic number of interpolated curves, automatic delta
 		final List<Point3f> triangles = new ArrayList<Point3f>(); // every three consecutive Point3f make a triangle
 		for (final SkinMaker.Match match : al_matches) {

@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -74,20 +74,20 @@ public class Editions {
 	public VectorString getVS2() { return vs2; }
 
 	/** A mutation is considered an equal or near equal, and thus does not count. Only deletions and insertions count towards scoring the similarity.
-	 * 
+	 *
 	 * @param skip_ends enables ignoring sequences in the beginning and ending if they are insertions or deletions.
 	 * @param max_mut indicates the maximum length of a contiguous sequence of mutations to be ignored when skipping insertions and deletions at beginning and end.
 	 * @param min_chunk indicates the minimal proportion of the string that should remain between the found start and end, for vs1. The function will return the regular similarity if the chunk is too small.
 	 *
 	 */
-	public double getSimilarity(boolean skip_ends, final int max_mut, final float min_chunk) {
+	public double getSimilarity(final boolean skip_ends, final int max_mut, final float min_chunk) {
 		return getSimilarity(getStartEndSkip(skip_ends, max_mut, min_chunk));
 	}
 
 	private double getSimilarity(final int[] g) {
-		int i_start = g[0];
-		int i_end = g[1];
-		boolean skip_ends = 1 == g[2];
+		final int i_start = g[0];
+		final int i_end = g[1];
+		final boolean skip_ends = 1 == g[2];
 
 		int non_mut = 0;
 
@@ -128,9 +128,9 @@ public class Editions {
 	/** Returns the number of mutations / max(len(vs1), len(vs2)) : 1.0 means all are mutations and the sequences have the same lengths.*/
 	public double getSimilarity2(boolean skip_ends, final int max_mut, final float min_chunk) {
 
-		int[] g = getStartEndSkip(skip_ends, max_mut, min_chunk);
-		int i_start = g[0];
-		int i_end = g[1];
+		final int[] g = getStartEndSkip(skip_ends, max_mut, min_chunk);
+		final int i_start = g[0];
+		final int i_end = g[1];
 		skip_ends = 1 == g[2];
 
 		int mut = 0;
@@ -142,7 +142,7 @@ public class Editions {
 			}
 
 			// compute proper segment lengths, inlined
-			double sim = (double)mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1);
+			final double sim = (double)mut / Math.max( editions[i_end][1] - editions[i_start][1] + 1, editions[i_end][2] - editions[i_start][2] + 1);
 
 			//if (sim > 0.7) System.out.println("similarity: mut, len1, len2, i_start, i_end : " + mut + ", " + (editions[i_end][1] - editions[i_start][1] + 1) + ", " + (editions[i_end][2] - editions[i_start][2] + 1) + ", " + i_start + "," + i_end + "   " + Utils.cutNumber(sim * 100, 2) + " %");
 
@@ -198,13 +198,13 @@ public class Editions {
 	}
 
 	/** Returns the distance between all points involved in a mutation; if average is false, then it returns the cummulative. Returns Double.MAX_VALUE if no mutations are found. */
-	public double getPhysicalDistance(boolean skip_ends, final int max_mut, final float min_chunk, boolean average) {
+	public double getPhysicalDistance(final boolean skip_ends, final int max_mut, final float min_chunk, final boolean average) {
 		return getPhysicalDistance(getStartEndSkip(skip_ends, max_mut, min_chunk), average);
 	}
 
 	private double getPhysicalDistance(final int[] g, final boolean average) {
-		int i_start = g[0];
-		int i_end = g[1];
+		final int i_start = g[0];
+		final int i_end = g[1];
 		//boolean skip_ends = 1 == g[2];
 
 		double dist = 0;
@@ -215,8 +215,8 @@ public class Editions {
 		try {
 			for (i=i_start; i<=i_end; i++) {
 				if (MUTATION != editions[i][0]) continue;
-				int k1 = editions[i][1];
-				int k2 = editions[i][2];
+				final int k1 = editions[i][1];
+				final int k2 = editions[i][2];
 				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
 				dist += vs1.distance(k1, vs2, k2);
 				len++;
@@ -224,7 +224,7 @@ public class Editions {
 			if (0 == len) return Double.MAX_VALUE;
 			if (average) return dist / len; // can len be zero ?
 			return dist;
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 			System.out.println("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			return Double.MAX_VALUE;
@@ -237,8 +237,8 @@ public class Editions {
 
 	/** Returns the standard deviation of the distances between all points involved in a mutation. */
 	private double getStdDev(final int[] g) {
-		int i_start = g[0];
-		int i_end = g[1];
+		final int i_start = g[0];
+		final int i_end = g[1];
 		//boolean skip_ends = 1 == g[2];
 
 		double dist = 0;
@@ -249,24 +249,24 @@ public class Editions {
 		try {
 			for (i=i_start; i<=i_end; i++) {
 				if (MUTATION != editions[i][0]) continue;
-				int k1 = editions[i][1];
-				int k2 = editions[i][2];
+				final int k1 = editions[i][1];
+				final int k2 = editions[i][2];
 				if (len1 == k1 || len2 == k2) continue; // LAST point will fail in some occasions, needs fixing
-				double d = vs1.distance(k1, vs2, k2);
+				final double d = vs1.distance(k1, vs2, k2);
 				dist += d;
 				mut.add(d);
 			}
 			if (0 == mut.size()) return Double.MAX_VALUE;
-			Double[] di = new Double[mut.size()];
+			final Double[] di = new Double[mut.size()];
 			mut.toArray(di);
-			double average = dist / di.length; // can length be zero ?
+			final double average = dist / di.length; // can length be zero ?
 			double std = 0;
 			for (int k=0; k<di.length; k++) {
 				std += Math.pow(di[k].doubleValue() - average, 2);
 			}
 			return Math.sqrt(std / di.length);
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			e.printStackTrace();
 			System.out.println("ERROR in getPhysicalDistance: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			return Double.MAX_VALUE;
@@ -292,8 +292,8 @@ public class Editions {
 	}
 
 	private double[] getStatistics(final int[] g, final boolean score_mut_only) {
-		int i_start = g[0];
-		int i_end = g[1];
+		final int i_start = g[0];
+		final int i_end = g[1];
 		//boolean skip_ends = 1 == g[2];
 
 		int i = 0;
@@ -369,7 +369,7 @@ public class Editions {
 
 			// When one does the proximity with the length of the query sequence only and not the max of both, then shorter ref sequences will score better.
 
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			System.out.println("ERROR in getStatistics: i,len  j,len : " + editions[i][1] + ", " + vs1.length() + "    " + editions[i][2] + ", " + vs2.length());
 			e.printStackTrace();
 		}
@@ -476,7 +476,7 @@ public class Editions {
 		// reverse and resize editions array, and DO NOT slice out the last element.
 		if (next != ed_length) {
 			// allocate a new editions array  ('next' is the length now, since it is the index of the element after the last element)
-			int[][] editions2 = new int[next][3];
+			final int[][] editions2 = new int[next][3];
 			for (i=0, j=next-1; i<next; i++, j--) {
 				editions2[i][0] = editions[j][0];
 				editions2[i][1] = editions[j][1];
@@ -616,8 +616,8 @@ public class Editions {
 	private MinDist findMinDist(int first, int last, int interval_length, final MinDist result) {
 		double[][] matrix = result.matrix;
 		double[][] matrix_e = result.matrix_e;
-		double[][] matrix1 = matrix_e;
-		double[][] matrix2 = matrix;
+		final double[][] matrix1 = matrix_e;
+		final double[][] matrix2 = matrix;
 
 		// the iterator over p2
 		int j;
@@ -750,7 +750,7 @@ public class Editions {
 
 	/** Get the sequence of editions and matches in three lines, like:
 	 *  vs1: 1 2 3 4 5 6     7 8 9
-	 *       M M D M M M I I M M M 
+	 *       M M D M M M I I M M M
 	 *  vs2: 1 2   3 4   5 6 7 8 9
 	 *
 	 *  With the given separator (defaults to tab if null)
@@ -791,7 +791,7 @@ public class Editions {
 
 	static public class Chunk {
 		int i_start, i_end;
-		Chunk(int i_start, int i_end) {
+		Chunk(final int i_start, final int i_end) {
 			this.i_start = i_start;
 			this.i_end = i_end;
 		}
@@ -838,7 +838,7 @@ public class Editions {
 						boolean add = false;
 						final int len = cur.length();
 						for (int k=c.length-1; k>-1; k--) {
-							int clen = c[k].length();
+							final int clen = c[k].length();
 							if (len > clen) {
 								chunks.remove(c[k]); // remove all found that are shorter
 							}
@@ -904,12 +904,12 @@ public class Editions {
 		final int midpoint = (chunk.i_start + chunk.i_end) / 2;
 		if (0 == midpoint) return null;
 
-		VectorString3D firsthalf1 = (VectorString3D)vs1.subVectorString(editions[midpoint][1], 0); // already reversed, by giving indices in reverse order
-		VectorString3D firsthalf2 = (VectorString3D)vs2.subVectorString(editions[midpoint][2], 0); // already reversed, by giving indices in reverse order
+		final VectorString3D firsthalf1 = (VectorString3D)vs1.subVectorString(editions[midpoint][1], 0); // already reversed, by giving indices in reverse order
+		final VectorString3D firsthalf2 = (VectorString3D)vs2.subVectorString(editions[midpoint][2], 0); // already reversed, by giving indices in reverse order
 
 		final Editions ed = new Editions(firsthalf1, firsthalf2, this.delta, this.closed);
 		// compose new editions array from the new one and the second half of this
-		int[][] mushup = new int[ed.editions.length + this.editions.length - midpoint][3]; // not +1 after midpoint to not include the midpoint, which was included in the new Editions.
+		final int[][] mushup = new int[ed.editions.length + this.editions.length - midpoint][3]; // not +1 after midpoint to not include the midpoint, which was included in the new Editions.
 		for (int i=0; i<=midpoint/* same as i<ed.editions.length*/; i++) {
 			mushup[midpoint -i] = ed.editions[i];
 		}

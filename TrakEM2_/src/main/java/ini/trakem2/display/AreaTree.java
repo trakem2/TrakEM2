@@ -1,17 +1,5 @@
 package ini.trakem2.display;
 
-import customnode.CustomTriangleMesh;
-import fiji.geom.AreaCalculations;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.imaging.Segmentation;
-import ini.trakem2.utils.AreaUtils;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
@@ -41,14 +29,26 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-import javax.vecmath.Color3f;
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Color3f;
+import org.scijava.vecmath.Point3f;
+
+import customnode.CustomTriangleMesh;
+import fiji.geom.AreaCalculations;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 public class AreaTree extends Tree<Area> implements AreaContainer {
 
 	private boolean fill_paint = true;
 
-	public AreaTree(Project project, String title) {
+	public AreaTree(final Project project, final String title) {
 		super(project, title);
 		addToDatabase();
 	}
@@ -69,20 +69,20 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	@Override
-	public Node<Area> newNode(float lx, float ly, Layer la, Node<?> modelNode) {
+	public Node<Area> newNode(final float lx, final float ly, final Layer la, final Node<?> modelNode) {
 		// Ignore modeNode (could be nice, though, to automatically add the previous area)
 		return new AreaNode(lx, ly, la);
 	}
-	
+
 	@Override
-	public Node<Area> newNode(HashMap<String,String> ht_attr) {
+	public Node<Area> newNode(final HashMap<String,String> ht_attr) {
 		return new AreaNode(ht_attr);
 	}
 
 	@Override
 	public AreaTree clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		AreaTree art =  new AreaTree(pr, nid, title, width, height, alpha, visible, color, locked, at);
+		final AreaTree art =  new AreaTree(pr, nid, title, width, height, alpha, visible, color, locked, at);
 		art.root = null == this.root ? null : this.root.clone(pr);
 		art.addToDatabase();
 		if (null != art.root) art.cacheSubtree(art.root.getSubtreeNodes());
@@ -101,10 +101,12 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			super(attr);
 		}
 
+		@Override
 		public final Node<Area> newInstance(final float lx, final float ly, final Layer layer) {
 			return new AreaNode(lx, ly, layer);
 		}
 
+		@Override
 		public final synchronized boolean setData(final Area area) {
 			if (null == area) {
 				if (null == this.aw) return true;
@@ -115,10 +117,12 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			}
 			return true;
 		}
+		@Override
 		public final synchronized Area getData() {
 			if (null == this.aw) this.aw = new AreaWrapper();
 			return this.aw.getArea();
 		}
+		@Override
 		public final synchronized Area getDataCopy() {
 			if (null == this.aw) return null;
 			return new Area(this.aw.getArea());
@@ -128,7 +132,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		@Override
 		public final Area getArea() {
 			if (null == this.aw) return super.getArea(); // a little square labeling this point
-			Area a = this.aw.getArea();
+			final Area a = this.aw.getArea();
 			if (a.isEmpty()) return super.getArea();
 			a.add(super.getArea()); // ensure the point is part of the Area always
 			return a;
@@ -164,6 +168,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 
 		/** Expects @param a in local coords. */
+		@Override
 		public boolean intersects(final Area a) {
 			if (null == aw) return a.contains(x, y);
 			return M.intersects(a, aw.getArea());
@@ -203,7 +208,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			if (null == aw) return;
 			M.apply(vlocal, aw.getArea());
 		}
-		
+
 		@Override
 		protected void transformData(final AffineTransform aff) {
 			if (null == aw) return;
@@ -212,6 +217,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	/** Return the list of areas, in world coordinates, at the given layer, that intersect the given bounding box. */
+	@Override
 	public List<Area> getAreas(final Layer layer, final Rectangle box) {
 		synchronized (node_layer_map) {
 			final Set<Node<Area>> nodes = node_layer_map.get(layer);
@@ -254,6 +260,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return true;
 	}
 
+	@Override
 	public boolean calculateBoundingBox(final Layer la) {
 		try {
 			if (null == root) {
@@ -262,13 +269,13 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				this.height = 0;
 				return false;
 			}
-			
+
 			Rectangle box = null;
 			int countNodes = 0;
 			// Compute bounds for all nodes in all layers
 			synchronized (node_layer_map) {
 				for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
-					Rectangle b = getBounds(nodes);
+					final Rectangle b = getBounds(nodes);
 					if (null == b) continue;
 					if (null == box) box = b;
 					else box.add(b);
@@ -277,7 +284,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			}
 
 			if (null == box) return false; // empty
-			
+
 			this.width = box.width;
 			this.height = box.height;
 
@@ -298,12 +305,13 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 						}
 					}
 				} else {
-					ExecutorService exe = Utils.newFixedThreadPool("AreaTree-CBB");
-					Collection<Future<?>> fus = new ArrayList<Future<?>>();
+					final ExecutorService exe = Utils.newFixedThreadPool("AreaTree-CBB");
+					final Collection<Future<?>> fus = new ArrayList<Future<?>>();
 					final float dx = -box.x;
 					final float dy = -box.y;
 					for (final Collection<? extends Node<Area>> nodes : node_layer_map.values()) {
 						fus.add(exe.submit(new Runnable() {
+							@Override
 							public void run() {
 								// WARNING potential concurrent modification exception of 'nodes'
 								for (final AreaNode nd : (Collection<AreaNode>) nodes) {
@@ -330,7 +338,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		Area brush = null;
 		try {
 			brush = AreaWrapper.makeMouseBrush(ProjectToolbar.getBrushSize(), mag).createTransformedArea(this.at.createInverse());
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			return null;
 		}
@@ -356,7 +364,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				if (ie.isAltDown()) {
 					for (final Polygon pol : pols) {
 						for (int i=0; i<pol.npoints; i++) {
-							double sqdist = Math.pow(lx - pol.xpoints[i], 2) + Math.pow(ly - pol.ypoints[i], 2);
+							final double sqdist = Math.pow(lx - pol.xpoints[i], 2) + Math.pow(ly - pol.ypoints[i], 2);
 							if (sqdist < min_dist) {
 								closest = an;
 								min_dist = sqdist;
@@ -384,8 +392,8 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	private AreaNode receiver = null;
 
 	@Override
-	public void mousePressed(MouseEvent me, final Layer la, int x_p, int y_p, double mag) {
-		int tool = ProjectToolbar.getToolId();
+	public void mousePressed(final MouseEvent me, final Layer la, final int x_p, final int y_p, final double mag) {
+		final int tool = ProjectToolbar.getToolId();
 		//Utils.log2("tool is pen: " + (ProjectToolbar.PEN == tool) + "  or brush: " + (ProjectToolbar.BRUSH == tool));
 		if (ProjectToolbar.PEN == tool) {
 			super.mousePressed(me, la, x_p, y_p, mag);
@@ -408,7 +416,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			final Area roi;
 			try {
 				roi = new Area(this.at.createInverse().createTransformedShape(Segmentation.fmp.getBounds(x_p, y_p)));
-			} catch (NoninvertibleTransformException nite) {
+			} catch (final NoninvertibleTransformException nite) {
 				IJError.print(nite);
 				return;
 			}
@@ -435,6 +443,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			receiver.aw.setSource(this);
 			receiver.aw.mousePressed(me, la, x_p, y_p, mag, Arrays.asList(new Runnable[]{
 					new Runnable() {
+						@Override
 						public void run() {
 							calculateBoundingBox(la);
 						}}}));
@@ -450,7 +459,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 	}
 	@Override
-	public void mouseDragged(MouseEvent me, final Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 		if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
 			super.mouseDragged(me, la, x_p, y_p, x_d, y_d, x_d_old, y_d_old);
 			return;
@@ -462,7 +471,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		receiver.aw.setSource(null); // since a mouse released can occur outside the canvas
 	}
 	@Override
-	public void mouseReleased(MouseEvent me, final Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		if (ProjectToolbar.PEN == ProjectToolbar.getToolId()) {
 			super.mouseReleased(me, la, x_p, y_p, x_d, y_d, x_r, y_r);
 			return;
@@ -477,18 +486,18 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	@Override
-	public void keyPressed(KeyEvent ke) {
+	public void keyPressed(final KeyEvent ke) {
 		final int tool = ProjectToolbar.getToolId();
 		try {
 			if (ProjectToolbar.BRUSH == tool) {
 
-				Object origin = ke.getSource();
+				final Object origin = ke.getSource();
 				if (! (origin instanceof DisplayCanvas)) {
 					ke.consume();
 					return;
 				}
-				DisplayCanvas dc = (DisplayCanvas)origin;
-				Layer layer = dc.getDisplay().getLayer();
+				final DisplayCanvas dc = (DisplayCanvas)origin;
+				final Layer layer = dc.getDisplay().getLayer();
 
 				final Collection<Node<Area>> nodes = node_layer_map.get(layer);
 				if (null == nodes || nodes.isEmpty()) {
@@ -504,7 +513,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 					y = (int)po.y;
 				}
 
-				AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
+				final AreaNode nd = findEventReceiver(nodes, x, y, layer, dc.getMagnification(), ke);
 
 				// Prepare for paste command:
 				if (null != nd && null == nd.aw && ke.getKeyCode() == KeyEvent.VK_V) {
@@ -544,9 +553,9 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		}
 		return box;
 	}
-	
+
 	public MeshData generateMesh(final double scale, final int resample) {
-		HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
+		final HashMap<Layer,Area> areas = new HashMap<Layer,Area>();
 		synchronized (node_layer_map) {
 			for (final Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {
 				final Area a = new Area();
@@ -557,21 +566,21 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			}
 		}
 		final List<Point3f> ps = AreaUtils.generateTriangles(this, scale, resample, areas);
-		
+
 		final List<Color3f> colors = new ArrayList<Color3f>();
 		// Determine colors by proximity to a node, since there isn't any other way.
 		// TODO
 		Utils.log("WARNING: AreaTree multicolor 3D mesh is not yet implemented.");
 		final Color3f cf = new Color3f(color);
 		for (int i=0; i<ps.size(); i++) colors.add(cf);
-		
+
 		return new MeshData(ps, colors);
 	}
 
 	public void debug() {
-		for (Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {
-			for (Node<Area> nd : e.getValue()) {
-				Area a = ((AreaNode)nd).aw.getArea();
+		for (final Map.Entry<Layer,Set<Node<Area>>> e : node_layer_map.entrySet()) {
+			for (final Node<Area> nd : e.getValue()) {
+				final Area a = ((AreaNode)nd).aw.getArea();
 				Utils.log2("area: " + a + "  " + (null != a ? a.getBounds() : null));
 				Utils.log2(" .. and has paths: " + M.getPolygons(a).size());
 			}
@@ -601,7 +610,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		// Sort by layer index
 		synchronized (node_layer_map) {
 			for (final Node<Area> nd : root.getSubtreeNodes()) {
-				Area area = nd.getData();
+				final Area area = nd.getData();
 				if (null == area || area.isEmpty()) continue;
 				Collection<Area> col = sm.get(nd.getLayer());
 				if (null == col) {
@@ -620,8 +629,8 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 				rt.addValue(1, nameId);
 				rt.addValue(2, index);
 				// measure surface
-				double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
-				double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
+				final double pixel_area = Math.abs(AreaCalculations.area(area.createTransformedArea(this.at).getPathIterator(null)));
+				final double surface = pixel_area * cal.pixelWidth * cal.pixelHeight;
 				rt.addValue(3, surface);
 			}
 		}
@@ -629,10 +638,10 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 	}
 
 	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@param nd} to it.
-	 * 
+	 *
 	 * @param nd The node to start interpolating from, towards its nearest parent with an area.
 	 * @param node_centric If true, consider areas relative to the node coordinates. If false, relative to the overall AreaTree.
-	 * 
+	 *
 	 * @throws Exception */
 	public boolean interpolateTowardsParent(final Node<Area> nd, final boolean node_centric, final boolean always_use_distance_map) throws Exception {
 		if (null == nd || null == nd.parent) return false;
@@ -685,13 +694,14 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 
 		return true;
 	}
-	
+
 	/** Processes shorter chains first. */
 	public boolean interpolateAllGaps(final boolean node_centric, final boolean always_use_distance_map) throws Exception {
 		if (null == root) return false;
 		// Find all nodes that have an area
-		Map<Node<Area>,Integer> m = new HashMap<Node<Area>,Integer>();
+		final Map<Node<Area>,Integer> m = new HashMap<Node<Area>,Integer>();
 		for (final Node.NodeIterator<Area> it = new Node.FilteredIterator<Area>(root) {
+				@Override
 				public boolean accept(ini.trakem2.display.Node<Area> node) {
 					return null != node.getData() && !node.getData().isEmpty();
 				}
@@ -712,36 +722,36 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			m.put(node, chain.size());
 		}
 		// Sort by size
-		ArrayList<Map.Entry<Node<Area>,Integer>> l = new ArrayList<Map.Entry<Node<Area>,Integer>>(m.entrySet());
+		final ArrayList<Map.Entry<Node<Area>,Integer>> l = new ArrayList<Map.Entry<Node<Area>,Integer>>(m.entrySet());
 		Collections.sort(l, new Comparator<Map.Entry<Node<Area>,Integer>>() {
 			@Override
-			public int compare(Map.Entry<Node<Area>, Integer> o1,
-					Map.Entry<Node<Area>, Integer> o2) {
+			public int compare(final Map.Entry<Node<Area>, Integer> o1,
+					final Map.Entry<Node<Area>, Integer> o2) {
 				return o1.getValue() - o2.getValue();
 			}
 		});
 		// Process in order: shorter chains first
 		boolean processed = false;
-		for (Map.Entry<Node<Area>,Integer> e : l) {
-			Node<Area> node = e.getKey();
+		for (final Map.Entry<Node<Area>,Integer> e : l) {
+			final Node<Area> node = e.getKey();
 			processed |= interpolateTowardsParent(node, node_centric, always_use_distance_map);
 		}
-		
+
 		return processed;
 	}
 
 	/** Assumes {@param nd} is an AreaNode. Otherwise fails with {@link ClassCastException}.
 	 * @param nd An AreaNode. */
 	public void addWorldAreaTo(final Node<?> nd, final Area a) {
-		AreaNode an = (AreaNode) nd;
+		final AreaNode an = (AreaNode) nd;
 		if (null == an.aw) an.getData(); // creates an.aw
 		an.aw.add(a, nd.la);
 	}
-	
+
 
 	private class AreaMeasurementPair extends Tree<Area>.MeasurementPair
 	{
-		public AreaMeasurementPair(Tree<Area>.NodePath np) {
+		public AreaMeasurementPair(final Tree<Area>.NodePath np) {
 			super(np);
 		}
 		/** A list of calibrated areas, one per node in the path.*/
@@ -752,7 +762,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			final Calibration cal = layer_set.getCalibration();
 			aff.preConcatenate(new AffineTransform(cal.pixelWidth, 0, 0, cal.pixelHeight, 0, 0));
 			for (final Node<Area> nd : super.path) {
-				Area a = nd.getData();
+				final Area a = nd.getData();
 				if (null == a) data.add(null);
 				data.add(a.createTransformedArea(aff));
 			}
@@ -763,7 +773,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			return "AreaTree tagged pairs";
 		}
 		@Override
-		public ResultsTable toResultsTable(ResultsTable rt, int index, double scale, int resample) {
+		public ResultsTable toResultsTable(ResultsTable rt, final int index, final double scale, final int resample) {
 			if (null == rt) {
 				final String unit = layer_set.getCalibration().getUnit();
 				rt = Utils.createResultsTable(getResultsTableTitle(),
@@ -773,22 +783,22 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 			rt.addValue(0, AreaTree.this.id);
 			rt.addValue(1, index);
 			rt.addValue(2, distance);
-			CustomTriangleMesh mesh = new CustomTriangleMesh(createMesh(scale, resample).verts);
+			final CustomTriangleMesh mesh = new CustomTriangleMesh(createMesh(scale, resample).verts);
 			rt.addValue(3, mesh.getVolume());
 			return rt;
 		}
 		@Override
 		public MeshData createMesh(final double scale, final int resample) {
-			AreaTree sub = new AreaTree(project, -1, "", width, height, alpha, true, color, false, new AffineTransform(at));
+			final AreaTree sub = new AreaTree(project, -1, "", width, height, alpha, true, color, false, new AffineTransform(at));
 			sub.layer_set = AreaTree.this.layer_set;
 			sub.root = path.get(0);
 			sub.cacheSubtree(path);
 			return sub.generateMesh(scale, resample);
 		}
 	}
-	
+
 	@Override
-	protected MeasurementPair createMeasurementPair(NodePath np) {
+	protected MeasurementPair createMeasurementPair(final NodePath np) {
 		return new AreaMeasurementPair(np);
 	}
 }

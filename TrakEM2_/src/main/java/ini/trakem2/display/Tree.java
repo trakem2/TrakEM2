@@ -14,34 +14,13 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 **/
 
 package ini.trakem2.display;
-
-import fiji.geom.AreaCalculations;
-import ij.ImagePlus;
-import ij.gui.GenericDialog;
-import ij.gui.StackWindow;
-import ij.io.FileSaver;
-import ij.io.Opener;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.analysis.Centrality;
-import ini.trakem2.analysis.Vertex;
-import ini.trakem2.parallel.Process;
-import ini.trakem2.parallel.TaskFactory;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
 
 import java.awt.AlphaComposite;
 import java.awt.Color;
@@ -106,8 +85,30 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
-import javax.vecmath.Color3f;
-import javax.vecmath.Point3f;
+
+import org.scijava.vecmath.Color3f;
+import org.scijava.vecmath.Point3f;
+
+import fiji.geom.AreaCalculations;
+import ij.ImagePlus;
+import ij.gui.GenericDialog;
+import ij.gui.StackWindow;
+import ij.io.FileSaver;
+import ij.io.Opener;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.analysis.Centrality;
+import ini.trakem2.analysis.Vertex;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 
 // To remove the warnings, both the Node and the Tree would have to know about the type of Node used.
 // So: a recursive declaration of Node<T, N extends Node<T,N>> is required.
@@ -121,7 +122,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	protected Node<T> root = null;
 
-	protected Tree(Project project, String title) {
+	protected Tree(final Project project, final String title) {
 		super(project, title, 0, 0);
 	}
 
@@ -150,7 +151,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer) {
 		return getNodesToPaint(active_layer, active_layer.getParent().getColorCueLayerRange(active_layer));
 	}
-	
+
 	final protected Set<Node<T>> getNodesToPaint(final Layer active_layer, final List<Layer> color_cue_layers) {
 		synchronized (node_layer_map) {
 			// Determine which layers to paint
@@ -162,7 +163,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					for (final Set<Node<T>> ns : node_layer_map.values()) nodes.addAll(ns);
 				} else {
 					for (final Layer la : color_cue_layers) {
-						Set<Node<T>> ns = node_layer_map.get(la);
+						final Set<Node<T>> ns = node_layer_map.get(la);
 						if (null != ns) {
 							if (null == nodes) nodes = new HashSet<Node<T>>();
 							nodes.addAll(ns);
@@ -217,7 +218,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							if (nd.isRoughlyInside(localRect)) continue;
 							it.remove();
 						}
-					} catch (NoninvertibleTransformException nite) {
+					} catch (final NoninvertibleTransformException nite) {
 						IJError.print(nite);
 					}
 				}
@@ -246,11 +247,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					if (null != task) tags_tasks.add(task);
 					if (nd == marked) {
 						if (null == MARKED_CHILD) createMarks();
-						Composite c = g.getComposite();
+						final Composite c = g.getComposite();
 						g.setXORMode(Color.green);
-						float[] fps = new float[]{nd.x, nd.y};
+						final float[] fps = new float[]{nd.x, nd.y};
 						this.at.transform(fps, 0, fps, 0, 1);
-						AffineTransform aff = new AffineTransform();
+						final AffineTransform aff = new AffineTransform();
 						aff.translate((fps[0] - srcRect.x) * magnification, (fps[1] - srcRect.y) * magnification);
 						g.fill(aff.createTransformedShape(active ? MARKED_PARENT : MARKED_CHILD));
 						g.setComposite(c);
@@ -321,6 +322,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return b;
 	}
 
+	@Override
 	public boolean calculateBoundingBox(final Layer la) {
 		try {
 			if (null == root) {
@@ -355,9 +357,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/**Repaints in the given ImageCanvas only the area corresponding to the bounding box of this Pipe. */
-	public void repaint(boolean repaint_navigator, Layer la) {
+	public void repaint(final boolean repaint_navigator, final Layer la) {
 		//TODO: this could be further optimized to repaint the bounding box of the last modified segments, i.e. the previous and next set of interpolated points of any given backbone point. This would be trivial if each segment of the Bezier curve was an object.
-		Rectangle box = getBoundingBox(null);
+		final Rectangle box = getBoundingBox(null);
 		calculateBoundingBox(la);
 		box.add(getBoundingBox(null));
 		Display.repaint(layer_set, this, box, 10, repaint_navigator);
@@ -384,17 +386,18 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						}
 					}
 				}
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 		}
 		return false;
 	}
 
+	@Override
 	public Layer getFirstLayer() {
 		if (null == root) return null;
 		synchronized (node_layer_map) {
-			ArrayList<Layer> las = new ArrayList<Layer>(node_layer_map.keySet());
+			final ArrayList<Layer> las = new ArrayList<Layer>(node_layer_map.keySet());
 			Collections.sort(las, Layer.COMPARATOR);
 			return las.get(0);
 		}
@@ -413,6 +416,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
+	@Override
 	public boolean linkPatches() {
 		if (null == root) return false;
 		// Obtain local copy and clear 'tolink':
@@ -447,7 +451,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Create a new node, copying some properties from the modelNode such as radius or color.
 	 *  The modelNode should be the node that will become the parent of the new node,
 	 *  but it doesn't have to be. */
-	protected Node<T> createNewNode(float lx, float ly, Layer layer, Node<?> modelNode) {
+	protected Node<T> createNewNode(final float lx, final float ly, final Layer layer, final Node<?> modelNode) {
 		final Node<T> nd = newNode(lx, ly, layer, modelNode);
 		if (null == modelNode) return nd;
 		nd.setColor(modelNode.getColor());
@@ -457,6 +461,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** To reconstruct from XML. */
 	abstract public Node<T> newNode(HashMap<String,String> ht_attr);
 
+	@Override
 	public boolean isDeletable() {
 		return null == root;
 	}
@@ -500,11 +505,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final LinkedList<Node<T>> list = new LinkedList<Node<T>>();
 		list.add(root);
 		final Map<Node<T>,Integer> table = new HashMap<Node<T>,Integer>();
-		
+
 		final StringBuilder indent = new StringBuilder(indent_base);
-		
+
 		while (!list.isEmpty()) {
-			Node<T> node = list.getLast();
+			final Node<T> node = list.getLast();
 			if (null == node.children) {
 				// Processing end point
 				dataNodeXML(tree, indent, sb, node);
@@ -558,7 +563,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		// ... so accumulated potentially extra chars are 3: \">\n
 
 		indent.append(' ');
-		boolean data = tree.exportXMLNodeData(indent, sb, node);
+		final boolean data = tree.exportXMLNodeData(indent, sb, node);
 		if (data) {
 			if (null != node.tags) exportTags(node, sb, indent);
 			if (null == node.children) {
@@ -592,15 +597,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	static private final void closeNodeXML(final StringBuilder indent, final StringBuilder sb) {
 		sb.append(indent).append("</t2_node>\n");
 	}
-	
+
 	/** @see generateSkeleton */
 	@Deprecated
-	public List<Point3f> generateTriangles(double scale_, int parallels, int resample) {
+	public List<Point3f> generateTriangles(final double scale_, final int parallels, final int resample) {
 		return generateSkeleton(scale_, parallels, resample).verts;
 	}
 
 	/** @return a CustomLineMesh.PAIRWISE list for a LineMesh. */
-	public MeshData generateSkeleton(double scale_, int parallels, int resample) {
+	public MeshData generateSkeleton(final double scale_, final int parallels, final int resample) {
 		if (null == root) return null;
 		final ArrayList<Point3f> list = new ArrayList<Point3f>();
 		final ArrayList<Color3f> colors = new ArrayList<Color3f>();
@@ -704,7 +709,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Reroots at the point closest to the x,y,layer_id world coordinate.
 	 *  @return true on success. */
-	public boolean reRoot(float x, float y, Layer layer, double magnification) {
+	public boolean reRoot(float x, float y, final Layer layer, final double magnification) {
 		if (!this.at.isIdentity()) {
 			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
@@ -719,12 +724,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 			nodes = null;
 			// Find a node near the coordinate
-			Node<T> nd = findNode(x, y, layer, magnification);
+			final Node<T> nd = findNode(x, y, layer, magnification);
 			if (null == nd) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer);
 				return false;
 			}
-			
+
 			return reRoot(nd);
 		}
 	}
@@ -733,7 +738,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public boolean reRoot(final Node<T> nd) {
 		if (null == nd) return false;
 		synchronized (node_layer_map) {
-			Set<Node<T>> nodes = node_layer_map.get(nd.la);
+			final Set<Node<T>> nodes = node_layer_map.get(nd.la);
 			if (null == nodes || !nodes.contains(nd)) return false;
 			end_nodes.add(this.root);
 			end_nodes.remove(nd);
@@ -746,7 +751,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	/** Split the Tree into new Tree at the point closest to the x,y,layer world coordinate.
 	 *  @return null if no node was found near the x,y,layer point with precision dependent on magnification. */
-	public List<Tree<T>> splitNear(float x, float y, Layer layer, double magnification) {
+	public List<Tree<T>> splitNear(float x, float y, final Layer layer, final double magnification) {
 		try {
 			if (!this.at.isIdentity()) {
 				final Point2D.Double po = inverseTransformPoint(x, y);
@@ -762,7 +767,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				nodes = null;
 				// Find a node near the coordinate
-				Node<T> nd = findNode(x, y, layer, magnification);
+				final Node<T> nd = findNode(x, y, layer, magnification);
 				if (null == nd) {
 					Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 					return null;
@@ -773,7 +778,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				return splitAt(nd);
 			}
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		return null;
@@ -789,7 +794,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final Set<Node<T>> nodes = node_layer_map.get(nd.la);
 				if (null == nodes || !nodes.contains(nd)) return null;
 				// Cache the children of 'nd'
-				Collection<Node<T>> subtree_nodes = new ArrayList<Node<T>>(nd.getSubtreeNodes());
+				final Collection<Node<T>> subtree_nodes = new ArrayList<Node<T>>(nd.getSubtreeNodes());
 				// Remove any review stacks for the nodes in the subtree
 				for (final Node<T> node : subtree_nodes) {
 					removeReview(node);
@@ -799,7 +804,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				// Set the found node 'nd' as a new root: (was done by removeNode/Node.remove anyway)
 				nd.parent = null;
 				// With the found nd, now a root, create a new Tree
-				Tree<T> t = newInstance();
+				final Tree<T> t = newInstance();
 				t.addToDatabase();
 				t.root = nd;
 				// ... and fill its cache arrays
@@ -813,7 +818,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 			this.calculateBoundingBox(null); // outside synch
 			return a;
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		}
 		return null;
@@ -867,7 +872,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			if (null == nodes) return false;
 			float radius = 10;
 			if (null != front) {
-				double mag = front.getCanvas().getMagnification();
+				final double mag = front.getCanvas().getMagnification();
 				radius = (float)(10 / mag);
 				if (radius < 2) radius = 2;
 			}
@@ -892,7 +897,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		float x = nd.x;
 		float y = nd.y;
 		if (!this.at.isIdentity()) {
-			float[] dps = new float[]{x, y};
+			final float[] dps = new float[]{x, y};
 			this.at.transform(dps, 0, dps, 0, 1);
 			x = dps[0];
 			y = dps[1];
@@ -900,24 +905,24 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return new Coordinate<Node<T>>(x, y, nd.la, nd);
 	}
 
-	public Coordinate<Node<T>> findPreviousBranchOrRootPoint(float x, float y, Layer layer, DisplayCanvas dc) {
-		Node<T> nd = findNodeNear(x, y, layer, dc);
+	public Coordinate<Node<T>> findPreviousBranchOrRootPoint(final float x, final float y, final Layer layer, final DisplayCanvas dc) {
+		final Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) return null;
 		return createCoordinate(nd.findPreviousBranchOrRootPoint());
 	}
 	/** If the node found near x,y,layer is a branch point, returns it; otherwise the next down
 	 *  the chain; on reaching an end point, returns it. */
-	public Coordinate<Node<T>> findNextBranchOrEndPoint(float x, float y, Layer layer, DisplayCanvas dc) {
-		Node<T> nd = findNodeNear(x, y, layer, dc);
+	public Coordinate<Node<T>> findNextBranchOrEndPoint(final float x, final float y, final Layer layer, final DisplayCanvas dc) {
+		final Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) return null;
 		return createCoordinate(nd.findNextBranchOrEndPoint());
 	}
 
-	protected Coordinate<Node<T>> findNearAndGetNext(float x, float y, Layer layer, DisplayCanvas dc) {
+	protected Coordinate<Node<T>> findNearAndGetNext(float x, float y, final Layer layer, final DisplayCanvas dc) {
 		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) nd = last_visited;
 		if (null == nd) return null;
-		int n_children = nd.getChildrenCount();
+		final int n_children = nd.getChildrenCount();
 		if (0 == n_children) return null;
 		if (1 == n_children) {
 			setLastVisited(nd.children[0]);
@@ -925,7 +930,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		// else, find the closest child edge
 		if (!this.at.isIdentity()) {
-			Point2D.Double po = inverseTransformPoint(x, y);
+			final Point2D.Double po = inverseTransformPoint(x, y);
 			x = (float)po.x;
 			y = (float)po.y;
 		}
@@ -933,7 +938,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null != nd) setLastVisited(nd);
 		return createCoordinate(nd);
 	}
-	protected Coordinate<Node<T>> findNearAndGetPrevious(float x, float y, Layer layer, DisplayCanvas dc) {
+	protected Coordinate<Node<T>> findNearAndGetPrevious(final float x, final float y, final Layer layer, final DisplayCanvas dc) {
 		Node<T> nd = findNodeNear(x, y, layer, dc);
 		if (null == nd) nd = last_visited;
 		if (null == nd || null == nd.parent) return null;
@@ -951,7 +956,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Find an edge near the world coords x,y,layer with precision depending upon magnification,
 	 *  and adjust its confidence to @param confidence.
 	 *  @return the node whose parent edge is altered, or null if none found. */
-	protected Node<T> setEdgeConfidence(byte confidence) {
+	protected Node<T> setEdgeConfidence(final byte confidence) {
 		synchronized (node_layer_map) {
 			if (null == last_visited) return null;
 			last_visited.setConfidence(confidence);
@@ -961,7 +966,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Expects world coordinates. */
-	protected Node<T> adjustEdgeConfidence(int inc, float x, float y, Layer layer, DisplayCanvas dc) {
+	protected Node<T> adjustEdgeConfidence(final int inc, final float x, final float y, final Layer layer, final DisplayCanvas dc) {
 		Node<T> nearest;
 		synchronized (node_layer_map) {
 			nearest = findNodeConfidenceBox(x, y, layer, dc.getMagnification());
@@ -976,11 +981,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Find the node whose confidence box for the parent edge is closest to x,y,layer, if any.  */
-	private Node<T> findNodeConfidenceBox(float x, float y, Layer layer, double magnification) {
+	private Node<T> findNodeConfidenceBox(float x, float y, final Layer layer, final double magnification) {
 		final Set<Node<T>> nodes = node_layer_map.get(layer);
 		if (null == nodes) return null;
 
-		Point2D.Double po = inverseTransformPoint(x, y);
+		final Point2D.Double po = inverseTransformPoint(x, y);
 		x = (float)po.x;
 		y = (float)po.y;
 
@@ -992,7 +997,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		Node<T> nearest = null;
 		for (final Node<T> nd : nodes) {
 			if (null == nd.parent) continue;
-			float d = (float)(Math.pow((nd.parent.x + nd.x)/2 - x, 2) + Math.pow((nd.parent.y + nd.y)/2 - y, 2));
+			final float d = (float)(Math.pow((nd.parent.x + nd.x)/2 - x, 2) + Math.pow((nd.parent.y + nd.y)/2 - y, 2));
 			if (d < min_sq_dist && d < radius) {
 				min_sq_dist = d;
 				nearest = nd;
@@ -1023,7 +1028,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		float lx = wx,
 		      ly = wy;
 		if (!this.at.isIdentity()) {
-			Point2D.Double po = inverseTransformPoint(wx, wy);
+			final Point2D.Double po = inverseTransformPoint(wx, wy);
 			lx = (float)po.x;
 			ly = (float)po.y;
 		}
@@ -1048,7 +1053,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		float min_dist = Float.MAX_VALUE;
 		Node<T> nd = null;
 		for (final Node<T> node : nodes) {
-			float dist = Math.abs(node.x - lx) + Math.abs(node.y - ly);
+			final float dist = Math.abs(node.x - lx) + Math.abs(node.y - ly);
 			if (dist < min_dist) {
 				min_dist = dist;
 				nd = node;
@@ -1066,7 +1071,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	private final Node<T> findNearestNode(float lx, float ly, float lz, final Calibration cal, final Collection<Node<T>> nodes) {
+	private final Node<T> findNearestNode(final float lx, final float ly, final float lz, final Calibration cal, final Collection<Node<T>> nodes) {
 		if (null == nodes) return null;
 		// A distance map would help here
 		final float pixelWidth = (float) cal.pixelWidth;
@@ -1092,12 +1097,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	public boolean insertNode(final Node<T> parent, final Node<T> child, final Node<T> in_between, final byte confidence) {
 		synchronized (node_layer_map) {
-			byte b = parent.getConfidence(child);
+			final byte b = parent.getConfidence(child);
 			parent.remove(child);
 			parent.add(in_between, b);
 			in_between.add(child, confidence);
 			// cache
-			Collection<Node<T>> subtree = in_between.getSubtreeNodes();
+			final Collection<Node<T>> subtree = in_between.getSubtreeNodes();
 			cacheSubtree(subtree);
 			// If child was in end_nodes, remains there
 
@@ -1111,7 +1116,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Considering only the set of consecutive layers currently painted, find a point near an edge
 	 *  with accuracy depending upon magnification.
 	 *  @return null if none of the edges is close enough, or an array of parent and child describing the edge. */
-	public Node<T>[] findNearestEdge(float x_pl, float y_pl, Layer layer, double magnification) {
+	public Node<T>[] findNearestEdge(final float x_pl, final float y_pl, final Layer layer, final double magnification) {
 		if (null == root) return null;
 		// Don't traverse all, just look into nodes currently being painted according to layer_set.n_layers_color_cue
 		final Collection<Node<T>> nodes = getNodesToPaint(layer);
@@ -1120,7 +1125,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		double d = (10.0D / magnification);
 		if (d < 2) d = 2;
 		double min_dist = Double.MAX_VALUE;
-		Node<T>[] ns = new Node[2]; // parent and child
+		final Node<T>[] ns = new Node[2]; // parent and child
 		//
 		for (final Node<T> node : nodes) {
 			if (null == node.children) continue;
@@ -1128,7 +1133,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			// TODO it's missing edges with parents beyond the set of painted layers,
 			//      and it's doing edges to children beyond the set of painted layers.
 			for (final Node<T> child : node.children) {
-				double dist = M.distancePointToSegment(x_pl, y_pl,
+				final double dist = M.distancePointToSegment(x_pl, y_pl,
 								       node.x, node.y,
 								       child.x, child.y);
 				if (dist < min_dist && dist < d) {
@@ -1145,12 +1150,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** In projected 2D only, since that's the perspective of the user. */
 	private Node<T> findNearestChildEdge(final Node<T> parent, final float lx, final float ly) {
 		if (null == parent || null == parent.children) return null;
-		
+
 		Node<T> nd = null;
 		double min_dist = Double.MAX_VALUE;
 
 		for (final Node<T> child : parent.children) {
-			double dist = M.distancePointToSegment(lx, ly,
+			final double dist = M.distancePointToSegment(lx, ly,
 							       parent.x, parent.y,
 							       child.x, child.y);
 			if (dist < min_dist) {
@@ -1328,7 +1333,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			final AffineTransform at_inv;
 			try {
 				at_inv = this.at.createInverse();
-			} catch (NoninvertibleTransformException nite) {
+			} catch (final NoninvertibleTransformException nite) {
 				IJError.print(nite);
 				return false;
 			}
@@ -1362,8 +1367,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		return true;
 	}
-	
-	protected Node<T> findNodeNear(float x, float y, final Layer layer, final DisplayCanvas dc) {
+
+	protected Node<T> findNodeNear(final float x, final float y, final Layer layer, final DisplayCanvas dc) {
 		return findNodeNear(x, y, layer, dc, false);
 	}
 
@@ -1376,7 +1381,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		synchronized (node_layer_map) {
 			// Search within the nodes in layer
-			Set<Node<T>> nodes = node_layer_map.get(layer);
+			final Set<Node<T>> nodes = node_layer_map.get(layer);
 			if (null == nodes || nodes.isEmpty()) {
 				Utils.log("No nodes at " + x + ", " + y + ", " + layer);
 				return null;
@@ -1390,7 +1395,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final Area a;
 				try {
 					a = new Area(dc.getSrcRect()).createTransformedArea(this.at.createInverse());
-				} catch (NoninvertibleTransformException nite) {
+				} catch (final NoninvertibleTransformException nite) {
 					IJError.print(nite);
 					return null;
 				}
@@ -1409,7 +1414,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 			final Node<T> receiver = last_visited;
 			if (null == nd && use_receiver_when_null && null != receiver && receiver.la == layer) {
-				float[] f = new float[]{receiver.x, receiver.y};
+				final float[] f = new float[]{receiver.x, receiver.y};
 				at.transform(f, 0, f, 0, 1);
 				if (dc.getSrcRect().contains((int)f[0], (int)f[1])) {
 					nd = receiver;
@@ -1441,7 +1446,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 			nodes = null;
 			// Find a node near the coordinate
-			Node<T> found = findNode(x, y, layer, magnification);
+			final Node<T> found = findNode(x, y, layer, magnification);
 			if (null == found) {
 				Utils.log("No node near " + x + ", " + y + ", " + layer + ", mag=" + magnification);
 				return false;
@@ -1459,29 +1464,29 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** The node currently being dragged or edited in some way. */
-	protected void setActive(Node<T> nd) {
+	protected void setActive(final Node<T> nd) {
 		this.active = nd;
 	}
 	/** The node currently being dragged or edited in some way. */
 	protected Node<T> getActive() { return active; }
 
-	protected void setLastEdited(Node<T> nd) {
+	protected void setLastEdited(final Node<T> nd) {
 		this.last_edited = nd;
 		setLastVisited(nd);
 	}
-	protected void setLastAdded(Node<T> nd) {
+	protected void setLastAdded(final Node<T> nd) {
 		this.last_added = nd;
 		setLastVisited(nd);
 	}
-	public void setLastMarked(Node<T> nd) {
+	public void setLastMarked(final Node<T> nd) {
 		this.marked = nd;
 		setLastVisited(nd);
 	}
 	/** The node that paints in green, which is the receiver of events. */
-	protected void setLastVisited(Node<T> nd) {
+	protected void setLastVisited(final Node<T> nd) {
 		this.last_visited = nd;
 	}
-	
+
 	public Node<T> getMarked() {
 		return marked;
 	}
@@ -1524,7 +1529,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** The last visited node, either navigating or editing.
 	 *  It's the only node that can receive new children by clicking*/
 	private Node<T> last_visited = null;
-	
+
 	// TODO: last_visited and receiver overlap TOTALLY
 
 	static private Polygon MARKED_PARENT, MARKED_CHILD;
@@ -1537,7 +1542,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mousePressed(MouseEvent me, final Layer layer, int x_p, int y_p, double mag) {
+	public void mousePressed(final MouseEvent me, final Layer layer, final int x_p, final int y_p, final double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
 			return;
 		}
@@ -1587,14 +1592,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				// Add new point
 				if (me.isShiftDown()) {
-					Node<T>[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
+					final Node<T>[] ns = findNearestEdge(x_pl, y_pl, layer, mag);
 					if (null != ns) {
 						found = createNewNode(x_pl, y_pl, layer, ns[0]);
 						insertNode(ns[0], ns[1], found, ns[0].getConfidence(ns[1]));
 						setActive(found);
 					}
 				} else {
-					Node<T> nearest = last_visited;
+					final Node<T> nearest = last_visited;
 					if (null == nearest) {
 						Utils.showMessage("Before adding a new node, please activate an existing node\nby clicking on it, or pushing 'g' on it.");
 						return;
@@ -1618,12 +1623,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mouseDragged(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_d_old, int y_d_old) {
+	public void mouseDragged(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_d_old, final int y_d_old) {
 		translateActive(me, la, x_d, y_d, x_d_old, y_d_old);
 	}
 
 	@Override
-	public void mouseReleased(MouseEvent me, Layer la, int x_p, int y_p, int x_d, int y_d, int x_r, int y_r) {
+	public void mouseReleased(final MouseEvent me, final Layer la, final int x_p, final int y_p, final int x_d, final int y_d, final int x_r, final int y_r) {
 		final int tool = ProjectToolbar.getToolId();
 
 		translateActive(me, la, x_r, y_d, x_d, y_d);
@@ -1638,7 +1643,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		setActive(null);
 	}
 
-	private final void translateActive(MouseEvent me, Layer la, int x_d, int y_d, int x_d_old, int y_d_old) {
+	private final void translateActive(final MouseEvent me, final Layer la, int x_d, int y_d, int x_d_old, int y_d_old) {
 		if (null == active || me.isAltDown() || Utils.isControlDown(me)) return;
 		// shiftDown is ok: when dragging a newly branched node.
 
@@ -1660,11 +1665,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	static private Node<?> to_tag = null;
 	static private Node<?> to_untag = null;
 	static private boolean show_tag_dialogs = false;
-	
+
 	protected boolean isTagging() { return null != to_tag || null != to_untag; }
 
 	@Override
-	public void keyPressed(KeyEvent ke) {
+	public void keyPressed(final KeyEvent ke) {
 
 		switch (ProjectToolbar.getToolId()) {
 			case ProjectToolbar.PEN:
@@ -1675,7 +1680,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				return;
 		}
 
-		Object source = ke.getSource();
+		final Object source = ke.getSource();
 		if (! (source instanceof DisplayCanvas)) return;
 
 		final int keyCode = ke.getKeyCode();
@@ -1711,7 +1716,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							layer_set.addDataEditStep(this);
 						}
 					} else {
-						Tag t = layer_set.askForNewTag(keyCode);
+						final Tag t = layer_set.askForNewTag(keyCode);
 						if (null != t) {
 							target.addTag(t);
 							Display.repaint(layer_set);
@@ -1756,7 +1761,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					popup.add(new JLabel(untag ? "Untag:" : "Tag:"));
 					int i = 1;
 					for (final Tag tag : ts) {
-						JMenuItem item = new JMenuItem(tag.toString());
+						final JMenuItem item = new JMenuItem(tag.toString());
 						popup.add(item);
 						if (i < 10) {
 							item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0 + i, 0, true));
@@ -1767,7 +1772,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							else item.setEnabled(!target_tags.contains(tag));
 						}
 						item.addActionListener(new ActionListener() {
-							public void actionPerformed(ActionEvent ae) {
+							@Override
+							public void actionPerformed(final ActionEvent ae) {
 								if (untag) target.removeTag(tag);
 								else target.addTag(tag);
 								Display.repaint(layer_set);
@@ -1777,15 +1783,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						});
 					}
 					popup.addSeparator();
-					JMenuItem item = new JMenuItem(untag ? "Remove tag..." : "Define new tag...");
+					final JMenuItem item = new JMenuItem(untag ? "Remove tag..." : "Define new tag...");
 					popup.add(item);
 					item.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_0, 0, true));
 					item.addActionListener(new ActionListener() {
-						public void actionPerformed(ActionEvent ae) {
+						@Override
+						public void actionPerformed(final ActionEvent ae) {
 							if (untag) {
 								layer_set.askToRemoveTag(keyCode);
 							} else {
-								Tag t = layer_set.askForNewTag(keyCode);
+								final Tag t = layer_set.askForNewTag(keyCode);
 								if (null == t) return;
 								target.addTag(t);
 								Display.repaint(layer_set);
@@ -1798,8 +1805,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Show the popup on the Display, under the node
 					final float[] fp = new float[]{target.x, target.y};
 					this.at.transform(fp, 0, fp, 0, 1);
-					Rectangle srcRect = dc.getSrcRect();
-					double magnification = dc.getMagnification();
+					final Rectangle srcRect = dc.getSrcRect();
+					final double magnification = dc.getMagnification();
 					final int x = (int)((fp[0] - srcRect.x) * magnification);
 					final int y = (int)((fp[1] - srcRect.y) * magnification);
 					popup.show(dc, x, y);
@@ -1908,7 +1915,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (ProjectToolbar.PEN == ProjectToolbar.getToolId() && 0 == (modifiers ^ Event.SHIFT_MASK) && KeyEvent.VK_C == keyCode) {
 			nd = findClosestNodeW(getNodesToPaint(layer), po.x, po.y, dc.getMagnification());
 			if (null == nd) {
-				Node<T> last = getLastVisited();
+				final Node<T> last = getLastVisited();
 				if (null != last && layer == last.getLayer()) nd = last;
 			}
 			if (null != nd && adjustNodeColors(nd)) {
@@ -1923,7 +1930,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 	protected boolean adjustNodeColors(final Node<T> nd) {
 		final Color color = null == nd.color ? this.color : nd.color;
-		GenericDialog gd = new GenericDialog("Node colors");
+		final GenericDialog gd = new GenericDialog("Node colors");
 		gd.addSlider("Red: ", 0, 255, color.getRed());
 		gd.addSlider("Green: ", 0, 255, color.getGreen());
 		gd.addSlider("Blue: ", 0, 255, color.getBlue());
@@ -1932,6 +1939,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final Scrollbar blue = (Scrollbar)gd.getSliders().get(2);
 		final Color original = nd.color; // may be null
 		final SliderListener slc = new SliderListener() {
+			@Override
 			public void update() {
 				nd.setColor(new Color(red.getValue(), green.getValue(), blue.getValue()));
 				Display.repaint();
@@ -1978,13 +1986,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	@Override
-	public void mouseWheelMoved(MouseWheelEvent mwe) {
+	public void mouseWheelMoved(final MouseWheelEvent mwe) {
 		final int modifiers = mwe.getModifiers();
 		if (0 == (MouseWheelEvent.SHIFT_MASK ^ modifiers)) {
-			Object source = mwe.getSource();
+			final Object source = mwe.getSource();
 			if (! (source instanceof DisplayCanvas)) return;
-			DisplayCanvas dc = (DisplayCanvas)source;
-			Layer la = dc.getDisplay().getLayer();
+			final DisplayCanvas dc = (DisplayCanvas)source;
+			final Layer la = dc.getDisplay().getLayer();
 			final int rotation = mwe.getWheelRotation();
 			final double magnification = dc.getMagnification();
 			final Rectangle srcRect = dc.getSrcRect();
@@ -2034,7 +2042,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	public LinkedList<Region<Node<T>>> generateRegions(final Node<T> first, final Node<T> last, final int width, final int height, final double magnification) {
 		final LinkedList<Region<Node<T>>> regions = new LinkedList<Region<Node<T>>>();
 		Node<T> node = last;
-		float[] fps = new float[2];
+		final float[] fps = new float[2];
 		while (null != node) {
 			fps[0] = node.x;
 			fps[1] = node.y;
@@ -2090,7 +2098,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Lower bound cable length:
 					if (1 == nd.getChildrenCount()) continue; // include only end nodes and branch nodes
 					else {
-						Node<T> prev = nd.findPreviousBranchOrRootPoint();
+						final Node<T> prev = nd.findPreviousBranchOrRootPoint();
 						if (null == prev) {
 							Utils.log("ERROR: Can't find the previous branch or root point for node " + nd);
 							continue;
@@ -2119,17 +2127,19 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 
 	/** Expects Rectangle in world coords. */
+	@Override
 	public boolean intersects(final Layer layer, final Rectangle r) {
-		Set<Node<T>> nodes = node_layer_map.get(layer);
+		final Set<Node<T>> nodes = node_layer_map.get(layer);
 		if (null == nodes || nodes.isEmpty()) return false;
 		try {
 			return null != findFirstIntersectingNode(nodes, new Area(r).createTransformedArea(this.at.createInverse()));
-		} catch (NoninvertibleTransformException e) {
+		} catch (final NoninvertibleTransformException e) {
 			IJError.print(e);
 		}
 		return false;
 	}
 	/** Expects Area in world coords. */
+	@Override
 	public boolean intersects(final Layer layer, final Area area) {
 		return null != firstIntersectingNode(layer, area);
 	}
@@ -2140,7 +2150,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null == nodes || nodes.isEmpty()) return null;
 		try {
 			return findFirstIntersectingNode(nodes, area.createTransformedArea(this.at.createInverse()));
-		} catch (NoninvertibleTransformException e) {
+		} catch (final NoninvertibleTransformException e) {
 			IJError.print(e);
 		}
 		return null;
@@ -2155,7 +2165,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	@Override
 	public boolean paintsAt(final Layer layer) {
 		synchronized (node_layer_map) {
-			Collection<Node<T>> nodes = node_layer_map.get(layer);
+			final Collection<Node<T>> nodes = node_layer_map.get(layer);
 			return null != nodes && nodes.size() > 0;
 		}
 	}
@@ -2179,7 +2189,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	 *  An extra tab has a search field, to list nodes for a given typed-in (regex) tag. */
 	public Future<JFrame> createMultiTableView() {
 		if (null == root) return null;
-		return project.getLoader().doLater(new Callable<JFrame>() { public JFrame call() {
+		return project.getLoader().doLater(new Callable<JFrame>() { @Override
+		public JFrame call() {
 			synchronized (Tree.this) {
 				try {
 					if (null == tndv) {
@@ -2189,7 +2200,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						tndv.show();
 						return tndv.frame;
 					}
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					IJError.print(e);
 				}
 				return null;
@@ -2210,7 +2221,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	public boolean remove2(boolean check) {
+	@Override
+	public boolean remove2(final boolean check) {
 		if (super.remove2(check)) {
 			synchronized (this) {
 				if (null != tndv) {
@@ -2245,7 +2257,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			createGUI();
 		}
 		private final class CustomCellRenderer extends DefaultTableCellRenderer {
-			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+			@Override
+			public Component getTableCellRendererComponent(final JTable table, final Object value, final boolean isSelected, final boolean hasFocus, final int row, final int column) {
 				final Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 				// Colorize visited review cells
 				if (8 == column && visited_reviews.contains(((NodeTableModel)table.getModel()).nodes.get(row))) {
@@ -2269,10 +2282,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			Table() {
 				super();
 				getTableHeader().addMouseListener(new MouseAdapter() {
-					public void mouseClicked(MouseEvent me) { // mousePressed would fail to repaint due to asynch issues
+					@Override
+					public void mouseClicked(final MouseEvent me) { // mousePressed would fail to repaint due to asynch issues
 						if (2 != me.getClickCount()) return;
-						int viewColumn = getColumnModel().getColumnIndexAtX(me.getX());
-						int column = convertColumnIndexToModel(viewColumn);
+						final int viewColumn = getColumnModel().getColumnIndexAtX(me.getX());
+						final int column = convertColumnIndexToModel(viewColumn);
 						if (-1 == column) return;
 						((NodeTableModel)getModel()).sortByColumn(column, me.isShiftDown());
 						last_sorted_column = column;
@@ -2280,7 +2294,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 				});
 				this.addMouseListener(new MouseAdapter() {
-					public void mousePressed(MouseEvent me) {
+					@Override
+					public void mousePressed(final MouseEvent me) {
 						final int row = Table.this.rowAtPoint(me.getPoint());
 						if (2 == me.getClickCount()) {
 							go(row);
@@ -2289,7 +2304,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								Utils.showMessage("Please wait until the current task completes!");
 								return;
 							}
-							JPopupMenu popup = new JPopupMenu();
+							final JPopupMenu popup = new JPopupMenu();
 							final JMenuItem go = new JMenuItem("Go"); popup.add(go);
 							final JMenuItem review = new JMenuItem("Review"); popup.add(review);
 							review.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_R, 0, true));
@@ -2302,8 +2317,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							final JMenuItem mark_as_reviewed = new JMenuItem("Mark selected as reviewed"); popup.add(mark_as_reviewed);
 							final JMenuItem clear_visited_reviews = new JMenuItem("Unmark all reviewed"); popup.add(clear_visited_reviews);
 							//
-							ActionListener listener = new ActionListener() {
-								public void actionPerformed(ActionEvent ae) {
+							final ActionListener listener = new ActionListener() {
+								@Override
+								public void actionPerformed(final ActionEvent ae) {
 									final Object src = ae.getSource();
 									if (go == src) go(row);
 									else if (generate == src) {
@@ -2362,7 +2378,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					}
 				});
 				this.addKeyListener(new KeyAdapter() {
-					public void keyPressed(KeyEvent ke) {
+					@Override
+					public void keyPressed(final KeyEvent ke) {
 						final int keyCode = ke.getKeyCode();
 						final int row = getSelectedRow();
 						if (keyCode == KeyEvent.VK_G) {
@@ -2388,12 +2405,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				return m.getNodeData(nd).tags;
 			}
 			*/
-			String getReviewTags(int row) {
-				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
-				Set<Tag> tags = nd.getTags();
+			String getReviewTags(final int row) {
+				final Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				final Set<Tag> tags = nd.getTags();
 				if (null == tags) return null;
-				StringBuilder sb = new StringBuilder();
-				for (Tag t : tags) {
+				final StringBuilder sb = new StringBuilder();
+				for (final Tag t : tags) {
 					if (t.toString().startsWith("#R")) {
 						sb.append(t.toString()).append(", ");
 					}
@@ -2402,8 +2419,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				sb.setLength(sb.length() -2);
 				return sb.toString();
 			}
-			void go(int row) {
-				Node<T> node = ((NodeTableModel)this.getModel()).nodes.get(row);
+			void go(final int row) {
+				final Node<T> node = ((NodeTableModel)this.getModel()).nodes.get(row);
 				setLastVisited(node);
 				Display.centerAt(Tree.this.createCoordinate(node));
 			}
@@ -2413,23 +2430,23 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 			}
 			private boolean hasReviewTag(final int row) {
-				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
-				Set<Tag> tags = nd.getTags();
+				final Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+				final Set<Tag> tags = nd.getTags();
 				if (null == tags) return false;
-				for (Tag tag : tags) if (tag.toString().startsWith("#R-")) return true;
+				for (final Tag tag : tags) if (tag.toString().startsWith("#R-")) return true;
 				return false;
 			}
-			private void review(int row) {
-				Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
+			private void review(final int row) {
+				final Node<T> nd = ((NodeTableModel)this.getModel()).nodes.get(row);
 				// See if there are any tags
-				Set<Tag> tags = nd.getTags();
+				final Set<Tag> tags = nd.getTags();
 				if (null == tags) {
 					Utils.log("Node without review tag!");
 					return;
 				}
 				// Find a review tag, if any
 				Tag review_tag = null;
-				for (Tag tag : tags) {
+				for (final Tag tag : tags) {
 					if (tag.toString().startsWith("#R-")) {
 						review_tag = tag;
 						break;
@@ -2461,11 +2478,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		private void createGUI() {
 			this.frame = new JFrame("Nodes for " + Tree.this);
 			frame.addWindowListener(new WindowAdapter() {
-				public void windowClosing(WindowEvent we) {
+				@Override
+				public void windowClosing(final WindowEvent we) {
 					Tree.this.tndv = null;
 				}
 			});
-			JTabbedPane tabs = new JTabbedPane();
+			final JTabbedPane tabs = new JTabbedPane();
 			tabs.setPreferredSize(new Dimension(500, 500));
 			tabs.add("All nodes", new JScrollPane(table_allnodes));
 			tabs.add("Branch nodes", new JScrollPane(table_branchnodes));
@@ -2473,22 +2491,24 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 			final JTextField search = new JTextField(14);
 			search.addKeyListener(new KeyAdapter() {
-				public void keyPressed(KeyEvent ke) {
+				@Override
+				public void keyPressed(final KeyEvent ke) {
 					if (ke.getKeyCode() == KeyEvent.VK_ENTER) {
 						search(search.getText());
 					}
 				}
 			});
-			JButton b = new JButton("Search");
+			final JButton b = new JButton("Search");
 			b.addActionListener(new ActionListener() {
-				public void actionPerformed(ActionEvent ae) {
+				@Override
+				public void actionPerformed(final ActionEvent ae) {
 					search(search.getText());
 				}
 			});
-			JPanel pane = new JPanel();
-			GridBagLayout gb = new GridBagLayout();
+			final JPanel pane = new JPanel();
+			final GridBagLayout gb = new GridBagLayout();
 			pane.setLayout(gb);
-			GridBagConstraints c = new GridBagConstraints();
+			final GridBagConstraints c = new GridBagConstraints();
 			c.gridx = 0;
 			c.gridy = 0;
 			c.weightx = 1;
@@ -2509,7 +2529,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			c.gridwidth = 2;
 			c.weighty = 1;
 			c.fill = GridBagConstraints.BOTH;
-			JScrollPane scp = new JScrollPane(table_searchnodes);
+			final JScrollPane scp = new JScrollPane(table_searchnodes);
 			c.insets = new Insets(0,0,0,0);
 			gb.setConstraints(scp, c);
 			pane.add(scp);
@@ -2555,23 +2575,24 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			this.table_endnodes.setModel(this.model_endnodes);
 			this.table_allnodes.setModel(this.model_allnodes);
 			this.table_searchnodes.setModel(this.model_searchnodes);
-			
+
 
 			try {
-				CustomCellRenderer ccr = new CustomCellRenderer();
+				final CustomCellRenderer ccr = new CustomCellRenderer();
 				setCellRenderer(table_branchnodes, ccr);
 				setCellRenderer(table_endnodes, ccr);
 				setCellRenderer(table_allnodes, ccr);
 				setCellRenderer(table_searchnodes, ccr);
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 		}
-		void setCellRenderer(JTable t, DefaultTableCellRenderer ccr) {
+		void setCellRenderer(final JTable t, final DefaultTableCellRenderer ccr) {
 			t.setDefaultRenderer(t.getColumnClass(8), ccr);
 		}
 		void recreate(final Node<T> root) {
-			SwingUtilities.invokeLater(new Runnable() { public void run() {
+			SwingUtilities.invokeLater(new Runnable() { @Override
+			public void run() {
 				create(root);
 				table_branchnodes.resort();
 				table_searchnodes.resort();
@@ -2584,7 +2605,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			synchronized (nodedata) {
 				nodedata.remove(node);
 			}
-			SwingUtilities.invokeLater(new Runnable() { public void run() {
+			SwingUtilities.invokeLater(new Runnable() { @Override
+			public void run() {
 				Utils.revalidateComponent(frame);
 			}});
 		}
@@ -2608,7 +2630,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				}
 				this.model_searchnodes = new NodeTableModel(this.searchnodes, this.nodedata);
 				this.table_searchnodes.setModel(this.model_searchnodes);
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 		}
@@ -2642,7 +2664,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				final StringBuilder sb = new StringBuilder();
 				final StringBuilder sbr = new StringBuilder();
 				for (final Tag t : ts) {
-					String s = t.toString();
+					final String s = t.toString();
 					if ('#' == s.charAt(0) && 'R' == s.charAt(1)) sbr.append(s).append(", ");
 					else sb.append(s).append(", ");
 				}
@@ -2670,7 +2692,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			if (nodes.get(0) instanceof AreaTree.AreaNode) return "Area";
 			return "Data";
 		}
-		public String getColumnName(int col) {
+		@Override
+		public String getColumnName(final int col) {
 			switch (col) {
 				case 0: return ""; // listing
 				case 1: return "X";
@@ -2684,9 +2707,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				default: return null; // should be an error
 			}
 		}
+		@Override
 		public int getRowCount() { return nodes.size(); }
+		@Override
 		public int getColumnCount() { return 9; }
-		public Object getRawValueAt(int row, int col) {
+		public Object getRawValueAt(final int row, final int col) {
 			if (0 == nodes.size()) return null;
 			final Node<T> nd = nodes.get(row);
 			switch (col) {
@@ -2702,7 +2727,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				default: return null;
 			}
 		}
-		public Object getValueAt(int row, int col) {
+		@Override
+		public Object getValueAt(final int row, final int col) {
 			final Object o = getRawValueAt(row, col);
 			return o instanceof Double ? Utils.cutNumber(((Double)o).doubleValue(), 1) : o;
 		}
@@ -2716,16 +2742,19 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				return ndat;
 			}
 		}
-		public boolean isCellEditable(int row, int col) {
+		@Override
+		public boolean isCellEditable(final int row, final int col) {
 			return false;
 		}
-		public void setValueAt(Object value, int row, int col) {}
+		@Override
+		public void setValueAt(final Object value, final int row, final int col) {}
 		public void sortByColumn(final int col, final boolean descending) {
 			final ArrayList<Node<T>> nodes = new ArrayList<Node<T>>(NodeTableModel.this.nodes);
 			Collections.sort(nodes, new Comparator<Node<T>>() {
+				@Override
 				public int compare(Node<T> nd1, Node<T> nd2) {
 					if (descending) {
-						Node<T> tmp = nd1;
+						final Node<T> tmp = nd1;
 						nd1 = nd2;
 						nd2 = tmp;
 					}
@@ -2752,7 +2781,8 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 	}
 
-	synchronized protected boolean layerRemoved(Layer la) {
+	@Override
+	synchronized protected boolean layerRemoved(final Layer la) {
 		super.layerRemoved(la);
 		final Set<Node<T>> nodes;
 		synchronized (node_layer_map) {
@@ -2804,13 +2834,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return true;
 	}
 
+	@Override
 	public boolean apply(final Layer la, final Area roi, final mpicbg.models.CoordinateTransform ict) throws Exception {
 		mpicbg.models.CoordinateTransform chain = null;
 		synchronized (node_layer_map) {
 			if (null == root) return true;
 			final Set<Node<T>> nodes = node_layer_map.get(la);
 			if (null == nodes || nodes.isEmpty()) return true;
-			AffineTransform inverse = this.at.createInverse();
+			final AffineTransform inverse = this.at.createInverse();
 			final Area localroi = roi.createTransformedArea(inverse);
 			for (final Node<T> nd : nodes) {
 				if (nd.intersects(localroi)) {
@@ -2824,6 +2855,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null != chain) calculateBoundingBox(la);
 		return true;
 	}
+	@Override
 	public boolean apply(final VectorDataTransform vdt) throws Exception {
 		synchronized (node_layer_map) {
 			if (null == root) return true;
@@ -2886,7 +2918,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					if (nd.isRoughlyInside(local)) return true;
 				}
 				return false;
-			} catch (NoninvertibleTransformException nite) {
+			} catch (final NoninvertibleTransformException nite) {
 				IJError.print(nite);
 				return false;
 			}
@@ -2896,7 +2928,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Retain the data within the layer range, and through out all the rest.
 	 *  Does NOT call calculateBoundingBox or updateBucket; that is your responsibility. */
 	@Override
-	public boolean crop(List<Layer> range) {
+	public boolean crop(final List<Layer> range) {
 		synchronized (node_layer_map) {
 			// Iterate nodes and when a node sits on a Layer that doesn't belong to the range, then remove it and give its children, if any, to the parent node.
 			final HashSet<Layer> keep = new HashSet<Layer>(range);
@@ -2926,7 +2958,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 							}
 						} else {
 							// Remove from its parent
-							Node<T> nd_parent = nd.parent; //cached, since the statement below will nullify it
+							final Node<T> nd_parent = nd.parent; //cached, since the statement below will nullify it
 							nd.parent.remove(nd);
 							// ... and handle its children:
 							if (null == nd.children) {
@@ -2951,6 +2983,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Open an image in a separate thread and returns the thread. Frees up to 1 Gb for it. */
 	private Future<ImagePlus> openImage(final String path, final Node<T> last) {
 		return project.getLoader().doLater(new Callable<ImagePlus>() {
+			@Override
 			public ImagePlus call() {
 				try {
 					if (!new File(path).exists()) {
@@ -2958,23 +2991,23 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 						return null;
 					}
 					project.getLoader().releaseToFit(1000000000L); // 1 Gb : can't tell for jpegs and tif-jpg, TODO would have to read the header.
-					Opener op = new Opener();
+					final Opener op = new Opener();
 					op.setSilentMode(true);
 					final ImagePlus imp = op.openImage(path); // TODO WARNING should go via the Loader
 					if (null == imp) {
 						Utils.log("ERROR: could not open " + path);
 					} else {
-						StackWindow stack = new StackWindow(imp);
-						MouseListener[] ml = stack.getCanvas().getMouseListeners();
-						for (MouseListener m : ml) stack.getCanvas().removeMouseListener(m);
+						final StackWindow stack = new StackWindow(imp);
+						final MouseListener[] ml = stack.getCanvas().getMouseListeners();
+						for (final MouseListener m : ml) stack.getCanvas().removeMouseListener(m);
 						stack.getCanvas().addMouseListener(new MouseAdapter() {
 							@Override
-							public void mousePressed(MouseEvent me) {
+							public void mousePressed(final MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 									// Go to the node
 									// Slices are 1-based: 1<=i<=N
-									int slice = imp.getCurrentSlice();
+									final int slice = imp.getCurrentSlice();
 									if (slice == imp.getNSlices()) {
 										Display.centerAt(createCoordinate(last));
 									} else {
@@ -2993,35 +3026,36 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 								}
 							}
 							@Override
-							public void mouseDragged(MouseEvent me) {
+							public void mouseDragged(final MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 								}
 							}
 							@Override
-							public void mouseReleased(MouseEvent me) {
+							public void mouseReleased(final MouseEvent me) {
 								if (2 == me.getClickCount()) {
 									me.consume();
 								}
 							}
 						});
-						for (MouseListener m : ml) stack.getCanvas().addMouseListener(m);
+						for (final MouseListener m : ml) stack.getCanvas().addMouseListener(m);
 					}
 					return imp;
-				} catch (Exception e) {
+				} catch (final Exception e) {
 					IJError.print(e);
 				}
 				return null;
 			}
 		});
 	}
-	
+
 	public Bureaucrat generateAllReviewStacks() {
 		return generateSubtreeReviewStacks(root);
 	}
 
 	public Bureaucrat generateSubtreeReviewStacks(final Node<T> root) {
 		return Bureaucrat.createAndStart(new Worker.Task("Generating review stacks") {
+			@Override
 			public void exec() {
 				if (null == root) return;
 
@@ -3031,14 +3065,14 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final int nproc = Runtime.getRuntime().availableProcessors();
 		final ExecutorService exe = Executors.newFixedThreadPool(Math.max(1, Math.min(4, nproc)));
 		// Above, use maximum 4 threads. I/O bound operations don't deal well with more.
-		
+
 		// Disable window
 		final TreeNodesDataView tndv = Tree.this.tndv;
 		if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), false);
 		try {
 			final List<Future<?>> fus = new ArrayList<Future<?>>();
 			final Object dirsync = new Object();
-			
+
 			final ArrayList<Node<T>> be_nodes = new ArrayList<Node<T>>();
 			// Remove all reviews, if any
 			for (final Node<T> nd : root.getSubtreeNodes()) {
@@ -3055,8 +3089,9 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				nd.addTag(tag);
 				updateViewData(nd);
 				rs[k] = new Runnable() {
+					@Override
 					public void run() {
-						String filepath = getReviewTagPath(tag);
+						final String filepath = getReviewTagPath(tag);
 						synchronized (dirsync) {
 							if (!Utils.ensure(filepath)) {
 								Utils.log("Did NOT create review stack for tag " + tag);
@@ -3072,7 +3107,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			// Now that all tags exists (and will get painted), generate the stacks
 			for (int i=0; i<rs.length; i++) fus.add(exe.submit(rs[i]));
 			Utils.wait(fus);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 		} finally {
 			if (null != tndv && null != tndv.frame) Utils.setEnabled(tndv.frame.getContentPane(), true);
@@ -3085,19 +3120,19 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** The behavior is undefined if @param last is not a descendant of @param first. */
 	public void createReviewStack(final Node<T> first, final Node<T> last, final Tag tag, final String filepath, final int width, final int height, final double magnification, final int image_type) {
 		try {
-			ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(first, last, width, height, magnification), magnification, image_type, this);
+			final ImagePlus imp = project.getLoader().createLazyFlyThrough(generateRegions(first, last, width, height, magnification), magnification, image_type, this);
 			imp.setTitle(imp.getTitle() + tag.toString());
 			ij.IJ.redirectErrorMessages();
 			new FileSaver(imp).saveAsZip(filepath);
-		} catch (Exception e) {
+		} catch (final Exception e) {
 			IJError.print(e);
 			Utils.log("\nERROR: NOT created review stack for " + tag.toString());
 			return;
 		}
 	}
-	
-	
-	private String getReviewTagPath(Tag tag) {
+
+
+	private String getReviewTagPath(final Tag tag) {
 		// Remove the "#" from the tag name
 		return getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId() + "/" + tag.toString().substring(1) + ".zip";
 	}
@@ -3105,11 +3140,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final Set<Tag> tags = nd.getTags();
 		if (null == tags) return true;
 		for (final Tag tag : tags) {
-			String s = tag.toString();
+			final String s = tag.toString();
 			if (s.startsWith("#R-")) {
 				try {
-					String path = getReviewTagPath(tag);
-					File f = new File(path);
+					final String path = getReviewTagPath(tag);
+					final File f = new File(path);
 					if (f.exists()) {
 						if (!f.delete()) {
 							Utils.log("FAILED to delete: " + path + "\n   did NOT remove tag " + tag);
@@ -3119,7 +3154,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					// Remove tag:
 					nd.removeTag(tag);
 					updateViewData(nd);
-				} catch (Exception ee) {
+				} catch (final Exception ee) {
 					IJError.print(ee);
 				}
 			}
@@ -3128,6 +3163,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	}
 	public Bureaucrat removeReviews() {
 		return Bureaucrat.createAndStart(new Worker.Task("Removing review stacks") { // .. and tags
+			@Override
 			public void exec() {
 
 		// Remove all review tags
@@ -3139,7 +3175,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				success = success && removeReview(nd);
 			}
 		}
-		File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
+		final File f = new File(getProject().getLoader().getUNUIdFolder() + "tree.review.stacks/" + getId());
 		if (success) {
 			// Remove directory (even if not empty)
 			Utils.removeFile(f);
@@ -3216,7 +3252,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null == root) return null;
 		return fix(root.asPoint(), calibrated, new float[2]);
 	}
-	
+
 	/** Return the {@link Node} as a point in space.
 	 * @param nd The Node to extract coordinates from.
 	 * @param calibrated Whether to calibrate or not the point.
@@ -3264,10 +3300,10 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			if (Treeline.class == target) {
 				/*
 				// Specific for a target Treeline:
-				
+
 				final Treeline t = new Treeline(src.project, src.title);
 				t.at.setTransform(src.at);
-				
+
 				final Map<Node<?>,Treeline.RadiusNode> rel = new HashMap<Node<?>,Treeline.RadiusNode>();
 				final LinkedList<Node<?>> todo = new LinkedList<Node<?>>();
 				//t.root = new Treeline.RadiusNode(src.root.x, src.root.y, src.root.la);
@@ -3289,7 +3325,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 					rel.get(a.parent).add(copy, copy.confidence);
 				}
 				*/
-				
+
 				m.put(src, copyAs(src, Treeline.class, Treeline.RadiusNode.class));
 			} else if (AreaTree.class == target) {
 				m.put(src, copyAs(src, AreaTree.class, AreaTree.AreaNode.class));
@@ -3308,7 +3344,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
  		}
 		return m;
 	}
-	
+
 	/** Can copy a Treeline to an AreaTree and viceversa.
 	 *  Copies the transform, the nodes (with tags and confidence), and the color. The transparency, locked stated and links are not copied. */
 	static public<A extends Tree<?>, B extends Node<?>> A copyAs(final Tree<?> src, final Class<A> tree_class, final Class<B> node_class) throws Exception {
@@ -3374,18 +3410,19 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return node;
 	}
 
-	/** @return null if no node is near @param x, @param y */ 
+	/** @return null if no node is near @param x, @param y */
 	public Bureaucrat generateReviewStackForSlab(final float x, final float y, final Layer layer, final double magnification) {
 		return generateReviewStackForSlab(guiFindNode(x, y, layer, magnification));
 	}
 
-	public Bureaucrat generateSubtreeReviewStacks(int x, int y, Layer layer, double magnification) {
+	public Bureaucrat generateSubtreeReviewStacks(final int x, final int y, final Layer layer, final double magnification) {
 		return generateSubtreeReviewStacks(guiFindNode(x, y, layer, magnification));
 	}
 
 	/** Generate a review stack from the previous branch node or root, to the next branch node or end node. */
 	public Bureaucrat generateReviewStackForSlab(final Node<T> node) {
 		return Bureaucrat.createAndStart(new Worker.Task("Create review stack") {
+			@Override
 			public void exec() {
 				if (null == node) return;
 				final Node<T> first = node.findPreviousBranchOrRootPoint();
@@ -3395,7 +3432,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				String name = "#R-slab-1";
 				if (null != tags && !tags.isEmpty()) {
 					final ArrayList<Integer> a = new ArrayList<Integer>();
-					for (Tag t : tags) {
+					for (final Tag t : tags) {
 						if (t.toString().startsWith("#R-slab-")) {
 							a.add(Integer.parseInt(t.toString().substring(7)));
 						}
@@ -3413,7 +3450,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				createReviewStack(first, last, tag, filepath, 512, 512, 1.0, ImagePlus.COLOR_RGB);
 			}}, project);
 	}
-	
+
 	static public final class MeasurePathDistance<I> {
 		private double dist = 0;
 		private int branch_points = 0;
@@ -3425,7 +3462,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		final private Calibration cal;
 		final private Tree<I> tree;
 		final private Node<I> a, b;
-		
+
 		public double getDistance() { return dist; }
 		public List<Node<I>> getPath() { return path; }
 		public int getBranchNodesInPath() { return branch_points; }
@@ -3466,12 +3503,12 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			}
 			//
 			while (it.hasNext()) {
-				Node<?> second = it.next();
+				final Node<?> second = it.next();
 				if (second.getChildrenCount() > 1) branch_points++;
 				fpB[0] = second.x;
 				fpB[1] = second.y;
 				tree.at.transform(fpB, 0, fpB, 0, 1);
-				double zB = second.la.getZ();
+				final double zB = second.la.getZ();
 				dist += Math.sqrt(Math.pow((fpB[0] - fpA[0]) * cal.pixelWidth, 2)
 						+ Math.pow((fpB[1] - fpA[1]) * cal.pixelHeight, 2)
 						+ Math.pow((zB - zA) * cal.pixelWidth, 2));
@@ -3504,22 +3541,22 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 	/** Reuses @param rt unless it is null, in which case it creates a new one.
 	 *  Will check if both nodes belong to this tree.
 	 *  @return The used ResultsTable instance. */
-	public ResultsTable measurePathDistance(final Node<T> a, final Node<T> b, ResultsTable rt) {
+	public ResultsTable measurePathDistance(final Node<T> a, final Node<T> b, final ResultsTable rt) {
 		synchronized (node_layer_map) {
 			// Do both nodes belong to this Tree?
-			Set<Node<T>> nodes1 = node_layer_map.get(a.la);
+			final Set<Node<T>> nodes1 = node_layer_map.get(a.la);
 			if (null == nodes1 || !nodes1.contains(a)) {
 				Utils.log("Tree.measurePathDistance: node " + a + " does not belong to tree " + this);
 				return rt;
 			}
-			Set<Node<T>> nodes2 = node_layer_map.get(b.la);
+			final Set<Node<T>> nodes2 = node_layer_map.get(b.la);
 			if (null == nodes2 || !nodes2.contains(b)) {
 				Utils.log("Tree.measurePathDistance: node " + b + " does not belong to tree " + this);
 				return rt;
 			}
 			try {
 				return new MeasurePathDistance<T>(this, a, b).show(rt);
-			} catch (Exception e) {
+			} catch (final Exception e) {
 				IJError.print(e);
 			}
 			return rt;
@@ -3545,7 +3582,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		return tags;
 	}
-	
+
 	@Override
 	public void destroy() {
 		super.destroy();
@@ -3556,7 +3593,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		if (null == root) return new HashMap<Node<T>,Integer>();
 		return root.computeAllDegrees();
 	}
-	
+
 	public Collection<Node<T>> getBranchNodes() {
 		if (null == root) return new ArrayList<Node<T>>();
 		return root.getBranchNodes();
@@ -3599,13 +3636,13 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 
 		final HashMap<Node<T>,Vertex<Node<T>>> m = asVertices();
 		Centrality.compute(m.values());
-		
+
 		for (final Map.Entry<Node<T>,Vertex<Node<T>>> e : m.entrySet()) {
 			cs.put(e.getKey(), e.getValue().centrality);
 		}
 		return cs;
 	}
-	
+
 	public void colorizeByNodeBetweennessCentrality() {
 		if (null == root) return;
 		final HashMap<Node<T>,Vertex<Node<T>>> m = asVertices();
@@ -3615,7 +3652,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		double max = 0;
 		for (final Vertex<?> v : m.values()) max = Math.max(max, v.centrality);
 		for (final Map.Entry<Node<T>, Vertex<Node<T>>> e : m.entrySet()) {
-			int i = (int)(255 * (e.getValue().centrality / max) + 0.5f);
+			final int i = (int)(255 * (e.getValue().centrality / max) + 0.5f);
 			Color c = colors.get(i);
 			if (null == c) {
 				c = new Color(cm.getRed(i), cm.getGreen(i), cm.getBlue(i));
@@ -3624,7 +3661,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			e.getKey().setColor(c);
 		}
 	}
-	
+
 	public void colorizeByBranchBetweennessCentrality(final int etching_multiplier) {
 		if (null == root) return;
 		final Collection<Vertex<Node<T>>> vs = asVertices().values();
@@ -3638,7 +3675,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			return;
 		}
 		for (final Vertex<Node<T>> v : vs) {
-			int i = (int)(255 * (v.centrality / max) + 0.5f);
+			final int i = (int)(255 * (v.centrality / max) + 0.5f);
 			Utils.log("branch centrality: " + v.centrality + " , i: " + i);
 			Color c = colors.get(i);
 			if (null == c) {
@@ -3648,16 +3685,16 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			v.data.setColor(c);
 		}
 	}
-	
+
 	public class Pair {
 		/** Two nodes of a tree; there is a unique path that goes from a to b. */
 		public Node<T> a, b;
 
-		public Pair(Node<T> a, Node<T> b) {
+		public Pair(final Node<T> a, final Node<T> b) {
 			this.a = a;
 			this.b = b;
 		}
-		
+
 		/** The calibrated distance from a to b. */
 		public double measureDistance() throws Exception {
 			return new MeasurePathDistance<T>(Tree.this, a, b).getDistance();
@@ -3677,27 +3714,27 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			return getData(Node.findPath(a, b));
 		}
 	}
-	
+
 	public class NodePath extends Pair {
 		/** The ordered list of nodes from a to b, both included. */
 		final protected List<Node<T>> path;
 
-		public NodePath(Node<T> a, Node<T> b) {
+		public NodePath(final Node<T> a, final Node<T> b) {
 			this(a, b, Node.findPath(a, b));
 		}
 
 		/** Assumes that a is the first element in path, and b the last,
 		 * and that a has a lower degree than b (that is, a is upstream of b). */
-		public NodePath(Node<T> a, Node<T> b, List<Node<T>> path) {
+		public NodePath(final Node<T> a, final Node<T> b, final List<Node<T>> path) {
 			super(a, b);
 			this.path = path;
 		}
-		
+
 		public List<Node<T>> getPath() {
 			return path;
 		}
 	}
-	
+
 	public abstract class MeasurementPair extends NodePath
 	{
 		/** The calibrated path distance between nodes a and b, measured
@@ -3710,11 +3747,11 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		/** The ordered list of calibrated coordinates of all nodes in the path
 		 * of nodes between a and b, both included. */
 		final public List<Point3f> coords;
-		
-		public MeasurementPair(NodePath np) {
+
+		public MeasurementPair(final NodePath np) {
 			this(np.a, np.b, np.path);
 		}
-		public MeasurementPair(Node<T> a, Node<T> b, List<Node<T>> path) {
+		public MeasurementPair(final Node<T> a, final Node<T> b, final List<Node<T>> path) {
 			super(a, b, path);
 			this.distance = new MeasurePathDistance<T>(Tree.this, a, b, path).getDistance();
 			this.data = calibratedData();
@@ -3748,15 +3785,15 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 			return aff;
 		}
 	}
-	
+
 	protected abstract MeasurementPair createMeasurementPair(NodePath np);
-	
+
 	public List<NodePath> findTaggedPairs(final Tag upstream, final Tag downstream) {
 		final ArrayList<NodePath> pairs = new ArrayList<NodePath>();
 		if (null == root) return pairs;
 		for (final Node<T> nd : root.getSubtreeNodes()) {
 			if (nd.hasTag(downstream)) {
-				List<Node<T>> path = new ArrayList<Node<T>>();
+				final List<Node<T>> path = new ArrayList<Node<T>>();
 				path.add(nd);
 				Node<T> parent = nd.getParent();
 				while (!parent.hasTag(upstream)) {
@@ -3772,7 +3809,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		}
 		return pairs;
 	}
-	
+
 	public List<MeasurementPair> measureTaggedPairs(final Tag upstream, final Tag downstream) {
 		final ArrayList<MeasurementPair> pairs = new ArrayList<MeasurementPair>();
 		for (final NodePath np : findTaggedPairs(upstream, downstream)) {

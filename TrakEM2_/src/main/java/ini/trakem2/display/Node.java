@@ -1,10 +1,5 @@
 package ini.trakem2.display;
 
-import ini.trakem2.Project;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.Utils;
-
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
@@ -30,7 +25,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import ini.trakem2.Project;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.Utils;
 
 /** Can only have one parent, so there aren't cyclic graphs. */
 public abstract class Node<T> implements Taggable {

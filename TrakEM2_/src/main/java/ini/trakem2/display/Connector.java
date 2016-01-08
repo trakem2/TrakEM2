@@ -1,12 +1,5 @@
 package ini.trakem2.display;
 
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
@@ -25,17 +18,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
 
 /** A one-to-many connection, represented by one source point and one or more target points. The connector is drawn by click+drag+release, defining the origin at click and the target at release. By clicking anywhere else, the connector can be given another target. Points can be dragged and removed.
  * Connectors are meant to represent synapses, in particular polyadic synapses. */
 public class Connector extends Treeline {
 
-	public Connector(Project project, String title) {
+	public Connector(final Project project, final String title) {
 		super(project, title);
 	}
-	
-	public Connector(Project project, long id, String title, float width, float height, float alpha, boolean visible, Color color, boolean locked, AffineTransform at) {
+
+	public Connector(final Project project, final long id, final String title, final float width, final float height, final float alpha, final boolean visible, final Color color, final boolean locked, final AffineTransform at) {
 		super(project, project.getLoader().getNextId(), title, width, height, alpha, visible, color, locked, at);
 	}
 
@@ -50,7 +50,7 @@ public class Connector extends Treeline {
 	}
 
 	@Override
-	public Node<Float> newNode(float lx, float ly, Layer la, Node<?> modelNode) {
+	public Node<Float> newNode(final float lx, final float ly, final Layer la, final Node<?> modelNode) {
 		return new ConnectorNode(lx, ly, la, null == modelNode ? 0 : ((ConnectorNode)modelNode).r);
 	}
 
@@ -156,7 +156,7 @@ public class Connector extends Treeline {
 
 			// Targets:
 			if (null != targets && targets.length() > 0) {
-				int inc = new_format ? 4 : 3;
+				final int inc = new_format ? 4 : 3;
 				for (int i=0, k=1; i<t.length; i+=inc, k++) {
 					/* X  */ p[k+k] = Float.parseFloat(t[i]);
 					/* Y  */ p[k+k+1] = Float.parseFloat(t[i+1]);
@@ -169,7 +169,7 @@ public class Connector extends Treeline {
 			// Now, into nodes:
 			final Node<Float> root = new ConnectorNode(p[0], p[1], ls.getLayer(lids[0]), radius[0]);
 			for (int i=1; i<lids.length; i++) {
-				Node<Float> nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
+				final Node<Float> nd = new ConnectorNode(p[i+i], p[i+i+1], ls.getLayer(lids[i]), radius[i]);
 				root.add(nd, Node.MAX_EDGE_CONFIDENCE);
 			}
 			setRoot(root);
@@ -214,7 +214,7 @@ public class Connector extends Treeline {
 		a.transform(this.at);
 		return M.intersects(area, a);
 	}
-	
+
 	/** Whether the area of the root node intersects the world coordinates {@param wx}, {@param wy} at {@link Layer} {@param la}. */
 	public boolean intersectsOrigin(final double wx, final double wy, final Layer la) {
 		if (null == root || root.la != la) return false;
@@ -281,9 +281,10 @@ public class Connector extends Treeline {
 		Displayable.exportDTD(type, sb_header, hs, indent);
 	}
 
+	@Override
 	public Connector clone(final Project pr, final boolean copy_id) {
 		final long nid = copy_id ? this.id : pr.getLoader().getNextId();
-		Connector copy = new Connector(pr, nid, title, width, height, this.alpha, true, this.color, this.locked, this.at);
+		final Connector copy = new Connector(pr, nid, title, width, height, this.alpha, true, this.color, this.locked, this.at);
 		copy.root = null == this.root ? null : this.root.clone(pr);
 		copy.addToDatabase();
 		if (null != copy.root) copy.cacheSubtree(copy.root.getSubtreeNodes());
@@ -306,6 +307,7 @@ public class Connector extends Treeline {
 		rt.addValue(6, nd.confidence);
 	}
 
+	@Override
 	public ResultsTable measure(ResultsTable rt) {
 		if (null == root) return rt;
 		if (null == rt) rt = Utils.createResultsTable("Connector results", new String[]{"id", "index", "x", "y", "z", "radius", "confidence"});
@@ -341,13 +343,15 @@ public class Connector extends Treeline {
 		return createCoordinate(root.children[i]);
 	}
 
+	@Override
 	public String getInfo() {
 		if (null == root) return "Empty";
 		return new StringBuilder("Targets: ").append(root.getChildrenCount()).append('\n').toString();
 	}
 
 	/** If the root node is in Layer @param la, then all nodes are removed. */
-	protected boolean layerRemoved(Layer la) {
+	@Override
+	protected boolean layerRemoved(final Layer la) {
 		if (null == root) return true;
 		if (root.la == la) {
 			super.removeNode(root); // and all its children
@@ -375,7 +379,7 @@ public class Connector extends Treeline {
 
 	/** Add a root or child nodes to root. */
 	@Override
-	public void mousePressed(MouseEvent me, final Layer layer, int x_p, int y_p, double mag) {
+	public void mousePressed(final MouseEvent me, final Layer layer, final int x_p, final int y_p, final double mag) {
 		if (ProjectToolbar.PEN != ProjectToolbar.getToolId()) {
 			return;
 		}
@@ -458,10 +462,10 @@ public class Connector extends Treeline {
 		}
 		return box;
 	}
-	
+
 	/** If the root node (the origin) does not remain within the range, this Connector is left empty. */
 	@Override
-	public boolean crop(List<Layer> range) {
+	public boolean crop(final List<Layer> range) {
 		if (null == root) return true; // it's empty already
 		if (!range.contains(root.la)) {
 			this.root = null;

@@ -22,17 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ini.trakem2.Project;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Vector3;
-import ini.trakem2.vector.VectorString3D;
-
 import java.awt.AlphaComposite;
 import java.awt.Color;
 import java.awt.Composite;
@@ -51,7 +40,18 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 
-import javax.vecmath.Point3f;
+import org.scijava.vecmath.Point3f;
+
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ini.trakem2.Project;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Vector3;
+import ini.trakem2.vector.VectorString3D;
 
 
 public class Pipe extends ZDisplayable implements Line3D, VectorData {
