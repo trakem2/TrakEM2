@@ -51,18 +51,18 @@ final public class DistortionCorrectionTask
 		/**
 		 * Minimal absolute number of inliers
 		 */
-		public int minNumInliers = 12;
+		public int minNumInliers = 20;
 
-		public boolean multipleHypotheses = false;
+		public boolean multipleHypotheses = true;
 
 		/**
 		 * Ignore identity transform up to a given tolerance
 		 */
-		public boolean rejectIdentity = false;
+		public boolean rejectIdentity = true;
 		public float identityTolerance = 5.0f;
 
 		public int desiredModelIndex = 1;
-		public int maxIterationsOptimize = 1000;
+		public int maxIterationsOptimize = 2000;
 		public int maxPlateauwidthOptimize = 200;
 
 		public int maxNumThreadsSift = Runtime.getRuntime().availableProcessors();
@@ -71,8 +71,16 @@ final public class DistortionCorrectionTask
 		 * Regularization for approximate alignment
 		 */
 		public boolean regularize = false;
-		public int regularizerIndex = 1;
-		public double lambdaRegularize = 0.1;
+		public int regularizerIndex = 0;
+		public double lambdaRegularize = 0.01;
+
+		public CorrectDistortionFromSelectionParam()
+		{
+			sift.fdSize = 4;
+			expectedModelIndex = 0;
+			desiredModelIndex = 0;
+			minInlierRatio = 0;
+		}
 
 		public boolean setupSIFT( final String title )
 		{
@@ -117,6 +125,7 @@ final public class DistortionCorrectionTask
 			gd.addCheckbox( "test_multiple_hypotheses", multipleHypotheses );
 			gd.addCheckbox( "ignore constant background", rejectIdentity );
 			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
+			gd.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
 
 			gd.showDialog();
 
@@ -130,6 +139,7 @@ final public class DistortionCorrectionTask
 			multipleHypotheses = gd.getNextBoolean();
 			rejectIdentity = gd.getNextBoolean();
 			identityTolerance = ( float )gd.getNextNumber();
+			tilesAreInPlace = gd.getNextBoolean();
 
 			final GenericDialog gdOptimize = new GenericDialog( "Distortion Correction: Montage Optimization" );
 			gdOptimize.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
@@ -137,8 +147,6 @@ final public class DistortionCorrectionTask
 			gdOptimize.addMessage( "Optimization:" );
 			gdOptimize.addNumericField( "maximal_iterations :", maxIterationsOptimize, 0 );
 			gdOptimize.addNumericField( "maximal_plateauwidth :", maxPlateauwidthOptimize, 0 );
-			//gdOptimize.addCheckbox( "filter outliers", filterOutliers );
-			//gdOptimize.addNumericField( "mean_factor :", meanFactor, 2 );
 
 			gdOptimize.showDialog();
 
@@ -167,32 +175,27 @@ final public class DistortionCorrectionTask
 			}
 
 			final GenericDialog gdLens = new GenericDialog( "Distortion Correction: Lens Distortion" );
-			addFields( gdLens );
+
+			gdLens.addMessage( "Lens Model :" );
+			gdLens.addNumericField( "power_of_polynomial_kernel :", dimension, 0 );
+			gdLens.addNumericField( "lambda :", lambda, 6 );
+
+			gdLens.addMessage( "Apply Distortion Correction :" );
+
+			Utils.addLayerRangeChoices( selection.getLayer(), gdLens );
+			gdLens.addCheckbox( "clear_present_transforms", clearTransform );
+			gdLens.addCheckbox( "visualize_distortion_model", visualize );
 
 			gdLens.showDialog();
 			if ( gdLens.wasCanceled() )
 				return false;
 
-			readFields( gdLens );
-
-			final GenericDialog gdMisc = new GenericDialog( "Distortion Correction: Miscellaneous" );
-			gdMisc.addCheckbox( "tiles are rougly in place", tilesAreInPlace );
-
-			gdMisc.addMessage( "Apply Distortion Correction :" );
-
-			Utils.addLayerRangeChoices( selection.getLayer(), gdMisc );
-			gdMisc.addCheckbox( "clear_present_transforms", clearTransform );
-			gdMisc.addCheckbox( "visualize_distortion_model", visualize );
-
-			gdMisc.showDialog();
-			if ( gdMisc.wasCanceled() )
-				return false;
-
-			tilesAreInPlace = gdMisc.getNextBoolean();
-			firstLayerIndex = gdMisc.getNextChoiceIndex();
-			lastLayerIndex = gdMisc.getNextChoiceIndex();
-			clearTransform = gdMisc.getNextBoolean();
-			visualize = gdMisc.getNextBoolean();
+			dimension = ( int )gdLens.getNextNumber();
+			lambda = ( double )gdLens.getNextNumber();
+			firstLayerIndex = gdLens.getNextChoiceIndex();
+			lastLayerIndex = gdLens.getNextChoiceIndex();
+			clearTransform = gdLens.getNextBoolean();
+			visualize = gdLens.getNextBoolean();
 
 			return true;
 		}

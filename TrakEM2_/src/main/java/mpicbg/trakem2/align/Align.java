@@ -626,7 +626,8 @@ public class Align
 							p.minInlierRatio,
 							p.minNumInliers,
 							p.rejectIdentity,
-							p.identityTolerance );
+							p.identityTolerance,
+							multipleHypotheses );
 
 					if ( modelFound )
 						Utils.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
@@ -673,16 +674,17 @@ public class Align
 	{
 		boolean again = false;
 		int nHypotheses = 0;
+		final ArrayList< PointMatch > hypothesisCandidates = new ArrayList< PointMatch >( candidates );
 		try
 		{
 			do
 			{
 				again = false;
 				final ArrayList< PointMatch > inliers2 = new ArrayList< PointMatch >();
-				final boolean modelFound = model.filterRansac( candidates, inliers2, 1000, maxEpsilon, minInlierRatio, minNumInliers, 3 );
+				final boolean modelFound = model.filterRansac( hypothesisCandidates, inliers2, 1000, maxEpsilon, minInlierRatio, minNumInliers, 3 );
 				if ( modelFound )
 				{
-					candidates.removeAll( inliers2 );
+					hypothesisCandidates.removeAll( inliers2 );
 
 					if ( rejectIdentity )
 					{
@@ -718,6 +720,8 @@ public class Align
 			{
 				model.fit( inliers );
 				PointMatch.apply( inliers, model );
+				model.setCost( PointMatch.meanDistance( inliers ) );
+				Utils.log( nHypotheses + " hypotheses" );
 			}
 			catch ( final NotEnoughDataPointsException e ) {}
 			catch ( final IllDefinedDataPointsException e )
