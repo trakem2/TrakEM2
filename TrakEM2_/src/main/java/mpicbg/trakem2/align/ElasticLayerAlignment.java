@@ -17,18 +17,6 @@
 package mpicbg.trakem2.align;
 
 
-import ij.IJ;
-import ij.gui.GenericDialog;
-import ini.trakem2.Project;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
-import ini.trakem2.display.Patch;
-import ini.trakem2.display.VectorData;
-import ini.trakem2.parallel.ExecutorProvider;
-import ini.trakem2.utils.AreaUtils;
-import ini.trakem2.utils.Filter;
-import ini.trakem2.utils.Utils;
-
 import java.awt.Rectangle;
 import java.awt.geom.Area;
 import java.io.Serializable;
@@ -42,6 +30,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import ij.IJ;
+import ij.gui.GenericDialog;
+import ini.trakem2.Project;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.VectorData;
+import ini.trakem2.parallel.ExecutorProvider;
+import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.Filter;
+import ini.trakem2.utils.Utils;
+import jitk.spline.ThinPlateR2LogRSplineKernelTransform;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractModel;
@@ -60,7 +60,8 @@ import mpicbg.models.Transforms;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.align.concurrent.BlockMatchPairCallable;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.transform.CoordinateTransform;
+import mpicbg.trakem2.transform.ThinPlateSplineTransform;
 import mpicbg.trakem2.util.Triple;
 
 /**
@@ -687,14 +688,14 @@ public class ElasticLayerAlignment
 		{
 			if ( propagateTransformBefore )
 			{
-				final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( 0 ).getVA().keySet() );
+				final ThinPlateSplineTransform tps = makeTPS( meshes.get( 0 ).getVA().keySet() );
 				final int firstLayerIndex = first.getParent().getLayerIndex( first.getId() );
 				for ( int i = 0; i < firstLayerIndex; ++i )
                 {
-					applyTransformToLayer( layers.get( i ), mlt, filter );
+					applyTransformToLayer( layers.get( i ), tps, filter );
                     for (final VectorData vd : vectorData)
                     {
-                        vd.apply(layers.get(i), infArea, mlt);
+                        vd.apply(layers.get(i), infArea, tps);
                     }
                 }
 
@@ -702,14 +703,14 @@ public class ElasticLayerAlignment
 			if ( propagateTransformAfter )
 			{
 				final Layer last = layerRange.get( layerRange.size() - 1 );
-				final MovingLeastSquaresTransform2 mlt = makeMLST2( meshes.get( meshes.size() - 1 ).getVA().keySet() );
+				final ThinPlateSplineTransform tps = makeTPS( meshes.get( meshes.size() - 1 ).getVA().keySet() );
 				final int lastLayerIndex = last.getParent().getLayerIndex( last.getId() );
 				for ( int i = lastLayerIndex + 1; i < layers.size(); ++i )
                 {
-                    applyTransformToLayer( layers.get( i ), mlt, filter );
+                    applyTransformToLayer( layers.get( i ), tps, filter );
                     for (final VectorData vd : vectorData)
                     {
-                        vd.apply(layers.get(i), infArea, mlt);
+                        vd.apply(layers.get(i), infArea, tps);
                     }
                 }
 			}
@@ -720,17 +721,11 @@ public class ElasticLayerAlignment
 			IJ.showProgress( 0, layerRange.size() );
 
 			final Layer layer = layerRange.get( l );
-
-			final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
-			mlt.setModel( AffineModel2D.class );
-			mlt.setAlpha( 2.0f );
-			mlt.setMatches( meshes.get( l ).getVA().keySet() );
-
-			applyTransformToLayer( layer, mlt, filter );
-
+			final ThinPlateSplineTransform tps = makeTPS( meshes.get( l ).getVA().keySet() );
+			applyTransformToLayer( layer, tps, filter );
             for (final VectorData vd : vectorData)
             {
-                vd.apply(layer, infArea, mlt);
+                vd.apply(layer, infArea, tps);
             }
 
 			if ( Thread.interrupted() )
@@ -772,16 +767,28 @@ public class ElasticLayerAlignment
 		Utils.log( "Done." );
 	}
 
-	final static protected MovingLeastSquaresTransform2 makeMLST2( final Set< PointMatch > matches ) throws Exception
+	final static protected ThinPlateSplineTransform makeTPS( final Set< PointMatch > matches ) throws Exception
 	{
-		final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
-		mlt.setModel( AffineModel2D.class );
-		mlt.setAlpha( 2.0f );
-		mlt.setMatches( matches );
-		return mlt;
+		final double[][] srcPts = new double[ 2 ][ matches.size() ];
+		final double[][] tgtPts = new double[ 2 ][ matches.size() ];
+		int i = 0;
+		for ( final PointMatch match : matches ) {
+			final double[] srcPt = match.getP1().getL();
+			final double[] tgtPt = match.getP2().getW();
+			srcPts[ 0 ][ i ] = srcPt[ 0 ];
+			srcPts[ 1 ][ i ] = srcPt[ 1 ];
+			tgtPts[ 0 ][ i ] = tgtPt[ 0 ];
+			tgtPts[ 1 ][ i ] = tgtPt[ 1 ];
+			++i;
+		}
+
+		final ThinPlateR2LogRSplineKernelTransform tps = new ThinPlateR2LogRSplineKernelTransform(2, srcPts, tgtPts);
+		tps.solve();
+
+		return new ThinPlateSplineTransform( tps );
 	}
 
-	final static protected void applyTransformToLayer( final Layer layer, final MovingLeastSquaresTransform2 mlt, final Filter< Patch > filter ) throws InterruptedException
+	final static protected void applyTransformToLayer( final Layer layer, final CoordinateTransform mlt, final Filter< Patch > filter ) throws InterruptedException
 	{
 		/*
 		 * Setting a transformation to a patch can take some time because

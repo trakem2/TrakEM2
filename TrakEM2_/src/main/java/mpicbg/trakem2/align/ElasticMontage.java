@@ -17,16 +17,6 @@
 package mpicbg.trakem2.align;
 
 
-import ij.IJ;
-import ij.gui.GenericDialog;
-import ij.process.ByteProcessor;
-import ij.process.FloatProcessor;
-import ini.trakem2.Project;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Patch;
-import ini.trakem2.display.Patch.PatchImage;
-import ini.trakem2.utils.Utils;
-
 import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -40,6 +30,15 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import ij.IJ;
+import ij.gui.GenericDialog;
+import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
+import ini.trakem2.Project;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Patch;
+import ini.trakem2.display.Patch.PatchImage;
+import ini.trakem2.utils.Utils;
 import mpicbg.ij.SIFT;
 import mpicbg.ij.blockmatching.BlockMatching;
 import mpicbg.imagefeatures.Feature;
@@ -59,7 +58,7 @@ import mpicbg.models.SpringMesh;
 import mpicbg.models.TranslationModel2D;
 import mpicbg.models.Vertex;
 import mpicbg.trakem2.align.Align.ParamOptimize;
-import mpicbg.trakem2.transform.MovingLeastSquaresTransform2;
+import mpicbg.trakem2.transform.ThinPlateSplineTransform;
 import mpicbg.trakem2.util.Triple;
 import mpicbg.util.Util;
 
@@ -709,10 +708,7 @@ public class ElasticMontage
 					l[ 1 ] += box.y;
 				}
 
-				final MovingLeastSquaresTransform2 mlt = new MovingLeastSquaresTransform2();
-				mlt.setModel( AffineModel2D.class );
-				mlt.setAlpha( 2.0f );
-				mlt.setMatches( matches );
+				final ThinPlateSplineTransform mlt = ElasticLayerAlignment.makeTPS( matches );
 
 				patch.appendCoordinateTransform( mlt );
 				box = patch.getCoordinateTransformBoundingBox();
