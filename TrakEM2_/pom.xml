@@ -148,7 +148,16 @@
 			<groupId>net.imglib2</groupId>
 			<artifactId>imglib2-realtransform</artifactId>
 		</dependency>
-		
+
+		<dependency>
+			<groupId>sc.fiji</groupId>
+			<artifactId>trakem2_tps</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>jitk</groupId>
+			<artifactId>jitk-tps</artifactId>
+			<version>1.3.2</version>
+		</dependency>
 	</dependencies>
 
 </project>
