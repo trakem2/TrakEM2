@@ -3231,7 +3231,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		if (selection.isEmpty()) item.setEnabled(false);
 		item = new JMenuItem("Split images under polyline ROI"); item.addActionListener(this); adjust_menu.add(item);
 		final Roi roi = canvas.getFakeImagePlus().getRoi();
-		if (null == roi || roi.getType() != Roi.POLYLINE) item.setEnabled(false);
+		if (null == roi || !(roi.getType() == Roi.POLYLINE || roi.getType() == Roi.FREELINE)) item.setEnabled(false);
 		item = new JMenuItem("Blend (layer-wise)..."); item.addActionListener(this); adjust_menu.add(item);
 		item = new JMenuItem("Blend (selected images)..."); item.addActionListener(this); adjust_menu.add(item);
 		if (selection.isEmpty()) item.setEnabled(false);
@@ -5806,16 +5806,16 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		} else if (command.equals("Split images under polyline ROI")) {
 			final Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return;
-			if (roi.getType() != Roi.POLYLINE) {
-				Utils.showMessage("Need a polyline ROI, not just any ROI!");
+			if (!(roi.getType() == Roi.POLYLINE || roi.getType() == Roi.FREELINE)) {
+				Utils.showMessage("Need a polyline or freeline ROI, not just any ROI!");
 				return;
 			}
-			if (!Utils.check("Really split images under the polyline ROI?")) {
+			if (!Utils.check("Really split images under the ROI?")) {
 				return;
 			}
 			// OK identify images whose contour intersects the ROI
 			final Set<Displayable> col = new HashSet<Displayable>();
-			final PolygonRoi proi = (PolygonRoi)roi;
+			final PolygonRoi proi = (PolygonRoi)roi; // FreehandRoi is a subclass of PolygonRoi
 			final int[] x = proi.getXCoordinates(),
 				  y = proi.getYCoordinates();
 			final Rectangle b = proi.getBounds();
