@@ -1520,6 +1520,15 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	@Override
 	public void mouseMoved(final MouseEvent me) {
 		super.flags = me.getModifiers();
+		final int tool = Toolbar.getToolId();
+		switch (tool) {
+		case Toolbar.POLYLINE:
+		case Toolbar.POLYGON:
+		case Toolbar.ANGLE:
+			super.mouseMoved(me);
+			repaint();
+			return;
+		}
 		mouse_moved.dispatch(me);
 	}
 
