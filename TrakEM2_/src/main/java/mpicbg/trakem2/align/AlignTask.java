@@ -3,6 +3,23 @@
  */
 package mpicbg.trakem2.align;
 
+import java.awt.Color;
+import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.awt.geom.Area;
+import java.awt.geom.NoninvertibleTransformException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
@@ -21,24 +38,6 @@ import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
-
-import java.awt.Color;
-import java.awt.Rectangle;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.geom.NoninvertibleTransformException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-
 import mpicbg.ij.FeatureTransform;
 import mpicbg.ij.SIFT;
 import mpicbg.imagefeatures.Feature;
@@ -66,6 +65,7 @@ import mpicbg.trakem2.transform.TranslationModel2D;
 final public class AlignTask
 {
 	static protected boolean tilesAreInPlace = false;
+	static protected boolean sloppyOverlapTest = false;
 	static protected boolean largestGraphOnly = false;
 	static protected boolean hideDisconnectedTiles = false;
 	static protected boolean deleteDisconnectedTiles = false;
@@ -225,6 +225,7 @@ final public class AlignTask
 			final GenericDialog gd = new GenericDialog( "Montage Selection: Miscellaneous" );
 
 			gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+			gd.addCheckbox( "sloppy overlap test (fast)", sloppyOverlapTest );
 			gd.addCheckbox( "consider largest graph only", largestGraphOnly );
 			gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
 			gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
@@ -233,12 +234,13 @@ final public class AlignTask
 			if ( gd.wasCanceled() ) return;
 
 			tilesAreInPlace = gd.getNextBoolean();
+			sloppyOverlapTest = gd.getNextBoolean();
 			largestGraphOnly = gd.getNextBoolean();
 			hideDisconnectedTiles = gd.getNextBoolean();
 			deleteDisconnectedTiles = gd.getNextBoolean();
 
 			final Align.ParamOptimize p = Align.paramOptimize.clone();
-			alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+			alignPatches( p, patches, fixedPatches, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles, sloppyOverlapTest );
 		}
 		else
 			Utils.log( "Don't know how to align with mode " + m );
@@ -280,6 +282,7 @@ final public class AlignTask
 					final GenericDialog gd = new GenericDialog( "Montage Layers: Miscellaneous" );
 
 					gd.addCheckbox( "tiles are roughly in place", tilesAreInPlace );
+					gd.addCheckbox( "sloppy overlap test (fast)", sloppyOverlapTest );
 					gd.addCheckbox( "consider largest graph only", largestGraphOnly );
 					gd.addCheckbox( "hide tiles from non-largest graph", hideDisconnectedTiles );
 					gd.addCheckbox( "delete tiles from non-largest graph", deleteDisconnectedTiles );
@@ -288,12 +291,13 @@ final public class AlignTask
 					if ( gd.wasCanceled() ) return;
 
 					tilesAreInPlace = gd.getNextBoolean();
+					sloppyOverlapTest = gd.getNextBoolean();
 					largestGraphOnly = gd.getNextBoolean();
 					hideDisconnectedTiles = gd.getNextBoolean();
 					deleteDisconnectedTiles = gd.getNextBoolean();
 
 					final Align.ParamOptimize p = Align.paramOptimize.clone();
-					montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles );
+					montageLayers(p, layers, tilesAreInPlace, largestGraphOnly, hideDisconnectedTiles, deleteDisconnectedTiles, sloppyOverlapTest );
 				}
 				else
 					Utils.log( "Don't know how to align with mode " + m );
@@ -308,7 +312,8 @@ final public class AlignTask
 			final boolean tilesAreInPlaceIn,
 			final boolean largestGraphOnlyIn,
 			final boolean hideDisconnectedTilesIn,
-			final boolean deleteDisconnectedTilesIn ) {
+			final boolean deleteDisconnectedTilesIn,
+			final boolean sloppyOverlapTest ) {
 		int i = 0;
 		for (final Layer layer : layers) {
 			if (Thread.currentThread().isInterrupted()) return;
@@ -323,9 +328,20 @@ final public class AlignTask
 			Utils.log("====\nMontaging layer " + layer);
 			Utils.showProgress(((double)i)/layers.size());
 			i++;
-			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn );
+			alignPatches(p, new ArrayList<Patch>((Collection<Patch>)(Collection)patches), new ArrayList<Patch>(), tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn, sloppyOverlapTest );
 			Display.repaint(layer);
 		}
+	}
+
+
+	final static public void montageLayers(
+			final Align.ParamOptimize p,
+			final List<Layer> layers,
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn ) {
+		montageLayers( p, layers, tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn, false );
 	}
 
 
@@ -804,7 +820,8 @@ A:		for ( final Layer layer : layers )
 			final boolean tilesAreInPlaceIn,
 			final boolean largestGraphOnlyIn,
 			final boolean hideDisconnectedTilesIn,
-			final boolean deleteDisconnectedTilesIn )
+			final boolean deleteDisconnectedTilesIn,
+			final boolean sloppyOverlapTest )
 	{
 		final List< AbstractAffineTile2D< ? > > tiles = new ArrayList< AbstractAffineTile2D< ? > >();
 		final List< AbstractAffineTile2D< ? > > fixedTiles = new ArrayList< AbstractAffineTile2D< ? > > ();
@@ -813,10 +830,22 @@ A:		for ( final Layer layer : layers )
 		transformPatchesAndVectorData(patches, new Runnable() {
 			@Override
 			public void run() {
-				alignTiles( p, tiles, fixedTiles, tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn );
+				alignTiles( p, tiles, fixedTiles, tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn, sloppyOverlapTest );
 				Display.repaint();
 			}
 		});
+	}
+
+	final static public void alignPatches(
+			final Align.ParamOptimize p,
+			final List< Patch > patches,
+			final Collection< Patch > fixedPatches,
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn )
+	{
+		alignPatches( p, patches, fixedPatches, tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn, false );
 	}
 
 	final static public void alignTiles(
@@ -826,11 +855,12 @@ A:		for ( final Layer layer : layers )
 			final boolean tilesAreInPlaceIn,
 			final boolean largestGraphOnlyIn,
 			final boolean hideDisconnectedTilesIn,
-			final boolean deleteDisconnectedTilesIn )
+			final boolean deleteDisconnectedTilesIn,
+			final boolean sloppyOverlapTest )
 	{
 		final List< AbstractAffineTile2D< ? >[] > tilePairs = new ArrayList< AbstractAffineTile2D< ? >[] >();
 		if ( tilesAreInPlaceIn )
-			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs );
+			AbstractAffineTile2D.pairOverlappingTiles( tiles, tilePairs, sloppyOverlapTest );
 		else
 			AbstractAffineTile2D.pairTiles( tiles, tilePairs );
 
@@ -874,6 +904,19 @@ A:		for ( final Layer layer : layers )
 			t.getPatch().getAffineTransform().setTransform( t.getModel().createAffine() );
 
 		Utils.log( "Montage done." );
+	}
+
+
+	final static public void alignTiles(
+			final Align.ParamOptimize p,
+			final List< AbstractAffineTile2D< ? > > tiles,
+			final List< AbstractAffineTile2D< ? > > fixedTiles,
+			final boolean tilesAreInPlaceIn,
+			final boolean largestGraphOnlyIn,
+			final boolean hideDisconnectedTilesIn,
+			final boolean deleteDisconnectedTilesIn )
+	{
+		alignTiles( p, tiles, fixedTiles, tilesAreInPlaceIn, largestGraphOnlyIn, hideDisconnectedTilesIn, deleteDisconnectedTilesIn, false );
 	}
 
 	final static public Bureaucrat alignMultiLayerMosaicTask( final Layer l )

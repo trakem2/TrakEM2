@@ -19,11 +19,6 @@
  */
 package mpicbg.trakem2.align;
 
-import ij.process.ByteProcessor;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Patch;
-
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.PathIterator;
@@ -38,6 +33,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import ij.process.ByteProcessor;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Patch;
 import mpicbg.models.Affine2D;
 import mpicbg.models.Model;
 import mpicbg.models.NoninvertibleModelException;
@@ -175,9 +174,14 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 		return target;
 	}
 
+	final public boolean intersects( final AbstractAffineTile2D< ? > t, final boolean sloppy )
+	{
+		return patch.intersects( t.patch, sloppy );
+	}
+
 	final public boolean intersects( final AbstractAffineTile2D< ? > t )
 	{
-		return patch.intersects( t.patch );
+		return intersects( t, false );
 	}
 
 
@@ -270,7 +274,8 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 	 */
 	final static public <AAT extends AbstractAffineTile2D< ? >> void pairOverlappingTiles(
 			final List< AAT > tiles,
-			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+			final List< AbstractAffineTile2D< ? >[] > tilePairs,
+			final boolean sloppyOverlapTest )
 	{
 		final HashSet< Patch > visited = new HashSet< Patch >();
 
@@ -301,43 +306,48 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 			}
 		}
 
-		// TODO Fix this and use what the user wants to provide
-		final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
-		final ArrayList< Future< ? > > futures = new ArrayList< Future< ? > >();
-
-		for ( final AbstractAffineTile2D< ? >[] tatb : tilePairCandidates )
+		if ( sloppyOverlapTest )
+			tilePairs.addAll( tilePairCandidates );
+		else
 		{
-			futures.add( exec.submit(
-					new Runnable()
-					{
-						@Override
-						public void run()
+			// TODO Fix this and use what the user wants to provide
+			final ExecutorService exec = Executors.newFixedThreadPool( Runtime.getRuntime().availableProcessors() );
+			final ArrayList< Future< ? > > futures = new ArrayList< Future< ? > >();
+
+			for ( final AbstractAffineTile2D< ? >[] tatb : tilePairCandidates )
+			{
+				futures.add( exec.submit(
+						new Runnable()
 						{
-							if ( tatb[ 0 ].intersects( tatb[ 1 ] ) )
-								synchronized ( tilePairs )
-								{
-									tilePairs.add( tatb );
-								}
-						}
-					} ) );
-		}
+							@Override
+							public void run()
+							{
+								if ( tatb[ 0 ].intersects( tatb[ 1 ] ) )
+									synchronized ( tilePairs )
+									{
+										tilePairs.add( tatb );
+									}
+							}
+						} ) );
+			}
 
-		try
-		{
-			for ( final Future< ? > f : futures )
-				f.get();
-		}
-		catch ( final InterruptedException e )
-		{
-			e.printStackTrace();
-		}
-		catch ( final ExecutionException e )
-		{
-			e.printStackTrace();
-		}
-		finally
-		{
-			exec.shutdown();
+			try
+			{
+				for ( final Future< ? > f : futures )
+					f.get();
+			}
+			catch ( final InterruptedException e )
+			{
+				e.printStackTrace();
+			}
+			catch ( final ExecutionException e )
+			{
+				e.printStackTrace();
+			}
+			finally
+			{
+				exec.shutdown();
+			}
 		}
 
 
@@ -396,6 +406,20 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 	}
 
 	/**
+	 * Search a {@link List} of {@link AbstractAffineTile2D Tiles} for
+	 * overlapping pairs.  Adds the pairs into tilePairs.
+	 *
+	 * @param tiles
+	 * @param tilePairs
+	 */
+	final static public <AAT extends AbstractAffineTile2D< ? >> void pairOverlappingTiles(
+			final List< AAT > tiles,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+	{
+		pairOverlappingTiles( tiles, tilePairs, false );
+	}
+
+	/**
 	 * Pair all {@link AbstractAffineTile2D Tiles} from two {@link List Lists}.
 	 * Adds the pairs into tilePairs.
 	 *
@@ -431,7 +455,8 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 	final static public void pairOverlappingTiles(
 			final List< AbstractAffineTile2D< ? > > tilesA,
 			final List< AbstractAffineTile2D< ? > > tilesB,
-			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+			final List< AbstractAffineTile2D< ? >[] > tilePairs,
+			final boolean sloppyOverlapTest )
 	{
 		for ( int a = 0; a < tilesA.size(); ++a )
 		{
@@ -439,10 +464,26 @@ abstract public class AbstractAffineTile2D< A extends Model< A > & Affine2D< A >
 			{
 				final AbstractAffineTile2D< ? > ta = tilesA.get( a );
 				final AbstractAffineTile2D< ? > tb = tilesB.get( b );
-				if ( ta.intersects( tb ) )
+				if ( ta.intersects( tb, sloppyOverlapTest ) )
 					tilePairs.add( new AbstractAffineTile2D< ? >[]{ ta, tb } );
 			}
 		}
+	}
+
+	/**
+	 * Search two {@link List Lists} of {@link AbstractAffineTile2D Tiles} for
+	 * overlapping pairs.  Adds the pairs into tilePairs.
+	 *
+	 * @param tilesA
+	 * @param tilesB
+	 * @param tilePairs
+	 */
+	final static public void pairOverlappingTiles(
+			final List< AbstractAffineTile2D< ? > > tilesA,
+			final List< AbstractAffineTile2D< ? > > tilesB,
+			final List< AbstractAffineTile2D< ? >[] > tilePairs )
+	{
+		pairOverlappingTiles( tilesA, tilesB, tilePairs, false );
 	}
 
 	/**

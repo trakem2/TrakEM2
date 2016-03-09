@@ -23,38 +23,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 
-import ij.IJ;
-import ij.ImagePlus;
-import ij.gui.GenericDialog;
-import ij.gui.Roi;
-import ij.gui.ShapeRoi;
-import ij.io.FileOpener;
-import ij.io.TiffDecoder;
-import ij.io.TiffEncoder;
-import ij.plugin.WandToolOptions;
-import ij.plugin.filter.ThresholdToSelection;
-import ij.process.ByteProcessor;
-import ij.process.ColorProcessor;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
-import ini.trakem2.Project;
-import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.imaging.filters.FilterEditor;
-import ini.trakem2.imaging.filters.IFilter;
-import ini.trakem2.io.CoordinateTransformXML;
-import ini.trakem2.io.ImageSaver;
-import ini.trakem2.persistence.FSLoader;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Search;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
-
 import java.awt.Color;
 import java.awt.Composite;
 import java.awt.Dimension;
@@ -96,6 +64,37 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+import ij.IJ;
+import ij.ImagePlus;
+import ij.gui.GenericDialog;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.io.FileOpener;
+import ij.io.TiffDecoder;
+import ij.io.TiffEncoder;
+import ij.plugin.WandToolOptions;
+import ij.plugin.filter.ThresholdToSelection;
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ini.trakem2.Project;
+import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.imaging.filters.FilterEditor;
+import ini.trakem2.imaging.filters.IFilter;
+import ini.trakem2.io.CoordinateTransformXML;
+import ini.trakem2.io.ImageSaver;
+import ini.trakem2.persistence.FSLoader;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 import mpicbg.imglib.container.shapelist.ShapeList;
 import mpicbg.imglib.image.display.imagej.ImageJFunctions;
 import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
@@ -2197,9 +2196,11 @@ public final class Patch extends Displayable implements ImageData {
 		return l == this.layer && r.intersects(getBoundingBox());
 	}
 
-	@Override
-	public boolean intersects(final Displayable d) {
-		if (hasAlphaChannel()) {
+	public boolean intersects(final Displayable d, final boolean sloppy) {
+		if (sloppy) {
+			return getBoundingBox().intersects(d.getBoundingBox());
+		}
+		else if (hasAlphaChannel()) {
 			// First try a cheap operation
 			if (!getBoundingBox().intersects(d.getBoundingBox())) {
 				return false;
@@ -2207,7 +2208,12 @@ public final class Patch extends Displayable implements ImageData {
 			// If bounding boxes overlap, test with precision
 			return M.intersects(getArea(), d.getAreaAt(this.layer));
 		}
-		return super.intersects(d);
+		else return super.intersects(d);
+	}
+
+	@Override
+	public boolean intersects(final Displayable d) {
+		return intersects(d, false);
 	}
 
 	/**
@@ -2499,7 +2505,7 @@ public final class Patch extends Displayable implements ImageData {
 			}, project);
 		}
 	}
-	
+
 	public boolean clearIntensityMap() {
 		final boolean cleared = project.getLoader().clearIntensityMap(this);
 		if (cleared)
