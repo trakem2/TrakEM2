@@ -22,56 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.display;
 
-import ij.IJ;
-import ij.IJEventListener;
-import ij.ImageJ;
-import ij.ImagePlus;
-import ij.Menus;
-import ij.WindowManager;
-import ij.gui.GenericDialog;
-import ij.gui.PolygonRoi;
-import ij.gui.Roi;
-import ij.gui.ShapeRoi;
-import ij.gui.Toolbar;
-import ij.gui.YesNoCancelDialog;
-import ij.io.DirectoryChooser;
-import ij.io.OpenDialog;
-import ij.io.SaveDialog;
-import ij.measure.Calibration;
-import ij.measure.ResultsTable;
-import ij.process.ImageProcessor;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
-import ini.trakem2.analysis.Graph;
-import ini.trakem2.display.inspect.InspectPatchTrianglesMode;
-import ini.trakem2.imaging.Blending;
-import ini.trakem2.imaging.LayerStack;
-import ini.trakem2.imaging.PatchStack;
-import ini.trakem2.imaging.Segmentation;
-import ini.trakem2.imaging.filters.FilterEditor;
-import ini.trakem2.io.NeuroML;
-import ini.trakem2.parallel.Process;
-import ini.trakem2.parallel.TaskFactory;
-import ini.trakem2.persistence.DBObject;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.persistence.ProjectTiler;
-import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.tree.ProjectThing;
-import ini.trakem2.utils.AreaUtils;
-import ini.trakem2.utils.Bureaucrat;
-import ini.trakem2.utils.DNDInsertImage;
-import ini.trakem2.utils.Dispatcher;
-import ini.trakem2.utils.Filter;
-import ini.trakem2.utils.IJError;
-import ini.trakem2.utils.M;
-import ini.trakem2.utils.Operation;
-import ini.trakem2.utils.OptionPanel;
-import ini.trakem2.utils.ProjectToolbar;
-import ini.trakem2.utils.Saver;
-import ini.trakem2.utils.Search;
-import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
-
 import java.awt.BasicStroke;
 import java.awt.Choice;
 import java.awt.Color;
@@ -164,6 +114,57 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.Document;
 
+import org.janelia.intensity.MatchIntensities;
+
+import ij.IJ;
+import ij.IJEventListener;
+import ij.ImageJ;
+import ij.ImagePlus;
+import ij.Menus;
+import ij.WindowManager;
+import ij.gui.GenericDialog;
+import ij.gui.PolygonRoi;
+import ij.gui.Roi;
+import ij.gui.ShapeRoi;
+import ij.gui.Toolbar;
+import ij.gui.YesNoCancelDialog;
+import ij.io.DirectoryChooser;
+import ij.io.OpenDialog;
+import ij.io.SaveDialog;
+import ij.measure.Calibration;
+import ij.measure.ResultsTable;
+import ij.process.ImageProcessor;
+import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
+import ini.trakem2.analysis.Graph;
+import ini.trakem2.display.inspect.InspectPatchTrianglesMode;
+import ini.trakem2.imaging.Blending;
+import ini.trakem2.imaging.LayerStack;
+import ini.trakem2.imaging.PatchStack;
+import ini.trakem2.imaging.Segmentation;
+import ini.trakem2.imaging.filters.FilterEditor;
+import ini.trakem2.io.NeuroML;
+import ini.trakem2.parallel.Process;
+import ini.trakem2.parallel.TaskFactory;
+import ini.trakem2.persistence.DBObject;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.persistence.ProjectTiler;
+import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.tree.ProjectThing;
+import ini.trakem2.utils.AreaUtils;
+import ini.trakem2.utils.Bureaucrat;
+import ini.trakem2.utils.DNDInsertImage;
+import ini.trakem2.utils.Dispatcher;
+import ini.trakem2.utils.Filter;
+import ini.trakem2.utils.IJError;
+import ini.trakem2.utils.M;
+import ini.trakem2.utils.Operation;
+import ini.trakem2.utils.OptionPanel;
+import ini.trakem2.utils.ProjectToolbar;
+import ini.trakem2.utils.Saver;
+import ini.trakem2.utils.Search;
+import ini.trakem2.utils.Utils;
+import ini.trakem2.utils.Worker;
 import lenscorrection.DistortionCorrectionTask;
 import lenscorrection.NonLinearTransform;
 import mpicbg.ij.clahe.Flat;
@@ -173,8 +174,6 @@ import mpicbg.trakem2.align.AlignTask;
 import mpicbg.trakem2.transform.AffineModel3D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
-
-import org.janelia.intensity.MatchIntensities;
 
 /** A Display is a class to show a Layer and enable mouse and keyboard manipulation of all its components. */
 public final class Display extends DBObject implements ActionListener, IJEventListener {
@@ -2940,7 +2939,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
                             public void exec() {
 								try {
 									getLayerSet().addChangeTreesStep();
-									final Map<Tree<?>,Tree<?>> m = Tree.duplicateAs(selection.getSelected(), Treeline.class == aclass ? AreaTree.class : Treeline.class);
+									final Map<Tree<?>,Tree<?>> m = Tree.duplicateAs(selection.getSelected(), (Class<Tree<?>>)(Treeline.class == aclass ? AreaTree.class : Treeline.class));
 									if (m.isEmpty()) {
 										getLayerSet().removeLastUndoStep();
 									} else {
@@ -5560,7 +5559,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			if (gd.wasCanceled()) return;
 			Bureaucrat.createAndStart(new Worker.Task("Match intensities") {
 				@Override
-	            public void exec() {		
+	            public void exec() {
 					for (final Layer layer : getLayerSet().getLayers(gd.getNextChoiceIndex(), gd.getNextChoiceIndex())) {
 						for (final Displayable p : layer.getDisplayables(Patch.class)) {
 							final Patch patch = (Patch)p;
