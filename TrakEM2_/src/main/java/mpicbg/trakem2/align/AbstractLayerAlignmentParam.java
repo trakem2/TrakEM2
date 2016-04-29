@@ -1,9 +1,8 @@
 package mpicbg.trakem2.align;
 
-import ij.gui.GenericDialog;
-
 import java.io.Serializable;
 
+import ij.gui.GenericDialog;
 import mpicbg.ij.SIFT;
 import mpicbg.trakem2.align.AlignmentUtils.ParamPointMatch;
 
@@ -37,6 +36,7 @@ public class AbstractLayerAlignmentParam implements Serializable
 	final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
 	public int expectedModelIndex = 3;
 	public boolean multipleHypotheses = false;
+	public boolean widestSetOnly = false;
 
 	/**
 	 * Ignore identity transform up to a given tolerance
@@ -117,6 +117,7 @@ public class AbstractLayerAlignmentParam implements Serializable
 			final float minInlierRatio,
 			final int minNumInliers,
 			final boolean multipleHypotheses,
+			final boolean widestSetOnly,
 			final boolean rejectIdentity,
 			final boolean visualize )
 	{
@@ -143,6 +144,7 @@ public class AbstractLayerAlignmentParam implements Serializable
 		this.minInlierRatio = minInlierRatio;
 		this.minNumInliers = minNumInliers;
 		this.multipleHypotheses = multipleHypotheses;
+		this.widestSetOnly = widestSetOnly;
 		this.rejectIdentity = rejectIdentity;
 		this.visualize = visualize;
 	}
@@ -174,6 +176,7 @@ public class AbstractLayerAlignmentParam implements Serializable
 				minInlierRatio,
 				minNumInliers,
 				multipleHypotheses,
+				widestSetOnly,
 				rejectIdentity,
 				visualize );
 	}

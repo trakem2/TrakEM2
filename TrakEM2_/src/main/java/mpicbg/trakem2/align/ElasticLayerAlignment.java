@@ -242,6 +242,7 @@ public class ElasticLayerAlignment
 				final float minInlierRatio,
 				final int minNumInliers,
 				final boolean multipleHypotheses,
+				final boolean widestSetOnly,
 				final boolean rejectIdentity,
 				final boolean visualize,
 
@@ -286,6 +287,7 @@ public class ElasticLayerAlignment
 					minInlierRatio,
 					minNumInliers,
 					multipleHypotheses,
+					widestSetOnly,
 					rejectIdentity,
 					visualize );
 
@@ -338,6 +340,7 @@ public class ElasticLayerAlignment
 					minInlierRatio,
 					minNumInliers,
 					multipleHypotheses,
+					widestSetOnly,
 					rejectIdentity,
 					visualize,
 

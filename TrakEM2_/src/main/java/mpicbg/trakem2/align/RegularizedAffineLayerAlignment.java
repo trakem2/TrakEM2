@@ -17,16 +17,6 @@
 package mpicbg.trakem2.align;
 
 
-import ij.IJ;
-import ij.gui.GenericDialog;
-import ini.trakem2.display.Display;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.LayerSet;
-import ini.trakem2.display.Patch;
-import ini.trakem2.parallel.ExecutorProvider;
-import ini.trakem2.utils.Filter;
-import ini.trakem2.utils.Utils;
-
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
 import java.io.Serializable;
@@ -40,6 +30,15 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
+import ij.IJ;
+import ij.gui.GenericDialog;
+import ini.trakem2.display.Display;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.LayerSet;
+import ini.trakem2.display.Patch;
+import ini.trakem2.parallel.ExecutorProvider;
+import ini.trakem2.utils.Filter;
+import ini.trakem2.utils.Utils;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 import mpicbg.models.AbstractAffineModel2D;
@@ -49,6 +48,7 @@ import mpicbg.models.AffineModel2D;
 import mpicbg.models.HomographyModel2D;
 import mpicbg.models.IllDefinedDataPointsException;
 import mpicbg.models.InterpolatedAffineModel2D;
+import mpicbg.models.Model;
 import mpicbg.models.NotEnoughDataPointsException;
 import mpicbg.models.Point;
 import mpicbg.models.PointMatch;
@@ -67,8 +67,6 @@ public class RegularizedAffineLayerAlignment
 {
 	final static public class Param extends AbstractLayerAlignmentParam implements Serializable
 	{
-        private static final long serialVersionUID = -8684671473565381197L;
-
         /**
 		 * Regularization
 		 */
@@ -90,6 +88,7 @@ public class RegularizedAffineLayerAlignment
 			gd.addNumericField( "minimal_number_of_inliers :", minNumInliers, 0 );
 			gd.addChoice( "expected_transformation :", Param.modelStrings, Param.modelStrings[ expectedModelIndex ] );
 			gd.addCheckbox( "test_multiple_hypotheses", multipleHypotheses );
+			gd.addCheckbox( "widest_set_only", widestSetOnly );
 			gd.addCheckbox( "ignore constant background", rejectIdentity );
 			gd.addNumericField( "tolerance :", identityTolerance, 2, 6, "px" );
 			gd.addMessage( "Layer neighbor range:" );
@@ -106,6 +105,7 @@ public class RegularizedAffineLayerAlignment
 			minNumInliers = ( int )gd.getNextNumber();
 			expectedModelIndex = gd.getNextChoiceIndex();
 			multipleHypotheses = gd.getNextBoolean();
+			widestSetOnly = gd.getNextBoolean();
 			rejectIdentity = gd.getNextBoolean();
 			identityTolerance = ( float )gd.getNextNumber();
 			maxNumNeighbors = ( int )gd.getNextNumber();
@@ -176,6 +176,7 @@ public class RegularizedAffineLayerAlignment
 				final float minInlierRatio,
 				final int minNumInliers,
 				final boolean multipleHypotheses,
+				final boolean widestSetOnly,
 				final boolean regularize,
 				final int regularizerIndex,
 				final boolean rejectIdentity,
@@ -203,6 +204,7 @@ public class RegularizedAffineLayerAlignment
 					minInlierRatio,
 					minNumInliers,
 					multipleHypotheses,
+					widestSetOnly,
 					rejectIdentity,
 					visualize );
 
@@ -239,6 +241,7 @@ public class RegularizedAffineLayerAlignment
 					minInlierRatio,
 					minNumInliers,
 					multipleHypotheses,
+					widestSetOnly,
 					regularize,
 					regularizerIndex,
 					rejectIdentity,
@@ -660,6 +663,95 @@ public class RegularizedAffineLayerAlignment
             this.sliceB = sliceB;
         }
 
+        /**
+         * Return the maximum square distance among any pairwise point
+         * distances in the P1 points of a list of point matches.
+         * This is a rough estimate of the maximum spatial extent of a point
+         * cloud that is used to find the 'widest' cloud.
+         *
+         * @param matches
+         * @return
+         */
+        final static private double squareP1LocalWidth( final List< PointMatch > matches )
+        {
+        	double dMax = 0;
+        	for ( int i = 0; i < matches.size(); ++i )
+        	{
+        		final PointMatch m1 = matches.get( i );
+        		for ( int j = i + 1; j < matches.size(); ++j )
+        		{
+        			final PointMatch m2 = matches.get( j );
+        			final double d = Point.squareLocalDistance( m1.getP1(), m2.getP1() );
+        			if ( d > dMax )
+        				dMax = d;
+        		}
+        	}
+        	return dMax;
+        }
+
+        final static private int match(
+        		final Param param,
+        		final List< PointMatch > candidates,
+        		final List< PointMatch > inliers,
+        		final Model< ? > model )
+        {
+            boolean again = false;
+            int nHypotheses = 0;
+            double maxWidth = 0;
+            try
+            {
+                do
+                {
+                    again = false;
+                    final ArrayList< PointMatch > inliers2 = new ArrayList< PointMatch >();
+                    final boolean modelFound = model.filterRansac(
+                            candidates,
+                            inliers2,
+                            1000,
+                            param.maxEpsilon,
+                            param.minInlierRatio,
+                            param.minNumInliers,
+                            3 );
+                    if ( modelFound )
+                    {
+                        candidates.removeAll( inliers2 );
+
+                        if ( param.rejectIdentity )
+                        {
+                            final ArrayList< Point > points = new ArrayList< Point >();
+                            PointMatch.sourcePoints( inliers2, points );
+                            if ( Transforms.isIdentity( model, points, param.identityTolerance ) )
+                            {
+                                IJ.log( "Identity transform for " + inliers2.size() + " matches rejected." );
+                                again = true;
+                                continue;
+                            }
+                        }
+
+                        ++nHypotheses;
+                        if ( param.widestSetOnly )
+                        {
+                        	final double width = squareP1LocalWidth( inliers2 );
+                        	if ( width > maxWidth )
+                        	{
+                        		maxWidth = width;
+                        		inliers.clear();
+                        		inliers.addAll( inliers2 );
+                        	}
+                        }
+                        else
+                        	inliers.addAll( inliers2 );
+
+                        again = param.multipleHypotheses | param.widestSetOnly;
+                    }
+                }
+                while ( again );
+            }
+            catch ( final NotEnoughDataPointsException e ) {}
+
+            return nHypotheses;
+        }
+
         @Override
         public Triple<Integer, Integer, Collection<PointMatch>> call() throws Exception
         {
@@ -730,55 +822,9 @@ public class RegularizedAffineLayerAlignment
 
             final ArrayList< PointMatch > inliers = new ArrayList< PointMatch >();
 
-            boolean again = false;
-            int nHypotheses = 0;
-            try
-            {
-                do
-                {
-                    again = false;
-                    final ArrayList< PointMatch > inliers2 = new ArrayList< PointMatch >();
-                    final boolean modelFound = model.filterRansac(
-                            candidates,
-                            inliers2,
-                            1000,
-                            param.maxEpsilon,
-                            param.minInlierRatio,
-                            param.minNumInliers,
-                            3 );
-                    if ( modelFound )
-                    {
-                        candidates.removeAll( inliers2 );
+            int nHypotheses = match( param, candidates, inliers, model );
 
-                        if ( param.rejectIdentity )
-                        {
-                            final ArrayList< Point > points = new ArrayList< Point >();
-                            PointMatch.sourcePoints( inliers2, points );
-                            if ( Transforms.isIdentity( model, points, param.identityTolerance ) )
-                            {
-                                IJ.log( "Identity transform for " + inliers2.size() + " matches rejected." );
-                                again = true;
-                            }
-                            else
-                            {
-                                ++nHypotheses;
-                                inliers.addAll( inliers2 );
-                                again = param.multipleHypotheses;
-                            }
-                        }
-                        else
-                        {
-                            ++nHypotheses;
-                            inliers.addAll( inliers2 );
-                            again = param.multipleHypotheses;
-                        }
-                    }
-                }
-                while ( again );
-            }
-            catch ( final NotEnoughDataPointsException e ) {}
-
-            if ( nHypotheses > 0 && param.multipleHypotheses )
+            if ( nHypotheses > 0 && ( param.multipleHypotheses | param.widestSetOnly ) )
             {
                 try
                 {
