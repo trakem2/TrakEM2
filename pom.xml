@@ -82,14 +82,18 @@
 	</repositories>
 	
 	<properties>
-		<T2-NIT.version>1.1.0</T2-NIT.version>
-		<T2-TreelineGraph.version>1.1.0</T2-TreelineGraph.version>
+		<!-- Core TrakEM2 modules -->
+		<T2-NIT.version>1.1.1-SNAPSHOT</T2-NIT.version>
+		<T2-TreelineGraph.version>1.1.1-SNAPSHOT</T2-TreelineGraph.version>
 		<TrakEM2.version>1.0h-SNAPSHOT</TrakEM2.version>
 		<VectorString.version>2.0.0-SNAPSHOT</VectorString.version>
-		<mpicbg-trakem2.version>1.2.2</mpicbg-trakem2.version>
+		<mpicbg-trakem2.version>1.2.3-SNAPSHOT</mpicbg-trakem2.version>
 		
-		<jitk-tps.version>1.3.1</jitk-tps.version>
-		<trakem2_tps.version>1.1.1</trakem2_tps.version>
+		<!-- External dependencies -->
+		<postgresql.version>8.2-507.jdbc3</postgresql.version>
+		<jai.version>1.1.3</jai.version>
+		<jai-codec.version>${jai.version}</jai-codec.version>
+		<jai-core.version>${jai.version}</jai-core.version>
 	</properties>
 	
 
@@ -120,6 +124,23 @@
 				<groupId>sc.fiji</groupId>
 				<artifactId>VectorString</artifactId>
 				<version>${VectorString.version}</version>
+			</dependency>
+
+			<!-- External dependencies -->
+			<dependency>
+				<groupId>com.sun.media</groupId>
+				<artifactId>jai-codec</artifactId>
+				<version>${jai-codec.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>javax.media</groupId>
+				<artifactId>jai-core</artifactId>
+				<version>${jai-core.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>postgresql</groupId>
+				<artifactId>postgresql</artifactId>
+				<version>${postgresql.version}</version>
 			</dependency>
 		</dependencies>
 	</dependencyManagement>

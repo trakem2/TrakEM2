@@ -69,7 +69,8 @@ import bunwarpj.trakem2.transform.CubicBSplineTransform;
 /**
  * Register a range of layers using linear or non-linear transformations.
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de> and Ignacio Arganda <ignacio.arganda@gmail.com>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
+ * @author Ignacio Arganda ignacio.arganda@gmail.com
  * @version 0.1a
  */
 final public class AlignLayersTask

@@ -131,7 +131,7 @@ public final class NeuroML {
 		private Node<?> node;
 		private long segmentId;
 
-		/** A pre- or a post-synaptic site, located at {@param node} with which a segment with id {@param segmentId} was made.*/
+		/** A pre- or a post-synaptic site, located at {@code node} with which a segment with id {@code segmentId} was made.*/
 		HalfSynapse(final Connector c, final Tree<?> t, final Node<?> node, final long segmentId) {
 			this.c = c;
 			this.t = t;

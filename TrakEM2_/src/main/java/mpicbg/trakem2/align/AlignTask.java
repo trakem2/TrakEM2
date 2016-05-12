@@ -185,7 +185,7 @@ final public class AlignTask
 	/**
 	 * @param patches: the list of Patch instances to align, all belonging to the same Layer.
 	 * @param fixedPatches: the list of Patch instances to keep locked in place, if any.
-	 * @param mode: {@link AlignTask#LINEAR_SIFT_CORRESPONDENCES}, {@link AlignTask#LINEAR_PHASE_CORRELATION} or {@link AlignTask#ELASTIC_BLOCK_CORRESPONDENCES}.
+	 * @param m: {@link AlignTask#LINEAR_SIFT_CORRESPONDENCES}, {@link AlignTask#LINEAR_PHASE_CORRELATION} or {@link AlignTask#ELASTIC_BLOCK_CORRESPONDENCES}.
 	 */
 	final static public void alignPatches(
 			final List< Patch > patches,
@@ -498,7 +498,7 @@ A:		for ( final Layer layer : layers )
 
 	/** Creates a map only for visible patches that intersect vdata.
 	 *  @param src_vdata represents the VectorData instances in original form, of the original project and layer set.
-	 *  @param tgt_data if not null, it must have the same size as src_data and their elements correspond one-to-one (as in, tgt element a clone of src element at the same index).
+	 *  @param tgt_vdata if not null, it must have the same size as src_data and their elements correspond one-to-one (as in, tgt element a clone of src element at the same index).
 	 *  @param lids_to_operate The id of the layers on which any operation will be done
 	 *  tgt_data enables transformVectorData to apply the transforms to copies of the src_vdata in another project. */
 	final static public ReferenceData createTransformPropertiesTable(final List<Displayable> src_vdata, final List<Displayable> tgt_vdata, final Set<Long> lids_to_operate) {

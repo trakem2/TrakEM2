@@ -5,7 +5,7 @@ public final class CircularSequence
 	int i;
 	final private int size;
 
-	/** A sequence of integers from 0 to {@param size}
+	/** A sequence of integers from 0 to {@code size}
 	 * that cycle back to zero when reaching the end;
 	 * the starting point is the last point in the sequence,
 	 * so that a call to {@link #next()} delivers the first value, 0.
@@ -26,7 +26,7 @@ public final class CircularSequence
 		i = i % size;
 		return i;
 	}
-	/** Will wrap around if k<0 or k>size. */
+	/** Will wrap around if {@code k<0} or {@code k>size}. */
 	final public int setPosition(final int k) {
 		i = k;
 		if (i < 0) i = size - ((-i) % size);

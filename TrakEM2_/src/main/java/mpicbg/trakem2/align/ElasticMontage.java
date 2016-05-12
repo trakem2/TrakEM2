@@ -63,7 +63,7 @@ import mpicbg.trakem2.util.Triple;
 import mpicbg.util.Util;
 
 /**
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 public class ElasticMontage
 {
@@ -270,12 +270,9 @@ public class ElasticMontage
 	/**
 	 * Extract SIFT features and save them into the project folder.
 	 *
-	 * @param layerSet the layerSet that contains all layers
-	 * @param layerRange the list of layers to be aligned
-	 * @param box a rectangular region of interest that will be used for alignment
-	 * @param scale scale factor <= 1.0
-	 * @param filter a name based filter for Patches (can be null)
-	 * @param p SIFT extraction parameters
+	 * @param tiles
+	 * @param siftParam
+	 * @param clearCache
 	 * @throws Exception
 	 */
 	final static protected void extractAndSaveFeatures(

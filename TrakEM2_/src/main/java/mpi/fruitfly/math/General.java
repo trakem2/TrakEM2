@@ -37,7 +37,7 @@ public class General
 
 	/**
 	 * simple square
-	 * @param value
+	 * @param a
 	 * @return value * value
 	 */
 	public static double sq( double a )
@@ -69,7 +69,7 @@ public class General
 	 * return a integer that is flipped in the range [0 ... mod - 1]
 	 *
 	 * @param a the value to be flipped
-	 * @param range the size of the range
+	 * @param mod the size of the range
 	 * @return a flipped in range like a ping pong ball
 	 */
 	public static int flipInRange( int a, int mod )
@@ -203,7 +203,7 @@ public class General
 
     /**
      * Berechnet die Differenz(Offset) der ganzzahligen Eingabe zur naechsten Zweierpotenz.
-     * Bsp: Eingabe 23 -> naechste Potenz 32 -> Ergebnis 9
+     * Bsp: Eingabe 23 &rarr; naechste Potenz 32 &rarr; Ergebnis 9
      * @param size ganzzahliger Eingabewert
      * @return int der berechnete Offset
      */

@@ -27,7 +27,7 @@ import mpicbg.models.PointMatch;
 
 /**
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  * @version 0.1b
  */
 public class TransformMesh extends mpicbg.models.TransformMesh

@@ -34,7 +34,7 @@ import mpicbg.util.Util;
  * Specialized {@link mpicbg.ij.TransformMapping} for Patches, that is, rendering
  * the image, outside mask and mask in one go instead three.
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  * @version 0.1a
  */
 public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mpicbg.ij.TransformMeshMapping< T >

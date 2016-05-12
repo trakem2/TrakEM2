@@ -603,10 +603,9 @@ public class Distortion_Correction implements PlugIn{
 	 * {@linkplain PointMatch corresponding points} and returns the inverse of
 	 * this model which then may be used to undo the distortion.
 	 *
-	 * @param matches
-	 * @param affines
-	 *   a list of affines in the same order as matches that transfer a match
-	 *   collection into a common image frame
+	 * @param pointMatches
+	 *   a list of matches, plus affines that transfer each match
+	 *   into a common image frame
 	 * @param dimension the order of the polynomial model
 	 * @param lambda regularization factor
 	 * @param imageWidth

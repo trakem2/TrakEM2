@@ -47,8 +47,10 @@ public final class AreaUtils {
 	private AreaUtils() {}
 
 	/** Expects areas in local coordinates to the Displayable @param d.
+	 *  @param d
 	 *  @param scale The scaling of the entire universe, to limit the overall box
-	 *  @param resample The optimization parameter for marching cubes (i.e. a value of 2 will scale down to half, then apply marching cubes, then scale up by 2 the vertices coordinates).
+	 *  @param resample_ The optimization parameter for marching cubes (i.e. a value of 2 will scale down to half, then apply marching cubes, then scale up by 2 the vertices coordinates).
+	 *  @param areas
 	 *  @return The List of triangles involved, specified as three consecutive vertices. A list of Point3f vertices. */
 	static public List<Point3f> generateTriangles(final Displayable d, final double scale, final int resample_, final Map<Layer,Area> areas) {
 		// in the LayerSet, layers are ordered by Z already.

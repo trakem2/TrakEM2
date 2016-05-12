@@ -58,8 +58,9 @@ import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 
 /** A JTree which has a built-in drag and drop feature.
- *
-* Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0
+ * <p>
+* Adapted from <a href="http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0">freely available code by DeuDeu</a>.
+* </p>
  */
 public abstract class DNDTree extends JTree implements TreeExpansionListener, KeyListener {
 
@@ -451,8 +452,8 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 	}
 
 	/** Get the map of Thing vs. expanded state for all nodes that have children,
-	 * and put the mappins into the {@param m}.
-	 * @return {@param m}
+	 * and put the mappins into the {@code m}.
+	 * @return {@code m}
 	 */
 	@SuppressWarnings("unchecked")
 	public HashMap<Thing,Boolean> getExpandedStates(final HashMap<Thing,Boolean> m) {
@@ -616,7 +617,7 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		return copy;
 	}
 
-	/** Set the root Thing, and the expanded state of all nodes if @param expanded_state is not null.
+	/** Set the root Thing, and the expanded state of all nodes if {@code expanded_state} is not null.
 	 *  Used for restoring purposes from an undo step. */
 	public void reset(final HashMap<Thing,Boolean> expanded_state) {
 		// rebuild all nodes, restore their expansion state.

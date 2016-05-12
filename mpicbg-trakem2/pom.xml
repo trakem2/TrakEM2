@@ -12,10 +12,6 @@
 	<artifactId>mpicbg-trakem2</artifactId>
 	<version>1.2.3-SNAPSHOT</version>
 
-	<properties>
-		<enforcer.skip>true</enforcer.skip>
-	</properties>
-
 	<dependencies>
 		<dependency>
 			<groupId>net.imagej</groupId>

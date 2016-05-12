@@ -484,7 +484,7 @@ public class Project extends DBObject {
 	 * if template_root is not null that is used; else, a template file is asked for.
 	 * 
 	 * @param arg Either "blank", "amira", "stack" or null. "blank" will generate a default template tree; "amira" will ask for importing an Amira file; "stack" will ask for importing an image stack (single multi-image file, like multi-TIFF).
-	 * @param template_root May be null, in which case a template DTD or XML file will be asked for, unless {@param arg} equals "blank".
+	 * @param template_root May be null, in which case a template DTD or XML file will be asked for, unless {@code arg} equals "blank".
 	 * @param storage_folder If null, a dialog asks for it.
 	 */
 	static public Project newFSProject(String arg, TemplateThing template_root, String storage_folder) {

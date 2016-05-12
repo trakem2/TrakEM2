@@ -33,7 +33,7 @@ import mpicbg.models.TranslationModel2D;
 
 /**
  *
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  */
 public class MovingLeastSquaresTransform extends mpicbg.models.MovingLeastSquaresTransform implements CoordinateTransform
 {

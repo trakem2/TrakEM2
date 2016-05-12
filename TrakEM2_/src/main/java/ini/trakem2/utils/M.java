@@ -654,7 +654,7 @@ public final class M {
 		}
 	}
 
-	/** @returns the point of intersection of the two segments a and b, or null if they don't intersect. */
+	/** @return the point of intersection of the two segments a and b, or null if they don't intersect. */
 	public static final float[] computeSegmentsIntersection(
 			final float ax0, final float ay0, final float ax1, final float ay1,
 			final float bx0, final float by0, final float bx1, final float by1) {

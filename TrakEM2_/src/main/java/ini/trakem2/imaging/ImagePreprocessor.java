@@ -22,8 +22,11 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.imaging;
 import ij.ImagePlus;
 
-/** Any class implementing this interface is suitable as an image preprocessor for a TrakEM2 project.<br />
- *  The role of the preprocessor is to do whatever is necessary to the given ImagePlus object before TrakEM2 ever sees the pixels of its ImageProcessor. */
+/** Any class implementing this interface is suitable as an image preprocessor for a TrakEM2 project.
+ * <p>
+ *  The role of the preprocessor is to do whatever is necessary to the given ImagePlus object before TrakEM2 ever sees the pixels of its ImageProcessor.
+ * </p>
+ */
 public interface ImagePreprocessor {
 	public void run(ImagePlus imp, String arg);
 }

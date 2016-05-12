@@ -24,7 +24,7 @@ import java.awt.Rectangle;
  * Creates automatically cropped mappings and inverse mappings of
  * {@linkplain ImageProcessor images} using a {@link TransformMesh}.
  * 
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  * @version 0.3b
  */
 public class TransformMeshMapping extends TransformMeshMappingWithMasks< TransformMesh >

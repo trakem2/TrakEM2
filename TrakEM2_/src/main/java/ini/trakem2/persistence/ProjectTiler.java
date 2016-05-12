@@ -60,7 +60,7 @@ public class ProjectTiler {
 	 * @param nExportThreads Number of layers to export in parallel. Use a small number when original images are huge (such as larger than 4096 x 4096 pixels).
 	 * @param createMipMaps Whether to generate the mipmaps when done or not.
 	 * 
-	 * @throws Exception IllegalArgumentException When {@param exportImageType} is not {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, or when the directory exists and cannot be written to.
+	 * @throws Exception IllegalArgumentException When {@code exportImageType} is not {@link ImagePlus#GRAY16} or {@link ImagePlus#COLOR_RGB}, or when the directory exists and cannot be written to.
 	 */
 	static final public Project createRetiledSibling(
 			final Project srcProject,

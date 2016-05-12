@@ -65,7 +65,7 @@ import mpicbg.trakem2.transform.ThinPlateSplineTransform;
 import mpicbg.trakem2.util.Triple;
 
 /**
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 public class ElasticLayerAlignment
 {
@@ -786,7 +786,6 @@ public class ElasticLayerAlignment
 		}
 
 		final ThinPlateR2LogRSplineKernelTransform tps = new ThinPlateR2LogRSplineKernelTransform(2, srcPts, tgtPts);
-		tps.solve();
 
 		return new ThinPlateSplineTransform( tps );
 	}

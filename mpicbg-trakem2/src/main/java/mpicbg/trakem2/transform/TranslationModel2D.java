@@ -13,12 +13,12 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- * 
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
- *
  */
 package mpicbg.trakem2.transform;
 
+/**
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
+ */
 public class TranslationModel2D extends mpicbg.models.TranslationModel2D implements InvertibleCoordinateTransform
 {
 

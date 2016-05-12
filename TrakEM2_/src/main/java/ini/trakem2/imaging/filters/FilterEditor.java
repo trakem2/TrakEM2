@@ -100,7 +100,7 @@ public class FilterEditor {
 				e.printStackTrace();
 			}
 		}
-		/** Makes a copy of {@param filter}. */
+		/** Makes a copy of {@code filter}. */
 		FilterWrapper(final IFilter filter) {
 			this.fields = filter.getClass().getDeclaredFields();
 			try {

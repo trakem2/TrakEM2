@@ -42,7 +42,7 @@ import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
 
 /**
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 final public class AlignmentUtils
 {
@@ -106,13 +106,15 @@ final public class AlignmentUtils
 	/**
 	 * Extract SIFT features and save them into the project folder.
 	 *
-	 * @param layerSet the layerSet that contains all layers
 	 * @param layerRange the list of layers to be aligned
 	 * @param box a rectangular region of interest that will be used for alignment
-	 * @param scale scale factor <= 1.0
+	 * @param scale scale factor &lt;= 1.0
 	 * @param filter a name based filter for Patches (can be null)
-	 * @param p SIFT extraction parameters
-	 * @throws Exception
+	 * @param siftParam SIFT extraction parameters
+	 * @param clearCache
+	 * @param numThreads
+	 * @throws ExecutionException
+	 * @throws InterruptedException
 	 */
 	final static protected void extractAndSaveLayerFeatures(
 			final List< Layer > layerRange,

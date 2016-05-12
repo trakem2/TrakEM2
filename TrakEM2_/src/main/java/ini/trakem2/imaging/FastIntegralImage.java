@@ -8,7 +8,7 @@ package ini.trakem2.imaging;
 public final class FastIntegralImage
 {
 	/** Returns an image of @{param w}+1, @{param y}+1, where the first row and the first column are zeros,
-	 * and the rest contain the sum of the area from 0,0 to that pixel in {@param b}.
+	 * and the rest contain the sum of the area from 0,0 to that pixel in {@code b}.
 	 * 
 	 * @param b
 	 * @param w
@@ -44,7 +44,7 @@ public final class FastIntegralImage
 	}
 	
 	/** Returns an image of @{param w}+1, @{param y}+1, where the first row and the first column are zeros,
-	 * and the rest contain the sum of the area from 0,0 to that pixel in {@param b}.
+	 * and the rest contain the sum of the area from 0,0 to that pixel in {@code b}.
 	 * 
 	 * @param b
 	 * @param w

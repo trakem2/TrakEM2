@@ -732,14 +732,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return node;
 	}
 	
-	/** Attempt to add the {@param d} as a {@link ProjectThing} child of type {@param childType}
-	 * to the parent {@link ProjectThing} {@param parent}. A new {@link DefaultMutableTreeNode}
-	 * will be added to the {@link DefaultMutableTreeNode} that encapsulates the {@param parent}.
+	/** Attempt to add the {@code d} as a {@link ProjectThing} child of type {@code childType}
+	 * to the parent {@link ProjectThing} {@code parent}. A new {@link DefaultMutableTreeNode}
+	 * will be added to the {@link DefaultMutableTreeNode} that encapsulates the {@code parent}.
 	 * 
 	 * Will fail by returning null if:
-	 *  1. The {@param parent} {@link ProjectThing} cannot have a child of type {@param childType}.
-	 *  2. The {@link ProjectThing} constructor throws an Exception, for example if {@link d} is null.
-	 *  3. The {@param parent} {@link ProjectThing#addChild(Thing)} returns false.
+	 *  1. The {@code parent} {@link ProjectThing} cannot have a child of type {@code childType}.
+	 *  2. The {@link ProjectThing} constructor throws an Exception, for example if {@code d} is null.
+	 *  3. The {@code parent} {@link ProjectThing#addChild(Thing)} returns false.
 	 *  
 	 *  @return The new {@link DefaultMutableTreeNode}.
 	 * */
@@ -917,15 +917,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 	}
 	
 	/** Assumes that both projects have the same TemplateThing structure,
-	 * and assumes that the parent of the ({@param source_pt} and the {@param landing_parent}
+	 * and assumes that the parent of the ({@code source_pt} and the {@code landing_parent}
 	 * instances are of the same type.
 	 * 
 	 * @param source_pt The {@link ProjectThing} to be cloned.
 	 * @param transfer_mode Either 0 ("As is") or 1 ("Transformed with the images").
-	 * @param target_project The sibling project into which insert a clone of the {@param source_pt}.
-	 * @param landing_parent The ProjectThing in the sibling project that receives the cloned {@param source_pt}.
-	 * 
-	 * */
+	 * @param target_project The sibling project into which insert a clone of the {@code source_pt}.
+	 * @param landing_parent The ProjectThing in the sibling project that receives the cloned {@code source_pt}.
+	 */
 	public boolean rawSendToSiblingProject(
 			final ProjectThing source_pt, // the source ProjectThing to copy to the target project
 			final int transfer_mode,
@@ -1066,13 +1065,14 @@ public final class ProjectTree extends DNDTree implements MouseListener, ActionL
 		return project.getRootProjectThing();
 	}
 
-	/** If the parent node of {@param active} can accept a Connector or has a direct child
+	/** If the parent node of {@code active} can accept a Connector or has a direct child
 	 * node that can accept a {@link Connector}, add a new {@link Connector} and return it.
 	 * 
 	 * @param d The {@link Displayable} that serves as reference, to decide which node to add the new {@link Connector}.
 	 * @param selectNode Whether to select the new node containing the {@link Connector} in the ProjectTree.
 	 * 
-	 * @return The newly created {@link Connector}. */
+	 * @return The newly created {@link Connector}.
+	 */
 	public Connector tryAddNewConnector(final Displayable d, final boolean selectNode) {
 		ProjectThing pt = project.findProjectThing(d);
 		ProjectThing parent = (ProjectThing) pt.getParent();

@@ -59,7 +59,7 @@ import net.imglib2.view.composite.RealComposite;
  * interval is that of a raster.  The map is scaled such that it applies to
  * the interval of the input image.
  *
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  */
 public class LinearIntensityMap< T extends RealType< T > >
 {

@@ -215,7 +215,7 @@ public class Connector extends Treeline {
 		return M.intersects(area, a);
 	}
 
-	/** Whether the area of the root node intersects the world coordinates {@param wx}, {@param wy} at {@link Layer} {@param la}. */
+	/** Whether the area of the root node intersects the world coordinates {@code wx}, {@code wy} at {@link Layer} {@code la}. */
 	public boolean intersectsOrigin(final double wx, final double wy, final Layer la) {
 		if (null == root || root.la != la) return false;
 		final Area a = root.getArea();

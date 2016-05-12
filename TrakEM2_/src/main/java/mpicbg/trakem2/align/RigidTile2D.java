@@ -26,14 +26,11 @@ public class RigidTile2D extends AbstractAffineTile2D< mpicbg.models.RigidModel2
 	 * of the {@link Patch}.  The {@link AffineTransform} should be a
 	 * Rigid Transformation, otherwise the results will not be what you might
 	 * expect.  This means, that:
-	 * <pre>
-	 *   {@link AffineTransform#getScaleX()} == {@link AffineTransform#getScaleY()}
-	 *   {@link AffineTransform#getShearX()} == -{@link AffineTransform#getShearY()}
-	 * </pre>
-	 * and
-	 * <pre>
-	 *   {@link AffineTransform#getScaleX()}<sup>2</sup> + {@link AffineTransform#getShearX()}<sup>2</sup> == 1
-	 * </pre>
+	 * <ul>
+	 * <li>{@link AffineTransform#getScaleX()} == {@link AffineTransform#getScaleY()}</li>
+	 * <li>{@link AffineTransform#getShearX()} == -{@link AffineTransform#getShearY()}</li>
+	 * <li>{@link AffineTransform#getScaleX()}<sup>2</sup> + {@link AffineTransform#getShearX()}<sup>2</sup> == 1</li>
+	 * </ul>
 	 */
 	@Override
 	protected void initModel()

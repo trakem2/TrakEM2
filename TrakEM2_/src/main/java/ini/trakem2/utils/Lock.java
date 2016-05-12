@@ -23,38 +23,41 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.utils;
 
 /** For thread synchronization.
- * Both methods MUST ALWAYS be called from within a statement synchronizing on this object, such as:<br />
- *  <br />
- *  final Lock lock = new Lock();<br />
- *  synchronized (lock) {<br />
- *      lock.lock();<br />
- *      try {<br />
- *      	... (do whatever needs be synchronized on this lock) ...<br />
- *      } catch (Exception e) {<br />
- *      	e.printStackTrace();<br />
- *      }<br />
- *      lock.unlock();<br />
- *  }<br />
- *
- *  The advantage of using this class as opposed to a simple synchronized statement is that the lock may be set and unset from different synchronized blocks. For example:<br />
- *  final Lock lock = new Lock();<br />
- *  synchronized (lock) {<br />
- *      lock.lock();<br />
- *      // Do something<br />
- *  }<br />
- *  // Exit synchronized block, wait for other events to happen<br />
- *  <br />
- *  // ... <br />
- *  // Enter again and unlock:<br />
- *  synchronized (lock) {<br />
- *      try {<br />
- *      	... (do whatever needs be synchronized on this lock) ...<br />
- *      } catch (Exception e) {<br />
- *      	e.printStackTrace();<br />
- *      }<br />
- *      lock.unlock();<br />
- *  }<br />
- *
+ * Both methods MUST ALWAYS be called from within a statement synchronizing on this object, such as:
+ *  <pre>
+ *  final Lock lock = new Lock();
+ *  synchronized (lock) {
+ *      lock.lock();
+ *      try {
+ *      	... (do whatever needs be synchronized on this lock) ...
+ *      } catch (Exception e) {
+ *      	e.printStackTrace();
+ *      }
+ *      lock.unlock();
+ *  }
+ * </pre>
+ * <p>
+ *  The advantage of using this class as opposed to a simple synchronized statement is that the lock may be set and unset from different synchronized blocks. For example:
+ *  </p>
+ *  <pre>
+ *  final Lock lock = new Lock();
+ *  synchronized (lock) {
+ *      lock.lock();
+ *      // Do something
+ *  }
+ *  // Exit synchronized block, wait for other events to happen
+ *  
+ *  // ... 
+ *  // Enter again and unlock:
+ *  synchronized (lock) {
+ *      try {
+ *      	... (do whatever needs be synchronized on this lock) ...
+ *      } catch (Exception e) {
+ *      	e.printStackTrace();
+ *      }
+ *      lock.unlock();
+ *  }
+ * </pre>
  */
 public class Lock {
 	protected boolean locked = false;

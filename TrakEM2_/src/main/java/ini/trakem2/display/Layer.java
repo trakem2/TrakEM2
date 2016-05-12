@@ -444,7 +444,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return false;
 	}
 
-	/** Returns true if any of the Displayable objects are of the given class; if {@param visible_only} is true,
+	/** Returns true if any of the Displayable objects are of the given class; if {@code visible_only} is true,
 	 * will return true only if at least one of the matched objects is visible. */
 	public boolean contains(final Class<?> c, final boolean visible_only) {
 		for (final Displayable d : al_displayables) {
@@ -934,7 +934,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return getMinimalBoundingBox(c, true);
 	}
 
-	/** Returns null if no Displayable objects of class c exist (or are visible if {@param visible_only} is true). */
+	/** Returns null if no Displayable objects of class c exist (or are visible if {@code visible_only} is true). */
 	public Rectangle getMinimalBoundingBox(final Class<?> c, final boolean visible_only) {
 		Rectangle box = null;
 		Rectangle tmp = new Rectangle();
@@ -1271,7 +1271,7 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return 0;
 	}
 
-	/** Transfer the world coordinate specified by {@param world_x},{@param world_y}
+	/** Transfer the world coordinate specified by {@code world_x},{@code world_y}
 	 * in pixels, to the local coordinate of the {@link Patch} immediately present under it.
 	 * @return null if no {@link Patch} is under the coordinate, else the {@link Coordinate} with the x, y, {@link Layer} and the {@link Patch}.
 	 * @throws NoninvertibleModelException 

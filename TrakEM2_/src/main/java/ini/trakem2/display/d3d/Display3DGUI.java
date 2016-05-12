@@ -120,7 +120,7 @@ public class Display3DGUI {
 
 	/** The {@link Image3DUniverse#getContents()} returns an unordered list, because the
 	 * list are the values of a {@link Map}; this method circumvents that by getting
-	 * the list from the enumeration of children elements in the scene of the {@param univ},
+	 * the list from the enumeration of children elements in the scene of the {@code univ},
 	 * which is a {@link BranchGroup}.
 	 *
 	 * @param univ

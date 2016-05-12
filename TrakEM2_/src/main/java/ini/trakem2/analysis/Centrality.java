@@ -215,7 +215,7 @@ public class Centrality {
 	}
 
 	/** An entry of the number of remaining branch vertices versus
-	 *  the set of branches (each as a List<Vertex<T>>) removed. */
+	 *  the set of branches (each as a {@code List<Vertex<T>>}) removed. */
 	static public class EtchingStep<T> implements Map.Entry<Integer,Set<Collection<Vertex<T>>>> {
 		public int remaining_branch_vertices = 0;
 		public Set<Collection<Vertex<T>>> branches = null;

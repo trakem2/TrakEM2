@@ -4160,7 +4160,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 
 
 	/**
-	 * @depracated Use {@link #setCoordinateTransform(List, CoordinateTransform, int)} instead which implements pre-appending as a third mode.
+	 * @deprecated Use {@link #setCoordinateTransform(List, CoordinateTransform, int)} instead which implements pre-appending as a third mode.
 	 *
 	 * @param patches
 	 * @param ct
@@ -6269,7 +6269,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		}
 	}
 
-	/** Pops up a dialog to adjust the alpha, visible, color, locked and compositeMode of all Displayables in {@param col}.
+	/** Pops up a dialog to adjust the alpha, visible, color, locked and compositeMode of all Displayables in {@code col}.
 	 *
 	 * @param col
 	 */
@@ -7523,7 +7523,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 	 *
 	 * @param regex The regular expression to match against the title of a {@link Displayable}.
 	 * @param visible_only Whether to gather only {@link Displayable} instances that are visible.
-	 * @param c The specific class of {@link Displayable}; can be an interface like {@link VectorData}, {@link ImageData} or {@link AreaContainer}. Use {@Displayable} to mean any.
+	 * @param c The specific class of {@link Displayable}; can be an interface like {@link VectorData}, {@link ImageData} or {@link AreaContainer}. Use {@link Displayable} to mean any.
 	 * @param layers The range of {@link Layer} to search in.
 	 * @return
 	 */

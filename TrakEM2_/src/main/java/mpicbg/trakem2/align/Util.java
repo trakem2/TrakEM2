@@ -45,7 +45,7 @@ import mpicbg.trakem2.transform.CoordinateTransformList;
 /**
  * 
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  * @version 0.1a
  */
 public class Util
@@ -165,9 +165,11 @@ public class Util
 	 * Creates two serialization files which is desperately required to clean
 	 * up properly invalid serializations on change of a {@link Patch}.
 	 * 
-	 * @param p
-	 * @param t1
-	 * @param t2
+	 * @param project
+	 * @param key
+	 * @param prefix
+	 * @param id1
+	 * @param id2
 	 * @param m
 	 * @return
 	 */

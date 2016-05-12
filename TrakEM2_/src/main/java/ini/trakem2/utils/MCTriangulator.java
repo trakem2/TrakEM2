@@ -38,7 +38,7 @@ public class MCTriangulator implements Triangulator {
 	}
 
 	/**
-	 * @param img The Image<? extends RealType> instance to use.
+	 * @param img The {@code Image<? extends RealType>} instance to use.
 	 * @param threshold The cut-off (inclusive) of pixel values considered inside.
 	 * @param origin The translation of the origin, in 3D.
 	 */

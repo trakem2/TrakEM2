@@ -1817,7 +1817,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		recreateBuckets(al_layers, layer_buckets);
 	}
 
-	/** Recreate the ZDisplayable buckets for {@param layer}, and also the {@link Layer} {@link Displayable} buckets if desired.
+	/** Recreate the ZDisplayable buckets for {@code layer}, and also the {@link Layer} {@link Displayable} buckets if desired.
 	 * @param layer The {@link Layer} to recreate {@link ZDisplayable} buckets for.
 	 * @param layer_buckets Whether to also recreate the {@link Layer}-specific buckets for images and text labels.
 	 */

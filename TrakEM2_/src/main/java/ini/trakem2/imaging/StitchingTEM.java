@@ -487,13 +487,14 @@ public class StitchingTEM {
 
 
 
-	 /** @param scale For optimizing the speed of phase- and cross-correlation.<br />
-	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.<br />
-	 * @return a double[4] array containing:<br />
-	 * 	- x2: relative X position of the second Patch<br />
-	 * 	- y2: relative Y position of the second Patch<br />
-	 * 	- flag: ERROR or SUCCESS<br />
-	 * 	- R: cross-correlation coefficient<br />
+	 /** @param scale For optimizing the speed of phase- and cross-correlation.
+	 * @param percent_overlap The minimum chunk of adjacent images to compare with, will automatically and gradually increase to 100% if no good matches are found.
+	 * @return a double[4] array containing:<ul>
+	 * <li>x2: relative X position of the second Patch</li>
+	 * <li>y2: relative Y position of the second Patch</li>
+	 * <li>flag: ERROR or SUCCESS</li>
+	 * <li>R: cross-correlation coefficient</li>
+	 * </ul>
 	 */
 	static public double[] correlate(final Patch base, final Patch moving, final float percent_overlap, final double scale, final int direction, final double default_dx, final double default_dy, final double min_R) {
 		//PhaseCorrelation2D pc = null;

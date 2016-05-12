@@ -205,8 +205,9 @@ public class TMLHandler extends DefaultHandler {
 	 [2] = root LayerThing (contains the top-level LayerSet)
 	 [3] = expanded states of all ProjectThing objects
 	 </pre>
-	 * <br />
+	 * <p>
 	 * Also, triggers the reconstruction of links and assignment of Displayable objects to their layer.
+	 * </p>
 	 */
 	public Object[] getProjectData(final boolean open_displays) {
 		if (null == project) return null;

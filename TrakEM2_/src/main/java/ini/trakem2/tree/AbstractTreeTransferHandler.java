@@ -50,7 +50,7 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
  
-/** Adapted from freely available code by DeuDeu from http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0 */
+/** Adapted from <a href="http://forum.java.sun.com/thread.jspa?threadID=296255&start=0&tstart=0">freely available code by DeuDeu</a>. */
 public abstract class AbstractTreeTransferHandler implements DragGestureListener, DragSourceListener, DropTargetListener {
  
         private DNDTree tree;

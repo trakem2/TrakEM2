@@ -34,7 +34,7 @@ import java.util.zip.InflaterInputStream;
  * -rw-r--r-- 1 albert albert     9795 2012-02-24 06:06 mask.tif.9.gz
  * 
  * The test above was done with a mask (mask.tif) which encodes for the outside of
- * a coordinate transformed image. The program used was e.g. "gzip -4 -c mask.tif > mask.tif.4.gz".
+ * a coordinate transformed image. The program used was e.g. {@code gzip -4 -c mask.tif > mask.tif.4.gz}.
  * 
  * */
 public final class RagMipMaps

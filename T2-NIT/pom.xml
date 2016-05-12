@@ -14,10 +14,6 @@
 	<artifactId>T2-NIT</artifactId>
 	<version>1.1.1-SNAPSHOT</version>
 
-	<properties>
-		<enforcer.skip>true</enforcer.skip>
-	</properties>
-
 	<name>jars/T2-NIT.jar</name>
 	<description></description>
 

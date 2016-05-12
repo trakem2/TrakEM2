@@ -810,7 +810,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 	}
 	/** Check if this Thing directly contains any child of the given object class (including interfaces), and return them all.
 	 *  This method looks at the object wrapped by the ProjectThing, and returns a list of objects whose class
-	 *  or superclass or interface matches {@param c}. */
+	 *  or superclass or interface matches {@code c}. */
 	@SuppressWarnings("unchecked")
 	public<T> ArrayList<T> findChildrenOfType(final Class<T> c) {
 		final ArrayList<T> al = new ArrayList<T>();
@@ -947,7 +947,7 @@ public final class ProjectThing extends DBObject implements TitledThing {
 		return hs;
 	}
 
-	/** Expects a HashMap<Thing,Boolean> as @param any. */
+	/** Expects a {@code HashMap<Thing,Boolean>} as {@code any}. */
 	@Override
 	public void exportXML(final StringBuilder sb_body, final String indent, final XMLOptions options) {
 		// write in opening tag, put in there the attributes, then close, then call the children (indented), then closing tag.

@@ -11,12 +11,12 @@ public class ShapeProxy implements Shape
 {
 	private Shape s;
 	
-	/** Create a new proxy for {@param s}. */
+	/** Create a new proxy for {@code s}. */
 	public ShapeProxy(final Shape s) {
 		this.s = s;
 	}
 	
-	/** Replace the wrapped {@link Shape} with {@param s}.
+	/** Replace the wrapped {@link Shape} with {@code s}.
 	 * 
 	 * @param s
 	 */

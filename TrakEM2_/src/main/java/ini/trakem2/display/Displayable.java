@@ -96,7 +96,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 	 * to contribute towards the red channel only of an underlying set of grayscale electron microscopy images.
 	 * 
 	 * @param mode Any of the COMPOSITE_* modes available.
-	 * @throws IllegalArgumentException if the {@param mode} is not valid.
+	 * @throws IllegalArgumentException if the {@code mode} is not valid.
 	 */
 	public void setCompositeMode(final byte mode) {
 		if (mode < 0 || mode > 5) throw new IllegalArgumentException("Invalid composite mode: " + mode);
@@ -612,7 +612,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		return r;
 	}
 	
-	/** Bounding box of a collection of transformed {@link Displayables}
+	/** Bounding box of a collection of transformed {@link Displayable}s.
 	 *  If the list is empty, there is no bounding box, so it returns null. */
 	static public Rectangle getBoundingBox(final Collection<? extends Displayable> ds, final Rectangle r)
 	{
@@ -1597,7 +1597,7 @@ public abstract class Displayable extends DBObject implements Paintable  {
 		preTransform(at2, linked);
 	}
 	
-	/** Preconcatenate the {@param at} to every {@link Displayable} in {@param ds},
+	/** Preconcatenate the {@code at} to every {@link Displayable} in {@code ds},
 	 * without touching their links; then the buckets are updated for all necessary layers. */
 	static public final void preConcatenate(final AffineTransform at, final Collection<Displayable> ds) {
 		if (ds.isEmpty()) return;

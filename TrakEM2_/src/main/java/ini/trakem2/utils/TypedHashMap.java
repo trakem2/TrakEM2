@@ -34,52 +34,52 @@ public class TypedHashMap<K,V> extends HashMap<K,V>
 		super(initialCapacity, loadFactor);
 	}
 
-	/** Typed version of {@link HashMap#get(Object). */
+	/** Typed version of {@link HashMap#get(Object)}. */
 	public V getValue(final K key) {
 		return super.get(key);
 	}
 	
 	/**
-	 * @throws {@link UnsupportedOperationException}
+	 * @throws UnsupportedOperationException
 	 */
 	@Override
 	public V get(final Object key) {
 		throw new UnsupportedOperationException();
 	}
 
-	/** Typed version of {@link HashMap#remove(Object). */
+	/** Typed version of {@link HashMap#remove(Object)}. */
 	public V removeEntry(final K key) {
 		return super.remove(key);
 	}
 	
 	/**
-	 * @throws {@link UnsupportedOperationException}
+	 * @throws UnsupportedOperationException
 	 */
 	@Override
 	public V remove(final Object key) {
 		throw new UnsupportedOperationException();
 	}
 	
-	/** Typed version of {@link HashMap#containsKey(Object). */
+	/** Typed version of {@link HashMap#containsKey(Object)}. */
 	public boolean hasKey(final K key) {
 		return super.containsKey(key);
 	}
 	
 	/**
-	 * @throws {@link UnsupportedOperationException}
+	 * @throws UnsupportedOperationException
 	 */
 	@Override
 	public boolean containsKey(final Object key) {
 		throw new UnsupportedOperationException();
 	}
 	
-	/** Typed version of {@link HashMap#containsValue(Object). */
+	/** Typed version of {@link HashMap#containsValue(Object)}. */
 	public boolean hasValue(final V value) {
 		return super.containsValue(value);
 	}
 	
 	/**
-	 * @throws {@link UnsupportedOperationException}
+	 * @throws UnsupportedOperationException
 	 */
 	@Override
 	public boolean containsValue(final Object value) {

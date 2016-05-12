@@ -139,7 +139,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		this.color = color;
 	}
 
-	/** Get a copy of the {@link Set} of {@link Node} that exist at {@param layer}; the {@link Node} instances are the originals.
+	/** Get a copy of the {@link Set} of {@link Node} that exist at {@code layer}; the {@link Node} instances are the originals.
 	 * Returns an empty {@link Set} if none found. */
 	public Set<Node<T>> getNodesAt(final Layer layer) {
 		synchronized (node_layer_map) {
@@ -2144,7 +2144,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		return null != firstIntersectingNode(layer, area);
 	}
 	/** Expects Area in world coords.
-	 * @return The first {@link Node} that intersects the {@param area} at the given {@param layer}, or null if none do. */
+	 * @return The first {@link Node} that intersects the {@code area} at the given {@code layer}, or null if none do. */
 	public Node<T> firstIntersectingNode(final Layer layer, final Area area) {
 		final Set<Node<T>> nodes = node_layer_map.get(layer);
 		if (null == nodes || nodes.isEmpty()) return null;

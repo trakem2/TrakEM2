@@ -1226,11 +1226,12 @@ public class Compare {
 	/** Gets pipes for all open projects, and generates a matrix of dissimilarities, which gets passed on to the Worker thread and also to a file, if desired.
 	 *
 	 * @param to_file Whether to save the results to a file and popup a save dialog for it or not. In any case the results are stored in the worker's load, which you can retrieve like:
-	 *     Bureaucrat bu = Compare.compareAllToAll(true, null, null);
-	 *     Object result = bu.getWorker().getResult();
-	 *     float[][] scores = (float[][])result[0];
-	 *     ArrayList<Compare.Chain> chains = (ArrayList<Compare.Chain>)result[1];
-	 *
+	 * <pre>
+	 * Bureaucrat bu = Compare.compareAllToAll(true, null, null);
+	 * Object result = bu.getWorker().getResult();
+	 * float[][] scores = (float[][])result[0];
+	 * ArrayList&lt;Compare.Chain&gt; chains = (ArrayList&lt;Compare.Chain&gt;)result[1];
+	 * </pre>
 	 */
 	static public Bureaucrat compareAllToAll(final boolean to_file, final String regex,
 			                         final String[] ignore, final Project[] projects,
@@ -1567,7 +1568,7 @@ public class Compare {
 	 * @param show_3D Whether to show any 3D data.
 	 * @param show_condensed_3D If show_3D, whether to show the condensed vector strings, i.e. the "average" pipes.
 	 * @param show_sources_3D If show_3D, whether to show the source pipes from which the condensed vector string was generated.
-	 * @param source_color_table Which colors to give to the pipes of which Project.
+	 * @param sources_color_table Which colors to give to the pipes of which Project.
 	 * @param show_envelope_3D If show_3D, whether to generate the variability envelope.
 	 * @param envelope_alpha If show_envelope_3D, the envelope takes an alpha value between 0 (total transparency) and 1 (total opacity)
 	 * @param delta_envelope The delta to resample the envelope to. When smaller than or equal to 1, no envelope resampling occurs.

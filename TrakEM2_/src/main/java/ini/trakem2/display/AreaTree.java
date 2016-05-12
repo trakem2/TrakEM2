@@ -637,7 +637,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return rt;
 	}
 
-	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@param nd} to it.
+	/** Find the nearest parent with a non-null, non-empty Area, and interpolate from {@code nd} to it.
 	 *
 	 * @param nd The node to start interpolating from, towards its nearest parent with an area.
 	 * @param node_centric If true, consider areas relative to the node coordinates. If false, relative to the overall AreaTree.
@@ -740,7 +740,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		return processed;
 	}
 
-	/** Assumes {@param nd} is an AreaNode. Otherwise fails with {@link ClassCastException}.
+	/** Assumes {@code nd} is an AreaNode. Otherwise fails with {@link ClassCastException}.
 	 * @param nd An AreaNode. */
 	public void addWorldAreaTo(final Node<?> nd, final Area a) {
 		final AreaNode an = (AreaNode) nd;

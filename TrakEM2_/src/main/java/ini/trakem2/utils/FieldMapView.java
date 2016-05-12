@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -55,7 +56,7 @@ public class FieldMapView implements Map<String,String>
 
 	/** Linear search.
 	 * @param key A {@link String}. Can be null. Tests for field names with {@link Object#equals(Object)}.
-	 * @return A {@link String} representation of the field named by {@param key}.
+	 * @return A {@link String} representation of the field named by {@code key}.
 	 */
 	@Override
 	public String get(final Object key) {
@@ -119,7 +120,7 @@ public class FieldMapView implements Map<String,String>
 	}
 
 	/**
-	 * @return An unmodifiable {@link List} as created by {@link Collections#unmodifiableList(java.util.List)}.
+	 * @return An unmodifiable {@link List} as created by {@link Collections#unmodifiableList(List)}.
 	 */
 	@Override
 	public Collection<String> values() {

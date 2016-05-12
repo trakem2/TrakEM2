@@ -12,8 +12,8 @@ public final class P {
 		return p;
 	}
 	
-	/** Puts the {@param pi} (the greyscale channel) into the R, G and B components of the returned {@code int[]}
-	 * after having multiplied them by the {@param pm} (the alpha channel); the alpha channel gets inserted into
+	/** Puts the {@code pi} (the greyscale channel) into the R, G and B components of the returned {@code int[]}
+	 * after having multiplied them by the {@code pm} (the alpha channel); the alpha channel gets inserted into
 	 * the int[] as well. */
 	public static final int[] blendPre(final byte[] pi, final byte[] pm) {
 		final int[] p = CachingThread.getOrCreateIntArray(pi.length); // new int[pi.length];

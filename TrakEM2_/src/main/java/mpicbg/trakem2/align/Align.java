@@ -52,7 +52,7 @@ import mpicbg.trakem2.transform.TranslationModel2D;
  *
  * TODO Bring the methods and tasks into a class for each method and clean up this mess.
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 public class Align
 {
@@ -1265,7 +1265,8 @@ public class Align
 	/**
 	 * Align a selection of {@link Patch patches} in a Layer.
 	 *
-	 * @param layer
+	 * @param selection
+	 * @param numThreads
 	 */
 	final static public void alignSelectedPatches( final Selection selection, final int numThreads )
 	{
@@ -1331,7 +1332,7 @@ public class Align
 	 *
 	 * @param layers The range of layers to align pairwise.
 	 * @param numThreads The number of threads to use.
-	 * @param filter The {@link Filter} to decide which {@link Patch} instances to use in each {@param Layer}. Can be null.
+	 * @param filter The {@link Filter} to decide which {@link Patch} instances to use in each {@link Layer}. Can be null.
 	 */
 	final static public void alignLayersLinearly( final List< Layer > layers, final int numThreads, final Filter<Patch> filter )
 	{

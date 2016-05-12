@@ -24,7 +24,7 @@ import org.junit.Test;
 /**
  *
  *
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  */
 public class PolynomialTransform2DTest
 {

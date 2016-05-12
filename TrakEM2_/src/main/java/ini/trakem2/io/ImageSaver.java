@@ -83,8 +83,10 @@ public class ImageSaver {
 
 	static private final Object OBDIRS = new Object();
 
-	/** Will create parent directories if they don't exist.<br />
+	/** Will create parent directories if they don't exist.
+	 * <p>
 	 *  Returns false if the path is unusable.
+	 *  </p>
 	 */
 	static public final boolean checkPath(final String path) {
 		if (null == path) {
@@ -135,8 +137,10 @@ public class ImageSaver {
 	}
 
 
-	/** Returns true on success.<br />
-	 *  Core functionality adapted from ij.plugin.JpegWriter class by Wayne Rasband.
+	/** Returns true on success.
+	 * <p>
+	 *  Core functionality adapted from {@code ij.plugin.JpegWriter} class by Wayne Rasband.
+	 *  </p>
 	 */
 	static public final boolean saveAsJpeg(final ImageProcessor ip, final String path, float quality, boolean as_grey) {
 		// safety checks
@@ -352,8 +356,10 @@ public class ImageSaver {
 		}
 	}
 
-	/** Returns true on success.<br />
-	 *  Core functionality adapted from ij.io.FileSaver class by Wayne Rasband.
+	/** Returns true on success.
+	 * <p>
+	 *  Core functionality adapted from {@code ij.io.FileSaver} class by Wayne Rasband.
+	 *  </p>
 	 */
 	static public final boolean saveAsZip(final ImagePlus imp, String path) {
 		// safety checks

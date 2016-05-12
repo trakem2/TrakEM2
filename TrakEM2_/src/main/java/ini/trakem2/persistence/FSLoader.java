@@ -358,7 +358,7 @@ public final class FSLoader extends Loader {
 		return np;
 	}
 
-	/** Restart the ExecutorService for mipmaps with {@param n_threads}. */
+	/** Restart the ExecutorService for mipmaps with {@code n_threads}. */
 	static public final void restartMipMapThreads(final int n_threads) {
 		if (null != regenerator && !regenerator.isShutdown()) {
 			regenerator.shutdown();
@@ -1416,7 +1416,7 @@ public final class FSLoader extends Loader {
 		Utils.showMessage("TrakEM2 detected a crash", "TrakEM2 detected a crash. Image mipmap files may be out of synch.\n\nIf you where editing images when the crash occurred,\nplease right-click and run 'Project - Regenerate all mipmaps'");
 	}
 
-	/** Order the regeneration of all mipmaps for the Patch instances in @param patches, setting up a task that blocks input until all completed. */
+	/** Order the regeneration of all mipmaps for the Patch instances in {@code patches}, setting up a task that blocks input until all completed. */
 	public Bureaucrat regenerateMipMaps(final Collection<? extends Displayable> patches) {
 		return Bureaucrat.createAndStart(new Worker.Task("Regenerating mipmaps") { public void exec() {
 			final List<Future<?>> fus = new ArrayList<Future<?>>();
@@ -1519,7 +1519,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Queue/unqueue for mipmap removal on shutdown without saving;
-	 * the {@param yes}, when true, makes the {@param p} be queued,
+	 * the {@code yes}, when true, makes the {@code p} be queued,
 	 * and when false, be removed from the queue. */
 	public void queueForMipmapRemoval(final Patch p, boolean yes) {
 		if (yes) touched_mipmaps.add(p);
@@ -1527,7 +1527,7 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Queue/unqueue for mipmap removal on shutdown without saving;
-	 * the {@param yes}, when true, makes the {@param p} be queued,
+	 * the {@code yes}, when true, makes the {@code p} be queued,
 	 * and when false, be removed from the queue. */
 	public void tagForMipmapRemoval(final Patch p, final boolean yes) {
 		if (yes) mipmaps_to_remove.add(p);
@@ -1535,10 +1535,17 @@ public final class FSLoader extends Loader {
 	}
 
 	/** Given an image and its source file name (without directory prepended), generate
-	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.<br />
-	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.<br />
-	 * The Patch id and the right extension will be appended to the filename in all cases.<br />
-	 * Any equally named files will be overwritten. */
+	 * a pyramid of images until reaching an image not smaller than 32x32 pixels.
+	 * <p>
+	 * Such images are stored as jpeg 85% quality in a folder named trakem2.mipmaps.
+	 * </p>
+	 * <p>
+	 * The Patch id and the right extension will be appended to the filename in all cases.
+	 * </p>
+	 * <p>
+	 * Any equally named files will be overwritten.
+	 * </p>
+	 */
 	protected boolean generateMipMaps(final Patch patch) {
 		Utils.log2("mipmaps for " + patch);
 		final String path = getAbsolutePath(patch);
@@ -1969,7 +1976,7 @@ public final class FSLoader extends Loader {
 
 	/** Generate image pyramids and store them into files under the dir_mipmaps for each Patch object in the Project. The method is multithreaded, using as many processors as available to the JVM.
 	 *
-	 * @param al : the list of Patch instances to generate mipmaps for.
+	 * @param patches : the list of Patch instances to generate mipmaps for.
 	 * @param overwrite : whether to overwrite any existing mipmaps, or save only those that don't exist yet for whatever reason. This flag provides the means for minimal effort mipmap regeneration.)
 	 * */
 	public Bureaucrat generateMipMaps(final Collection<Displayable> patches, final boolean overwrite) {
@@ -2231,7 +2238,7 @@ public final class FSLoader extends Loader {
 		return null != dir_mipmaps;
 	}
 
-	/** Return the closest level to @param level that exists as a file.
+	/** Return the closest level to {@code level} that exists as a file.
 	 *  If no valid path is found for the patch, returns ERROR_PATH_NOT_FOUND.
 	 */
 	@Override

@@ -10,7 +10,7 @@ public class ImageFileHeader {
 	public final int width, height, type;
 	public final IFormatReader fr;
 	
-	/** Reads the header of the image file at {@param filepath}
+	/** Reads the header of the image file at {@code filepath}
 	 * using an {@link IFormatReader} from the bio-formats library,
 	 * and then extracts the {link #width}, {@link #height} and {@link #type}
 	 * of the image. If the type is not one supported by TrakEM2, the {@link #type}

@@ -32,7 +32,7 @@ import java.awt.Image;
  * {@link Image} and its origin because the number of pixels is an integer in
  * both {@link Image Images}.
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 public final class MipMapImage
 {

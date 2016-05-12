@@ -100,10 +100,10 @@ public abstract class Node<T> implements Taggable {
 		return new StringBuilder("{:x ").append(x).append(" :y ").append(y).append(" :layer ").append(la.getId()).append('}').toString();
 	}
 
-	/** @param parent The parent Node, which has an edge of a certain confidence value towards this Node.
+	/** 
 	 *  @param x The X in local coordinates.
 	 *  @param y The Y in local coordinates.
-	 *  @param layer The Layer where the point represented by this Node sits. */
+	 *  @param la The Layer where the point represented by this Node sits. */
 	public Node(final float x, final float y, final Layer la) {
 		this.x = x;
 		this.y = y;

@@ -21,7 +21,7 @@ import java.util.TreeMap;
  *  The current setup depends on calls to removeAndFlushSome to clean up empty slots;
  *  otherwise these slots are never cleaned up to avoid O(n) overhead (worst case)
  *  when removing a Pyramid for a given id, or O(1) cost of checking whether the first interval
- *  is empty and removing it. Granted, the latter could be done in all calls to {@method append},
+ *  is empty and removing it. Granted, the latter could be done in all calls to {@link #append},
  *  but in the current setup this overhead is just not necessary.
  *  
  *  This Cache self-regulates the size to stay always at or below max_bytes.

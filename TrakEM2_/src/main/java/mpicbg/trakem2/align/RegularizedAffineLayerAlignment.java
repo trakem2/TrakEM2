@@ -61,7 +61,7 @@ import mpicbg.models.TranslationModel2D;
 import mpicbg.trakem2.util.Triple;
 
 /**
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 public class RegularizedAffineLayerAlignment
 {

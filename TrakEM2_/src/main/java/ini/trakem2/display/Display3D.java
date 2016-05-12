@@ -403,7 +403,7 @@ public final class Display3D {
 		});
 	}
 
-	/** Scan the ProjectThing children and assign the renderable ones to an existing Display3D for their LayerSet, or open a new one. If true == wait && -1 != resample, then the method returns only when the mesh/es have been added. */
+	/** Scan the {@link ProjectThing} children and assign the renderable ones to an existing {@link Display3D} for their {@link LayerSet}, or open a new one. If {@code true == wait && -1 != resample}, then the method returns only when the mesh/es have been added. */
 	static public Future<Vector<Future<Content>>> show(final ProjectThing pt, final boolean wait, final int resample) {
 		if (null == pt) return null;
 
@@ -710,7 +710,7 @@ public final class Display3D {
 		return title;
 	}
 
-	/** Remove all basic type children contained in {@param pt} and its children, recursively.
+	/** Remove all basic type children contained in {@code pt} and its children, recursively.
 	 *
 	 * @param pt
 	 */

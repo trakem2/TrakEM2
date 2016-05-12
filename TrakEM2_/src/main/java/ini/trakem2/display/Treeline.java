@@ -606,7 +606,7 @@ public class Treeline extends Tree<Float> {
 	}
 	*/
 
-	/** Returns a list of two lists: the List<Point3f> and the corresponding List<Color3f>. */
+	/** Returns a list of two lists: the {@code List<Point3f>} and the corresponding {@code List<Color3f>}. */
 	public MeshData generateMesh(final double scale_, int parallels) {
 		// Construct a mesh made of straight tubes for each edge, and balls of the same ending diameter on the nodes.
 		//

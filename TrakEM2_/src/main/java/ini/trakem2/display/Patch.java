@@ -103,6 +103,7 @@ import mpicbg.models.NoninvertibleModelException;
 import mpicbg.trakem2.transform.AffineModel2D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
+import mpicbg.trakem2.transform.ExportUnsignedShort;
 import mpicbg.trakem2.transform.TransformMesh;
 import mpicbg.trakem2.transform.TransformMeshMapping;
 import mpicbg.trakem2.transform.TransformMeshMappingWithMasks.ImageProcessorWithMasks;
@@ -166,14 +167,14 @@ public final class Patch extends Displayable implements ImageData {
 		}
 	}
 
-	/** Create a new Patch and register the associated {@param filepath}
+	/** Create a new Patch and register the associated {@code filepath}
 	 * with the project's loader.
 	 *
 	 * This method is intended for scripting, to avoid having to create a new Patch
 	 * and then call {@link Loader#addedPatchFrom(String, Patch)}, which is easy to forget.
 	 *
 	 * @return the new Patch.
-	 * @throws Exception if the image cannot be loaded from the {@param filepath}, or it's an unsupported type such as a composite image or a hyperstack. */
+	 * @throws Exception if the image cannot be loaded from the {@code filepath}, or it's an unsupported type such as a composite image or a hyperstack. */
 	static public final Patch createPatch(final Project project, final String filepath) throws Exception {
 		final ImagePlus imp = project.getLoader().openImagePlus(filepath);
 		if (null == imp) throw new Exception("Cannot create Patch: the image cannot be opened from filepath " + filepath);
@@ -185,7 +186,7 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/** Construct a Patch from an image;
-	 * most likely you will need to add the file path to the {@param imp}
+	 * most likely you will need to add the file path to the {@code imp}
 	 * by calling {@link Loader#addedPatchFrom(String, Patch)}, as in this example:
 	 *
 	 * project.getLoader().addedPatchFrom("/path/to/file.png", thePatch); */
@@ -224,7 +225,7 @@ public final class Patch extends Displayable implements ImageData {
 
 	/** Create a new Patch defining all necessary parameters; it is the responsibility
 	 * of the caller to ensure that the parameters are in agreement with the image
-	 * contained in the {@param file_path}. */
+	 * contained in the {@code file_path}. */
 	public Patch(final Project project, final String title,
 		     final float width, final float height,
 		     final int o_width, final int o_height,
@@ -459,8 +460,11 @@ public final class Patch extends Displayable implements ImageData {
 		return channels;
 	}
 
-	/** @param c contains the current Display 'channels' value (the transparencies of each channel). This method creates a new color image in which each channel (R, G, B) has the corresponding alpha (in fact, opacity) specified in the 'c'. This alpha is independent of the alpha of the whole Patch. The method updates the Loader cache with the newly created image. The argument 'imp' is optional: if null, it will be retrieved from the loader.<br />
-	 * For non-color images, a standard image is returned regardless of the @param c
+	/** @param c contains the current Display 'channels' value (the transparencies of each channel). This method creates a new color image in which each channel (R, G, B) has the corresponding alpha (in fact, opacity) specified in the 'c'. This alpha is independent of the alpha of the whole Patch. The method updates the Loader cache with the newly created image. The argument 'imp' is optional: if null, it will be retrieved from the loader.
+	 * <p>
+	 * For non-color images, a standard image is returned regardless of the given {@code c}.
+	 * </p>
+	 * @param c
 	 */
 	private Image adjustChannels(final int c, final boolean force, ImagePlus imp) {
 		if (null == imp) imp = project.getLoader().fetchImagePlus(this);
@@ -2040,7 +2044,7 @@ public final class Patch extends Displayable implements ImageData {
 	 *  @param background The color with which to paint the outsides where no image paints into.
 	 *  @param setMinAndMax defines whether the min and max of each Patch is set before pasting the Patch.
 	 *
-	 * For exporting while blending the display ranges (min,max) and respecting alpha masks, {@see ExportUnsignedShort}.
+	 * For exporting while blending the display ranges (min,max) and respecting alpha masks, see {@link ExportUnsignedShort}.
 	 */
 	static public ImageProcessor makeFlatImage(final int type, final Layer layer, final Rectangle srcRect, final double scale, final Collection<Patch> patches, final Color background, final boolean setMinAndMax) {
 
@@ -2219,7 +2223,8 @@ public final class Patch extends Displayable implements ImageData {
 	/**
 	 * Append an array of {@link IFilter} to the array of existing {@link IFilter}.
 	 * @param fs The array of {@link IFilter} to use for this Patch.
-	 * @see #setFilters(Filter[]), {@link #getFilters()}
+	 * @see #setFilters(IFilter[])
+	 * @see #getFilters()
 	 */
 	public void appendFilters(final IFilter[] fs) {
 		if (null == filters || 0 == filters.length) {
@@ -2237,7 +2242,8 @@ public final class Patch extends Displayable implements ImageData {
 	 * Set an array of @{link {@link IFilter}, which are applied in order to the {@link ImageProcessor}
 	 * after the preprocessor script is applied but before the rest of TrakEM2 sees the image.
 	 * @param fs The array of {@link IFilter} to use for this Patch. Can be null.
-	 * @see #appendFilters(Filter[]), {@link #getFilters()}
+	 * @see #appendFilters(IFilter[])
+	 * @see #getFilters()
 	 */
 	public void setFilters(final IFilter[] fs) {
 		this.filters = fs;
@@ -2246,7 +2252,8 @@ public final class Patch extends Displayable implements ImageData {
 	/**
 	 *
 	 * @return The array of {@link IFilter} of this {@link Patch}.
-	 * @see #appendFilters(Filter[]), {@link #setFilters(IFilter[])}
+	 * @see #appendFilters(IFilter[])
+	 * @see #setFilters(IFilter[])
 	 */
 	public IFilter[] getFilters() {
 		return filters;
@@ -2278,7 +2285,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * This method is meant to be used only when {@link #hasCoordinateTransform()} returns true.
 	 *
 	 * @return The {@link CoordinateTransform} from file, or null if there isn't one.
-	 * @throws {@link RuntimeException} wrapping the actual error in loading the file.
+	 * @throws RuntimeException wrapping the actual error in loading the file.
 	 */
 	private final CoordinateTransform getCT() {
 		try {
@@ -2294,7 +2301,7 @@ public final class Patch extends Displayable implements ImageData {
 	 * from the {@link #ct_id} and this {@link Patch}'s {@link #id}.
 	 *
 	 * @return A new instance of the {@link CoordinateTransform} of this {@link Patch}, or null if none.
-	 * @throws {@link Exception} if the file could not be found or parsed or read.
+	 * @throws Exception if the file could not be found or parsed or read.
 	 */
 	synchronized public CoordinateTransform fetchCoordinateTransform() throws Exception {
 		return hasCoordinateTransform() ?
@@ -2322,11 +2329,11 @@ public final class Patch extends Displayable implements ImageData {
 	}
 
 	/**
-	 * Writes the {@link CoordinateTransform} {@param t} to the trakem2.transforms/ directory, using the unique {@link #ct_id}
+	 * Writes the {@link CoordinateTransform} {@code t} to the trakem2.transforms/ directory, using the unique {@link #ct_id}
 	 * and this {@link Patch}'s {@link #id} to generate a file path for it.
 	 *
 	 * @return true if it was written successfully.
-	 * @throws {@link Exception} if the new file could not be written.
+	 * @throws Exception if the new file could not be written.
 	 */
 	synchronized protected boolean setNewCoordinateTransform(final CoordinateTransform ct) throws Exception {
 		// If the new CoordinateTransform is null, set the id to 0
@@ -2382,7 +2389,6 @@ public final class Patch extends Displayable implements ImageData {
 	 * @param world_y
 	 * @return A {@code double[]} array with the x,y values.
 	 * @throws NoninvertibleTransformException
-	 * @throws NoninvertibleModelException
 	 */
 	public double[] toPixelCoordinate(final double world_x, final double world_y) throws NoninvertibleTransformException {
 		return Patch.toPixelCoordinate(world_x, world_y, this.at, hasCoordinateTransform() ? getCoordinateTransform() : null, this.meshResolution, this.o_width, this.o_height);
@@ -2399,7 +2405,6 @@ public final class Patch extends Displayable implements ImageData {
 	 * @param o_height The height of the image underlying the {@link Patch}.
 	 * @return A {@code double[]} array with the x,y values.
 	 * @throws NoninvertibleTransformException
-	 * @throws NoninvertibleModelException
 	 */
 	static public final double[] toPixelCoordinate(final double world_x, final double world_y,
 			final AffineTransform aff, final CoordinateTransform ct,

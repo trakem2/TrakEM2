@@ -154,7 +154,7 @@ public class ExportUnsignedShort
 		}
 	}
 
-	/** Create constant size tiles that carpet the areas of the {@param layer} where there are images;
+	/** Create constant size tiles that carpet the areas of the {@code layer} where there are images;
 	 * these tiles are returned in a lazy sequence of {@link Callable} objects that create a tripled
 	 * consisting of the {@link ShortProcessor} and the X and Y pixel coordinates of that tile.
 	 *
@@ -346,7 +346,7 @@ public class ExportUnsignedShort
 	}
 
 	/**
-	 *  Returns a stack of ShortProcessor, with dimensions as in the {@param roi}.
+	 *  Returns a stack of ShortProcessor, with dimensions as in the {@code roi}.
 	 * @param layers
 	 * @param roi
 	 * @param backgroundValue

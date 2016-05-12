@@ -178,7 +178,7 @@ public class PatchStack extends ImagePlus {
 		*/
 	}
 
-	/** Reset temporary changes such as from dragging B&C sliders and so on, in the current slice (the current Patch). */
+	/** Reset temporary changes such as from dragging B&amp;C sliders and so on, in the current slice (the current Patch). */
 	public void resetNonActive() {
 		Utils.log2("PatchStack: calling reset");
 		// remake the awt for the patch, flush the previous awt

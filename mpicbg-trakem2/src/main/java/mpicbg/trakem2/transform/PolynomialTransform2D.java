@@ -13,7 +13,7 @@ package mpicbg.trakem2.transform;
  * , first for x', then for y'. It is thus not possible to omit higher order
  * coefficients assuming that they would become 0.
  *
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  */
 public class PolynomialTransform2D extends mpicbg.models.PolynomialTransform2D implements CoordinateTransform
 {

@@ -9,7 +9,7 @@ import java.util.List;
 import mpicbg.models.PointMatch;
 
 /**
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  *
  */
 public interface PointMatchFilter

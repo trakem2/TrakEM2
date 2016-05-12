@@ -1330,15 +1330,17 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/**
-	user=> (def pat #"\b[a-zA-Z]+[\w]*\b")
-	#'user/pat
-	user=>(re-seq pat "abc def 1a334")
-	("abc" "def")
-	user=> (re-seq pat "abc def a334")
-	("abc" "def" "a334")
-
-	Then concatenate all good words with underscores.
-	Returns null when nothing valid is found in 's'.
+	*	<pre>
+	* user=&gt; (def pat #"\b[a-zA-Z]+[\w]*\b")
+	* #'user/pat
+	* user=&gt;(re-seq pat "abc def 1a334")
+	* ("abc" "def")
+	* user=&gt; (re-seq pat "abc def a334")
+	* ("abc" "def" "a334")
+	* </pre>
+	* Then concatenate all good words with underscores.
+	*
+	* @return null when nothing valid is found in 's'.
 	*/
 	static final public String makeValidIdentifier(final String s) {
 		if (null == s) return null;

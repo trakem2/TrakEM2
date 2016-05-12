@@ -31,7 +31,7 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 
 	/**
 	 * @param display
-	 * @param source The list of Displayable instances, a fraction of which is shown here.
+	 * @param clazz
 	 */
 	protected RollingPanel(final Display display, final Class<?> clazz) {
 		this.display = display;

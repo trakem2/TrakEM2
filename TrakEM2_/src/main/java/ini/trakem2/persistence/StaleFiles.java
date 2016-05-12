@@ -46,7 +46,7 @@ public class StaleFiles {
 	}
 	
 	/**
-	 * Delete all files storing a {@link CoordinateTransform} that are now stale.
+	 * Delete all files storing a coordinate transform that are now stale.
 	 * Stale files are files that are no longer referenced by the {@link Patch#getCoordinateTransformId()}.
 	 * 
 	 * This method uses the {@link Utils#removeFile(File)}, which limits itself to files

@@ -25,7 +25,7 @@ import ij.process.ShortProcessor;
 /**
  * 
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 final public class Downsampler
 {

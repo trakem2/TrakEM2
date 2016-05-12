@@ -53,7 +53,7 @@ import net.imglib2.util.ValuePair;
 
 /**
  *
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  * @author Philipp Hanslovsky
  */
 public class MatchIntensities implements TPlugIn

@@ -35,7 +35,7 @@ public class LayerStack extends ImageStack {
 		this(layer_set.getLayers(), layer_set.get2DBounds(), scale, type, clazz, c_alphas, invert);
 	}
 
-	/** If scale <=0 || scale > 1, throws IllegalArgumentException. */
+	/** If {@code scale <=0 || scale > 1}, throws {@link IllegalArgumentException}. */
 	public LayerStack(final List<Layer> layers, final Rectangle roi, final double scale, final int type, final Class<?> clazz, final int c_alphas, final boolean invert) {
 		super((int)(roi.width * scale), (int)(roi.height * scale), Patch.DCM);
 		if (scale <= 0 || scale > 1) throw new IllegalArgumentException("Cannot operate with a scale larger than 1 or smaller or equal to 0!");
@@ -81,7 +81,7 @@ public class LayerStack extends ImageStack {
 		Utils.log("LayerStack: cannot delete slices.");
 	}
 
-	/** Returns the pixel array for the specified slice, were 1<=n<=nslices. The scale of the returned flat image for the Layer at index 'n-1' will be defined by the LayerSet virtualization options.*/
+	/** Returns the pixel array for the specified slice, where {@code 1<=n<=nslices}. The scale of the returned flat image for the Layer at index 'n-1' will be defined by the LayerSet virtualization options.*/
 	@Override
 	public Object getPixels(final int n) {
 		if (n < 1 || n > layers.size()) return null;
@@ -95,7 +95,7 @@ public class LayerStack extends ImageStack {
 	}
 
 	/** Returns an ImageProcessor for the specified slice,
-		were 1<=n<=nslices. Returns null if the stack is empty.
+		where {@code 1<=n<=nslices}. Returns null if the stack is empty.
 	*/
 	@Override
 	public ImageProcessor getProcessor(int n) {

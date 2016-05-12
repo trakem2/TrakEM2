@@ -44,9 +44,8 @@ public class ImageFilter
      * Does Kaiser-Bessel-Windowing to prevent the fourier spectra from getting infinite numbers,
      * the border will be faded to black.
      *
-     * @param FloatArray2D  image Input image stored in row-major order
+     * @param img image Input image stored in row-major order
      * @param inverse If true, fading to black in the middle
-     * @return FloatArray2D The resulting image
      */
     public static void filterKaiserBessel(final FloatArray2D img, final boolean inverse)
     {

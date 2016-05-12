@@ -28,7 +28,7 @@ import mpicbg.models.PointMatch;
  * A wrpper for {@link NonLinearTransform} and the {@link AbstractAffineModel2D}
  * to which it is regularized.
  *
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  * @version 0.1a
  */
 public class PolynomialModel2D extends AbstractModel< PolynomialModel2D >

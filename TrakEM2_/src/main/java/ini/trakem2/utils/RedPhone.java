@@ -25,17 +25,21 @@ import java.util.Set;
  * try to save all {@link FSLoader} projects to XML files.
  * 
  * For example:
+ * <pre>
  *  $ telnet localhost 29391
- *  > save
+ *  &gt; save
  *  Saving...
  *  Saved project[1] to: /path/to/file.xml
- *  >
+ *  &gt;
+ * </pre>
  *  
  * Commands:
- * - save : saves the project to its own XML file, or to an automatic location if it was never saved before; prints the file name.
- * - saveas : saves to a new XML file (never overwriting the existing XML file); prints that file name.
- * - stream : outputs the XML file into the remote terminal.
- * - quit : disconnect.
+ * <ul>
+ * <li>save : saves the project to its own XML file, or to an automatic location if it was never saved before; prints the file name.</li>
+ * <li>saveas : saves to a new XML file (never overwriting the existing XML file); prints that file name.</li>
+ * <li>stream : outputs the XML file into the remote terminal.</li>
+ * <li>quit : disconnect.</li>
+ * </ul>
  */
 public class RedPhone {
 

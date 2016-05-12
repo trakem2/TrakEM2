@@ -52,7 +52,7 @@ import mpicbg.trakem2.transform.InvertibleCoordinateTransform;
 import mpicbg.util.Util;
 
 /**
- * @author Stephan Saalfeld <saalfeld@mpi-cbg.de>
+ * @author Stephan Saalfeld saalfeld@mpi-cbg.de
  */
 public class Stack extends ZDisplayable implements ImageData
 {

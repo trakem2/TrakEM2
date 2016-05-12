@@ -23,9 +23,9 @@ import mpicbg.imglib.type.numeric.integer.UnsignedByteType;
 
 public class IntegralImageMipMaps
 {
-	/** WARNING modifies the {@param outside} array when both {@param alpha} and {@param outside} are not null,
-	 * and when {@param ip} is a {@link ColorProcessor}, will also modify ints int[] pixels
-	 * if {@param alpha} or {@param outside} are not null (the alpha channel is or'ed in).
+	/** WARNING modifies the {@code outside} array when both {@code alpha} and {@code outside} are not null,
+	 * and when {@code ip} is a {@link ColorProcessor}, will also modify ints int[] pixels
+	 * if {@code alpha} or {@code outside} are not null (the alpha channel is or'ed in).
 	 * 
 	 * @param patch
 	 * @param ip

@@ -786,12 +786,22 @@ abstract public class Loader {
 		}
 	}
 
-	/** Transform mag to nearest scale level that delivers an equally sized or larger image.<br />
-	 *  Requires 0 &lt; mag &lt;= 1.0<br />
-	 *  Returns -1 if the magnification is NaN or negative or zero.<br />
-	 *  As explanation:<br />
-	 *  mag = 1 / Math.pow(2, level) <br />
+	/** Transform mag to nearest scale level that delivers an equally sized or larger image.
+	 * <p>
+	 *  Requires 0 &lt; mag &lt;= 1.0
+	 *  </p>
+	 *  <p>
+	 *  Returns -1 if the magnification is NaN or negative or zero.
+	 *  </p>
+	 *  <p>
+	 *  As explanation:
+	 *  </p>
+	 *  <pre>
+	 *  mag = 1 / Math.pow(2, level)
+	 *  </pre>
+	 *  <p>
 	 *  so that 100% is 0, 50% is 1, 25% is 2, and so on, but represented in values between 0 and 1.
+	 *  </p>
 	 */
 	static public final int getMipMapLevel(final double mag, final double size) {
 		// check parameters
@@ -2018,9 +2028,13 @@ while (it.hasNext()) {
 	 *
 	 * <p>This function implements the "Import from text file" command.</p>
 	 *
-	 * <p>Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.. <br />
-	 * The text file can contain comments that start with the # sign.<br />
-	 * Images will be imported in parallel, using as many cores as your machine has.</p>
+	 * <p>Layers will be automatically created as needed inside the LayerSet to which the given ref_layer belongs.</p>
+	 * <p>
+	 * The text file can contain comments that start with the # sign.
+	 * </p>
+	 * <p>
+	 * Images will be imported in parallel, using as many cores as your machine has.
+	 * </p>
 	 * @param calibration_ transforms the read coordinates into pixel coordinates, including x,y,z, and layer thickness.
 	 * @param scale_ Between 0 and 1. When lower than 1, a preprocessor script is created for the imported images, to scale them down.
 	 */
@@ -3935,7 +3949,7 @@ while (it.hasNext()) {
 	 *
 	 * @param project
 	 * @param writer
-	 * @param patches_dir Null if images are not being exported.
+	 * @param options
 	 * */
 	public void writeXMLTo(final Project project, final Writer writer, final XMLOptions options) throws Exception {
 			StringBuilder sb_header = new StringBuilder(30000).append("<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\n<!DOCTYPE ").append(project.getDocType()).append(" [\n");
@@ -4002,7 +4016,7 @@ while (it.hasNext()) {
 	protected Map<Long,String> getPathsCopy() { return null; }
 	protected void restorePaths(final Map<Long,String> copy, final String mipmaps_folder, final String storage_folder) {}
 
-	/** Meant to be overriden -- as is, will set {@param options}.{@link XMLOptions#export_images} to this.getClass() != FSLoader.class. */
+	/** Meant to be overriden -- as is, will set {@code options}.{@link XMLOptions#export_images} to this.getClass() != FSLoader.class. */
 	public String saveAs(final String path, final XMLOptions options) {
 		if (null == path) return null;
 		options.export_images =  this.getClass() != FSLoader.class;
@@ -4641,8 +4655,11 @@ while (it.hasNext()) {
 	}
 	static private final ImagePlusAccess ipa = new ImagePlusAccess();
 
-	/** Workaround for ImageJ's ImagePlus.flush() method which calls the System.gc() unnecessarily.<br />
-	 * A null pointer as argument is accepted. */
+	/** Workaround for ImageJ's ImagePlus.flush() method which calls the System.gc() unnecessarily.
+	 * <p>
+	 * A null pointer as argument is accepted.
+	 * </p>
+	 */
 	static public final void flush(final ImagePlus imp) {
 		if (null == imp) return;
 		final Roi roi = imp.getRoi();
@@ -4819,13 +4836,13 @@ while (it.hasNext()) {
 	/** Points to {@link Loader#AREA_DOWNSAMPLING}. */
 	static public final int DEFAULT_MIPMAPS_MODE = AREA_DOWNSAMPLING;
 
-	/** Returns the default if {@param mode} is not recognized. */
+	/** Returns the default if {@code mode} is not recognized. */
 	static public final String getMipMapModeName(final int mode) {
 		final String s = MIPMAP_MODES.get(mode);
 		return null == s ? MIPMAP_MODES.get(AREA_DOWNSAMPLING) : s;
 	}
 
-	/** Returns the default ({@link #DEFAULT_MIPMAPS_MODE}) if the {@param mode} is not recognized. */
+	/** Returns the default ({@link #DEFAULT_MIPMAPS_MODE}) if the {@code mode} is not recognized. */
 	static public final int getMipMapModeIndex(final String mode) {
 		if (null == mode) return DEFAULT_MIPMAPS_MODE;
 		final String lmode = mode.toLowerCase();

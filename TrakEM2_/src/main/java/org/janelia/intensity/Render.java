@@ -53,7 +53,7 @@ import mpicbg.trakem2.util.Downsampler;
 /**
  * Render a patch.
  *
- * @author Stephan Saalfeld <saalfelds@janelia.hhmi.org>
+ * @author Stephan Saalfeld saalfelds@janelia.hhmi.org
  */
 public class Render
 {
