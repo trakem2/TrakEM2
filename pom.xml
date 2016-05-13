@@ -24,40 +24,28 @@
 		<developer>
 			<id>acardona</id>
 			<name>Albert Cardona</name>
-			<email>sapristi@gmail.com</email>
-			<url>http://www.janelia.org/lab/cardona-lab</url>
-			<organization>HHMI Janelia Research Campus</organization>
-			<organizationUrl>http://www.janelia.org/</organizationUrl>
+			<url>http://imagej.net/User:Albertcardona</url>
 			<roles>
 				<role>architect</role>
 				<role>developer</role>
 			</roles>
-			<timezone>-5</timezone>
 		</developer>
 		<developer>
 			<id>axtimwalde</id>
 			<name>Stephan Saalfeld</name>
-			<email>saalfelds@janelia.hhmi.org</email>
-			<url>http://www.janelia.org/lab/saalfeld-lab</url>
-			<organization>HHMI Janelia Research Campus</organization>
-			<organizationUrl>http://www.janelia.org/</organizationUrl>
+			<url>http://imagej.net/User:Saalfeld</url>
 			<roles>
 				<role>maintainer</role>
 				<role>developer</role>
 			</roles>
-			<timezone>-5</timezone>
 		</developer>
 		<developer>
 			<id>ctrueden</id>
 			<name>Curtis Rueden</name>
-			<email>ctrueden@wisc.edu</email>
-			<url>http://loci.wisc.edu/people/curtis-rueden</url>
-			<organization>UW-Madison LOCI</organization>
-			<organizationUrl>http://loci.wisc.edu/</organizationUrl>
+			<url>http://imagej.net/User:Rueden</url>
 			<roles>
 				<role>maintainer</role>
 			</roles>
-			<timezone>-6</timezone>
 		</developer>
 	</developers>
 
