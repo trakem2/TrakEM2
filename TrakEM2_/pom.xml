@@ -151,5 +151,4 @@
 			<artifactId>jitk-tps</artifactId>
 		</dependency>
 	</dependencies>
-
 </project>

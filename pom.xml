@@ -8,8 +8,8 @@
 	<parent>
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-fiji</artifactId>
-		<relativePath />
 		<version>22.3.0</version>
+		<relativePath />
 	</parent>
 
 	<artifactId>pom-trakem2</artifactId>
@@ -49,7 +49,6 @@
 		</developer>
 	</developers>
 
-
 	<modules>
 		<module>TrakEM2_</module>
 		<module>VectorString</module>
@@ -73,14 +72,6 @@
 		<url>http://jenkins.imagej.net/job/TrakEM2/</url>
 	</ciManagement>
 
-	<repositories>
-		<!-- NB: for project parent -->
-		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
-		</repository>
-	</repositories>
-	
 	<properties>
 		<!-- Core TrakEM2 modules -->
 		<T2-NIT.version>1.1.1-SNAPSHOT</T2-NIT.version>
@@ -95,7 +86,14 @@
 		<jai-codec.version>${jai.version}</jai-codec.version>
 		<jai-core.version>${jai.version}</jai-core.version>
 	</properties>
-	
+
+	<repositories>
+		<!-- NB: for project parent -->
+		<repository>
+			<id>imagej.public</id>
+			<url>http://maven.imagej.net/content/groups/public</url>
+		</repository>
+	</repositories>
 
 	<dependencyManagement>
 		<dependencies>
@@ -170,5 +168,4 @@
 			</plugins>
 		</pluginManagement>
 	</build>
-
 </project>
