@@ -14,7 +14,7 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA. 
+Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 You may contact Albert Cardona at acardona at ini.phys.ethz.ch
 Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
@@ -22,35 +22,6 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 */
 
 package ini.trakem2.utils;
-
-import ij.IJ;
-import ij.ImagePlus;
-import ij.Menus;
-import ij.WindowManager;
-import ij.gui.GenericDialog;
-import ij.gui.OvalRoi;
-import ij.gui.YesNoCancelDialog;
-import ij.io.OpenDialog;
-import ij.io.SaveDialog;
-import ij.measure.ResultsTable;
-import ij.process.ByteProcessor;
-import ij.process.ColorProcessor;
-import ij.process.FloatProcessor;
-import ij.process.ImageConverter;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
-import ij.text.TextWindow;
-import ini.trakem2.ControlWindow;
-import ini.trakem2.Project;
-import ini.trakem2.display.Displayable;
-import ini.trakem2.display.Layer;
-import ini.trakem2.display.Pipe;
-import ini.trakem2.display.YesNoDialog;
-import ini.trakem2.imaging.FloatProcessorT2;
-import ini.trakem2.persistence.Loader;
-import ini.trakem2.plugin.TPlugIn;
-import ini.trakem2.tree.ProjectThing.Profile_List;
-import ini.trakem2.vector.VectorString3D;
 
 import java.awt.Checkbox;
 import java.awt.Choice;
@@ -111,6 +82,35 @@ import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.Menus;
+import ij.WindowManager;
+import ij.gui.GenericDialog;
+import ij.gui.OvalRoi;
+import ij.gui.YesNoCancelDialog;
+import ij.io.OpenDialog;
+import ij.io.SaveDialog;
+import ij.measure.ResultsTable;
+import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
+import ij.process.ImageConverter;
+import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
+import ij.text.TextWindow;
+import ini.trakem2.ControlWindow;
+import ini.trakem2.Project;
+import ini.trakem2.display.Displayable;
+import ini.trakem2.display.Layer;
+import ini.trakem2.display.Pipe;
+import ini.trakem2.display.YesNoDialog;
+import ini.trakem2.imaging.FloatProcessorT2;
+import ini.trakem2.persistence.Loader;
+import ini.trakem2.plugin.TPlugIn;
+import ini.trakem2.tree.ProjectThing.Profile_List;
+import ini.trakem2.vector.VectorString3D;
 
 /** Utils class: stores generic widely used methods. In particular, those for logging text messages (for debugging) and also some math and memory utilities.
  *
@@ -178,7 +178,7 @@ public class Utils implements ij.plugin.PlugIn {
 							}
 						}
 						try { Thread.sleep(100); } catch (final InterruptedException ie) { return; }
-					} while (System.currentTimeMillis() - start < 1000); 
+					} while (System.currentTimeMillis() - start < 1000);
 
 					// ... then, if any, update the log window:
 					if (sb.length() > 0) {
@@ -272,7 +272,7 @@ public class Utils implements ij.plugin.PlugIn {
 			}
 		}
 	}
-	static private LogDispatcher logger = null; 
+	static private LogDispatcher logger = null;
 	static private StatusDispatcher status = null;
 
 	/** Initialize house keeping threads. */
@@ -310,7 +310,7 @@ public class Utils implements ij.plugin.PlugIn {
 			System.out.println(msg);
 		}
 	}
-	
+
 	/** Intended for the user to see; time-stamps every logging line. */
 	static public final void logStamped(final String msg) {
 		if (ControlWindow.isGUIEnabled() && null != logger) {
@@ -333,7 +333,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Intended for developers: prints to terminal. */
 	static public final void log2(final String msg) {
-		System.out.println(msg);
+		//System.out.println(msg);
 	}
 
 	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
@@ -355,7 +355,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final void log(final Object ob) {
 		Utils.log(Utils.toString(ob));
 	}
-	
+
 	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
 	static public final void log(final String msg, final Object ob) {
 		Utils.log((null != msg ? msg : "") + "\n\t" + Utils.toString(ob));
@@ -681,7 +681,7 @@ public class Utils implements ij.plugin.PlugIn {
 		}
 		return sb.toString();
 	}
-	
+
 	/** Zero-pad a number, so that '1' becomes '001' if n_digits is 3. */
 	static public final String zeroPad(final int i, final int n_digits) {
 		final StringBuilder sb = new StringBuilder();
@@ -728,7 +728,7 @@ public class Utils implements ij.plugin.PlugIn {
 		if (1 == b.length()) b = "0" + b;
 		return new String[]{r, g, b};
 	}
-	
+
 	static public final String asHexRGBColor(final Color color) {
 		final StringBuilder sb = new StringBuilder(6);
 		Utils.asHexRGBColor(sb, color);
@@ -1066,14 +1066,14 @@ public class Utils implements ij.plugin.PlugIn {
 	/** Will make a new double[] array, then fit in it as many points from the given array as possible according to the desired new length. If the new length is shorter that a.length, it will shrink and crop from the end; if larger, the extra spaces will be set with zeros. */
 	static public final double[] copy(final double[] a, final int new_length) {
 		final double[] b = new double[new_length];
-		final int len = a.length > new_length ? new_length : a.length; 
+		final int len = a.length > new_length ? new_length : a.length;
 		System.arraycopy(a, 0, b, 0, len);
 		return b;
 	}
 
 	static public final long[] copy(final long[] a, final int new_length) {
 		final long[] b = new long[new_length];
-		final int len = a.length > new_length ? new_length : a.length; 
+		final int len = a.length > new_length ? new_length : a.length;
 		System.arraycopy(a, 0, b, 0, len);
 		return b;
 	}
@@ -1424,7 +1424,7 @@ public class Utils implements ij.plugin.PlugIn {
 					}
 				}
 			} while (dirs.size() > 0);
-			
+
 			return true;
 
 		} catch (final Exception e) {
@@ -1753,7 +1753,7 @@ public class Utils implements ij.plugin.PlugIn {
 	static public final boolean ensure(final String filepath) {
 		return ensure(new File(filepath));
 	}
-	
+
 	/** Ensure the file can be written to. Will create parent directories if necessary. */
 	static public final synchronized boolean ensure(final File f) {
 		final File parent = f.getParentFile();
@@ -1793,14 +1793,14 @@ public class Utils implements ij.plugin.PlugIn {
 			entry.getValue().show(title + " results");
 		}
 	}
-	
+
 	/** Returns a byte[3][256] containing the colors of the fire LUT. */
 	public static final IndexColorModel fireLUT() {
 		final ImagePlus imp = new ImagePlus("fire", new ByteProcessor(1, 1));
 		IJ.run(imp, "Fire", "");
 		return (IndexColorModel) imp.getProcessor().getColorModel();
 	}
-	
+
 
 	static public final BufferedImage convertToBufferedImage(final ByteProcessor bp) {
 		bp.setMinAndMax(0, 255); // TODO what is this doing here? The ByteProcessor.setMinAndMax is destructive, it expands the pixel values to the desired range.
@@ -1813,11 +1813,11 @@ public class Utils implements ij.plugin.PlugIn {
 	}
 
 	/**
-	 * 
+	 *
 	 * @param source The file to copy.
 	 * @param target The new file to create.
 	 * @return Whether the file could be copied; also returns false if the target file exists.
-	 * @throws IOException 
+	 * @throws IOException
 	 */
 	static public final boolean safeCopy(final String source, final String target) throws IOException {
 		final File f2 = new File(target);
@@ -1839,7 +1839,7 @@ public class Utils implements ij.plugin.PlugIn {
     static public final <A, B> ArrayList<B> castCollection(
             final Collection<A> classAs, final Class<B> type, final boolean doThrow)
     {
-        ArrayList<B> classBs = new ArrayList<B>(classAs.size());
+        final ArrayList<B> classBs = new ArrayList<B>(classAs.size());
         for (final A a : classAs)
         {
             try
