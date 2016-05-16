@@ -8,11 +8,11 @@
 	<parent>
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-trakem2</artifactId>
-		<version>2.0.0</version>
+		<version>2.0.1-SNAPSHOT</version>
 	</parent>
 
 	<artifactId>TrakEM2_</artifactId>
-	<version>1.0h</version>
+	<version>1.0i-SNAPSHOT</version>
 
 	<name>plugins/TrakEM2_.jar</name>
 	<description></description>
