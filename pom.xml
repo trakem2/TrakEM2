@@ -120,7 +120,7 @@
 		<module>VectorString</module>
 		<module>T2-NIT</module>
 		<module>T2-TreelineGraph</module>
-		<module>mpicbg-trakem2</module>
+		<module>trakem2-transform</module>
 	</modules>
 
 	<scm>
@@ -144,7 +144,7 @@
 		<T2-TreelineGraph.version>1.1.2-SNAPSHOT</T2-TreelineGraph.version>
 		<TrakEM2.version>1.0i-SNAPSHOT</TrakEM2.version>
 		<VectorString.version>2.0.1-SNAPSHOT</VectorString.version>
-		<mpicbg-trakem2.version>1.2.4-SNAPSHOT</mpicbg-trakem2.version>
+		<trakem2-transform.version>1.0.0-SNAPSHOT</trakem2-transform.version>
 		
 		<!-- External dependencies -->
 		<postgresql.version>8.2-507.jdbc3</postgresql.version>
@@ -166,8 +166,8 @@
 			<!-- Core TrakEM2 modules -->
 			<dependency>
 				<groupId>sc.fiji</groupId>
-				<artifactId>mpicbg-trakem2</artifactId>
-				<version>${mpicbg-trakem2.version}</version>
+				<artifactId>trakem2-transform</artifactId>
+				<version>${trakem2-transform.version}</version>
 			</dependency>
 			<dependency>
 				<groupId>sc.fiji</groupId>
@@ -224,7 +224,7 @@
 									<exclude>sc.fiji:T2-TreelineGraph</exclude>
 									<exclude>sc.fiji:TrakEM2_</exclude>
 									<exclude>sc.fiji:VectorString</exclude>
-									<exclude>sc.fiji:mpicbg-trakem2</exclude>
+									<exclude>sc.fiji:trakem2-transform</exclude>
 									<exclude>sc.fiji:pom-trakem2</exclude>
 								</excludes>
 							</requireReleaseDeps>

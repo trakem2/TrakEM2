@@ -122,7 +122,7 @@
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
-			<artifactId>mpicbg-trakem2</artifactId>
+			<artifactId>trakem2-transform</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>org.scijava</groupId>
