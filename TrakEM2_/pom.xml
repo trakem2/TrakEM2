@@ -143,10 +143,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>trakem2_tps</artifactId>
-		</dependency>
-		<dependency>
 			<groupId>jitk</groupId>
 			<artifactId>jitk-tps</artifactId>
 		</dependency>
