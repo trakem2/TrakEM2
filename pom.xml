@@ -49,14 +49,6 @@
 				<role>maintainer</role>
 			</roles>
 		</developer>
-		<developer>
-			<id>hinerm</id>
-			<name>Mark Hiner</name>
-			<url>http://imagej.net/User:Hinerm</url>
-			<roles>
-				<role>maintainer</role>
-			</roles>
-		</developer>
 	</developers>
 	<contributors>
 		<contributor>
@@ -80,6 +72,11 @@
 		<contributor>
 			<name>Philipp Hanslovsky</name>
 			<properties><id>hanslovsky</id></properties>
+		</contributor>
+		<contributor>
+			<name>Mark Hiner</name>
+			<url>http://imagej.net/User:Hinerm</url>
+			<properties><id>hinerm</id></properties>
 		</contributor>
 		<contributor>
 			<name>Verena Kaynig</name>
