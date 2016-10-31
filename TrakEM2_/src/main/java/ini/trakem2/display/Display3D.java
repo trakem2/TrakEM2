@@ -289,7 +289,7 @@ public final class Display3D {
 		if (check_j3d) {
 			check_j3d = false;
 			try {
-				Class.forName("javax.vecmath.Point3f");
+				Class.forName("org.scijava.vecmath.Point3f");
 				has_j3d_3dviewer = true;
 			} catch (final ClassNotFoundException cnfe) {
 				Utils.log("Java 3D not installed.");
