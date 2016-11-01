@@ -930,7 +930,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Put all balls as a single 'mesh'; the returned list contains all faces as three consecutive Point3f. The mesh is also translated by x,y,z of this Displayable.*/
 	public List<Point3f> generateTriangles(final double scale, final double[][][] globe) {
 		try {
-			Class.forName("javax.vecmath.Point3f");
+			Class.forName("org.scijava.vecmath.Point3f");
 		} catch (final ClassNotFoundException cnfe) {
 			Utils.log("Java3D is not installed.");
 			return null;
