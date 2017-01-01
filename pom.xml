@@ -160,30 +160,4 @@
 			</dependency>
 		</dependencies>
 	</dependencyManagement>
-
-	<build>
-		<pluginManagement>
-			<plugins>
-				<plugin>
-					<artifactId>maven-enforcer-plugin</artifactId>
-					<configuration>
-						<rules>
-							<requireReleaseDeps>
-								<!-- HACK: See https://issues.apache.org/jira/browse/MENFORCER-185 -->
-								<failWhenParentIsSnapshot>false</failWhenParentIsSnapshot>
-								<excludes>
-									<exclude>sc.fiji:T2-NIT</exclude>
-									<exclude>sc.fiji:T2-TreelineGraph</exclude>
-									<exclude>sc.fiji:TrakEM2_</exclude>
-									<exclude>sc.fiji:VectorString</exclude>
-									<exclude>sc.fiji:trakem2-transform</exclude>
-									<exclude>sc.fiji:pom-trakem2</exclude>
-								</excludes>
-							</requireReleaseDeps>
-						</rules>
-					</configuration>
-				</plugin>
-			</plugins>
-		</pluginManagement>
-	</build>
 </project>
