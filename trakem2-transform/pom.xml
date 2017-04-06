@@ -87,8 +87,8 @@
 		<url>https://github.com/trakem2/TrakEM2/issues</url>
 	</issueManagement>
 	<ciManagement>
-		<system>Jenkins</system>
-		<url>http://jenkins.imagej.net/job/TrakEM2/</url>
+		<system>Travis CI</system>
+		<url>https://travis-ci.org/trakem2/TrakEM2</url>
 	</ciManagement>
 
 	<properties>
