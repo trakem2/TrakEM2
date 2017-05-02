@@ -8,11 +8,11 @@
 	<parent>
 		<groupId>sc.fiji</groupId>
 		<artifactId>pom-trakem2</artifactId>
-		<version>2.0.1-SNAPSHOT</version>
+		<version>2.0.1</version>
 	</parent>
 
 	<artifactId>T2-TreelineGraph</artifactId>
-	<version>1.1.2-SNAPSHOT</version>
+	<version>1.1.2</version>
 
 	<name>T2-TreelineGraph</name>
 	<description>T2-TreelineGraph component of TrakEM2 suite.</description>
