@@ -8,7 +8,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>14.0.0</version>
+		<version>16.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -129,35 +129,4 @@
 			<url>http://maven.imagej.net/content/groups/public</url>
 		</repository>
 	</repositories>
-
-	<dependencyManagement>
-		<dependencies>
-			<!-- Core TrakEM2 modules -->
-			<dependency>
-				<groupId>sc.fiji</groupId>
-				<artifactId>trakem2-transform</artifactId>
-				<version>${trakem2-transform.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>sc.fiji</groupId>
-				<artifactId>T2-NIT</artifactId>
-				<version>${T2-NIT.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>sc.fiji</groupId>
-				<artifactId>T2-TreelineGraph</artifactId>
-				<version>${T2-TreelineGraph.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>sc.fiji</groupId>
-				<artifactId>TrakEM2_</artifactId>
-				<version>${TrakEM2.version}</version>
-			</dependency>
-			<dependency>
-				<groupId>sc.fiji</groupId>
-				<artifactId>VectorString</artifactId>
-				<version>${VectorString.version}</version>
-			</dependency>
-		</dependencies>
-	</dependencyManagement>
 </project>

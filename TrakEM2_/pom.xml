@@ -141,6 +141,8 @@
 	<properties>
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Albert Cardona, Stephan Saalfeld and others.</license.copyrightOwners>
+
+		<jython-shaded.version>2.7.0</jython-shaded.version>
 	</properties>
 
 	<repositories>
@@ -253,7 +255,7 @@
 		<dependency>
 			<groupId>org.scijava</groupId>
 			<artifactId>jython-shaded</artifactId>
-			<version>2.5.3</version>
+			<version>${jython-shaded.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>ome</groupId>
