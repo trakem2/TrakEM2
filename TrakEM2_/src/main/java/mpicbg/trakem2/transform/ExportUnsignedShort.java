@@ -66,14 +66,24 @@ public class ExportUnsignedShort
 		target.setMinAndMax( -min * a, ( 1.0 - min ) * a );
 		return target;
 	}
+	
+	final static protected void map( final PatchTransform pt, final double x, final double y, final ShortProcessor mappedIntensities, final ShortProcessor target)
+	{
+		map( pt, x, y, Double.NaN, mappedIntensities, target);
+	}
 
-	final static protected void map( final PatchTransform pt, final double x, final double y, final ShortProcessor mappedIntensities, final ShortProcessor target )
+	final static protected void map( final PatchTransform pt, final double x, final double y, final double scale, final ShortProcessor mappedIntensities, final ShortProcessor target )
 	{
 		final TranslationModel2D t = new TranslationModel2D();
 		t.set( -x, -y );
 
 		final CoordinateTransformList< CoordinateTransform > ctl = new CoordinateTransformList< CoordinateTransform >();
 		ctl.add( pt.ct );
+		if ( !Double.isNaN( scale ) ) {
+			final AffineModel2D s = new AffineModel2D();
+			s.set(scale, 0, 0, scale, 0, 0);
+			ctl.add( s );
+		}
 		ctl.add( t );
 
 		final CoordinateTransformMesh mesh = new CoordinateTransformMesh( ctl, pt.pir.patch.getMeshResolution(), pt.pir.patch.getOWidth(), pt.pir.patch.getOHeight() );
@@ -308,10 +318,22 @@ public class ExportUnsignedShort
 	 * @return
 	 */
 	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi) {
-		return makeFlatImage(patches, roi, 0);
+		return makeFlatImage(patches, roi, 0, Double.NaN);
+	}
+	
+	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue) {
+		return makeFlatImage(patches, roi, backgroundValue, Double.NaN);
 	}
 
-	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue) {
+	/**
+	 * 
+	 * @param patches
+	 * @param roi
+	 * @param backgroundValue
+	 * @param scale Ignored when NaN.
+	 * @return
+	 */
+	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale) {
 		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
 		double min = Double.MAX_VALUE;
 		double max = -Double.MAX_VALUE;
@@ -329,7 +351,14 @@ public class ExportUnsignedShort
 		final double minI = -min * 65535.0 / ( max - min );
 		final double maxI = ( 1.0 - min ) * 65535.0 / ( max - min );
 
-		final ShortProcessor sp = new ShortProcessor( roi.width, roi.height );
+		final ShortProcessor sp;
+		
+		if ( Double.isNaN( scale ) ) {
+			sp = new ShortProcessor( roi.width, roi.height );
+		} else {
+			sp = new ShortProcessor( (int)(roi.width * scale + 0.5), (int)(roi.height * scale + 0.5) );
+		}
+
 		sp.setMinAndMax( minI, maxI );
 		if (0 != backgroundValue) {
 			sp.setValue(backgroundValue);
@@ -339,7 +368,7 @@ public class ExportUnsignedShort
 
 		for ( final PatchIntensityRange pir : patchIntensityRanges )
 		{
-			map( new PatchTransform( pir ), roi.x, roi.y, mapIntensities( pir, min, max ), sp );
+			map( new PatchTransform( pir ), roi.x, roi.y, scale, mapIntensities( pir, min, max ), sp );
 		}
 
 		return sp;
