@@ -1,7 +1,9 @@
 package mpicbg.trakem2.align.concurrent;
 
 import ij.ImagePlus;
+import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
@@ -25,6 +27,8 @@ import mpicbg.models.PointMatch;
 import mpicbg.trakem2.align.AlignmentUtils;
 import mpicbg.trakem2.align.ElasticLayerAlignment;
 import mpicbg.trakem2.align.Util;
+import mpicbg.trakem2.transform.ExportUnsignedShort;
+import mpicbg.trakem2.util.Pair;
 import mpicbg.trakem2.util.Triple;
 
 /**
@@ -99,38 +103,30 @@ public class BlockMatchPairCallable implements
 
         System.out.println("BMC rev 0: " + pair.a + " " + pair.b);
 
-        final Image img1 = project.getLoader().getFlatAWTImage(
-                layer1,
-                box,
-                param.layerScale,
-                0xffffffff,
-                ImagePlus.COLOR_RGB,
-                Patch.class,
-                AlignmentUtils.filterPatches(layer1, filter),
-                true,
-                new Color( 0x00ffffff, true ) );
+        // Applies the mask
+        final Pair< ShortProcessor, ByteProcessor > pair1 = ExportUnsignedShort.makeFlatImage(AlignmentUtils.filterPatches( layer1, filter ), box, 0, param.layerScale, true);
+        final Pair< ShortProcessor, ByteProcessor > pair2 = ExportUnsignedShort.makeFlatImage(AlignmentUtils.filterPatches( layer2, filter ), box, 0, param.layerScale, true);
 
-        final Image img2 = project.getLoader().getFlatAWTImage(
-                layer2,
-                box,
-                param.layerScale,
-                0xffffffff,
-                ImagePlus.COLOR_RGB,
-                Patch.class,
-                AlignmentUtils.filterPatches( layer2, filter ),
-                true,
-                new Color( 0x00ffffff, true ) );
+        final FloatProcessor ip1 = pair1.a.convertToFloatProcessor();
+        final FloatProcessor ip2 = pair1.a.convertToFloatProcessor();
+        
+        final FloatProcessor ip1Mask = new FloatProcessor( ip1.getWidth(), ip1.getHeight() );
+        final FloatProcessor ip2Mask = new FloatProcessor( ip2.getWidth(), ip2.getHeight() );
+        
+        // Convert masks from bytes in range [0..255] to floats in range [0..1]
+        
+        final byte[] alpha1 = ( byte[] )pair1.b.getPixels();
+        final byte[] alpha2 = ( byte[] )pair2.b.getPixels();
+        
+        for ( int i=0; i<alpha1.length; ++i )
+        	ip1Mask.setf(i, (alpha1[i] & 0xff) / 255.0f);
+        
+        for ( int i=0; i<alpha2.length; ++i )
+        	ip2Mask.setf(i, (alpha2[i] & 0xff) / 255.0f);  
 
-        final int width = img1.getWidth( null );
-        final int height = img1.getHeight( null );
-
+        
         final AbstractModel< ? > localSmoothnessFilterModel =
                 Util.createModel(param.localModelIndex);
-
-        final FloatProcessor ip1 = new FloatProcessor( width, height );
-        final FloatProcessor ip2 = new FloatProcessor( width, height );
-        final FloatProcessor ip1Mask = new FloatProcessor( width, height );
-        final FloatProcessor ip2Mask = new FloatProcessor( width, height );
 
         final int blockRadius =
                 Math.max( 16, mpicbg.util.Util.roundPos( param.layerScale * param.blockRadius ) );
@@ -139,9 +135,6 @@ public class BlockMatchPairCallable implements
         final int searchRadius = ( int )Math.round( param.layerScale * param.searchRadius );
         final double localRegionSigma = param.layerScale * param.localRegionSigma;
         final double maxLocalEpsilon = param.layerScale * param.maxLocalEpsilon;
-
-        mpicbg.trakem2.align.Util.imageToFloatAndMask( img1, ip1, ip1Mask );
-        mpicbg.trakem2.align.Util.imageToFloatAndMask( img2, ip2, ip2Mask );
 
         if (!layer1Fixed)
         {
