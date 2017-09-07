@@ -20,6 +20,7 @@ import mpicbg.models.CoordinateTransform;
 import mpicbg.models.CoordinateTransformList;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.models.TranslationModel2D;
+import mpicbg.trakem2.util.Pair;
 import mpicbg.trakem2.util.Triple;
 
 public class ExportUnsignedShort
@@ -74,6 +75,11 @@ public class ExportUnsignedShort
 
 	final static protected void map( final PatchTransform pt, final double x, final double y, final double scale, final ShortProcessor mappedIntensities, final ShortProcessor target )
 	{
+		map( pt, x, y, Double.NaN, mappedIntensities, target, null );
+	}
+		
+	final static protected void map( final PatchTransform pt, final double x, final double y, final double scale, final ShortProcessor mappedIntensities, final ShortProcessor target, final ByteProcessor alphaTarget)
+		{
 		final TranslationModel2D t = new TranslationModel2D();
 		t.set( -x, -y );
 
@@ -90,16 +96,36 @@ public class ExportUnsignedShort
 
 		final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
 
+		ByteProcessor alpha = null;
+		
 		mappedIntensities.setInterpolationMethod( ImageProcessor.BILINEAR );
+
 		if ( pt.pir.patch.hasAlphaMask() )
 		{
-			final ByteProcessor alpha = pt.pir.patch.getAlphaMask();
+			alpha = pt.pir.patch.getAlphaMask();
 			alpha.setInterpolationMethod( ImageProcessor.BILINEAR );
 			mapping.map( mappedIntensities, alpha, target );
 		}
 		else
 		{
 			mapping.mapInterpolated( mappedIntensities, target );
+		}
+		
+		// If alphaTarget is present, repeat the mapping but just for the alpha channel
+		if ( null != alphaTarget )
+		{
+			if ( null == alpha )
+			{
+				// Simulate full alpha: no transparency
+				alpha = new ByteProcessor( pt.pir.patch.getOWidth(), pt.pir.patch.getOHeight() );
+				alpha.setInterpolationMethod( ImageProcessor.BILINEAR );
+				final byte[] as = ( byte[] )alpha.getPixels();
+				for ( int i=0; i<as.length; ++i) {
+					as[i] = (byte)255;
+				}
+			}
+			
+			mapping.mapInterpolated( alpha, alphaTarget);
 		}
 	}
 
@@ -334,6 +360,10 @@ public class ExportUnsignedShort
 	 * @return
 	 */
 	static public final ShortProcessor makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale) {
+		return makeFlatImage( patches, roi, backgroundValue, scale, false ).a;
+	}
+
+	static public final Pair< ShortProcessor, ByteProcessor > makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale, final boolean makeAlphaMask) {
 		final ArrayList< PatchIntensityRange > patchIntensityRanges = new ArrayList< PatchIntensityRange >();
 		double min = Double.MAX_VALUE;
 		double max = -Double.MAX_VALUE;
@@ -365,13 +395,15 @@ public class ExportUnsignedShort
 			sp.setRoi(0, 0, roi.width, roi.height);
 			sp.fill();
 		}
+		
+		final ByteProcessor alphaTarget = makeAlphaMask ? new ByteProcessor( sp.getWidth(), sp.getHeight() ) : null;
 
 		for ( final PatchIntensityRange pir : patchIntensityRanges )
 		{
-			map( new PatchTransform( pir ), roi.x, roi.y, scale, mapIntensities( pir, min, max ), sp );
+			map( new PatchTransform( pir ), roi.x, roi.y, scale, mapIntensities( pir, min, max ), sp, alphaTarget );
 		}
 
-		return sp;
+		return new Pair< ShortProcessor, ByteProcessor >( sp, alphaTarget );
 	}
 
 	/**
