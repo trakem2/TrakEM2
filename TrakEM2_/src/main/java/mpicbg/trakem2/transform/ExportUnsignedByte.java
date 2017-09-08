@@ -20,9 +20,15 @@ import mpicbg.trakem2.util.Pair;
 
 public class ExportUnsignedByte
 {
+	
+	static public final Pair< ByteProcessor, ByteProcessor > makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale)
+	{
+		final Pair< FloatProcessor, FloatProcessor > p = makeFlatImageFloat( patches, roi, backgroundValue, scale );
+		return new Pair< ByteProcessor, ByteProcessor >( p.a.convertToByteProcessor(true), p.b.convertToByteProcessor() );
+	}
 
 	/** Works only when mipmaps are available, returning nonsense otherwise. */
-	static public final Pair< ByteProcessor, ByteProcessor > makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale)
+	static public final Pair< FloatProcessor, FloatProcessor > makeFlatImageFloat(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale)
 	{
 		final FloatProcessor target = new FloatProcessor((int)(roi.width * scale), (int)(roi.height * scale));
 		target.setInterpolationMethod( ImageProcessor.BILINEAR );
@@ -88,6 +94,6 @@ public class ExportUnsignedByte
 			mapping.mapInterpolated( new ImageProcessorWithMasks( fp, alpha, null), targets );
 		}
 		
-		return new Pair< ByteProcessor, ByteProcessor >( target.convertToByteProcessor(true), targetMask.convertToByteProcessor() );
+		return new Pair< FloatProcessor, FloatProcessor >( target, targetMask );
 	}
 }
