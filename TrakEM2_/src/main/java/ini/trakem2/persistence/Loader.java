@@ -2768,16 +2768,16 @@ while (it.hasNext()) {
 
 			final double scaleP, scalePX, scalePY;
 
-			// if quality is specified, then a larger image is generated:
-			//   - full size if no mipmaps (That might easily be too large---not?!)
-			//   - double the size (max 1.0 ) if mipmaps are enabled
+			// if quality is specified, then a larger image is generated and then scaled down for area averaging:
+			//   - double the size (max 1.0 ) if mipmaps are enabled are scale < 0.5
+			//   - same scale otherwise
 			//
 			// In case that a full size image is generated, independent scale
 			// factors must be applied to x and y to compensate for rounding errors
 			// on scaling down to output resolution.
 			if ( quality )
 			{
-				scaleP = isMipMapsRegenerationEnabled() && scale < 0.5 ? scale + scale : 1.0;
+				scaleP = scale < 0.5 ? scale + scale : scale;
 
 				if ( scaleP == 1.0 )
 				{
