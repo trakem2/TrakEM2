@@ -2739,7 +2739,21 @@ while (it.hasNext()) {
 		return getFlatAWTImage(layer, srcRect_, scale, c_alphas, type, clazz, al_displ, quality, background, null);
 	}
 
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, final boolean quality, final Color background, final Displayable active) {
+	/**
+	 * 
+	 * @param layer The layer from which to collect visible Displayable instances that intersect the srcRect.
+	 * @param srcRect_ Rectangle in World coordinates representing the field of view to paint into the image, and defines the width and height of the image together with the scale.
+	 * @param scale Value between 0 and 1.
+	 * @param c_alphas Which color channels to include when painting Patch instances that hold an RGB image.
+	 * @param type Either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB
+	 * @param clazz Include only Displayable instances of this class; use Displayable.class for all.
+	 * @param al_displ List of Displayable instances to include. Use null to include all visible intersected by srcRect.
+	 * @param quality Whether to attempt to create a larger image and then scale it down with area averaging for best quality.
+	 * @param background The color of the areas of the image where no Displayable paints.
+	 * @param active Whether to paint a particular Displayable instance in an active state (as if it was selected in the UI).
+	 * @return
+	 */
+	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
 
 		try {
 			// dimensions
@@ -2768,31 +2782,48 @@ while (it.hasNext()) {
 
 			final double scaleP, scalePX, scalePY;
 
-			// if quality is specified, then a larger image is generated and then scaled down for area averaging:
-			//   - double the size (max 1.0 ) if mipmaps are enabled are scale < 0.5
-			//   - same scale otherwise
+			// if quality is specified, then a larger image is generated and then scaled down for area averaging.
 			//
 			// In case that a full size image is generated, independent scale
 			// factors must be applied to x and y to compensate for rounding errors
 			// on scaling down to output resolution.
 			if ( quality )
 			{
-				scaleP = scale < 0.5 ? scale + scale : scale;
+				// Calculate the scaleP that would give the largest image possible that can be made without hitting a 1 GB limit in array size (2^30).
+				// (While the actual limit is 2 GB, AWT images of near 2GB tend to contain many severe drawing errors.)
 
-				if ( scaleP == 1.0 )
-				{
+				if (ww * hh >= Math.pow(2,  30)) { // 1 GB
+					// While perhaps scale could be increased to an image size of up to 2 GB, it is not advisable
+					scaleP = scalePX = scalePY = scale;
+					quality = false;
+					biw = ww;
+					bih = hh;
+					Utils.log("Can't use 'quality' flag for getFlatAWTImage: would be too large");
+					// If the image is larger than 2 GB, it will thrown a NegativeArraySizeException below and stop.
+
+				} else {
+					// Max area: the smallest of the srcRect at 100x magnification and 1 GB
+					final double max_area = Math.min( srcRect.width * srcRect.height, Math.pow(2, 30) );
+					
+					final double ratio = ww / (double) hh;
+
+					// area = w * h
+					// ratio = w / h
+					// w = ratio * h
+					// area = ratio * h * h
+					// h = sqrt(area / ratio)
+					// scaleP is then the ratio between the real-world height and the target height
+					// (And clamp to a maximum of 1.0: above makes no sense)
+					scaleP = Math.min(1.0, srcRect.height / Math.sqrt( max_area / ratio));
+					
 					biw = ( int )Math.ceil( ww / scale );
 					bih = ( int )Math.ceil( hh / scale );
 
 					/* compensate for excess space due to ceiling */
 					scalePX = ( double )biw / ( double )ww * scale;
 					scalePY = ( double )bih / ( double )hh * scale;
-				}
-				else
-				{
-					biw = ww * 2;
-					bih = hh * 2;
-					scalePX = scalePY = scaleP;
+					
+					Utils.log("getFlatAWTImage -- scale: " + scale + "; quality scale: " + scaleP);
 				}
 			}
 			else
