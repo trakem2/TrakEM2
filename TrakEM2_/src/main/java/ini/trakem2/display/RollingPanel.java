@@ -82,11 +82,18 @@ public class RollingPanel extends JPanel implements ComponentListener, Adjustmen
 		try {
 			updateList2();
 		} catch (Exception e) {
-			e.printStackTrace();
+			try {
+				// Wait a bit
+				Thread.sleep(1000);
+				// Try again:
+				updateList2();
+			} catch (Exception e1) {
+				e1.printStackTrace();
+			}
 		}
 	}
 	
-	private final void updateList2() {
+	synchronized private final void updateList2() {
 		final List<? extends Displayable> list = getList();
 		final int count = getList().size();
 		
