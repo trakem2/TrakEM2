@@ -48,6 +48,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
@@ -76,6 +77,7 @@ import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.paint.USHORTPaint;
 import ini.trakem2.persistence.XMLOptions;
+import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.CircularSequence;
 import ini.trakem2.utils.IJError;
@@ -657,6 +659,128 @@ public class AreaList extends ZDisplayable implements AreaContainer, VectorData 
 		base.linkPatches();
 
 		return base;
+	}
+	
+	/**
+	 * 
+	 * For each AreaList in the list, find disconnected volumes within each and make an AreaList out of each.
+	 * If so, remove the original AreaList, and place the new ones under the same ProjectThing parent, with the same name
+	 * 
+	 * @param al The list of AreaList to split.
+	 * @return The list of AreaList that remain after potentially splitting the given ones.
+	 * @throws Exception 
+	 */
+	static public ArrayList<AreaList> split(final List<Displayable> al) throws Exception {
+		
+		final ArrayList<AreaList> r = new ArrayList<AreaList>();
+		
+		for (final Displayable d : al) {
+			// Filter non-AreaList objects
+			if (d.getClass() != AreaList.class) continue;
+			// Find volumes in each AreaList, where a Volume is defined as a set of contiguous, overlapping areas.
+			final AreaList ali = (AreaList)d;
+			final HashSet<AreaList> open = new HashSet<AreaList>();
+			final HashSet<AreaList> closed = new HashSet<AreaList>();
+			
+			// Traverse layers in Z order
+			Layer prev_layer = null;
+			for (final Layer layer : ali.getLayerRange()) {
+				final HashSet<AreaList> touched = new HashSet<AreaList>();
+				final Area full = ali.getArea(layer);
+				
+				if (null != full) {
+					for (final Polygon pol : M.getPolygons(full)) {
+						Area area = new Area(pol);
+						// If area touches (Z-contiguous + 2D-overlap) an open AreaList, add it to it
+						// If area does not touch any open AreaList, open a new AreaList
+						// If an open AreaList is not touched, send it to closed.
+						if (null != prev_layer) {
+							final ArrayList<AreaList> overlap = new ArrayList<AreaList>();
+							for (final AreaList o : open) {
+								if (M.intersects(o.getArea(prev_layer.getId()), area)) {
+									// Touches!
+									touched.add(o);
+									overlap.add(o);
+								}
+							}
+							switch (overlap.size()) {
+							case 0:
+								break;
+							case 1:
+								overlap.get(0).addArea(layer.getId(), area);
+								area = null;
+								break;
+							default:
+								// More than 1 overlap: fuse them
+								final AreaList base = overlap.get(0);
+								for (final AreaList o: overlap) {
+									if (o == base) continue;
+									for (final long layer_id: o.getLayerIds()) {
+										base.addArea(layer_id, o.getArea(layer_id));
+									}
+									open.remove(o);
+								}
+								area = null;
+								break;
+							}
+						}
+						if (null != area) {
+							// The area did not touch any open AreaList: place it in a a new one
+							final AreaList new_ali = new AreaList(ali.project, ali.title, 0, 0);
+							// Copy properties
+							new_ali.color = ali.color;
+							new_ali.alpha = ali.alpha;
+							new_ali.title = ali.title;
+							new_ali.at.setTransform(ali.at);
+							if (null != ali.props) {
+								for (final Entry<String,String> prop: ali.getProperties().entrySet()) {
+									new_ali.setProperty(prop.getKey(), prop.getValue());
+								}
+							}
+							// Insert the Area
+							new_ali.setArea(layer.getId(), area);
+							//
+							open.add(new_ali);
+							touched.add(new_ali);
+						}
+					}
+				}
+				// Else if full is null, then all open AreaList are closed
+				
+				// Place any untouched AreaList into the list of closed ones
+				final Iterator<AreaList> it = open.iterator();
+				while (it.hasNext()) {
+					final AreaList o = it.next();
+					if (touched.contains(o)) continue;
+					// Untouched: transfer from open to closed
+					it.remove();
+					closed.add(o);
+				}
+				
+				prev_layer = layer;
+			}
+			
+			closed.addAll(open);
+			
+			// Insert the new AreaLists if there was any split
+			if (closed.size() > 1) {
+				r.addAll(closed);
+				Utils.log("Splitted AreaList '" + ali.getTitle() + "' into " + closed.size() + " parts.");
+				// Update bounding boxes
+				for (final AreaList o: closed) o.calculateBoundingBox(null);
+				// Batch-insert all new AreaList into the LayerSet
+				ali.getLayerSet().addAll(closed);
+				// Add the ProjectThing entries and update bounding boxes
+				for (final AreaList o: closed) ali.project.getProjectTree().addSibling(ali, o);
+				// Remove the original AreaList
+				ali.remove2(false);
+			} else {
+				r.add(ali);
+				Utils.log("Left AreaList '" + ali.getTitle() + "' unsplitted.");
+			}
+		}
+		
+		return r;
 	}
 
 	/** For each area that ali contains, add it to the corresponding area here.*/

@@ -171,6 +171,7 @@ import mpicbg.ij.clahe.Flat;
 import mpicbg.models.PointMatch;
 import mpicbg.trakem2.align.AlignLayersTask;
 import mpicbg.trakem2.align.AlignTask;
+import mpicbg.trakem2.align.Util;
 import mpicbg.trakem2.transform.AffineModel3D;
 import mpicbg.trakem2.transform.CoordinateTransform;
 import mpicbg.trakem2.transform.CoordinateTransformList;
@@ -2670,14 +2671,20 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			}
 
 			if (AreaList.class == aclass) {
-				item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
 				final ArrayList<?> al = selection.getSelected();
 				int n = 0;
 				for (final Iterator<?> it = al.iterator(); it.hasNext(); ) {
 					if (it.next().getClass() == AreaList.class) n++;
 				}
+				
+				item = new JMenuItem("Merge"); item.addActionListener(this); popup.add(item);
 				if (n < 2) item.setEnabled(false);
+				
+				item = new JMenuItem("Split"); item.addActionListener(this); popup.add(item);
+				if (n < 1) item.setEnabled(false);
+
 				addAreaListAreasMenu(popup, active);
+				
 				popup.addSeparator();
 			} else if (Pipe.class == aclass) {
 				item = new JMenuItem("Reverse point order"); item.addActionListener(this); popup.add(item);
@@ -5339,8 +5346,8 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Roi roi = canvas.getFakeImagePlus().getRoi();
 			if (null == roi) return;
 			selection.selectAll(roi, true);
-		} else if (command.equals("Merge")) {
-			final Bureaucrat burro = Bureaucrat.create(new Worker.Task("Merging AreaLists") {
+		} else if (command.equals("Merge") || command.equals("Split")) {
+			final Bureaucrat burro = Bureaucrat.create(new Worker.Task(command + "ing AreaLists") {
 				@Override
                 public void exec() {
 					final ArrayList<Displayable> al_sel = selection.getSelected(AreaList.class);
@@ -5348,19 +5355,41 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					al_sel.remove(Display.this.active);
 					al_sel.add(0, Display.this.active);
 					final Set<DoStep> dataedits = new HashSet<DoStep>();
-					dataedits.add(new Displayable.DoEdit(Display.this.active).init(Display.this.active, new String[]{"data"}));
-					getLayerSet().addChangeTreesStep(dataedits);
-					final AreaList ali = AreaList.merge(al_sel);
-					if (null != ali) {
-						// remove all but the first from the selection
-						for (int i=1; i<al_sel.size(); i++) {
-							final Object ob = al_sel.get(i);
-							if (ob.getClass() == AreaList.class) {
-								selection.remove((Displayable)ob);
+					if (command.equals("Merge")) {
+						// Add data undo for active only, which will be edited
+						dataedits.add(new Displayable.DoEdit(Display.this.active).init(Display.this.active, new String[]{"data"}));
+						getLayerSet().addChangeTreesStep(dataedits);
+						
+						final AreaList ali = AreaList.merge(al_sel);
+						if (null != ali) {
+							// remove all but the first from the selection
+							for (int i=1; i<al_sel.size(); i++) {
+								final Object ob = al_sel.get(i);
+								if (ob.getClass() == AreaList.class) {
+									selection.remove((Displayable)ob);
+								}
 							}
+							selection.updateTransform(ali);
+							repaint(ali.getLayerSet(), ali, 0);
 						}
-						selection.updateTransform(ali);
-						repaint(ali.getLayerSet(), ali, 0);
+					} else if (command.equals("Split")) {
+						// Add data undo for every AreaList
+						for (final Displayable d: al_sel) {
+							if (d.getClass() != AreaList.class) continue;
+							dataedits.add(new Displayable.DoEdit(d).init(d, new String[]{"data"}));
+						}
+						getLayerSet().addChangeTreesStep(dataedits);
+						
+						try {
+							List<AreaList> alis = AreaList.split(al_sel);
+							for (AreaList ali: alis) {
+								if (selection.contains(ali)) continue;
+								selection.add(ali);
+							}
+						} catch (Exception e) {
+							IJError.print(e);
+							getLayerSet().undoOneStep();
+						}
 					}
 				}
 			}, Display.this.project);
