@@ -19,13 +19,19 @@ package mpicbg.trakem2.align;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.plugin.filter.GaussianBlur;
+import ij.process.ByteProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.parallel.ExecutorProvider;
+import ini.trakem2.persistence.Loader;
 import ini.trakem2.utils.Filter;
 import ini.trakem2.utils.Utils;
 
+import java.awt.Color;
 import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -40,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import mpicbg.ij.SIFT;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.trakem2.transform.ExportUnsignedByte;
 import mpicbg.trakem2.transform.ExportUnsignedShort;
 
 /**
@@ -215,7 +222,7 @@ final public class AlignmentUtils
                 final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
                 final SIFT ijSIFT = new SIFT( sift );
                 fs = new ArrayList< Feature >();
-                final ImageProcessor ip = ExportUnsignedShort.makeFlatImage(patches, finalBox, 0, scale);
+                final ImageProcessor ip = makeFlatGreyImage( patches, finalBox, 0, scale );
                 ijSIFT.extractFeatures( ip, fs );
                 Utils.log( fs.size() + " features extracted for " + layerName );
 
@@ -226,6 +233,78 @@ final public class AlignmentUtils
                 Utils.log( fs.size() + " features loaded for " + layerName );
 
             return fs;
+        }
+        
+        /**
+         * Return an ImageProcessor containing a flat 8-bit image for use in extracting features.
+         * If the image is smaller than 0.5 GB, then the AWT system in Loader.getFlatAWTImage will be used, with the quality flag as true.
+         * Otherwise, mipmaps will be used to generate an image with ExportUnsignedByte,
+         * of if mipmaps are anot available, then an up to 2GB image will be generated with ExportUnsignedByte and then Gaussian-downsampled to the requested dimensions.
+         * 
+         * @param patches
+         * @param finalBox
+         * @param backgroundValue
+         * @param scale
+         * 
+         * @return null when the dimensions are larger than 2GB, or the image otherwise.
+         */
+        public final ImageProcessor makeFlatGreyImage(final List< Patch > patches, final Rectangle finalBox, final int backgroundValue, final double scale)
+        {
+        	final Loader loader = patches.get(0).getProject().getLoader();
+        	
+        	final long arraySize = finalBox.width * finalBox.height;
+        	
+        	if ( arraySize < Math.pow( 2, 29 ) ) // 0.5 GB
+        	{
+        		return new ByteProcessor(loader.getFlatAWTImage( patches.get(0).getLayer(), finalBox, scale, -1, ImagePlus.GRAY8,
+        				Patch.class, patches, true, Color.black, null));
+        	}
+        	
+    		if ( loader.isMipMapsRegenerationEnabled() )
+    		{
+    			// Use mipmaps directly: they are already Gaussian-downsampled
+    			return ExportUnsignedByte.makeFlatImage( patches, finalBox, 0, scale ).a;
+    		}
+    		
+    		// Else: no mipmaps
+    		
+    		// Check if the image is too large for java 8.0
+    		
+    		final int area = finalBox.width * finalBox.height;
+    		
+    		if ( area > Math.pow(2,  31) )
+    		{
+    			Utils.log("Cannot create an image larger than 2 GB.");
+    			return null;
+    		}
+    		
+    		// Determine the largest size to work with
+    		final int max_area = ( int ) Math.min( area, Math.pow(2, 31) );
+    		
+    		// Determine the scale corresponding to the calculated max_area
+    		final double scaleUP = Math.min(1.0, finalBox.height / Math.sqrt( max_area / ( finalBox.width / ( float ) (finalBox.height) )));
+ 
+    		// Generate an image at the upper scale
+    		// using ExportUnsignedShort which works without mipmaps
+    		final ShortProcessor sp = ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP );
+    		final short[] pixS = (short[]) sp.getPixels();
+    		final float[] pixF = new float[pixS.length];
+    		for ( int i=0; i<pixS.length; ++i) pixF[i] = pixS[i] & 0xffff;
+    		final FloatProcessor ip = new FloatProcessor( sp.getWidth(), sp.getHeight(), pixF );
+    		
+    		// Gaussian-downsample
+    		final double max_dimension_source = Math.max( ip.getWidth(), ip.getHeight() );
+    		final double max_dimension_target = Math.max( ( int ) (finalBox.width  * scale ),
+    				                                      ( int ) (finalBox.height * scale ) );
+    		final double s = 0.5; // same sigma for source and target
+    		final double sigma = s * max_dimension_source / max_dimension_target - s * s ;
+    		
+    		Utils.log("Gaussian downsampling. If this is slow, check the number of threads in the plugin preferences.");
+    		new GaussianBlur().blurFloat( ip, sigma, sigma, 0.0002 );
+    		
+    		ip.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
+
+    		return ip.resize( ( int ) Math.ceil( finalBox.width * scale ) );
         }
     }
 }
