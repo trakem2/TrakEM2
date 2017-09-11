@@ -20,7 +20,7 @@ import mpicbg.trakem2.util.Pair;
 
 public class ExportUnsignedByte
 {
-	
+	/** Works only when mipmaps are available, returning nonsense otherwise. */
 	static public final Pair< ByteProcessor, ByteProcessor > makeFlatImage(final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale)
 	{
 		final Pair< FloatProcessor, FloatProcessor > p = makeFlatImageFloat( patches, roi, backgroundValue, scale );
@@ -41,8 +41,6 @@ public class ExportUnsignedByte
 		for (final Patch patch : patches) {
 			// MipMap image, already including any coordinate transforms and the alpha mask (if any), by definition.
 			final MipMapImage mipMap = loader.fetchImage(patch, scale);
-			
-			System.out.println("scale: " + scale + " scaleX: " + mipMap.scaleX + " scaleY: " + mipMap.scaleY);
 
 			// Place the mipMap data into FloatProcessors
 			final FloatProcessor fp = new FloatProcessor(mipMap.image.getWidth( null ), mipMap.image.getHeight( null ));
