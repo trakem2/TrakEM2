@@ -2175,7 +2175,7 @@ public final class Patch extends Displayable implements ImageData {
     	
     	final long arraySize = finalBox.width * finalBox.height;
     	
-    	if ( arraySize < Math.pow( 2, 29 ) ) // 0.5 GB
+    	if ( arraySize < Math.pow( 2, 29 ) && loader.isMipMapsRegenerationEnabled() ) // 0.5 GB
     	{
     		return new ByteProcessor(loader.getFlatAWTImage( patches.get(0).getLayer(), finalBox, scale, -1, ImagePlus.GRAY8,
     				Patch.class, patches, true, Color.black, null));
