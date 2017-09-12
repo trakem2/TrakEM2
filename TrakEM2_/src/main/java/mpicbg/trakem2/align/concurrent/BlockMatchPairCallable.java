@@ -226,7 +226,14 @@ public class BlockMatchPairCallable implements
     		
     		return new Pair< FloatProcessor, FloatProcessor >( fp, alpha );
     	}
-    	
+
+    	// Check if the image is too large for java 8.0
+    	if ( box.width * scale * box.height * scale > Math.pow(2, 31) )
+    	{
+    		Utils.log("Cannot create an image larger than 2 GB.");
+    		return null;
+    	}
+
     	if ( layer.getProject().getLoader().isMipMapsRegenerationEnabled() )
     	{
     		// Use mipmaps directly at the correct image size
@@ -240,19 +247,11 @@ public class BlockMatchPairCallable implements
     		return pair;
     	}
     	
-    	// Check if the image is too large for java 8.0
-    	final int area = box.width * box.height;
-
-    	if ( area > Math.pow(2,  31) )
-    	{
-    		Utils.log("Cannot create an image larger than 2 GB.");
-    		return null;
-    	}
-    	
     	// Else, no mipmaps, and image smaller than 2 GB:
     	
     	// 1. Create an image of at most 2 GB or at most the maximum size
     	// Determine the largest size to work with
+    	final int area = box.width * box.height;
     	final int max_area = ( int ) Math.min( area, Math.pow(2, 31) );
 
     	// Determine the scale corresponding to the calculated max_area

@@ -2180,6 +2180,13 @@ public final class Patch extends Displayable implements ImageData {
     		return new ByteProcessor(loader.getFlatAWTImage( patches.get(0).getLayer(), finalBox, scale, -1, ImagePlus.GRAY8,
     				Patch.class, patches, true, Color.black, null));
     	}
+		
+		// Check if the image is too large for java 8.0
+		if ( finalBox.width * scale * finalBox.height * scale > Math.pow(2, 31) )
+		{
+			Utils.log("Cannot create an image larger than 2 GB.");
+			return null;
+		}
     	
 		if ( loader.isMipMapsRegenerationEnabled() )
 		{
@@ -2189,17 +2196,8 @@ public final class Patch extends Displayable implements ImageData {
 		
 		// Else: no mipmaps
 		
-		// Check if the image is too large for java 8.0
-		
-		final int area = finalBox.width * finalBox.height;
-		
-		if ( area > Math.pow(2,  31) )
-		{
-			Utils.log("Cannot create an image larger than 2 GB.");
-			return null;
-		}
-		
 		// Determine the largest size to work with
+		final int area = finalBox.width * finalBox.height;
 		final int max_area = ( int ) Math.min( area, Math.pow(2, 31) );
 		
 		// Determine the scale corresponding to the calculated max_area
