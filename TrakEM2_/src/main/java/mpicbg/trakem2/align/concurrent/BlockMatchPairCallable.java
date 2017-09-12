@@ -197,6 +197,10 @@ public class BlockMatchPairCallable implements
     }
     
     /**
+     *     	
+     * Use different methods depending on the dimensions of the target image and the availability of mipmaps.
+     * The goal is to obtain the best possible image.
+     * 
      * The alpha channel is returned with values between [0..1]
      * 
      * 
@@ -206,11 +210,8 @@ public class BlockMatchPairCallable implements
      * @param scale
      * @return
      */
-    private Pair< FloatProcessor, FloatProcessor > makeFlatImage( final Layer layer, final List<Patch> patches, final Rectangle box, final double scale ) {
-    	
-    	// Use different methods depending on the dimensions of the target image and the availability of mipmaps.
-    	// The goal is to obtain the best possible image.
-    	
+    private Pair< FloatProcessor, FloatProcessor > makeFlatImage( final Layer layer, final List<Patch> patches, final Rectangle box, final double scale )
+    {    	
     	final long fullSize = box.width * box.height;
     	
     	if ( fullSize < Math.pow(2, 29) && layer.getProject().getLoader().isMipMapsRegenerationEnabled() ) // 0.5 GB
