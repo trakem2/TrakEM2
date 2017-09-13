@@ -1112,7 +1112,6 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				if (box.height > screen.height) { y = 0; height = screen.height; }
 				if (x != box.x || y != box.y) {
 					Display.this.frame.setLocation(x, y + (0 == y ? 30 : 0)); // added insets for bad window managers
-					updateInDatabase("position");
 				}
 				if (width != box.width || height != box.height) {
 					Display.this.frame.setSize(new Dimension(width -10, height -30)); // added insets for bad window managers
@@ -6353,6 +6352,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		gd.addSlider("max_dimension of virtualized layer pixels: ", 0, max, layer.getParent().getPixelsMaxDimension());
 		gd.addCheckbox("Show arrow heads in Treeline/AreaTree", layer.getParent().paint_arrows);
 		gd.addCheckbox("Show edge confidence boxes in Treeline/AreaTree", layer.getParent().paint_edge_confidence_boxes);
+		gd.addSlider("Stroke width (Treeline, AreaTree, Ball)", 1.0, 10.0, DisplayCanvas.DEFAULT_STROKE.getLineWidth());
 		gd.addCheckbox("Show color cues", layer.getParent().color_cues);
 		gd.addSlider("+/- layers to color cue", 0, 10, layer.getParent().n_layers_color_cue);
 		gd.addCheckbox("Show color cues for areas", layer.getParent().area_color_cues);
@@ -6388,6 +6388,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		layer.getParent().setPixelsMaxDimension((int)gd.getNextNumber());
 		layer.getParent().paint_arrows = gd.getNextBoolean();
 		layer.getParent().paint_edge_confidence_boxes = gd.getNextBoolean();
+		DisplayCanvas.DEFAULT_STROKE = new BasicStroke((float)Math.max(1, gd.getNextNumber()), BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
 		layer.getParent().color_cues = gd.getNextBoolean();
 		layer.getParent().n_layers_color_cue = (int)gd.getNextNumber();
 		layer.getParent().area_color_cues = gd.getNextBoolean();
