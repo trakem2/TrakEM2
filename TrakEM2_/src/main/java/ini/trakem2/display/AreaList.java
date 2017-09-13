@@ -77,7 +77,6 @@ import ij.process.ShortProcessor;
 import ini.trakem2.Project;
 import ini.trakem2.display.paint.USHORTPaint;
 import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.tree.ProjectThing;
 import ini.trakem2.utils.AreaUtils;
 import ini.trakem2.utils.CircularSequence;
 import ini.trakem2.utils.IJError;
