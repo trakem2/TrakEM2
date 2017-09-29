@@ -213,7 +213,7 @@ final public class AlignmentUtils
                 final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
                 final SIFT ijSIFT = new SIFT( sift );
                 fs = new ArrayList< Feature >();
-                final ImageProcessor ip = Patch.makeFlatGreyImage( patches, finalBox, 0, scale );
+                final ImageProcessor ip = Patch.makeFlatGrayImage( patches, finalBox, 0, scale );
                 ijSIFT.extractFeatures( ip, fs );
                 Utils.log( fs.size() + " features extracted for " + layerName );
 

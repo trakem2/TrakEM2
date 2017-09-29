@@ -2169,7 +2169,7 @@ public final class Patch extends Displayable implements ImageData {
      * 
      * @return null when the dimensions are larger than 2GB, or the image otherwise.
      */
-    static public final ImageProcessor makeFlatGreyImage(final List< Patch > patches, final Rectangle finalBox, final int backgroundValue, final double scale)
+    static public final ImageProcessor makeFlatGrayImage(final List< Patch > patches, final Rectangle finalBox, final int backgroundValue, final double scale)
     {
     	final Loader loader = patches.get(0).getProject().getLoader();
     	
