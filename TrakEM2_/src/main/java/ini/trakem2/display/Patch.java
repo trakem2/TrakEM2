@@ -2196,20 +2196,31 @@ public final class Patch extends Displayable implements ImageData {
 		
 		// Else: no mipmaps
 		
-		// Determine the largest size to work with
-		final int area = finalBox.width * finalBox.height;
-		final int max_area = ( int ) Math.min( area, Math.pow(2, 31) );
 		
-		// Determine the scale corresponding to the calculated max_area
-    	final double scaleUP = Math.min(1.0, finalBox.height / Math.sqrt( max_area / ( finalBox.width / ( float ) (finalBox.height) )));
+		// Determine the largest size to work with
+		final double area = ((double)finalBox.width) * ((double)finalBox.height);
+		final double max_area = Math.min( area, Math.pow(2, 31) );
+		
+		// Determine the scale corresponding to the calculated max_area,
+		// with a correction factor to make sure width * height never go above pow(2, 31)
+    	final double scaleUP = Math.min(1.0, Math.sqrt( max_area / area ) ) - Math.max( 1.0 / finalBox.width, 1.0 / finalBox.height );
+
+    	System.out.println( "###\nPatch.makeFlatGrayImage dimensions and quality scale " );
+    	System.out.println( "srcRect w,h: " + finalBox.width + ", " + finalBox.height );
+    	System.out.println( "area: " + area );
+    	System.out.println( "max_area: " + max_area );
+    	System.out.println( "scale: " + scale );
+    	System.out.println( "scaleUP: " + scaleUP );
  
     	// Generate an image at the upper scale
 		// using ExportUnsignedShort which works without mipmaps
 		final FloatProcessor ip = new Callable<FloatProcessor>() {
 			// Use a local context to aid in GC'ing the ShortProcessor
 			public FloatProcessor call() {
+				loader.releaseToFit( finalBox.width, finalBox.height, ImagePlus.GRAY16, (float) scaleUP );
 				final ShortProcessor sp = ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP );
 				final short[] pixS = (short[]) sp.getPixels();
+				loader.releaseToFit( pixS.length * 4 );
 				final float[] pixF = new float[pixS.length];
 				for ( int i=0; i<pixS.length; ++i) pixF[i] = pixS[i] & 0xffff;
 				return new FloatProcessor( sp.getWidth(), sp.getHeight(), pixF );
