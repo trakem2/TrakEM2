@@ -121,6 +121,9 @@
 		<TrakEM2.version>1.0j-SNAPSHOT</TrakEM2.version>
 		<VectorString.version>2.0.2-SNAPSHOT</VectorString.version>
 		<trakem2-transform.version>1.0.1-SNAPSHOT</trakem2-transform.version>
+
+		<!-- NB: Deploy releases to the ImageJ Maven repository. -->
+		<releaseProfiles>deploy-to-imagej</releaseProfiles>
 	</properties>
 
 	<repositories>
