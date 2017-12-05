@@ -2241,7 +2241,7 @@ public final class Patch extends Displayable implements ImageData {
 		
 		ip.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
 
-		return ip.resize( ( int ) Math.ceil( finalBox.width * scale ) );
+		return ip.resize( ( int ) Math.ceil( finalBox.width * scale ) ); // TODO is returning a FloatProcessor
     }
 
 	/** Make the border have an alpha of zero. */
