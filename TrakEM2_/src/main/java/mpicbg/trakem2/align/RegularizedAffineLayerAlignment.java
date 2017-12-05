@@ -38,6 +38,7 @@ import ini.trakem2.display.LayerSet;
 import ini.trakem2.display.Patch;
 import ini.trakem2.parallel.ExecutorProvider;
 import ini.trakem2.utils.Filter;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
@@ -302,6 +303,8 @@ public class RegularizedAffineLayerAlignment
 		}
 		catch ( final Exception e )
 		{
+			e.printStackTrace();
+			IJError.print( e );
 			return;
 		}
 

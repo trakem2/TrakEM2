@@ -18,11 +18,11 @@ package mpicbg.trakem2.align;
 
 
 import ij.IJ;
-import ij.process.ImageProcessor;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.parallel.ExecutorProvider;
 import ini.trakem2.utils.Filter;
+import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Utils;
 
 import java.awt.Rectangle;
@@ -150,6 +150,7 @@ final public class AlignmentUtils
 		catch ( final InterruptedException e )
 		{
 			Utils.log( "Feature extraction interrupted." );
+			IJError.print( e );
 			siftTasks.clear();
 			//exec.shutdownNow();
 			throw e;
@@ -157,6 +158,7 @@ final public class AlignmentUtils
 		catch ( final ExecutionException e )
 		{
 			Utils.log( "Execution exception during feature extraction." );
+			IJError.print( e );
 			siftTasks.clear();
 			//exec.shutdownNow();
 			throw e;
@@ -213,8 +215,7 @@ final public class AlignmentUtils
                 final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
                 final SIFT ijSIFT = new SIFT( sift );
                 fs = new ArrayList< Feature >();
-                final ImageProcessor ip = Patch.makeFlatGrayImage( patches, finalBox, 0, scale );
-                ijSIFT.extractFeatures( ip, fs );
+                ijSIFT.extractFeatures( Patch.makeFlatGrayImage( patches, finalBox, 0, scale ), fs );
                 Utils.log( fs.size() + " features extracted for " + layerName );
 
                 if ( !mpicbg.trakem2.align.Util.serializeFeatures( layer.getProject(), siftParam, "layer", layer.getId(), fs ) )
