@@ -123,6 +123,8 @@ public final class FSLoader extends Loader {
 	private String project_file_path = null;
 	/** Path to the directory hosting the file image pyramids. */
 	private String dir_mipmaps = null;
+	/** Path to the directory hosting the file image pyramids after mipmaps have been disabled. */
+	private String dir_mipmaps_stashed = null;
 	/** Path to the directory the user provided when creating the project. */
 	private String dir_storage = null;
 	/** Path to the directory hosting the alpha masks. */
@@ -2157,12 +2159,23 @@ public final class FSLoader extends Loader {
 		return true;
 	}
 
+	public void setMipMapsRegeneration(final boolean b) {
+		super.setMipMapsRegeneration(b);
+		// Restore
+		if (null != this.dir_mipmaps_stashed && null == this.dir_mipmaps) {
+			this.dir_mipmaps = this.dir_mipmaps_stashed;
+		}
+	}
+
 	/** Remove all mipmap images from the cache, and optionally set the dir_mipmaps to null. */
 	public void flushMipMaps(boolean forget_dir_mipmaps) {
 		if (null == dir_mipmaps) return;
 		synchronized (db_lock) {
 			try {
-				if (forget_dir_mipmaps) this.dir_mipmaps = null;
+				if (forget_dir_mipmaps) {
+					this.dir_mipmaps_stashed = this.dir_mipmaps;
+					this.dir_mipmaps = null;
+				}
 				mawts.removeAndFlushAll();
 			} catch (Throwable t) {
 				handleCacheError(t);
