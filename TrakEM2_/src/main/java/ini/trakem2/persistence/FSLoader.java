@@ -1840,6 +1840,7 @@ public final class FSLoader extends Loader {
 
 						if (k < first_mipmap_level_saved) {
 							// Skip saving this mipmap level
+							k++;
 							continue;
 						}
 						if (null != alpha) {
