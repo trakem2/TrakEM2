@@ -946,9 +946,14 @@ abstract public class Loader {
 	public MipMapImage fetchImage( final Patch p, double mag ) {
 
 		if (mag > 1.0) mag = 1.0; // Don't want to create gigantic images!
-		final int level = Loader.getMipMapLevel(mag, maxDim(p));
 		final int max_level = Loader.getHighestMipMapLevel(p);
-		return fetchAWTImage(p, level > max_level ? max_level : level, max_level);
+		
+		final int level = Math.max(Math.min(max_level,
+				                            Loader.getMipMapLevel(mag, maxDim(p))),
+				                   Math.max(0,
+				                		    p.getProject().getFirstMipMapLevelSaved()));
+
+		return fetchAWTImage(p, level, max_level);
 	}
 
 	final public MipMapImage fetchAWTImage(final Patch p, final int level, final int max_level) {
