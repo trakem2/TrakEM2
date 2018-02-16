@@ -343,7 +343,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Used for restoring properties from the database. */
 	public void setup(final double mag, final Rectangle srcRect) {
-		this.magnification = limitMag(mag);
+		this.magnification = mag;
 		this.srcRect = (Rectangle)srcRect.clone(); // just in case
 		super.setDrawingSize((int)Math.ceil(srcRect.width * mag), (int)Math.ceil(srcRect.height * mag));
 		setMagnification(mag);
@@ -394,7 +394,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// FIXES MAG TO ImageCanvas.zoomLevel LIMITS!!
 		//super.setMagnification(mag);
 		// So, manually:
-		this.magnification = limitMag(mag);
+		this.magnification = mag;
 		imp.setTitle(imp.getTitle());
 		display.getMode().magnificationUpdated(srcRect, mag);
 	}
@@ -1200,7 +1200,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		// there's no call to the non-existing ImageWindow
 		if (magnification >= 32)
 			return;
-		final double newMag = limitMag(getHigherZoomLevel2(magnification));
+		final double newMag = getHigherZoomLevel2(magnification);
 
 		// zoom at point: correct mag drift
 		final int cx = getWidth() / 2;
@@ -1244,7 +1244,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	private void zoomOut2(int x, int y) {
 		//if (magnification <= 0.03125)
 		//	return;
-		final double newMag = limitMag(getLowerZoomLevel2(magnification));
+		final double newMag = getLowerZoomLevel2(magnification);
 
 		// zoom at point: correct mag drift
 		final int cx = getWidth() / 2;
@@ -1283,7 +1283,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		display.updateInDatabase("srcRect");
 	}
 
-	/** The minimum amount of pixels allowed for width or height when zooming out. */
+	/** The minimum amout of pixels allowed for width or height when zooming out. */
 	static private final int MIN_DIMENSION = 10; // pixels
 
 	/** Enable zooming out up to the point where the display becomes 10 pixels in width or height. */
@@ -1306,7 +1306,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		}
 	}
 	protected double getHigherZoomLevel2(final double currentMag) {
-		// if it is not 1/72 and it is lower, then:
+		// if it is not 1/72 and its lower, then:
 		if (Math.abs(currentMag - 1/72.0) > 0.00000001 && currentMag < 1/72.0) { // lowest zoomLevel in ImageCanvas is 1/72.0
 			// find nearest power of two above currentMag
 			// start at level 14, which is 0.00006103515625 (0.006 %)
@@ -1321,23 +1321,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 		} else {
 			return ImageCanvas.getHigherZoomLevel(currentMag);
 		}
-	}
-	
-	private double limitMag(final double mag) {
-		// When mipmaps are enabled and mipmaps were not saved for the larger levels,
-		// avoid zooming in to a magnification that would require loading non-existing mipmaps.
-		if (display.getProject().getLoader().getMipMapsRegenerationEnabled()) {
-			final int fmls = display.getProject().getFirstMipMapLevelSaved();
-			if (0 == fmls) {
-				// Any magnification allowed
-				return mag;
-			}
-			final double mag_limit = 1 / Math.pow(2, fmls);
-			if (mag > mag_limit) {
-				return mag_limit;
-			}
-		}
-		return mag;
 	}
 
 
@@ -1594,7 +1577,6 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 
 	/** Show the given r as the srcRect (or as much of it as possible) at the given magnification. */
 	public void center(final Rectangle r, double magn) {
-		magn = limitMag(magn);
 		// bring bounds within limits of the layer and the canvas' drawing size
 		final double lw = display.getLayer().getLayerWidth();
 		final double lh = display.getLayer().getLayerHeight();
@@ -2264,7 +2246,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	public void zoomToFit() {
 		final double magw = (double) getWidth() / imageWidth;
 		final double magh = (double) getHeight() / imageHeight;
-		this.magnification = limitMag(magw < magh ? magw : magh);
+		this.magnification = magw < magh ? magw : magh;
 		this.srcRect.setRect(0, 0, imageWidth, imageHeight);
 		setMagnification(magnification);
 		display.updateInDatabase("srcRect"); // includes magnification
@@ -2326,7 +2308,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				// check boundaries
 				if (r.width * magnification < getWidth()
 				 || r.height * magnification < getHeight()) {
-					// Can't zoom at point: would change field of view's flow or would have to shift the canvas position!
+					// Can't zoom at point: would chage field of view's flow or would have to shift the canvas position!
 					Utils.showStatus("To zoom more, use -/+ keys");
 					return;
 				}
@@ -2340,7 +2322,7 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 				r.x = (int)(xx - ((xx - srcRect.x)/srcRect.width) * r.width + 0.5);
 				r.y = (int)(yy - ((yy - srcRect.y)/srcRect.height) * r.height + 0.5);
 			}
-			final double newMag = limitMag(magnification * (srcRect.width / (double)r.width));
+			final double newMag = magnification * (srcRect.width / (double)r.width);
 			// correct floating-point-induced erroneous drift: the int-precision offscreen point under the mouse shoud remain the same
 			r.x -= (int)((x/newMag + r.x) - xx);
 			r.y -= (int)((y/newMag + r.y) - yy);
