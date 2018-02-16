@@ -104,13 +104,14 @@ import net.imglib2.img.imageplus.ImagePlusImgs;
 import net.imglib2.type.numeric.real.FloatType;
 
 import org.janelia.intensity.LinearIntensityMap;
+import org.jfree.chart.plot.CategoryCrosshairState;
 import org.xml.sax.InputSource;
 
 
 /** A class to rely on memory only; except images which are rolled from a folder or their original location and flushed when memory is needed for more. Ideally there would be a given folder for storing items temporarily of permanently as the "project folder", but I haven't implemented it. */
 public final class FSLoader extends Loader {
 
-	/* sigma of the Gaussian kernel sto be used for downsampling by a factor of 2 */
+	/* sigma of the Gaussian kernels to be used for downsampling by a factor of 2 */
 	final private static double SIGMA_2 = Math.sqrt( 0.75 );
 	
 	/** Largest id seen so far. */
@@ -1665,12 +1666,25 @@ public final class FSLoader extends Loader {
 				type = ImagePlus.COLOR_RGB;
 			}
 			
+			final int first_mipmap_level_saved = patch.getProject().getFirstMipMapLevelSaved();
+			
 			if (Loader.AREA_DOWNSAMPLING == resizing_mode) {
 				long t0 = System.currentTimeMillis();
 				final ImageBytes[] b = DownsamplerMipMaps.create(patch, type, ip, alpha_mask, outside_mask);
 				long t1 = System.currentTimeMillis();
+				// TODO for best performance it should start directly at the first mipmap level to save. Could be done with an integral image.
 				for (int i=0; i<b.length; ++i) {
-					mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
+					if (i < first_mipmap_level_saved) {
+						// Ignore level i
+						CachingThread.storeForReuse(b[i].c);
+					} else {
+						boolean written = mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
+						if (!written) {
+							Utils.log("Failed to save mipmap with area downsampling at level=" + i + " for patch " + patch);
+							cannot_regenerate.add(patch);
+							break;
+						}
+					}
 				}
 				long t2 = System.currentTimeMillis();
 				System.out.println("MipMaps with area downsampling: creation took " + (t1 - t0) + "ms, saving took " + (t2 - t1) + "ms, total: " + (t2 - t0) + "ms\n");
@@ -1704,58 +1718,73 @@ public final class FSLoader extends Loader {
 					if (Thread.currentThread().isInterrupted()) return false;
 
 					// Generate level 0 first:
-					// TODO Add alpha information into the int[] pixel array or make the image visible some other way
-					if (!(null == alpha ? mmio.save(cp, target_dir0 + filename, 0.85f, false)
-							: mmio.save(target_dir0 + filename, P.asRGBABytes((int[])cp.getPixels(), (byte[])alpha_mask.getPixels(), null == outside ? null : (byte[])outside_mask.getPixels()), w, h, 0.85f))) {
-						Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
-						cannot_regenerate.add(patch);
-					} else {
-						int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
-						do {
-							if (Thread.currentThread().isInterrupted()) return false;
-							// 1 - Prepare values for the next scaled image
-							k++;
-							// 2 - Check that the target folder for the desired scale exists
-							final String target_dir = getLevelDir(dir_mipmaps, k);
-							if (null == target_dir) continue;
-							// 3 - Blur the previous image to 0.75 sigma, and scale it
-							final byte[] r = gaussianBlurResizeInHalf(red);   // will resize 'red' FloatProcessor in place.
-							final byte[] g = gaussianBlurResizeInHalf(green); // idem
-							final byte[] b = gaussianBlurResizeInHalf(blue);  // idem
-							final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha); // idem
-							if ( null != outside ) {
-								final byte[] o;
-								if (alpha != outside)
-									o = gaussianBlurResizeInHalf(outside); // idem
-								else
-									o = a;
-								// Remove all not completely inside pixels from the alphamask
-								// If there was no alpha mask, alpha is the outside itself
-								for (int i=0; i<o.length; i++) {
-									if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
-								}
-							}
-
-							w = red.getWidth();
-							h = red.getHeight();
-
-							// 4 - Compose ColorProcessor
-							if (null == alpha) {
-								// 5 - Save as jpeg
-								if (!mmio.save(target_dir + filename, new byte[][]{r, g, b}, w, h, 0.85f)) {
-									Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
-									cannot_regenerate.add(patch);
-									break;
-								}
-							} else {
-								if (!mmio.save(target_dir + filename, new byte[][]{r, g, b, a}, w, h, 0.85f)) {
-									Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
-									cannot_regenerate.add(patch);
-									break;
-								}
-							}
-						} while (w >= 32 && h >= 32); // not smaller than 32x32
+					if (0 == first_mipmap_level_saved) {
+						boolean written;
+						if (null == alpha) {
+							written = mmio.save(cp, target_dir0 + filename, 0.85f, false);
+						} else {
+							written = mmio.save(target_dir0 + filename,
+									P.asRGBABytes((int[])cp.getPixels(),
+									(byte[])alpha_mask.getPixels(),
+									null == outside ? null : (byte[])outside_mask.getPixels()),
+									w, h, 0.85f);
+						}
+						if (!written) {
+							Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = 0  for  patch " + patch);
+							cannot_regenerate.add(patch);
+						}
 					}
+					// Generate all other mipmap levels
+					// TODO: for best performance, it should start from a direct Gaussian downscaling at the first level to write.
+					int k = 0; // the scale level. Proper scale is: 1 / pow(2, k)
+					do {
+						if (Thread.currentThread().isInterrupted()) return false;
+						// 1 - Prepare values for the next scaled image
+						k++;
+						// 2 - Check that the target folder for the desired scale exists
+						final String target_dir = getLevelDir(dir_mipmaps, k);
+						if (null == target_dir) break;
+						// 3 - Blur the previous image to 0.75 sigma, and scale it
+						final byte[] r = gaussianBlurResizeInHalf(red);   // will resize 'red' FloatProcessor in place.
+						final byte[] g = gaussianBlurResizeInHalf(green); // idem
+						final byte[] b = gaussianBlurResizeInHalf(blue);  // idem
+						final byte[] a = null == alpha ? null : gaussianBlurResizeInHalf(alpha); // idem
+						if ( null != outside ) {
+							final byte[] o;
+							if (alpha != outside)
+								o = gaussianBlurResizeInHalf(outside); // idem
+							else
+								o = a;
+							// Remove all not completely inside pixels from the alphamask
+							// If there was no alpha mask, alpha is the outside itself
+							for (int i=0; i<o.length; i++) {
+								if ( (o[i]&0xff) != 255 ) a[i] = 0; // TODO I am sure there is a bitwise operation to do this in one step. Some thing like: a[i] &= 127;
+							}
+						}
+
+						w = red.getWidth();
+						h = red.getHeight();
+
+						// 4 - Compose ColorProcessor
+						if (first_mipmap_level_saved < k) {
+							// Skip saving this mipmap level
+							continue;
+						}
+						if (null == alpha) {
+							// 5 - Save as jpeg
+							if (!mmio.save(target_dir + filename, new byte[][]{r, g, b}, w, h, 0.85f)) {
+								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+								cannot_regenerate.add(patch);
+								break;
+							}
+						} else {
+							if (!mmio.save(target_dir + filename, new byte[][]{r, g, b, a}, w, h, 0.85f)) {
+								Utils.log("Failed to save mipmap for COLOR_RGB, 'alpha = " + alpha + "', level = " + k  + " for  patch " + patch);
+								cannot_regenerate.add(patch);
+								break;
+							}
+						}
+					} while (w >= 32 && h >= 32); // not smaller than 32x32
 				} else {
 					long t0 = System.currentTimeMillis();
 					// Greyscale:
@@ -1807,8 +1836,12 @@ public final class FSLoader extends Loader {
 
 						// 1 - check that the target folder for the desired scale exists
 						final String target_dir = getLevelDir(dir_mipmaps, k);
-						if (null == target_dir) continue;
+						if (null == target_dir) break;
 
+						if (k < first_mipmap_level_saved) {
+							// Skip saving this mipmap level
+							continue;
+						}
 						if (null != alpha) {
 							// 3 - save as jpeg with alpha
 							// Remove all not completely inside pixels from the alpha mask

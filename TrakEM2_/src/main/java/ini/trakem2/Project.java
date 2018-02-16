@@ -1246,6 +1246,7 @@ public class Project extends DBObject {
 		// Write properties, with the additional property of the image_resizing_mode
 		final HashMap<String,String> props = new HashMap<String, String>(ht_props);
 		props.put("image_resizing_mode", Loader.getMipMapModeName(mipmaps_mode));
+		props.put("first_mipmap_level_saved", Integer.toString(this.first_mipmap_level_saved));
 		for (final Map.Entry<String, String> e : props.entrySet()) {
 			sb_body.append(in).append('\t').append(e.getKey()).append("=\"").append(e.getValue()).append("\"\n");
 		}
@@ -1338,6 +1339,13 @@ public class Project extends DBObject {
 
 	private boolean input_disabled = false;
 
+	/** When generating mipmaps, save images only starting at this level.
+	 *  (Remember that 0 is 100%, 1 is 50%, 2 is 25%, etc.
+	 *   So a setting of "2" would NOT save 0 and 1, and would save 2, 3, 4 ...
+	 *   until the image is too small to be worth saving.)
+	 *  The default is zero: save all mipmap levels. */
+	private int first_mipmap_level_saved = 0;
+
 	/** Tells the displays concerning this Project to accept/reject input. */
 	public void setReceivesInput(boolean b) {
 		this.input_disabled = !b;
@@ -1410,6 +1418,16 @@ public class Project extends DBObject {
 		String mipmapsMode = ht_attributes.remove("image_resizing_mode");
 		this.mipmaps_mode = null == mipmapsMode ? Loader.DEFAULT_MIPMAPS_MODE : Loader.getMipMapModeIndex(mipmapsMode);
 		//
+		String firstMipMapLevelSaved = ht_attributes.remove("first_mipmap_level_saved");
+		if (null != firstMipMapLevelSaved) {
+			try {
+				int fmls = Integer.parseInt(firstMipMapLevelSaved);
+				this.first_mipmap_level_saved = fmls;
+			} catch (Exception e) {
+				Utils.log2("Ignoring invalid value for 'first_mipmap_level_saved': " + firstMipMapLevelSaved);
+				IJError.print(e);
+			}
+		}
 		// all keys that remain are properties
 		ht_props.putAll(ht_attributes);
 		for (Map.Entry<String,String> prop : ht_attributes.entrySet()) {
@@ -1478,6 +1496,21 @@ public class Project extends DBObject {
 		}
 		return before != after;
 	}
+	
+	/** Returns the newly set mipmap level (an integer, made by a floor operation on {@param level}), or the current one if {@param level} is NaN or negative. */
+	public final int setFirstMipMapLevelSaved(final double level) {
+		if (Double.isNaN(level) || level < 0) {
+			return this.first_mipmap_level_saved;
+		}
+		this.first_mipmap_level_saved = (int)Math.floor(level);
+		return this.first_mipmap_level_saved;
+	}
+	
+	/** Get the mipmap level at which to start saving images. E.g. if level is 2, then mipmaps for levels 0 and 1 are not saved, and 2, 3, 4 ... are saved. */
+	public final int getFirstMipMapLevelSaved() {
+		return this.first_mipmap_level_saved;
+	}
+	
 	public void adjustProperties() {
 		// should be more generic, but for now it'll do
 		GenericDialog gd = new GenericDialog("Properties");
@@ -1490,6 +1523,7 @@ public class Project extends DBObject {
 		gd.addCheckbox("Zoom-invariant markers for Dissector", dissector_zoom);
 		gd.addChoice("Image_resizing_mode: ", Loader.MIPMAP_MODES.values().toArray(new String[Loader.MIPMAP_MODES.size()]), Loader.getMipMapModeName(mipmaps_mode));
 		gd.addChoice("mipmaps format:", FSLoader.MIPMAP_FORMATS, FSLoader.MIPMAP_FORMATS[loader.getMipMapFormat()]);
+		gd.addNumericField("Save mipmap images from level", this.first_mipmap_level_saved, 0);
 		boolean layer_mipmaps = "true".equals(ht_props.get("layer_mipmaps"));
 		gd.addCheckbox("Layer_mipmaps", layer_mipmaps);
 		boolean keep_mipmaps = "true".equals(ht_props.get("keep_mipmaps"));
@@ -1536,6 +1570,8 @@ public class Project extends DBObject {
 				}
 			}
 		}
+
+		setFirstMipMapLevelSaved(gd.getNextNumber());
 
 		boolean layer_mipmaps2 = gd.getNextBoolean();
 		if (adjustProp("layer_mipmaps", layer_mipmaps, layer_mipmaps2)) {
