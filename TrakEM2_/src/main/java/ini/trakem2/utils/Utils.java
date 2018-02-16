@@ -333,7 +333,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	/** Intended for developers: prints to terminal. */
 	static public final void log2(final String msg) {
-		//System.out.println(msg);
+		System.out.println(msg);
 	}
 
 	/** Pretty-print the object, for example arrays as [0, 1, 2]. */
