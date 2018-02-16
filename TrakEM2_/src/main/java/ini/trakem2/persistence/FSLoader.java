@@ -2350,6 +2350,7 @@ public final class FSLoader extends Loader {
 	public final MipMapImage fetchMipMap(final Patch patch, int level, final long n_bytes) {
 		final int max_level = getHighestMipMapLevel(patch);
 		if ( level > max_level ) level = max_level;
+		
 		final double scale = Math.pow( 2.0, level );
 
 		final String filename = getInternalFileName(patch);
