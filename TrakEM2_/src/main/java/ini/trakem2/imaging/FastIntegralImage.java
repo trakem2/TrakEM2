@@ -49,6 +49,42 @@ public final class FastIntegralImage
 	 * @param b
 	 * @param w
 	 * @param h
+	 * @return a double[] representing the integral image, with the first row and the first column with zeros.
+	 */
+	static public final double[] doubleIntegralImage(final float[] b, final int w, final int h) {
+		final int w2 = w+1;
+		final int h2 = h+1;
+		final double[] f = new double[w2 * h2];
+		// Sum rows
+		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
+			double s = b[offset1];
+			f[offset2] = s;
+			for (int x=1; x<w; ++x) {
+				s += b[offset1 + x];
+				f[offset2 + x] = s;
+			}
+			offset1 += w;
+			offset2 += w2;
+		}
+		// Sum columns over the summed rows
+		for (int x=1; x<w2; ++x) {
+			 double s = 0;
+			 for (int y=1, i=w2+x; y<h2; ++y) {
+				 s += f[i];
+				 f[i] = s;
+				 i += w2;
+			 }
+		}
+
+		return f;
+	}
+	
+	/** Returns an image of @{param w}+1, @{param y}+1, where the first row and the first column are zeros,
+	 * and the rest contain the sum of the area from 0,0 to that pixel in {@code b}.
+	 * 
+	 * @param b
+	 * @param w
+	 * @param h
 	 * @return a float[] representing the integral image, with the first row and the first column with zeros.
 	 */
 	static public final long[] longIntegralImage(final byte[] b, final int w, final int h) {
