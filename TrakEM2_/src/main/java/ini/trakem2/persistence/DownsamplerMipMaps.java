@@ -8,7 +8,9 @@ import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import ini.trakem2.display.Patch;
+import ini.trakem2.imaging.FastIntegralImage;
 import ini.trakem2.imaging.P;
+import ini.trakem2.utils.Utils;
 import mpicbg.trakem2.util.Downsampler;
 import mpicbg.trakem2.util.Downsampler.Pair;
 
@@ -39,16 +41,134 @@ public final class DownsamplerMipMaps
 	static private final ImageBytes asBytes(final ColorProcessor cp, final ByteProcessor mask) {
 		return new ImageBytes(P.asRGBABytes((int[])cp.getPixels(), (byte[])mask.getPixels(), null), cp.getWidth(), cp.getHeight());
 	}
+	
 
-	// TODO the int[] should be preserved for color images
+	/**
+	 * 
+	 * @param patch
+	 * @param type
+	 * @param ip
+	 * @param alpha
+	 * @param outside
+	 * @param first_level If larger than zero, generate mipmaps starting at first_level.
+	 * @return array of ImageByte instances, with nulls before the first_level index.
+	 * @throws Exception 
+	 */
+	static public final ImageBytes[] create(
+			final Patch patch,
+			final int type,
+			final ImageProcessor ip,
+			final ByteProcessor alpha,
+			final ByteProcessor outside,
+			final int first_level) throws Exception
+	{
+		if (0 == first_level) {
+			// Trivial case: full pyramid
+			return create(patch, type, Loader.getHighestMipMapLevel(patch) + 1, ip, alpha, outside);
+		}
+		else if (1 == first_level) {
+			// Skip only the 100% mipmap: speedier to merely downsample it and nullify it
+			final ImageBytes[] p = DownsamplerMipMaps.create(patch, type, Loader.getHighestMipMapLevel(patch) + 1, ip, alpha, outside);
+			p[0] = null;
+			return p;
+		}
+		
+		// Else: scale to the first level mipmap using integral images
+		
+		final ImageBytes[] p = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
+		final int w = ip.getWidth(),
+				  h = ip.getHeight(),
+				  scale_inv = (int) Math.pow(2, first_level), // e.g. level 2 is a scale of 1/4 or 25%
+				  tw = w / scale_inv,
+				  th = h / scale_inv;
+		
+		ByteProcessor bpa = alpha,
+				      bpo = outside;
+		final ImageProcessor ipi;
+		
+		// Create image at the first level using integral images
+		
+		if ( ImagePlus.GRAY8 == type ) {
+			final long[] im = FastIntegralImage.longIntegralImage((byte[])ip.getPixels(), w, h);
+			final byte[] bip = FastIntegralImage.scaleAreaAverage(im, w + 1, h + 1, tw, th);
+			ipi = new ByteProcessor(tw, th, bip, ip.getColorModel());
+		} else if ( ImagePlus.GRAY16 == type ) {
+			final long[] im = FastIntegralImage.longIntegralImage((short[])ip.getPixels(), w, h);
+			final byte[] bip = FastIntegralImage.scaleAreaAverage(im, w + 1, h + 1, tw, th);
+			ipi = new ByteProcessor(tw, th, bip, ip.getColorModel()); // yes, ByteProcessor: mipmaps are 8-bit or color
+		} else if ( ImagePlus.GRAY32 == type ) {
+			final double[] im = FastIntegralImage.doubleIntegralImage((float[])ip.getPixels(), w, h);
+			final byte[] bip = FastIntegralImage.scaleAreaAverage(im, w + 1, h + 1, tw, th);
+			ipi = new ByteProcessor(tw, th, bip, ip.getColorModel());
+		} else if ( ImagePlus.COLOR_RGB == type
+				 || ImagePlus.COLOR_256 == type ) {
+			final int[] argb;
+			if ( ImagePlus.COLOR_256 == type ) argb = (int[]) ip.convertToRGB().getPixels();
+			else argb = (int[])ip.getPixels();
+			final byte[] r = new byte[w * h],
+					     g = new byte[r.length],
+					     b = new byte[r.length];
+			for (int i=0, s=0; i<r.length; ++i) {
+				s = argb[i];
+				r[i] = (byte)((s & 0x00ff0000) >> 16);
+				g[i] = (byte)((s & 0x0000ff00) >>  8);
+				b[i] = (byte)( s & 0x000000ff       );
+			}
+			final byte[] rs = FastIntegralImage.scaleAreaAverage(FastIntegralImage.longIntegralImage(r, w, h), w + 1, h + 1, tw, th),
+					     gs = FastIntegralImage.scaleAreaAverage(FastIntegralImage.longIntegralImage(g, w, h), w + 1, h + 1, tw, th),
+					     bs = FastIntegralImage.scaleAreaAverage(FastIntegralImage.longIntegralImage(b, w, h), w + 1, h + 1, tw, th);
+			final int[] argbs = new int[tw * th];
+			for (int i=0; i<rs.length; ++i) {
+				argbs[i] = 0xff000000 // alpha: fully visible
+						   & ((rs[i] & 0xff) << 16)
+                           & ((gs[i] & 0xff) <<  8)
+                           & ( bs[i] & 0xff       );
+			}
+			ipi = new ColorProcessor(tw, th, argbs);
+		} else {
+			throw new Exception( "Unhandable ImagePlus type: " + type );
+		}
+		
+		if ( null != alpha ) {
+			final long[] ima = FastIntegralImage.longIntegralImage((byte[])alpha.getPixels(), w, h);
+			final byte[] balpha = FastIntegralImage.scaleAreaAverage(ima, w + 1, h + 1, tw, th);
+			bpa = new ByteProcessor(tw, th, balpha, alpha.getColorModel());
+		}
+		
+		if ( null != outside ) {
+			final long[] imo = FastIntegralImage.longIntegralImage((byte[])outside.getPixels(), w, h);
+			final byte[] boutside = FastIntegralImage.scaleAreaAverage(imo, w + 1, h + 1, tw, th);
+			bpo = new ByteProcessor(tw, th, boutside, alpha.getColorModel());
+		}
+		
+		// Call create with scaled-down image
+		final ImageBytes[] ib = DownsamplerMipMaps.create(patch, type, Loader.getHighestMipMapLevel(patch) + 1 - first_level, ipi, bpa, bpo);
+		
+		// Copy into p, leaving nulls for absent upper levels
+		// Necessary to introduce a shift in the array
+		System.arraycopy(ib, 0, p, first_level, ib.length);
+		
+		return p;
+	}
+	
 	static public final ImageBytes[] create(
 			final Patch patch,
 			final int type,
 			final ImageProcessor ip,
 			final ByteProcessor alpha,
 			final ByteProcessor outside) {
+		return create(patch, type, Loader.getHighestMipMapLevel(patch) + 1, ip, alpha, outside);
+	}
+	
+	static public final ImageBytes[] create(
+			final Patch patch,
+			final int type,
+			final int n_levels,
+			final ImageProcessor ip,
+			final ByteProcessor alpha,
+			final ByteProcessor outside) {
 		// Create pyramid
-		final ImageBytes[] p = new ImageBytes[Loader.getHighestMipMapLevel(patch) + 1];
+		final ImageBytes[] p = new ImageBytes[n_levels];
 
 		if (null == alpha && null == outside) {
 			int i = 1;
