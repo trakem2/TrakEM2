@@ -1672,11 +1672,10 @@ public final class FSLoader extends Loader {
 				long t0 = System.currentTimeMillis();
 				final ImageBytes[] b = DownsamplerMipMaps.create(patch, type, ip, alpha_mask, outside_mask);
 				long t1 = System.currentTimeMillis();
-				// TODO for best performance it should start directly at the first mipmap level to save. Could be done with an integral image.
 				for (int i=0; i<b.length; ++i) {
 					if (i < first_mipmap_level_saved) {
 						// Ignore level i
-						CachingThread.storeForReuse(b[i].c);
+						if (null != b[i]) CachingThread.storeForReuse(b[i].c);
 					} else {
 						boolean written = mmio.save(getLevelDir(dir_mipmaps, i) + filename, b[i].c, b[i].width, b[i].height, 0.85f);
 						if (!written) {
