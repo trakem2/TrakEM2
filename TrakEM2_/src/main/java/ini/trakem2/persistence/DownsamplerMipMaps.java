@@ -10,6 +10,7 @@ import ij.process.ShortProcessor;
 import ini.trakem2.display.Patch;
 import ini.trakem2.imaging.FastIntegralImage;
 import ini.trakem2.imaging.P;
+import ini.trakem2.utils.CachingThread;
 import ini.trakem2.utils.Utils;
 import mpicbg.trakem2.util.Downsampler;
 import mpicbg.trakem2.util.Downsampler.Pair;
@@ -69,6 +70,7 @@ public final class DownsamplerMipMaps
 		else if (1 == first_level) {
 			// Skip only the 100% mipmap: speedier to merely downsample it and nullify it
 			final ImageBytes[] p = DownsamplerMipMaps.create(patch, type, Loader.getHighestMipMapLevel(patch) + 1, ip, alpha, outside);
+			CachingThread.storeForReuse(p[0].c);
 			p[0] = null;
 			return p;
 		}
@@ -79,14 +81,15 @@ public final class DownsamplerMipMaps
 		final int w = ip.getWidth(),
 				  h = ip.getHeight(),
 				  scale_inv = (int) Math.pow(2, first_level), // e.g. level 2 is a scale of 1/4 or 25%
-				  tw = w / scale_inv,
-				  th = h / scale_inv;
+				  tw = w / scale_inv, // target width
+				  th = h / scale_inv; // target height
 		
 		ByteProcessor bpa = alpha,
 				      bpo = outside;
 		final ImageProcessor ipi;
 		
 		// Create image at the first level using integral images
+		int type2 = ImagePlus.GRAY8;
 		
 		if ( ImagePlus.GRAY8 == type ) {
 			final long[] im = FastIntegralImage.longIntegralImage((byte[])ip.getPixels(), w, h);
@@ -95,11 +98,11 @@ public final class DownsamplerMipMaps
 		} else if ( ImagePlus.GRAY16 == type ) {
 			final long[] im = FastIntegralImage.longIntegralImage((short[])ip.getPixels(), w, h);
 			final byte[] bip = FastIntegralImage.scaleAreaAverage(im, w + 1, h + 1, tw, th);
-			ipi = new ByteProcessor(tw, th, bip, ip.getColorModel()); // yes, ByteProcessor: mipmaps are 8-bit or color
+			ipi = new ByteProcessor(tw, th, bip, null); // yes, ByteProcessor: mipmaps are 8-bit or color
 		} else if ( ImagePlus.GRAY32 == type ) {
 			final double[] im = FastIntegralImage.doubleIntegralImage((float[])ip.getPixels(), w, h);
 			final byte[] bip = FastIntegralImage.scaleAreaAverage(im, w + 1, h + 1, tw, th);
-			ipi = new ByteProcessor(tw, th, bip, ip.getColorModel());
+			ipi = new ByteProcessor(tw, th, bip, null);
 		} else if ( ImagePlus.COLOR_RGB == type
 				 || ImagePlus.COLOR_256 == type ) {
 			final int[] argb;
@@ -125,6 +128,7 @@ public final class DownsamplerMipMaps
                            & ( bs[i] & 0xff       );
 			}
 			ipi = new ColorProcessor(tw, th, argbs);
+			type2 = ImagePlus.COLOR_RGB;
 		} else {
 			throw new Exception( "Unhandable ImagePlus type: " + type );
 		}
@@ -142,7 +146,7 @@ public final class DownsamplerMipMaps
 		}
 		
 		// Call create with scaled-down image
-		final ImageBytes[] ib = DownsamplerMipMaps.create(patch, type, Loader.getHighestMipMapLevel(patch) + 1 - first_level, ipi, bpa, bpo);
+		final ImageBytes[] ib = DownsamplerMipMaps.create(patch, type2, Loader.getHighestMipMapLevel(patch) + 1 - first_level, ipi, bpa, bpo);
 		
 		// Copy into p, leaving nulls for absent upper levels
 		// Necessary to introduce a shift in the array
