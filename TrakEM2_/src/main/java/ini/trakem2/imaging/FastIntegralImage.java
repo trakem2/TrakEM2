@@ -115,13 +115,21 @@ public final class FastIntegralImage
 		return f;
 	}
 
+	/** Returns an image of @{param w}+1, @{param y}+1, where the first row and the first column are zeros,
+	 * and the rest contain the sum of the area from 0,0 to that pixel in {@code b}.
+	 * 
+	 * @param b
+	 * @param w
+	 * @param h
+	 * @return a short[] representing the integral image, with the first row and the first column with zeros.
+	 */
 	static public final long[] longIntegralImage(final short[] b, final int w, final int h) {
 		final int w2 = w+1;
 		final int h2 = h+1;
 		final long[] f = new long[w2 * h2];
 		// Sum rows
 		for (int y=0, offset1=0, offset2=w2+1; y<h; ++y) {
-			long s = b[offset1] & 0xffff;
+			long s = b[offset1] & 0xffff; // TODO mystery: works well for numbers smaller than 256, but not for larger ones
 			f[offset2] = s;
 			for (int x=1; x<w; ++x) {
 				s += b[offset1 + x] & 0xffff;
@@ -142,9 +150,8 @@ public final class FastIntegralImage
 
 		return f;
 	}
-
-	/** For testing. */
-	static public final void main(String[] args) {
+	
+	static public final void test(final String image_file_path) {
 		{
 			// Test float[] integral image:
 			byte[] b = new byte[3 * 3];
@@ -154,15 +161,15 @@ public final class FastIntegralImage
 			System.out.println(ini.trakem2.utils.Utils.toString(f));
 
 			// Test scaleAreaAverage with integer division
-			ij.process.ByteProcessor bp = (ij.process.ByteProcessor) ij.IJ.openImage("/home/albert/Desktop/t2/test-mipmaps/src.tif").getProcessor();
+			ij.process.ByteProcessor bp = (ij.process.ByteProcessor) ij.IJ.openImage(image_file_path).getProcessor();
 			byte[] pix = (byte[]) bp.getPixels();
 			double[] fii = doubleIntegralImage(pix, bp.getWidth(), bp.getHeight());
 			byte[] scaled = scaleAreaAverage(fii, bp.getWidth()+1, bp.getHeight()+1, bp.getWidth()/4, bp.getHeight()/4);
-			new ij.ImageJ();
+			
 			final float[] fpix = new float[fii.length];
 			for (int i=0; i<fpix.length; ++i) fpix[i] = (float)fii[i];
-			new ij.ImagePlus("integral", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fpix, null)).show();
-			new ij.ImagePlus("scaled", new ij.process.ByteProcessor(bp.getWidth()/4, bp.getHeight()/4, scaled, null)).show();
+			new ij.ImagePlus("integral double", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fpix, null)).show();
+			new ij.ImagePlus("scaled double", new ij.process.ByteProcessor(bp.getWidth()/4, bp.getHeight()/4, scaled, null)).show();
 		}
 		{
 			// Test long[] integral image:
@@ -173,18 +180,41 @@ public final class FastIntegralImage
 			System.out.println(ini.trakem2.utils.Utils.toString(f));
 
 			// Test scaleAreaAverage with integer division
-			ij.process.ByteProcessor bp = (ij.process.ByteProcessor) ij.IJ.openImage("/home/albert/Desktop/t2/test-mipmaps/src.tif").getProcessor();
+			ij.process.ByteProcessor bp = (ij.process.ByteProcessor) ij.IJ.openImage(image_file_path).getProcessor();
 			byte[] pix = (byte[]) bp.getPixels();
 			long[] lii = longIntegralImage(pix, bp.getWidth(), bp.getHeight());
 			byte[] scaled = scaleAreaAverage(lii, bp.getWidth()+1, bp.getHeight()+1, bp.getWidth()/4, bp.getHeight()/4);
-			new ij.ImageJ();
 			final float[] fpix = new float[lii.length];
 			for (int i=0; i<fpix.length; ++i) fpix[i] = (float)lii[i];
-			new ij.ImagePlus("integral", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fpix, null)).show();
-			new ij.ImagePlus("scaled", new ij.process.ByteProcessor(bp.getWidth()/4, bp.getHeight()/4, scaled, null)).show();
+			new ij.ImagePlus("integral long", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fpix, null)).show();
+			new ij.ImagePlus("scaled long", new ij.process.ByteProcessor(bp.getWidth()/4, bp.getHeight()/4, scaled, null)).show();
 		}
-		
+		{
+			// Test long[] integral image of a short[] image
+			short[] b = new short[3 * 3];
+			for (int i=0; i<b.length; ++i) b[i] = 1;
+			long[] f = longIntegralImage(b, 3, 3);
+			System.out.println("IntegralImage of a short[] is correct: " + (9 == f[f.length-1]));
+			System.out.println(ini.trakem2.utils.Utils.toString(f));
+
+			// Test scaleAreaAverage with integer division
+			ij.process.ShortProcessor bp = (ij.process.ShortProcessor) ij.IJ.openImage(image_file_path).getProcessor().convertToShort(true);
+			short[] pix = (short[]) bp.getPixels();
+			for (int i=0; i<pix.length; ++i) pix[i] *= 255; // expand to 16-bit range: when doing so, the scaleAreaAverage fails
+			long[] lii = longIntegralImage(pix, bp.getWidth(), bp.getHeight());
+			byte[] scaled = scaleAreaAverage(lii, bp.getWidth()+1, bp.getHeight()+1, bp.getWidth()/4, bp.getHeight()/4);
+			final float[] fpix = new float[lii.length];
+			for (int i=0; i<fpix.length; ++i) fpix[i] = (float)lii[i];
+			new ij.ImagePlus("integral long of short", new ij.process.FloatProcessor(bp.getWidth()+1, bp.getHeight()+1, fpix, null)).show();
+			new ij.ImagePlus("scaled long of short", new ij.process.ByteProcessor(bp.getWidth()/4, bp.getHeight()/4, scaled, null)).show();
+		}
 		// Non-integer version tested by commenting out the integer version.
+	}
+
+	/** For testing. */
+	static public final void main(String[] args) {
+		new ij.ImageJ();
+		FastIntegralImage.test("/home/albert/Desktop/t2/test-mipmaps/src.tif");
 	}
 	
 	
@@ -323,8 +353,8 @@ public final class FastIntegralImage
 				*/
 				// Same as above without repeated operations and with additions instead of multiplications
 				int startX = 0;
-				final int o1 = startY * fw,
-				          o2 = (startY + stepSizeY) * fw;
+				final int o1 = startY * fw,               // Array index for top of the box
+				          o2 = (startY + stepSizeY) * fw; // Array index for bottom of the box
 				for (int x=0; x<tw; ++x) {
 					b[o3 + x] = (byte)((  f[o1 + startX]
 							            - f[o1 + startX + stepSizeX]
