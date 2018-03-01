@@ -30,6 +30,7 @@ import mpicbg.models.PointMatch;
 import mpicbg.trakem2.align.AlignmentUtils;
 import mpicbg.trakem2.align.ElasticLayerAlignment;
 import mpicbg.trakem2.align.Util;
+import mpicbg.trakem2.transform.ExportBestFlatImage;
 import mpicbg.trakem2.transform.ExportUnsignedByte;
 import mpicbg.trakem2.transform.ExportUnsignedShort;
 import mpicbg.trakem2.util.Pair;
@@ -259,25 +260,7 @@ public class BlockMatchPairCallable implements
     	
     	// Generate an image at the upper scale
     	// using ExportUnsignedShort which works without mipmaps
-    	final Pair< FloatProcessor, FloatProcessor> pair = new Callable< Pair< FloatProcessor, FloatProcessor > >() {
-    		// Use a local context to aid in GC'ing the ShortProcessor
-    		public Pair< FloatProcessor, FloatProcessor > call() {
-    			final Pair< ShortProcessor, ByteProcessor > pair = ExportUnsignedShort.makeFlatImage( patches, box, 0, scaleUP, true );
-    			short[] pixS = (short[]) pair.a.getPixels();
-    			final float[] pixF = new float[ pixS.length ];
-    			for ( int i=0; i<pixS.length; ++i) pixF[i] = pixS[i] & 0xffff;
-    			pixS = null;
-    			pair.a.setPixels( null ); // "destructor"
-    			
-    			byte[] pixB = (byte[]) pair.b.getPixels();
-    			final float[] pixA = new float[ pixB.length ];
-    			for( int i=0; i<pixB.length; ++i ) pixA[i] = pixB[i] & 0xff;
-    			
-    			return new Pair< FloatProcessor, FloatProcessor > (
-    					new FloatProcessor( pair.a.getWidth(), pair.a.getHeight(), pixF ),
-    					new FloatProcessor( pair.b.getWidth(), pair.b.getWidth(),  pixA ) );
-    		}
-    	}.call();
+    	final Pair< FloatProcessor, FloatProcessor> pair = new ExportBestFlatImage( patches, box, 0, scaleUP ).makeFlatGrayImageAndAlpha();
 
     	patches.get(0).getProject().getLoader().releaseAll();
     	
