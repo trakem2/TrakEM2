@@ -243,7 +243,7 @@ public class BlockMatchPairCallable implements
     		// Map alpha to [0..1]
             final float[] alpha = ( float[] ) pair.b.getPixels();
             for ( int i=0; i<alpha.length; ++i )
-            	alpha[i] = alpha[i] / 255.0f;
+            	alpha[i] = alpha[i] / 255.0f; // WARNING: makeFlatImageFloat already does this.
     		
     		return pair;
     	}

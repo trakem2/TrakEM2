@@ -63,7 +63,7 @@ public class ExportUnsignedByte
 			{
 				final byte[] apix = new ColorProcessor( mipMap.image ).getChannel( 4 );
 				for (int i=0; i<apix.length; ++i) {
-					alpha.setf( i, (apix[i] & 0xff) / 255.0f ); // between [0..1]
+					alpha.setf( i, (apix[i] & 0xff) / 255.0f ); // between [0..1] // WARNING: why? Should not map to [0..1] It's done later at BlockMatchPairCallable
 				}
 			} else {
 				// The default: full opacity
