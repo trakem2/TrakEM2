@@ -39,6 +39,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import mpicbg.ij.SIFT;
 import mpicbg.imagefeatures.Feature;
 import mpicbg.imagefeatures.FloatArray2DSIFT;
+import mpicbg.trakem2.transform.ExportBestFlatImage;
 
 /**
  * @author Stephan Saalfeld saalfeld@mpi-cbg.de
@@ -215,7 +216,7 @@ final public class AlignmentUtils
                 final FloatArray2DSIFT sift = new FloatArray2DSIFT( siftParam );
                 final SIFT ijSIFT = new SIFT( sift );
                 fs = new ArrayList< Feature >();
-                ijSIFT.extractFeatures( Patch.makeFlatGrayImage( patches, finalBox, 0, scale ), fs );
+                ijSIFT.extractFeatures( new ExportBestFlatImage( patches, finalBox, 0, scale ).makeFlatGrayImage(), fs );
                 Utils.log( fs.size() + " features extracted for " + layerName );
 
                 if ( !mpicbg.trakem2.align.Util.serializeFeatures( layer.getProject(), siftParam, "layer", layer.getId(), fs ) )
