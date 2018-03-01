@@ -154,6 +154,7 @@ public class ExportBestFlatImage
 		if ( loader.isMipMapsRegenerationEnabled() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
+			// (TODO waste: generates an alpha mask that is then not used)
 			return ExportUnsignedByte.makeFlatImageFloat( patches, finalBox, 0, scale ).a;
 		}
 		
