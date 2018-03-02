@@ -9,6 +9,7 @@ import java.util.List;
 import ij.ImagePlus;
 import ij.plugin.filter.GaussianBlur;
 import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -135,6 +136,35 @@ public class ExportBestFlatImage
 		return loader.getFlatAWTImage( patches.get(0).getLayer(), finalBox, scale, -1, type,
     				Patch.class, patches, true, Color.black, null );
 	}
+	
+	public Pair<ColorProcessor, ByteProcessor> makeFlatColorImage()
+	{
+		if ( canUseAWTImage() ) { // less than 0.5 GB array size
+			final ColorProcessor cp = new ColorProcessor( createAWTImage( ImagePlus.COLOR_RGB ) );
+			final ByteProcessor alpha = new ByteProcessor( cp.getWidth(), cp.getHeight(), cp.getChannel( 4 ) );
+			return new Pair<ColorProcessor, ByteProcessor>( cp, alpha );
+		}
+		
+		if ( !isSmallerThan2GB() ) {
+			Utils.log("Cannot create an image larger than 2 GB.");
+			return null;
+		}
+		
+		if ( loader.isMipMapsRegenerationEnabled() )
+		{
+			return ExportARGB.makeFlatImageARGBFromMipMaps( patches, finalBox, 0, scale );
+		}
+		
+		printInfo();
+		
+		// No mipmaps: create an image as large as possible, then downsample it
+		final Pair<ColorProcessor, ByteProcessor> pair = ExportARGB.makeFlatImageARGBFromOriginals( patches, finalBox, 0, scaleUP );
+		
+		final double sigma = computeSigma( pair.a.getWidth(), pair.a.getHeight());
+		new GaussianBlur().blurGaussian( pair.a, sigma, sigma, 0.0002 );
+		new GaussianBlur().blurGaussian( pair.b, sigma, sigma, 0.0002 );
+		return pair;
+	}
 
 	/**
 	 * 
@@ -175,7 +205,7 @@ public class ExportBestFlatImage
 	public Pair<FloatProcessor, FloatProcessor> makeFlatGrayImageAndAlpha()
 	{
 		if ( canUseAWTImage() ) {
-			final Image img = createAWTImage( ImagePlus.COLOR_RGB );
+			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // to preserve the alpha channel present in mipmaps
 			final int width = img.getWidth(null);
 			final int height = img.getHeight(null);
 			final int[] pixels = new int[width * height];
