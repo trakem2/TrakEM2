@@ -25,16 +25,15 @@ public class ExportBestFlatImage
 	public final Rectangle finalBox;
 	public final int backgroundValue;
 	public final double scale;
-	public final double area;
-	public final double max_area;
+	public final double largest_possibly_needed_area;
+	public final double max_possible_area;
 	public final double scaleUP;
 	
 	protected final Loader loader;
-	protected final long arraySize;
 
 	/**
-     * Class to manage the creation of a FloatProcessor containing a flat 8-bit image for use in e.g. extracting features,
-     * and optionally do so along with its alpha mask, also as a FloatProcessor.
+     * Class to manage the creation of an ImageProcessor containing a flat 8-bit image for use in e.g. extracting features,
+     * and optionally do so along with its alpha mask as another ImageProcessor.
      * 
      * If the image is smaller than 0.5 GB, then the AWT system in Loader.getFlatAWTImage will be used, with the quality flag as true.
      * Otherwise, mipmaps will be used to generate an image with ExportUnsignedByte.makeFlatImageFloat or ExportUnsignedShort.makeFlatImage.
@@ -60,30 +59,48 @@ public class ExportBestFlatImage
 		this.scale = scale;
 		
 		this.loader = patches.get(0).getProject().getLoader();
-    	this.arraySize = finalBox.width * finalBox.height;
     	
-    	// Determine the largest size to work with
-    	this.area = ((double)finalBox.width) * ((double)finalBox.height);
-    	this.max_area = Math.min( this.area, Math.pow(2, 31) );
-
     	// Determine the scale corresponding to the calculated max_area,
     	// with a correction factor to make sure width * height never go above pow(2, 31)
-    	this.scaleUP = Math.min(1.0, Math.sqrt( this.max_area / this.area ) ) - Math.max( 1.0 / finalBox.width, 1.0 / finalBox.height );
-	}
+    	// (Only makes sense, and will only be used, if area is smaller than max_area.)
+		this.largest_possibly_needed_area = ((double)finalBox.width) * ((double)finalBox.height);
+    	this.max_possible_area = Math.min( this.largest_possibly_needed_area, Math.pow(2, 31) );
+    	this.scaleUP = Math.min(1.0, Math.sqrt( this.max_possible_area / this.largest_possibly_needed_area ) ) - Math.max( 1.0 / finalBox.width, 1.0 / finalBox.height );
+    }
 	
+	/**
+	 * @return Whether an AWT image can be used: the requested area must be smaller than 0.5 GB,
+	 * so that with the quality flag, the interim image is smaller than 2 GB (2x larger on the side).
+	 */
 	public boolean canUseAWTImage() {
-		return arraySize < Math.pow( 2, 29 ) && loader.isMipMapsRegenerationEnabled(); // 0.5 GB
+		return (((long)finalBox.width) * ((long)finalBox.height)) < Math.pow( 2, 29 ) && loader.isMipMapsRegenerationEnabled(); // smaller than 0.5 GB: so up to 2 GB with quality flag on
 	}
 	
+	/**
+	 * @return Whether the requested image fits in an array up to 2 GB in size.
+	 */
 	public boolean isSmallerThan2GB() {
-		return finalBox.width * scale * finalBox.height * scale > Math.pow(2, 31);
+		return finalBox.width * scale * finalBox.height * scale <= Math.pow(2, 31);
+	}
+	
+	/**
+	 * 
+	 * @return Whether mipmaps can be used for non-AWT images: only if all patches lack masks or coordinate transforms,
+	 *         because the alpha mask is premultiplied into the Image and can't be recovered.
+	 *         TODO Although I am not sure. Requires further exploration. There's also the issue of [0..1] vs [0..255] range.
+	 */
+	public boolean canUseMipMaps() {
+		for (final Patch p : patches) {
+			if ( p.hasAlphaChannel() ) return false;
+		}
+		return true;
 	}
 	
 	public void printInfo() {
 		System.out.println( "###\nExportBestFlatImage dimensions and quality scale " );
     	System.out.println( "srcRect w,h: " + finalBox.width + ", " + finalBox.height );
-    	System.out.println( "area: " + area );
-    	System.out.println( "max_area: " + max_area );
+    	System.out.println( "area: " + largest_possibly_needed_area );
+    	System.out.println( "max_area: " + max_possible_area );
     	System.out.println( "scale: " + scale );
     	System.out.println( "scaleUP: " + scaleUP );
 	}
@@ -150,7 +167,7 @@ public class ExportBestFlatImage
 			return null;
 		}
 		
-		if ( loader.isMipMapsRegenerationEnabled() )
+		if ( loader.isMipMapsRegenerationEnabled() && canUseMipMaps() )
 		{
 			return ExportARGB.makeFlatImageARGBFromMipMaps( patches, finalBox, 0, scale );
 		}
@@ -181,7 +198,7 @@ public class ExportBestFlatImage
 			return null;
 		}
 		
-		if ( loader.isMipMapsRegenerationEnabled() )
+		if ( loader.isMipMapsRegenerationEnabled() && canUseMipMaps() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
 			// (TODO waste: generates an alpha mask that is then not used)
@@ -236,7 +253,7 @@ public class ExportBestFlatImage
 			return null;
 		}
 		
-		if ( loader.isMipMapsRegenerationEnabled() )
+		if ( loader.isMipMapsRegenerationEnabled() && canUseMipMaps() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
 			return ExportUnsignedByte.makeFlatImageFloat( patches, finalBox, 0, scale );
