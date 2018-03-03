@@ -1,7 +1,11 @@
 package mpicbg.trakem2.transform;
 
+import java.awt.Graphics2D;
+import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
+import java.awt.image.PixelGrabber;
 import java.util.Arrays;
 import java.util.List;
 
@@ -22,6 +26,16 @@ public class ExportARGB {
 	{
 		return use_mipmaps ? makeFlatImageARGBFromMipMaps( patches, roi, backgroundValue, scale )
 				           : makeFlatImageARGBFromOriginals( patches, roi, backgroundValue, scale );
+	}
+	
+	static public final int[] extractARGBIntArray( final Image img )
+	{
+		final int[] pix = new int[img.getWidth(null) * img.getHeight(null)];
+		PixelGrabber pg = new PixelGrabber( img, 0, 0, img.getWidth(null), img.getHeight(null), pix, 0, img.getWidth(null) );
+		try {
+			pg.grabPixels();
+		} catch (InterruptedException ie) {}
+		return pix;
 	}
 
 	/**
@@ -51,11 +65,25 @@ public class ExportARGB {
 			// MipMap image, already including any coordinate transforms and the alpha mask (if any), by definition.
 			final MipMapImage mipMap = loader.fetchImage(patch, scale);
 			
-			final ColorProcessor fp = new ColorProcessor( mipMap.image );
+			// Work-around strange bug that makes mipmap-loaded images paint with 7-bit depth instead of 8-bit depth
+			final BufferedImage bi = new BufferedImage(mipMap.image.getWidth(null), mipMap.image.getHeight(null), BufferedImage.TYPE_INT_ARGB);
+			final Graphics2D g = bi.createGraphics();
+			g.drawImage(mipMap.image, 0, 0, null);
+			g.dispose();
+			
+			final int[] pix = extractARGBIntArray(bi);
+			final ColorProcessor fp = new ColorProcessor( mipMap.image.getWidth(null), mipMap.image.getHeight(null), pix );
 			final ByteProcessor alpha;
 			
+			bi.flush();
+			
 			if ( patch.hasAlphaChannel() ) {
-				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight(), fp.getChannel( 4 ) );
+				// ERROR TODO: for some reason, the alpha channel is not present in the mipmap? Neither in mipMap.image nor in bi.
+				// TODO: likely explanation is that mipmaps have the alpha pre-multiplied.
+				//       Mipmaps should not be used for this when there are alpha masks (either a proper alpha mask or an outside from a CoordinateTransform).
+				final byte[] pixa = new byte[pix.length];
+				for (int i=0; i<pixa.length; ++i) pixa[i] = (byte)((pix[i] & 0xff000000) >> 24);
+				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight(), pixa ); // fp.getChannel( 4 ) does not include the alpha for some reason
 			} else {
 				// The default: full opacity
 				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight() );
@@ -111,8 +139,20 @@ public class ExportARGB {
 			final ByteProcessor alpha;
 						
 			if ( patch.hasAlphaChannel() ) {
-				alpha = pai.mask;
-				// what about the pai.outside?
+				// One of the two must be non-null, or both are non-null
+				if (null == pai.outside) alpha = pai.mask;
+				else if (null == pai.mask) alpha = pai.outside;
+				else {
+					// combine
+					final byte[] pm = (byte[]) pai.mask.getPixels(),
+							     po = (byte[]) pai.mask.getPixels(),
+							     pmo = new byte[pm.length];
+					for (int i=0; i<pm.length; ++i) {
+						// Pick the largest alpha value
+						pmo[i] = (pm[i] & 0xff) > (po[i] & 0xff) ? pm[i] : po[i];
+					}
+					alpha = new ByteProcessor(fp.getWidth(), fp.getHeight(), pmo);
+				}
 			} else {
 				// The default: full opacity
 				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight() );
