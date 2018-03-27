@@ -143,33 +143,26 @@ public class ExportARGB {
 		final ColorProcessor target = new ColorProcessor((int)(roi.width * scale), (int)(roi.height * scale));
 		target.setInterpolationMethod( ImageProcessor.BILINEAR );
 		final ByteProcessor targetMask = new ByteProcessor( target.getWidth(), target.getHeight() );
-		targetMask.setInterpolationMethod( ImageProcessor.BILINEAR );
-		final ByteProcessor outsideMask = new ByteProcessor( target.getWidth(), target.getHeight() );
-		outsideMask.setInterpolationMethod( ImageProcessor.BILINEAR );
-		final ImageProcessorWithMasks targets = new ImageProcessorWithMasks( target, targetMask, outsideMask );
+		targetMask.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
 
 		for (final Patch patch : patches) {
 			final Patch.PatchImage pai = patch.createTransformedImage();
 			final ColorProcessor fp = (ColorProcessor) pai.target.convertToRGB();
 			final ByteProcessor alpha;
-			final ByteProcessor outside;
 			
 			System.out.println("IMAGE:" + patch.getTitle());
 			System.out.println("mask: " + pai.mask);
 			System.out.println("outside: " + pai.outside);
 			
 			if ( null == pai.mask ) {
-				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight() );
-				Arrays.fill( ( byte[] )alpha.getPixels(), (byte)255 ); // fully opaque
+				if ( null == pai.outside ) {
+					alpha = new ByteProcessor( fp.getWidth(), fp.getHeight() );
+					Arrays.fill( ( byte[] )alpha.getPixels(), (byte)255 ); // fully opaque
+				} else {
+					alpha = pai.outside;
+				}
 			} else {
 				alpha = pai.mask;
-			}
-			
-			if ( null == pai.outside ) {
-				outside = new ByteProcessor( fp.getWidth(), fp.getHeight() );
-				Arrays.fill( ( byte[] )outside.getPixels(), (byte)0 ); // fully transparent
-			} else {
-				outside = pai.outside;
 			}
 
 			// The affine to apply
@@ -190,7 +183,7 @@ public class ExportARGB {
 			fp.setInterpolationMethod( ImageProcessor.BILINEAR );
 			alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR ); // no interpolation
 			
-			mapping.mapInterpolated( new ImageProcessorWithMasks( fp, alpha, outside ), targets );
+			mapping.map( fp, alpha, target, targetMask );
 		}
 		
 		return new Pair< ColorProcessor, ByteProcessor >( target, targetMask );
