@@ -17,6 +17,7 @@
 package mpicbg.trakem2.transform;
 
 import ij.process.ByteProcessor;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 
@@ -341,6 +342,9 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 		}
 	}
 
+	/**
+	 * Does not do alpha composition.
+	 */
 	final static protected void mapTriangleInterpolated(
 			final TransformMesh m,
 			final AffineModel2D ai,
@@ -389,6 +393,7 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 						//e.printStackTrace( System.err );
 						continue;
 					}
+					// Does not do alpha composition
 					target.set( x, y, source.getPixelInterpolated( t[ 0 ], t[ 1 ] ) );
 					targetOutside.set( x, y, 0xff );
 					targetMask.set( x, y, sourceMask.getPixelInterpolated( t[ 0 ], t[ 1 ] ) );
@@ -396,7 +401,6 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
-
 
 	final static protected void mapShortAlphaTriangle(
 			final TransformMesh m,
@@ -609,5 +613,191 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			final ShortProcessor target )
 	{
 		map( source, alpha, target, Runtime.getRuntime().availableProcessors() );
+	}
+	
+	
+	/**
+	 * Render source into master using alpha composition.
+	 * Interpolation is specified by the interpolation methods
+	 * set in source and alpha.
+	 * 
+	 * Mapping for color images with alpha composition.
+	 * 
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 * @param targetMask
+	 */
+	final public void map(
+			final ColorProcessor source,
+			final ByteProcessor alpha,
+			final ColorProcessor target,
+			final ByteProcessor targetMask )
+	{
+		map( source, alpha, target, targetMask, Runtime.getRuntime().availableProcessors() );
+	}
+	
+	/**
+	 * Render source into master using alpha composition.
+	 * Interpolation is specified by the interpolation methods
+	 * set in source and alpha.
+	 * 
+	 * Mapping for color images with alpha composition.
+	 * 
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 * @param targetMask
+	 * @param numThreads
+	 */
+	final public void map(
+			final ColorProcessor source,
+			final ByteProcessor alpha,
+			final ColorProcessor target,
+			final ByteProcessor targetMask,
+			final int numThreads )
+	{
+		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
+		l.addAll( transform.getAV().keySet() );
+		final AtomicInteger i = new AtomicInteger( 0 );
+		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+		for ( int k = 0; k < numThreads; ++k )
+		{
+			final Thread mtt = new MapColorAlphaTriangleThread( i, l, transform, source, alpha, target, targetMask );
+			threads.add( mtt );
+			mtt.start();
+		}
+		for ( final Thread mtt : threads )
+		{
+			try
+			{
+				mtt.join();
+			}
+			catch ( final InterruptedException e ) {}
+		}
+	}
+	
+	/**
+	 * Mapping for color images with alpha composition.
+	 *
+	 */
+	final static private class MapColorAlphaTriangleThread extends Thread
+	{
+		final private AtomicInteger i;
+		final private List< AffineModel2D > triangles;
+		final private TransformMesh transform;
+		final ColorProcessor source, target;
+		final ByteProcessor alpha, targetMask;
+		MapColorAlphaTriangleThread(
+				final AtomicInteger i,
+				final List< AffineModel2D > triangles,
+				final TransformMesh transform,
+				final ColorProcessor source,
+				final ByteProcessor alpha,
+				final ColorProcessor target,
+				final ByteProcessor targetMask )
+		{
+			this.i = i;
+			this.triangles = triangles;
+			this.transform = transform;
+			this.source = source;
+			this.alpha = alpha;
+			this.target = target;
+			this.targetMask = targetMask;
+		}
+
+		@Override
+		final public void run()
+		{
+			int k = i.getAndIncrement();
+			while ( !isInterrupted() && k < triangles.size() )
+			{
+				mapColorAlphaTriangle( transform, triangles.get( k ), source, alpha, target, targetMask );
+				k = i.getAndIncrement();
+			}
+		}
+	}
+	/**
+	 * Mapping for color images with alpha composition.
+	 * 
+	 * @param m
+	 * @param ai
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 * @param targetMask
+	 */
+	final static protected void mapColorAlphaTriangle(
+			final TransformMesh m,
+			final AffineModel2D ai,
+			final ColorProcessor source,
+			final ByteProcessor alpha,
+			final ColorProcessor target,
+			final ByteProcessor targetMask )
+	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
+		final ArrayList< PointMatch > pm = m.getAV().get( ai );
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
+		calculateBoundingBox( pm, min, max );
+
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
+
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
+		for ( int y = minY; y <= maxY; ++y )
+		{
+			for ( int x = minX; x <= maxX; ++x )
+			{
+				if ( isInTriangle( ax, ay, bx, by, cx, cy, x, y ) )
+				{
+					t[ 0 ] = x;
+					t[ 1 ] = y;
+					try
+					{
+						ai.applyInverseInPlace( t );
+					}
+					catch ( final Exception e )
+					{
+						//e.printStackTrace( System.err );
+						continue;
+					}
+					final int is = source.getPixelInterpolated( t[ 0 ], t[ 1 ] );
+					final int it = target.get( x, y );
+					final double f_raw = alpha.getPixelInterpolated( t[ 0 ], t[ 1 ] ),
+							     f = f_raw / 255;
+					
+					final int is_r = (is & 0x00ff0000) >> 16,
+					          is_g = (is & 0x0000ff00) >>  8,
+					          is_b =  is & 0x000000ff       ;
+			
+					final int it_r = (it & 0x00ff0000) >> 16,
+				              it_g = (it & 0x0000ff00) >>  8,
+				              it_b =  it & 0x000000ff       ;
+		
+					//final double v = it + f  * ( is - it );
+					final int v =  (((int) Math.min( Math.max( Math.round( it_r + f * ( is_r - it_r ) ), 0), 255) ) << 16)
+							     | (((int) Math.min( Math.max( Math.round( it_g + f * ( is_g - it_g ) ), 0), 255) ) <<  8)
+							     |  ((int) Math.min( Math.max( Math.round( it_b + f * ( is_b - it_b ) ), 0), 255) )       ;
+		
+					//target.set( x, y, ( int )Math.max(  0, Math.min( 65535, Math.round( v ) ) ) );
+					target.set( x, y, v );
+					
+					targetMask.set( x, y, (int) Math.min( Math.max(f_raw, targetMask.get( x, y ) ), 255 ) );
+				}
+			}
+		}
 	}
 }
