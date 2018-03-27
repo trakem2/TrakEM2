@@ -2758,8 +2758,18 @@ while (it.hasNext()) {
 	 * @param active Whether to paint a particular Displayable instance in an active state (as if it was selected in the UI).
 	 * @return
 	 */
-	public Image getFlatAWTImage(final Layer layer, final Rectangle srcRect_, final double scale, final int c_alphas, final int type, final Class<?> clazz, List<? extends Displayable> al_displ, boolean quality, final Color background, final Displayable active) {
-
+	public Image getFlatAWTImage(
+			final Layer layer,
+			final Rectangle srcRect_,
+			final double scale,
+			final int c_alphas,
+			final int type,
+			final Class<?> clazz,
+			List<? extends Displayable> al_displ,
+			boolean quality,
+			final Color background,
+			final Displayable active)
+	{
 		try {
 			// dimensions
 			int w = 0;
