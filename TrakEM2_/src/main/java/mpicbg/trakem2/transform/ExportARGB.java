@@ -56,11 +56,8 @@ public class ExportARGB {
 		final int width = (int)(roi.width * scale);
 		final int height = (int)(roi.height * scale);
 		// Process the three channels separately in order to use proper alpha composition
-		final ShortProcessor[] target = new ShortProcessor[3];
-		for (int i=0; i<3; ++i) {
-			target[i] = new ShortProcessor( width, height );
-			target[i].setInterpolationMethod( ImageProcessor.BILINEAR );
-		}
+		final ColorProcessor target = new ColorProcessor( width, height );
+		target.setInterpolationMethod( ImageProcessor.BILINEAR );
 		final ByteProcessor targetMask = new ByteProcessor( width, height );
 		targetMask.setInterpolationMethod( ImageProcessor.BILINEAR );
 
@@ -93,39 +90,18 @@ public class ExportARGB {
 			// YES: the alpha, containing the outside too. All fine.
 			
 			final ByteProcessor alpha;
-			final ShortProcessor[] rgb = new ShortProcessor[3];
+			final ColorProcessor rgb = new ColorProcessor( bi.getWidth(), bi.getHeight(), pix );
 			
 			if ( patch.hasAlphaChannel() ) {
 				// The mipMap has the alpha channel in it, even if the alpha is pre-multiplied as well onto the images.
 				final byte[]  a = new byte[pix.length];
-				final short[] r = new short[pix.length],
-					          g = new short[pix.length],
-					          b = new short[pix.length];
 				for (int i=0; i<a.length; ++i) {
 					a[i] = (byte )((pix[i] & 0xff000000) >> 24);
-					r[i] = (short)((pix[i] & 0x00ff0000) >> 16);
-					g[i] = (short)((pix[i] & 0x0000ff00) >>  8);
-					b[i] = (short)( pix[i] & 0x000000ff       );
 				}
 				alpha = new ByteProcessor(bi.getWidth(), bi.getHeight(), a);
-				rgb[0] = new ShortProcessor(bi.getWidth(), bi.getHeight(), r, null);
-				rgb[1] = new ShortProcessor(bi.getWidth(), bi.getHeight(), g, null);
-				rgb[2] = new ShortProcessor(bi.getWidth(), bi.getHeight(), b, null);
 			} else {
-				final byte[]  a = new byte[pix.length];
-				final short[] r = new short[pix.length],
-					          g = new short[pix.length],
-					          b = new short[pix.length];
-				for (int i=0; i<a.length; ++i) {
-					a[i] = (byte)255; // full opacity
-					r[i] = (short)((pix[i] & 0x00ff0000) >> 16);
-					g[i] = (short)((pix[i] & 0x0000ff00) >>  8);
-					b[i] = (short)( pix[i] & 0x000000ff       );
-				}
-				alpha = new ByteProcessor(bi.getWidth(), bi.getHeight(), a);
-				rgb[0] = new ShortProcessor(bi.getWidth(), bi.getHeight(), r, null);
-				rgb[1] = new ShortProcessor(bi.getWidth(), bi.getHeight(), g, null);
-				rgb[2] = new ShortProcessor(bi.getWidth(), bi.getHeight(), b, null);
+				alpha = new ByteProcessor( bi.getWidth(), bi.getHeight() );
+				Arrays.fill( (byte[]) alpha.getPixels(), (byte)255 );
 			}
 
 			// The affine to apply to the MipMap.image
@@ -145,26 +121,11 @@ public class ExportARGB {
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
 			
 			alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR ); // no interpolation
-			for (int i=0; i<3; ++i) {
-				rgb[i].setInterpolationMethod( ImageProcessor.BILINEAR );
-				mapping.map(rgb[i], alpha, target[i]); // with interpolation and alpha composition
-				mapping.map(alpha, targetMask); // without interpolation
-			}
+			rgb.setInterpolationMethod( ImageProcessor.BILINEAR );
+			mapping.map(rgb, alpha, target, targetMask);
 		}
 		
-		final int[] pix = new int[width * height];
-		final short[] rp = (short[]) target[0].getPixels();
-		final short[] gp = (short[]) target[1].getPixels();
-		final short[] bp = (short[]) target[2].getPixels();
-		
-		for (int i=0; i<pix.length; ++i) {
-			int r = Math.min(Math.max(rp[i], 0), 255),
-			    g = Math.min(Math.max(gp[i], 0), 255),
-			    b = Math.min(Math.max(bp[i], 0), 255);
-			pix[i] = (r << 16) | (g << 8) | b;
-		}
-		
-		return new Pair< ColorProcessor, ByteProcessor >( new ColorProcessor(width, height, pix), targetMask );
+		return new Pair< ColorProcessor, ByteProcessor >( target, targetMask );
 	}
 	
 	/**
