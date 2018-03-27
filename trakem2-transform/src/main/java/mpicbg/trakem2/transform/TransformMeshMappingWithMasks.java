@@ -776,8 +776,8 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					}
 					final int is = source.getPixelInterpolated( t[ 0 ], t[ 1 ] );
 					final int it = target.get( x, y );
-					final double f_raw = alpha.getPixelInterpolated( t[ 0 ], t[ 1 ] ),
-							     f = f_raw / 255;
+					final int f_raw = alpha.getPixelInterpolated( t[ 0 ], t[ 1 ] );
+					final double f = f_raw / 255.0;
 					
 					final int is_r = (is & 0x00ff0000) >> 16,
 					          is_g = (is & 0x0000ff00) >>  8,
@@ -795,7 +795,11 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 					//target.set( x, y, ( int )Math.max(  0, Math.min( 65535, Math.round( v ) ) ) );
 					target.set( x, y, v );
 					
-					targetMask.set( x, y, (int) Math.min( Math.max(f_raw, targetMask.get( x, y ) ), 255 ) );
+					targetMask.set( x, y, Math.min( Math.max( f_raw, targetMask.get( x, y ) ), 255 ) );
+				}
+			}
+		}
+	}
 				}
 			}
 		}
