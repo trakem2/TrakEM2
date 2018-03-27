@@ -12,6 +12,7 @@ import java.util.List;
 import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
 import ini.trakem2.persistence.Loader;
@@ -52,11 +53,16 @@ public class ExportARGB {
 	static public final Pair< ColorProcessor, ByteProcessor > makeFlatImageARGBFromMipMaps(
 			final List<Patch> patches, final Rectangle roi, final double backgroundValue, final double scale)
 	{
-		final ColorProcessor target = new ColorProcessor((int)(roi.width * scale), (int)(roi.height * scale));
-		target.setInterpolationMethod( ImageProcessor.BILINEAR );
-		final ByteProcessor targetMask = new ByteProcessor( target.getWidth(), target.getHeight() );
+		final int width = (int)(roi.width * scale);
+		final int height = (int)(roi.height * scale);
+		// Process the three channels separately in order to use proper alpha composition
+		final ShortProcessor[] target = new ShortProcessor[3];
+		for (int i=0; i<3; ++i) {
+			target[i] = new ShortProcessor( width, height );
+			target[i].setInterpolationMethod( ImageProcessor.BILINEAR );
+		}
+		final ByteProcessor targetMask = new ByteProcessor( width, height );
 		targetMask.setInterpolationMethod( ImageProcessor.BILINEAR );
-		final ImageProcessorWithMasks targets = new ImageProcessorWithMasks( target, targetMask, null );
 
 		final Loader loader = patches.get(0).getProject().getLoader();
 
@@ -65,29 +71,61 @@ public class ExportARGB {
 			// MipMap image, already including any coordinate transforms and the alpha mask (if any), by definition.
 			final MipMapImage mipMap = loader.fetchImage(patch, scale);
 			
+			/// DEBUG: is there an alpha channel at all?
+			//new ij.ImagePlus("alpha of " + patch.getTitle(), new ByteProcessor( mipMap.image.getWidth(null), mipMap.image.getHeight(null), new ColorProcessor( mipMap.image ).getChannel( 4 ))).show();
+			// Yes, there is, even though the mipmap images have the alpha pre-multiplied
+			
 			// Work-around strange bug that makes mipmap-loaded images paint with 7-bit depth instead of 8-bit depth
 			final BufferedImage bi = new BufferedImage(mipMap.image.getWidth(null), mipMap.image.getHeight(null), BufferedImage.TYPE_INT_ARGB);
-			final Graphics2D g = bi.createGraphics();
-			g.drawImage(mipMap.image, 0, 0, null);
-			g.dispose();
+			final Graphics2D g2d = bi.createGraphics();
+			g2d.drawImage(mipMap.image, 0, 0, null);
+			g2d.dispose();
 			
 			final int[] pix = extractARGBIntArray(bi);
-			final ColorProcessor fp = new ColorProcessor( mipMap.image.getWidth(null), mipMap.image.getHeight(null), pix );
-			final ByteProcessor alpha;
-			
 			bi.flush();
 			
+			// DEBUG: does the BufferedImage have the alpha channel?
+			//{
+			//	final byte[] aa = new byte[pix.length];
+			//	for (int i=0; i<aa.length; ++i) aa[i] = (byte)((pix[i] & 0xff000000) >> 24);
+			//	new ij.ImagePlus("alpha of BI of " + patch.getTitle(), new ByteProcessor(bi.getWidth(), bi.getHeight(), aa)).show();
+			//}
+			// YES: the alpha, containing the outside too. All fine.
+			
+			final ByteProcessor alpha;
+			final ShortProcessor[] rgb = new ShortProcessor[3];
+			
 			if ( patch.hasAlphaChannel() ) {
-				// ERROR TODO: for some reason, the alpha channel is not present in the mipmap? Neither in mipMap.image nor in bi.
-				// TODO: likely explanation is that mipmaps have the alpha pre-multiplied.
-				//       Mipmaps should not be used for this when there are alpha masks (either a proper alpha mask or an outside from a CoordinateTransform).
-				final byte[] pixa = new byte[pix.length];
-				for (int i=0; i<pixa.length; ++i) pixa[i] = (byte)((pix[i] & 0xff000000) >> 24);
-				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight(), pixa ); // fp.getChannel( 4 ) does not include the alpha for some reason
+				// The mipMap has the alpha channel in it, even if the alpha is pre-multiplied as well onto the images.
+				final byte[]  a = new byte[pix.length];
+				final short[] r = new short[pix.length],
+					          g = new short[pix.length],
+					          b = new short[pix.length];
+				for (int i=0; i<a.length; ++i) {
+					a[i] = (byte )((pix[i] & 0xff000000) >> 24);
+					r[i] = (short)((pix[i] & 0x00ff0000) >> 16);
+					g[i] = (short)((pix[i] & 0x0000ff00) >>  8);
+					b[i] = (short)( pix[i] & 0x000000ff       );
+				}
+				alpha = new ByteProcessor(bi.getWidth(), bi.getHeight(), a);
+				rgb[0] = new ShortProcessor(bi.getWidth(), bi.getHeight(), r, null);
+				rgb[1] = new ShortProcessor(bi.getWidth(), bi.getHeight(), g, null);
+				rgb[2] = new ShortProcessor(bi.getWidth(), bi.getHeight(), b, null);
 			} else {
-				// The default: full opacity
-				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight() );
-				Arrays.fill( ( byte[] )alpha.getPixels(), (byte)255 );
+				final byte[]  a = new byte[pix.length];
+				final short[] r = new short[pix.length],
+					          g = new short[pix.length],
+					          b = new short[pix.length];
+				for (int i=0; i<a.length; ++i) {
+					a[i] = (byte)255; // full opacity
+					r[i] = (short)((pix[i] & 0x00ff0000) >> 16);
+					g[i] = (short)((pix[i] & 0x0000ff00) >>  8);
+					b[i] = (short)( pix[i] & 0x000000ff       );
+				}
+				alpha = new ByteProcessor(bi.getWidth(), bi.getHeight(), a);
+				rgb[0] = new ShortProcessor(bi.getWidth(), bi.getHeight(), r, null);
+				rgb[1] = new ShortProcessor(bi.getWidth(), bi.getHeight(), g, null);
+				rgb[2] = new ShortProcessor(bi.getWidth(), bi.getHeight(), b, null);
 			}
 
 			// The affine to apply to the MipMap.image
@@ -103,16 +141,30 @@ public class ExportARGB {
 			final AffineModel2D aff = new AffineModel2D();
 			aff.set( at );
 			
-			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( aff, patch.getMeshResolution(), fp.getWidth(), fp.getHeight() );
+			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( aff, patch.getMeshResolution(), bi.getWidth(), bi.getHeight() );
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
 			
-			fp.setInterpolationMethod( ImageProcessor.BILINEAR );
 			alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR ); // no interpolation
-			
-			mapping.mapInterpolated( new ImageProcessorWithMasks( fp, alpha, null), targets );
+			for (int i=0; i<3; ++i) {
+				rgb[i].setInterpolationMethod( ImageProcessor.BILINEAR );
+				mapping.map(rgb[i], alpha, target[i]); // with interpolation and alpha composition
+				mapping.map(alpha, targetMask); // without interpolation
+			}
 		}
 		
-		return new Pair< ColorProcessor, ByteProcessor >( target, targetMask );
+		final int[] pix = new int[width * height];
+		final short[] rp = (short[]) target[0].getPixels();
+		final short[] gp = (short[]) target[1].getPixels();
+		final short[] bp = (short[]) target[2].getPixels();
+		
+		for (int i=0; i<pix.length; ++i) {
+			int r = Math.min(Math.max(rp[i], 0), 255),
+			    g = Math.min(Math.max(gp[i], 0), 255),
+			    b = Math.min(Math.max(bp[i], 0), 255);
+			pix[i] = (r << 16) | (g << 8) | b;
+		}
+		
+		return new Pair< ColorProcessor, ByteProcessor >( new ColorProcessor(width, height, pix), targetMask );
 	}
 	
 	/**
@@ -131,32 +183,32 @@ public class ExportARGB {
 		target.setInterpolationMethod( ImageProcessor.BILINEAR );
 		final ByteProcessor targetMask = new ByteProcessor( target.getWidth(), target.getHeight() );
 		targetMask.setInterpolationMethod( ImageProcessor.BILINEAR );
-		final ImageProcessorWithMasks targets = new ImageProcessorWithMasks( target, targetMask, null );
+		final ByteProcessor outsideMask = new ByteProcessor( target.getWidth(), target.getHeight() );
+		outsideMask.setInterpolationMethod( ImageProcessor.BILINEAR );
+		final ImageProcessorWithMasks targets = new ImageProcessorWithMasks( target, targetMask, outsideMask );
 
 		for (final Patch patch : patches) {
 			final Patch.PatchImage pai = patch.createTransformedImage();
 			final ColorProcessor fp = (ColorProcessor) pai.target.convertToRGB();
 			final ByteProcessor alpha;
-						
-			if ( patch.hasAlphaChannel() ) {
-				// One of the two must be non-null, or both are non-null
-				if (null == pai.outside) alpha = pai.mask;
-				else if (null == pai.mask) alpha = pai.outside;
-				else {
-					// combine
-					final byte[] pm = (byte[]) pai.mask.getPixels(),
-							     po = (byte[]) pai.mask.getPixels(),
-							     pmo = new byte[pm.length];
-					for (int i=0; i<pm.length; ++i) {
-						// Pick the largest alpha value
-						pmo[i] = (pm[i] & 0xff) > (po[i] & 0xff) ? pm[i] : po[i];
-					}
-					alpha = new ByteProcessor(fp.getWidth(), fp.getHeight(), pmo);
-				}
-			} else {
-				// The default: full opacity
+			final ByteProcessor outside;
+			
+			System.out.println("IMAGE:" + patch.getTitle());
+			System.out.println("mask: " + pai.mask);
+			System.out.println("outside: " + pai.outside);
+			
+			if ( null == pai.mask ) {
 				alpha = new ByteProcessor( fp.getWidth(), fp.getHeight() );
-				Arrays.fill( ( byte[] )alpha.getPixels(), (byte)255 );
+				Arrays.fill( ( byte[] )alpha.getPixels(), (byte)255 ); // fully opaque
+			} else {
+				alpha = pai.mask;
+			}
+			
+			if ( null == pai.outside ) {
+				outside = new ByteProcessor( fp.getWidth(), fp.getHeight() );
+				Arrays.fill( ( byte[] )outside.getPixels(), (byte)0 ); // fully transparent
+			} else {
+				outside = pai.outside;
 			}
 
 			// The affine to apply
@@ -177,7 +229,7 @@ public class ExportARGB {
 			fp.setInterpolationMethod( ImageProcessor.BILINEAR );
 			alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR ); // no interpolation
 			
-			mapping.mapInterpolated( new ImageProcessorWithMasks( fp, alpha, null), targets );
+			mapping.mapInterpolated( new ImageProcessorWithMasks( fp, alpha, outside ), targets );
 		}
 		
 		return new Pair< ColorProcessor, ByteProcessor >( target, targetMask );
