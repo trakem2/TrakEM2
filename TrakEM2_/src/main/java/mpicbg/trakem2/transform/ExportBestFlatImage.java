@@ -83,19 +83,6 @@ public class ExportBestFlatImage
 		return finalBox.width * scale * finalBox.height * scale <= Math.pow(2, 31);
 	}
 	
-	/**
-	 * 
-	 * @return Whether mipmaps can be used for non-AWT images: only if all patches lack masks or coordinate transforms,
-	 *         because the alpha mask is premultiplied into the Image and can't be recovered.
-	 *         TODO Although I am not sure. Requires further exploration. There's also the issue of [0..1] vs [0..255] range.
-	 */
-	public boolean canUseMipMaps() {
-		for (final Patch p : patches) {
-			if ( p.hasAlphaChannel() ) return false;
-		}
-		return true;
-	}
-	
 	public void printInfo() {
 		System.out.println( "###\nExportBestFlatImage dimensions and quality scale " );
     	System.out.println( "srcRect w,h: " + finalBox.width + ", " + finalBox.height );
@@ -167,7 +154,7 @@ public class ExportBestFlatImage
 			return null;
 		}
 		
-		if ( loader.isMipMapsRegenerationEnabled() && canUseMipMaps() )
+		if ( loader.isMipMapsRegenerationEnabled() )
 		{
 			return ExportARGB.makeFlatImageARGBFromMipMaps( patches, finalBox, 0, scale );
 		}
@@ -187,10 +174,10 @@ public class ExportBestFlatImage
 	 * 
      * @return null when the dimensions make the array larger than 2GB, or the image otherwise.
     */
-	public FloatProcessor makeFlatGrayImage()
+	public ByteProcessor makeFlatGrayImage()
 	{
 		if ( canUseAWTImage() ) {
-			return (FloatProcessor) new ByteProcessor( createAWTImage( ImagePlus.GRAY8 ) ).convertToFloat();
+			return new ByteProcessor( createAWTImage( ImagePlus.GRAY8 ) );
 		}
 		
 		if ( !isSmallerThan2GB() ) {
@@ -198,11 +185,11 @@ public class ExportBestFlatImage
 			return null;
 		}
 		
-		if ( loader.isMipMapsRegenerationEnabled() && canUseMipMaps() )
+		if ( loader.isMipMapsRegenerationEnabled() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
 			// (TODO waste: generates an alpha mask that is then not used)
-			return ExportUnsignedByte.makeFlatImageFloat( patches, finalBox, 0, scale ).a;
+			return ExportUnsignedByte.makeFlatImage( patches, finalBox, 0, scale ).a;
 		}
 		
 		// Else: no mipmaps
@@ -213,16 +200,16 @@ public class ExportBestFlatImage
     	// using ExportUnsignedShort which works without mipmaps and allows not generating an alpha
 		// and then Gaussian downsampling to the target dimensions
 
-    	return gaussianDownsampled( convertToFloat( ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, false ).a ) );
+    	return gaussianDownsampled( convertToFloat( ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, false ).a ) ).convertToByteProcessor();
 	}
 	
 	/**
-	 * @return Both the image and its alpha mask, as FloatProcessor instances, or null when dimensions make the array larger than 2GB.
+	 * @return Return null when dimensions make the array larger than 2GB.
 	 */
-	public Pair<FloatProcessor, FloatProcessor> makeFlatGrayImageAndAlpha()
+	public Pair<ByteProcessor, ByteProcessor> makeFlatGrayImageAndAlpha()
 	{
 		if ( canUseAWTImage() ) {
-			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // to preserve the alpha channel present in mipmaps
+			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // In color to preserve the alpha channel present in mipmaps
 			final int width = img.getWidth(null);
 			final int height = img.getHeight(null);
 			final int[] pixels = new int[width * height];
@@ -232,20 +219,20 @@ public class ExportBestFlatImage
 				pg.grabPixels();
 			} catch (InterruptedException e){};
 			
-			final float[] grey = new float[pixels.length];
-			final float[] alpha = new float[pixels.length];
+			final byte[] grey =  new byte[pixels.length];
+			final byte[] alpha = new byte[pixels.length];
 			
 			for (int i=0; i< pixels.length; ++i) {
 				final int p = pixels[i];
-				alpha[i] =   (p & 0xff000000) >> 24;
-				grey[i] =  (((p & 0x00ff0000) >> 16)
-                          + ((p & 0x0000ff00) >>  8)
-                          +  (p & 0x000000ff       ) ) / 3f;
+				alpha[i] = (byte) ((p & 0xff000000) >> 24);
+				grey[i] =  (byte)((((p & 0x00ff0000) >> 16)
+                                 + ((p & 0x0000ff00) >>  8)
+                                 +  (p & 0x000000ff       ) ) / 3f);
 			}
 			
-			return new Pair<FloatProcessor, FloatProcessor>(
-					new FloatProcessor(width, height, grey, null ),
-					new FloatProcessor( width, height, alpha, null ) );
+			return new Pair<ByteProcessor, ByteProcessor>(
+					new ByteProcessor(width, height, grey, null ),
+					new ByteProcessor( width, height, alpha, null ) );
 		}
 		
 		if ( !isSmallerThan2GB() ) {
@@ -253,10 +240,10 @@ public class ExportBestFlatImage
 			return null;
 		}
 		
-		if ( loader.isMipMapsRegenerationEnabled() && canUseMipMaps() )
+		if ( loader.isMipMapsRegenerationEnabled() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
-			return ExportUnsignedByte.makeFlatImageFloat( patches, finalBox, 0, scale );
+			return ExportUnsignedByte.makeFlatImage( patches, finalBox, 0, scale );
 		}
 		
 		// Else: no mipmaps
@@ -271,8 +258,8 @@ public class ExportBestFlatImage
 		loader.releaseAll();
 		
 		final Pair<ShortProcessor, ByteProcessor> pair = ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, true );
-		return new Pair<FloatProcessor, FloatProcessor>(
-				gaussianDownsampled( (FloatProcessor) pair.a.convertToFloat() ),
-				gaussianDownsampled( (FloatProcessor) pair.b.convertToFloat() ) );
+		return new Pair<ByteProcessor, ByteProcessor>(
+				gaussianDownsampled( pair.a.convertToFloatProcessor() ).convertToByteProcessor(),
+				gaussianDownsampled( pair.b.convertToFloatProcessor() ).convertToByteProcessor() );
 	}
 }

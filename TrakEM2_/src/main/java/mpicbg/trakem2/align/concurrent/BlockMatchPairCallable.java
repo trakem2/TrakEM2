@@ -238,14 +238,16 @@ public class BlockMatchPairCallable implements
     	if ( layer.getProject().getLoader().isMipMapsRegenerationEnabled() )
     	{
     		// Use mipmaps directly at the correct image size
-    		final Pair< FloatProcessor, FloatProcessor > pair = ExportUnsignedByte.makeFlatImageFloat( patches, box, 0, scale );
+    		final Pair< ByteProcessor, ByteProcessor > pair = ExportUnsignedByte.makeFlatImage( patches, box, 0, scale );
     		
     		// Map alpha to [0..1]
-            final float[] alpha = ( float[] ) pair.b.getPixels();
-            for ( int i=0; i<alpha.length; ++i )
-            	alpha[i] = alpha[i] / 255.0f; // WARNING: makeFlatImageFloat already does this.
+    		final FloatProcessor alpha = new FloatProcessor( pair.b.getWidth(), pair.b.getHeight() );
+            final byte[] a = ( byte[] ) pair.b.getPixels();
+            final float[] f = ( float[] ) alpha.getPixels();
+            for ( int i=0; i<a.length; ++i )
+            	f[i] = (a[i] & 0xff) / 255.0f;
     		
-    		return pair;
+    		return new Pair<FloatProcessor, FloatProcessor>( pair.a.convertToFloatProcessor(), alpha );
     	}
     	
     	// Else, no mipmaps, and image smaller than 2 GB:
@@ -259,8 +261,11 @@ public class BlockMatchPairCallable implements
     	final double scaleUP = Math.min(1.0, box.height / Math.sqrt( max_area / ( box.width / ( float ) (box.height) )));
     	
     	// Generate an image at the upper scale
-    	// using ExportUnsignedShort which works without mipmaps
-    	final Pair< FloatProcessor, FloatProcessor> pair = new ExportBestFlatImage( patches, box, 0, scaleUP ).makeFlatGrayImageAndAlpha();
+    	// without using mipmaps
+    	Pair< ByteProcessor, ByteProcessor> pair = new ExportBestFlatImage( patches, box, 0, scaleUP ).makeFlatGrayImageAndAlpha();
+    	final FloatProcessor image = pair.a.convertToFloatProcessor();
+    	final FloatProcessor alpha = pair.b.convertToFloatProcessor();
+    	pair = null;
 
     	patches.get(0).getProject().getLoader().releaseAll();
     	
@@ -273,20 +278,20 @@ public class BlockMatchPairCallable implements
     	final double sigma = s * max_dimension_source / max_dimension_target - s * s ;
 
     	Utils.log("Gaussian downsampling. If this is slow, check the number of threads in the plugin preferences.");
-    	new GaussianBlur().blurFloat( pair.a, sigma, sigma, 0.0002 );
-    	new GaussianBlur().blurFloat( pair.b, sigma, sigma, 0.0002 );
+    	new GaussianBlur().blurFloat( image, sigma, sigma, 0.0002 );
+    	new GaussianBlur().blurFloat( alpha, sigma, sigma, 0.0002 );
 
-    	pair.a.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
-    	pair.b.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
+    	image.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
+    	alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
     	
     	// Map alpha to [0..1]
-    	final FloatProcessor alpha_fp = ( FloatProcessor ) pair.b.resize( ( int ) Math.ceil( box.width * scale ), ( int ) Math.ceil( box.height * scale ) );
+    	final FloatProcessor alpha_fp = ( FloatProcessor ) alpha.resize( ( int ) Math.ceil( box.width * scale ), ( int ) Math.ceil( box.height * scale ) );
         final float[] alphaPix = ( float[] ) alpha_fp.getPixels();
         for ( int i=0; i<alphaPix.length; ++i )
         	alphaPix[i] = alphaPix[i] / 255.0f;
 
     	return new Pair< FloatProcessor, FloatProcessor >(
-    			( FloatProcessor ) pair.a.resize( ( int ) Math.ceil( box.width * scale ), ( int ) Math.ceil( box.height * scale ) ),
+    			( FloatProcessor ) image.resize( ( int ) Math.ceil( box.width * scale ), ( int ) Math.ceil( box.height * scale ) ),
     			alpha_fp );
     }
 }

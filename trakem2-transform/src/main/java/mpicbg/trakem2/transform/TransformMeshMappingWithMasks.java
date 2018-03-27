@@ -800,6 +800,154 @@ public class TransformMeshMappingWithMasks< T extends TransformMesh > extends mp
 			}
 		}
 	}
+	
+	/**
+	 * Render source into target using alpha composition.
+	 * Interpolation is specified by the interpolation methods
+	 * set in source and alpha.
+	 *
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 * @param numThreads
+	 */
+	final public void map(
+			final ByteProcessor source,
+			final ByteProcessor alpha,
+			final ByteProcessor target,
+			final ByteProcessor targetMask,
+			final int numThreads )
+	{
+		final List< AffineModel2D > l = new ArrayList< AffineModel2D >();
+		l.addAll( transform.getAV().keySet() );
+		final AtomicInteger i = new AtomicInteger( 0 );
+		final ArrayList< Thread > threads = new ArrayList< Thread >( numThreads );
+		for ( int k = 0; k < numThreads; ++k )
+		{
+			final Thread mtt = new MapByteAlphaTriangleThread( i, l, transform, source, alpha, target, targetMask );
+			threads.add( mtt );
+			mtt.start();
+		}
+		for ( final Thread mtt : threads )
+		{
+			try
+			{
+				mtt.join();
+			}
+			catch ( final InterruptedException e ) {}
+		}
+	}
+
+
+	/**
+	 * Render source into master using alpha composition.
+	 * Interpolation is specified by the interpolation methods
+	 * set in source and alpha.
+	 *
+	 * @param source
+	 * @param alpha
+	 * @param target
+	 */
+	final public void map(
+			final ByteProcessor source,
+			final ByteProcessor alpha,
+			final ByteProcessor target,
+			final ByteProcessor targetMask )
+	{
+		map( source, alpha, target, targetMask, Runtime.getRuntime().availableProcessors() );
+	}
+	
+	final static private class MapByteAlphaTriangleThread extends Thread
+	{
+		final private AtomicInteger i;
+		final private List< AffineModel2D > triangles;
+		final private TransformMesh transform;
+		final ByteProcessor source, target;
+		final ByteProcessor alpha, targetMask;
+		MapByteAlphaTriangleThread(
+				final AtomicInteger i,
+				final List< AffineModel2D > triangles,
+				final TransformMesh transform,
+				final ByteProcessor source,
+				final ByteProcessor alpha,
+				final ByteProcessor target,
+				final ByteProcessor targetMask )
+		{
+			this.i = i;
+			this.triangles = triangles;
+			this.transform = transform;
+			this.source = source;
+			this.alpha = alpha;
+			this.target = target;
+			this.targetMask = targetMask;
+		}
+
+		@Override
+		final public void run()
+		{
+			int k = i.getAndIncrement();
+			while ( !isInterrupted() && k < triangles.size() )
+			{
+				mapByteAlphaTriangle( transform, triangles.get( k ), source, alpha, target, targetMask );
+				k = i.getAndIncrement();
+			}
+		}
+	}
+	
+	final static protected void mapByteAlphaTriangle(
+			final TransformMesh m,
+			final AffineModel2D ai,
+			final ByteProcessor source,
+			final ByteProcessor alpha,
+			final ByteProcessor target,
+			final ByteProcessor targetMask )
+	{
+		final int w = target.getWidth() - 1;
+		final int h = target.getHeight() - 1;
+		final ArrayList< PointMatch > pm = m.getAV().get( ai );
+		final double[] min = new double[ 2 ];
+		final double[] max = new double[ 2 ];
+		calculateBoundingBox( pm, min, max );
+
+		final int minX = Math.max( 0, Util.roundPos( min[ 0 ] ) );
+		final int minY = Math.max( 0, Util.roundPos( min[ 1 ] ) );
+		final int maxX = Math.min( w, Util.roundPos( max[ 0 ] ) );
+		final int maxY = Math.min( h, Util.roundPos( max[ 1 ] ) );
+
+		final double[] a = pm.get( 0 ).getP2().getW();
+		final double ax = a[ 0 ];
+		final double ay = a[ 1 ];
+		final double[] b = pm.get( 1 ).getP2().getW();
+		final double bx = b[ 0 ];
+		final double by = b[ 1 ];
+		final double[] c = pm.get( 2 ).getP2().getW();
+		final double cx = c[ 0 ];
+		final double cy = c[ 1 ];
+		final double[] t = new double[ 2 ];
+		for ( int y = minY; y <= maxY; ++y )
+		{
+			for ( int x = minX; x <= maxX; ++x )
+			{
+				if ( isInTriangle( ax, ay, bx, by, cx, cy, x, y ) )
+				{
+					t[ 0 ] = x;
+					t[ 1 ] = y;
+					try
+					{
+						ai.applyInverseInPlace( t );
+					}
+					catch ( final Exception e )
+					{
+						//e.printStackTrace( System.err );
+						continue;
+					}
+					final int is = source.getPixelInterpolated( t[ 0 ], t[ 1 ] );
+					final int it = target.get( x, y );
+					final int f_raw = alpha.getPixelInterpolated( t[ 0 ], t[ 1 ] );
+					final double f = f_raw / 255.0;
+					final double v = it + f  * ( is - it );
+					target.set( x, y, ( int )Math.max(  0, Math.min( 255, Math.round( v ) ) ) );
+					targetMask.set( x, y, Math.min( Math.max( f_raw, targetMask.get( x, y ) ), 255 ) );
 				}
 			}
 		}
