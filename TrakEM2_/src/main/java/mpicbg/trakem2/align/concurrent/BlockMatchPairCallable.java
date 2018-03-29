@@ -1,19 +1,9 @@
 package mpicbg.trakem2.align.concurrent;
 
-import ij.ImagePlus;
-import ij.plugin.filter.GaussianBlur;
-import ij.process.ByteProcessor;
 import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
-import ini.trakem2.Project;
 import ini.trakem2.display.Layer;
 import ini.trakem2.display.Patch;
 import ini.trakem2.utils.Filter;
-import ini.trakem2.utils.Utils;
-
-import java.awt.Color;
-import java.awt.Image;
 import java.awt.Rectangle;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -31,8 +21,6 @@ import mpicbg.trakem2.align.AlignmentUtils;
 import mpicbg.trakem2.align.ElasticLayerAlignment;
 import mpicbg.trakem2.align.Util;
 import mpicbg.trakem2.transform.ExportBestFlatImage;
-import mpicbg.trakem2.transform.ExportUnsignedByte;
-import mpicbg.trakem2.transform.ExportUnsignedShort;
 import mpicbg.trakem2.util.Pair;
 import mpicbg.trakem2.util.Triple;
 
@@ -213,85 +201,14 @@ public class BlockMatchPairCallable implements
      */
     private Pair< FloatProcessor, FloatProcessor > makeFlatImage( final Layer layer, final List<Patch> patches, final Rectangle box, final double scale )
     {    	
-    	final long fullSize = box.width * box.height;
+    	final Pair< FloatProcessor, FloatProcessor > pair = new ExportBestFlatImage( patches, box, 0, scale ).makeFlatFloatGrayImageAndAlpha();
     	
-    	if ( fullSize < Math.pow(2, 29) && layer.getProject().getLoader().isMipMapsRegenerationEnabled() ) // 0.5 GB
-    	{
-    		// Will use an image 4x larger and then downscale with area averaging
-    		final Image img = layer.getProject().getLoader().getFlatAWTImage( layer, box, scale, -1, ImagePlus.GRAY8, Patch.class, patches, true, null, null );
-    		final FloatProcessor fp = new FloatProcessor( img.getWidth( null ), img.getHeight( null ) );
-    		final FloatProcessor alpha = new FloatProcessor( img.getWidth( null ), img.getHeight( null ) );
-    		
-    		Util.imageToFloatAndMask( img, fp, alpha ); // already maps alpha into the [0..1] range
-    		img.flush();
-    		
-    		return new Pair< FloatProcessor, FloatProcessor >( fp, alpha );
-    	}
-
-    	// Check if the image is too large for java 8.0
-    	if ( box.width * scale * box.height * scale > Math.pow(2, 31) )
-    	{
-    		Utils.log("Cannot create an image larger than 2 GB.");
-    		return null;
-    	}
-
-    	if ( layer.getProject().getLoader().isMipMapsRegenerationEnabled() )
-    	{
-    		// Use mipmaps directly at the correct image size
-    		final Pair< ByteProcessor, ByteProcessor > pair = ExportUnsignedByte.makeFlatImage( patches, box, 0, scale );
-    		
-    		// Map alpha to [0..1]
-    		final FloatProcessor alpha = new FloatProcessor( pair.b.getWidth(), pair.b.getHeight() );
-            final byte[] a = ( byte[] ) pair.b.getPixels();
-            final float[] f = ( float[] ) alpha.getPixels();
-            for ( int i=0; i<a.length; ++i )
-            	f[i] = (a[i] & 0xff) / 255.0f;
-    		
-    		return new Pair<FloatProcessor, FloatProcessor>( pair.a.convertToFloatProcessor(), alpha );
+    	// Map alpha from 8-bit to the range [0..1]
+    	final float[] alpha = (float[]) pair.b.getPixels();
+    	for (int i=0; i<alpha.length; ++i) {
+    		alpha[i] = alpha[i] / 255f;
     	}
     	
-    	// Else, no mipmaps, and image smaller than 2 GB:
-    	
-    	// 1. Create an image of at most 2 GB or at most the maximum size
-    	// Determine the largest size to work with
-    	final int area = box.width * box.height;
-    	final int max_area = ( int ) Math.min( area, Math.pow(2, 31) );
-
-    	// Determine the scale corresponding to the calculated max_area
-    	final double scaleUP = Math.min(1.0, box.height / Math.sqrt( max_area / ( box.width / ( float ) (box.height) )));
-    	
-    	// Generate an image at the upper scale
-    	// without using mipmaps
-    	Pair< ByteProcessor, ByteProcessor> pair = new ExportBestFlatImage( patches, box, 0, scaleUP ).makeFlatGrayImageAndAlpha();
-    	final FloatProcessor image = pair.a.convertToFloatProcessor();
-    	final FloatProcessor alpha = pair.b.convertToFloatProcessor();
-    	pair = null;
-
-    	patches.get(0).getProject().getLoader().releaseAll();
-    	
-    	// Gaussian-downsample the image and the mask
-    	final double max_dimension_source = Math.max( pair.a.getWidth(), pair.a.getHeight() );
-    	final double max_dimension_target = Math.max(
-    			( int ) (box.width  * scale ),
-    			( int ) (box.height * scale ) );
-    	final double s = 0.5; // same sigma for source and target
-    	final double sigma = s * max_dimension_source / max_dimension_target - s * s ;
-
-    	Utils.log("Gaussian downsampling. If this is slow, check the number of threads in the plugin preferences.");
-    	new GaussianBlur().blurFloat( image, sigma, sigma, 0.0002 );
-    	new GaussianBlur().blurFloat( alpha, sigma, sigma, 0.0002 );
-
-    	image.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
-    	alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
-    	
-    	// Map alpha to [0..1]
-    	final FloatProcessor alpha_fp = ( FloatProcessor ) alpha.resize( ( int ) Math.ceil( box.width * scale ), ( int ) Math.ceil( box.height * scale ) );
-        final float[] alphaPix = ( float[] ) alpha_fp.getPixels();
-        for ( int i=0; i<alphaPix.length; ++i )
-        	alphaPix[i] = alphaPix[i] / 255.0f;
-
-    	return new Pair< FloatProcessor, FloatProcessor >(
-    			( FloatProcessor ) image.resize( ( int ) Math.ceil( box.width * scale ), ( int ) Math.ceil( box.height * scale ) ),
-    			alpha_fp );
+    	return pair;
     }
 }
