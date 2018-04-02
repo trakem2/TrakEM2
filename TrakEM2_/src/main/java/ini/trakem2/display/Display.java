@@ -5135,7 +5135,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final boolean use_original_images = gd.getNextBoolean();
 			// in its own thread
 			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images, saver, tile_side);
-			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background);
+			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background, use_original_images);
 
 		} else if (command.equals("Lock")) {
 			selection.setLocked(true);

@@ -22,6 +22,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 
 package ini.trakem2.persistence;
 
+import java.awt.BasicStroke;
 import java.awt.Checkbox;
 import java.awt.Color;
 import java.awt.Component;
@@ -130,6 +131,7 @@ import ini.trakem2.utils.Dispatcher;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.Montage;
 import ini.trakem2.utils.Saver;
+import ini.trakem2.utils.SliceMaker;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 import loci.formats.ChannelSeparator;
@@ -138,6 +140,7 @@ import loci.formats.IFormatReader;
 import mpi.fruitfly.general.MultiThreading;
 import mpi.fruitfly.math.datastructures.FloatArray2D;
 import mpi.fruitfly.registration.ImageFilter;
+import mpicbg.trakem2.transform.ExportBestFlatImage;
 import mpicbg.trakem2.transform.ExportUnsignedShort;
 import mpicbg.trakem2.util.Triple;
 
@@ -2586,8 +2589,27 @@ while (it.hasNext()) {
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final boolean quality, final Color background) {
 		return makeFlatImage(layer, srcRect, scale, c_alphas, type, force_to_file, "tif", quality, background);
 	}
-	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
+	
+	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int type, final boolean force_to_file, final String format, final boolean quality, final Color background) {
+		return makeFlatImage( layer, srcRect, scale, 0xffffffff, type, force_to_file, format, quality, background, true );
+	}
+	
 	public Bureaucrat makeFlatImage(final Layer[] layer, final Rectangle srcRect, final double scale, final int c_alphas, final int type, final boolean force_to_file, final String format, final boolean quality, final Color background) {
+		return makeFlatImage( layer, srcRect, scale, c_alphas, type, force_to_file, format, quality, background, true );
+	}
+	
+	/** If the srcRect is null, makes a flat 8-bit or RGB image of the entire layer. Otherwise just of the srcRect. Checks first for enough memory and frees some if feasible. */
+	public Bureaucrat makeFlatImage(
+			final Layer[] layer,
+			final Rectangle srcRect,
+			final double scale,
+			final int c_alphas,
+			final int type,
+			final boolean force_to_file,
+			final String format,
+			final boolean quality,
+			final Color background,
+			final boolean use_original_images) {
 		if (null == layer || 0 == layer.length) {
 			Utils.log2("makeFlatImage: null or empty list of layers to process.");
 			return null;
@@ -2629,6 +2651,9 @@ while (it.hasNext()) {
 				if (IJ.isWindows()) target_dir = target_dir.replace('\\', '/');
 				if (!target_dir.endsWith("/")) target_dir += "/";
 			}
+
+			final BasicStroke stroke = Display.getFront() != null ? Display.getFront().getCanvas().getStroke() : new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER);
+			
 			if (layer.length > 1) {
 				// Get all slices
 				ImageStack stack = null;
@@ -2641,7 +2666,7 @@ while (it.hasNext()) {
 
 					Utils.showProgress(i / (float)layer.length);
 
-					final ImagePlus slice = getFlatImage(layer[i], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
+					final ImagePlus slice = new SliceMaker( false, background, type, stroke ).make(layer[i], srcRect, c_alphas, scale, use_original_images);
 					if (null == slice) {
 						Utils.log("Could not retrieve flat image for " + layer[i].toString());
 						continue;
@@ -2664,7 +2689,7 @@ while (it.hasNext()) {
 					imp.setCalibration(impCalibration);
 				}
 			} else {
-				imp = getFlatImage(layer[0], srcRect_, scale, c_alphas, type, Displayable.class, null, quality, background);
+				imp = new SliceMaker( false, background, type, stroke ).make(layer[0], srcRect, c_alphas, scale, use_original_images);
 				if (null != target_dir) {
 					saveToPath(imp, target_dir, layer[0].getPrintableTitle(), format);
 					imp = null; // to prevent showing it
