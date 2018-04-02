@@ -590,6 +590,30 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
+	
+	/**
+	 * Obtain the list of visible Patch instances in this Layer.
+	 * @return
+	 */
+	synchronized public ArrayList<Patch> getPatches() {
+		return getPatches(true);
+	}
+	
+	/**
+	 * Obtain the list of Patch instances in this layer, either all or only the visible ones.
+	 * @param visible_only Whether to return only Patch instances that are set to be visible.
+	 * @return
+	 */
+	synchronized public ArrayList<Patch> getPatches(final boolean visible_only) {
+		final ArrayList<Patch> al = new ArrayList<Patch>();
+		for (final Displayable d : al_displayables) {
+			if (d.getClass() == Patch.class) {
+				if (visible_only && !d.isVisible()) continue;
+				al.add((Patch)d);
+			}
+		}
+		return al;
+	}
 
 	public Displayable get(final long id) {
 		for (final Displayable d : al_displayables) {
