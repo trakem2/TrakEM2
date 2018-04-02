@@ -3307,4 +3307,8 @@ public final class DisplayCanvas extends ImageCanvas implements KeyListener/*, F
 	synchronized private void initAnimator() {
 		if (null == animator) animator = Executors.newScheduledThreadPool(2);
 	}
+	
+	public BasicStroke getStroke() {
+		return this.stroke;
+	}
 }
