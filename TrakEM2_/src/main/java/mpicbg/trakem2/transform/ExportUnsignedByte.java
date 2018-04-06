@@ -54,8 +54,14 @@ public class ExportUnsignedByte
 	{
 		public final ImageData fetch(final Patch patch, final double scale)
 		{
+			// The scale must be adjusted for the scaling introduced by the Patch affine transform.
+			final double aK = Math.max( patch.getWidth() / patch.getOWidth(),
+								        patch.getHeight() / patch.getOHeight() );
+			
+			final double K = aK > 1.0 ? 1.0 : Math.min(1.0, scale * aK);
+
 			// MipMap image, already including any coordinate transforms and the alpha mask (if any), by definition.
-			final MipMapImage mipMap = patch.getProject().getLoader().fetchImage(patch, scale);
+			final MipMapImage mipMap = patch.getProject().getLoader().fetchImage(patch, K);
 
 			// Place the mipMap data into FloatProcessors
 			final ByteProcessor bp; // new ByteProcessor(mipMap.image.getWidth( null ), mipMap.image.getHeight( null ));
@@ -91,8 +97,14 @@ public class ExportUnsignedByte
 			Patch.PatchImage pai = patch.createTransformedImage();
 			
 			// The scale must be adjusted for the scaling introduced by the Patch affine transform.
-			final double K = scale * Math.max( patch.getWidth() / patch.getOWidth(),
-					                           patch.getHeight() / patch.getOHeight() );
+			final double aK = Math.max( patch.getWidth() / patch.getOWidth(),
+					                    patch.getHeight() / patch.getOHeight() );
+			
+			if ( aK > 1.0 || aK * scale > 1.0 ) {
+				return new ImageData( pai.target.convertToByteProcessor(true), pai.getMask(), 1.0, 1.0 );
+			}
+			
+			final double K = aK * scale;
 			
 			// Gaussian downsample the image to the target dimensions
 			final int width = pai.target.getWidth(),
