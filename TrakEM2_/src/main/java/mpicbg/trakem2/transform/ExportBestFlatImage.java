@@ -203,16 +203,7 @@ public class ExportBestFlatImage
 		}
 		
 		// Else: no mipmaps
-    	
-    	// Generate an image at the upper scale
-    	// using ExportUnsignedShort which works without mipmaps and allows not generating an alpha
-		// and then Gaussian downsampling to the target dimensions
-
-    	return gaussianDownsampled(
-    			convertToFloat(
-    					ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, false ).a
-    			)
-    		   ).convertToByteProcessor();
+		return ExportUnsignedByte.makeFlatImageFromOriginals( patches, finalBox, 0, scale ).a;
 	}
 	
 	/**
@@ -261,39 +252,7 @@ public class ExportBestFlatImage
 		}
 		
 		// Else: no mipmaps
-
-
-		// Generate an image at the upper scale
-		// using ExportUnsignedShort which works without mipmaps and considers the pixel intensities and min, max of each Patch
-		// and then Gaussian downsampling to the target dimensions
-
-		// Double width, not double height: 2 images
-		loader.releaseAll();
-		
-		final Pair<ShortProcessor, ByteProcessor> pair = ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, true );
-		
-		loader.releaseAll();
-		
-		// Try to dereference memory as soon as possible to minimize use
-		FloatProcessor fp = pair.a.convertToFloatProcessor();
-		pair.a.setPixels( null );
-		FloatProcessor gd = gaussianDownsampled( fp );
-		fp.setPixels( null );
-		fp = null;
-		final ByteProcessor bp = gd.convertToByteProcessor( true );
-		gd.setPixels( null );
-		gd = null;
-		
-		FloatProcessor alpha = pair.b.convertToFloatProcessor();
-		pair.b.setPixels( null );
-		FloatProcessor alpha_gd = gaussianDownsampled( alpha );
-		alpha.setPixels( null );
-		alpha = null;
-		final ByteProcessor alpha_bp = alpha_gd.convertToByteProcessor( true );
-		alpha_gd.setPixels( null );
-		alpha_gd = null;
-		
-		return new Pair<ByteProcessor, ByteProcessor>( bp, alpha_bp );
+		return ExportUnsignedByte.makeFlatImageFromOriginals( patches, finalBox, 0, scale );
 	}
 	
 	/**
@@ -346,48 +305,13 @@ public class ExportBestFlatImage
 		
 		// Else: no mipmaps
 
-
-		// Generate an image at the upper scale
-		// using ExportUnsignedShort which works without mipmaps and considers the pixel intensities and min, max of each Patch
-		// and then Gaussian downsampling to the target dimensions
-
-		// Double width, not double height: 2 images
 		loader.releaseAll();
 		
+		// Use originals and Gaussian-downsample them, then map them onto the target image
+		final Pair<ByteProcessor, ByteProcessor> pair = ExportUnsignedByte.makeFlatImageFromOriginals( patches, finalBox, 0, scale );
 		
-		// TODO problem: takes a long time to map the intensities
-		// Instead, it should map images to 8-bit and make a flat image from that
-		final Pair<ShortProcessor, ByteProcessor> pair = ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, true );
-		
-		loader.releaseAll();
-		
-		// Convert image channel to 8-bit range, scaled
-		// Unpacked to dereference as much memory as possible as soon as possible
-		FloatProcessor fp = pair.a.convertToFloatProcessor();
-		pair.a.setPixels( null ); // clear memory
-		FloatProcessor gd = gaussianDownsampled( fp );
-		fp.setPixels( null );
-		fp = null;
-		gd.findMinAndMax();
-		final double min = gd.getMin(),
-			         max = gd.getMax(),
-			         scale = 256.0 / (max - min + 1);
-		final float[] pix = (float[])gd.getPixels();
-		double value;
-		for (int i=0; i<pix.length; i++) {
-			value = pix[i] - min;
-			if (value < 0) value = 0;
-			value = value * scale;
-			if (value > 255) value = 255;
-			pix[i] = (float) value;
-		}
-		
-		FloatProcessor alpha_fp = pair.b.convertToFloatProcessor();
-		pair.b.setPixels( null );
-		FloatProcessor alpha_gd = gaussianDownsampled( alpha_fp );
-		alpha_fp.setPixels( null );
-		alpha_fp = null;
-		
-		return new Pair<FloatProcessor, FloatProcessor>( gd, alpha_gd );
+		return new Pair<FloatProcessor, FloatProcessor>(
+				pair.a.convertToFloatProcessor(),
+				pair.b.convertToFloatProcessor() );
 	}
 }
