@@ -199,7 +199,7 @@ public class ExportBestFlatImage
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
 			// (TODO waste: generates an alpha mask that is then not used)
-			return ExportUnsignedByte.makeFlatImage( patches, finalBox, 0, scale ).a;
+			return ExportUnsignedByte.makeFlatImageFromMipMaps( patches, finalBox, 0, scale ).a;
 		}
 		
 		// Else: no mipmaps
@@ -257,7 +257,7 @@ public class ExportBestFlatImage
 		if ( loader.isMipMapsRegenerationEnabled() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
-			return ExportUnsignedByte.makeFlatImage( patches, finalBox, 0, scale );
+			return ExportUnsignedByte.makeFlatImageFromMipMaps( patches, finalBox, 0, scale );
 		}
 		
 		// Else: no mipmaps
@@ -338,7 +338,7 @@ public class ExportBestFlatImage
 		if ( loader.isMipMapsRegenerationEnabled() )
 		{
 			// Use mipmaps directly: they are already Gaussian-downsampled
-			final Pair<ByteProcessor, ByteProcessor> pair = ExportUnsignedByte.makeFlatImage( patches, finalBox, 0, scale );
+			final Pair<ByteProcessor, ByteProcessor> pair = ExportUnsignedByte.makeFlatImageFromMipMaps( patches, finalBox, 0, scale );
 			return new Pair<FloatProcessor, FloatProcessor>(
 					pair.a.convertToFloatProcessor(),
 					pair.b.convertToFloatProcessor() );
@@ -354,6 +354,9 @@ public class ExportBestFlatImage
 		// Double width, not double height: 2 images
 		loader.releaseAll();
 		
+		
+		// TODO problem: takes a long time to map the intensities
+		// Instead, it should map images to 8-bit and make a flat image from that
 		final Pair<ShortProcessor, ByteProcessor> pair = ExportUnsignedShort.makeFlatImage( patches, finalBox, 0, scaleUP, true );
 		
 		loader.releaseAll();
