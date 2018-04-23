@@ -387,17 +387,6 @@ public class ElasticLayerAlignment
 
 	}
 
-	/**
-	 *
-	 * @param param
-	 * @param layerRange
-	 * @param fixedLayers
-	 * @param emptyLayers
-	 * @param box
-	 * @param filter
-	 * @param useTps true if using TPS transforms, otherwise MLS
-	 * @throws Exception
-	 */
 	@SuppressWarnings( "deprecation" )
 	final public void exec(
 			final Param param,

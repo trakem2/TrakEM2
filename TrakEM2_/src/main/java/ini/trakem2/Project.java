@@ -1497,7 +1497,7 @@ public class Project extends DBObject {
 		return before != after;
 	}
 	
-	/** Returns the newly set mipmap level (an integer, made by a floor operation on {@param level}), or the current one if {@param level} is NaN or negative. */
+	/** Returns the newly set mipmap level (an integer, made by a floor operation on {@code level}), or the current one if {@code level} is NaN or negative. */
 	public final int setFirstMipMapLevelSaved(final double level) {
 		if (Double.isNaN(level) || level < 0) {
 			return this.first_mipmap_level_saved;
@@ -1651,7 +1651,7 @@ public class Project extends DBObject {
 		return removeAll(col, null);
 	}
 	/** Remove any set of Displayable objects from the Layer, LayerSet and Project Tree as necessary.
-	 *  ASSUMES there aren't any nested LayerSet objects in @param col. */
+	 *  ASSUMES there aren't any nested LayerSet objects in {@code col}. */
 	public final boolean removeAll(final Set<Displayable> col, final DefaultMutableTreeNode top_node) {
 		// 0. Sort into Displayable and ZDisplayable
 		final Set<ZDisplayable> zds = new HashSet<ZDisplayable>();
