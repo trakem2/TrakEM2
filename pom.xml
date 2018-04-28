@@ -259,7 +259,6 @@
 		<dependency>
 			<groupId>org.scijava</groupId>
 			<artifactId>jython-shaded</artifactId>
-			<version>${jython-shaded.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>ome</groupId>
