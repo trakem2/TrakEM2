@@ -146,6 +146,8 @@
 
 		<!-- NB: Deploy releases to the ImageJ Maven repository. -->
 		<releaseProfiles>deploy-to-imagej</releaseProfiles>
+
+		<trakem2-transform.version>1.0.1</trakem2-transform.version>
 	</properties>
 
 	<repositories>
