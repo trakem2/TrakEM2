@@ -498,20 +498,25 @@ public abstract class Node<T> implements Taggable {
 
 	/** Check if this point or the edges to its children are closer to xx,yy than radius, in the 2D plane only. */
 	final boolean isNear(final float xx, final float yy, final float sqradius) {
-		if (null == children) return sqradius > (Math.pow(xx - x, 2) + Math.pow(yy - y, 2));
-		// Else, check children:
-		for (int i=0; i<children.length; i++) {
-			if (sqradius > M.distancePointToSegmentSq(xx, yy, 0, // point
-								  x, y, 0,  // origin of edge
-								  (children[i].x - x)/2, (children[i].y - y)/2, 0)) // end of half-edge to child
-			{
-				return true;
+		if (  sqradius > (Math.pow(xx - x, 2) + Math.pow(yy - y, 2)) )
+			return true;
+							
+		// if the point is not near, check the segment halves
+		// check children:
+		if (null != children)
+			for (int i=0; i<children.length; i++) {
+				if (sqradius > M.distancePointToSegmentSq(xx, yy, 0, // point
+						x, y, 0,  // origin of edge
+						(children[i].x + x)/2, (children[i].y + y)/2, 0)) // end of half-edge to child
+				{
+					return true;
+				}
 			}
-		}
+		
 		// Check to parent's half segment
 		return null != parent && sqradius > M.distancePointToSegmentSq(xx, yy, 0, // point
 									       x, y, 0, // origin of edge
-									       (x - parent.x)/2, (y - parent.y)/2, 0); // end of half-edge to parent
+									       (x + parent.x)/2, (y + parent.y)/2, 0); // end of half-edge to parent
 	}
 	public final boolean hasChildren() {
 		return null != children && children.length > 0;
