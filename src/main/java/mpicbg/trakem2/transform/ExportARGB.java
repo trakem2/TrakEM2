@@ -143,7 +143,7 @@ public class ExportARGB {
 		final ColorProcessor target = new ColorProcessor((int)(roi.width * scale), (int)(roi.height * scale));
 		target.setInterpolationMethod( ImageProcessor.BILINEAR );
 		final ByteProcessor targetMask = new ByteProcessor( target.getWidth(), target.getHeight() );
-		targetMask.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
+		targetMask.setInterpolationMethod( ImageProcessor.BILINEAR );
 
 		for (final Patch patch : patches) {
 			final Patch.PatchImage pai = patch.createTransformedImage();
@@ -181,7 +181,7 @@ public class ExportARGB {
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
 			
 			fp.setInterpolationMethod( ImageProcessor.BILINEAR );
-			alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR ); // no interpolation
+			alpha.setInterpolationMethod( ImageProcessor.BILINEAR );
 			
 			mapping.map( fp, alpha, target, targetMask );
 		}

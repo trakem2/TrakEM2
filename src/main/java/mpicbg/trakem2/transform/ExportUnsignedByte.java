@@ -149,7 +149,7 @@ public class ExportUnsignedByte
 		final ByteProcessor target = new ByteProcessor((int)(roi.width * scale), (int)(roi.height * scale));
 		target.setInterpolationMethod( ImageProcessor.BILINEAR );
 		final ByteProcessor targetMask = new ByteProcessor( target.getWidth(), target.getHeight() );
-		targetMask.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR );
+		targetMask.setInterpolationMethod( ImageProcessor.BILINEAR );
 
 		for (final Patch patch : patches) {
 			final ImageData imgd = fetcher.fetch( patch, scale );
@@ -171,7 +171,7 @@ public class ExportUnsignedByte
 			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
 			
 			imgd.bp.setInterpolationMethod( ImageProcessor.BILINEAR );
-			imgd.alpha.setInterpolationMethod( ImageProcessor.NEAREST_NEIGHBOR ); // no interpolation
+			imgd.alpha.setInterpolationMethod( ImageProcessor.BILINEAR );
 			
 			mapping.map( imgd.bp, imgd.alpha, target, targetMask );
 		}
