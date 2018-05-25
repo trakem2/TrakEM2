@@ -3007,7 +3007,7 @@ while (it.hasNext()) {
 		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256);
 	}
 
-	/** Generate 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
+	/** Generate e.g. 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
 	 *
 	 * filename = z + "/" + row + "_" + column + "_" + s + ".jpg";
 	 *
@@ -3202,7 +3202,7 @@ while (it.hasNext()) {
 				fdir.mkdir();
 				Utils.log("Created directory " + fdir);
 			}
-			// if the directory exists already just reuse it, overwritting its files if so.
+			// if the directory exists already just reuse it, overwriting its files if so.
 			final String tmp = fdir.getAbsolutePath().replace('\\','/');
 			if (!tile_dir.equals(tmp)) Utils.log("\tWARNING: directory will not be in the standard location.");
 			// debug:
@@ -3220,7 +3220,7 @@ while (it.hasNext()) {
 			// 3 - fill directory with tiles
 			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver);
+				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver, tileSide);
 			} else {
 				// create pyramid of tiles
 				if (from_original_images) {
@@ -3375,11 +3375,12 @@ while (it.hasNext()) {
 						exe.shutdown();
 					}
 				} else {
+					// From mipmaps
 					double scale = 1; //max_scale; // WARNING if scale is different than 1, it will FAIL to set the next scale properly.
 					int scale_pow = 0;
 					int n_et = n_edge_tiles; // cached for local modifications in the loop, works as loop controler
 					while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from which then powers of two were taken to make up for the edge_length
-						final int tile_side = (int)(256/scale); // 0 < scale <= 1, so no precision lost
+						final int tile_side = (int)(tileSide / scale); // 0 < scale <= 1, so no precision lost
 						for (int row=0; row<n_et; row++) {
 							for (int col=0; col<n_et; col++) {
 								final int i_tile = row * n_et + col;
@@ -3402,7 +3403,7 @@ while (it.hasNext()) {
 								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 								// negative tile sizes will be made into black tiles
 								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-								makeTile(layer, tile_src, scale, c_alphas, type, clazz, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).toString(), saver); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
+								makeTile(layer, tile_src, scale, c_alphas, type, clazz, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).toString(), saver, tileSide); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
 							}
 						}
 						scale_pow++;
@@ -3430,19 +3431,19 @@ while (it.hasNext()) {
 	/** Will overwrite if the file path exists. */
 	private void makeTile(final Layer layer, final Rectangle srcRect, final double mag,
 			final int c_alphas, final int type, final Class<?> clazz, final String file_path,
-			final Saver saver) throws Exception {
+			final Saver saver, final int tileSide) throws Exception {
 		ImagePlus imp = null;
 		if (srcRect.width > 0 && srcRect.height > 0) {
 			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
 		} else {
-			imp = new ImagePlus("", new ByteProcessor(256, 256)); // black tile
+			imp = new ImagePlus("", new ByteProcessor(tileSide, tileSide)); // black tile
 		}
-		// correct cropped tiles
-		if (imp.getWidth() < 256 || imp.getHeight() < 256) {
-			final ImagePlus imp2 = new ImagePlus(imp.getTitle(), imp.getProcessor().createProcessor(256, 256));
+		// correct dimensions of cropped tiles, padding the outside with black
+		if (imp.getWidth() < tileSide || imp.getHeight() < tileSide) {
+			final ImagePlus imp2 = new ImagePlus(imp.getTitle(), imp.getProcessor().createProcessor(tileSide, tileSide));
 			// ensure black background for color images
 			if (imp2.getType() == ImagePlus.COLOR_RGB) {
-				final Roi roi = new Roi(0, 0, 256, 256);
+				final Roi roi = new Roi(0, 0, tileSide, tileSide);
 				imp2.setRoi(roi);
 				imp2.getProcessor().setValue(0); // black
 				imp2.getProcessor().fill();
