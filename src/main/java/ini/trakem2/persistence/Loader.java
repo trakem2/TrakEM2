@@ -2807,7 +2807,7 @@ while (it.hasNext()) {
 				// Calculate the scaleP that would give the largest image possible that can be made without hitting a 1 GB limit in array size (2^30).
 				// (While the actual limit is 2 GB, AWT images of near 2GB tend to contain many severe drawing errors.)
 
-				if (ww * hh >= Math.pow(2,  30)) { // 1 GB
+				if (ww * (double)hh >= Math.pow(2,  30)) { // 1 GB
 					// While perhaps scale could be increased to an image size of up to 2 GB, it is not advisable
 					scaleP = scalePX = scalePY = scale;
 					quality = false;
