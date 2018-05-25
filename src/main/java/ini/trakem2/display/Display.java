@@ -5073,6 +5073,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Choice cchoices = (Choice)gd.getChoices().get(gd.getChoices().size() -2);
 			final TextField tf = (TextField)gd.getNumericFields().get(gd.getNumericFields().size() -1);
 			tf.setEnabled(false);
+			gd.addChoice("Directory structure", new String[]{"<section>/<Y>_<X>_<scale_power>.<ext>", "<Z>/<scale_power>/<Y>_<X>.<ext>"}, "<Z>/<scale_power>/<Y>_<X>.<ext>");
+			final Choice tile_directory_structure = (Choice)gd.getChoices().get(gd.getChoices().size() -1);
+			tile_directory_structure.setEnabled(false);
 			cchoices.addItemListener(new ItemListener() {
 				@Override
 				public void itemStateChanged(final ItemEvent e) {
@@ -5080,6 +5083,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 					if (2 == cchoices.getSelectedIndex()) {
 						cformats.select(".jpg");
 						tf.setEnabled(true);
+						tile_directory_structure.setEnabled(true);
 					} else {
 						tf.setEnabled(false);
 					}
@@ -5133,8 +5137,9 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Saver saver = new Saver(format);
 			final int tile_side = (int)gd.getNextNumber();
 			final boolean use_original_images = gd.getNextBoolean();
+			final int directory_structure = gd.getNextChoiceIndex();
 			// in its own thread
-			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images, saver, tile_side);
+			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images, saver, tile_side, directory_structure);
 			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background);
 
 		} else if (command.equals("Lock")) {

@@ -2992,7 +2992,41 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, final double max_scale_, final int c_alphas, final int type, final String target_dir, final boolean from_original_images) {
-		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256);
+		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256, 0);
+	}
+	
+	/**
+	 * Auxiliary method for the makePrescaledTiles to be able to export tiles into multiple configurations of directories.
+	 * 
+	 * Type 0: <base_dir>/<Section>/<Y>_<X>_<scale_pow>.<ext>
+	 * Type 1: <base_dir>/<Section>/<scale_pow>/<Y>_<X>.<ext>
+	 * 
+	 * 
+	 * NOTE: Does not include the file type extension, which is added by each ImageSaver.
+	 *       It is shown above for clarity.
+	 * 
+	 * @param type
+	 * @param dir
+	 * @param section
+	 * @param column
+	 * @param row
+	 * @return
+	 */
+	static private final String makeTilePath(final int type, String base_dir, final int section, final int row, final int column, final int scale_pow) {
+		
+		if (base_dir.endsWith("/")) base_dir += "/";
+		
+		switch (type) {
+			case 0:
+				// <Z>_<Y>_<X>_<scale>.<ext>
+				return base_dir + section + "/" + row + "_" + column + "_" + scale_pow;
+			case 1:
+				// <Z>/<Y>_<X>.<ext>
+				return base_dir + section + "/" + scale_pow + "/" + row + "_" + column;
+			default:
+				return null;
+		}
+	}
 	}
 
 	/** Generate e.g. 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
@@ -3019,7 +3053,8 @@ while (it.hasNext()) {
 	 * @throws IllegalArgumentException if the type is not ImagePlus.GRAY8 or Imageplus.COLOR_RGB.
 	 */
 	public Bureaucrat makePrescaledTiles(final Layer[] layers, final Class<?> clazz, final Rectangle srcRect, double max_scale_,
-			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide) {
+			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide,
+			final int directory_structure_type) {
 		if (null == layers || 0 == layers.length) return null;
 		switch (type) {
 		case ImagePlus.GRAY8:
@@ -3168,7 +3203,6 @@ while (it.hasNext()) {
 			}
 		}
 
-
 		for (final Map.Entry<Integer,Layer> entry : indices.entrySet()) {
 			if (this.quit) {
 				cleanUp();
@@ -3178,36 +3212,24 @@ while (it.hasNext()) {
 			final Layer layer = entry.getValue();
 
 			// 1 - create a directory 'z' named as the layer's index
-			String tile_dir = dir + index;
-			File fdir = new File(tile_dir);
-			final int tag = 1;
-			// Ensure there is a usable directory:
-			while (fdir.exists() && !fdir.isDirectory()) {
-				fdir = new File(tile_dir + "_" + tag);
+			if (!Utils.ensure(dir + index)) {
+				cleanUp();
+				Utils.log("Cannot write to the desired directory: " + dir + index + "/");
+				return;
 			}
-			if (!fdir.exists()) {
-				fdir.mkdir();
-				Utils.log("Created directory " + fdir);
-			}
-			// if the directory exists already just reuse it, overwriting its files if so.
-			final String tmp = fdir.getAbsolutePath().replace('\\','/');
-			if (!tile_dir.equals(tmp)) Utils.log("\tWARNING: directory will not be in the standard location.");
-			// debug:
-			Utils.log2("tile_dir: " + tile_dir + "\ntmp: " + tmp);
-			tile_dir = tmp;
-			if (!tile_dir.endsWith("/")) tile_dir += "/";
 
 			// 2 - create layer thumbnail, max 192x192
-			ImagePlus thumb = getFlatImage(layer, srcRect, thumb_scale, c_alphas, type, clazz, true);
-			saver.save(thumb, tile_dir + "small");
-			//ImageSaver.saveAsJpeg(thumb.getProcessor(), tile_dir + "small.jpg", jpeg_quality, ImagePlus.COLOR_RGB != type);
-			flush(thumb);
-			thumb = null;
+			{
+				ImagePlus thumb = getFlatImage(layer, srcRect, thumb_scale, c_alphas, type, clazz, true);
+				saver.save(thumb, dir + index + "/small");
+				flush(thumb);
+				thumb = null;
+			}
 
 			// 3 - fill directory with tiles
 			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, tile_dir + "0_0_0", saver, tileSide);
+				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, dir + index + "/0_0_0", saver, tileSide);
 			} else {
 				// create pyramid of tiles
 				if (from_original_images) {
@@ -3246,7 +3268,8 @@ while (it.hasNext()) {
 							for (int row=0; row<n_et; row++) {
 								for (int col=0; col<n_et; col++) {
 
-									final String path = new StringBuilder(tile_dir).append(row).append('_').append(col).append('_').append(scale_pow).toString();
+									final String path = Loader.makeTilePath(directory_structure_type, dir, index, row, col, scale_pow);
+											// new StringBuilder(tile_dir).append(row).append('_').append(col).append('_').append(scale_pow).toString();
 									final int tileXStart = col * tileSide;
 									final int tileYStart = row * tileSide;
 									final int pixelOffset = tileYStart * snapWidth + tileXStart;
@@ -3390,7 +3413,7 @@ while (it.hasNext()) {
 								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 								// negative tile sizes will be made into black tiles
 								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-								makeTile(layer, tile_src, scale, c_alphas, type, clazz, new StringBuilder(tile_dir).append(col).append('_').append(row).append('_').append(scale_pow).toString(), saver, tileSide); // should be row_col_scale, but results in transposed tiles in googlebrains, so I reversed the order.
+								makeTile(layer, tile_src, scale, c_alphas, type, clazz, makeTilePath(directory_structure_type, dir, index, row, col, scale_pow), saver, tileSide);
 							}
 						}
 						scale_pow++;
