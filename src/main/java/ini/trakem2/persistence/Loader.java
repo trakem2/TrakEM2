@@ -2818,7 +2818,7 @@ while (it.hasNext()) {
 
 				} else {
 					// Max area: the smallest of the srcRect at 100x magnification and 1 GB
-					final double max_area = Math.min( srcRect.width * srcRect.height, Math.pow(2, 30) );
+					final double max_area = Math.min( srcRect.width * ((double)srcRect.height), Math.pow(2, 30) );
 					
 					final double ratio = ww / (double) hh;
 
