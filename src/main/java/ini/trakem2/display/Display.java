@@ -5090,6 +5090,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				}
 			});
 			gd.addCheckbox("Use original images", true);
+			gd.addCheckbox("Skip empty tiles", false);
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 
@@ -5137,9 +5138,11 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Saver saver = new Saver(format);
 			final int tile_side = (int)gd.getNextNumber();
 			final boolean use_original_images = gd.getNextBoolean();
-			final int directory_structure = gd.getNextChoiceIndex();
+			final int directory_structure_type = gd.getNextChoiceIndex();
+			final boolean skip_empty_tiles = gd.getNextBoolean();
 			// in its own thread
-			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas, the_type, null, use_original_images, saver, tile_side, directory_structure);
+			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas,
+					the_type, null, use_original_images, saver, tile_side, directory_structure_type, skip_empty_tiles);
 			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background);
 
 		} else if (command.equals("Lock")) {

@@ -2899,13 +2899,9 @@ while (it.hasNext()) {
 			at_original.preConcatenate(atc);
 			g2d.setTransform(at_original);
 
-			//Utils.log2("will paint: " + al_displ.size() + " displ and " + al_zdispl.size() + " zdispl");
-			//int total = al_displ.size() + al_zdispl.size();
-			int count = 0;
 			boolean zd_done = false;
 			final List<Layer> layers = layer.getParent().getColorCueLayerRange(layer);
 			for (final Displayable d : al_displ) {
-				//Utils.log2("d is: " + d);
 				// paint the ZDisplayables before the first label, if any
 				if (!zd_done && d instanceof DLabel) {
 					zd_done = true;
@@ -2913,18 +2909,11 @@ while (it.hasNext()) {
 						if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
 							zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer, layers);
 						}
-						count++;
-						//Utils.log2("Painted " + count + " of " + total);
 					}
 				}
 				if (!d.isOutOfRepaintingClip(scaleP, srcRect, null)) {
 					d.paintOffscreen(g2d, srcRect, scaleP, active == d, c_alphas, layer, layers);
-					//Utils.log("painted: " + d + "\n with: " + scaleP + ", " + c_alphas + ", " + layer);
-				} else {
-					//Utils.log2("out: " + d);
 				}
-				count++;
-				//Utils.log2("Painted " + count + " of " + total);
 			}
 
 			if (!zd_done) {
@@ -2933,8 +2922,6 @@ while (it.hasNext()) {
 					if (!zd.isOutOfRepaintingClip(scaleP, srcRect, null)) {
 						zd.paint(g2d, srcRect, scaleP, active == zd, c_alphas, layer, layers);
 					}
-					count++;
-					//Utils.log2("Painted " + count + " of " + total);
 				}
 			}
 			// ensure enough memory is available for the processor and a new awt from it
@@ -2992,7 +2979,7 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, final double max_scale_, final int c_alphas, final int type, final String target_dir, final boolean from_original_images) {
-		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256, 0);
+		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256, 0, false);
 	}
 	
 	/**
@@ -3003,7 +2990,7 @@ while (it.hasNext()) {
 	 * 
 	 * 
 	 * NOTE: Does not include the file type extension, which is added by each ImageSaver.
-	 *       It is shown above for clarity.
+	 *       The <ext> is shown above for clarity.
 	 * 
 	 * @param type
 	 * @param dir
@@ -3027,6 +3014,20 @@ while (it.hasNext()) {
 				return null;
 		}
 	}
+	
+	static private final boolean isEmptyTile(final ImageProcessor ip) {
+		if (ip instanceof ByteProcessor) {
+			final byte[] b = (byte[])ip.getPixels();
+			for (int i=0; i<b.length; ++i) {
+				if (0 != b[i]) return false;
+			}
+		} else if (ip instanceof ColorProcessor) {
+			final int[] c = (int[])ip.getPixels();
+			for (int i=0; i<c.length; ++i) {
+				if (0 != (c[i] & 0x00ffffff)) return false;
+			}
+		}
+		return true;
 	}
 
 	/** Generate e.g. 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
@@ -3054,7 +3055,7 @@ while (it.hasNext()) {
 	 */
 	public Bureaucrat makePrescaledTiles(final Layer[] layers, final Class<?> clazz, final Rectangle srcRect, double max_scale_,
 			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide,
-			final int directory_structure_type) {
+			final int directory_structure_type, final boolean skip_empty_tiles) {
 		if (null == layers || 0 == layers.length) return null;
 		switch (type) {
 		case ImagePlus.GRAY8:
@@ -3229,7 +3230,7 @@ while (it.hasNext()) {
 			// 3 - fill directory with tiles
 			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, dir + index + "/0_0_0", saver, tileSide);
+				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, dir + index + "/0_0_0", saver, tileSide, skip_empty_tiles);
 			} else {
 				// create pyramid of tiles
 				if (from_original_images) {
@@ -3287,7 +3288,10 @@ while (it.hasNext()) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												return saver.save(new ImagePlus(path, new ByteProcessor(tileSide, tileSide, p, GRAY_LUT)), path);
+												final ByteProcessor bp = new ByteProcessor(tileSide, tileSide, p, GRAY_LUT);
+												if (!skip_empty_tiles || !isEmptyTile(bp)) {
+													return saver.save(new ImagePlus(path, bp), path);
+												}
 											} else {
 												final int[] pixels = (int[]) source.getPixels();
 												final int[] p = new int[tileSide * tileSide];
@@ -3298,8 +3302,12 @@ while (it.hasNext()) {
 														p[offsetL + x] = pixels[sourceIndex];
 													}
 												}
-												return saver.save(new ImagePlus(path, new ColorProcessor(tileSide, tileSide, p)), path);
+												final ColorProcessor cp = new ColorProcessor(tileSide, tileSide, p);
+												if (!skip_empty_tiles || !isEmptyTile(cp)) {
+													return saver.save(new ImagePlus(path, cp), path);
+												}
 											}
+											return false;
 										}
 									}));
 								}
@@ -3413,7 +3421,7 @@ while (it.hasNext()) {
 								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 								// negative tile sizes will be made into black tiles
 								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-								makeTile(layer, tile_src, scale, c_alphas, type, clazz, makeTilePath(directory_structure_type, dir, index, row, col, scale_pow), saver, tileSide);
+								makeTile(layer, tile_src, scale, c_alphas, type, clazz, makeTilePath(directory_structure_type, dir, index, row, col, scale_pow), saver, tileSide, skip_empty_tiles);
 							}
 						}
 						scale_pow++;
@@ -3441,11 +3449,14 @@ while (it.hasNext()) {
 	/** Will overwrite if the file path exists. */
 	private void makeTile(final Layer layer, final Rectangle srcRect, final double mag,
 			final int c_alphas, final int type, final Class<?> clazz, final String file_path,
-			final Saver saver, final int tileSide) throws Exception {
+			final Saver saver, final int tileSide, final boolean skip_empty_tiles) throws Exception {
 		ImagePlus imp = null;
 		if (srcRect.width > 0 && srcRect.height > 0) {
 			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
+			if (skip_empty_tiles && isEmptyTile(imp.getProcessor())) return;
 		} else {
+			// Make empty black tile
+			if (skip_empty_tiles) return;
 			imp = new ImagePlus("", new ByteProcessor(tileSide, tileSide)); // black tile
 		}
 		// correct dimensions of cropped tiles, padding the outside with black
