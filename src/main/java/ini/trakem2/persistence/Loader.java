@@ -2817,23 +2817,11 @@ while (it.hasNext()) {
 					// If the image is larger than 2 GB, it will thrown a NegativeArraySizeException below and stop.
 
 				} else {
-					// Max area: the smallest of the srcRect at 100x magnification and 1 GB
+					// Max area: the smallest of the srcRect at 100% magnification and 1 GB
 					final double max_area = Math.min( srcRect.width * ((double)srcRect.height), Math.pow(2, 30) );
-					
-					final double ratio = ww / (double) hh;
-
-					// area = w * h
-					// ratio = w / h
-					// w = ratio * h
-					// area = ratio * h * h
-					// h = sqrt(area / ratio)
-					// scaleP is then the ratio between the real-world height and the target height
-					// (And clamp to a maximum of 1.0: above makes no sense)
-					scaleP = Math.min(1.0, srcRect.height / Math.sqrt( max_area / ratio));
-					
-					biw = ( int )Math.ceil( ww / scale );
-					bih = ( int )Math.ceil( hh / scale );
-
+					scaleP = Math.sqrt(ww * (double)hh) / Math.sqrt(max_area);
+					biw = ( int )Math.ceil( ww / scaleP );
+					bih = ( int )Math.ceil( hh / scaleP );
 					/* compensate for excess space due to ceiling */
 					scalePX = ( double )biw / ( double )ww * scale;
 					scalePY = ( double )bih / ( double )hh * scale;
