@@ -3082,9 +3082,8 @@ while (it.hasNext()) {
 
 
 		// thumbnail dimensions
-		//LayerSet ls = layer[0].getParent();
 		final double ratio = srcRect.width / (double)srcRect.height;
-		double thumb_scale = 1.0;
+		final double thumb_scale;
 		if (ratio >= 1) {
 			// width is larger or equal than height
 			thumb_scale = 192.0 / srcRect.width;
