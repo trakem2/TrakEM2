@@ -13,7 +13,6 @@ import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import ini.trakem2.display.MipMapImage;
 import ini.trakem2.display.Patch;
-import ini.trakem2.utils.Utils;
 import mpicbg.models.CoordinateTransformMesh;
 import mpicbg.trakem2.util.Pair;
 
@@ -52,6 +51,7 @@ public class ExportUnsignedByte
 	
 	static public class MipMapSource implements ImageSource
 	{
+		@Override
 		public final ImageData fetch(final Patch patch, final double scale)
 		{
 			// The scale must be adjusted for the scaling introduced by the Patch affine transform.
@@ -92,6 +92,7 @@ public class ExportUnsignedByte
 	
 	static public class OriginalSource implements ImageSource
 	{
+		@Override
 		public final ImageData fetch(final Patch patch, final double scale)
 		{
 			Patch.PatchImage pai = patch.createTransformedImage();
@@ -168,7 +169,7 @@ public class ExportUnsignedByte
 			aff.set( at );
 			
 			final CoordinateTransformMesh mesh = new CoordinateTransformMesh( aff, patch.getMeshResolution(), imgd.bp.getWidth(), imgd.bp.getHeight() );
-			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< CoordinateTransformMesh >( mesh );
+			final TransformMeshMappingWithMasks< CoordinateTransformMesh > mapping = new TransformMeshMappingWithMasks< >( mesh );
 			
 			imgd.bp.setInterpolationMethod( ImageProcessor.BILINEAR );
 			imgd.alpha.setInterpolationMethod( ImageProcessor.BILINEAR );
@@ -176,6 +177,6 @@ public class ExportUnsignedByte
 			mapping.map( imgd.bp, imgd.alpha, target, targetMask );
 		}
 		
-		return new Pair< ByteProcessor, ByteProcessor >( target, targetMask );
+		return new Pair< >( target, targetMask );
 	}
 }
