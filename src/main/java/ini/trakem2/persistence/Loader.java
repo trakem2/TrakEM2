@@ -2826,7 +2826,7 @@ while (it.hasNext()) {
 					scalePX = ( double )biw / ( double )ww * scale;
 					scalePY = ( double )bih / ( double )hh * scale;
 					
-					Utils.log("getFlatAWTImage -- scale: " + scale + "; quality scale: " + scaleP);
+					//Utils.log("getFlatAWTImage -- scale: " + scale + "; quality scale: " + scaleP);
 				}
 			}
 			else
