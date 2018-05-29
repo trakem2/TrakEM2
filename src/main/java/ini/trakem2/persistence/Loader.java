@@ -3001,7 +3001,7 @@ while (it.hasNext()) {
 	 */
 	static private final String makeTilePath(final int type, String base_dir, final int section, final int row, final int column, final int scale_pow) {
 		
-		if (base_dir.endsWith("/")) base_dir += "/";
+		if (!base_dir.endsWith("/")) base_dir += "/";
 		
 		switch (type) {
 			case 0:
