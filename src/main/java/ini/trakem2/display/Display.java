@@ -5073,7 +5073,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final Choice cchoices = (Choice)gd.getChoices().get(gd.getChoices().size() -2);
 			final TextField tf = (TextField)gd.getNumericFields().get(gd.getNumericFields().size() -1);
 			tf.setEnabled(false);
-			gd.addChoice("Directory structure", new String[]{"<section>/<Y>_<X>_<scale_power>.<ext>", "<Z>/<scale_power>/<Y>_<X>.<ext>"}, "<Z>/<scale_power>/<Y>_<X>.<ext>");
+			gd.addChoice("Directory structure", new String[]{"<section>/<Y>_<X>_<scale_power>.<ext>", "<section>/<scale_power>/<Y>_<X>.<ext>"}, "<section>/<scale_power>/<Y>_<X>.<ext>");
 			final Choice tile_directory_structure = (Choice)gd.getChoices().get(gd.getChoices().size() -1);
 			tile_directory_structure.setEnabled(false);
 			cchoices.addItemListener(new ItemListener() {
