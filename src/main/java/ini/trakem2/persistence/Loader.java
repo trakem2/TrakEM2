@@ -2985,8 +2985,8 @@ while (it.hasNext()) {
 	/**
 	 * Auxiliary method for the makePrescaledTiles to be able to export tiles into multiple configurations of directories.
 	 * 
-	 * Type 0: <base_dir>/<Section>/<Y>_<X>_<scale_pow>.<ext>
-	 * Type 1: <base_dir>/<Section>/<scale_pow>/<Y>_<X>.<ext>
+	 * Type 0: <base_dir>/<section>/<Y>_<X>_<scale_pow>.<ext>
+	 * Type 1: <base_dir>/<section>/<scale_pow>/<Y>_<X>.<ext>
 	 * 
 	 * 
 	 * NOTE: Does not include the file type extension, which is added by each ImageSaver.
@@ -3005,10 +3005,10 @@ while (it.hasNext()) {
 		
 		switch (type) {
 			case 0:
-				// <Z>_<Y>_<X>_<scale>.<ext>
+				// <section>_<Y>_<X>_<scale_pow>.<ext>
 				return base_dir + section + "/" + row + "_" + column + "_" + scale_pow;
 			case 1:
-				// <Z>/<Y>_<X>.<ext>
+				// <section>/scale_pow/<Y>_<X>.<ext>
 				return base_dir + section + "/" + scale_pow + "/" + row + "_" + column;
 			default:
 				return null;
