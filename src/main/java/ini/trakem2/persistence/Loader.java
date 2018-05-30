@@ -54,6 +54,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,6 +62,7 @@ import java.util.TreeMap;
 import java.util.Vector;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -3090,6 +3092,11 @@ while (it.hasNext()) {
             public void run() {
 				startedWorking();
 
+				// When using mipmaps, run in parallel (uses same number of threads as for generating mipmaps)
+				final int n_procs = layers[0].getProject().getProperty("n_mipmap_threads", 1);
+				final ExecutorService exec = from_original_images ? null : Executors.newFixedThreadPool(n_procs);
+				final LinkedList<Future<?>> futures = new LinkedList<Future<?>>();
+
 		try {
 
 		// project name
@@ -3230,7 +3237,7 @@ while (it.hasNext()) {
 			// 3 - fill directory with tiles
 			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTile(layer, srcRect, max_scale, c_alphas, type, clazz, dir + index + "/0_0_0", saver, tileSide, skip_empty_tiles);
+				makeTileRunnable(layer, srcRect, max_scale, c_alphas, type, clazz, dir + index + "/0_0_0", saver, tileSide, skip_empty_tiles).run();
 			} else {
 				// create pyramid of tiles
 				if (from_original_images) {
@@ -3421,7 +3428,13 @@ while (it.hasNext()) {
 								if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 								// negative tile sizes will be made into black tiles
 								// (negative dimensions occur for tiles beyond the edges of srcRect, since the grid of tiles has to be of equal number of rows and cols)
-								makeTile(layer, tile_src, scale, c_alphas, type, clazz, makeTilePath(directory_structure_type, dir, index, row, col, scale_pow), saver, tileSide, skip_empty_tiles);
+								
+								// Avoid filling up RAM with tasks
+								while (futures.size() > n_procs * 2) {
+									futures.pop().get();
+								}
+								final Runnable task = makeTileRunnable(layer, tile_src, scale, c_alphas, type, clazz, makeTilePath(directory_structure_type, dir, index, row, col, scale_pow), saver, tileSide, skip_empty_tiles);
+								futures.add(exec.submit(task));
 							}
 						}
 						scale_pow++;
@@ -3431,10 +3444,15 @@ while (it.hasNext()) {
 				}
 			}
 		}
+
+		// Await termination of all tasks
+		while (futures.size() > 0) futures.pop().get();
+
 		} catch (final Exception e) {
 			IJError.print(e);
 		} finally {
 			Utils.showProgress(1);
+			exec.shutdown();
 		}
 		cleanUp();
 		finishedWorking();
@@ -3447,35 +3465,40 @@ while (it.hasNext()) {
 	}
 
 	/** Will overwrite if the file path exists. */
-	private void makeTile(final Layer layer, final Rectangle srcRect, final double mag,
+	private Runnable makeTileRunnable(final Layer layer, final Rectangle srcRect, final double mag,
 			final int c_alphas, final int type, final Class<?> clazz, final String file_path,
 			final Saver saver, final int tileSide, final boolean skip_empty_tiles) throws Exception {
-		ImagePlus imp = null;
-		if (srcRect.width > 0 && srcRect.height > 0) {
-			imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
-			if (skip_empty_tiles && isEmptyTile(imp.getProcessor())) return;
-		} else {
-			// Make empty black tile
-			if (skip_empty_tiles) return;
-			imp = new ImagePlus("", new ByteProcessor(tileSide, tileSide)); // black tile
-		}
-		// correct dimensions of cropped tiles, padding the outside with black
-		if (imp.getWidth() < tileSide || imp.getHeight() < tileSide) {
-			final ImagePlus imp2 = new ImagePlus(imp.getTitle(), imp.getProcessor().createProcessor(tileSide, tileSide));
-			// ensure black background for color images
-			if (imp2.getType() == ImagePlus.COLOR_RGB) {
-				final Roi roi = new Roi(0, 0, tileSide, tileSide);
-				imp2.setRoi(roi);
-				imp2.getProcessor().setValue(0); // black
-				imp2.getProcessor().fill();
+		return new Runnable() {
+			public void run() {
+				ImagePlus imp = null;
+				if (srcRect.width > 0 && srcRect.height > 0) {
+					imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
+					if (skip_empty_tiles && isEmptyTile(imp.getProcessor())) return;
+				} else {
+					// Make empty black tile
+					if (skip_empty_tiles) return;
+					imp = new ImagePlus("", new ByteProcessor(tileSide, tileSide)); // black tile
+				}
+				// correct dimensions of cropped tiles, padding the outside with black
+				if (imp.getWidth() < tileSide || imp.getHeight() < tileSide) {
+					final ImagePlus imp2 = new ImagePlus(imp.getTitle(), imp.getProcessor().createProcessor(tileSide, tileSide));
+					// ensure black background for color images
+					if (imp2.getType() == ImagePlus.COLOR_RGB) {
+						final Roi roi = new Roi(0, 0, tileSide, tileSide);
+						imp2.setRoi(roi);
+						imp2.getProcessor().setValue(0); // black
+						imp2.getProcessor().fill();
+					}
+					imp2.getProcessor().insert(imp.getProcessor(), 0, 0);
+					imp = imp2;
+				}
+				// debug
+				//Utils.log("would save: " + srcRect + " at " + file_path);
+				//ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
+				saver.save(imp, file_path);
+				imp.flush();
 			}
-			imp2.getProcessor().insert(imp.getProcessor(), 0, 0);
-			imp = imp2;
-		}
-		// debug
-		//Utils.log("would save: " + srcRect + " at " + file_path);
-		//ImageSaver.saveAsJpeg(imp.getProcessor(), file_path, jpeg_quality, ImagePlus.COLOR_RGB != type);
-		saver.save(imp, file_path);
+		};
 	}
 
 	/** Find the closest, but larger, power of 2 number for the given edge size; the base root may be any of {1,2,3,5}. */
