@@ -3,6 +3,8 @@ package mpicbg.trakem2.transform;
 import java.awt.Color;
 import java.awt.Image;
 import java.awt.Rectangle;
+import java.awt.image.BufferedImage;
+import java.awt.image.IndexColorModel;
 import java.awt.image.PixelGrabber;
 import java.util.List;
 
@@ -141,7 +143,7 @@ public class ExportBestFlatImage
 	 * which means than an image 2x larger on each side will be generated and then scaled down by area averaging.
 	 * Uses mipmaps, which are Gaussian-downsampled already.
 	 * 
-	 *  @param type Either ImagePlus.GRAY8 or ImagePlus.COLOR_RGB
+	 *  @param type Either ImagePlus.GRAY8 (TYPE_BYTE_INDEXED) or ImagePlus.COLOR_RGB (TYPE_INT_ARGB)
 	 */
 	protected Image createAWTImage( final int type )
 	{
@@ -181,9 +183,29 @@ public class ExportBestFlatImage
      * @return null when the dimensions make the array larger than 2GB, or the image otherwise.
     */
 	public ByteProcessor makeFlatGrayImage()
-	{
+	{	
 		if ( canUseAWTImage() ) {
-			return new ByteProcessor( createAWTImage( ImagePlus.GRAY8 ) );
+			final Image img = createAWTImage( ImagePlus.GRAY8 );
+			try {
+			// Try fastest way: direct way of grabbing the underlying pixel array
+				if (img instanceof BufferedImage && BufferedImage.TYPE_BYTE_GRAY == ((BufferedImage)img).getType()) {
+					return new ByteProcessor( (BufferedImage)img );
+				}
+				final PixelGrabber pg = new PixelGrabber(img, 0, 0, img.getWidth(null), img.getHeight(null), false);
+				try {
+					pg.grabPixels();
+				} catch (InterruptedException ie) {
+					ie.printStackTrace();
+				}
+				if (pg.getColorModel() instanceof IndexColorModel) {
+					return new ByteProcessor(img.getWidth(null), img.getHeight(null), (byte[])pg.getPixels(), null);
+				} else {
+					// Let's be creative
+					return new ColorProcessor(img).convertToByteProcessor();
+				}
+			} finally {
+				img.flush();
+			}
 		}
 		
 		if ( !isSmallerThan2GB() ) {
@@ -206,7 +228,7 @@ public class ExportBestFlatImage
 	 * @return Return null when dimensions make the array larger than 2GB.
 	 */
 	public Pair<ByteProcessor, ByteProcessor> makeFlatGrayImageAndAlpha()
-	{		
+	{
 		if ( canUseAWTImage() ) {
 			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // In color to preserve the alpha channel present in mipmaps
 			final int width = img.getWidth(null);
@@ -253,7 +275,7 @@ public class ExportBestFlatImage
 	 * While the data is in the 8-bit range, the format is as a FloatProcessor.
 	 */
 	public Pair<FloatProcessor, FloatProcessor> makeFlatFloatGrayImageAndAlpha()
-	{		
+	{
 		if ( canUseAWTImage() ) {
 			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // In color to preserve the alpha channel present in mipmaps
 			final int width = img.getWidth(null);
