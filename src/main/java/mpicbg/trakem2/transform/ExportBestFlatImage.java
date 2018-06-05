@@ -151,8 +151,6 @@ public class ExportBestFlatImage
 	
 	public Pair<ColorProcessor, ByteProcessor> makeFlatColorImage()
 	{
-		printInfo();
-		
 		if ( canUseAWTImage() ) { // less than 0.5 GB array size
 			final ColorProcessor cp = new ColorProcessor( createAWTImage( ImagePlus.COLOR_RGB ) );
 			final ByteProcessor alpha = new ByteProcessor( cp.getWidth(), cp.getHeight(), cp.getChannel( 4 ) );
@@ -184,8 +182,6 @@ public class ExportBestFlatImage
     */
 	public ByteProcessor makeFlatGrayImage()
 	{
-		printInfo();
-		
 		if ( canUseAWTImage() ) {
 			return new ByteProcessor( createAWTImage( ImagePlus.GRAY8 ) );
 		}
@@ -211,8 +207,6 @@ public class ExportBestFlatImage
 	 */
 	public Pair<ByteProcessor, ByteProcessor> makeFlatGrayImageAndAlpha()
 	{		
-		printInfo();
-
 		if ( canUseAWTImage() ) {
 			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // In color to preserve the alpha channel present in mipmaps
 			final int width = img.getWidth(null);
@@ -260,8 +254,6 @@ public class ExportBestFlatImage
 	 */
 	public Pair<FloatProcessor, FloatProcessor> makeFlatFloatGrayImageAndAlpha()
 	{		
-		printInfo();
-
 		if ( canUseAWTImage() ) {
 			final Image img = createAWTImage( ImagePlus.COLOR_RGB ); // In color to preserve the alpha channel present in mipmaps
 			final int width = img.getWidth(null);
