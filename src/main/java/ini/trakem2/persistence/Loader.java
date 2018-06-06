@@ -3034,7 +3034,9 @@ while (it.hasNext()) {
 
 	/** Generate e.g. 256x256 tiles, as many as necessary, to cover the given srcRect, starting at max_scale. Designed to be slow but memory-capable.
 	 *
-	 * filename = z + "/" + row + "_" + column + "_" + s + ".jpg";
+	 * Directory structure types:
+	 * type 0: filename = z + "/" + row + "_" + column + "_" + s + ".jpg";
+	 * type 1: filename = z + "/" + s + "/" + row + "_" + column + ".jpg";
 	 *
 	 * row and column run from 0 to n stepsize 1
 	 * that is, row = y / ( 256 * 2^s ) and column = x / ( 256 * 2^s )
