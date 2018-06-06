@@ -2785,7 +2785,7 @@ while (it.hasNext()) {
 				h = (int)Math.ceil(layer.getLayerHeight());
 				srcRect = new Rectangle(0, 0, w, h);
 			}
-			Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
+			//Utils.log2("Loader.getFlatImage: using rectangle " + srcRect);
 
 			/*
 			 * output size including excess space for not entirely covered
@@ -2840,7 +2840,7 @@ while (it.hasNext()) {
 
 			// estimate image size
 			final long n_bytes = (long)( ( biw * bih * (ImagePlus.GRAY8 == type ? 1.0 /*byte*/ : 4.0 /*int*/)));
-			Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil( biw ) + "," + (int)Math.ceil( bih ) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with area averaging)" : ""));
+			//Utils.log2("Flat image estimated size in bytes: " + Long.toString(n_bytes) + "  w,h : " + (int)Math.ceil( biw ) + "," + (int)Math.ceil( bih ) + (quality ? " (using 'quality' flag: scaling to " + scale + " is done later with area averaging)" : ""));
 
 			releaseToFit(n_bytes);
 
