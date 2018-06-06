@@ -104,7 +104,6 @@ import net.imglib2.img.imageplus.ImagePlusImgs;
 import net.imglib2.type.numeric.real.FloatType;
 
 import org.janelia.intensity.LinearIntensityMap;
-import org.jfree.chart.plot.CategoryCrosshairState;
 import org.xml.sax.InputSource;
 
 
