@@ -385,7 +385,7 @@ public final class FSLoader extends Loader {
 		if (null == autosaver || autosaver.isShutdown()) autosaver = Executors.newScheduledThreadPool(1);
 	}
 
-	/** Shutdown the various thread pools and disactivate services in general. */
+	/** Shutdown the various thread pools and deactivate services in general. */
 	static private void destroyStaticServices() {
 		if (null != regenerator) regenerator.shutdownNow();
 		if (null != remover) remover.shutdownNow();
