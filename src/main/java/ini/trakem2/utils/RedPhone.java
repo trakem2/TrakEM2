@@ -15,11 +15,16 @@ import java.io.PrintWriter;
 import java.io.Writer;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /** Send any input to port 29391 and TrakEM2 will
  * try to save all {@link FSLoader} projects to XML files.
@@ -50,6 +55,8 @@ public class RedPhone {
 	final Set<Socket> openConnections = Collections.synchronizedSet(new HashSet<Socket>());
 	private ThreadGroup group = new ThreadGroup("RedPhone");
 	final private Object WRITE = new Object();
+	
+	static private final Hashtable<Project, ScheduledExecutorService> periodic_flushers = new Hashtable<Project, ScheduledExecutorService>();
 
 	synchronized public void quit() {
 		if (null != server) {
@@ -95,6 +102,18 @@ public class RedPhone {
 				cmds.put("save", new Save());
 				cmds.put("saveas", new SaveAs());
 				cmds.put("stream", new Stream());
+				cmds.put("flushcache", new FlushCache());
+				cmds.put("flushcacheevery1minute", new StartPeriodicFlushCache(1));
+				cmds.put("flushcacheevery2minutes", new StartPeriodicFlushCache(2));
+				cmds.put("flushcacheevery5minutes", new StartPeriodicFlushCache(5));
+				cmds.put("flushcacheevery10minutes", new StartPeriodicFlushCache(10));
+				cmds.put("stopflushcache", new StopPeriodicFlushCache());
+				cmds.put("heap0.2", new SetHeapFraction(0.1f)); // 10 %
+				cmds.put("heap0.2", new SetHeapFraction(0.2f)); // 20 %
+				cmds.put("heap0.3", new SetHeapFraction(0.3f)); // 30 %
+				cmds.put("heap0.4", new SetHeapFraction(0.4f)); // 40 % (default)
+				cmds.put("help", new Help(cmds));
+				cmds.put("?", new Help(cmds));
 				//
 				while (!isInterrupted()) {
 					Socket s = null;
@@ -249,6 +268,97 @@ public class RedPhone {
 				e.printStackTrace();
 				io.writeLine("Could not stream project " + fl.getProjectXMLPath());
 			}
+		}
+	}
+	
+	private class FlushCache extends Action
+	{
+		@Override
+		protected void exec(Project p, FSLoader fl, IO io, int count) throws IOException {
+			io.writeLine("Flushing cache...");
+			p.getLoader().releaseAll();
+			io.writeLine("Done flushing cache.");
+		}
+	}
+	
+	private class StartPeriodicFlushCache extends Action
+	{
+		private final int n_minutes;
+		
+		protected StartPeriodicFlushCache(final int n_minutes) {
+			this.n_minutes = n_minutes;
+		}
+		@Override
+		protected void exec(Project p, FSLoader fl, IO io, int count) throws IOException {
+			synchronized (periodic_flushers) {
+				if ( periodic_flushers.containsKey( p ) ) {
+					io.writeLine("Periodic flushing already running. Stop it first to relaunch it.");
+				} else {
+					final ScheduledExecutorService ses = Executors.newSingleThreadScheduledExecutor();
+					ses.scheduleWithFixedDelay(new Runnable() {
+						@Override
+						public void run() {
+							p.getLoader().releaseAll();
+							System.out.println(Utils.now() + " :: Flushed cache for project: " + p.getTitle());
+						}
+					}, 0, this.n_minutes, TimeUnit.MINUTES);
+					periodic_flushers.put( p, ses );
+					io.writeLine("Started periodic flushing every " + this.n_minutes + " minutes for project: " + p.getTitle());
+				}
+			}
+		}
+	}
+	
+	private class StopPeriodicFlushCache extends Action
+	{
+		@Override
+		protected void exec(Project p, FSLoader fl, IO io, int count) throws IOException {
+			synchronized (periodic_flushers) {
+				final ScheduledExecutorService ses = periodic_flushers.remove( p );
+				if (null == ses) {
+					io.writeLine("No periodic flushing running for project: " + p.getTitle());
+				} else {
+					ses.shutdownNow();
+					io.writeLine("Stopped periodic flushing for project: " + p.getTitle());
+				}
+			}
+		}
+	}
+	
+	private class SetHeapFraction extends Action
+	{
+		private final float heap_fraction;
+		protected SetHeapFraction(final float heap_fraction) {
+			this.heap_fraction = heap_fraction;
+		}
+		
+		@Override
+		protected void exec(Project p, FSLoader fl, IO io, int count) throws IOException {
+			// Applies to all open Loaders
+			Loader.setHeapFraction(this.heap_fraction);
+			io.writeLine("Set Loader.heap_fraction to " + this.heap_fraction);
+		}
+	}
+	
+	private class Help extends Action
+	{
+		private final HashMap<String, Action> cmds;
+		protected Help(final HashMap<String, Action> cmds) {
+			this.cmds = cmds;
+		}
+		
+		@Override
+		protected void exec(Project p, FSLoader fl, IO io, int count) throws IOException {
+			io.writeLine("### START HELP ###");
+			io.writeLine("Available commands:");
+			final ArrayList<String> commands = new ArrayList<String>(cmds.keySet());
+			Collections.sort(commands);
+			
+			for (final String command: commands) {
+				io.writeLine("  " + command);
+			}
+			io.writeLine("  quit"); // built-in to the Connection class above
+			io.writeLine("### END HELP ###");
 		}
 	}
 	
