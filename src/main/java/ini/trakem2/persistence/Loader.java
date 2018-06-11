@@ -3492,6 +3492,7 @@ while (it.hasNext()) {
 						imp2.getProcessor().fill();
 					}
 					imp2.getProcessor().insert(imp.getProcessor(), 0, 0);
+					imp.flush();
 					imp = imp2;
 				}
 				// debug
