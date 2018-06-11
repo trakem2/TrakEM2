@@ -530,7 +530,10 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 	}
 
 
-	/** Returns a list of all Displayable of class c that intersect the given rectangle. */
+	/** Returns a list of all Displayable of class c that intersect the given rectangle.
+	 * Expensive: will use an Area(roi) to compare against the Displayable.getArea(),
+	 *            which can be very expensive when using e.g. non-linear transforms
+	 *            in a Patch instance, potentially requiring the loading and non-linear transform of the mask. */
 	public Collection<Displayable> getDisplayables(final Class<?> c, final Rectangle roi) {
 		return getDisplayables(c, new Area(roi), true, false);
 	}
@@ -652,7 +655,9 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		return find(r, false);
 	}
 
-	/** Find the Displayable objects whose bounding box intersects with the given rectangle. */
+	/** Find the Displayable objects whose bounding box intersects with the given rectangle.
+	 *  Cheap: will only compare against the Rectangle bounding box of each Displayable.
+	 *         In addition, will use buckets when present. */
 	synchronized public Collection<Displayable> find(final Rectangle r, final boolean visible_only) {
 		if (null != root && root.isBetter(r, this)) return root.find(r, this, visible_only);
 		final ArrayList<Displayable> al = new ArrayList<Displayable>();
