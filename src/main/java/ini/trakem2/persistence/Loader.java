@@ -2981,7 +2981,7 @@ while (it.hasNext()) {
 	}
 
 	public Bureaucrat makePrescaledTiles(final Layer[] layer, final Class<?> clazz, final Rectangle srcRect, final double max_scale_, final int c_alphas, final int type, final String target_dir, final boolean from_original_images) {
-		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256, 0, false);
+		return makePrescaledTiles(layer, clazz, srcRect, max_scale_, c_alphas, type, target_dir, from_original_images, new Saver(".jpg"), 256, 0, false, false);
 	}
 	
 	/**
@@ -3053,13 +3053,17 @@ while (it.hasNext()) {
 	 *
 	 * Best results obtained when the srcRect approaches or is a square. Black space will pad the right and bottom edges when the srcRect is not exactly a square.
 	 * Only the area within the srcRect is ever included, even if actual data exists beyond.
+	 * 
+	 * @param directory_structure_type 0 or 1. See above.
+	 * @param skip_empty_tiles Entirely black tiles will not be written to disk.
+	 * @param use_layer_indices The folder for each layer will be that of its index in the LayerSet, which is guaranteed to be unique.
 	 *
 	 * @return The watcher thread, for joining purposes, or null if the dialog is canceled or preconditions are not passed.
 	 * @throws IllegalArgumentException if the type is not ImagePlus.GRAY8 or Imageplus.COLOR_RGB.
 	 */
 	public Bureaucrat makePrescaledTiles(final Layer[] layers, final Class<?> clazz, final Rectangle srcRect, double max_scale_,
 			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide,
-			final int directory_structure_type, final boolean skip_empty_tiles) {
+			final int directory_structure_type, final boolean skip_empty_tiles, final boolean use_layer_indices) {
 		if (null == layers || 0 == layers.length) return null;
 		switch (type) {
 		case ImagePlus.GRAY8:
@@ -3218,8 +3222,9 @@ while (it.hasNext()) {
 				cleanUp();
 				return;
 			}
-			final int index = entry.getKey() - smallestIndex;
 			final Layer layer = entry.getValue();
+			final int index = use_layer_indices ? layer.getParent().indexOf(layer) : entry.getKey() - smallestIndex;
+			
 
 			// 1 - create a directory 'z' named as the layer's index
 			if (!Utils.ensure(dir + index)) {
