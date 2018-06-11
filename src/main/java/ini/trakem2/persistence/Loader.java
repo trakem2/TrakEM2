@@ -3475,7 +3475,8 @@ while (it.hasNext()) {
 				ImagePlus imp = null;
 				if (srcRect.width > 0 && srcRect.height > 0) {
 					imp = getFlatImage(layer, srcRect, mag, c_alphas, type, clazz, null, true); // with quality
-					if (skip_empty_tiles && isEmptyTile(imp.getProcessor())) return;
+					// First cheap check on bounding boxes only, if it fails, check if anything actually was painted
+					if (skip_empty_tiles && (layer.find(srcRect, true).isEmpty() || isEmptyTile(imp.getProcessor()))) return;
 				} else {
 					// Make empty black tile
 					if (skip_empty_tiles) return;
