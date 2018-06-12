@@ -3426,8 +3426,8 @@ while (it.hasNext()) {
 									cleanUp();
 									return;
 								}
-								final Rectangle tile_src = new Rectangle(srcRect.x + tile_side*row, // TODO row and col are inverted
-										srcRect.y + tile_side*col,
+								final Rectangle tile_src = new Rectangle(srcRect.x + tile_side*col,
+										srcRect.y + tile_side*row,
 										tile_side,
 										tile_side); // in absolute coords, magnification later.
 								// crop bounds
