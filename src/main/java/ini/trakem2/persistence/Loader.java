@@ -3244,7 +3244,7 @@ while (it.hasNext()) {
 			// 3 - fill directory with tiles
 			if (edge_length < tileSide) { // edge_length is the largest length of the tileSide x tileSide tile map that covers an area equal or larger than the desired srcRect (because all tiles have to be tileSide x tileSide in size)
 				// create single tile per layer
-				makeTileRunnable(layer, srcRect, max_scale, c_alphas, type, clazz, dir + index + "/0_0_0", saver, tileSide, skip_empty_tiles).run();
+				makeTileRunnable(layer, srcRect, max_scale, c_alphas, type, clazz, makeTilePath(directory_structure_type, dir, index, 0, 0, 0), saver, tileSide, skip_empty_tiles).run();
 			} else {
 				// create pyramid of tiles
 				if (from_original_images) {
