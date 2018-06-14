@@ -528,7 +528,15 @@ public final class Layer extends DBObject implements Bucketable, Comparable<Laye
 		}
 		return al;
 	}
-
+	
+	synchronized public ArrayList<Patch> getPatches(final boolean visible_only) {
+		final ArrayList<Patch> al = new ArrayList<Patch>();
+		for (final Displayable d : al_displayables) {
+			if (visible_only && !d.isVisible()) continue;
+			if (d.getClass() == Patch.class) al.add((Patch)d);
+		}
+		return al;
+	}
 
 	/** Returns a list of all Displayable of class c that intersect the given rectangle.
 	 * Expensive: will use an Area(roi) to compare against the Displayable.getArea(),
