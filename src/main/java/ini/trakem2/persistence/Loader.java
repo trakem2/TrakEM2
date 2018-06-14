@@ -880,6 +880,16 @@ abstract public class Loader {
 		}
 		return null;
 	}
+	
+	public void removeCached(final long id, final int level) {
+		synchronized (db_lock) {
+			try {
+				mawts.remove(id, level);
+			} catch (final Throwable t) {
+				handleCacheError(t);
+			}
+		}
+	}
 
 	/** Above or equal in size. */
 	public MipMapImage getCachedClosestAboveImage(final Patch p, final double mag) {
