@@ -23,6 +23,7 @@ Institute of Neuroinformatics, University of Zurich / ETH, Switzerland.
 package ini.trakem2.display;
 
 import java.awt.BasicStroke;
+import java.awt.Checkbox;
 import java.awt.Choice;
 import java.awt.Color;
 import java.awt.Component;
@@ -5067,7 +5068,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addChoice("Export:", choices, choices[0]);
 			final String[] formats = Saver.formats();
 			gd.addChoice("Format:", formats, formats[0]);
-			gd.addNumericField("Tile_side", 256, 0);
+			gd.addNumericField("Tile_side", 1024, 0);
 			final Choice cformats = (Choice)gd.getChoices().get(gd.getChoices().size() -1);
 			cformats.setEnabled(false);
 			final Choice cchoices = (Choice)gd.getChoices().get(gd.getChoices().size() -2);
@@ -5076,22 +5077,33 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			gd.addChoice("Directory structure", new String[]{"<section>/<Y>_<X>_<scale_power>.<ext>", "<section>/<scale_power>/<Y>_<X>.<ext>"}, "<section>/<scale_power>/<Y>_<X>.<ext>");
 			final Choice tile_directory_structure = (Choice)gd.getChoices().get(gd.getChoices().size() -1);
 			tile_directory_structure.setEnabled(false);
+			gd.addChoice("Strategy:", new String[]{"Use original images", "Use mipmaps", "Use mipmaps (multi-layer)"}, "Use mipmaps (multi-layer)");
+			final Choice cstrategy = (Choice)gd.getChoices().get(gd.getChoices().size() -1);
+			cstrategy.setEnabled(false);
+			gd.addCheckbox("Skip empty tiles", true);
+			final Checkbox cb_skip = (Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size() -1);
+			cb_skip.setEnabled(false);
+			gd.addCheckbox("Use layer indices", true);
+			final Checkbox cb_li = (Checkbox)gd.getCheckboxes().get(gd.getCheckboxes().size() -1);
+			cb_li.setEnabled(false);
+			gd.addNumericField("Number of threads", project.getProperty("n_mipmap_threads", 1), 0);
+			final Component cnt = (Component)gd.getNumericFields().get(gd.getNumericFields().size() -1);
+			cnt.setEnabled(false);
+			final Component[] cweb = new Component[]{tf, tile_directory_structure, cstrategy, cb_skip, cb_li, cnt};
+			
 			cchoices.addItemListener(new ItemListener() {
 				@Override
 				public void itemStateChanged(final ItemEvent e) {
 					cformats.setEnabled(cchoices.getSelectedIndex() > 0);
 					if (2 == cchoices.getSelectedIndex()) {
 						cformats.select(".jpg");
-						tf.setEnabled(true);
-						tile_directory_structure.setEnabled(true);
+						for (final Component c : cweb) c.setEnabled(true);
 					} else {
 						tf.setEnabled(false);
 					}
 				}
 			});
-			gd.addCheckbox("Use original images", true);
-			gd.addCheckbox("Skip empty tiles", false);
-			gd.addCheckbox("Use layer indices", true);
+			
 			gd.showDialog();
 			if (gd.wasCanceled()) return;
 
@@ -5116,7 +5128,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				final ArrayList<ZDisplayable> al_zd = layer.getParent().getZDisplayables();
 				final ZDisplayable[] zd = new ZDisplayable[al_zd.size()];
 				al_zd.toArray(zd);
-				for (int i=i_start, j=0; i <= i_end; i++, j++) {
+				for (int i=i_start; i <= i_end; i++) {
 					final Layer la = layer.getParent().getLayer(i);
 					if (!la.isEmpty() || !non_empty_only) al.add(la); // checks both the Layer and the ZDisplayable objects in the parent LayerSet
 				}
@@ -5138,13 +5150,15 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final String format = gd.getNextChoice();
 			final Saver saver = new Saver(format);
 			final int tile_side = (int)gd.getNextNumber();
-			final boolean use_original_images = gd.getNextBoolean();
 			final int directory_structure_type = gd.getNextChoiceIndex();
+			final int strategy = gd.getNextChoiceIndex();
 			final boolean skip_empty_tiles = gd.getNextBoolean();
 			final boolean use_layer_indices = gd.getNextBoolean();
+			double nt = gd.getNextNumber();
+			final int n_threads = (int) (Double.isNaN(nt) ? 1 : Math.max(1, nt));
 			// in its own thread
 			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, c_alphas,
-					the_type, null, use_original_images, saver, tile_side, directory_structure_type, skip_empty_tiles, use_layer_indices);
+					the_type, null, strategy, saver, tile_side, directory_structure_type, skip_empty_tiles, use_layer_indices, n_threads);
 			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background);
 
 		} else if (command.equals("Lock")) {

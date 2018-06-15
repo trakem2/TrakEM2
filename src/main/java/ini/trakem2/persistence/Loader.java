@@ -3000,15 +3000,16 @@ while (it.hasNext()) {
 			final int c_alphas,
 			final int type,
 			String target_dir,
-			final boolean from_original_images,
+			final int strategy,
 			final Saver saver,
 			final int tileSide,
 			final int directory_structure_type,
 			final boolean skip_empty_tiles,
-			final boolean use_layer_indices
+			final boolean use_layer_indices,
+			final int n_threads
 			) {
 		return ExportMultilevelTiles.makePrescaledTiles(layers, clazz, srcRect, c_alphas, type, target_dir,
-				from_original_images,saver, tileSide, directory_structure_type, skip_empty_tiles, use_layer_indices);
+				strategy, saver, tileSide, directory_structure_type, skip_empty_tiles, use_layer_indices, n_threads);
 	}
 
 	/** WARNING may be altered concurrently. */

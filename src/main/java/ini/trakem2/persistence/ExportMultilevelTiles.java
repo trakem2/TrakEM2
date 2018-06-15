@@ -175,6 +175,7 @@ public class ExportMultilevelTiles
 	 * Best results obtained when the srcRect approaches or is a square. Black space will pad the right and bottom edges when the srcRect is not exactly a square.
 	 * Only the area within the srcRect is ever included, even if actual data exists beyond.
 	 * 
+	 * @param strategy 0 (original images), 1 (mipmaps) or 2 (mipmaps, with multi-layer threading)
 	 * @param directory_structure_type 0 or 1. See above.
 	 * @param skip_empty_tiles Entirely black tiles will not be written to disk.
 	 * @param use_layer_indices The folder for each layer will be that of its index in the LayerSet, which is guaranteed to be unique.
@@ -183,8 +184,8 @@ public class ExportMultilevelTiles
 	 * @throws IllegalArgumentException if the type is not ImagePlus.GRAY8 or Imageplus.COLOR_RGB.
 	 */
 	static public Bureaucrat makePrescaledTiles(final Layer[] layers, final Class<?> clazz, final Rectangle srcRect,
-			final int c_alphas, final int type, String target_dir, final boolean from_original_images, final Saver saver, final int tileSide,
-			final int directory_structure_type, final boolean skip_empty_tiles, final boolean use_layer_indices)
+			final int c_alphas, final int type, String target_dir, final int strategy, final Saver saver, final int tileSide,
+			final int directory_structure_type, final boolean skip_empty_tiles, final boolean use_layer_indices, final int n_threads)
 	{
 		// Check preconditions
 		if (null == layers || 0 == layers.length) return null;
@@ -296,14 +297,22 @@ public class ExportMultilevelTiles
 				}
 			}
 			
-			
-			if (from_original_images) {
+			switch (strategy) {
+			case 0:
 				worker = exportFromOriginals(indices, smallestIndex, dir, saver, srcRect, c_alphas, type, clazz, tileSide,
-						directory_structure_type, use_layer_indices, skip_empty_tiles);
-			} else {
-				System.out.println("worker layer-wise");
+						directory_structure_type, use_layer_indices, skip_empty_tiles, Math.max(1, n_threads));
+				break;
+			case 1:
+				worker = exportFromMipMaps(indices, smallestIndex, dir, saver, srcRect, c_alphas, type, clazz, tileSide,
+						directory_structure_type, use_layer_indices, skip_empty_tiles, Math.max(1, n_threads));
+				break;
+			case 2:
 				worker = exportFromMipMapsLayerWise(indices, smallestIndex, dir, saver, srcRect, c_alphas, type, clazz, tileSide,
-						directory_structure_type, use_layer_indices, skip_empty_tiles);
+						directory_structure_type, use_layer_indices, skip_empty_tiles, Math.max(1, n_threads));
+				break;
+			default:
+				Utils.log("Unknown strategy: " + strategy);
+				return null;
 			}
 
 			// watcher thread
@@ -327,7 +336,8 @@ public class ExportMultilevelTiles
 			final int tileSide,
 			final int directory_structure_type,
 			final boolean use_layer_indices,
-			final boolean skip_empty_tiles)
+			final boolean skip_empty_tiles,
+			final int n_threads)
 	{
 		return new Worker("Creating prescaled tiles from mipmaps")
 		{
@@ -338,10 +348,9 @@ public class ExportMultilevelTiles
 			@Override
             public void run() {
 				startedWorking();
-
-				// When using mipmaps, run in parallel (uses same number of threads as for generating mipmaps)
-				final int n_procs = indices.firstEntry().getValue().getProject().getProperty("n_mipmap_threads", 1);
-				final ExecutorService exec = Executors.newFixedThreadPool(n_procs);
+				
+				final int n_procs = Math.max(1, n_threads);
+				final ExecutorService exec = Utils.newFixedThreadPool(Math.max(1, n_threads), "export-for-web::mipmaps");
 				final LinkedList<Future<?>> futures = new LinkedList<Future<?>>();
 				
 				try {
@@ -462,9 +471,10 @@ public class ExportMultilevelTiles
 			final int tileSide,
 			final int directory_structure_type,
 			final boolean use_layer_indices,
-			final boolean skip_empty_tiles)
+			final boolean skip_empty_tiles,
+			final int n_threads)
 	{
-		return new Worker("Creating prescaled tiles from mipmaps")
+		return new Worker("Creating prescaled tiles from mipmaps layer-wise")
 		{
 			private void cleanUp() {
 				finishedWorking();
@@ -475,10 +485,9 @@ public class ExportMultilevelTiles
 				startedWorking();
 				
 				try {
-
 					// When using mipmaps, run in parallel (uses same number of threads as for generating mipmaps)
-					final int n_procs = Math.min(1, indices.firstEntry().getValue().getProject().getProperty("n_mipmap_threads", 1));
-					final ExecutorService exec = Executors.newFixedThreadPool(n_procs);
+					final int n_procs = Math.max(1, n_threads);
+					final ExecutorService exec = Utils.newFixedThreadPool(Math.max(1, n_threads), "export-for-web::mipmaps-layer-wise");
 					final LinkedList<Future<?>> futures = new LinkedList<Future<?>>();
 
 					final List<Map.Entry<Integer, Layer>> layers = Collections.unmodifiableList(new ArrayList<>(indices.entrySet())); // toArray( new Map.Entry[indices.size()] );
@@ -490,7 +499,6 @@ public class ExportMultilevelTiles
 					final int n_edge_tiles = edge_length / tileSide;
 
 					final Area area_srcRect = new Area(srcRect);
-					System.out.println("Inside RUN");
 
 					for (int k=0; k<n_procs; ++k) {
 						futures.add(exec.submit(new Runnable() {
@@ -499,7 +507,6 @@ public class ExportMultilevelTiles
 								while (true) {
 									// Index of next Layer to process
 									final int next = ai.getAndIncrement();
-									System.out.println("next is: " + next);
 									// Terminating condition
 									if (next >= layers.size()) return;
 									// Layer to work on, exclusive for this Thread
@@ -533,7 +540,6 @@ public class ExportMultilevelTiles
 									
 									// Every iteration generates tile for one level, starting at 0
 									while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from which then powers of two were taken to make up for the edge_length
-										System.out.println("Generating tiles for level: " + scale_pow + " with scale " + scale);
 										// Check if area under 1 GB: if so, switch strategy
 										if (null != snapshot || (srcRect.width * scale) * (srcRect.height * scale) < Math.pow(2,  30)) { // careful with overflows
 											// Snapshot whole srcRect and go from there
@@ -568,7 +574,6 @@ public class ExportMultilevelTiles
 												}
 											}
 										} else {
-											System.out.println("Patch wise");
 											// Patch-wise
 											// Tile side at this scale level, in 100% scale coordinates
 											// (So if tileSide starts at 1024 for level 0, will be 2048 for level 1, 4096 for level 2, etc.)
@@ -576,7 +581,6 @@ public class ExportMultilevelTiles
 											// Keep track of completed tiles
 											final HashSet<II> done = new HashSet<II>();
 											if (patches.size() > 0) {
-												System.out.println("working with " + patches.size() + " patches");
 												// Area over 1 GB: generate tiles Patch-wise
 												// Process one Patch at a time, continue with the Patch instances that overlap with it
 												// to minimize the loading of mipmaps
@@ -586,7 +590,6 @@ public class ExportMultilevelTiles
 												pending.remove(patches.get(0));
 												while (stack.size() > 0) {
 													final Patch patch = stack.removeFirst(); // pop
-													System.out.println("while loop iteration: processing Patch " + patch);
 													// Patch bounds relative to the srcRect
 													final Rectangle bounds = patch.getBoundingBox();
 													bounds.x -= srcRect.x;
@@ -596,7 +599,6 @@ public class ExportMultilevelTiles
 															  gy0 = Math.max(0,                           bounds.y                  / tile_side),
 															  gx1 = Math.min(srcRect.width  / tile_side, (bounds.x + bounds.width)  / tile_side),
 															  gy1 = Math.min(srcRect.height / tile_side, (bounds.y + bounds.height) / tile_side);
-													System.out.println("gx0, gy0, gx1, gy1: " + gx0 + ", " + gy0 + ", " + gx1 + ", " + gy1 + " for Patch #" + patch.getId());
 													// Iterate in tile coordinate space over the Patch bounds
 													for (int row = gy0; row <= gy1; ++row) {
 														for (int col = gx0; col <= gx1; ++col) {
@@ -609,6 +611,9 @@ public class ExportMultilevelTiles
 																	srcRect.y + tile_side * row,
 																	tile_side,
 																	tile_side); // in absolute coords, magnification later.
+															// Crop bounds to within srcRect (tile will be enlarged prior to saving, padding with black)
+															if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
+															if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
 															// Write tile
 															final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow);
 															//System.out.println("   writing tile for " + tile_src + " with path " + path.substring(path.lastIndexOf("/") + 1));
@@ -655,14 +660,22 @@ public class ExportMultilevelTiles
 												}
 											}
 										}
-										// Remove unneeded mipmaps from the cache
-										for (final Patch patch : patches) {
-											patch.getProject().getLoader().removeCached(patch.getId(), scale_pow);
+										// Remove unneeded mipmaps from the cache: the ones from the level before this one
+										// (The ones from this level may be used to draw the snapshot when changing strategies)
+										if (scale_pow > 0) {
+											for (final Patch patch : patches) {
+												patch.getProject().getLoader().removeCached(patch.getId(), scale_pow -1);
+											}
 										}
 										// Prepare next scale level
 										scale_pow++;
 										scale = 1 / Math.pow(2, scale_pow); // works as magnification
 										n_et /= 2;
+									}
+
+									// Remove unneeded mipmaps from the cache: all for this Layer if any left to throw out
+									for (final Patch patch : patches) {
+										patch.getProject().getLoader().removeCached(patch.getId());
 									}
 								}
 							}
@@ -746,9 +759,10 @@ public class ExportMultilevelTiles
 			final int tileSide,
 			final int directory_structure_type,
 			final boolean use_layer_indices,
-			final boolean skip_empty_tiles)
+			final boolean skip_empty_tiles,
+			final int n_threads)
 	{	
-		return new Worker("Creating prescaled tiles from originals") {
+		return new Worker("Creating prescaled tiles from original images") {
 			private void cleanUp() {
 				finishedWorking();
 			}
@@ -829,7 +843,7 @@ public class ExportMultilevelTiles
 
 							int scale_pow = 0;
 							int n_et = n_edge_tiles;
-							final ExecutorService exe = Utils.newFixedThreadPool("export-for-web");
+							final ExecutorService exe = Utils.newFixedThreadPool(Math.max(1, n_threads), "export-for-web::original-images");
 							final ArrayList<Future<?>> fus = new ArrayList<Future<?>>();
 							try {
 								while (n_et >= best[1]) {
