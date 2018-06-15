@@ -5143,7 +5143,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 			final boolean skip_empty_tiles = gd.getNextBoolean();
 			final boolean use_layer_indices = gd.getNextBoolean();
 			// in its own thread
-			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, scale, c_alphas,
+			if (save_for_web) project.getLoader().makePrescaledTiles(layer_array, Patch.class, srcRect, c_alphas,
 					the_type, null, use_original_images, saver, tile_side, directory_structure_type, skip_empty_tiles, use_layer_indices);
 			else project.getLoader().makeFlatImage(layer_array, srcRect, scale, c_alphas, the_type, save_to_file, format, quality, background);
 
