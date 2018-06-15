@@ -881,10 +881,22 @@ abstract public class Loader {
 		return null;
 	}
 	
+	/** Only the indicated level for the given Patch id. */
 	public void removeCached(final long id, final int level) {
 		synchronized (db_lock) {
 			try {
 				mawts.remove(id, level);
+			} catch (final Throwable t) {
+				handleCacheError(t);
+			}
+		}
+	}
+	
+	/** All levels of the Patch. */
+	public void removeCached(final long id) {
+		synchronized (db_lock) {
+			try {
+				mawts.remove(id);
 			} catch (final Throwable t) {
 				handleCacheError(t);
 			}
