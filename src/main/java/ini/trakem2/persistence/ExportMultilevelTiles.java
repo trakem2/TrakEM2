@@ -505,6 +505,142 @@ public class ExportMultilevelTiles
 			this.saver = saver;
 		}
 		
+		/** Will flush the prior_snapshot. */
+		private final ImageProcessor strategySnapshot(
+				final ImageProcessor prior_snapshot,
+				final List<Patch> patches,
+				final double scale,
+				final int scale_pow)
+		{
+			// Acquire image of whole srcRect
+			final ImageProcessor snapshot;
+			if (null != prior_snapshot) {
+				snapshot = Downsampler.downsampleImageProcessor(prior_snapshot);
+				prior_snapshot.setPixels(null); // flush
+			} else {
+				snapshot = layer.getProject().getLoader().getFlatImage(layer, srcRect, scale, c_alphas, type, Patch.class, patches, false, Color.black).getProcessor();
+			}
+			// Iterate tiles
+			final Rectangle tile_src = new Rectangle(0, 0, tileSide, tileSide);
+			for (int i = 0, row = 0; i < snapshot.getHeight(); i += tileSide, ++row) {
+				for (int j = 0, col = 0; j < snapshot.getWidth(); j += tileSide, ++col) {
+					final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow);
+					// The srcRect for the tile
+					tile_src.x = tileSide * col;
+					tile_src.y = tileSide * row;
+					snapshot.setRoi(tile_src);
+					ImageProcessor ip = snapshot.crop();
+					// Adjust dimensions: necessary for croppings over the edges of the snapshot
+					if (ip.getWidth() < tileSide || ip.getHeight() < tileSide) {
+						ImageProcessor ip2 = ip.createProcessor(tileSide, tileSide);
+						ip2.insert(ip, 0, 0);
+						ip.setPixels(null); // flush
+						ip = ip2;
+						ip2 = null;
+					}
+					if (skip_empty_tiles && isEmptyTile(ip)) continue;
+					ImagePlus imp = new ImagePlus(path.substring(path.lastIndexOf("/")), ip);
+					saver.save(imp, path);
+					imp.flush();
+					ip = null;
+					imp = null;
+				}
+			}
+			return snapshot;
+		}
+		
+		private void strategyPatches(
+				final List<Patch> patches,
+				final Map<Patch,Set<Patch>> overlaps,
+				final double scale,
+				final int scale_pow)
+		{
+			// Tile side at this scale level, in 100% scale coordinates
+			// (So if tileSide starts at 1024 for level 0, will be 2048 for level 1, 4096 for level 2, etc.)
+			final int tile_side = (int)(tileSide / scale); // 0 < scale <= 1, so no precision lost
+			// Keep track of completed tiles
+			final HashSet<II> done = new HashSet<II>();
+			if (patches.size() > 0) {
+				// Area over 1 GB: generate tiles Patch-wise
+				// Process one Patch at a time, continue with the Patch instances that overlap with it
+				// to minimize the loading of mipmaps
+				final LinkedList<Patch> stack = new LinkedList<Patch>();
+				final HashSet<Patch> pending = new HashSet<Patch>(patches);
+				stack.add(patches.get(0));
+				pending.remove(patches.get(0));
+				while (stack.size() > 0) {
+					final Patch patch = stack.removeFirst(); // pop
+					// Patch bounds relative to the srcRect
+					final Rectangle bounds = patch.getBoundingBox();
+					bounds.x -= srcRect.x;
+					bounds.y -= srcRect.y;
+					// Coordinates in "grid" tile indices within the srcRect
+					final int gx0 = Math.max(0,                           bounds.x                  / tile_side),
+							  gy0 = Math.max(0,                           bounds.y                  / tile_side),
+							  gx1 = Math.min(srcRect.width  / tile_side, (bounds.x + bounds.width)  / tile_side),
+							  gy1 = Math.min(srcRect.height / tile_side, (bounds.y + bounds.height) / tile_side);
+					// Iterate in tile coordinate space over the Patch bounds
+					for (int row = gy0; row <= gy1; ++row) {
+						for (int col = gx0; col <= gx1; ++col) {
+							// Make tile at indices [row, col] if not done yet
+							final II coord = new II(row, col);
+							if (done.contains(coord)) continue;
+							// The srcRect for the tile
+							final Rectangle tile_src = new Rectangle(
+									srcRect.x + tile_side * col,
+									srcRect.y + tile_side * row,
+									tile_side,
+									tile_side); // in absolute coords, magnification later.
+							// Crop bounds to within srcRect (tile will be enlarged prior to saving, padding with black)
+							if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
+							if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
+							// Write tile
+							final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow);
+							//System.out.println("   writing tile for " + tile_src + " with path " + path.substring(path.lastIndexOf("/") + 1));
+							makeTileRunnable(layer, tile_src, scale, c_alphas, type, Patch.class,
+									path, saver, tileSide, tileSide, skip_empty_tiles, true)
+							.run();
+							done.add(coord);
+						}
+					}
+					// Continue from overlapping Patch instances, if any haven't been processed yet
+					for (final Patch p : overlaps.get(patch)) {
+						if (pending.remove(p)) stack.add(p);
+					}
+					// Some Patch instances may not overlap any others
+					if (stack.isEmpty() && !pending.isEmpty()) {
+						final Iterator<Patch> it = pending.iterator();
+						stack.add(it.next());
+						it.remove();
+					}
+				}
+			}
+			// Write missing black tiles if requested
+			if (!skip_empty_tiles) {
+				Path first_path = null;
+				for (int i = 0, row = 0; i<srcRect.height; i += tile_side, ++row) {
+					for (int j = 0, col = 0; j<srcRect.width; j += tile_side, ++col) {
+						final II coord = new II(row, col);
+						if (done.contains(coord)) continue;
+						// Else, write black tile
+						final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow) + saver.getExtension();
+						if (null == first_path) {
+							first_path = new File(path).toPath();
+							final ImagePlus black = new ImagePlus("black", new ByteProcessor(tileSide, tileSide));
+							saver.save(black, path);
+							black.flush();
+						} else {
+							try {
+								Files.copy(first_path, new File(path).toPath(), StandardCopyOption.REPLACE_EXISTING);
+							} catch (IOException e1) {
+								e1.printStackTrace();
+							}
+						}
+					}
+				}
+			}
+		}
+		
 		@Override
 		public void run() {
 			try {
@@ -536,130 +672,14 @@ public class ExportMultilevelTiles
 				// Every iteration generates tile for one level, starting at 0
 				while (n_et >= best[1]) { // best[1] is the minimal root found, i.e. 1,2,3,4,5 from which then powers of two were taken to make up for the edge_length
 					// Check if area under 1 GB: if so, switch strategy
-					if (null != snapshot || (srcRect.width * scale) * (srcRect.height * scale) < Math.pow(2,  30)) { // careful with overflows
-						// Clear data no longer needed
+					if (null != snapshot || (srcRect.width * scale) * (srcRect.height * scale) < Math.pow(2,  30)) { // careful with integer overflows
+						// Dispose of data no longer needed
 						overlaps.clear();
 						// Snapshot whole srcRect and go from there
-						if (null != snapshot) {
-							ImageProcessor old = snapshot;
-							snapshot = Downsampler.downsampleImageProcessor(snapshot);
-							old.setPixels(null); // flush
-							old = null;
-						} else {
-							snapshot = layer.getProject().getLoader().getFlatImage(layer, srcRect, scale, c_alphas, type, Patch.class, patches, false, Color.black).getProcessor();
-						}
-						// Iterate tiles
-						final Rectangle tile_src = new Rectangle(0, 0, tileSide, tileSide);
-						for (int i = 0, row = 0; i < snapshot.getHeight(); i += tileSide, ++row) {
-							for (int j = 0, col = 0; j < snapshot.getWidth(); j += tileSide, ++col) {
-								final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow);
-								// The srcRect for the tile
-								tile_src.x = tileSide * col;
-								tile_src.y = tileSide * row;
-								snapshot.setRoi(tile_src);
-								ImageProcessor ip = snapshot.crop();
-								// Adjust dimensions: necessary for croppings over the edges of the snapshot
-								if (ip.getWidth() < tileSide || ip.getHeight() < tileSide) {
-									ImageProcessor ip2 = ip.createProcessor(tileSide, tileSide);
-									ip2.insert(ip, 0, 0);
-									ip.setPixels(null); // flush
-									ip = ip2;
-									ip2 = null;
-								}
-								if (skip_empty_tiles && isEmptyTile(ip)) continue;
-								ImagePlus imp = new ImagePlus(path.substring(path.lastIndexOf("/")), ip);
-								saver.save(imp, path);
-								imp.flush();
-								ip = null;
-								imp = null;
-							}
-						}
+						snapshot = strategySnapshot(snapshot, patches, scale, scale_pow);
 					} else {
 						// Patch-wise
-						// Tile side at this scale level, in 100% scale coordinates
-						// (So if tileSide starts at 1024 for level 0, will be 2048 for level 1, 4096 for level 2, etc.)
-						final int tile_side = (int)(tileSide / scale); // 0 < scale <= 1, so no precision lost
-						// Keep track of completed tiles
-						final HashSet<II> done = new HashSet<II>();
-						if (patches.size() > 0) {
-							// Area over 1 GB: generate tiles Patch-wise
-							// Process one Patch at a time, continue with the Patch instances that overlap with it
-							// to minimize the loading of mipmaps
-							final LinkedList<Patch> stack = new LinkedList<Patch>();
-							final HashSet<Patch> pending = new HashSet<Patch>(patches);
-							stack.add(patches.get(0));
-							pending.remove(patches.get(0));
-							while (stack.size() > 0) {
-								final Patch patch = stack.removeFirst(); // pop
-								// Patch bounds relative to the srcRect
-								final Rectangle bounds = patch.getBoundingBox();
-								bounds.x -= srcRect.x;
-								bounds.y -= srcRect.y;
-								// Coordinates in "grid" tile indices within the srcRect
-								final int gx0 = Math.max(0,                           bounds.x                  / tile_side),
-										  gy0 = Math.max(0,                           bounds.y                  / tile_side),
-										  gx1 = Math.min(srcRect.width  / tile_side, (bounds.x + bounds.width)  / tile_side),
-										  gy1 = Math.min(srcRect.height / tile_side, (bounds.y + bounds.height) / tile_side);
-								// Iterate in tile coordinate space over the Patch bounds
-								for (int row = gy0; row <= gy1; ++row) {
-									for (int col = gx0; col <= gx1; ++col) {
-										// Make tile at indices [row, col] if not done yet
-										final II coord = new II(row, col);
-										if (done.contains(coord)) continue;
-										// The srcRect for the tile
-										final Rectangle tile_src = new Rectangle(
-												srcRect.x + tile_side * col,
-												srcRect.y + tile_side * row,
-												tile_side,
-												tile_side); // in absolute coords, magnification later.
-										// Crop bounds to within srcRect (tile will be enlarged prior to saving, padding with black)
-										if (tile_src.x + tile_src.width > srcRect.x + srcRect.width) tile_src.width = srcRect.x + srcRect.width - tile_src.x;
-										if (tile_src.y + tile_src.height > srcRect.y + srcRect.height) tile_src.height = srcRect.y + srcRect.height - tile_src.y;
-										// Write tile
-										final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow);
-										//System.out.println("   writing tile for " + tile_src + " with path " + path.substring(path.lastIndexOf("/") + 1));
-										makeTileRunnable(layer, tile_src, scale, c_alphas, type, Patch.class,
-												path, saver, tileSide, tileSide, skip_empty_tiles, true)
-										.run();
-										done.add(coord);
-									}
-								}
-								// Continue from overlapping Patch instances, if any haven't been processed yet
-								for (final Patch p : overlaps.get(patch)) {
-									if (pending.remove(p)) stack.add(p);
-								}
-								// Some Patch instances may not overlap any others
-								if (stack.isEmpty() && !pending.isEmpty()) {
-									final Iterator<Patch> it = pending.iterator();
-									stack.add(it.next());
-									it.remove();
-								}
-							}
-						}
-						// Write missing black tiles if requested
-						if (!skip_empty_tiles) {
-							Path first_path = null;
-							for (int i = 0, row = 0; i<srcRect.height; i += tile_side, ++row) {
-								for (int j = 0, col = 0; j<srcRect.width; j += tile_side, ++col) {
-									final II coord = new II(row, col);
-									if (done.contains(coord)) continue;
-									// Else, write black tile
-									final String path = makeTilePath(directory_structure_type, dir, index, row, col, scale_pow) + saver.getExtension();
-									if (null == first_path) {
-										first_path = new File(path).toPath();
-										final ImagePlus black = new ImagePlus("black", new ByteProcessor(tileSide, tileSide));
-										saver.save(black, path);
-										black.flush();
-									} else {
-										try {
-											Files.copy(first_path, new File(path).toPath(), StandardCopyOption.REPLACE_EXISTING);
-										} catch (IOException e1) {
-											e1.printStackTrace();
-										}
-									}
-								}
-							}
-						}
+						strategyPatches(patches, overlaps, scale, scale_pow);
 					}
 					// Remove unneeded mipmaps from the cache: the ones from the level before this one
 					// (The ones from this level may be used to draw the snapshot when changing strategies)
@@ -674,7 +694,7 @@ public class ExportMultilevelTiles
 					n_et /= 2;
 				}
 				
-				// Flush
+				// Flush last snapshot
 				if (null != snapshot) snapshot.setPixels(null);
 
 				// Remove unneeded mipmaps from the cache: all for this Layer if any left to throw out
@@ -719,7 +739,7 @@ public class ExportMultilevelTiles
 				try {
 					// When using mipmaps, run in parallel (uses same number of threads as for generating mipmaps)
 					final int n_procs = Math.max(1, n_threads);
-					final ExecutorService exec = Utils.newFixedThreadPool(Math.max(1, n_threads), "export-for-web::mipmaps-layer-wise");
+					final ExecutorService exec = Utils.newFixedThreadPool(Math.max(1, n_threads), "export-for-web::mipmaps-layer-wise", false);
 					final LinkedList<Future<?>> futures = new LinkedList<Future<?>>();
 
 					final List<Map.Entry<Integer, Layer>> layers = Collections.unmodifiableList(new ArrayList<>(indices.entrySet())); // toArray( new Map.Entry[indices.size()] );
