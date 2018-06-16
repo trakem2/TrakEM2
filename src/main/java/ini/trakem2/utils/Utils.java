@@ -1570,13 +1570,23 @@ public class Utils implements ij.plugin.PlugIn {
 		return newFixedThreadPool(Runtime.getRuntime().availableProcessors(), namePrefix);
 	}
 	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc, final String namePrefix) {
+		return newFixedThreadPool(n_proc, namePrefix, true);
+	}
+	
+	static public final ThreadPoolExecutor newFixedThreadPool(final int n_proc, final String namePrefix, final boolean use_caching_thread) {
 		final ThreadPoolExecutor exec = (ThreadPoolExecutor) Executors.newFixedThreadPool(n_proc);
-		final AtomicInteger ai = new AtomicInteger(0);
 		exec.setThreadFactory(new ThreadFactory() {
+			final AtomicInteger ai = new AtomicInteger(0);
 			@Override
 			public Thread newThread(final Runnable r) {
 				final ThreadGroup tg = Thread.currentThread().getThreadGroup();
-				final Thread t = new CachingThread(tg, r, new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString());
+				final Thread t;
+				final String name = new StringBuilder(null == namePrefix ? tg.getName() : namePrefix).append('-').append(ai.incrementAndGet()).toString();
+				if (use_caching_thread) {
+					t = new CachingThread(tg, r, name);
+				} else {
+					t = new Thread(tg, r, name);
+				}
 				t.setDaemon(true);
 				t.setPriority(Thread.NORM_PRIORITY);
 				return t;
