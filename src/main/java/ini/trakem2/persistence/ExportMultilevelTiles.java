@@ -742,8 +742,6 @@ public class ExportMultilevelTiles
 					final ExecutorService exec = Utils.newFixedThreadPool(Math.max(1, n_threads), "export-for-web::mipmaps-layer-wise", false);
 					final LinkedList<Future<?>> futures = new LinkedList<Future<?>>();
 
-					final List<Map.Entry<Integer, Layer>> layers = Collections.unmodifiableList(new ArrayList<>(indices.entrySet())); // toArray( new Map.Entry[indices.size()] );
-
 					// Dimensions by number of tiles at scale 1.0
 					final int[] best = determineClosestPowerOfTwo(srcRect.width > srcRect.height ? srcRect.width : srcRect.height);
 					final int edge_length = best[0];
@@ -751,9 +749,9 @@ public class ExportMultilevelTiles
 
 					final Area area_srcRect = new Area(srcRect);
 
-					for (final Map.Entry<Integer, Layer> e : layers) {
+					for (final Map.Entry<Integer, Layer> e : indices.entrySet()) {
 						final Layer layer = e.getValue();
-						final int index = use_layer_indices ? layer.getParent().indexOf(layer) : e.getKey() - smallestIndex; // for writing the folder name
+						final int index = use_layer_indices ? layer.getParent().indexOf(layer) : (e.getKey() - smallestIndex); // for writing the folder name
 						futures.add(exec.submit(new ExportLayerTiles(layer, index, dir, srcRect, type, c_alphas,
 								best, area_srcRect, skip_empty_tiles, n_edge_tiles, tileSide, directory_structure_type, saver)));
 						
