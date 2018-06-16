@@ -736,6 +736,13 @@ public class ExportMultilevelTiles
             public void run() {
 				startedWorking();
 				
+				/* // DEBUG memory leak
+				indices.firstEntry().getValue().getProject().getLoader().releaseAll();
+				System.gc();
+				final long startMem = Runtime.getRuntime().freeMemory();
+				System.out.println("INITIAL MEM: " + startMem);
+				*/
+				
 				try {
 					// When using mipmaps, run in parallel (uses same number of threads as for generating mipmaps)
 					final int n_procs = Math.max(1, n_threads);
@@ -770,6 +777,13 @@ public class ExportMultilevelTiles
 					cleanUp();
 					finishedWorking();
 				}
+				
+				/* TEST
+				indices.firstEntry().getValue().getProject().getLoader().releaseAll();
+				System.gc();
+				final long endMem = Runtime.getRuntime().freeMemory();
+				System.out.println("ENDING MEM: " + endMem + ", INC: " + (endMem - startMem));
+				*/
 
 			}// end of run method
 		};
