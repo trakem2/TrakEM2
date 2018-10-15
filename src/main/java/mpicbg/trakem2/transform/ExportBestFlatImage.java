@@ -66,7 +66,7 @@ public class ExportBestFlatImage
     	// Determine the scale corresponding to the calculated max_area,
     	// with a correction factor to make sure width * height never go above pow(2, 31)
     	// (Only makes sense, and will only be used, if area is smaller than max_area.)
-		this.largest_possibly_needed_area = ((double)finalBox.width) * ((double)finalBox.height);
+		this.largest_possibly_needed_area = ((double)finalBox.width) * ((double)finalBox.height) * scale * scale * 4;
     	this.max_possible_area = Math.min( this.largest_possibly_needed_area, Math.pow(2, 31) );
     	this.scaleUP = Math.min(1.0, Math.sqrt( this.max_possible_area / this.largest_possibly_needed_area ) ) - Math.max( 1.0 / finalBox.width, 1.0 / finalBox.height );
     }
@@ -76,7 +76,7 @@ public class ExportBestFlatImage
 	 * so that with the quality flag, the interim image is smaller than 2 GB (2x larger on the side).
 	 */
 	public boolean canUseAWTImage() {
-		return (((long)finalBox.width) * ((long)finalBox.height)) < Math.pow( 2, 29 ) && loader.isMipMapsRegenerationEnabled(); // smaller than 0.5 GB: so up to 2 GB with quality flag on
+		return (((long)finalBox.width) * ((long)finalBox.height)) * scale * scale * 4 < Math.pow( 2, 29 ) && loader.isMipMapsRegenerationEnabled(); // smaller than 0.5 GB: so up to 2 GB with quality flag on
 	}
 
 	/**
