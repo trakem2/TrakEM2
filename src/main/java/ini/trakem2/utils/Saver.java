@@ -10,11 +10,11 @@ public class Saver
 	static public final String[] formats() {
 		return new String[]{".tif", ".tif.zip", ".png", ".jpg"};
 	}
-	
+
 	private abstract class ASaver {
 		float q = 1;
 		abstract boolean save(ImagePlus imp, String path);
-		void setQuality(float q) {
+		void setQuality(final float q) {
 			this.q = q;
 		}
 	}
@@ -24,33 +24,33 @@ public class Saver
 			super.q = FileSaver.getJpegQuality() / 100.0f;
 		}
 		@Override
-		boolean save(ImagePlus imp, String path) {
+		boolean save(final ImagePlus imp, final String path) {
 			return ImageSaver.saveAsJpeg(imp.getProcessor(), path, q, ImagePlus.COLOR_RGB != imp.getType());
 		}
 	}
 	private class PNGSaver extends ASaver {
 		@Override
-		boolean save(ImagePlus imp, String path) {
-			return new  FileSaver(imp).saveAsPng(path);
+		boolean save(final ImagePlus imp, final String path) {
+			return (ImageSaver.checkPath(path) && new FileSaver(imp).saveAsPng(path));
 		}
 	}
 	private class TIFFSaver extends ASaver {
 		@Override
-		boolean save(ImagePlus imp, String path) {
-			return new FileSaver(imp).saveAsTiff(path);
+		boolean save(final ImagePlus imp, final String path) {
+			return (ImageSaver.checkPath(path) && new FileSaver(imp).saveAsTiff(path));
 		}
 	}
 	private class ZIPSaver extends ASaver {
 		@Override
-		boolean save(ImagePlus imp, String path) {
-			return new FileSaver(imp).saveAsZip(path);
+		boolean save(final ImagePlus imp, final String path) {
+			return (ImageSaver.checkPath(path) && new FileSaver(imp).saveAsZip(path));
 		}
 	}
 
 	private final ASaver saver;
 	private final String extension;
-	
-	public Saver(String extension) {
+
+	public Saver(final String extension) {
 		String ext = extension.toLowerCase();
 		if ('.' != ext.charAt(0)) ext = "." + ext;
 		this.extension = ext;
@@ -73,7 +73,7 @@ public class Saver
 	public void setQuality(final float q) {
 		this.saver.setQuality(q);
 	}
-	
+
 	/**
 	 * @param imp The {@link ImagePlus} to save.
 	 * @param path The path to save the image at, to which the {@link #extension} will be appended if not there.
@@ -85,7 +85,7 @@ public class Saver
 		}
 		return this.saver.save(imp, path);
 	}
-	
+
 	public String getExtension() {
 		return this.extension;
 	}
