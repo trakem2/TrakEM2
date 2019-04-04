@@ -713,8 +713,13 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 
 				// Remove bogus points: those at the end with 0,0 coords
-				int len = result.points;
-				final double[][] pos = result.getXYZUnscaled();
+				int len = result.size();
+				final double[][] pos = new double[3][len];
+				for (int i = len - 1; i > -1; i--) {
+					pos[0][i] = result.getXUnscaledDouble(i);
+					pos[1][i] = result.getYUnscaledDouble(i);
+					pos[2][i] = result.getZUnscaledDouble(i);
+				}
 				for (int i=len-1; i>-1; i--) {
 					if (0 == pos[0][i] && 0 == pos[1][i]) {
 						len--;
