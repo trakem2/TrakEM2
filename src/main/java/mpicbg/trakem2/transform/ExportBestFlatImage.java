@@ -40,6 +40,9 @@ public class ExportBestFlatImage
      * If the image is smaller than 0.5 GB, then the AWT system in Loader.getFlatAWTImage will be used, with the quality flag as true.
      * Otherwise, mipmaps will be used to generate an image with ExportUnsignedByte.makeFlatImage.
      *
+     * AWT will not be used if a single patch is scaled to a size larger than a fraction of 2GB that AWT seems to be able to swallow
+     * without segfaulting the JVM.
+     *
      * If mipmaps are not available, then an up to 2GB image will be generated with ExportUnsignedShort (which respects pixel intensity mappings)
      * and then Gaussian-downsampled to the requested dimensions.
      *
@@ -63,10 +66,15 @@ public class ExportBestFlatImage
 
 		this.loader = patches.get(0).getProject().getLoader();
 
+		final double maxPatchArea = patches.stream()
+				.map(p -> p.getBoundingBox().width * p.getBoundingBox().height * scale * scale * 4)
+				.reduce((a, b) -> Math.max(a, b))
+				.get();
+
     	// Determine the scale corresponding to the calculated max_area,
     	// with a correction factor to make sure width * height never go above pow(2, 31)
     	// (Only makes sense, and will only be used, if area is smaller than max_area.)
-		this.largest_possibly_needed_area = ((double)finalBox.width) * ((double)finalBox.height) * scale * scale * 4;
+		this.largest_possibly_needed_area = Math.max(maxPatchArea, ((double)finalBox.width) * ((double)finalBox.height) * scale * scale * 4);
     	this.max_possible_area = Math.min( this.largest_possibly_needed_area, Math.pow(2, 31) );
     	this.scaleUP = Math.min(1.0, Math.sqrt( this.max_possible_area / this.largest_possibly_needed_area ) ) - Math.max( 1.0 / finalBox.width, 1.0 / finalBox.height );
     }
