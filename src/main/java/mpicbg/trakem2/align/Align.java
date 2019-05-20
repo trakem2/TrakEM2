@@ -83,7 +83,7 @@ public class Align
 		public int minNumInliers = 7;
 
 		/**
-		 * Implemeted transformation models for choice
+		 * Implemented transformation models for choice
 		 */
 //		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine", "Homography" };
 		final static public String[] modelStrings = new String[]{ "Translation", "Rigid", "Similarity", "Affine" };
