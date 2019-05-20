@@ -88,7 +88,10 @@ public abstract class AbstractTreeTransferHandler implements DragGestureListener
                 dgr = null;
             }
         	tree = null; // friggin' memory leak
-        	dragSource = null;
+        	if (dragSource != null) {
+        		dragSource.removeDragSourceListener(this);
+        		dragSource = null;
+        	}
             if (dropTarget != null)
             {
         	    dropTarget.removeDropTargetListener(this);
