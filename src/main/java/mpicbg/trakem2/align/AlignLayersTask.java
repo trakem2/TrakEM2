@@ -225,11 +225,18 @@ final public class AlignLayersTask
 			final GenericDialog gd2 = new GenericDialog( "Align Layers" );
 
 			Align.param.addFields( gd2 );
+			
+			gd2.addCheckbox( "Layers roughly in place", true ); // For blockface EM like e.g. FIBSEM or BSEM
+			final Rectangle bounds = l.getMinimalBoundingBox( Patch.class, true );
+			gd2.addNumericField( "search radius", 0.1 * Math.max( bounds.width, bounds.height ), 5 );
 
 			gd2.showDialog();
 			if ( gd2.wasCanceled() ) return;
 
 			Align.param.readFields( gd2 );
+			
+			final boolean roughly_in_place = gd.getNextBoolean();
+			final double search_radius = gd.getNextNumber();
 
 			if ( mode == BUNWARPJ && !elasticParam.showDialog() ) return;
 
@@ -239,7 +246,7 @@ final public class AlignLayersTask
 				if ( mode == BUNWARPJ )
 					alignLayersNonLinearlyJob(l.getParent(), ref, first, propagateTransformBefore, fov, filter);
 				else
-					alignLayersLinearlyJob(l.getParent(), ref, first, propagateTransformBefore, fov, filter);
+					alignLayersLinearlyJob(l.getParent(), ref, first, propagateTransformBefore, fov, filter, roughly_in_place, search_radius);
 			}
 			// From ref to last:
 			if (last - ref > 0)
@@ -247,14 +254,15 @@ final public class AlignLayersTask
 				if ( mode == BUNWARPJ )
 					alignLayersNonLinearlyJob(l.getParent(), ref, last, propagateTransformAfter, fov, filter);
 				else
-					alignLayersLinearlyJob(l.getParent(), ref, last, propagateTransformAfter, fov, filter);
+					alignLayersLinearlyJob(l.getParent(), ref, last, propagateTransformAfter, fov, filter, roughly_in_place, search_radius);
 			}
 		}
 	}
 
 
 	final static public void alignLayersLinearlyJob( final LayerSet layerSet, final int first, final int last,
-			final boolean propagateTransform, final Rectangle fov, final Filter<Patch> filter )
+			final boolean propagateTransform, final Rectangle fov, final Filter<Patch> filter,
+			final boolean roughly_in_place, final double search_radius )
 	{
 		final List< Layer > layerRange = layerSet.getLayers(first, last); // will reverse order if necessary
 
@@ -336,11 +344,25 @@ final public class AlignLayersTask
 
 				candidates.clear();
 
-				FeatureTransform.matchFeatures(
-					features2,
-					features1,
-					candidates,
-					p.rod );
+				if ( !roughly_in_place )
+				{
+					// O(N^2)
+					FeatureTransform.matchFeatures(
+							features2,
+							features1,
+							candidates,
+							p.rod );
+				}
+				else
+				{
+					// O(N*m) where m<<N by radius search on KDTree
+					FeaturesUtil.matchFeatures(
+							features2,
+							features1,
+							candidates,
+							p.rod,
+							search_radius );
+				}
 
 				final AbstractAffineModel2D< ? > model;
 				switch ( p.expectedModelIndex )
