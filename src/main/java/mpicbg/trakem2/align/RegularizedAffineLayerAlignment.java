@@ -74,6 +74,9 @@ public class RegularizedAffineLayerAlignment
 		public boolean regularize = false;
 		public int regularizerIndex = 1;
 		public double lambda = 0.1;
+		
+		public boolean roughly_in_place = false;
+		public double search_radius = 4000;
 
 		public boolean setup( final Rectangle box )
 		{
@@ -95,6 +98,12 @@ public class RegularizedAffineLayerAlignment
 			gd.addMessage( "Layer neighbor range:" );
 			gd.addNumericField( "test_maximally :", maxNumNeighbors, 0, 6, "layers" );
 			gd.addNumericField( "give_up_after :", maxNumFailures, 0, 6, "failures" );
+			
+			// For blockface EM like e.g. FIBSEM or BSEM
+			// The radius should be large enough that multiple possible matches are found
+			// so that there is a way to tell good from bad matches by analyzing the variance among possible matches.
+			gd.addCheckbox( "Layers roughly in place", roughly_in_place );
+			gd.addNumericField( "search radius", search_radius, 5 );
 
 			gd.showDialog();
 
@@ -111,6 +120,8 @@ public class RegularizedAffineLayerAlignment
 			identityTolerance = ( float )gd.getNextNumber();
 			maxNumNeighbors = ( int )gd.getNextNumber();
 			maxNumFailures = ( int )gd.getNextNumber();
+			roughly_in_place = gd.getNextBoolean();
+			search_radius = gd.getNextNumber();
 
 			final GenericDialog gdOptimize = new GenericDialog( "Align layers: Optimization" );
 			gdOptimize.addChoice( "desired_transformation :", modelStrings, modelStrings[ desiredModelIndex ] );
@@ -181,7 +192,9 @@ public class RegularizedAffineLayerAlignment
 				final boolean regularize,
 				final int regularizerIndex,
 				final boolean rejectIdentity,
-				final boolean visualize )
+				final boolean visualize,
+				final boolean roughly_in_place,
+				final double search_radius )
 		{
 			super(
 					SIFTfdBins,
@@ -212,6 +225,9 @@ public class RegularizedAffineLayerAlignment
 			this.lambda = lambda;
 			this.regularize = regularize;
 			this.regularizerIndex = regularizerIndex;
+			
+			this.roughly_in_place = roughly_in_place;
+			this.search_radius = search_radius;
 		}
 
 		@Override
@@ -246,7 +262,9 @@ public class RegularizedAffineLayerAlignment
 					regularize,
 					regularizerIndex,
 					rejectIdentity,
-					visualize );
+					visualize,
+					roughly_in_place,
+					search_radius );
 		}
 	}
 
@@ -773,7 +791,14 @@ public class RegularizedAffineLayerAlignment
                         layerA.getProject(), param.ppm.sift, "layer", layerA.getId() );
                 final ArrayList< Feature > fs2 = mpicbg.trakem2.align.Util.deserializeFeatures(
                         layerB.getProject(), param.ppm.sift, "layer", layerB.getId() );
-                candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, param.ppm.rod ) );
+                
+                if ( param.roughly_in_place )
+                {
+                	candidates = new ArrayList< PointMatch >();
+                	FeaturesUtil.matchFeatures( fs2, fs1, candidates, param.ppm.rod, param.search_radius );
+                }
+                else
+                	candidates = new ArrayList< PointMatch >( FloatArray2DSIFT.createMatches( fs2, fs1, param.ppm.rod ) );
 
                 /* scale the candidates */
                 for ( final PointMatch pm : candidates )
