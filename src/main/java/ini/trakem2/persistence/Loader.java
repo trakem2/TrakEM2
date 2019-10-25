@@ -3723,8 +3723,8 @@ while (it.hasNext()) {
 		return false;
 	}
 
-	protected final void preProcess(final Patch p, ImagePlus imp, final long image_n_bytes) {
-		if (null == p) return;
+	protected final ImagePlus preProcess(final Patch p, ImagePlus imp, final long image_n_bytes) {
+		if (null == p) return imp;
 		try {
 			final String path = preprocessors.get(p);
 			boolean update = false;
@@ -3732,10 +3732,10 @@ while (it.hasNext()) {
 				final File f = new File(path);
 				if (!f.exists()) {
 					Utils.log("ERROR: preprocessor script file does NOT exist: " + path);
-					return;
+					return imp;
 				} else if (!f.canRead()) {
 					Utils.log("ERROR: can NOT read preprocessor script file at: " + path);
-					return;
+					return imp;
 				}
 				if (null == imp) {
 					imp = new ImagePlus(); // uninitialized: the script may generate its data
@@ -3784,6 +3784,7 @@ while (it.hasNext()) {
 		} catch (final Exception e) {
 			IJError.print(e);
 		}
+		return imp;
 	}
 
 	static public final int PREPROCESSED = -999999;

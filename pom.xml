@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>23.2.0</version>
+		<version>26.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -33,7 +33,7 @@
 		<developer>
 			<id>acardona</id>
 			<name>Albert Cardona</name>
-			<url>http://imagej.net/User:Albertcardona</url>
+			<url>https://imagej.net/User:Albertcardona</url>
 			<roles>
 				<role>founder</role>
 				<role>lead</role>
@@ -43,7 +43,7 @@
 		<developer>
 			<id>axtimwalde</id>
 			<name>Stephan Saalfeld</name>
-			<url>http://imagej.net/User:Saalfeld</url>
+			<url>https://imagej.net/User:Saalfeld</url>
 			<roles>
 				<role>lead</role>
 				<role>reviewer</role>
@@ -53,7 +53,7 @@
 		<developer>
 			<id>ctrueden</id>
 			<name>Curtis Rueden</name>
-			<url>http://imagej.net/User:Rueden</url>
+			<url>https://imagej.net/User:Rueden</url>
 			<roles>
 				<role>maintainer</role>
 			</roles>
@@ -62,16 +62,16 @@
 	<contributors>
 		<contributor>
 			<name>Johannes Schindelin</name>
-			<url>http://imagej.net/User:Schindelin</url>
+			<url>https://imagej.net/User:Schindelin</url>
 		</contributor>
 		<contributor>
 			<name>Ignacio Arganda-Carreras</name>
-			<url>http://imagej.net/User:Iarganda</url>
+			<url>https://imagej.net/User:Iarganda</url>
 			<properties><id>iarganda</id></properties>
 		</contributor>
 		<contributor>
 			<name>John Bogovic</name>
-			<url>http://imagej.net/User:Bogovic</url>
+			<url>https://imagej.net/User:Bogovic</url>
 			<properties><id>bogovicj</id></properties>
 		</contributor>
 		<contributor>
@@ -83,17 +83,17 @@
 		</contributor>
 		<contributor>
 			<name>Verena Kaynig</name>
-			<url>http://imagej.net/User:Verena</url>
+			<url>https://imagej.net/User:Verena</url>
 			<properties><id>vkaynig</id></properties>
 		</contributor>
 		<contributor>
 			<name>Larry Lindsey</name>
-			<url>http://imagej.net/User:Lindsey</url>
+			<url>https://imagej.net/User:Lindsey</url>
 			<properties><id>larrylindsey</id></properties>
 		</contributor>
 		<contributor>
 			<name>Mark Longair</name>
-			<url>http://imagej.net/User:Mark</url>
+			<url>https://imagej.net/User:Mark</url>
 			<properties><id>mhl</id></properties>
 		</contributor>
 		<contributor>
@@ -105,12 +105,12 @@
 		</contributor>
 		<contributor>
 			<name>Stephan Preibisch</name>
-			<url>http://imagej.net/User:StephanP</url>
+			<url>https://imagej.net/User:StephanP</url>
 			<properties><id>StephanPreibisch</id></properties>
 		</contributor>
 		<contributor>
 			<name>Jean-Yves Tinevez</name>
-			<url>http://imagej.net/User:JeanYvesTinevez</url>
+			<url>https://imagej.net/User:JeanYvesTinevez</url>
 			<properties><id>tinevez</id></properties>
 		</contributor>
 	</contributors>
@@ -118,7 +118,7 @@
 	<mailingLists>
 		<mailingList>
 			<name>Image.sc Forum</name>
-			<archive>https://forum.image.sc/</archive>
+			<archive>https://forum.image.sc/tags/trakem2</archive>
 		</mailingList>
 	</mailingLists>
 
@@ -141,16 +141,16 @@
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Albert Cardona, Stephan Saalfeld and others.</license.copyrightOwners>
 
-		<!-- NB: Deploy releases to the ImageJ Maven repository. -->
-		<releaseProfiles>deploy-to-imagej</releaseProfiles>
+		<!-- NB: Deploy releases to the SciJava Maven repository. -->
+		<releaseProfiles>deploy-to-scijava</releaseProfiles>
 
 		<trakem2-transform.version>1.0.1</trakem2-transform.version>
 	</properties>
 
 	<repositories>
 		<repository>
-			<id>imagej.public</id>
-			<url>http://maven.imagej.net/content/groups/public</url>
+			<id>scijava.public</id>
+			<url>https://maven.scijava.org/content/groups/public</url>
 		</repository>
 	</repositories>
 
