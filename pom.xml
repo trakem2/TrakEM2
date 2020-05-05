@@ -144,6 +144,7 @@
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
 		<releaseProfiles>deploy-to-scijava</releaseProfiles>
 
+		<jython-slim.version>2.7.2</jython-slim.version>
 		<trakem2-transform.version>1.0.1</trakem2-transform.version>
 	</properties>
 
@@ -212,6 +213,13 @@
 		<dependency>
 			<groupId>sc.fiji</groupId>
 			<artifactId>Simple_Neurite_Tracer</artifactId>
+			<exclusions>
+				<exclusion>
+					<!-- TEMP: Until tferr/ASA#32 is merged and propagated. -->
+					<groupId>net.imagej</groupId>
+					<artifactId>imagej</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
@@ -254,8 +262,9 @@
 			<artifactId>trakem2-transform</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.scijava</groupId>
-			<artifactId>jython-shaded</artifactId>
+			<groupId>org.python</groupId>
+			<artifactId>jython-slim</artifactId>
+			<version>${jython-slim.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>ome</groupId>
