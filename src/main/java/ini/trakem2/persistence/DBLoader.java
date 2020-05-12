@@ -75,9 +75,12 @@ import java.util.Vector;
 
 import org.postgresql.Driver;
 import org.postgresql.core.PGStream;
+import org.postgresql.core.QueryExecutor;
+import org.postgresql.core.QueryExecutorBase;
+import org.postgresql.core.VisibleBufferedInputStream;
 import org.postgresql.geometric.PGpoint;
 import org.postgresql.geometric.PGpolygon;
-import org.postgresql.jdbc2.AbstractJdbc2Connection;
+import org.postgresql.jdbc.PgConnection;
 
 public class DBLoader extends Loader {
 	
@@ -2603,23 +2606,19 @@ public class DBLoader extends Loader {
 			connection = con;
 			LoggingInputStream lis = null;
 			try {
-				AbstractJdbc2Connection a2 = (AbstractJdbc2Connection)connection;
-				Class c2 = connection.getClass().getSuperclass().getSuperclass();
-				java.lang.reflect.Field f_proto = c2.getDeclaredField("protoConnection");
-				f_proto.setAccessible(true);
-				// protoConnection is a ProtocolConnection interface, implemented in core.v3.ProtocolConnectionImpl !
-				//ProtocolConnectionImpl pci = (ProtocolConnectionImpl)m_proto.get(c2); // class is private to the package, can't cast!
-				Object pci = f_proto.get(a2);
-				// finally, get the PGStream!
-				java.lang.reflect.Field f_pgstream = pci.getClass().getDeclaredField("pgStream");
+				PgConnection a2 = (PgConnection)connection;
+				QueryExecutor qe = a2.getQueryExecutor();
+				// get the PGStream!
+				java.lang.reflect.Field f_pgstream = QueryExecutorBase.class.getDeclaredField("pgStream");
 				f_pgstream.setAccessible(true);
-				PGStream pgstream = (PGStream)f_pgstream.get(pci);
+				PGStream pgstream = (PGStream)f_pgstream.get(qe);
 				// now the InputStream
-				java.lang.reflect.Field f_i = pgstream.getClass().getDeclaredField("pg_input");
+				java.lang.reflect.Field f_i = PGStream.class.getDeclaredField("pgInput");
 				f_i.setAccessible(true);
-				InputStream stream = (InputStream)f_i.get(pgstream);
+				VisibleBufferedInputStream stream = (VisibleBufferedInputStream)f_i.get(pgstream);
 				lis = new LoggingInputStream(stream);
-				f_i.set(pgstream, lis); // TADA! Many thanks to the PGSQL JDBC mailing list for this last tip on not just monitoring the PGStream as I was doing, but on replacing the inputstream altogether with a logging copy! ("CountingInputStream", they called it).
+				VisibleBufferedInputStream vlis = new VisibleBufferedInputStream(lis, stream.getBuffer().length);
+				f_i.set(pgstream, vlis); // TADA! Many thanks to the PGSQL JDBC mailing list for this last tip on not just monitoring the PGStream as I was doing, but on replacing the inputstream altogether with a logging copy! ("CountingInputStream", they called it).
 
 			} catch (Exception e) {
 				IJError.print(e);

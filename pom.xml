@@ -147,6 +147,7 @@
 		<releaseProfiles>deploy-to-scijava</releaseProfiles>
 
 		<jython-slim.version>2.7.2</jython-slim.version>
+		<postgresql.version>42.2.12</postgresql.version>
 		<trakem2-transform.version>1.0.1</trakem2-transform.version>
 	</properties>
 
@@ -167,8 +168,9 @@
 			<artifactId>jfreechart</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>postgresql</groupId>
+			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
+			<version>${postgresql.version}</version>
 		</dependency>
 
 		<!-- Java 3D dependencies -->
