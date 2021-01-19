@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>27.0.1</version>
+		<version>30.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -215,15 +215,8 @@
 			<artifactId>VectorString</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>sc.fiji</groupId>
-			<artifactId>Simple_Neurite_Tracer</artifactId>
-			<exclusions>
-				<exclusion>
-					<!-- TEMP: Until tferr/ASA#32 is merged and propagated. -->
-					<groupId>net.imagej</groupId>
-					<artifactId>imagej</artifactId>
-				</exclusion>
-			</exclusions>
+			<groupId>org.morphonets</groupId>
+			<artifactId>SNT</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>sc.fiji</groupId>
