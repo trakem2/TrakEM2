@@ -3124,10 +3124,13 @@ public final class FSLoader extends Loader {
 	@Override
 	protected boolean mapIntensities(final Patch p, final ImagePlus imp) {
 		
-		final ImagePlus coefficients = new Opener().openImage(
-			getUNUIdFolder() +
-			"trakem2.its/" +
-			createIdPath(Long.toString(p.getId()), "it", ".tif"));
+		final String path = getUNUIdFolder() +
+				"trakem2.its/" +
+				createIdPath(Long.toString(p.getId()), "it", ".tif");
+		
+		if (!new File(path).exists()) return false;
+		
+		final ImagePlus coefficients = new Opener().openImage(path);
 
 		if (coefficients == null)
 			return false;
