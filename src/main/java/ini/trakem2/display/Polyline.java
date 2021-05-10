@@ -83,10 +83,10 @@ import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
 import ini.trakem2.utils.Worker;
 import ini.trakem2.vector.VectorString3D;
-import tracing.Path;
-import tracing.SearchInterface;
-import tracing.SearchProgressCallback;
-import tracing.TracerThread;
+import sc.fiji.snt.Path;
+import sc.fiji.snt.SearchInterface;
+import sc.fiji.snt.SearchProgressCallback;
+import sc.fiji.snt.TracerThread;
 
 
 /** A sequence of points that make multiple chained line segments. */
@@ -734,8 +734,13 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 
 
 				// Remove bogus points: those at the end with 0,0 coords
-				int len = result.points;
-				final double[][] pos = result.getXYZUnscaled();
+				int len = result.size();
+				final double[][] pos = new double[3][len];
+				for (int i = len - 1; i > -1; i--) {
+					pos[0][i] = result.getXUnscaledDouble(i);
+					pos[1][i] = result.getYUnscaledDouble(i);
+					pos[2][i] = result.getZUnscaledDouble(i);
+				}
 				for (int i=len-1; i>-1; i--) {
 					if (0 == pos[0][i] && 0 == pos[1][i]) {
 						len--;
@@ -1184,8 +1189,8 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		// The data:
 		if (-1 == n_points) setupForDisplay(); // load data
 		copy.n_points = n_points;
-		copy.p = new double[][]{(double[])this.p[0].clone(), (double[])this.p[1].clone()};
-		copy.p_layer = (long[])this.p_layer.clone();
+		copy.p = new double[][]{this.p[0].clone(), this.p[1].clone()};
+		copy.p_layer = this.p_layer.clone();
 		copy.addToDatabase();
 
 		return copy;
