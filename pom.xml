@@ -133,8 +133,8 @@
 		<url>https://github.com/trakem2/TrakEM2/issues</url>
 	</issueManagement>
 	<ciManagement>
-		<system>Travis CI</system>
-		<url>https://travis-ci.org/trakem2/TrakEM2</url>
+		<system>GitHub Actions</system>
+		<url>https://github.com/trakem2/TrakEM2/actions</url>
 	</ciManagement>
 
 	<properties>
@@ -144,7 +144,7 @@
 		<license.copyrightOwners>Albert Cardona, Stephan Saalfeld and others.</license.copyrightOwners>
 
 		<!-- NB: Deploy releases to the SciJava Maven repository. -->
-		<releaseProfiles>deploy-to-scijava</releaseProfiles>
+		<releaseProfiles>sign,deploy-to-scijava</releaseProfiles>
 
 		<jython-slim.version>2.7.2</jython-slim.version>
 		<postgresql.version>42.2.12</postgresql.version>
