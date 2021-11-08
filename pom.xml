@@ -123,7 +123,7 @@
 	</mailingLists>
 
 	<scm>
-		<connection>scm:git:git://github.com/trakem2/TrakEM2</connection>
+		<connection>scm:git:https://github.com/trakem2/TrakEM2</connection>
 		<developerConnection>scm:git:git@github.com:trakem2/TrakEM2</developerConnection>
 		<tag>HEAD</tag>
 		<url>https://github.com/trakem2/TrakEM2</url>
