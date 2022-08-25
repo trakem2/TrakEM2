@@ -48,25 +48,17 @@ import org.scijava.vecmath.Point3f;
 import org.scijava.vecmath.Vector3d;
 
 import features.ComputeCurvatures;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.measure.Calibration;
 import ij.measure.ResultsTable;
 import ini.trakem2.Project;
-import ini.trakem2.imaging.LayerStack;
-import ini.trakem2.imaging.Segmentation;
 import ini.trakem2.persistence.XMLOptions;
-import ini.trakem2.utils.Bureaucrat;
 import ini.trakem2.utils.IJError;
 import ini.trakem2.utils.M;
 import ini.trakem2.utils.ProjectToolbar;
 import ini.trakem2.utils.Utils;
-import ini.trakem2.utils.Worker;
 import ini.trakem2.vector.VectorString3D;
-import sc.fiji.snt.Path;
-import sc.fiji.snt.SearchInterface;
-import sc.fiji.snt.SearchProgressCallback;
-import sc.fiji.snt.TracerThread;
-
 
 /** A sequence of points that make multiple chained line segments. */
 public class Polyline extends ZDisplayable implements Line3D, VectorData {
@@ -549,8 +541,8 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	static protected int index;
 	static private boolean is_new_point = false;
 
-	final static private HashMap<LayerSet,TraceParameters> tr_map = new HashMap<LayerSet,TraceParameters>();
-	private int last_autotrace_start = -1;
+	final static protected HashMap<LayerSet,TraceParameters> tr_map = new HashMap<>();
+	protected int last_autotrace_start = -1;
 
 	static public void flushTraceCache(final Project project) {
 		synchronized (tr_map) {
@@ -561,12 +553,12 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 	}
 
 	/** Shared between all Polyline of the same LayerSet. The issue of locking doesn't arise because there is only one source of mouse input. If you try to run it programatically with synthetic MouseEvent, that's your problem. */
-	static private class TraceParameters {
+	static class TraceParameters {
 		boolean update = true;
 		ImagePlus virtual = null;
 		//double scale = 1;
 		ComputeCurvatures hessian = null;
-		TracerThread tracer = null; // catched thread for KeyEvent to attempt to stop it
+		Object tracer = null; // catched thread for KeyEvent to attempt to stop it
 	}
 
 	@Override
@@ -588,190 +580,15 @@ public class Polyline extends ZDisplayable implements Line3D, VectorData {
 		index = findPoint(x_p, y_p, layer_id, mag);
 
 		if (ProjectToolbar.PENCIL == tool && n_points > 0 && -1 == index && !me.isShiftDown() && !Utils.isControlDown(me)) {
-			// Use Mark Longair's tracing: from the clicked point to the last one
-
-			// Check that there are any images -- otherwise may hang. TODO
-			if (layer_set.getDisplayables(Patch.class).isEmpty()) {
-				Utils.log("No images are present!");
-				return;
+			try {
+				SNTFunctions.trace(this, project, layer, display, me, x_pd, y_pd);
 			}
-
-			final double scale = layer_set.getVirtualizationScale();
-			// Ok now with all found images, create a virtual stack that provides access to them all, with caching.
-			final Worker[] worker = new Worker[2];
-
-			final TraceParameters tr_ = tr_map.get(layer_set);
-			final TraceParameters tr = null == tr_ ? new TraceParameters() : tr_;
-			if (null == tr_) {
-				synchronized (tr_map) {
-					tr_map.put(layer_set, tr);
-				}
+			catch (final NoClassDefFoundError err) {
+				IJ.error("Cannot load SNT for line tracing. " +
+					"Do you have the Neuroanatomy update site enabled?");
+				IJError.print(err);
 			}
-
-			if (tr.update) {
-				worker[0] = new Worker("Preparing Hessian...") { @Override
-                public void run() {
-					startedWorking();
-					try {
-				Utils.log("Push ESCAPE key to cancel autotrace anytime.");
-				final ImagePlus virtual = new LayerStack(layer_set, scale, ImagePlus.GRAY8, Patch.class, display.getDisplayChannelAlphas(), Segmentation.fmp.SNT_invert_image).getImagePlus();
-				//virtual.show();
-				final Calibration cal = virtual.getCalibration();
-				double minimumSeparation = 1;
-				if (cal != null) minimumSeparation = Math.min(cal.pixelWidth,
-									      Math.min(cal.pixelHeight,
-										       cal.pixelDepth));
-				final ComputeCurvatures hessian = new ComputeCurvatures(virtual, minimumSeparation, null, cal != null);
-				hessian.run();
-
-				tr.virtual = virtual;
-				//tr.scale = scale;
-				tr.hessian = hessian;
-				tr.update = false;
-
-					} catch (final Exception e) {
-						IJError.print(e);
-					}
-					finishedWorking();
-				}};
-				Bureaucrat.createAndStart(worker[0], project);
-			}
-
-			final Point2D.Double po = transformPoint(p[0][n_points-1], p[1][n_points-1]);
-			final int start_x = (int)po.x;
-			final int start_y = (int)po.y;
-			final int start_z = layer_set.indexOf(layer_set.getLayer(p_layer[n_points-1])); // 0-based
-			final int goal_x = (int)(x_pd * scale); // must transform into virtual space
-			final int goal_y = (int)(y_pd * scale);
-			final int goal_z = layer_set.indexOf(layer);
-
-			/*
-			Utils.log2("x_pd, y_pd : " + x_pd + ", " + y_pd);
-			Utils.log2("scale: " + scale);
-			Utils.log2("start: " + start_x + "," + start_y + ", " + start_z);
-			Utils.log2("goal: " + goal_x + "," + goal_y + ", " + goal_z);
-			Utils.log2("virtual: " + tr.virtual);
-			*/
-
-
-			final boolean simplify = me.isAltDown();
-
-			worker[1] = new Worker("Tracer - waiting on hessian") { @Override
-            public void run() {
-				startedWorking();
-				try {
-				if (null != worker[0]) {
-					// Wait until hessian is ready
-					worker[0].join();
-				}
-				setTaskName("Tracing path");
-				final int reportEveryMilliseconds = 2000;
-				tr.tracer = new TracerThread(tr.virtual, 0, 255,
-						                       120,  // timeout seconds
-								       reportEveryMilliseconds,
-								       start_x, start_y, start_z,
-								       goal_x, goal_y, goal_z,
-								       true, // reciproal pix values at start and goal
-								       tr.virtual.getStackSize() == 1,
-								       tr.hessian,
-								       null == tr.hessian ? 1 : 4,
-								       null,
-								       null != tr.hessian);
-				tr.tracer.addProgressListener(new SearchProgressCallback() {
-					@Override
-                    public void pointsInSearch(final SearchInterface source, final int inOpen, final int inClosed) {
-						worker[1].setTaskName("Tracing path: open=" + inOpen + " closed=" + inClosed);
-					}
-					@Override
-                    public void finished(final SearchInterface source, final boolean success) {
-						if (!success) {
-							Utils.logAll("Could NOT trace a path");
-						}
-					}
-					@Override
-                    public void threadStatus(final SearchInterface source, final int currentStatus) {
-						// This method gets called every reportEveryMilliseconds
-						if (worker[1].hasQuitted()) {
-							source.requestStop();
-						}
-					}
-				});
-
-				tr.tracer.run();
-
-				final Path result = tr.tracer.getResult();
-
-				tr.tracer = null;
-
-				if (null == result) {
-					Utils.log("Finding a path failed"); //: "+
-						// not public //SearchThread.exitReasonStrings[tracer.getExitReason()]);
-					return;
-				}
-
-				// TODO: precise_x_positions etc are likely to be broken (calibrated or something)
-
-
-				// Remove bogus points: those at the end with 0,0 coords
-				int len = result.size();
-				final double[][] pos = new double[3][len];
-				for (int i = len - 1; i > -1; i--) {
-					pos[0][i] = result.getXUnscaledDouble(i);
-					pos[1][i] = result.getYUnscaledDouble(i);
-					pos[2][i] = result.getZUnscaledDouble(i);
-				}
-				for (int i=len-1; i>-1; i--) {
-					if (0 == pos[0][i] && 0 == pos[1][i]) {
-						len--;
-					} else break;
-				}
-				// Transform points: undo scale, and bring to this Polyline AffineTransform:
-				final AffineTransform aff = new AffineTransform();
-				/* Inverse order: */
-				/* 2 */ aff.concatenate(Polyline.this.at.createInverse());
-				/* 1 */ aff.scale(1/scale, 1/scale);
-				final double[] po = new double[len * 2];
-				for (int i=0, j=0; i<len; i++, j+=2) {
-					po[j] = pos[0][i];
-					po[j+1] = pos[1][i];
-				}
-				final double[] po2 = new double[len * 2];
-				aff.transform(po, 0, po2, 0, len); // what a stupid format: consecutive x,y pairs
-
-				long[] p_layer_ids = new long[len];
-				double[] pox = new double[len];
-				double[] poy = new double[len];
-				for (int i=0, j=0; i<len; i++, j+=2) {
-					p_layer_ids[i] = layer_set.getLayer((int)pos[2][i]).getId(); // z_positions in 0-(N-1), not in 1-N like slices!
-					pox[i] = po2[j];
-					poy[i] = po2[j+1];
-				}
-
-				// Simplify path: to steps of 5 calibration units, or 5 pixels when not calibrated.
-				if (simplify) {
-					setTaskName("Simplifying path");
-					final Object[] ob = Polyline.simplify(pox, poy, p_layer_ids, 10000, layer_set);
-					pox = (double[])ob[0];
-					poy = (double[])ob[1];
-					p_layer_ids = (long[])ob[2];
-					len = pox.length;
-				}
-
-				// Record the first newly-added autotraced point index:
-				last_autotrace_start = Polyline.this.n_points;
-				Polyline.this.appendPoints(pox, poy, p_layer_ids, len);
-
-				Polyline.this.repaint(true, null);
-				Utils.logAll("Added " + len + " new points.");
-
-				} catch (final Exception e) { IJError.print(e); }
-				finishedWorking();
-			}};
-			Bureaucrat.createAndStart(worker[1], project);
-
-			index = -1;
 			return;
-
 		}
 
 		if (ProjectToolbar.PEN == tool || ProjectToolbar.PENCIL == tool) {
