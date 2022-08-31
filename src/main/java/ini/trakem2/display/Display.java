@@ -41,6 +41,7 @@ import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Scrollbar;
 import java.awt.TextField;
 import java.awt.Toolkit;
@@ -1173,6 +1174,7 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 		Field OFFSET;
 		Toolbar toolbar = Toolbar.getInstance();
 		int size;
+		int scale = 1;
 		//int offset;
 		ToolbarPanel() {
 			setBackground(Color.white);
@@ -1182,17 +1184,21 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				drawButton.setAccessible(true);
 				lineType = Toolbar.class.getDeclaredField("lineType");
 				lineType.setAccessible(true);
-				SIZE = Toolbar.class.getDeclaredField("SIZE");
+				SIZE = Toolbar.class.getDeclaredField("buttonHeight");
 				SIZE.setAccessible(true);
 				OFFSET = Toolbar.class.getDeclaredField("OFFSET");
 				OFFSET.setAccessible(true);
 				size = ((Integer)SIZE.get(null)).intValue();
 				//offset = ((Integer)OFFSET.get(null)).intValue();
+				Field scaleField = Toolbar.class.getDeclaredField("scale");
+				scaleField.setAccessible(true);
+				scale = ((Integer)scaleField.get(null)).intValue();
 			} catch (final Exception e) {
 				IJError.print(e);
+				scale = 1;
 			}
 			// Magic cocktail:
-			final Dimension dim = new Dimension(250, size+size);
+			final Dimension dim = new Dimension(9 * size, size+size); // 9 buttons per row
 			setMinimumSize(dim);
 			setPreferredSize(dim);
 			setMaximumSize(dim);
@@ -1207,6 +1213,17 @@ public final class Display extends DBObject implements ActionListener, IJEventLi
 				// in incorrectly positioned toolbar buttons.
 				final BufferedImage bi = new BufferedImage(getWidth(), getHeight(), BufferedImage.TYPE_INT_RGB);
 				final Graphics g = bi.getGraphics();
+				// Use same hints as ij.gui.Toolbar 
+				Graphics2D g2d = (Graphics2D)g;
+				g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+				// Set stroke as per ij.gui.Toolbar
+				if (scale==1) {
+					if (ij.Prefs.getGuiScale()>1.0)
+						g2d.setStroke(new BasicStroke(IJ.isMacOSX()?1.4f:1.25f));
+				} else {
+					g2d.setStroke(new BasicStroke(scale));
+				}
 				g.setColor(Color.white);
 				g.fillRect(0, 0, getWidth(), getHeight());
 				int i = 0;

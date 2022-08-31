@@ -91,6 +91,7 @@ public class YesNoDialog extends Dialog implements ActionListener, KeyListener {
 		}
 		add("South", panel);
 		pack();
+		GUI.scale(this);
 		GUI.center(this);
 		if (show) setVisible(true);
 	}

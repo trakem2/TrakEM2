@@ -100,7 +100,7 @@ public class Project extends DBObject {
 	static {
 		try {
 			//UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-			if (IJ.isLinux()) {
+			if (ij.IJ.isLinux() && "com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel".equals(UIManager.getLookAndFeel().getClass().getName())) {
 				UIManager.setLookAndFeel("javax.swing.plaf.metal.MetalLookAndFeel");
 				if (null != IJ.getInstance()) javax.swing.SwingUtilities.updateComponentTreeUI(IJ.getInstance());
 				//if ("albert".equals(System.getProperty("user.name"))) UIManager.setLookAndFeel("com.sun.java.swing.plaf.nimbus.NimbusLookAndFeel");
@@ -770,7 +770,7 @@ public class Project extends DBObject {
 		}
 		if (loader.hasChanges() && !getBooleanProperty("no_shutdown_hook")) { // DBLoader always returns false
 			if (ControlWindow.isGUIEnabled()) {
-				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ". Save them?");
+				final YesNoDialog yn = ControlWindow.makeYesNoDialog("TrakEM2", "There are unsaved changes in project " + title + ".\nSave them?");
 				if (yn.yesPressed()) {
 					save();
 				}
