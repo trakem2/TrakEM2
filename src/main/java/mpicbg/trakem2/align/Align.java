@@ -77,6 +77,55 @@ import mpicbg.trakem2.transform.TranslationModel2D;
  */
 public class Align
 {
+	/**
+	 * Class for getting information out of TrakEM2 and into the align.py script
+	 */
+	static public class Access 
+	{
+		public static List<TilePairClass> tile_pairs = new ArrayList<TilePairClass>();
+	}
+	/**
+	 * Class where information is stored about the Fields.
+	 */
+	static public class TilePairClass
+	{
+		public final Patch tile1_name;
+		public final Patch tile2_name;
+		public final double r_error;
+		public final List<InliersClass> inliers_list;
+
+		/**
+		 * Function to initialize class with information about a Field Pair
+		 */
+		public TilePairClass(Patch tile1_name, Patch tile2_name, double r_error, List<InliersClass> inliers_list)
+			{
+				this.tile1_name = tile1_name;
+				this.tile2_name = tile2_name;
+				this.r_error = r_error;
+				this.inliers_list = inliers_list;
+			}
+	}
+	/**
+	 * Class for inliers information in Field Pairs
+	 */
+	static public class InliersClass
+	{
+		public final double p1_x;
+		public final double p1_y;
+		public final double p2_x;
+		public final double p2_y;
+		public final double distance;
+
+		public InliersClass(double p1_x, double p1_y, double p2_x, double p2_y, double distance)
+			{
+				this.p1_x = p1_x;
+				this.p1_y = p1_y;
+				this.p2_x = p2_x;
+				this.p2_y = p2_y;
+				this.distance = distance;
+			}
+	}
+
 	static public class Param implements Serializable
 	{
         private static final long serialVersionUID = -6469820142091971052L;
@@ -595,7 +644,8 @@ public class Align
 		final public void run()
 		{
 			final List< PointMatch > candidates = new ArrayList< PointMatch >();
-
+			//Keep track of where to store the current Field information in the access class
+			int listindex = 0;
 			for ( int i = ai.getAndIncrement(); i < tilePairs.size() && !isInterrupted(); i = ai.getAndIncrement() )
 			{
 				if (isInterrupted()) return;
@@ -651,7 +701,37 @@ public class Align
 							multipleHypotheses );
 
 					if ( modelFound )
+					{
+						//Create temporary Array list of Inliers class to store information about inliers for current Field Pair
+						List<InliersClass> inliers_list_temp = new ArrayList<InliersClass>();
+						//index  to keep track where to put the inliers class into the array list
+						int m = 0;
+						//loop for all inliers in the Field Pair
+						for(PointMatch pointmatch: inliers)
+						{	
+							//Get information from pointmatch into a Point object
+							Point point1 = pointmatch.getP1();
+							Point point2 = pointmatch.getP2();
+							
+							//Use local coordinate function to get an actual coordiante
+							double[] world1 = point1.getL();
+							double[] world2 = point2.getL();					
+							
+							//Add information to inliers class
+							InliersClass inliers_var = new InliersClass(world1[0], world1[1], world2[0], world2[1], pointmatch.getDistance());
+							
+							//add inliers class to inliers class list
+							inliers_list_temp.add(m, inliers_var);
+							m++;
+						}
+						//Create TilePair class object and fill it with the Field Pair information, including the inliers list
+						TilePairClass Pair_var = new TilePairClass(tilePair[ 0 ].getPatch(), tilePair[ 1 ].getPatch(), model.getCost(), inliers_list_temp);
+						//Add TilePair class object to the Access Array
+						Access.tile_pairs.add(listindex, Pair_var); 
+						//Keep track of where to add the TilePair class opbject
+						listindex++;			
 						Utils.log( "Model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondences  " + inliers.size() + " of " + candidates.size() + "\n  average residual error  " + model.getCost() + " px\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
+					}
 					else
 						Utils.log( "No model found for tiles \"" + tilePair[ 0 ].getPatch() + "\" and \"" + tilePair[ 1 ].getPatch() + "\":\n  correspondence candidates  " + candidates.size() + "\n  took " + ( System.currentTimeMillis() - s ) + " ms" );
 
