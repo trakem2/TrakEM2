@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>32.0.0</version>
+		<version>37.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -19,12 +19,12 @@
 	<inceptionYear>2005</inceptionYear>
 	<organization>
 		<name>Fiji</name>
-		<url>http://fiji.sc/</url>
+		<url>https://fiji.sc/</url>
 	</organization>
 	<licenses>
 		<license>
 			<name>GNU General Public License v3+</name>
-			<url>http://www.gnu.org/licenses/gpl.html</url>
+			<url>https://www.gnu.org/licenses/gpl.html</url>
 			<distribution>repo</distribution>
 		</license>
 	</licenses>
