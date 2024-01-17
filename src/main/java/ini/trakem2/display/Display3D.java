@@ -450,28 +450,26 @@ public final class Display3D {
 
 		setWaitingCursor();
 
-		// Start new scheduler to publish/add meshes to the 3D Viewer every 5 seconds and when done.
+		// Start new scheduler to publish/add meshes to the 3D Viewer every 4 seconds and when done.
 		final Hashtable<Display3D,Vector<Content>> contents = new Hashtable<Display3D,Vector<Content>>();
 		final ScheduledExecutorService updater = Executors.newScheduledThreadPool(1);
 		final AtomicInteger counter = new AtomicInteger();
-		updater.scheduleWithFixedDelay(new Runnable() {
-			@Override
-			public void run() {
-				// Obtain a copy of the contents queue
-				final HashMap<Display3D,Vector<Content>> m = new HashMap<Display3D,Vector<Content>>();
-				synchronized (contents) {
-					m.putAll(contents);
-					contents.clear();
-				}
-				if (m.isEmpty()) return;
-				// Add all to the corresponding Display3D
-				for (final Map.Entry<Display3D,Vector<Content>> e : m.entrySet()) {
-					e.getKey().universe.addContentLater(e.getValue());
-					counter.getAndAdd(e.getValue().size());
-				}
-				Utils.showStatus(new StringBuilder("Rendered ").append(counter.get()).append('/').append(hs.size()).toString());
+		Runnable updaterTask = () -> {
+			// Obtain a copy of the contents queue
+			final HashMap<Display3D,Vector<Content>> m = new HashMap<Display3D,Vector<Content>>();
+			synchronized (contents) {
+				m.putAll(contents);
+				contents.clear();
 			}
-		}, 100, 4000, TimeUnit.MILLISECONDS);
+			if (m.isEmpty()) return;
+			// Add all to the corresponding Display3D
+			for (final Map.Entry<Display3D,Vector<Content>> e : m.entrySet()) {
+				e.getKey().universe.addContentLater(e.getValue());
+				counter.getAndAdd(e.getValue().size());
+			}
+			Utils.showStatus(new StringBuilder("Rendered ").append(counter.get()).append('/').append(hs.size()).toString());
+		};
+		updater.scheduleWithFixedDelay(updaterTask, 100, 4000, TimeUnit.MILLISECONDS);
 
 		// A list of all generated Content objects
 		final Vector<Future<Content>> list = new Vector<Future<Content>>();
@@ -556,14 +554,10 @@ public final class Display3D {
 								IJError.print(t);
 							}
 						}
-						try {
-							// Shutdown scheduler and execute remaining tasks
-							for (final Runnable r : updater.shutdownNow()) {
-								r.run();
-							}
-						} catch (final Throwable e) {
-							IJError.print(e);
-						}
+						// Shutdown scheduler
+						updater.shutdown();
+						// …and run once more in case we were in a delay between calls
+						updaterTask.run();
 						// Reset cursor
 						doneWaiting();
 						Utils.showStatus(new StringBuilder("Done rendering ").append(counter.get()).append('/').append(hs.size()).toString());
