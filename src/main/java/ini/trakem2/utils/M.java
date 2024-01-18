@@ -30,6 +30,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.geom.GeneralPath;
 import java.awt.geom.NoninvertibleTransformException;
+import java.awt.geom.Path2D;
 import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
@@ -355,33 +356,6 @@ public final class M {
 
 		return pols;
 	}
-	static public final Collection<Polygon> getPolygonsByRounding(final Area area) {
-		final ArrayList<Polygon> pols = new ArrayList<Polygon>();
-		Polygon pol = new Polygon();
-
-		final float[] coords = new float[6];
-		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
-			final int seg_type = pit.currentSegment(coords);
-			switch (seg_type) {
-				case PathIterator.SEG_MOVETO:
-				case PathIterator.SEG_LINETO:
-					pol.addPoint(Math.round(coords[0]), Math.round(coords[1]));
-					break;
-				case PathIterator.SEG_CLOSE:
-					pols.add(pol);
-					pol = new Polygon();
-					break;
-				default:
-					Utils.log2("WARNING: unhandled seg type.");
-					break;
-			}
-			pit.next();
-			if (pit.isDone()) {
-				break;
-			}
-		}
-		return pols;
-	}
 
 	/** Return a new Area resulting from applying @param ict to @param a;
 	 *  assumes areas consists of paths with moveTo, lineTo and close operations. */
@@ -490,11 +464,31 @@ public final class M {
 
 	/** Converts all points in @param area to ints by rounding. */
 	static public final Area areaInIntsByRounding(final Area area) {
-		final Area a = new Area();
-		for (final Polygon pol : M.getPolygonsByRounding(area)) {
-			a.add(new Area(pol));
+		final Path2D.Float pol = new Path2D.Float();
+		final float[] coords = new float[6];
+		for (final PathIterator pit = area.getPathIterator(null); !pit.isDone(); ) {
+			final int seg_type = pit.currentSegment(coords);
+			switch (seg_type) {
+				case PathIterator.SEG_MOVETO:
+					pol.moveTo(Math.round(coords[0]), Math.round(coords[1]));
+					break;
+				case PathIterator.SEG_LINETO:
+					pol.lineTo(Math.round(coords[0]), Math.round(coords[1]));
+					break;
+				case PathIterator.SEG_CLOSE:
+					pol.closePath();
+					break;
+				default:
+					Utils.log2("WARNING: unhandled seg type.");
+					break;
+			}
+			pit.next();
+			if (pit.isDone()) {
+				break;
+			}
 		}
-		return a;
+
+		return new Area(pol);
 	}
 
 	/* ================================================= */
