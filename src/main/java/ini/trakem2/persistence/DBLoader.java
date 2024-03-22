@@ -2566,124 +2566,125 @@ public class DBLoader extends Loader {
 			monitor_ob.notifyAll();
 		}
 	}
+	*/
 
 	/** Monitors the InputStream of a PostgreSQL connection. This class is a tremendous hack on the PG JDBC that won't work on applets and certified systems. What it does: replaces the InputStream in the connection's PGStream with a ini.trakem2.utils.LoggingInputStream that keeps track of the amount of bytes read and the speed. */
-	private class Monitor extends Thread {
-
-		private final Connection connection;
-		private final LoggingInputStream lis;
-		private java.awt.Dialog dialog;
-		private volatile boolean quit = false;
-		private Label time;
-		private Label speed;
-		private Label bytes;
-		private long last_shown = 0;
-
-		private boolean hasConnection(Connection c) {
-			return connection.equals(c);
-		}
-
-		private void makeWindow() {
-			dialog = new java.awt.Dialog(IJ.getInstance(), "Loading...", false);
-			dialog.setUndecorated(true);
-			bytes = new Label("Loaded: 0 bytes                ");
-			speed = new Label("Speed: 0 bytes/s               ");
-			time = new Label ("Elapsed time: 0 s              ");
-			dialog.setLayout(new GridLayout(3,1));
-			dialog.addWindowListener(new java.awt.event.WindowAdapter() {
-				public void windowDeactivated(java.awt.event.WindowEvent we) {
-					dialog.toFront();
-				}
-			});
-			dialog.add(time);
-			dialog.add(bytes);
-			dialog.add(speed);
-			java.awt.Dimension screen = dialog.getToolkit().getScreenSize();
-			dialog.pack();
-			dialog.setLocation(screen.width/2 - dialog.getWidth()/2, screen.height/2 - dialog.getHeight()/2);
-			//dialog.setVisible(true);
-		}
-		Monitor(Connection con) {
-			connection = con;
-			LoggingInputStream lis = null;
-			try {
-				PgConnection a2 = (PgConnection)connection;
-				QueryExecutor qe = a2.getQueryExecutor();
-				// get the PGStream!
-				java.lang.reflect.Field f_pgstream = QueryExecutorBase.class.getDeclaredField("pgStream");
-				f_pgstream.setAccessible(true);
-				PGStream pgstream = (PGStream)f_pgstream.get(qe);
-				// now the InputStream
-				java.lang.reflect.Field f_i = PGStream.class.getDeclaredField("pgInput");
-				f_i.setAccessible(true);
-				VisibleBufferedInputStream stream = (VisibleBufferedInputStream)f_i.get(pgstream);
-				lis = new LoggingInputStream(stream);
-				VisibleBufferedInputStream vlis = new VisibleBufferedInputStream(lis, stream.getBuffer().length);
-				f_i.set(pgstream, vlis); // TADA! Many thanks to the PGSQL JDBC mailing list for this last tip on not just monitoring the PGStream as I was doing, but on replacing the inputstream altogether with a logging copy! ("CountingInputStream", they called it).
-
-			} catch (Exception e) {
-				IJError.print(e);
-			}
-			this.lis = lis;
-			makeWindow();
-		}
-		/** Stops the monitoring thread. */
-		public void quit() {
-			quit = true;
-			//dialog.setModal(false);
-			dialog.setVisible(false);
-			dialog.dispose();
-			dialog = null;
-		}
-		public void run() {
-			long[] info = new long[5];
-			while (!quit) {
-				try {
-					// check if this monitor has to die
-					if (connection.isClosed()) {
-						quit();
-						return; 
-					}
-
-					// gather info
-					lis.getInfo(info);
-					long n_bytes = info[2];
-					double d_speed = n_bytes / (double)info[1]; // in Kb / s
-					long now = info[0];
-
-					if (n_bytes > 1000) {
-						time.setText("Elapsed time: " + Utils.cutNumber(info[3]/1000.0, 2) + " s");
-						speed.setText("Speed: " + Utils.cutNumber(d_speed, 2) + " Kb/s");
-						bytes.setText("Loaded: " + Utils.cutNumber(info[4]/1000.0, 2) + " Kb");
-						if (!dialog.isVisible()) {
-							//dialog.setModal(true); // block input // TODO this apparently blocks the current thread as well!
-							Display.setReceivesInput(Project.findProject(DBLoader.this), false);
-							dialog.setVisible(true);
-							last_shown = now;
-						}
-						dialog.toFront();
-					} else if (dialog.isVisible()) {
-						//dialog.setModal(false); // enable user input
-						time.setText("Elapsed time: " + Utils.cutNumber(info[3]/1000.0, 2) + " s");
-						dialog.toFront();
-						if (now - last_shown > 2000) {
-							dialog.setVisible(false);
-							Display.setReceivesInput(Project.findProject(DBLoader.this), true);
-							lis.resetInfo();
-						}
-					}
-
-					// read every second:
-					Thread.sleep(500);
-
-				} catch (InterruptedException ie) {
-				} catch (Exception e) {
-					IJError.print(e);
-					quit();
-				}
-			}
-		}
-	}
+//	private class Monitor extends Thread {
+//
+//		private final Connection connection;
+//		private final LoggingInputStream lis;
+//		private java.awt.Dialog dialog;
+//		private volatile boolean quit = false;
+//		private Label time;
+//		private Label speed;
+//		private Label bytes;
+//		private long last_shown = 0;
+//
+//		private boolean hasConnection(Connection c) {
+//			return connection.equals(c);
+//		}
+//
+//		private void makeWindow() {
+//			dialog = new java.awt.Dialog(IJ.getInstance(), "Loading...", false);
+//			dialog.setUndecorated(true);
+//			bytes = new Label("Loaded: 0 bytes                ");
+//			speed = new Label("Speed: 0 bytes/s               ");
+//			time = new Label ("Elapsed time: 0 s              ");
+//			dialog.setLayout(new GridLayout(3,1));
+//			dialog.addWindowListener(new java.awt.event.WindowAdapter() {
+//				public void windowDeactivated(java.awt.event.WindowEvent we) {
+//					dialog.toFront();
+//				}
+//			});
+//			dialog.add(time);
+//			dialog.add(bytes);
+//			dialog.add(speed);
+//			java.awt.Dimension screen = dialog.getToolkit().getScreenSize();
+//			dialog.pack();
+//			dialog.setLocation(screen.width/2 - dialog.getWidth()/2, screen.height/2 - dialog.getHeight()/2);
+//			//dialog.setVisible(true);
+//		}
+//		Monitor(Connection con) {
+//			connection = con;
+//			LoggingInputStream lis = null;
+//			try {
+//				PgConnection a2 = (PgConnection)connection;
+//				QueryExecutor qe = a2.getQueryExecutor();
+//				// get the PGStream!
+//				java.lang.reflect.Field f_pgstream = QueryExecutorBase.class.getDeclaredField("pgStream");
+//				f_pgstream.setAccessible(true);
+//				PGStream pgstream = (PGStream)f_pgstream.get(qe);
+//				// now the InputStream
+//				java.lang.reflect.Field f_i = PGStream.class.getDeclaredField("pgInput");
+//				f_i.setAccessible(true);
+//				VisibleBufferedInputStream stream = (VisibleBufferedInputStream)f_i.get(pgstream);
+//				lis = new LoggingInputStream(stream);
+//				VisibleBufferedInputStream vlis = new VisibleBufferedInputStream(lis, stream.getBuffer().length);
+//				f_i.set(pgstream, vlis); // TADA! Many thanks to the PGSQL JDBC mailing list for this last tip on not just monitoring the PGStream as I was doing, but on replacing the inputstream altogether with a logging copy! ("CountingInputStream", they called it).
+//
+//			} catch (Exception e) {
+//				IJError.print(e);
+//			}
+//			this.lis = lis;
+//			makeWindow();
+//		}
+//		/** Stops the monitoring thread. */
+//		public void quit() {
+//			quit = true;
+//			//dialog.setModal(false);
+//			dialog.setVisible(false);
+//			dialog.dispose();
+//			dialog = null;
+//		}
+//		public void run() {
+//			long[] info = new long[5];
+//			while (!quit) {
+//				try {
+//					// check if this monitor has to die
+//					if (connection.isClosed()) {
+//						quit();
+//						return; 
+//					}
+//
+//					// gather info
+//					lis.getInfo(info);
+//					long n_bytes = info[2];
+//					double d_speed = n_bytes / (double)info[1]; // in Kb / s
+//					long now = info[0];
+//
+//					if (n_bytes > 1000) {
+//						time.setText("Elapsed time: " + Utils.cutNumber(info[3]/1000.0, 2) + " s");
+//						speed.setText("Speed: " + Utils.cutNumber(d_speed, 2) + " Kb/s");
+//						bytes.setText("Loaded: " + Utils.cutNumber(info[4]/1000.0, 2) + " Kb");
+//						if (!dialog.isVisible()) {
+//							//dialog.setModal(true); // block input // TODO this apparently blocks the current thread as well!
+//							Display.setReceivesInput(Project.findProject(DBLoader.this), false);
+//							dialog.setVisible(true);
+//							last_shown = now;
+//						}
+//						dialog.toFront();
+//					} else if (dialog.isVisible()) {
+//						//dialog.setModal(false); // enable user input
+//						time.setText("Elapsed time: " + Utils.cutNumber(info[3]/1000.0, 2) + " s");
+//						dialog.toFront();
+//						if (now - last_shown > 2000) {
+//							dialog.setVisible(false);
+//							Display.setReceivesInput(Project.findProject(DBLoader.this), true);
+//							lis.resetInfo();
+//						}
+//					}
+//
+//					// read every second:
+//					Thread.sleep(500);
+//
+//				} catch (InterruptedException ie) {
+//				} catch (Exception e) {
+//					IJError.print(e);
+//					quit();
+//				}
+//			}
+//		}
+//	}
 
 	/** Always returns false. */
 	public boolean hasChanges() {
