@@ -4204,32 +4204,21 @@ while (it.hasNext()) {
 
 	// Dummy class to provide access the notifyListeners from Image
 	static private final class ImagePlusAccess extends ImagePlus {
-		final int CLOSE = CLOSED; // from super class ImagePlus, which is not visible
-		final int OPEN = OPENED;
-		final int UPDATE = UPDATED;
-		private Vector<ij.ImageListener> my_listeners;
-		@SuppressWarnings("unchecked")
 		public ImagePlusAccess() {
 			super();
-			try {
-				final java.lang.reflect.Field f = ImagePlus.class.getDeclaredField("listeners");
-				f.setAccessible(true);
-				this.my_listeners = (Vector<ij.ImageListener>)f.get(this);
-			} catch (final Exception e) {
-				IJError.print(e);
-			}
 		}
+		@SuppressWarnings("unchecked")
 		public final void notifyListeners(final ImagePlus imp, final int action) {
 			try {
-				for (final ij.ImageListener listener : my_listeners) {
+				for (final ij.ImageListener listener : (Vector<ij.ImageListener>)ImagePlus.getListeners()) {
 					switch (action) {
-						case CLOSE:
+						case ImagePlus.CLOSED:
 							listener.imageClosed(imp);
 							break;
-						case OPEN:
+						case ImagePlus.OPENED:
 							listener.imageOpened(imp);
 							break;
-						case UPDATE:
+						case ImagePlus.UPDATED:
 							listener.imageUpdated(imp);
 							break;
 					}
