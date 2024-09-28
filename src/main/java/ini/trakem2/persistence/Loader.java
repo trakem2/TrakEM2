@@ -4239,7 +4239,7 @@ while (it.hasNext()) {
 		if (null != roi) roi.setImage(null);
 		//final ImageProcessor ip = imp.getProcessor(); // the nullifying makes no difference, and in low memory situations some bona fide imagepluses may end up failing on the calling method because of lack of time to grab the processor etc.
 		//if (null != ip) ip.setPixels(null);
-		ipa.notifyListeners(imp, ipa.CLOSE);
+		ipa.notifyListeners(imp, 1 /*ImagePlus.CLOSED*/);
 	}
 
 	/** Returns the user's home folder unless overriden. */

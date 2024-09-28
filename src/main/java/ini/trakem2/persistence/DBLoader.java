@@ -94,7 +94,7 @@ public class DBLoader extends Loader {
 
 	private Connection connection = null;
 	static private boolean driver_loaded = false;
-	private Monitor monitor = null;
+	//private Monitor monitor = null;
 
 	/** Check if settings are in. */
 	public boolean isReady() {
@@ -369,7 +369,7 @@ public class DBLoader extends Loader {
 				connection = DriverManager.getConnection("jdbc:postgresql:" + (db_host.equals("") || db_host.equals("localhost") ? "" : "//" + db_host + (db_port.equals("") ? "" : ":" + db_port + "/")) + db_name, db_user, db_pw);
 				prepareStatements();
 				if (null != connection) {
-					if (null != monitor) monitor.quit(); // kill any previous monitors before launching a new one
+					//if (null != monitor) monitor.quit(); // kill any previous monitors before launching a new one
 					// TODO gets in the way of the GUI too much
 					// monitor = new Monitor(connection);
 					// monitor.start();
