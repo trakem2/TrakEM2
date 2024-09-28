@@ -39,10 +39,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.scijava.vecmath.Point3f;
-import org.scijava.vecmath.Tuple3d;
-import org.scijava.vecmath.Vector3d;
-import org.scijava.vecmath.Vector3f;
+import org.jogamp.vecmath.Point3f;
+import org.jogamp.vecmath.Tuple3d;
+import org.jogamp.vecmath.Vector3d;
+import org.jogamp.vecmath.Vector3f;
 
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;

@@ -87,8 +87,8 @@ import javax.swing.SwingUtilities;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Point3f;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Point3f;
 
 import fiji.geom.AreaCalculations;
 import ij.ImagePlus;
@@ -630,7 +630,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 		// The method, by the way, is very parallelizable: each is independent.
 
 		final HashMap<Color,Color3f> cached_colors = new HashMap<Color, Color3f>();
-		final Color3f cf = new Color3f(this.color);
+		final Color3f cf = ij3d.Utils.toColor3f(this.color);
 		cached_colors.put(this.color, cf);
 
 		boolean go = true;
@@ -662,7 +662,7 @@ public abstract class Tree<T> extends ZDisplayable implements VectorData {
 				} else {
 					Color3f c = cached_colors.get(node.color);
 					if (null == c) {
-						c = new Color3f(node.color);
+						c = ij3d.Utils.toColor3f(node.color);
 						cached_colors.put(node.color, c);
 					}
 					colors.add(c);

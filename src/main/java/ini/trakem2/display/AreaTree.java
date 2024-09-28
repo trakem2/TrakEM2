@@ -50,8 +50,8 @@ import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Point3f;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Point3f;
 
 import customnode.CustomTriangleMesh;
 import fiji.geom.AreaCalculations;
@@ -592,7 +592,7 @@ public class AreaTree extends Tree<Area> implements AreaContainer {
 		// Determine colors by proximity to a node, since there isn't any other way.
 		// TODO
 		Utils.log("WARNING: AreaTree multicolor 3D mesh is not yet implemented.");
-		final Color3f cf = new Color3f(color);
+		final Color3f cf = ij3d.Utils.toColor3f(color);
 		for (int i=0; i<ps.size(); i++) colors.add(cf);
 
 		return new MeshData(ps, colors);

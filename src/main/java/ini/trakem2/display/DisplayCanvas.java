@@ -71,9 +71,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-import org.scijava.vecmath.Point2f;
-import org.scijava.vecmath.Vector2f;
-import org.scijava.vecmath.Vector3d;
+import org.jogamp.vecmath.Point2f;
+import org.jogamp.vecmath.Vector2f;
+import org.jogamp.vecmath.Vector3d;
 
 import ij.IJ;
 import ij.ImagePlus;

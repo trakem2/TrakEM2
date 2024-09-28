@@ -48,11 +48,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.scijava.java3d.Transform3D;
-import org.scijava.vecmath.AxisAngle4f;
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Point3f;
-import org.scijava.vecmath.Vector3f;
+import org.jogamp.java3d.Transform3D;
+import org.jogamp.vecmath.AxisAngle4f;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Point3f;
+import org.jogamp.vecmath.Vector3f;
 
 import ij.gui.GenericDialog;
 import ij.measure.Calibration;
@@ -665,7 +665,7 @@ public class Treeline extends Tree<Float> {
 		final AxisAngle4f aa = new AxisAngle4f();
 
 		final List<Color3f> colors = new ArrayList<Color3f>();
-		final Color3f cf = new Color3f(this.color);
+		final Color3f cf = ij3d.Utils.toColor3f(this.color);
 		final HashMap<Color,Color3f> cached_colors = new HashMap<Color,Color3f>();
 		cached_colors.put(this.color, cf);
 
@@ -733,7 +733,7 @@ public class Treeline extends Tree<Float> {
 				} else {
 					c = cached_colors.get(nd.color);
 					if (null == c) {
-						c = new Color3f(nd.color);
+						c = ij3d.Utils.toColor3f(nd.color);
 						cached_colors.put(nd.color, c);
 					}
 				}

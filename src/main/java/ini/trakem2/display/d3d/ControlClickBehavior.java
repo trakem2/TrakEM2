@@ -23,7 +23,7 @@ package ini.trakem2.display.d3d;
 
 import java.awt.event.MouseEvent;
 
-import org.scijava.vecmath.Point3d;
+import org.jogamp.vecmath.Point3d;
 
 import ij.measure.Calibration;
 import ij3d.Content;

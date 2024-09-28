@@ -36,8 +36,8 @@ import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -58,10 +58,10 @@ import javax.swing.JTextField;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableColumn;
 
-import org.scijava.java3d.BranchGroup;
-import org.scijava.java3d.Canvas3D;
-import org.scijava.java3d.View;
-import org.scijava.vecmath.Color3f;
+import org.jogamp.java3d.BranchGroup;
+import org.jogamp.java3d.Canvas3D;
+import org.jogamp.java3d.View;
+import org.jogamp.vecmath.Color3f;
 
 import ij3d.Content;
 import ij3d.Image3DUniverse;
@@ -149,9 +149,9 @@ public class Display3DGUI {
 	 */
 	static private final List<Content> getOrderedContents(final Image3DUniverse univ) {
 		final ArrayList<Content> cs = new ArrayList<Content>();
-		final Enumeration<?> seq = univ.getScene().getAllChildren();
-		while (seq.hasMoreElements()) {
-			final Object o = seq.nextElement();
+		final Iterator<?> seq = univ.getScene().getAllChildren();
+		while (seq.hasNext()) {
+			final Object o = seq.next();
 			if (o instanceof Content) cs.add((Content)o);
 		}
 		return cs;

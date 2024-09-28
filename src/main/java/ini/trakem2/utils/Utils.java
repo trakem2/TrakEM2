@@ -980,7 +980,7 @@ public class Utils implements ij.plugin.PlugIn {
 
 	static private final boolean isJava3DInstalled() {
 		try {
-			Class.forName("org.scijava.vecmath.Point3f");
+			Class.forName("org.jogamp.vecmath.Point3f");
 		} catch (final ClassNotFoundException cnfe) {
 			return false;
 		}

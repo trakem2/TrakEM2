@@ -46,7 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
-import org.scijava.vecmath.Point3f;
+import org.jogamp.vecmath.Point3f;
 
 import ini.trakem2.Project;
 import ini.trakem2.utils.IJError;

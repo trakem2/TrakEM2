@@ -46,11 +46,11 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.scijava.java3d.PolygonAttributes;
-import org.scijava.java3d.Transform3D;
-import org.scijava.java3d.View;
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Point3f;
+import org.jogamp.java3d.PolygonAttributes;
+import org.jogamp.java3d.Transform3D;
+import org.jogamp.java3d.View;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Point3f;
 
 import customnode.CustomLineMesh;
 import customnode.CustomMesh;
@@ -310,7 +310,7 @@ public final class Display3D {
 		if (check_j3d) {
 			check_j3d = false;
 			try {
-				Class.forName("org.scijava.vecmath.Point3f");
+				Class.forName("org.jogamp.vecmath.Point3f");
 				has_j3d_3dviewer = true;
 			} catch (final ClassNotFoundException cnfe) {
 				Utils.log("Java 3D not installed.");
@@ -895,7 +895,7 @@ public final class Display3D {
 		Content ct = null;
 
 		try {
-			final Color3f c3 = new Color3f(color);
+			final Color3f c3 = ij3d.Utils.toColor3f(color);
 
 			// If it exists, remove and add as new:
 			universe.removeContent(title);
@@ -996,7 +996,7 @@ public final class Display3D {
 				Utils.log("WARNING: adding a 3D object fully transparent.");
 			}
 			final List<Point3f> triangles = Pipe.generateTriangles(Pipe.makeTube(vs.getPoints(0), vs.getPoints(1), vs.getPoints(2), wi, 1, 12, null), d3d.scale);
-			final Content ct = d3d.universe.createContent(new CustomTriangleMesh(triangles, new Color3f(color), 0), title);
+			final Content ct = d3d.universe.createContent(new CustomTriangleMesh(triangles, ij3d.Utils.toColor3f(color), 0), title);
 			ct.setTransparency(transp);
 			ct.setLocked(true);
 			return ct;
@@ -1125,7 +1125,7 @@ public final class Display3D {
 			Content content = d3d.universe.getContent(makeTitle(d));
 			if (null == content) content = getProfileContent(d);
 			if (null != content) {
-				content.setColor(new Color3f(color));
+				content.setColor(ij3d.Utils.toColor3f(color));
 				return true;
 			}
 			return false;
@@ -1237,7 +1237,7 @@ public final class Display3D {
 	static public final Future<Content> addFatPoint(final String title, final LayerSet ls, final double wx, final double wy, final double wz, final double wr, final Color color) {
 		final Display3D d3d = Display3D.get(ls);
 		d3d.universe.removeContent(title);
-		final Content ct = d3d.universe.createContent(new CustomTriangleMesh(d3d.createFatPoint(wx, wy, wz, wr, ls.getCalibrationCopy()), new Color3f(color), 0), title);
+		final Content ct = d3d.universe.createContent(new CustomTriangleMesh(d3d.createFatPoint(wx, wy, wz, wr, ls.getCalibrationCopy()), ij3d.Utils.toColor3f(color), 0), title);
 		ct.setLocked(true);
 		return d3d.addContent(ct);
 	}

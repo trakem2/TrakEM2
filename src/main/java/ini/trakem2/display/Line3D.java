@@ -26,7 +26,7 @@ package ini.trakem2.display;
 import java.awt.Color;
 import java.util.List;
 
-import org.scijava.vecmath.Point3f;
+import org.jogamp.vecmath.Point3f;
 
 import ini.trakem2.Project;
 import ini.trakem2.vector.VectorString3D;

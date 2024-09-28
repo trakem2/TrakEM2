@@ -54,13 +54,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Pattern;
 
-import org.scijava.java3d.Transform3D;
-import org.scijava.vecmath.Color3f;
-import org.scijava.vecmath.Matrix3d;
-import org.scijava.vecmath.Matrix4d;
-import org.scijava.vecmath.Point3d;
-import org.scijava.vecmath.Tuple3d;
-import org.scijava.vecmath.Vector3d;
+import org.jogamp.java3d.Transform3D;
+import org.jogamp.vecmath.Color3f;
+import org.jogamp.vecmath.Matrix3d;
+import org.jogamp.vecmath.Matrix4d;
+import org.jogamp.vecmath.Point3d;
+import org.jogamp.vecmath.Tuple3d;
+import org.jogamp.vecmath.Vector3d;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -1883,7 +1883,7 @@ public class Compare {
 						continue;
 					}
 
-					final Content sphere = d3d.getUniverse().addMesh(ij3d.Mesh_Maker.createSphere(x, y, z, r), new Color3f(heat_table.get(name)), name + "-sphere", 1);
+					final Content sphere = d3d.getUniverse().addMesh(ij3d.Mesh_Maker.createSphere(x, y, z, r), ij3d.Utils.toColor3f(heat_table.get(name)), name + "-sphere", 1);
 				}
 			}
 

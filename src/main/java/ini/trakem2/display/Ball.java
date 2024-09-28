@@ -45,7 +45,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import org.scijava.vecmath.Point3f;
+import org.jogamp.vecmath.Point3f;
 
 import ij.gui.GenericDialog;
 import ij.measure.Calibration;
@@ -931,7 +931,7 @@ public class Ball extends ZDisplayable implements VectorData {
 	/** Put all balls as a single 'mesh'; the returned list contains all faces as three consecutive Point3f. The mesh is also translated by x,y,z of this Displayable.*/
 	public List<Point3f> generateTriangles(final double scale, final double[][][] globe) {
 		try {
-			Class.forName("org.scijava.vecmath.Point3f");
+			Class.forName("org.jogamp.vecmath.Point3f");
 		} catch (final ClassNotFoundException cnfe) {
 			Utils.log("Java3D is not installed.");
 			return null;
