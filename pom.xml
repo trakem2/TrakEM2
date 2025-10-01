@@ -11,7 +11,7 @@
 
 	<groupId>sc.fiji</groupId>
 	<artifactId>TrakEM2_</artifactId>
-	<version>2.0.1-SNAPSHOT</version>
+	<version>2.0.2-SNAPSHOT</version>
 
 	<name>TrakEM2</name>
 	<description>TrakEM2 plugin for ImageJ.</description>
@@ -141,7 +141,7 @@
 
 	<properties>
 		<package-name>ini.trakem2</package-name>
-		<trakem2.add-opens></trakem2.add-opens>
+		<trakem2.add-opens />
 
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Albert Cardona, Stephan Saalfeld and others.</license.copyrightOwners>
