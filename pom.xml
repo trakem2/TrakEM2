@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>38.0.1</version>
+		<version>43.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -277,28 +277,4 @@
 			<optional>true</optional>
 		</dependency>
 	</dependencies>
-
-		<build>
-			<plugins>
-				<plugin>
-					<groupId>org.apache.maven.plugins</groupId>
-					<artifactId>maven-surefire-plugin</artifactId>
-					<configuration>
-						<argLine>${argLine} ${trakem2.add-opens}</argLine>
-					</configuration>
-				</plugin>
-			</plugins>
-		</build>
-
-		<profiles>
-			<profile>
-				<id>trakem2-add-opens</id>
-				<activation>
-					<jdk>[9,)</jdk>
-				</activation>
-				<properties>
-					<trakem2.add-opens>--add-opens java.base/java.lang=ALL-UNNAMED</trakem2.add-opens>
-				</properties>
-			</profile>
-		</profiles>
 </project>
