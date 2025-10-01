@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.scijava</groupId>
 		<artifactId>pom-scijava</artifactId>
-		<version>38.0.1</version>
+		<version>43.0.0</version>
 		<relativePath />
 	</parent>
 
@@ -141,6 +141,7 @@
 
 	<properties>
 		<package-name>ini.trakem2</package-name>
+		<trakem2.add-opens></trakem2.add-opens>
 
 		<license.licenseName>gpl_v3</license.licenseName>
 		<license.copyrightOwners>Albert Cardona, Stephan Saalfeld and others.</license.copyrightOwners>

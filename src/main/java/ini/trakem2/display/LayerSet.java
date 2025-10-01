@@ -2,7 +2,7 @@
  * #%L
  * TrakEM2 plugin for ImageJ.
  * %%
- * Copyright (C) 2005 - 2024 Albert Cardona, Stephan Saalfeld and others.
+ * Copyright (C) 2005 - 2025 Albert Cardona, Stephan Saalfeld and others.
  * %%
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as
@@ -1148,13 +1148,72 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 	}
 
 	private static java.lang.reflect.Field sbvalue = null;
+	private static java.lang.reflect.Field sbcoder = null;
+	private static final ThreadLocal<char[]> sbCharBuffer = ThreadLocal.withInitial(() -> new char[1024]);
 	static {
 		try {
-			sbvalue = StringBuilder.class.getSuperclass().getDeclaredField("value");
+			final Class<?> asb = StringBuilder.class.getSuperclass();
+			sbvalue = asb.getDeclaredField("value");
 			sbvalue.setAccessible(true);
+			try {
+				sbcoder = asb.getDeclaredField("coder");
+				sbcoder.setAccessible(true);
+			} catch (NoSuchFieldException ignored) {
+				// Older JVMs expose char[] directly; coder field absent.
+			}
 		} catch (Exception e) {
 			IJError.print(e);
 		}
+	}
+
+	private static char[] ensureCharBuffer(final int length) {
+		char[] buffer = sbCharBuffer.get();
+		if (buffer.length < length) {
+			buffer = new char[length];
+			sbCharBuffer.set(buffer);
+		}
+		return buffer;
+	}
+
+	private static void writeStringBuilder(final java.io.Writer writer, final StringBuilder builder) throws java.io.IOException {
+		if (null == sbvalue) {
+			writer.write(builder.toString());
+			return;
+		}
+		try {
+			final Object value = sbvalue.get(builder);
+			final int length = builder.length();
+			if (value instanceof char[]) {
+				writer.write((char[]) value, 0, length);
+				return;
+			}
+			if (value instanceof byte[]) {
+				if (null == sbcoder) {
+					writer.write(builder.toString());
+					return;
+				}
+				final byte[] bytes = (byte[]) value;
+				final char[] chars = ensureCharBuffer(length);
+				final byte coder = sbcoder.getByte(builder);
+				if (0 == coder) { // LATIN1
+					for (int i = 0; i < length; i++) {
+						chars[i] = (char) (bytes[i] & 0xFF);
+					}
+				} else { // UTF16
+					int bi = 0;
+					for (int i = 0; i < length; i++) {
+						final int lo = bytes[bi++] & 0xFF;
+						final int hi = bytes[bi++] & 0xFF;
+						chars[i] = (char) (lo | (hi << 8));
+					}
+				}
+				writer.write(chars, 0, length);
+				return;
+			}
+		} catch (IllegalAccessException e) {
+			IJError.print(e);
+		}
+		writer.write(builder.toString());
 	}
 
 	public void exportXML(final java.io.Writer writer, final String indent, final XMLOptions options) throws Exception {
@@ -1196,11 +1255,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			       .append(in).append("/>\n")
 			;
 		}
-		if (null == sbvalue) {
-			writer.write(sb_body.toString());
-		} else {
-			writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
-		}
+		writeStringBuilder(writer, sb_body);
 		// Count objects
 		int done = 0;
 		int total = 0;
@@ -1213,11 +1268,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			for (final ZDisplayable zd : al_zdispl) {
 				sb_body.setLength(0);
 				zd.exportXML(sb_body, in, options);
-				if (null == sbvalue) {
-					writer.write(sb_body.toString()); // each separately, for they can be huge
-				} else {
-					writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
-				}
+				writeStringBuilder(writer, sb_body); // each separately, for they can be huge
 			}
 			done += al_zdispl.size();
 			Utils.showProgress(done / (double)total);
@@ -1228,11 +1279,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 			for (final Layer la : al_layers) {
 				sb_body.setLength(0);
 				la.exportXML(sb_body, in, options);
-				if (null == sbvalue) {
-					writer.write(sb_body.toString());
-				} else {
-					writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
-				}
+				writeStringBuilder(writer, sb_body);
 				done += la.getDisplayableList().size();
 				Utils.showProgress(done / (double)total);
 			}
@@ -1240,11 +1287,7 @@ public final class LayerSet extends Displayable implements Bucketable { // Displ
 		sb_body.setLength(0);
 		if (sb_body.length() > 0) {
 			super.restXML(sb_body, in, options);
-			if (null == sbvalue) {
-				writer.write(sb_body.toString());
-			} else {
-				writer.write((char[])sbvalue.get(sb_body), 0, sb_body.length()); // avoid making a copy of the array
-			}
+			writeStringBuilder(writer, sb_body);
 		}
 		writer.write(indent + "</t2_layer_set>\n");
 	}
