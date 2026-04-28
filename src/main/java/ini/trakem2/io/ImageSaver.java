@@ -82,6 +82,17 @@ public class ImageSaver {
 
 	private ImageSaver() {}
 
+	/** A ByteArrayOutputStream that exposes its internal buffer, avoiding need for reflection or copying **/
+	static private final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
+		ExposedByteArrayOutputStream(final int initialSize) {
+			super(initialSize);
+		}
+		/** Returns the raw internal buffer. Valid up to size() bytes. */
+		byte[] rawBuf() {
+			return buf; // 'buf' is protected in ByteArrayOutputStream
+		}
+	}
+
 	static private final Object OBDIRS = new Object();
 
 	/** Will create parent directories if they don't exist.
@@ -224,7 +235,7 @@ public class ImageSaver {
 			BufferedImage grey = bi;
 			try {
 				writer = ImageIO.getImageWritersByFormatName("jpeg").next();
-				final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(bi.getWidth(), bi.getHeight()) );
+				final ExposedByteArrayOutputStream baos = new ExposedByteArrayOutputStream( estimateJPEGFileSize(bi.getWidth(), bi.getHeight()) );
 				ios = ImageIO.createImageOutputStream(baos);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
@@ -246,7 +257,7 @@ public class ImageSaver {
 				try {
 					// Now write to disk in the fastest way possible
 					final RandomAccessFile ra = new RandomAccessFile(new File(path), "rw");
-					final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+					final ByteBuffer bb = ByteBuffer.wrap(baos.rawBuf(), 0, baos.size());
 					ch = ra.getChannel();
 					while (bb.hasRemaining()) {
 						ch.write(bb);
@@ -467,18 +478,6 @@ public class ImageSaver {
 		sb.append((char)0);
 		return new String(sb);
 	}
-
-	static public final Field Bbuf;
-	static {
-		Field b = null;
-		try {
-			b = ByteArrayOutputStream.class.getDeclaredField("buf");
-			b.setAccessible(true);
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		Bbuf = b;
-	}
 	
 	/** Based on EM images of neuropils with outside alpha masks.
 	 * Fitted a polynomial on the length of file vs area size. */
@@ -501,7 +500,7 @@ public class ImageSaver {
 					//((JPEGImageWriteParam)iwp).setProgressiveMode(JPEGImageWriteParam.MODE_DISABLED);
 					//((JPEGImageWriteParam)iwp).
 					//
-					final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
+					final ExposedByteArrayOutputStream baos = new ExposedByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
 					ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
 					RandomAccessFile ra = null;
 					FileChannel ch = null;
@@ -510,7 +509,7 @@ public class ImageSaver {
 						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
 						// Now write to disk in the fastest way possible
 						ra = new RandomAccessFile(new File(path), "rw");
-						final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+						final ByteBuffer bb = ByteBuffer.wrap(baos.rawBuf(), 0, baos.size());
 						ch = ra.getChannel();
 						while (bb.hasRemaining()) {
 							ch.write(bb);
