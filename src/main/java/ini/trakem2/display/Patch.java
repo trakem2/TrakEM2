@@ -1619,7 +1619,7 @@ public final class Patch extends Displayable implements ImageData {
 			Utils.ensure(f);
 			ra = new RandomAccessFile(f, "rw");
 
-			final ImageSaver.ExposedByteArrayOutputStream ba = new ImageSaver.ExposedByteArrayOutputStream(bp.getWidth() * bp.getHeight());
+			final ByteArrayOutputStream ba = new ByteArrayOutputStream(bp.getWidth() * bp.getHeight());
 			final ZipOutputStream zos = new ZipOutputStream(ba);
 			final ImagePlus imp = new ImagePlus("mask.tif", bp); // ImageJ looks for ".tif" extension in the ZipEntry
 			zos.putNextEntry(new ZipEntry(imp.getTitle()));
@@ -1629,7 +1629,7 @@ public final class Patch extends Displayable implements ImageData {
 			zos.closeEntry();
 			zos.close();
 
-			ra.write(ba.rawBuf(), 0, ba.size());
+			ra.write(ba.toByteArray(), 0, ba.size());
 			return true;
 		} catch (final Throwable e) {
 			IJError.print(e);

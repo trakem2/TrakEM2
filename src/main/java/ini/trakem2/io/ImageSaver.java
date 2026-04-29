@@ -61,7 +61,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -81,17 +80,6 @@ import javax.media.jai.PlanarImage;
 public class ImageSaver {
 
 	private ImageSaver() {}
-
-	/** A ByteArrayOutputStream that exposes its internal buffer, avoiding need for reflection or copying **/
-	static public final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
-		public ExposedByteArrayOutputStream(final int initialSize) {
-			super(initialSize);
-		}
-		/** Returns the raw internal buffer. Valid up to size() bytes. */
-		public byte[] rawBuf() {
-			return buf; // 'buf' is protected in ByteArrayOutputStream
-		}
-	}
 
 	static private final Object OBDIRS = new Object();
 
@@ -235,7 +223,7 @@ public class ImageSaver {
 			BufferedImage grey = bi;
 			try {
 				writer = ImageIO.getImageWritersByFormatName("jpeg").next();
-				final ExposedByteArrayOutputStream baos = new ExposedByteArrayOutputStream( estimateJPEGFileSize(bi.getWidth(), bi.getHeight()) );
+				final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(bi.getWidth(), bi.getHeight()) );
 				ios = ImageIO.createImageOutputStream(baos);
 				writer.setOutput(ios);
 				ImageWriteParam param = writer.getDefaultWriteParam();
@@ -257,7 +245,7 @@ public class ImageSaver {
 				try {
 					// Now write to disk in the fastest way possible
 					final RandomAccessFile ra = new RandomAccessFile(new File(path), "rw");
-					final ByteBuffer bb = ByteBuffer.wrap(baos.rawBuf(), 0, baos.size());
+					final ByteBuffer bb = ByteBuffer.wrap(baos.toByteArray(), 0, baos.size());
 					ch = ra.getChannel();
 					while (bb.hasRemaining()) {
 						ch.write(bb);
@@ -500,7 +488,7 @@ public class ImageSaver {
 					//((JPEGImageWriteParam)iwp).setProgressiveMode(JPEGImageWriteParam.MODE_DISABLED);
 					//((JPEGImageWriteParam)iwp).
 					//
-					final ExposedByteArrayOutputStream baos = new ExposedByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
+					final ByteArrayOutputStream baos = new ByteArrayOutputStream( estimateJPEGFileSize(awt.getWidth(), awt.getHeight()) );
 					ImageOutputStream ios = ImageIO.createImageOutputStream(baos);
 					RandomAccessFile ra = null;
 					FileChannel ch = null;
@@ -509,7 +497,7 @@ public class ImageSaver {
 						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
 						// Now write to disk in the fastest way possible
 						ra = new RandomAccessFile(new File(path), "rw");
-						final ByteBuffer bb = ByteBuffer.wrap(baos.rawBuf(), 0, baos.size());
+						final ByteBuffer bb = ByteBuffer.wrap(baos.toByteArray(), 0, baos.size());
 						ch = ra.getChannel();
 						while (bb.hasRemaining()) {
 							ch.write(bb);

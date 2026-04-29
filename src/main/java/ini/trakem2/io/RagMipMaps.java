@@ -98,12 +98,12 @@ public final class RagMipMaps
 					ra.write(b[i]);
 				}
 				// Now write a compressed alpha channel:
-				final ImageSaver.ExposedByteArrayOutputStream ba = new ImageSaver.ExposedByteArrayOutputStream(b.length);
+				final ByteArrayOutputStream ba = new ByteArrayOutputStream(b.length);
 				final DeflaterOutputStream def = new DeflaterOutputStream(ba, new Deflater(4, false), 1024);
 				def.write(b[b.length-1]);
 				def.finish();
 				def.flush(); // likely not needed
-				ra.write(ba.rawBuf(), 0, ba.size());
+				ra.write(ba.toByteArray(), 0, ba.size());
 			}
 			return true;
 
