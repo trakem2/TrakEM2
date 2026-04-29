@@ -83,12 +83,12 @@ public class ImageSaver {
 	private ImageSaver() {}
 
 	/** A ByteArrayOutputStream that exposes its internal buffer, avoiding need for reflection or copying **/
-	static private final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
-		ExposedByteArrayOutputStream(final int initialSize) {
+	static public final class ExposedByteArrayOutputStream extends ByteArrayOutputStream {
+		public ExposedByteArrayOutputStream(final int initialSize) {
 			super(initialSize);
 		}
 		/** Returns the raw internal buffer. Valid up to size() bytes. */
-		byte[] rawBuf() {
+		public byte[] rawBuf() {
 			return buf; // 'buf' is protected in ByteArrayOutputStream
 		}
 	}
