@@ -61,7 +61,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -246,7 +245,7 @@ public class ImageSaver {
 				try {
 					// Now write to disk in the fastest way possible
 					final RandomAccessFile ra = new RandomAccessFile(new File(path), "rw");
-					final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+					final ByteBuffer bb = ByteBuffer.wrap(baos.toByteArray(), 0, baos.size());
 					ch = ra.getChannel();
 					while (bb.hasRemaining()) {
 						ch.write(bb);
@@ -467,18 +466,6 @@ public class ImageSaver {
 		sb.append((char)0);
 		return new String(sb);
 	}
-
-	static public final Field Bbuf;
-	static {
-		Field b = null;
-		try {
-			b = ByteArrayOutputStream.class.getDeclaredField("buf");
-			b.setAccessible(true);
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		Bbuf = b;
-	}
 	
 	/** Based on EM images of neuropils with outside alpha masks.
 	 * Fitted a polynomial on the length of file vs area size. */
@@ -510,7 +497,7 @@ public class ImageSaver {
 						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
 						// Now write to disk in the fastest way possible
 						ra = new RandomAccessFile(new File(path), "rw");
-						final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+						final ByteBuffer bb = ByteBuffer.wrap(baos.toByteArray(), 0, baos.size());
 						ch = ra.getChannel();
 						while (bb.hasRemaining()) {
 							ch.write(bb);

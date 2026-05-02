@@ -1629,7 +1629,7 @@ public final class Patch extends Displayable implements ImageData {
 			zos.closeEntry();
 			zos.close();
 
-			ra.write((byte[])ImageSaver.Bbuf.get(ba), 0, ba.size());
+			ra.write(ba.toByteArray(), 0, ba.size());
 			return true;
 		} catch (final Throwable e) {
 			IJError.print(e);
