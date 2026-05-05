@@ -582,6 +582,8 @@ public class Project extends DBObject {
 
 		// set ProjectThing nodes expanded state, now that the trees exist
 		try {
+			// Restoring the expanded state of JTree nodes requires reflection, so skip.
+			/*
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
 			Hashtable<Object,Object> ht_exp = (Hashtable<Object,Object>) f.get(project.project_tree);
@@ -601,6 +603,7 @@ public class Project extends DBObject {
 					ht_exp.put(new TreePath(nd.getPath()), expanded);
 				}
 			}
+			*/
 			project.project_tree.updateUILater(); // very important!!
 		} catch (Exception e) {
 			IJError.print(e);
