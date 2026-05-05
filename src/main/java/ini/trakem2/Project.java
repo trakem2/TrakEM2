@@ -132,7 +132,7 @@ public class Project extends DBObject {
 		new Thread() { public void run() { try {
 			setPriority(Thread.NORM_PRIORITY);
 			setContextClassLoader(ij.IJ.getClassLoader());
-			final String plugins_dir = Utils.fixDir(ij.Menus.getPlugInsPath());
+			final String plugins_dir = Utils.fixDir(null == ij.Menus.getPlugInsPath() ? System.getProperty("user.dir") : ij.Menus.getPlugInsPath());
 			synchronized (PLUGIN_SOURCES) {
 			for (String name : new File(plugins_dir).list()) {
 				File f = new File(name);
