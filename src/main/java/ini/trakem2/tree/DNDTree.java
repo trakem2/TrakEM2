@@ -424,12 +424,27 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		setExpandedSilently(node, b);
 	}
 
-	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
-		if (b) {
-			expandPath(new TreePath(node.getPath()));
-		} else {
-			collapsePath(new TreePath(node.getPath()));
+	static private final java.lang.reflect.Field f_expandedState = DNDTree.getExpandedStateField();
+
+	static private final java.lang.reflect.Field getExpandedStateField() {
+		try {
+			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
+			f.setAccessible(true);
+			return f;
+		} catch (Exception e) {
+			Utils.log2("ERROR: " + e);
+			return null;
 		}
+	}
+
+	@SuppressWarnings("unchecked")
+	public void setExpandedSilently(final DefaultMutableTreeNode node, final boolean b) {
+		try {
+			final Hashtable<Object,Boolean> ht = (Hashtable<Object,Boolean>)f_expandedState.get(this);
+			ht.put(new TreePath(node.getPath()), b); // this queries directly the expandedState transient private Hashtable of the JTree
+		 } catch (Exception e) {
+			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
+		 }
 	}
 
 	/** Get the map of Thing vs. expanded state for all nodes that have children. */
@@ -437,10 +452,23 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		return getExpandedStates(new HashMap<Thing,Boolean>());
 	}
 
-	/** Placeholder code now we don't worry about expanded states */
+	/** Get the map of Thing vs. expanded state for all nodes that have children,
+	 * and put the mappins into the {@code m}.
+	 * @return {@code m}
+	 */
 	@SuppressWarnings("unchecked")
 	public HashMap<Thing,Boolean> getExpandedStates(final HashMap<Thing,Boolean> m) {
-		return m;
+		try {
+			final Hashtable<TreePath,Boolean> ht = (Hashtable<TreePath,Boolean>)f_expandedState.get(this);
+			for (final Map.Entry<TreePath,Boolean> e : ht.entrySet()) {
+				final Thing t = (Thing)((DefaultMutableTreeNode)e.getKey().getLastPathComponent()).getUserObject();
+				if (t.hasChildren()) m.put(t, e.getValue());
+			}
+			return m;
+		} catch (Exception e) {
+			IJError.print(e);
+		}
+		return null;
 	}
 
 	/** Check if there is a node holding the given Thing, and whether such node is expanded. */
@@ -450,8 +478,30 @@ public abstract class DNDTree extends JTree implements TreeExpansionListener, Ke
 		return isExpanded(node);
 	}
 
+	@SuppressWarnings("unchecked")
 	public boolean isExpanded(final DefaultMutableTreeNode node) {
-		return super.isExpanded(new TreePath(node.getPath()));
+		try {
+			final Hashtable<Object,Boolean> ht = (Hashtable<Object,Boolean>)f_expandedState.get(this);
+			return Boolean.TRUE.equals(ht.get(new TreePath(node.getPath()))); // this queries directly the expandedState transient private HashMap of the JTree
+		 } catch (Exception e) {
+			 Utils.log2("ERROR: " + e); // no IJError, potentially lots of text printed in failed applets
+			 return false;
+		 }
+
+		/* // Java's idiotic API confuses isExpanded with isVisible, making them equal! The JTree.isVisible() check should not be done within the JTree.isExpanded() method!
+		DefaultMutableTreeNode node = findNode(thing, this);
+		Utils.log2("node is " + node);
+		if (null == node) return false;
+		TreePath path = new TreePath(node.getPath());
+		//return this.isExpanded(new TreePath(node.getPath())); // the API is ludicrous: isExpanded, isCollapsed and isVisible return a value relative to whether the node is visible, not its specific expanded state.
+		Utils.log("contains: " + hs_expanded_paths.contains(path));
+		//return hs_expanded_paths.contains(node.getPath());
+		for (Iterator it = hs_expanded_paths.iterator(); it.hasNext(); ) {
+			if (path.equals(it.next())) return true;
+		}
+		Utils.log2("thing not expanded: " + thing);
+		return false;
+		*/
 	}
 
 	//private HashSet hs_expanded_paths = new HashSet();
