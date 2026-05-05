@@ -51,7 +51,6 @@ import java.awt.image.SampleModel;
 import java.awt.image.WritableRaster;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -61,7 +60,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.lang.reflect.Field;
 import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -243,10 +241,11 @@ public class ImageSaver {
 				writer.write(null, iioImage, param);
 				// Now write to disk
 				FileChannel ch = null;
+				RandomAccessFile ra = null;
 				try {
 					// Now write to disk in the fastest way possible
-					final RandomAccessFile ra = new RandomAccessFile(new File(path), "rw");
-					final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+					ra = new RandomAccessFile(new File(path), "rw");
+					final ByteBuffer bb = ByteBuffer.wrap(baos.getByteArray(), 0, baos.size());
 					ch = ra.getChannel();
 					while (bb.hasRemaining()) {
 						ch.write(bb);
@@ -254,6 +253,7 @@ public class ImageSaver {
 				} finally {
 					if (null != ch) ch.close();
 					ios.close();
+					if (null != ra) ra.close();
 				}
 				
 				
@@ -467,18 +467,6 @@ public class ImageSaver {
 		sb.append((char)0);
 		return new String(sb);
 	}
-
-	static public final Field Bbuf;
-	static {
-		Field b = null;
-		try {
-			b = ByteArrayOutputStream.class.getDeclaredField("buf");
-			b.setAccessible(true);
-		} catch (Exception e) {
-			IJError.print(e);
-		}
-		Bbuf = b;
-	}
 	
 	/** Based on EM images of neuropils with outside alpha masks.
 	 * Fitted a polynomial on the length of file vs area size. */
@@ -510,7 +498,7 @@ public class ImageSaver {
 						writer.write(writer.getDefaultStreamMetadata(iwp), new IIOImage(awt, null, null), iwp);
 						// Now write to disk in the fastest way possible
 						ra = new RandomAccessFile(new File(path), "rw");
-						final ByteBuffer bb = ByteBuffer.wrap((byte[])Bbuf.get(baos), 0, baos.size());
+						final ByteBuffer bb = ByteBuffer.wrap(baos.getByteArray(), 0, baos.size());
 						ch = ra.getChannel();
 						while (bb.hasRemaining()) {
 							ch.write(bb);
@@ -519,6 +507,7 @@ public class ImageSaver {
 					} finally {
 						if (null != ch) ch.close();
 						ios.close();
+						if (null != ra) ra.close();
 					}
 					return true; // only one: com.sun.imageio.plugins.jpeg.JPEGImageWriter
 				}
@@ -645,7 +634,6 @@ public class ImageSaver {
 		g.drawImage(some, 0, 0, null);
 		some.flush();
 		g.drawImage(awt, 0, 0, null);
-		@SuppressWarnings("serial")
 		java.awt.Canvas canvas = new java.awt.Canvas() {
 			public void paint(Graphics g) {
 				g.drawImage(background, 0, 0, null);
