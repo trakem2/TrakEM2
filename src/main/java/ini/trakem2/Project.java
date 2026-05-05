@@ -132,7 +132,7 @@ public class Project extends DBObject {
 		new Thread() { public void run() { try {
 			setPriority(Thread.NORM_PRIORITY);
 			setContextClassLoader(ij.IJ.getClassLoader());
-			final String plugins_dir = Utils.fixDir(ij.Menus.getPlugInsPath());
+			final String plugins_dir = Utils.fixDir(null == ij.Menus.getPlugInsPath() ? System.getProperty("user.dir") : ij.Menus.getPlugInsPath());
 			synchronized (PLUGIN_SOURCES) {
 			for (String name : new File(plugins_dir).list()) {
 				File f = new File(name);
@@ -582,6 +582,8 @@ public class Project extends DBObject {
 
 		// set ProjectThing nodes expanded state, now that the trees exist
 		try {
+			// Restoring the expanded state of JTree nodes requires reflection, so skip.
+			/*
 			java.lang.reflect.Field f = JTree.class.getDeclaredField("expandedState");
 			f.setAccessible(true);
 			Hashtable<Object,Object> ht_exp = (Hashtable<Object,Object>) f.get(project.project_tree);
@@ -601,6 +603,7 @@ public class Project extends DBObject {
 					ht_exp.put(new TreePath(nd.getPath()), expanded);
 				}
 			}
+			*/
 			project.project_tree.updateUILater(); // very important!!
 		} catch (Exception e) {
 			IJError.print(e);

@@ -29,7 +29,6 @@ import ini.trakem2.utils.Utils;
 
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -103,7 +102,7 @@ public final class RagMipMaps
 				def.write(b[b.length-1]);
 				def.finish();
 				def.flush(); // likely not needed
-				ra.write((byte[])ImageSaver.Bbuf.get(ba), 0, ba.size());
+				ra.write(ba.getByteArray(), 0, ba.size());
 			}
 			return true;
 

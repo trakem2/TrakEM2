@@ -45,7 +45,7 @@ import java.awt.image.DirectColorModel;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
 import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
+import ini.trakem2.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
@@ -1629,7 +1629,7 @@ public final class Patch extends Displayable implements ImageData {
 			zos.closeEntry();
 			zos.close();
 
-			ra.write((byte[])ImageSaver.Bbuf.get(ba), 0, ba.size());
+			ra.write(ba.getByteArray(), 0, ba.size());
 			return true;
 		} catch (final Throwable e) {
 			IJError.print(e);
